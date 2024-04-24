@@ -1,22 +1,40 @@
 [package]
 name = "authdecode"
+authors = ["TLSNotary Team"]
+description = "A 2PC protocol for authenticated decoding of encodings in zk"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+name = "authdecode"
+
+[features]
+default = []
+tracing = ["dep:tracing"]
 
 [dependencies]
 authdecode-core = { path = "../authdecode-core" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
 serde =  { version = "1.0", features = ["derive"] }
-
 futures-util = "0.3"
 
+tracing = { version = "0.1", optional = true }
+
 [dev-dependencies]
-rstest = "0.12"
 authdecode-core = { path = "../authdecode-core", features = ["fixtures", "mock"] }
+rstest = "0.12"
 tokio = { version = "1.23", features = [
     "net",
     "macros",
     "rt",
     "rt-multi-thread",
 ] }
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "halo2"
+harness = false

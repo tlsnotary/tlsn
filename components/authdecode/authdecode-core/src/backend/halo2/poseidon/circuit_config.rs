@@ -2,9 +2,7 @@ use halo2_poseidon::poseidon::{primitives::Spec, Pow5Chip, Pow5Config};
 use halo2_proofs::{halo2curves::bn256::Fr as F, plonk::ConstraintSystem};
 
 /// Configures the in-circuit Poseidon for rate 15 and returns the config.
-///
-/// Patterned after [halo2_gadgets::poseidon::pow5]
-/// (see in that file tests::impl Circuit for PermuteCircuit::configure())
+// Patterned after https://github.com/privacy-scaling-explorations/poseidon-gadget/blob/764a682ee448bfbde0cc92a04d241fe738ba2d14/src/poseidon/pow5.rs#L621
 pub fn configure_poseidon_rate_15<S: Spec<F, 16, 15>>(
     rate: usize,
     meta: &mut ConstraintSystem<F>,
@@ -26,9 +24,7 @@ pub fn configure_poseidon_rate_15<S: Spec<F, 16, 15>>(
 }
 
 /// Configures the in-circuit Poseidon for rate 1 and returns the config
-///
-/// Patterned after [halo2_gadgets::poseidon::pow5]
-/// (see in that file tests::impl Circuit for PermuteCircuit::configure())
+// Patterned after https://github.com/privacy-scaling-explorations/poseidon-gadget/blob/764a682ee448bfbde0cc92a04d241fe738ba2d14/src/poseidon/pow5.rs#L621
 #[allow(dead_code)]
 pub fn configure_poseidon_rate_1<S: Spec<F, 2, 1>>(
     rate: usize,
@@ -51,9 +47,7 @@ pub fn configure_poseidon_rate_1<S: Spec<F, 2, 1>>(
 }
 
 /// Configures the in-circuit Poseidon for rate 2 and returns the config
-///
-/// Patterned after [halo2_gadgets::poseidon::pow5]
-/// (see in that file tests::impl Circuit for PermuteCircuit::configure())
+// Patterned after https://github.com/privacy-scaling-explorations/poseidon-gadget/blob/764a682ee448bfbde0cc92a04d241fe738ba2d14/src/poseidon/pow5.rs#L621
 pub fn configure_poseidon_rate_2<S: Spec<F, 3, 2>>(
     rate: usize,
     meta: &mut ConstraintSystem<F>,

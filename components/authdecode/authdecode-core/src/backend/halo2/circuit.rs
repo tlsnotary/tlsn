@@ -10,7 +10,7 @@ use halo2_proofs::{
 };
 use std::convert::TryInto;
 
-use super::{
+use crate::backend::halo2::{
     poseidon::{
         circuit_config::{configure_poseidon_rate_15, configure_poseidon_rate_2},
         spec::{Spec15, Spec2},
@@ -29,31 +29,30 @@ use super::{
 // Note that 58 usable rows is what we get when we set the circuit's K to 6 (halo2 reserves 6 rows
 // for internal purposes, so we get 2^6-6 usable rows).
 
-/// How many field elements to use to pack the plaintext into. Only [USABLE_BITS] of each field element
-/// will be used.  
+/// How many field elements to use to pack the plaintext into. Only [USABLE_BYTES] of each field
+/// element will be used.  
 pub const FIELD_ELEMENTS: usize = 14;
 
 /// How many least significant bytes of a field element to use to pack the plaintext into.
 pub const USABLE_BYTES: usize = 31;
 
-/// How many advice columns are there to put the plaintext bits into.
-///
-/// Note that internally the bits of one plaintext field element are zero-padded on the left to a
-/// total of 256 bits. Then the bits are split up into 4 limbs of 64 bits. Each limb's bits are
-/// placed on an individual row.
-pub const BIT_COLUMNS: usize = 64;
+/// How many bits there are in one limb of a plaintext field element.
+//
+// Note that internally the bits of one plaintext field element are zero-padded on the left to a
+// total of 256 bits. Then the bits are split up into 4 limbs of [BITS_PER_LIMB] bits.
+pub const BITS_PER_LIMB: usize = 64;
 
-/// Bytesize of salt used both in the plaintext commitment and encoding sum commitment.
+/// Bytesize of the salt used both in the plaintext commitment and encoding sum commitment.
 pub const SALT_SIZE: usize = 16;
 
 #[derive(Clone, Debug)]
 /// The circuit configuration.
 pub struct CircuitConfig {
     /// Columns containing plaintext bits.  
-    bits: [Column<Advice>; BIT_COLUMNS],
+    bits: [Column<Advice>; BITS_PER_LIMB],
     /// Scratch space used to calculate intermediate values.
     scratch_space: [Column<Advice>; 5],
-    /// Expected dot product of a vector of deltas and a vector of limb's bits.
+    /// Expected dot product of a vector of deltas and a vector of a limb's bits.
     dot_product: Column<Advice>,
     /// Expected value when composing a 64-bit limb into a field element.
     expected_composed_limbs: Column<Advice>,
@@ -61,11 +60,11 @@ pub struct CircuitConfig {
     /// encoding sum salt, resp.
     salt: Column<Advice>,
 
-    /// Columns of deltas, such that each row of deltas corresponds to one limb of plaintext.
-    deltas: [Column<Instance>; BIT_COLUMNS],
+    /// Columns of deltas, arranged such that each row of deltas corresponds to one limb of plaintext.
+    deltas: [Column<Instance>; BITS_PER_LIMB],
 
-    /// Since halo2 does not allow to constrain inputs in instance columns
-    /// directly, we first need to copy the inputs into this advice column.
+    /// Since halo2 does not allow to constrain inputs in instance columns directly, we first need
+    /// to copy the inputs into this advice column.
     advice_from_instance: Column<Advice>,
 
     // SELECTORS.
@@ -90,14 +89,14 @@ pub struct CircuitConfig {
 #[derive(Clone, Debug)]
 /// The AuthDecode circuit.
 pub struct AuthDecodeCircuit {
-    /// The bits of plaintext which was committed to. Each bit is a field element.
+    /// The bits of plaintext which was committed to. Each bit is represente as a field element.
     ///
-    /// The original plaintext consisted of [FIELD_ELEMENTS] field elements.
-    /// Each field element is split into 4 limbs of [BIT_COLUMNS] bits starting from the high limb.
-    pub plaintext: [[[F; BIT_COLUMNS]; 4]; FIELD_ELEMENTS],
-    /// Salt used to create a plaintext commitment.
+    /// The plaintext consist of [FIELD_ELEMENTS] field elements. Each field element is split
+    /// into 4 limbs of [BITS_PER_LIMB] bits. The high limb has the index 0.
+    pub plaintext: [[[F; BITS_PER_LIMB]; 4]; FIELD_ELEMENTS],
+    /// The salt used to create a plaintext commitment.
     pub plaintext_salt: F,
-    /// Salt used to create an encoding sum commitment.
+    /// The salt used to create an encoding sum commitment.
     pub encoding_sum_salt: F,
 }
 
@@ -107,7 +106,7 @@ impl Circuit<F> for AuthDecodeCircuit {
 
     fn without_witnesses(&self) -> Self {
         Self {
-            plaintext: [[[F::default(); BIT_COLUMNS]; 4]; FIELD_ELEMENTS],
+            plaintext: [[[F::default(); BITS_PER_LIMB]; 4]; FIELD_ELEMENTS],
             plaintext_salt: F::default(),
             encoding_sum_salt: F::default(),
         }
@@ -116,7 +115,7 @@ impl Circuit<F> for AuthDecodeCircuit {
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         // ADVICE COLUMNS
 
-        let bits: [Column<Advice>; BIT_COLUMNS] = (0..BIT_COLUMNS)
+        let bits: [Column<Advice>; BITS_PER_LIMB] = (0..BITS_PER_LIMB)
             .map(|_| meta.advice_column())
             .collect::<Vec<_>>()
             .try_into()
@@ -146,7 +145,7 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         // INSTANCE COLUMNS
 
-        let deltas: [Column<Instance>; BIT_COLUMNS] = (0..BIT_COLUMNS)
+        let deltas: [Column<Instance>; BITS_PER_LIMB] = (0..BITS_PER_LIMB)
             .map(|_| meta.instance_column())
             .collect::<Vec<_>>()
             .try_into()
@@ -171,7 +170,7 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         let poseidon_config_rate15 = configure_poseidon_rate_15::<Spec15>(15, meta);
         let poseidon_config_rate2 = configure_poseidon_rate_2::<Spec2>(2, meta);
-        // We need to designate one column for global constants which the Poseidon chip requires.
+        // We need to have one column for global constants which the Poseidon chip requires.
         let global_constants = meta.fixed_column();
         meta.enable_constant(global_constants);
 
@@ -218,12 +217,12 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         // GATES
 
-        // Computes the dot product of a vector of deltas and a vector of a limb's bitsa and
+        // Computes the dot product of a vector of deltas and a vector of a limb's bits and
         // constrains it to match the expected dot product.
         meta.create_gate("dot_product", |meta| {
             let mut product = Expression::Constant(F::zero());
 
-            for i in 0..BIT_COLUMNS {
+            for i in 0..BITS_PER_LIMB {
                 let delta = meta.query_instance(cfg.deltas[i], Rotation::cur());
                 let bit = meta.query_advice(cfg.bits[i], Rotation::cur());
                 product = product + delta * bit;
@@ -238,7 +237,7 @@ impl Circuit<F> for AuthDecodeCircuit {
         // Constrains each bit of a limb to be binary.
         meta.create_gate("binary_check", |meta| {
             // Create an `Expression` for each bit.
-            let expressions: [Expression<F>; BIT_COLUMNS] = (0..BIT_COLUMNS)
+            let expressions: [Expression<F>; BITS_PER_LIMB] = (0..BITS_PER_LIMB)
                 .map(|i| {
                     let bit = meta.query_advice(cfg.bits[i], Rotation::cur());
                     bit.clone() * bit.clone() - bit
@@ -259,11 +258,11 @@ impl Circuit<F> for AuthDecodeCircuit {
             meta.create_gate("compose_limb", |meta| {
                 let mut sum_total = Expression::Constant(F::zero());
 
-                for i in 0..BIT_COLUMNS {
+                for i in 0..BITS_PER_LIMB {
                     // The first bit is the highest bit. It is multiplied by the
                     // highest power of 2 for that limb.
                     let bit = meta.query_advice(cfg.bits[i], Rotation::cur());
-                    sum_total = sum_total + bit * pow_2_x[255 - (BIT_COLUMNS * idx) - i].clone();
+                    sum_total = sum_total + bit * pow_2_x[255 - (BITS_PER_LIMB * idx) - i].clone();
                 }
 
                 // Constrain to match the expected limb value.
@@ -339,7 +338,6 @@ impl Circuit<F> for AuthDecodeCircuit {
                     2,
                 )?;
 
-                // Assign plaintext salt to an advice column.
                 let plaintext_salt = region.assign_advice(
                     || "assign plaintext salt",
                     cfg.salt,
@@ -347,7 +345,6 @@ impl Circuit<F> for AuthDecodeCircuit {
                     || Value::known(self.plaintext_salt),
                 )?;
 
-                // Assign encoding sum salt to an advice column.
                 let encoding_sum_salt = region.assign_advice(
                     || "assign encoding sum salt",
                     cfg.salt,
@@ -377,15 +374,16 @@ impl Circuit<F> for AuthDecodeCircuit {
                 // Row offset of the scratch space.
                 let mut offset = 0;
 
-                // Process 4 limbs of each field element of the plaintext.
+                // Process 4 limbs of one field element of the plaintext at a time.
                 for (field_element_idx, limbs) in self.plaintext.iter().enumerate() {
                     // Expected values of limbs composed from bits.
                     let mut expected_limbs = Vec::with_capacity(4);
+
                     // Expected dot product for each vector of limb's bits and a corresponding vector
                     // of deltas.
                     let mut expected_dot_products = Vec::with_capacity(4);
 
-                    // Process each limb's bits.
+                    // Process one limb's bits at a time.
                     for (limb_idx, limb_bits) in limbs.iter().enumerate() {
                         // The index of the row where the bits and deltas are located.
                         let row_idx = field_element_idx * 4 + limb_idx;
@@ -452,7 +450,9 @@ impl Circuit<F> for AuthDecodeCircuit {
                     )?);
                 }
 
-                // Compute the sum of all 14 dot products. 4 sums in total.
+                // Compute the sub sums for each chunk of 4 sub dot products. We will have 4 sub sums in total.
+                // XXX: This is hardcoded to 4 sub sums which is good enough if we have anywhere from 13
+                // to 16 field elements of plaintext.
                 let four_sums = dot_products
                     .chunks(4)
                     .map(|chunk| self.sum(chunk, &mut region, &cfg, &mut offset))
@@ -504,7 +504,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             chip,
             layouter.namespace(|| "init spec15 poseidon"),
         )?;
-        // unwrap() is safe since we use exactly 15 field elements in plaintext
+        // unwrap() is safe since we use exactly 15 field elements of plaintext.
         let output = hasher.hash(
             layouter.namespace(|| "hash spec15 poseidon"),
             plaintext.try_into().unwrap(),
@@ -523,8 +523,9 @@ impl Circuit<F> for AuthDecodeCircuit {
 }
 
 impl AuthDecodeCircuit {
+    /// Creates a new AuthDecode circuit.
     pub fn new(plaintext: [F; FIELD_ELEMENTS], plaintext_salt: F, encoding_sum_salt: F) -> Self {
-        // Split each field element into 4 64-bit limbs, starting from the high limb.
+        // Split each field element into 4 BITS_PER_LIMB-bit limbs. The high limb has index 0.
         Self {
             plaintext: plaintext
                 .into_iter()
@@ -534,9 +535,9 @@ impl AuthDecodeCircuit {
                         // Convert each bit into a field element.
                         .map(F::from)
                         .collect::<Vec<_>>()
-                        .chunks(BIT_COLUMNS)
+                        .chunks(BITS_PER_LIMB)
                         .map(|chunk| chunk.try_into().unwrap())
-                        .collect::<Vec<[F; BIT_COLUMNS]>>()
+                        .collect::<Vec<[F; BITS_PER_LIMB]>>()
                         .try_into()
                         .unwrap()
                 })

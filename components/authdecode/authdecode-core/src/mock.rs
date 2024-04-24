@@ -1,9 +1,9 @@
 use crate::{
     encodings::{Encoding, EncodingProvider, EncodingProviderError, FullEncodings},
-    id::{Id, IdSet},
+    id::{Id, IdCollection},
 };
-use itybity::{FromBitIterator, ToBits};
 
+use itybity::{FromBitIterator, ToBits};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, VecDeque},
@@ -11,26 +11,27 @@ use std::{
     ops::Range,
 };
 
-#[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
 /// The direction of the transcript.
+#[derive(Clone, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub enum Direction {
     #[default]
     Sent,
     Received,
 }
 
-/// A set of ids of transcript bits. Each bit is uniquely identified by the transcript's direction
+/// A collection of ids of transcript bits. Each bit is uniquely identified by the transcript's direction
 /// and the bit's index in the transcript.
 /// Ranges may overlap.
-#[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub struct MockBitIds {
+    /// The direction of the transcript.
     direction: Direction,
     /// Ranges of bits in the transcript. The ranges may overlap.
     ranges: VecDeque<Range<usize>>,
 }
 
 impl MockBitIds {
-    /// Constructs a new set from ids in the given **byte** `ranges`.
+    /// Constructs a new collection from ids in the given **byte** `ranges`.
     pub fn new(direction: Direction, ranges: &[Range<usize>]) -> Self {
         // Convert to bit ranges.
         let ranges = ranges
@@ -89,7 +90,7 @@ impl MockBitIds {
     }
 }
 
-impl IdSet for MockBitIds {
+impl IdCollection for MockBitIds {
     fn drain_front(&mut self, mut count: usize) -> Self {
         let mut drained_ranges: VecDeque<Range<usize>> = VecDeque::new();
 
@@ -157,6 +158,10 @@ impl IdSet for MockBitIds {
         self.ranges.iter().map(|r| r.len()).sum()
     }
 
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn new_from_iter<I: IntoIterator<Item = Self>>(iter: I) -> Self {
         let mut direction = None;
         let ranges = iter
@@ -184,7 +189,7 @@ impl IdSet for MockBitIds {
 #[derive(Clone)]
 pub struct MockEncodingProvider<T>
 where
-    T: IdSet,
+    T: IdCollection,
 {
     /// A mapping from a bit id to the full encoding of the bit.
     full_encodings: HashMap<Id, [Encoding; 2]>,
@@ -193,16 +198,16 @@ where
 
 impl<T> MockEncodingProvider<T>
 where
-    T: IdSet,
+    T: IdCollection,
 {
     pub fn new(full_encodings: FullEncodings<T>) -> Self {
         let mut hashmap = HashMap::new();
         for (full_enc, id) in full_encodings
-            .encodings
+            .encodings()
             .iter()
             .zip(full_encodings.ids().ids())
         {
-            if hashmap.insert(id.clone(), full_enc.clone()).is_some() {
+            if hashmap.insert(id.clone(), *full_enc).is_some() {
                 panic!("duplicate ids detected");
             }
         }
@@ -215,13 +220,13 @@ where
 
 impl<T> EncodingProvider<T> for MockEncodingProvider<T>
 where
-    T: IdSet,
+    T: IdCollection,
 {
     fn get_by_ids(&self, ids: &T) -> Result<FullEncodings<T>, EncodingProviderError> {
         let full_encodings = ids
             .ids()
             .iter()
-            .map(|id| self.full_encodings.get(id).unwrap().clone())
+            .map(|id| *self.full_encodings.get(id).unwrap())
             .collect::<Vec<_>>();
         Ok(FullEncodings::new(full_encodings, ids.clone()))
     }

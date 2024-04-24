@@ -1,19 +1,20 @@
 use crate::backend::traits::Field;
 use bincode;
-use num::BigInt;
+use num::{bigint::Sign, BigInt};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::ops::{Add, Sub};
 
 pub mod circuit;
 pub mod prover;
 pub mod verifier;
-use num::bigint::Sign;
+
 pub use prover::MockProverBackend;
-use std::ops::{Add, Sub};
 pub use verifier::MockVerifierBackend;
 
 /// Chunk size in bytes.
-pub const CHUNK_SIZE: usize = 300;
+pub(crate) const CHUNK_SIZE: usize = 300;
 
+/// A mock field element.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct MockField {
     #[serde(
@@ -22,6 +23,7 @@ pub struct MockField {
     )]
     inner: BigInt,
 }
+
 impl MockField {
     fn to_bytes_be(&self) -> Vec<u8> {
         let (_, bytes) = self.inner.to_bytes_be();

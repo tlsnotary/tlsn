@@ -1,31 +1,39 @@
-use crate::{backend::traits::Field, encodings::FullEncodings, id::IdSet};
+use crate::{backend::traits::Field, id::IdCollection};
 
-/// A commitment and related details for plaintext of an arbitrary length. The commitment has not been verified.
-#[derive(Clone)]
-pub struct UnverifiedCommitment<T, F> {
+use getset::Getters;
+
+/// A yet-unverified commitment to plaintext of an arbitrary length and related details.
+#[derive(Clone, Getters)]
+pub struct UnverifiedCommitment<I, F> {
     /// A non-empty collection of commitment details for each chunk of the plaintext.
-    pub chunk_commitments: Vec<UnverifiedChunkCommitment<T, F>>,
+    #[getset(get = "pub")]
+    chunk_commitments: Vec<UnverifiedChunkCommitment<I, F>>,
 }
 
-impl<T, F> UnverifiedCommitment<T, F>
+impl<I, F> UnverifiedCommitment<I, F>
 where
-    T: IdSet + Default,
+    I: IdCollection + Default,
     F: Field,
 {
     /// Creates a new `UnverifiedCommitment` instance.
-    pub fn new(chunk_commitments: Vec<UnverifiedChunkCommitment<T, F>>) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `chunk_commitments` - A non-empty collection of commitment details for each chunk of the
+    ///                         plaintext.
+    pub fn new(chunk_commitments: Vec<UnverifiedChunkCommitment<I, F>>) -> Self {
         Self { chunk_commitments }
     }
 
     /// Returns the id of each bit of the plaintext of this commitment.
-    pub fn ids(&self) -> T {
+    pub fn ids(&self) -> I {
         let iter = self
             .chunk_commitments
             .iter()
             .map(|com| com.ids.clone())
             .collect::<Vec<_>>();
 
-        T::new_from_iter(iter)
+        I::new_from_iter(iter)
     }
 
     /// Returns the length of the plaintext of this commitment.
@@ -33,49 +41,39 @@ where
     pub fn len(&self) -> usize {
         self.chunk_commitments.iter().map(|com| com.ids.len()).sum()
     }
-
-    /// Sets full encodings for the plaintext of this commitment.
-    ///
-    /// # Panics
-    ///
-    /// Panics in any the following cases:
-    /// - if the length of the full encodings does not match the length of the plaintext
-    /// - if the full encodings are meant to encode plaintext bits with incorrect ids
-    /// - if the full encodings have already been set
-    pub fn set_full_encodings(&mut self, mut full_encodings: FullEncodings<T>) {
-        assert!(self.len() == full_encodings.len());
-        for com in self.chunk_commitments.iter_mut() {
-            com.set_full_encodings(full_encodings.drain_front(com.len()))
-        }
-    }
 }
 
-/// Commitment details for a single chunk of plaintext. The commitment has not been verified.
-#[derive(Clone)]
-pub struct UnverifiedChunkCommitment<T, F> {
-    pub plaintext_hash: F,
-    pub encoding_sum_hash: F,
-    pub ids: T,
-    pub full_encodings: Option<FullEncodings<T>>,
+/// A yet-unverified commitment details for a single chunk of plaintext.
+#[derive(Clone, Getters)]
+pub struct UnverifiedChunkCommitment<I, F> {
+    /// Hash commitment to the plaintext.
+    #[getset(get = "pub")]
+    plaintext_hash: F,
+    /// Hash commitment to the arithemtic sum of the encodings of the plaintext.
+    #[getset(get = "pub")]
+    encoding_sum_hash: F,
+    /// The id of each bit of the committed plaintext.
+    #[getset(get = "pub")]
+    ids: I,
 }
 
-impl<T, F> UnverifiedChunkCommitment<T, F>
+impl<I, F> UnverifiedChunkCommitment<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
-    /// Creates a new `ChunkCommitment` instance.
-    pub fn new(
-        plaintext_hash: F,
-        encoding_sum_hash: F,
-        ids: T,
-        full_encodings: Option<FullEncodings<T>>,
-    ) -> Self {
+    /// Creates a new unverified chunk commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `plaintext_hash` - Hash commitment to the plaintext.
+    /// * `encoding_sum_hash` - Hash commitment to the arithemtic sum of the encodings of the plaintext.
+    /// * `ids` - The id of each bit of the committed plaintext.
+    pub fn new(plaintext_hash: F, encoding_sum_hash: F, ids: I) -> Self {
         Self {
             plaintext_hash,
             encoding_sum_hash,
             ids,
-            full_encodings,
         }
     }
 
@@ -84,35 +82,27 @@ where
     pub fn len(&self) -> usize {
         self.ids.len()
     }
-
-    /// Sets full encodings for the plaintext of this commitment.
-    ///
-    /// # Panics
-    ///
-    /// Panics in any of the following cases:
-    /// - if the full encodings have already been set
-    /// - if the full encodings are meant to encode plaintext bits with incorrect ids
-    pub fn set_full_encodings(&mut self, full_encodings: FullEncodings<T>) {
-        assert!(self.full_encodings.is_none());
-        assert!(self.ids == full_encodings.ids());
-        self.full_encodings = Some(full_encodings);
-    }
 }
 
-/// A verified commitment for plaintext of an arbitrary length.
+/// A verified commitment to plaintext of an arbitrary length.
 #[derive(Clone)]
-pub struct VerifiedCommitment<T, F> {
+pub struct VerifiedCommitment<I, F> {
     /// A non-empty collection of commitments for each chunk of the plaintext.
-    pub chunk_commitments: Vec<VerifiedChunkCommitment<T, F>>,
+    chunk_commitments: Vec<VerifiedChunkCommitment<I, F>>,
 }
 
-impl<T, F> VerifiedCommitment<T, F>
+impl<I, F> VerifiedCommitment<I, F>
 where
-    T: IdSet + Default,
+    I: IdCollection + Default,
     F: Field,
 {
-    /// Creates a new `Commitment` instance.
-    pub fn new(chunk_commitments: Vec<VerifiedChunkCommitment<T, F>>) -> Self {
+    /// Creates a new instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `chunk_commitments` - A non-empty collection of commitment details for each chunk of the
+    ///                         plaintext.
+    pub fn new(chunk_commitments: Vec<VerifiedChunkCommitment<I, F>>) -> Self {
         Self { chunk_commitments }
     }
 
@@ -123,24 +113,33 @@ where
     }
 }
 
-/// A verified commitment for single chunk of plaintext.
-#[derive(Clone)]
-pub struct VerifiedChunkCommitment<T, F> {
+/// A verified commitment for a single chunk of plaintext.
+#[derive(Clone, Getters)]
+pub struct VerifiedChunkCommitment<I, F> {
     /// Hash commitment to the plaintext.
-    pub plaintext_hash: F,
+    #[getset(get = "pub")]
+    plaintext_hash: F,
     /// Hash commitment to the arithemtic sum of the encodings of the plaintext.
-    pub encoding_sum_hash: F,
+    #[getset(get = "pub")]
+    encoding_sum_hash: F,
     /// The id of each bit of the plaintext.
-    ids: T,
+    #[getset(get = "pub")]
+    ids: I,
 }
 
-impl<T, F> VerifiedChunkCommitment<T, F>
+impl<I, F> VerifiedChunkCommitment<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
     /// Creates a new `ChunkCommitment` instance.
-    pub fn new(plaintext_hash: F, encoding_sum_hash: F, ids: T) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `plaintext_hash` - Hash commitment to the plaintext.
+    /// * `encoding_sum_hash` - Hash commitment to the arithemtic sum of the encodings of the plaintext.
+    /// * `ids` - The id of each bit of the committed plaintext.
+    pub fn new(plaintext_hash: F, encoding_sum_hash: F, ids: I) -> Self {
         Self {
             plaintext_hash,
             encoding_sum_hash,
@@ -155,12 +154,12 @@ where
     }
 }
 
-impl<T, F> From<UnverifiedCommitment<T, F>> for VerifiedCommitment<T, F>
+impl<I, F> From<UnverifiedCommitment<I, F>> for VerifiedCommitment<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
-    fn from(unverified: UnverifiedCommitment<T, F>) -> Self {
+    fn from(unverified: UnverifiedCommitment<I, F>) -> Self {
         Self {
             chunk_commitments: unverified
                 .chunk_commitments

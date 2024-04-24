@@ -7,11 +7,8 @@ use halo2_proofs::halo2curves::bn256::Fr as F;
 /// The type used to hold the MDS matrix and its inverse.
 pub(crate) type Mds<F, const T: usize> = [[F; T]; T];
 
-/// Spec for rate 15 Poseidon. halo2 uses this spec both inside
-/// the zk circuit and in the clear.
-///
-/// Compare it to the spec which zcash uses:
-/// [halo2_gadgets::poseidon::primitives::P128Pow5T3]
+/// The spec for rate-15 Poseidon used both inside the circuit and in the clear.
+// Patterned after https://github.com/privacy-scaling-explorations/poseidon-gadget/blob/764a682ee448bfbde0cc92a04d241fe738ba2d14/src/poseidon/primitives/p128pow5t3.rs#L15
 #[derive(Debug)]
 pub struct Spec15;
 
@@ -43,11 +40,8 @@ impl Spec<F, 16, 15> for Spec15 {
     }
 }
 
-/// Spec for rate 2 Poseidon which halo2 uses both inside
-/// the zk circuit and in the clear.
-///
-/// Compare it to the spec which zcash uses:
-/// [halo2_gadgets::poseidon::primitives::P128Pow5T3]
+/// The spec for rate-2 Poseidon used both inside the circuit and in the clear.
+// Patterned after https://github.com/privacy-scaling-explorations/poseidon-gadget/blob/764a682ee448bfbde0cc92a04d241fe738ba2d14/src/poseidon/primitives/p128pow5t3.rs#L15
 #[derive(Debug)]
 pub struct Spec2;
 
@@ -59,7 +53,8 @@ impl Spec<F, 3, 2> for Spec2 {
     fn partial_rounds() -> usize {
         // Taken from https://github.com/iden3/circomlib/blob/master/circuits/poseidon.circom
         // (see "var N_ROUNDS_P[16]"), where they use 57 partial rounds for 2-rate Poseidon.
-        // TODO: investigate why setting this > 56 gives errors.
+        // Note: the Poseidon gadget requires the round count to be an even number acc.to
+        // https://github.com/privacy-scaling-explorations/poseidon-gadget/blob/764a682ee448bfbde0cc92a04d241fe738ba2d14/src/poseidon/pow5.rs#L67
         56
     }
 
@@ -80,11 +75,8 @@ impl Spec<F, 3, 2> for Spec2 {
     }
 }
 
-/// Spec for rate 1 Poseidon which halo2 uses both inside
-/// the zk circuit and in the clear.
-///
-/// Compare it to the spec which zcash uses:
-/// [halo2_gadgets::poseidon::primitives::P128Pow5T3]
+/// The spec for rate-1 Poseidon used both inside the circuit and in the clear.
+// Patterned after https://github.com/privacy-scaling-explorations/poseidon-gadget/blob/764a682ee448bfbde0cc92a04d241fe738ba2d14/src/poseidon/primitives/p128pow5t3.rs#L15
 #[derive(Debug)]
 pub struct Spec1;
 

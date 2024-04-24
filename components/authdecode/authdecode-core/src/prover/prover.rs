@@ -1,50 +1,66 @@
 use crate::{
     backend::traits::{Field, ProverBackend as Backend},
     encodings::EncodingProvider,
-    id::IdSet,
+    id::IdCollection,
     msgs::{Commit, Proofs},
-    prover::{error::ProverError, state},
+    prover::{
+        commitment::{CommitmentData, CommitmentDetails},
+        error::ProverError,
+        state,
+    },
+    PublicInput,
 };
 
-use super::commitment::{CommitmentData, CommitmentDetails};
+use getset::Getters;
 use std::{marker::PhantomData, ops::Add};
 
-/// Public and private inputs to the circuit.
-#[derive(Clone, Default)]
-pub struct ProofInput<F> {
-    // Public:
-    /// The hash commitment to the plaintext.
-    pub plaintext_hash: F,
-    /// The hash commitment to the sum of the encodings.
-    pub encoding_sum_hash: F,
-    /// The sum of encodings which encode the 0 bit.
-    pub zero_sum: F,
-    /// An arithmetic difference between the encoding of bit value 1 and encoding of bit value 0 for
-    /// each bit of the plaintext.
-    pub deltas: Vec<F>,
+#[cfg(feature = "tracing")]
+use tracing::{debug, debug_span, instrument, Instrument};
 
-    // Private:
+/// The prover's public and private inputs to the circuit.
+#[derive(Clone, Default, Getters)]
+pub struct ProverInput<F> {
+    /// Public input.
+    #[getset(get = "pub")]
+    public: PublicInput<F>,
+    /// Private input.
+    #[getset(get = "pub")]
+    private: PrivateInput<F>,
+}
+
+/// Private inputs to the AuthDecode circuit.
+#[derive(Clone, Default, Getters)]
+pub struct PrivateInput<F> {
     /// The plaintext committed to.
-    pub plaintext: Vec<u8>,
+    #[getset(get = "pub")]
+    plaintext: Vec<u8>,
     /// The salt used to create the commitment to the plaintext.
-    pub plaintext_salt: F,
+    #[getset(get = "pub")]
+    plaintext_salt: F,
     /// The salt used to create the commitment to the sum of the encodings.
-    pub encoding_sum_salt: F,
+    #[getset(get = "pub")]
+    encoding_sum_salt: F,
 }
 
 /// Prover in the AuthDecode protocol.
-pub struct Prover<T: IdSet, S: state::ProverState, F: Field> {
+pub struct Prover<I: IdCollection, S: state::ProverState, F: Field> {
+    /// The zk backend.
     backend: Box<dyn Backend<F>>,
-    pub state: S,
-    pd: PhantomData<T>,
+    /// The current state of the prover.
+    state: S,
+    pd: PhantomData<I>,
 }
 
-impl<T, F> Prover<T, state::Initialized, F>
+impl<I, F> Prover<I, state::Initialized, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field + Add<Output = F>,
 {
     /// Creates a new prover.
+    ///
+    /// # Arguments
+    ///
+    /// * `backend` - The zk backend.
     pub fn new(backend: Box<dyn Backend<F>>) -> Self {
         Prover {
             backend,
@@ -54,20 +70,27 @@ where
     }
 
     /// Creates a commitment to each element in the `data_set`.
+    ///
+    /// Returns the prover in a new state and the message to be passed to the verifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `data_set` - The set of commitment data to be committed to.
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
     #[allow(clippy::type_complexity)]
     pub fn commit(
         self,
-        data_set: &[CommitmentData<T>],
-    ) -> Result<(Prover<T, state::Committed<T, F>, F>, Commit<T, F>), ProverError>
+        data_set: Vec<CommitmentData<I>>,
+    ) -> Result<(Prover<I, state::Committed<I, F>, F>, Commit<I, F>), ProverError>
     where
-        T: IdSet,
+        I: IdCollection,
         F: Field + Clone + std::ops::Add<Output = F>,
     {
         // Commit to each commitment data in the set individually.
         let commitments = data_set
-            .iter()
+            .into_iter()
             .map(|data| data.commit(&self.backend))
-            .collect::<Result<Vec<CommitmentDetails<T, F>>, ProverError>>()?;
+            .collect::<Result<Vec<CommitmentDetails<I, F>>, ProverError>>()?;
 
         Ok((
             Prover {
@@ -82,43 +105,55 @@ where
     }
 }
 
-impl<T, F> Prover<T, state::Committed<T, F>, F>
+impl<I, F> Prover<I, state::Committed<I, F>, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,
 {
     /// Generates zk proofs.
+    ///
+    /// Returns the prover in a new state and the message to be passed to the verifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `encoding_provider` - The provider of full encodings for the plaintext committed to
+    ///                         earlier.
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
     #[allow(clippy::type_complexity)]
     pub fn prove(
         self,
-        encoding_provider: impl EncodingProvider<T>,
-    ) -> Result<(Prover<T, state::ProofGenerated<T, F>, F>, Proofs), ProverError> {
+        encoding_provider: impl EncodingProvider<I>,
+    ) -> Result<(Prover<I, state::ProofGenerated<I, F>, F>, Proofs), ProverError> {
         // Collect proof inputs for each chunk of plaintext committed to.
         let proof_inputs = self
             .state
             .commitments
-            .iter()
+            .clone()
+            .into_iter()
             .flat_map(|com| {
                 let coms = com
-                    .chunk_commitments
+                    .chunk_commitments()
                     .iter()
                     .map(|com| {
-                        let encodings = encoding_provider.get_by_ids(com.ids())?;
+                        let full_encodings = encoding_provider.get_by_ids(com.ids())?;
 
-                        Ok(ProofInput {
-                            deltas: encodings.compute_deltas::<F>(),
-                            plaintext_hash: com.plaintext_hash.clone(),
-                            encoding_sum_hash: com.encoding_sum_hash.clone(),
-
-                            zero_sum: encodings.compute_zero_sum(),
-                            plaintext: com.encodings.plaintext(),
-                            plaintext_salt: com.plaintext_salt.clone(),
-                            encoding_sum_salt: com.encoding_sum_salt.clone(),
+                        Ok(ProverInput {
+                            public: PublicInput {
+                                deltas: full_encodings.compute_deltas::<F>(),
+                                plaintext_hash: com.plaintext_hash().clone(),
+                                encoding_sum_hash: com.encoding_sum_hash().clone(),
+                                zero_sum: full_encodings.compute_zero_sum(),
+                            },
+                            private: PrivateInput {
+                                plaintext: com.encodings().plaintext(),
+                                plaintext_salt: com.plaintext_salt().clone(),
+                                encoding_sum_salt: com.encoding_sum_salt().clone(),
+                            },
                         })
                     })
                     .collect::<Result<Vec<_>, ProverError>>()?;
 
-                Ok::<Vec<ProofInput<F>>, ProverError>(coms)
+                Ok::<Vec<ProverInput<F>>, ProverError>(coms)
             })
             .flatten()
             .collect::<Vec<_>>();
@@ -138,10 +173,10 @@ where
     }
 }
 
-#[cfg(test)]
-impl<T, F> Prover<T, state::ProofGenerated<T, F>, F>
+#[cfg(any(test, feature = "fixtures"))]
+impl<I, F> Prover<I, state::ProofGenerated<I, F>, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,
 {
     // Testing only. Returns the backend that can be downcast to a concrete type.

@@ -3,50 +3,51 @@
 use crate::{
     backend::traits::Field,
     encodings::EncodingProvider,
-    id::IdSet,
+    id::IdCollection,
     verifier::commitment::{UnverifiedCommitment, VerifiedCommitment},
 };
 
-/// Entry state
+/// The initial state.
 pub struct Initialized {}
 opaque_debug::implement!(Initialized);
 
-/// State after verifier received prover's commitment.
-pub struct CommitmentReceived<T, F> {
+/// The state after the verifier received the prover's commitment.
+pub struct CommitmentReceived<I, F> {
     /// Details pertaining to each commitment.
-    pub commitments: Vec<UnverifiedCommitment<T, F>>,
+    pub commitments: Vec<UnverifiedCommitment<I, F>>,
     /// The provider of the encodings for plaintext bits.
-    pub encoding_provider: Box<dyn EncodingProvider<T>>,
+    pub encoding_provider: Box<dyn EncodingProvider<I>>,
 }
-opaque_debug::implement!(CommitmentReceived<T, F>);
+opaque_debug::implement!(CommitmentReceived<I, F>);
 
-pub struct VerifiedSuccessfully<T, F> {
+/// The state after the commitments have been successfully verified.
+pub struct VerifiedSuccessfully<I, F> {
     /// Commitments which have been succesfully verified.
-    pub commitments: Vec<VerifiedCommitment<T, F>>,
+    pub commitments: Vec<VerifiedCommitment<I, F>>,
 }
-opaque_debug::implement!(VerifiedSuccessfully<T, F>);
+opaque_debug::implement!(VerifiedSuccessfully<I, F>);
 
 #[allow(missing_docs)]
 pub trait VerifierState: sealed::Sealed {}
 
 impl VerifierState for Initialized {}
-impl<T, F> VerifierState for CommitmentReceived<T, F>
+impl<I, F> VerifierState for CommitmentReceived<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
 }
-impl<T, F> VerifierState for VerifiedSuccessfully<T, F> {}
+impl<I, F> VerifierState for VerifiedSuccessfully<I, F> {}
 
 mod sealed {
-    use crate::{backend::traits::Field, id::IdSet};
+    use crate::{backend::traits::Field, id::IdCollection};
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl<T, F> Sealed for super::CommitmentReceived<T, F>
+    impl<I, F> Sealed for super::CommitmentReceived<I, F>
     where
-        T: IdSet,
+        I: IdCollection,
         F: Field,
     {
     }
-    impl<T, F> Sealed for super::VerifiedSuccessfully<T, F> {}
+    impl<I, F> Sealed for super::VerifiedSuccessfully<I, F> {}
 }

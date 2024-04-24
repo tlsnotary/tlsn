@@ -3,30 +3,42 @@
 pub struct Id(pub u64);
 
 /// A trait for working with a collection of ids.
+///
+/// It is permissible for the collection to contain duplicate ids.
 #[allow(clippy::len_without_is_empty)]
-pub trait IdSet: PartialEq + Default + Clone {
-    /// Drains `count` ids (or the whole collection) from the front of the collection
-    /// returning the drained ids.
+pub trait IdCollection: PartialEq + Default + Clone {
+    /// Drains and returns `count` ids from the front of the collection, modifying the collection.
+    /// If the length of the collection is less than `count`, drains the entire collection.
     ///
+    /// # Arguments
+    ///
+    /// * `count` - The amount of ids to drain.
     fn drain_front(&mut self, count: usize) -> Self;
 
-    /// Returns the id of an elements at the given `index`.
+    /// Returns the id of an elements at the given `index` in the collection.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The index of an id.
     ///
     /// # Panics
     ///
-    /// Panics if the index is out of bounds of this collection.
+    /// Panics if there is no id with the given index in the collection.
     fn id(&self, index: usize) -> Id;
 
     /// Returns all ids in the collection.
     fn ids(&self) -> Vec<Id>;
 
-    ///
+    /// Returns the amount of ids in the collection.
     fn len(&self) -> usize;
 
-    /// Constructs a set from an iterator over sets.
+    /// Whether the collection is empty.
+    fn is_empty(&self) -> bool;
+
+    /// Constructs a collection from an iterator over collections.
     ///
     /// # Panics
     ///
-    /// Panics if a set cannot be constructed.
+    /// Panics if a collection cannot be constructed.
     fn new_from_iter<I: IntoIterator<Item = Self>>(iter: I) -> Self;
 }

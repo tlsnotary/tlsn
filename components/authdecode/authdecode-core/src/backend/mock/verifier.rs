@@ -1,10 +1,11 @@
 use crate::{
-    backend::{mock::CHUNK_SIZE, traits::VerifierBackend as Backend},
-    verifier::{error::VerifierError, verifier::VerificationInputs},
-    Proof,
+    backend::{
+        mock::{circuit::is_circuit_satisfied, MockField, MockProof, CHUNK_SIZE},
+        traits::VerifierBackend as Backend,
+    },
+    verifier::error::VerifierError,
+    Proof, PublicInput,
 };
-
-use super::{circuit::is_circuit_satisfied, MockField, MockProof};
 
 /// A mock verifier backend.
 #[derive(Default)]
@@ -19,11 +20,14 @@ impl MockVerifierBackend {
 impl Backend<MockField> for MockVerifierBackend {
     fn verify(
         &self,
-        inputs: Vec<VerificationInputs<MockField>>,
+        inputs: Vec<PublicInput<MockField>>,
         proofs: Vec<Proof>,
     ) -> Result<(), VerifierError> {
-        // Use the default strategy of one proof for one chunk.
-        assert!(proofs.len() == inputs.len());
+        // Using the default strategy of one proof for one chunk.
+        if inputs.len() != proofs.len() {
+            return Err(VerifierError::WrongProofCount(inputs.len(), proofs.len()));
+        }
+
         for (proof, input) in proofs.iter().zip(inputs) {
             let proof = MockProof::from_bytes(proof.0.to_vec());
             if !is_circuit_satisfied(
@@ -35,7 +39,9 @@ impl Backend<MockField> for MockVerifierBackend {
                 proof.plaintext_salt,
                 proof.encoding_sum_salt,
             ) {
-                return Err(VerifierError::VerificationFailed);
+                return Err(VerifierError::VerificationFailed(
+                    "Mock circuit was not satisfied".to_string(),
+                ));
             };
         }
 

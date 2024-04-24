@@ -8,6 +8,10 @@ use crate::backend::halo2::prover::TEST_BINARY_CHECK_FAIL_IS_RUNNING;
 
 /// Converts big-endian bytes into a field element by reducing by the modulus.
 ///
+/// # Arguments
+///
+/// * `bytes` - The bytes to be converted.
+///
 /// # Panics
 ///
 /// Panics if the count of bytes is > 64.
@@ -19,6 +23,10 @@ pub fn bytes_be_to_f(mut bytes: Vec<u8>) -> F {
 }
 
 /// Decomposes a field element into 256 bits in MSB-first bit order.
+///
+/// # Arguments
+///
+/// * `f` - The field element to decompose.
 pub fn f_to_bits(f: &F) -> [bool; 256] {
     let mut bytes = f.to_bytes();
     // Reverse to get bytes in big-endian.
@@ -31,8 +39,16 @@ pub fn f_to_bits(f: &F) -> [bool; 256] {
 ///
 /// Each chunk of `chunk_size` items will be padded with the default value on the left in order to
 /// bring the size of the chunk to `pad_chunk_to_size`. Then a matrix of `row_count` rows and
-/// `column_count` columns will be filled with items in row-major order, filling any empty cells with
-/// the default value. Finally, the matrix will be transposed.
+/// `column_count` columns will be filled with items in row-major order, filling any empty trailing
+/// cells with the default value. Finally, the matrix will be transposed.
+///
+/// # Arguments
+///
+/// * `items` -        The items to be arranged into a matrix.
+/// * `chunk_size` -   The size of a chunk of items that has to be padded to the `pad_chunk_to_size` size.
+/// * `pad_chunk_to_size` - The size to which a chunk of items will be padded.
+/// * `row_count` -    The amount of rows in the resulting matrix.
+/// * `column_count` - The amount of columns in the resulting matrix.
 ///
 /// # Panics
 ///
@@ -79,6 +95,11 @@ where
 
 /// Composes the 64 `bits` of a limb with the given `index` into a field element, left shifting if
 /// needed. `bits` are in MSB-first order. The limb with `index` 0 is the highest limb.
+///
+/// # Arguments
+///
+/// * `bits` - The bits to be composed.
+/// * `index` - The index of a limb to be composed.
 ///
 /// # Panics
 ///

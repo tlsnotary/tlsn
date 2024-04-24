@@ -1,6 +1,13 @@
 //! Protocol messages and types contained therein.
 
-use crate::{backend::traits::Field, id::IdSet, prover::commitment::CommitmentDetails, Proof};
+use crate::{
+    backend::traits::Field,
+    id::IdCollection,
+    prover::commitment::CommitmentDetails,
+    verifier::commitment::{UnverifiedChunkCommitment, UnverifiedCommitment},
+    Proof,
+};
+
 use enum_try_as_inner::EnumTryAsInner;
 use serde::{Deserialize, Serialize};
 
@@ -8,32 +15,32 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, EnumTryAsInner, Deserialize)]
 #[derive_err(Debug)]
 #[allow(missing_docs)]
-pub enum Message<T: IdSet, F: Field> {
+pub enum Message<T: IdCollection, F: Field> {
     Commit(Commit<T, F>),
     Proofs(Proofs),
 }
 
-impl<T, F> From<MessageError<T, F>> for std::io::Error
+impl<I, F> From<MessageError<I, F>> for std::io::Error
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
-    fn from(err: MessageError<T, F>) -> Self {
+    fn from(err: MessageError<I, F>) -> Self {
         std::io::Error::new(std::io::ErrorKind::InvalidData, err.to_string())
     }
 }
 
 /// A commitment message sent by the prover.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(try_from = "UncheckedCommit<T, F>")]
-pub struct Commit<T, F>
+#[serde(try_from = "UncheckedCommit<I, F>")]
+pub struct Commit<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
     /// A non-empty collection of commitments. Each element is a commitment to plaintext of an
     /// arbitrary length.
-    pub commitments: Vec<Commitment<T, F>>,
+    commitments: Vec<Commitment<I, F>>,
 }
 
 /// A message with proofs sent by the prover.
@@ -43,19 +50,20 @@ pub struct Proofs {
     pub proofs: Vec<Proof>,
 }
 
-impl<T, F> Commit<T, F>
+impl<I, F> Commit<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
-    /// Converts this message into a vector of `Commitment`s which the verifier can work with.
+    /// Converts this message into a collection of unverified commitments which the verifier can
+    /// work with.
     ///
     /// # Arguments
     /// * `max_size` - The expected maximum bytesize of a chunk of plaintext committed to.
     pub fn into_vec_commitment(
         self,
         max_size: usize,
-    ) -> Result<Vec<crate::verifier::commitment::UnverifiedCommitment<T, F>>, std::io::Error> {
+    ) -> Result<Vec<UnverifiedCommitment<I, F>>, std::io::Error> {
         self.commitments
             .into_iter()
             .map(|com| {
@@ -69,40 +77,37 @@ where
                                 "The length of ids is larger than the chunk size.",
                             ))
                         } else {
-                            Ok(crate::verifier::commitment::UnverifiedChunkCommitment::new(
+                            Ok(UnverifiedChunkCommitment::new(
                                 chunk_com.plaintext_hash,
                                 chunk_com.encoding_sum_hash,
                                 chunk_com.ids,
-                                None,
                             ))
                         }
                     })
                     .collect::<Result<Vec<_>, std::io::Error>>()?;
 
-                Ok(crate::verifier::commitment::UnverifiedCommitment::new(
-                    chunk_com,
-                ))
+                Ok(UnverifiedCommitment::new(chunk_com))
             })
             .collect::<Result<Vec<_>, std::io::Error>>()
     }
 }
 
-impl<T, F> From<Vec<CommitmentDetails<T, F>>> for Commit<T, F>
+impl<I, F> From<Vec<CommitmentDetails<I, F>>> for Commit<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field + Clone,
 {
-    fn from(source: Vec<CommitmentDetails<T, F>>) -> Commit<T, F> {
+    fn from(source: Vec<CommitmentDetails<I, F>>) -> Commit<I, F> {
         Commit {
             commitments: source
                 .into_iter()
                 .map(|com| {
                     let chunk_commitments = com
-                        .chunk_commitments
-                        .into_iter()
+                        .chunk_commitments()
+                        .iter()
                         .map(|chunk_com| ChunkCommitment {
-                            plaintext_hash: chunk_com.plaintext_hash.clone(),
-                            encoding_sum_hash: chunk_com.encoding_sum_hash.clone(),
+                            plaintext_hash: chunk_com.plaintext_hash().clone(),
+                            encoding_sum_hash: chunk_com.encoding_sum_hash().clone(),
                             ids: chunk_com.ids().clone(),
                         })
                         .collect::<Vec<_>>();
@@ -115,46 +120,48 @@ where
 
 /// A single commitment to plaintext of an arbitrary length.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Commitment<T, F>
+pub struct Commitment<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
     /// A non-empty collection of commitments to each chunk of the plaintext.
-    chunk_commitments: Vec<ChunkCommitment<T, F>>,
+    chunk_commitments: Vec<ChunkCommitment<I, F>>,
 }
 
 /// A commitment to a single chunk of plaintext.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct ChunkCommitment<T, F>
+struct ChunkCommitment<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
+    /// Hash commitment to the plaintext.
     plaintext_hash: F,
+    /// Hash commitment to the `encoding_sum`.
     encoding_sum_hash: F,
     /// The id of each bit of the plaintext.
-    ids: T,
+    ids: I,
 }
 
 /// A [`Commit`] message in its unchecked state.
 #[derive(Deserialize)]
-pub struct UncheckedCommit<T, F>
+pub struct UncheckedCommit<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
-    pub commitments: Vec<Commitment<T, F>>,
+    commitments: Vec<Commitment<I, F>>,
 }
 
-impl<T, F> TryFrom<UncheckedCommit<T, F>> for Commit<T, F>
+impl<I, F> TryFrom<UncheckedCommit<I, F>> for Commit<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
     type Error = std::io::Error;
 
-    fn try_from(value: UncheckedCommit<T, F>) -> Result<Self, Self::Error> {
+    fn try_from(value: UncheckedCommit<I, F>) -> Result<Self, Self::Error> {
         // None of the commitment vectors should be empty.
         if value.commitments.is_empty() {
             return Err(std::io::Error::new(
@@ -181,7 +188,7 @@ where
 #[derive(Deserialize)]
 /// A [`Proof`] message in its unchecked state.
 pub struct UncheckedProofs {
-    pub proofs: Vec<Proof>,
+    proofs: Vec<Proof>,
 }
 
 impl TryFrom<UncheckedProofs> for Proofs {

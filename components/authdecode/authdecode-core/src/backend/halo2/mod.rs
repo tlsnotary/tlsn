@@ -1,21 +1,32 @@
+use crate::{
+    backend::{
+        halo2::{
+            circuit::{BITS_PER_LIMB, FIELD_ELEMENTS},
+            utils::{bytes_be_to_f, slice_to_columns},
+        },
+        traits::Field,
+    },
+    PublicInput,
+};
+
 use halo2_proofs::{
     halo2curves::bn256::{Bn256, Fr},
     poly::kzg::commitment::ParamsKZG,
 };
+
 use lazy_static::lazy_static;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::{Add, Sub};
 
-use crate::backend::{halo2::utils::bytes_be_to_f, traits::Field};
-
 mod circuit;
-#[cfg(any(test, feature = "fixtures"))]
-pub mod fixtures;
 pub mod onetimesetup;
 mod poseidon;
 pub mod prover;
-pub mod utils;
+mod utils;
 pub mod verifier;
+
+#[cfg(any(test, feature = "fixtures"))]
+pub mod fixtures;
 
 lazy_static! {
     static ref PARAMS: ParamsKZG<Bn256> = onetimesetup::params();
@@ -31,6 +42,7 @@ pub struct Bn256F {
     pub inner: Fr,
 }
 impl Bn256F {
+    /// Creates a new Bn256 field element.
     pub fn new(inner: Fr) -> Self {
         Self { inner }
     }
@@ -99,4 +111,32 @@ where
         ));
     }
     Ok(res.unwrap())
+}
+
+/// Prepares instance columns.
+#[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
+fn prepare_instance(input: &PublicInput<Bn256F>, usable_bytes: usize) -> Vec<Vec<Fr>> {
+    let deltas = input
+        .deltas
+        .iter()
+        .map(|f: &Bn256F| f.inner)
+        .collect::<Vec<_>>();
+
+    // Arrange deltas in instance columns.
+    let mut instance_columns = slice_to_columns(
+        &deltas,
+        usable_bytes * 8,
+        BITS_PER_LIMB * 4,
+        FIELD_ELEMENTS * 4,
+        BITS_PER_LIMB,
+    );
+
+    // Add another column with public inputs.
+    instance_columns.push(vec![
+        input.plaintext_hash.inner,
+        input.encoding_sum_hash.inner,
+        input.zero_sum.inner,
+    ]);
+
+    instance_columns
 }

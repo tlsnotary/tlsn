@@ -1,31 +1,33 @@
 use crate::{
     backend::traits::{Field, ProverBackend as Backend},
     encodings::{active::ActiveEncodingsChunks, ActiveEncodings, Encoding},
-    id::IdSet,
+    id::IdCollection,
     prover::error::ProverError,
     SSP,
 };
 
+use getset::Getters;
 use itybity::ToBits;
 
 /// The plaintext and the encodings which the prover commits to.
-pub struct CommitmentData<T>
+#[derive(Clone)]
+pub struct CommitmentData<I>
 where
-    T: IdSet,
+    I: IdCollection,
 {
-    pub encodings: ActiveEncodings<T>,
+    encodings: ActiveEncodings<I>,
 }
 
-impl<T> CommitmentData<T>
+impl<I> CommitmentData<I>
 where
-    T: IdSet,
+    I: IdCollection,
 {
     /// Creates a commitment to this commitment data.
     #[allow(clippy::borrowed_box)]
     pub fn commit<F>(
-        &self,
+        self,
         backend: &Box<dyn Backend<F>>,
-    ) -> Result<CommitmentDetails<T, F>, ProverError>
+    ) -> Result<CommitmentDetails<I, F>, ProverError>
     where
         F: Field + Clone + std::ops::Add<Output = F>,
     {
@@ -33,7 +35,7 @@ where
         let chunk_commitments = self
             .into_chunks(backend.chunk_size())
             .map(|data_chunk| data_chunk.commit(backend))
-            .collect::<Vec<ChunkCommitmentDetails<T, F>>>();
+            .collect::<Vec<ChunkCommitmentDetails<I, F>>>();
 
         Ok(CommitmentDetails { chunk_commitments })
     }
@@ -50,7 +52,7 @@ where
     /// # Panics
     ///
     /// Panics if `plaintext`, `encodings` and `bit_ids` are not all of the same length.
-    pub fn new(plaintext: &[u8], encodings: &[[u8; SSP / 8]], bit_ids: T) -> CommitmentData<T> {
+    pub fn new(plaintext: &[u8], encodings: &[[u8; SSP / 8]], bit_ids: I) -> CommitmentData<I> {
         assert!(plaintext.len() * 8 == encodings.len());
         assert!(plaintext.len() * 8 == bit_ids.len());
 
@@ -66,23 +68,28 @@ where
         }
     }
 
-    /// Chunks up the plaintext of the commitment data into chunks of `chunk_size` bytes.
-    pub fn into_chunks(&self, chunk_size: usize) -> CommitmentDataChunks<T> {
+    /// Convert `self` into an iterator over chunks of the commitment data. If `chunk_size` does not
+    /// divide the length of the commitment data, then the last chunk will not have length `chunk_size`.
+    ///
+    /// # Arguments
+    ///
+    /// * `chunk_size` - The size of a chunk.
+    pub fn into_chunks(self, chunk_size: usize) -> CommitmentDataChunks<I> {
         CommitmentDataChunks {
             encodings: self.encodings.clone().into_chunks(chunk_size * 8),
         }
     }
 }
 
-pub struct CommitmentDataChunks<T> {
-    encodings: ActiveEncodingsChunks<T>,
+pub struct CommitmentDataChunks<I> {
+    encodings: ActiveEncodingsChunks<I>,
 }
 
-impl<T> Iterator for CommitmentDataChunks<T>
+impl<I> Iterator for CommitmentDataChunks<I>
 where
-    T: IdSet,
+    I: IdCollection,
 {
-    type Item = CommitmentDataChunk<T>;
+    type Item = CommitmentDataChunk<I>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.encodings
@@ -92,22 +99,22 @@ where
 }
 
 /// A chunk of data that needs to be committed to.
-pub struct CommitmentDataChunk<T>
+pub struct CommitmentDataChunk<I>
 where
-    T: IdSet,
+    I: IdCollection,
 {
     /// The active encoding of each bit of the plaintext. The number of encodings is always a
     /// multiple of 8.
-    pub encodings: ActiveEncodings<T>,
+    encodings: ActiveEncodings<I>,
 }
 
-impl<T> CommitmentDataChunk<T>
+impl<I> CommitmentDataChunk<I>
 where
-    T: IdSet,
+    I: IdCollection,
 {
     /// Creates a commitment to this chunk.
     #[allow(clippy::borrowed_box)]
-    fn commit<F>(&self, backend: &Box<dyn Backend<F>>) -> ChunkCommitmentDetails<T, F>
+    fn commit<F>(&self, backend: &Box<dyn Backend<F>>) -> ChunkCommitmentDetails<I, F>
     where
         F: Field + Clone + std::ops::Add<Output = F>,
     {
@@ -129,51 +136,58 @@ where
 }
 
 /// An AuthDecode commitment to a single chunk of plaintext with the associated details.
-#[derive(Clone)]
-pub struct ChunkCommitmentDetails<T, F> {
+#[derive(Clone, Getters)]
+pub struct ChunkCommitmentDetails<I, F> {
     /// Hash commitment to the plaintext.
-    pub plaintext_hash: F,
+    #[getset(get = "pub")]
+    plaintext_hash: F,
     /// The salt used to create the commitment to the plaintext.
-    pub plaintext_salt: F,
+    #[getset(get = "pub")]
+    plaintext_salt: F,
     /// The encodings the sum of which is committed to.
-    pub encodings: ActiveEncodings<T>,
+    #[getset(get = "pub")]
+    encodings: ActiveEncodings<I>,
     /// The sum of the encodings.
-    pub encoding_sum: F,
+    #[getset(get = "pub")]
+    encoding_sum: F,
     /// Hash commitment to the `encoding_sum`.
-    pub encoding_sum_hash: F,
+    #[getset(get = "pub")]
+    encoding_sum_hash: F,
     /// The salt used to create the commitment to the `encoding_sum`.
-    pub encoding_sum_salt: F,
+    #[getset(get = "pub")]
+    encoding_sum_salt: F,
 }
 
-impl<T, F> ChunkCommitmentDetails<T, F>
+impl<I, F> ChunkCommitmentDetails<I, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
     /// Returns the id of each bit of the plaintext.
-    pub fn ids(&self) -> &T {
+    pub fn ids(&self) -> &I {
         self.encodings.ids()
     }
 }
 
 /// An AuthDecode commitment to plaintext of arbitrary length with the associated details.
-#[derive(Clone, Default)]
-pub struct CommitmentDetails<T, F> {
+#[derive(Clone, Default, Getters)]
+pub struct CommitmentDetails<I, F> {
     /// Commitments to each chunk of the plaintext with the associated details.
     ///
     /// Internally, for performance reasons, the data to be committed to is split up into chunks
     /// and each chunk is committed to separately. The collection of chunk commitments constitutes
     /// the commitment.
-    pub chunk_commitments: Vec<ChunkCommitmentDetails<T, F>>,
+    #[getset(get = "pub")]
+    chunk_commitments: Vec<ChunkCommitmentDetails<I, F>>,
 }
 
-impl<T, F> CommitmentDetails<T, F>
+impl<I, F> CommitmentDetails<I, F>
 where
-    T: IdSet + Clone,
+    I: IdCollection + Clone,
     F: Field + Clone,
 {
     /// Returns the encodings of the plaintext of this commitment.
-    pub fn encodings(&self) -> ActiveEncodings<T> {
+    pub fn encodings(&self) -> ActiveEncodings<I> {
         let iter = self
             .chunk_commitments
             .iter()

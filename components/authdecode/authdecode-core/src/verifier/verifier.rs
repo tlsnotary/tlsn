@@ -1,48 +1,41 @@
 use crate::{
-    backend::traits::VerifierBackend as Backend,
+    backend::traits::{Field, VerifierBackend as Backend},
     encodings::EncodingProvider,
+    id::IdCollection,
     msgs::{Commit, Proofs},
     verifier::{commitment::UnverifiedCommitment, error::VerifierError, state},
+    PublicInput,
 };
+
 use std::marker::PhantomData;
 
-use crate::{backend::traits::Field, id::IdSet};
-
-/// Public inputs to verify one chunk of plaintext.
-///
-/// Note that the backend may combine multiple `VerificationInputs` in cases when multiple chunks
-/// of plaintext are proven with one proof.
-#[derive(Default, Clone)]
-pub struct VerificationInputs<F>
-where
-    F: Field,
-{
-    pub plaintext_hash: F,
-    pub encoding_sum_hash: F,
-    pub zero_sum: F,
-    pub deltas: Vec<F>,
-}
+#[cfg(feature = "tracing")]
+use tracing::{debug, debug_span, instrument, Instrument};
 
 /// Verifier in the AuthDecode protocol.
-pub struct Verifier<T, S, F>
+pub struct Verifier<I, S, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
     S: state::VerifierState,
 {
-    /// Backend for zk proof verification.
+    /// The backend for zk proof verification.
     backend: Box<dyn Backend<F>>,
-    /// State of the verifier.
+    /// The state of the verifier.
     state: S,
-    phantom: PhantomData<T>,
+    phantom: PhantomData<I>,
 }
 
-impl<T, F> Verifier<T, state::Initialized, F>
+impl<I, F> Verifier<I, state::Initialized, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
     /// Creates a new verifier.
+    ///
+    /// # Arguments
+    ///
+    /// `backend` - The backend for zk proof verification
     pub fn new(backend: Box<dyn Backend<F>>) -> Self {
         Verifier {
             backend,
@@ -53,17 +46,20 @@ where
 
     /// Receives the commitments and stores them.
     ///
+    /// Returns the verifier in a new state.
+    ///
     /// # Arguments
-    /// * `commitments` - A prover's message containing commitments.
-    /// * `encoding_provider` - A provider of full encodings.
+    ///
+    /// * `commitments` - The prover's message containing commitments.
+    /// * `encoding_provider` - The provider of full encodings.
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
     pub fn receive_commitments(
         self,
-        commitments: Commit<T, F>,
-        encoding_provider: impl EncodingProvider<T> + 'static,
-    ) -> Result<Verifier<T, state::CommitmentReceived<T, F>, F>, VerifierError> {
-        let commitments: Vec<UnverifiedCommitment<T, F>> = commitments
-            .into_vec_commitment(self.backend.chunk_size())
-            .map_err(|e| VerifierError::StdIoError(e.to_string()))?;
+        commitments: Commit<I, F>,
+        encoding_provider: impl EncodingProvider<I> + 'static,
+    ) -> Result<Verifier<I, state::CommitmentReceived<I, F>, F>, VerifierError> {
+        let commitments: Vec<UnverifiedCommitment<I, F>> =
+            commitments.into_vec_commitment(self.backend.chunk_size())?;
 
         Ok(Verifier {
             backend: self.backend,
@@ -76,19 +72,22 @@ where
     }
 }
 
-impl<T, F> Verifier<T, state::CommitmentReceived<T, F>, F>
+impl<I, F> Verifier<I, state::CommitmentReceived<I, F>, F>
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field + std::ops::Add<Output = F> + std::ops::Sub<Output = F> + Clone,
 {
     /// Verifies proofs for the commitments received earlier.
     ///
+    /// Returns the verifier in a new state.
+    ///
     /// # Arguments
     /// * `proofs` - The prover's message containing proofs.
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
     pub fn verify(
         self,
         proofs: Proofs,
-    ) -> Result<Verifier<T, state::VerifiedSuccessfully<T, F>, F>, VerifierError> {
+    ) -> Result<Verifier<I, state::VerifiedSuccessfully<I, F>, F>, VerifierError> {
         let Proofs { proofs } = proofs;
 
         // Compute public inputs to verify each chunk of plaintext committed to.
@@ -96,13 +95,13 @@ where
             .state
             .commitments
             .iter()
-            .flat_map(|com| &com.chunk_commitments)
+            .flat_map(|com| com.chunk_commitments())
             .map(|com| {
-                let encodings = self.state.encoding_provider.get_by_ids(&com.ids)?;
+                let encodings = self.state.encoding_provider.get_by_ids(com.ids())?;
 
-                Ok(VerificationInputs {
-                    plaintext_hash: com.plaintext_hash.clone(),
-                    encoding_sum_hash: com.encoding_sum_hash.clone(),
+                Ok(PublicInput {
+                    plaintext_hash: com.plaintext_hash().clone(),
+                    encoding_sum_hash: com.encoding_sum_hash().clone(),
                     zero_sum: encodings.compute_zero_sum(),
                     deltas: encodings.compute_deltas(),
                 })

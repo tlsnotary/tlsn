@@ -1,4 +1,4 @@
-use crate::{backend::traits::Field, id::IdSet, msgs::MessageError};
+use crate::{backend::traits::Field, id::IdCollection, msgs::MessageError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VerifierError {
@@ -6,26 +6,18 @@ pub enum VerifierError {
     IOError(#[from] std::io::Error),
     #[error("The prover has provided the wrong number of proofs. Expected {0}. Got {1}.")]
     WrongProofCount(usize, usize),
-    #[error("The proving system returned an error when verifying a proof")]
-    VerifyingBackendError,
-    #[error("Proof verification failed")]
-    VerificationFailed,
-    #[error("An internal error was encountered")]
-    InternalError,
-    #[error("An custom error was encountered {0}")]
-    CustomError(String),
+    #[error("Proof verification failed with an error: {0}")]
+    VerificationFailed(String),
     #[error(transparent)]
     EncodingProviderError(#[from] crate::encodings::EncodingProviderError),
-    #[error("std::io::Error was encountered: {0}")]
-    StdIoError(String),
 }
 
-impl<T, F> From<MessageError<T, F>> for VerifierError
+impl<I, F> From<MessageError<I, F>> for VerifierError
 where
-    T: IdSet,
+    I: IdCollection,
     F: Field,
 {
-    fn from(err: MessageError<T, F>) -> Self {
+    fn from(err: MessageError<I, F>) -> Self {
         VerifierError::from(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             err.to_string(),

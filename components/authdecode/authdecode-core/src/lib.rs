@@ -1,28 +1,42 @@
 //! Implementation of the AuthDecode protocol.
+//!
 //! The protocol performs authenticated decoding of encodings in zero knowledge.
 //!
-//! One of the use cases of AuthDecode is for the garbled circuits (GC) evaluator to produce
-//! a zk-friendly hash commitment to the GC output, where computing such a commitment directly
-//! inside the circuit would be prohibitively expensive.
+//! One of the use cases of AuthDecode is for the garbled circuits (GC) evaluator to produce a
+//! zk-friendly hash commitment to either the GC input or the GC output, where computing such a
+//! commitment directly using GC would be prohibitively expensive.
 //!
-//! TODO: the high level steps of the protocol.
+//! The protocol consists of the following steps:
+//! 1. The Prover commits to both the plaintext and the arithmetic sum of the active encodings of the
+//!    bits of the plaintext. (The protocol assumes that the Prover ascertained beforehand that the
+//!    active encodings are authentic.)
+//! 2. The Prover obtains the full encodings of the plaintext bits from some outer context and uses
+//!    them to create a zk proof, proving that during Step 1. they knew the correct active encodings
+//!    of the plaintext and also proving that a hash commitment H is an authentic commitment to the
+//!    plaintext.
+//! 3. The Verifier verifies the proof and accepts H as an authentic hash commitment to the plaintext.
+//!
+//! Important: when using the protocol, you must ensure that the Prover obtains the full encodings
+//! from an outer context only **after** they've made a commitment in Step 1.
 
 pub mod backend;
 pub mod encodings;
-#[cfg(any(test, feature = "fixtures"))]
-pub mod fixtures;
 pub mod id;
-pub mod mock;
 pub mod msgs;
 pub mod prover;
 pub mod verifier;
+
+#[cfg(any(test, feature = "fixtures"))]
+pub mod fixtures;
+#[cfg(any(test, feature = "mock"))]
+pub mod mock;
 
 pub use prover::prover::Prover;
 pub use verifier::verifier::Verifier;
 
 use serde::{Deserialize, Serialize};
 
-/// Statistical security parameter used by the protocol.
+/// The statistical security parameter used by the protocol.
 pub const SSP: usize = 40;
 
 /// An opaque proof.
@@ -30,9 +44,27 @@ pub const SSP: usize = 40;
 pub struct Proof(Vec<u8>);
 impl Proof {
     /// Creates a new proof from bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The bytes from which to create the proof.
     pub fn new(bytes: &[u8]) -> Self {
         Self(bytes.to_vec())
     }
+}
+
+/// Public inputs to the AuthDecode circuit.
+#[derive(Clone, Default)]
+pub struct PublicInput<F> {
+    /// The hash commitment to the plaintext.
+    plaintext_hash: F,
+    /// The hash commitment to the sum of the encodings.
+    encoding_sum_hash: F,
+    /// The sum of the encodings which encode the value 0 of a bit .
+    zero_sum: F,
+    /// An arithmetic difference between the encoding of bit value 1 and encoding of bit value 0 for
+    /// each bit of the plaintext.
+    deltas: Vec<F>,
 }
 
 #[cfg(test)]
@@ -43,7 +75,7 @@ mod tests {
         mock::{MockBitIds, MockEncodingProvider},
         prover::{
             commitment::CommitmentData,
-            prover::{ProofInput, Prover},
+            prover::{Prover, ProverInput},
             state::ProofGenerated,
         },
         verifier::{state::VerifiedSuccessfully, verifier::Verifier},
@@ -59,11 +91,13 @@ mod tests {
     };
 
     #[fixture]
+    #[once]
     fn commitment_data() -> Vec<CommitmentData<MockBitIds>> {
         fixtures::commitment_data()
     }
 
     #[fixture]
+    #[once]
     fn encoding_provider() -> MockEncodingProvider<MockBitIds> {
         fixtures::encoding_provider()
     }
@@ -71,8 +105,8 @@ mod tests {
     // Tests the protocol with a mock backend.
     #[rstest]
     fn test_mock_backend(
-        commitment_data: Vec<CommitmentData<MockBitIds>>,
-        encoding_provider: MockEncodingProvider<MockBitIds>,
+        commitment_data: &[CommitmentData<MockBitIds>],
+        encoding_provider: &MockEncodingProvider<MockBitIds>,
     ) {
         run_authdecode(
             crate::backend::mock::backend_pair(),
@@ -81,14 +115,28 @@ mod tests {
         );
     }
 
-    // Tests the protocol with a halo2 backend.
+    // Tests the protocol with a mock halo2 prover and verifier.
     #[rstest]
     fn test_halo2_backend(
-        commitment_data: Vec<CommitmentData<MockBitIds>>,
-        encoding_provider: MockEncodingProvider<MockBitIds>,
+        commitment_data: &[CommitmentData<MockBitIds>],
+        encoding_provider: &MockEncodingProvider<MockBitIds>,
     ) {
         run_authdecode(
             crate::backend::halo2::fixtures::backend_pair(),
+            commitment_data,
+            encoding_provider,
+        );
+    }
+
+    // Tests the protocol with a real halo2 prover and verifier..
+    #[ignore = "expensive"]
+    #[rstest]
+    fn test_halo2_backend_real(
+        commitment_data: &[CommitmentData<MockBitIds>],
+        encoding_provider: &MockEncodingProvider<MockBitIds>,
+    ) {
+        run_authdecode(
+            crate::backend::halo2::fixtures::backend_pair_real(),
             commitment_data,
             encoding_provider,
         );
@@ -102,8 +150,8 @@ mod tests {
             impl ProverBackend<F> + 'static,
             impl VerifierBackend<F> + 'static,
         ),
-        commitment_data: Vec<CommitmentData<MockBitIds>>,
-        encoding_provider: MockEncodingProvider<MockBitIds>,
+        commitment_data: &[CommitmentData<MockBitIds>],
+        encoding_provider: &MockEncodingProvider<MockBitIds>,
     ) -> (
         Prover<MockBitIds, ProofGenerated<MockBitIds, F>, F>,
         Verifier<MockBitIds, VerifiedSuccessfully<MockBitIds, F>, F>,
@@ -114,7 +162,7 @@ mod tests {
         let prover = Prover::new(Box::new(pair.0));
         let verifier = Verifier::new(Box::new(pair.1));
 
-        let (prover, commitments) = prover.commit(&commitment_data).unwrap();
+        let (prover, commitments) = prover.commit(commitment_data.to_vec()).unwrap();
 
         // Message types are checked durind deserialization.
         let commitments = bincode::serialize(&commitments).unwrap();
@@ -125,7 +173,7 @@ mod tests {
             .unwrap();
 
         // An encoding provider is instantiated with authenticated full encodings from external context.
-        let (prover, proofs) = prover.prove(encoding_provider).unwrap();
+        let (prover, proofs) = prover.prove(encoding_provider.clone()).unwrap();
 
         // Message types are checked durind deserialization.
         let proofs = bincode::serialize(&proofs).unwrap();
@@ -143,11 +191,11 @@ mod tests {
     >(
         prover: impl ProverBackend<F> + 'static,
         verifier: impl VerifierBackend<F> + 'static,
-    ) -> Vec<ProofInput<F>> {
+    ) -> Vec<ProverInput<F>> {
         // Wrap the prover backend.
         struct ProverBackendWrapper<F> {
             prover: Box<dyn ProverBackend<F>>,
-            proof_inputs: RefCell<Option<Vec<ProofInput<F>>>>,
+            proof_inputs: RefCell<Option<Vec<ProverInput<F>>>>,
         }
 
         impl<F> ProverBackend<F> for ProverBackendWrapper<F>
@@ -174,7 +222,7 @@ mod tests {
 
             fn prove(
                 &self,
-                input: Vec<ProofInput<F>>,
+                input: Vec<ProverInput<F>>,
             ) -> Result<Vec<crate::Proof>, crate::prover::error::ProverError> {
                 // Save proof inputs, return a dummy proof.
                 *self.proof_inputs.borrow_mut() = Some(input);
@@ -201,7 +249,7 @@ mod tests {
 
             fn verify(
                 &self,
-                _inputs: Vec<crate::verifier::verifier::VerificationInputs<F>>,
+                _inputs: Vec<crate::PublicInput<F>>,
                 _proofs: Vec<Proof>,
             ) -> Result<(), crate::verifier::error::VerifierError> {
                 Ok(())
@@ -220,8 +268,8 @@ mod tests {
         // Run the protocol.
         let (prover, _) = run_authdecode(
             (prover_wrapper, verifier_wrapper),
-            commitment_data(),
-            encoding_provider(),
+            &commitment_data(),
+            &encoding_provider(),
         );
 
         // Extract proof inputs from the backend.

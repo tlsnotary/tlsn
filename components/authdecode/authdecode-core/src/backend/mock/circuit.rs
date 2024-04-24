@@ -26,19 +26,31 @@ pub fn is_circuit_satisfied(
     // Compute encoding sum, add salt, hash it and compare to the expected hash.
     let encoding_sum = zero_sum + dot_product;
     let mut enc_sum = encoding_sum.to_bytes_be();
-    enc_sum.extend(encoding_sum_salt.to_bytes_be());
+
+    // Convert salt into bytes padding the most significant bytes if needed.
+    let salt_bytes = encoding_sum_salt.to_bytes_be();
+    let mut salt = [0u8; 16];
+    salt[16 - salt_bytes.len()..].copy_from_slice(&salt_bytes);
+    enc_sum.extend(salt);
 
     let hash_bytes = hash(&enc_sum);
+
     let digest = MockField::from_bytes_be(hash_bytes.to_vec());
 
     if digest != encoding_sum_hash {
         return false;
     }
 
+    // Convert salt into bytes padding the most significant bytes if needed.
+    let salt_bytes = plaintext_salt.to_bytes_be();
+    let mut salt = [0u8; 16];
+    salt[16 - salt_bytes.len()..].copy_from_slice(&salt_bytes);
+
     // Add salt to plaintext, hash it and compare to the expected hash.
-    plaintext.extend(plaintext_salt.to_bytes_be());
+    plaintext.extend(salt);
 
     let hash_bytes = hash(&plaintext);
+
     let digest = MockField::from_bytes_be(hash_bytes.to_vec());
 
     if digest != plaintext_hash {

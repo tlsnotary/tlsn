@@ -26,7 +26,7 @@ pub fn proving_key() -> ProvingKey<G1Affine> {
 }
 
 /// Returns the parameters used to generate the proving and the verification key.
-pub fn params() -> ParamsKZG<Bn256> {
+pub(crate) fn params() -> ParamsKZG<Bn256> {
     // Parameters were taken from Axiom's trusted setup described here:
     // https://docs.axiom.xyz/docs/transparency-and-security/kzg-trusted-setup ,
     // located at https://axiom-crypto.s3.amazonaws.com/challenge_0085/kzg_bn254_15.srs
@@ -39,7 +39,7 @@ pub fn params() -> ParamsKZG<Bn256> {
 }
 
 /// Returns an instance of the AuthDecode circuit.
-pub fn circuit_instance() -> AuthDecodeCircuit {
+fn circuit_instance() -> AuthDecodeCircuit {
     // We need an instance of the circuit, the exact inputs don't matter.
     AuthDecodeCircuit::new([F::default(); FIELD_ELEMENTS], F::default(), F::default())
 }

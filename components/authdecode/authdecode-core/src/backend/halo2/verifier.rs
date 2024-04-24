@@ -1,14 +1,10 @@
-use super::{
-    circuit::{BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BYTES},
-    Bn256F, CHUNK_SIZE,
-};
 use crate::{
     backend::{
-        halo2::{utils::slice_to_columns, PARAMS},
+        halo2::{circuit::USABLE_BYTES, Bn256F, CHUNK_SIZE, PARAMS},
         traits::VerifierBackend as Backend,
     },
-    verifier::{error::VerifierError, verifier::VerificationInputs},
-    Proof,
+    verifier::error::VerifierError,
+    Proof, PublicInput,
 };
 
 use ff::{FromUniformBytes, WithSmallOrderMulGroup};
@@ -25,11 +21,18 @@ use halo2_proofs::{
     transcript::{Blake2bRead, Challenge255, EncodedChallenge, TranscriptReadBuffer},
 };
 
+#[cfg(feature = "tracing")]
+use tracing::{debug, debug_span, instrument, Instrument};
+
+use super::prepare_instance;
+
 /// The Verifier of the authdecode circuit.
 pub struct Verifier {
+    /// The verification key.
     verification_key: VerifyingKey<G1Affine>,
 }
 impl Verifier {
+    /// Creates a new verifier.
     pub fn new(verification_key: VerifyingKey<G1Affine>) -> Self {
         Self { verification_key }
     }
@@ -38,46 +41,22 @@ impl Verifier {
     fn usable_bytes(&self) -> usize {
         USABLE_BYTES
     }
-
-    /// Prepares instance columns for verification.
-    fn prepare_verification_input(&self, input: &VerificationInputs<Bn256F>) -> Vec<Vec<F>> {
-        let deltas = input
-            .deltas
-            .iter()
-            .map(|f: &Bn256F| f.inner)
-            .collect::<Vec<_>>();
-
-        // Arrange deltas in instance columns.
-        let mut instance_columns = slice_to_columns(
-            &deltas,
-            self.usable_bytes() * 8,
-            BIT_COLUMNS * 4,
-            FIELD_ELEMENTS * 4,
-            BIT_COLUMNS,
-        );
-
-        // Add another column with public inputs.
-        instance_columns.push(vec![
-            input.plaintext_hash.inner,
-            input.encoding_sum_hash.inner,
-            input.zero_sum.inner,
-        ]);
-        instance_columns
-    }
 }
 
 impl Backend<Bn256F> for Verifier {
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
     fn verify(
         &self,
-        inputs: Vec<VerificationInputs<Bn256F>>,
+        inputs: Vec<PublicInput<Bn256F>>,
         proofs: Vec<Proof>,
     ) -> Result<(), VerifierError> {
-        // TODO: implement a better proving strategy.
-        // For now we just assume that one proof proves one chunk.
-        assert!(inputs.len() == proofs.len());
+        // XXX: using the default strategy of "one proof proves one chunk of plaintext".
+        if inputs.len() != proofs.len() {
+            return Err(VerifierError::WrongProofCount(inputs.len(), proofs.len()));
+        }
 
         for (input, proof) in inputs.into_iter().zip(proofs) {
-            let instance_columns = self.prepare_verification_input(&input);
+            let instance_columns = prepare_instance(&input, self.usable_bytes());
 
             verify_proof::<
                 KZGCommitmentScheme<Bn256>,
@@ -104,6 +83,7 @@ impl Backend<Bn256F> for Verifier {
     }
 }
 
+#[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
 fn verify_proof<
     'a,
     'params,
@@ -125,10 +105,12 @@ where
 
     let strategy = Strategy::new(params_verifier);
     let strategy = verify_plonk_proof(params_verifier, vk, strategy, instances, &mut transcript)
-        .map_err(|_| VerifierError::VerificationFailed)?;
+        .map_err(|e| VerifierError::VerificationFailed(e.to_string()))?;
 
     if !strategy.finalize() {
-        return Err(VerifierError::VerificationFailed);
+        return Err(VerifierError::VerificationFailed(
+            "VerificationStrategy::finalize() returned false".to_string(),
+        ));
     }
 
     Ok(())
