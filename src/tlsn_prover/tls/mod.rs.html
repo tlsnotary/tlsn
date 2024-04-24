@@ -451,7 +451,7 @@
     ///
     /// # Arguments
     ///
-    /// * `socket` - The socket to the notary.
+    /// * `socket` - The socket to the TLS verifier.
     </span><span class="kw">pub async fn </span>setup&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>&gt;(
         <span class="self">self</span>,
         socket: S,
@@ -593,7 +593,7 @@
 
     <span class="doccomment">/// Starts notarization of the TLS session.
     ///
-    /// If the verifier is a Notary, this function will transition the prover to the next state
+    /// Used when the TLS verifier is a Notary to transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
     </span><span class="kw">pub fn </span>start_notarize(<span class="self">self</span>) -&gt; Prover&lt;Notarize&gt; {
         Prover {

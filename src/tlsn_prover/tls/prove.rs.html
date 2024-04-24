@@ -371,7 +371,7 @@
             ..
         } = <span class="self">self</span>.state;
 
-        <span class="comment">// Create session data and session_info
+        <span class="comment">// Create session info.
         </span><span class="kw">let </span>session_info = SessionInfo {
             server_name: ServerName::Dns(<span class="self">self</span>.config.server_dns().to_string()),
             handshake_decommitment,

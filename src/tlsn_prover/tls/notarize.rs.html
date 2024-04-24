@@ -134,12 +134,12 @@
 <span class="kw">use </span>utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 <span class="kw">impl </span>Prover&lt;Notarize&gt; {
-    <span class="doccomment">/// Returns the transcript of the sent requests
+    <span class="doccomment">/// Returns the transcript of the sent data.
     </span><span class="kw">pub fn </span>sent_transcript(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Transcript {
         <span class="kw-2">&amp;</span><span class="self">self</span>.state.transcript_tx
     }
 
-    <span class="doccomment">/// Returns the transcript of the received responses
+    <span class="doccomment">/// Returns the transcript of the received data.
     </span><span class="kw">pub fn </span>recv_transcript(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Transcript {
         <span class="kw-2">&amp;</span><span class="self">self</span>.state.transcript_rx
     }
@@ -193,7 +193,7 @@
 
             <span class="comment">// This is a temporary approach until a maliciously secure share conversion protocol is implemented.
             // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
-            // TLS verifier to modify the prover's request.
+            // TLS verifier to modify the prover's sent data.
             </span>gf2.reveal()
                 .<span class="kw">await
                 </span>.map_err(|e| ProverError::MpcError(Box::new(e)))<span class="question-mark">?</span>;

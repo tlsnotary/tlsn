@@ -129,7 +129,7 @@
 
     <span class="doccomment">/// Starts notarization of the HTTP session.
     ///
-    /// If the verifier is a Notary, this function will transition the prover to the next state
+    /// Used when the TLS verifier is a Notary to transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
     </span><span class="kw">pub fn </span>start_notarize(<span class="self">self</span>) -&gt; HttpProver&lt;state::Notarize&gt; {
         HttpProver {
