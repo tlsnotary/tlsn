@@ -1,9 +1,10 @@
 //! TLS prover.
 //!
-//! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of communications with a server.
+//! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of
+//! communications with a server.
 //!
-//! The TLS prover provides a low-level API, see the [`HTTP prover`](crate::http) which provides abstractions for working
-//! with HTTP sessions.
+//! The TLS prover provides a low-level API, see the [`HTTP prover`](crate::http) which provides
+//! abstractions for working with HTTP sessions.
 
 mod config;
 mod error;
@@ -64,7 +65,7 @@ impl Prover<state::Initialized> {
         }
     }
 
-    /// Set up the prover.
+    /// Sets up the prover.
     ///
     /// This performs all MPC setup prior to establishing the connection to the
     /// application server.
