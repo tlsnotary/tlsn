@@ -72,7 +72,7 @@ impl Prover<state::Initialized> {
     ///
     /// # Arguments
     ///
-    /// * `socket` - The socket to the notary.
+    /// * `socket` - The socket to the TLS verifier.
     pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
@@ -214,7 +214,7 @@ impl Prover<state::Closed> {
 
     /// Starts notarization of the TLS session.
     ///
-    /// If the verifier is a Notary, this function will transition the prover to the next state
+    /// Used when the TLS verifier is a Notary to transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
     pub fn start_notarize(self) -> Prover<Notarize> {
         Prover {

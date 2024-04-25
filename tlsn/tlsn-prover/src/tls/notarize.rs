@@ -17,12 +17,12 @@ use tracing::instrument;
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 impl Prover<Notarize> {
-    /// Returns the transcript of the sent requests
+    /// Returns the transcript of the sent data.
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
     }
 
-    /// Returns the transcript of the received responses
+    /// Returns the transcript of the received data.
     pub fn recv_transcript(&self) -> &Transcript {
         &self.state.transcript_rx
     }
@@ -76,7 +76,7 @@ impl Prover<Notarize> {
 
             // This is a temporary approach until a maliciously secure share conversion protocol is implemented.
             // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
-            // TLS verifier to modify the prover's request.
+            // TLS verifier to modify the prover's sent data.
             gf2.reveal()
                 .await
                 .map_err(|e| ProverError::MpcError(Box::new(e)))?;
