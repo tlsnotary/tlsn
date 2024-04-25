@@ -1,9 +1,10 @@
 //! HTTP Prover.
 //!
-//! An HTTP prover can be created from a TLS [`Prover`](crate::tls::Prover), after the TLS connection has been closed, by calling the
-//! [`to_http`](crate::tls::Prover::to_http) method.
+//! An HTTP prover can be created from a TLS [`Prover`](crate::tls::Prover), after the TLS connection
+//! has been closed, by calling the [`to_http`](crate::tls::Prover::to_http) method.
 //!
-//! The [`HttpProver`] provides higher-level APIs for committing and proving data communicated during an HTTP connection.
+//! The [`HttpProver`] provides higher-level APIs for committing and proving data communicated during
+//! an HTTP connection.
 
 pub mod state;
 
