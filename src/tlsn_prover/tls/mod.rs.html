@@ -378,12 +378,14 @@
 <a href="#376" id="376">376</a>
 <a href="#377" id="377">377</a>
 <a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS prover.
 //!
-//! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of communications with a server.
+//! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of
+//! communications with a server.
 //!
-//! The TLS prover provides a low-level API, see the [`HTTP prover`](crate::http) which provides abstractions for working
-//! with HTTP sessions.
+//! The TLS prover provides a low-level API, see the [`HTTP prover`](crate::http) which provides
+//! abstractions for working with HTTP sessions.
 
 </span><span class="kw">mod </span>config;
 <span class="kw">mod </span>error;
@@ -444,7 +446,7 @@
         }
     }
 
-    <span class="doccomment">/// Set up the prover.
+    <span class="doccomment">/// Sets up the prover.
     ///
     /// This performs all MPC setup prior to establishing the connection to the
     /// application server.

@@ -107,6 +107,10 @@
 <a href="#105" id="105">105</a>
 <a href="#106" id="106">106</a>
 <a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the notarization phase of the verifier.
 //!
 //! The TLS verifier is only a notary.
@@ -127,6 +131,10 @@
 
 <span class="kw">impl </span>Verifier&lt;Notarize&gt; {
     <span class="doccomment">/// Notarizes the TLS session.
+    ///
+    /// # Arguments
+    ///
+    /// * `signer` - The signer used to sign the notarization result.
     </span><span class="kw">pub async fn </span>finalize&lt;T&gt;(<span class="self">self</span>, signer: <span class="kw-2">&amp;</span><span class="kw">impl </span>Signer&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;SessionHeader, VerifierError&gt;
     <span class="kw">where
         </span>T: Into&lt;Signature&gt;,
@@ -153,7 +161,7 @@
             <span class="kw">let </span>merkle_root =
                 <span class="macro">expect_msg_or_err!</span>(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)<span class="question-mark">?</span>;
 
-            <span class="comment">// Finalize all MPC before signing the session header
+            <span class="comment">// Finalize all MPC before signing the session header.
             </span><span class="kw">let </span>(<span class="kw-2">mut </span>ot_sender_actor, <span class="kw">_</span>, <span class="kw">_</span>) = <span class="macro">futures::try_join!</span>(
                 ot_fut,
                 ot_send.shutdown().map_err(VerifierError::from),

@@ -153,7 +153,7 @@
 };
 <span class="kw">use </span>tlsn_core::proof::default_cert_verifier;
 
-<span class="doccomment">/// Configuration for the [`Verifier`](crate::tls::Verifier)
+<span class="doccomment">/// Configuration for the [`Verifier`](crate::tls::Verifier).
 </span><span class="attr">#[allow(missing_docs)]
 #[derive(derive_builder::Builder)]
 #[builder(pattern = <span class="string">"owned"</span>)]
@@ -186,7 +186,7 @@
 }
 
 <span class="kw">impl </span>VerifierConfig {
-    <span class="doccomment">/// Create a new configuration builder.
+    <span class="doccomment">/// Creates a new configuration builder.
     </span><span class="kw">pub fn </span>builder() -&gt; VerifierConfigBuilder {
         VerifierConfigBuilder::default()
     }
@@ -206,7 +206,7 @@
         <span class="self">self</span>.max_recv_data
     }
 
-    <span class="doccomment">/// Get the certificate verifier.
+    <span class="doccomment">/// Returns the certificate verifier.
     </span><span class="kw">pub fn </span>cert_verifier(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw">impl </span>ServerCertVerifier {
         <span class="self">self</span>.cert_verifier
             .as_ref()

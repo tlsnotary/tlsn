@@ -144,12 +144,12 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.state.transcript_rx
     }
 
-    <span class="doccomment">/// Returns the transcript commitment builder
+    <span class="doccomment">/// Returns the transcript commitment builder.
     </span><span class="kw">pub fn </span>commitment_builder(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>TranscriptCommitmentBuilder {
         <span class="kw-2">&amp;mut </span><span class="self">self</span>.state.builder
     }
 
-    <span class="doccomment">/// Finalize the notarization returning a [`NotarizedSession`]
+    <span class="doccomment">/// Finalizes the notarization returning a [`NotarizedSession`].
     </span><span class="attr">#[cfg_attr(feature = <span class="string">"tracing"</span>, instrument(level = <span class="string">"info"</span>, skip(<span class="self">self</span>), err))]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;NotarizedSession, ProverError&gt; {
         <span class="kw">let </span>Notarize {
@@ -209,10 +209,10 @@
             <span class="kw">_ </span>= ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(OTShutdownError)<span class="question-mark">?</span>,
             <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span>mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
         };
-        <span class="comment">// Wait for the notary to correctly close the connection
+        <span class="comment">// Wait for the notary to correctly close the connection.
         </span>mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="comment">// Check the header is consistent with the Prover's view
+        <span class="comment">// Check the header is consistent with the Prover's view.
         </span>header
             .verify(
                 start_time,

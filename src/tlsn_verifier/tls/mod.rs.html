@@ -345,7 +345,16 @@
 <a href="#343" id="343">343</a>
 <a href="#344" id="344">344</a>
 <a href="#345" id="345">345</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier.
 
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>config;
 <span class="kw">mod </span>error;
@@ -403,7 +412,7 @@
 }
 
 <span class="kw">impl </span>Verifier&lt;state::Initialized&gt; {
-    <span class="doccomment">/// Create a new verifier.
+    <span class="doccomment">/// Creates a new verifier.
     </span><span class="kw">pub fn </span>new(config: VerifierConfig) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
@@ -411,7 +420,7 @@
         }
     }
 
-    <span class="doccomment">/// Set up the verifier.
+    <span class="doccomment">/// Sets up the verifier.
     ///
     /// This performs all MPC setup.
     ///
@@ -454,6 +463,11 @@
     <span class="doccomment">/// Runs the TLS verifier to completion, notarizing the TLS session.
     ///
     /// This is a convenience method which runs all the steps needed for notarization.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to the prover.
+    /// * `signer` - The signer used to sign the notarization result.
     </span><span class="kw">pub async fn </span>notarize&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>, T&gt;(
         <span class="self">self</span>,
         socket: S,
@@ -474,6 +488,10 @@
     <span class="doccomment">/// Runs the TLS verifier to completion, verifying the TLS session.
     ///
     /// This is a convenience method which runs all the steps needed for verification.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to the prover.
     </span><span class="kw">pub async fn </span>verify&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>&gt;(
         <span class="self">self</span>,
         socket: S,
