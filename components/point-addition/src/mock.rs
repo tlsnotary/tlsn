@@ -5,13 +5,13 @@ use mpz_share_conversion::{
     ReceiverConfig, SenderConfig,
 };
 
-/// A mock point addition sender implementing [MpcPointAddition] for [P256]
+/// A mock point addition sender implementing [MpcPointAddition] for [P256].
 pub type MockPointAdditionSender = MpcPointAddition<P256, MockConverterSender<P256>>;
 
-/// A mock point addition receiver implementing [MpcPointAddition] for [P256]
+/// A mock point addition receiver implementing [MpcPointAddition] for [P256].
 pub type MockPointAdditionReceiver = MpcPointAddition<P256, MockConverterReceiver<P256>>;
 
-/// Create a pair of [MpcPointAddition] instances
+/// Creates a pair of [MpcPointAddition] instances.
 pub fn mock_point_converter_pair(id: &str) -> (MockPointAdditionSender, MockPointAdditionReceiver) {
     let (sender, receiver) = mock_converter_pair(
         SenderConfig::builder()

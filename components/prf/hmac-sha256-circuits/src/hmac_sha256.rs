@@ -18,8 +18,8 @@ static SHA256_INITIAL_STATE: [u32; 8] = [
 ///
 /// # Arguments
 ///
-/// * `builder_state`   - Reference to builder state
-/// * `key`             - N-byte key (must be <= 64 bytes)
+/// * `builder_state`   - Reference to builder state.
+/// * `key`             - N-byte key (must be <= 64 bytes).
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", skip(key, builder_state))
@@ -64,7 +64,7 @@ pub fn hmac_sha256_partial_trace<'a>(
 ///
 /// # Arguments
 ///
-/// * `key` - N-byte key (must be <= 64 bytes)
+/// * `key` - N-byte key (must be <= 64 bytes).
 #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip(key)))]
 pub fn hmac_sha256_partial(key: &[u8]) -> ([u32; 8], [u32; 8]) {
     assert!(key.len() <= 64);
@@ -89,9 +89,9 @@ pub fn hmac_sha256_partial(key: &[u8]) -> ([u32; 8], [u32; 8]) {
 ///
 /// # Arguments
 ///
-/// * `outer_state` - 256-bit outer state
-/// * `inner_state` - 256-bit inner state
-/// * `msg`         - N-byte message
+/// * `outer_state` - 256-bit outer state.
+/// * `inner_state` - 256-bit inner state.
+/// * `msg`         - N-byte message.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", skip(builder_state, outer_state, inner_state, msg))
@@ -116,9 +116,9 @@ pub fn hmac_sha256_finalize_trace<'a>(
 ///
 /// # Arguments
 ///
-/// * `outer_state` - 256-bit outer state
-/// * `inner_state` - 256-bit inner state
-/// * `msg`         - N-byte message
+/// * `outer_state` - 256-bit outer state.
+/// * `inner_state` - 256-bit inner state.
+/// * `msg`         - N-byte message.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", skip(outer_state, inner_state, msg))

@@ -1,14 +1,16 @@
 //! This crate provides a 2PC stream cipher implementation using a block cipher in counter mode.
 //!
-//! Each party plays a specific role, either the `StreamCipherLeader` or the `StreamCipherFollower`. Both parties
-//! work together to encrypt and decrypt messages using a shared key.
+//! Each party plays a specific role, either the `StreamCipherLeader` or the `StreamCipherFollower`.
+//! Both parties work together to encrypt and decrypt messages using a shared key.
 //!
 //! # Transcript
 //!
-//! Using the `record` flag, the `StreamCipherFollower` can optionally use a dedicated stream when encoding the plaintext labels, which
-//! allows the `StreamCipherLeader` to build a transcript of active labels which are pushed to the provided `TranscriptSink`.
+//! Using the `record` flag, the `StreamCipherFollower` can optionally use a dedicated stream when
+//! encoding the plaintext labels, which allows the `StreamCipherLeader` to build a transcript of
+//! active labels which are pushed to the provided `TranscriptSink`.
 //!
-//! Afterwards, the `StreamCipherLeader` can create commitments to the transcript which can be used in a selective disclosure protocol.
+//! Afterwards, the `StreamCipherLeader` can create commitments to the transcript which can be used in
+//! a selective disclosure protocol.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -27,7 +29,7 @@ pub use stream_cipher::MpcStreamCipher;
 use async_trait::async_trait;
 use mpz_garble::value::ValueRef;
 
-/// Error that can occur when using a stream cipher
+/// Error that can occur when using a stream cipher.
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum StreamCipherError {
@@ -93,8 +95,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `plaintext`: The message to apply the keystream to.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `plaintext` - The message to apply the keystream to.
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -106,8 +108,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `plaintext`: The message to apply the keystream to.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `plaintext` - The message to apply the keystream to.
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -118,8 +120,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `len`: The length of the plaintext provided by another party.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `len` - The length of the plaintext provided by another party.
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -131,8 +133,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `expli cit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt.
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -144,8 +146,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt.
     async fn decrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -157,8 +159,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt.
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -175,8 +177,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt and prove.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt and prove.
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -187,8 +189,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to verify.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to verify.
     async fn verify_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -199,8 +201,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream block.
-    /// * `ctr`: The counter to use for the keystream block.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream block.
+    /// * `ctr` - The counter to use for the keystream block.
     async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,

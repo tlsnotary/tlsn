@@ -51,7 +51,7 @@ impl<T> std::fmt::Debug for UidYamux<T> {
     }
 }
 
-/// A muxer control for [opening streams](Self::get_stream) with the remote
+/// A muxer control for [opening streams](Self::get_stream) with the remote.
 #[derive(Debug, Clone)]
 pub struct UidYamuxControl {
     mode: yamux::Mode,
@@ -60,7 +60,7 @@ pub struct UidYamuxControl {
 }
 
 impl UidYamuxControl {
-    /// Close the connection
+    /// Closes the connection.
     pub async fn close(&mut self) -> Result<(), MuxerError> {
         self.control
             .close()
@@ -73,7 +73,7 @@ impl<T> UidYamux<T>
 where
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,
 {
-    /// Creates a new muxer with the provided config and socket
+    /// Creates a new muxer with the provided config and socket.
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(level = "info", skip(socket), ret)
@@ -109,7 +109,7 @@ where
         let mut pending_streams = FuturesUnordered::new();
         loop {
             futures::select! {
-                // Handle incoming streams
+                // Handle incoming streams.
                 stream = conn.select_next_some() => {
                     if self.mode == yamux::Mode::Client {
                         return Err(MuxerError::InternalError(
@@ -126,14 +126,14 @@ where
                         Ok::<_, MuxerError>((stream_id, stream))
                     });
                 }
-                // Handle streams for which we've received the id
+                // Handle streams for which we've received the id.
                 stream = pending_streams.select_next_some() => {
                     let (stream_id, stream) = stream?;
 
                     let mut state = self.state.lock().unwrap();
                     state.stream_ids.insert(stream_id.clone());
                     if let Some(sender) = state.waiting_callers.remove(&stream_id) {
-                        // ignore if receiver dropped
+                        // Ignore if receiver dropped.
                         _ = sender.send(Ok(stream));
                     } else {
                         state.waiting_streams.insert(stream_id, stream);
@@ -220,12 +220,12 @@ impl MuxStream for UidYamuxControl {
                 let receiver = {
                     let mut state = self.state.lock().unwrap();
 
-                    // If we already have the stream, return it
+                    // If we already have the stream, return it.
                     if let Some(stream) = state.waiting_streams.remove(id) {
                         return Ok(stream);
                     }
 
-                    // Prevent duplicate stream ids
+                    // Prevent duplicate stream ids.
                     if state.stream_ids.contains(id) {
                         return Err(MuxerError::DuplicateStreamId(id.to_string()));
                     }

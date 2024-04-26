@@ -5,7 +5,7 @@ use mpz_share_conversion::{
 
 use super::{Ghash, GhashConfig};
 
-/// Create a Ghash sender/receiver pair for testing purpose
+/// Create a Ghash sender/receiver pair for testing purpose.
 pub fn mock_ghash_pair(
     sender_config: GhashConfig,
     receiver_config: GhashConfig,

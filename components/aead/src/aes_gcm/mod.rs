@@ -114,7 +114,7 @@ impl MpcAesGcm {
 
         let tag = match self.config.role() {
             Role::Leader => {
-                // Send commitment of tag share to follower
+                // Send commitment of tag share to follower.
                 let (tag_share_decommitment, tag_share_commitment) =
                     TagShare::from(tag_share).hash_commit();
 
@@ -122,12 +122,12 @@ impl MpcAesGcm {
                     .send(AeadMessage::TagShareCommitment(tag_share_commitment))
                     .await?;
 
-                // Expect tag share from follower
+                // Expect tag share from follower.
                 let msg = expect_msg_or_err!(self.channel, AeadMessage::TagShare)?;
 
                 let other_tag_share = AesGcmTagShare::from_unchecked(&msg.share)?;
 
-                // Send decommitment (tag share) to follower
+                // Send decommitment (tag share) to follower.
                 self.channel
                     .send(AeadMessage::TagShareDecommitment(tag_share_decommitment))
                     .await?;
@@ -135,19 +135,19 @@ impl MpcAesGcm {
                 tag_share + other_tag_share
             }
             Role::Follower => {
-                // Wait for commitment from leader
+                // Wait for commitment from leader.
                 let commitment = expect_msg_or_err!(self.channel, AeadMessage::TagShareCommitment)?;
 
-                // Send tag share to leader
+                // Send tag share to leader.
                 self.channel
                     .send(AeadMessage::TagShare(tag_share.into()))
                     .await?;
 
-                // Expect decommitment (tag share) from leader
+                // Expect decommitment (tag share) from leader.
                 let decommitment =
                     expect_msg_or_err!(self.channel, AeadMessage::TagShareDecommitment)?;
 
-                // Verify decommitment
+                // Verify decommitment.
                 decommitment.verify(&commitment).map_err(|_| {
                     AeadError::ValidationError(
                         "Leader tag share commitment verification failed".to_string(),
@@ -221,7 +221,7 @@ impl Aead for MpcAesGcm {
     }
 
     async fn setup(&mut self) -> Result<(), AeadError> {
-        // Share zero block
+        // Share zero block.
         let h_share = self.aes_block.encrypt_share(vec![0u8; 16]).await?;
         self.ghash.set_key(h_share).await?;
 
@@ -667,14 +667,14 @@ mod tests {
 
         let len = ciphertext.len();
 
-        // corrupt tag
+        // Corrupt tag.
         let mut corrupted = ciphertext.clone();
         corrupted[len - 1] -= 1;
 
         let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
             setup_pair(key.clone(), iv.clone()).await;
 
-        // leader receives corrupted tag
+        // Leader receives corrupted tag.
         let err = tokio::try_join!(
             leader.decrypt_public(explicit_nonce.clone(), corrupted.clone(), aad.clone(),),
             follower.decrypt_public(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),)
@@ -685,7 +685,7 @@ mod tests {
         let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
             setup_pair(key.clone(), iv.clone()).await;
 
-        // follower receives corrupted tag
+        // Follower receives corrupted tag.
         let err = tokio::try_join!(
             leader.decrypt_public(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
             follower.decrypt_public(explicit_nonce.clone(), corrupted.clone(), aad.clone(),)
@@ -714,7 +714,7 @@ mod tests {
         )
         .unwrap();
 
-        // corrupt tag
+        //Corrupt tag.
         let mut corrupted = ciphertext.clone();
         corrupted[len - 1] -= 1;
 
