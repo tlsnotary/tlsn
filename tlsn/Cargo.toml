@@ -9,7 +9,7 @@ members = [
     "tlsn-server-fixture",
     "tests-integration",
     "examples",
-    "benches", "tlsn-wasm",
+    "benches",
 ]
 resolver = "2"
 
