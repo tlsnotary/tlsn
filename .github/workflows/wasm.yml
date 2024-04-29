@@ -32,11 +32,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install stable rust toolchain
+      - name: Install nightly rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          toolchain: stable
+          toolchain: nightly
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.5.0
@@ -45,3 +45,28 @@ jobs:
 
       - name: "Build"
         run: cargo build --target wasm32-unknown-unknown
+  build_tlsn-wasm:
+    name: Build and test tlsn-js
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install nightly rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          toolchain: nightly
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tlsn/tlsn-wasm
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: "Build and package tlsn-js"
+        working-directory: ./tlsn/tlsn-wasm
+        run: ./build.sh
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: tlsn-js-package
+          path: tlsn/tlsn-wasm/pkg/

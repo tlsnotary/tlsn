@@ -2,12 +2,10 @@
 
 ## Build
 
-This crate must be built using the nightly rust compiler with the following flags:
+To build the WASM bindings, run the provided `build.sh` script:
 
 ```bash
-RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals" \
-rustup run nightly  \
-wasm-pack build --target web . -Z build-std=panic_abort,std
+./build.sh
 ```
 
-
+Note that this crate must be built using the nightly version of the Rust compiler because it utilizes features from [`wasm-bindgen-rayon`](https://docs.rs/wasm-bindgen-rayon/latest/wasm_bindgen_rayon/#building-rust-code).
