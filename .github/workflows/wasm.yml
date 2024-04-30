@@ -66,9 +66,10 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: "Build and package tlsn-wasm"
         working-directory: ./tlsn-wasm
-        run: ./build.sh
+        run: ./package.sh
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: tlsn-wasm-package
           path: tlsn-wasm/pkg/
+          if-no-files-found: error
