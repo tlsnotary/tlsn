@@ -133,7 +133,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `expli cit_nonce` - The explicit nonce to use for the keystream.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
     /// * `ciphertext` - The ciphertext to decrypt.
     async fn decrypt_public(
         &mut self,
