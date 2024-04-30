@@ -5,7 +5,6 @@ members = [
     "tlsn-verifier",
     "tlsn-prover",
     "tlsn-formats",
-    "tlsn-wasm",
     "tlsn-server-fixture",
     "tests-integration",
     "examples",

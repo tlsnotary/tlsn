@@ -17,13 +17,17 @@ debug = false
 opt-level = "z"
 wasm-opt = true
 
+[patch.'https://github.com/tlsnotary/tlsn-utils']
+tlsn-utils-aio = { git = "https://github.com//tlsnotary/tlsn-utils", branch = "feature/single-threaded" }
+
 [dependencies]
-tlsn-core.workspace = true
-tlsn-utils-aio.workspace = true
-tlsn-prover = { workspace = true, features = ["tracing"] }
-tlsn-tls-client-async.workspace = true
-tlsn-verifier = { workspace = true, features = ["tracing"] }
-tlsn-utils.workspace = true
+tlsn-core = { path = "../tlsn/tlsn-core" }
+tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
+tlsn-prover = { path = "../tlsn/tlsn-prover", features = ["tracing"]  }
+tlsn-verifier = { path = "../tlsn/tlsn-verifier", features = ["tracing"]  }
+
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
 
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
@@ -62,7 +66,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["time"] }
 tracing-web = "0.1.2"
 
-serde = { workspace = true, features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 serde-wasm-bindgen = "0.6"
 

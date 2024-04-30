@@ -46,7 +46,7 @@ jobs:
       - name: "Build"
         run: cargo build --target wasm32-unknown-unknown
   build_tlsn-wasm:
-    name: Build and test tlsn-js
+    name: Build and test tlsn-wasm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -61,14 +61,14 @@ jobs:
       - name: Use caching
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tlsn/tlsn-wasm
+          workspaces: tlsn-wasm
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: "Build and package tlsn-js"
+      - name: "Build and package tlsn-wasm"
         working-directory: ./tlsn/tlsn-wasm
         run: ./build.sh
       - name: Upload build artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: tlsn-js-package
+          name: tlsn-wasm-package
           path: tlsn/tlsn-wasm/pkg/
