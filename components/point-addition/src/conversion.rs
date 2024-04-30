@@ -13,24 +13,24 @@ use mpz_fields::{p256::P256, Field};
 use mpz_share_conversion::ShareConversion;
 use p256::EncodedPoint;
 
-/// The instance used for adding the curve points
+/// The instance used for adding the curve points.
 #[derive(Debug)]
 pub struct MpcPointAddition<F, C>
 where
     F: Field,
     C: ShareConversion<F>,
 {
-    /// Indicates which role this converter instance will fulfill
+    /// Indicates which role this converter instance will fulfill.
     role: Role,
-    /// The share converter
+    /// The share converter.
     converter: C,
 
     _field: PhantomData<F>,
 }
 
-/// The role: either Leader or Follower
+/// The role: either Leader or Follower.
 ///
-/// Follower needs to perform an inversion operation on the point during point addition
+/// Follower needs to perform an inversion operation on the point during point addition.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub enum Role {
@@ -39,7 +39,7 @@ pub enum Role {
 }
 
 impl Role {
-    /// Adapt the point depending on the role
+    /// Adapts the point depending on the role.
     ///
     /// One party needs to adapt the coordinates. We decided that this is the follower's job.
     fn adapt_point<V: Field>(&self, [x, y]: [V; 2]) -> [V; 2] {
@@ -55,7 +55,7 @@ where
     F: Field,
     C: ShareConversion<F> + std::fmt::Debug,
 {
-    /// Create a new [MpcPointAddition] instance
+    /// Creates a new [MpcPointAddition] instance.
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", ret))]
     pub fn new(role: Role, converter: C) -> Self {
         Self {
@@ -65,7 +65,7 @@ where
         }
     }
 
-    /// Perform the conversion of P = A + B => P_x = a + b
+    /// Performs the conversion of P = A + B => P_x = a + b.
     ///
     /// Since we are only interested in the x-coordinate of P (for the PMS) and because elliptic
     /// curve point addition is an expensive operation in 2PC, we secret-share the x-coordinate
@@ -111,7 +111,7 @@ where
     }
 }
 
-/// Convert the external library's point type to our library's field type
+/// Converts the external library's point type to our library's field type.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "debug", skip(point), err)
@@ -120,7 +120,7 @@ pub(crate) fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAddit
     let mut x: [u8; 32] = (*point.x().ok_or(PointAdditionError::Coordinates)?).into();
     let mut y: [u8; 32] = (*point.y().ok_or(PointAdditionError::Coordinates)?).into();
 
-    // reverse to little endian
+    // Reverse to little endian.
     x.reverse();
     y.reverse();
 

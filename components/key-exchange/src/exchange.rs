@@ -1,4 +1,4 @@
-//! This module implements the key exchange logic
+//! This module implements the key exchange logic.
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
@@ -41,25 +41,25 @@ enum State {
     Error,
 }
 
-/// The instance for performing the key exchange protocol
+/// The instance for performing the key exchange protocol.
 ///
-/// Can be either a leader or a follower depending on the `role` field in [KeyExchangeConfig]
+/// Can be either a leader or a follower depending on the `role` field in [KeyExchangeConfig].
 pub struct KeyExchangeCore<PS, PR, E> {
-    /// A channel for exchanging messages between leader and follower
+    /// A channel for exchanging messages between leader and follower.
     channel: KeyExchangeChannel,
-    /// The sender instance for performing point addition
+    /// The sender instance for performing point addition.
     point_addition_sender: PS,
-    /// The receiver instance for performing point addition
+    /// The receiver instance for performing point addition.
     point_addition_receiver: PR,
-    /// MPC executor
+    /// MPC executor.
     executor: E,
-    /// The private key of the party behind this instance, either follower or leader
+    /// The private key of the party behind this instance, either follower or leader.
     private_key: Option<SecretKey>,
-    /// The public key of the server
+    /// The public key of the server.
     server_key: Option<PublicKey>,
-    /// The config used for the key exchange protocol
+    /// The config used for the key exchange protocol.
     config: KeyExchangeConfig,
-    /// The state of the protocol
+    /// The state of the protocol.
     state: State,
 }
 
@@ -88,13 +88,15 @@ where
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
     E: Memory + Execute + Decode + Send,
 {
-    /// Creates a new [KeyExchangeCore]
+    /// Creates a new [KeyExchangeCore].
     ///
-    /// * `channel`                 - The channel for sending messages between leader and follower
-    /// * `point_addition_sender`   - The point addition sender instance used during key exchange
-    /// * `point_addition_receiver` - The point addition receiver instance used during key exchange
-    /// * `executor`                - The MPC executor
-    /// * `config`                  - The config used for the key exchange protocol
+    /// # Arguments
+    ///
+    /// * `channel`                 - The channel for sending messages between leader and follower.
+    /// * `point_addition_sender`   - The point addition sender instance used during key exchange.
+    /// * `point_addition_receiver` - The point addition receiver instance used during key exchange.
+    /// * `executor`                - The MPC executor.
+    /// * `config`                  - The config used for the key exchange protocol.
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(
@@ -140,7 +142,7 @@ where
 
         let server_key = match self.config.role() {
             Role::Leader => {
-                // Send server public key to follower
+                // Send server public key to follower.
                 if let Some(server_key) = &self.server_key {
                     self.channel
                         .send(KeyExchangeMessage::ServerPublicKey((*server_key).into()))
@@ -152,7 +154,7 @@ where
                 }
             }
             Role::Follower => {
-                // Receive server's public key from leader
+                // Receive server's public key from leader.
                 let message =
                     expect_msg_or_err!(self.channel, KeyExchangeMessage::ServerPublicKey)?;
                 let server_key = message.try_into()?;
@@ -168,7 +170,7 @@ where
             .take()
             .ok_or(KeyExchangeError::NoPrivateKey)?;
 
-        // Compute the leader's/follower's share of the pre-master secret
+        // Compute the leader's/follower's share of the pre-master secret.
         //
         // We need to mimic the [diffie-hellman](p256::ecdh::diffie_hellman) function without the
         // [SharedSecret](p256::ecdh::SharedSecret) wrapper, because this makes it harder to get
@@ -264,7 +266,7 @@ where
 
         self.state = State::Complete;
 
-        // Both parties use pms_1 as the pre-master secret
+        // Both parties use pms_1 as the pre-master secret.
         Ok(Pms::new(pms_1))
     }
 }
@@ -284,7 +286,7 @@ where
         self.server_key
     }
 
-    /// Set the server's public key
+    /// Set the server's public key.
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_server_key(&mut self, server_key: PublicKey) {
         self.server_key = Some(server_key);
@@ -372,7 +374,7 @@ where
         Ok(Pms::new(pms_1))
     }
 
-    /// Compute the client's public key
+    /// Compute the client's public key.
     ///
     /// The client's public key in this context is the combined public key (EC point addition) of
     /// the leader's public key and the follower's public key.
@@ -389,12 +391,12 @@ where
 
         match self.config.role() {
             Role::Leader => {
-                // Receive public key from follower
+                // Receive public key from follower.
                 let message =
                     expect_msg_or_err!(self.channel, KeyExchangeMessage::FollowerPublicKey)?;
                 let follower_public_key: PublicKey = message.try_into()?;
 
-                // Combine public keys
+                // Combine public keys.
                 let client_public_key = PublicKey::from_affine(
                     (public_key.to_projective() + follower_public_key.to_projective()).to_affine(),
                 )?;
@@ -402,7 +404,7 @@ where
                 Ok(Some(client_public_key))
             }
             Role::Follower => {
-                // Send public key to leader
+                // Send public key to leader.
                 self.channel
                     .send(KeyExchangeMessage::FollowerPublicKey(public_key.into()))
                     .await?;
@@ -412,7 +414,7 @@ where
         }
     }
 
-    /// Computes the PMS
+    /// Computes the PMS.
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(level = "info", skip(self), err)

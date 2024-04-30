@@ -39,7 +39,7 @@ impl Add for AesGcmTagShare {
     }
 }
 
-/// Builds padded data for GHASH
+/// Builds padded data for GHASH.
 #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", ret))]
 pub(crate) fn build_ghash_data(mut aad: Vec<u8>, mut ciphertext: Vec<u8>) -> Vec<u8> {
     let associated_data_bitlen = (aad.len() as u64) * 8;
@@ -47,7 +47,7 @@ pub(crate) fn build_ghash_data(mut aad: Vec<u8>, mut ciphertext: Vec<u8>) -> Vec
 
     let len_block = ((associated_data_bitlen as u128) << 64) + (text_bitlen as u128);
 
-    // pad data to be a multiple of 16 bytes
+    // Pad data to be a multiple of 16 bytes.
     let aad_padded_block_count = (aad.len() / 16) + (aad.len() % 16 != 0) as usize;
     aad.resize(aad_padded_block_count * 16, 0);
 
