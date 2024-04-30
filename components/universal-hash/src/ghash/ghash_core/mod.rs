@@ -88,8 +88,8 @@ fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<G
         // `add_shares` always have an even number of shares so we simply add the next odd share.
         add_shares.push(*odd_share);
 
-        // Now we need to compute the next even share and add it
-        // note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
+        // Now we need to compute the next even share and add it.
+        // Note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
         // is the share of H^5.
         let mut base_share = add_shares[current_odd_power / 2];
         base_share = base_share * base_share;
