@@ -68,7 +68,7 @@ jobs:
         working-directory: ./tlsn/tlsn-wasm
         run: ./build.sh
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: tlsn-wasm-package
-          path: tlsn/tlsn-wasm/pkg/
+          path: tlsn-wasm/pkg/
