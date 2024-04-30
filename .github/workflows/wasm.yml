@@ -30,7 +30,7 @@ jobs:
         working-directory: ${{ matrix.package }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install nightly rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -39,9 +39,9 @@ jobs:
           toolchain: nightly
 
       - name: Use caching
-        uses: Swatinem/rust-cache@v2.5.0
+        uses: Swatinem/rust-cache@v2
         with:
-          workspaces: ${{ matrix.package }} -> ../target
+          workspaces: ${{ matrix.package }} -> target
 
       - name: "Build"
         run: cargo build --target wasm32-unknown-unknown
