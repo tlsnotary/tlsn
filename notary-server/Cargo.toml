@@ -16,8 +16,8 @@ eyre = "0.6.8"
 futures = "0.3"
 futures-util = "0.3.28"
 http = "1.1"
-hyper = { version = "1.1", features = ["client", "http1", "server"] }
 http-body-util = "0.1"
+hyper = { version = "1.1", features = ["client", "http1", "server"] }
 hyper-util = {version = "0.1", features = ["full"]}
 notify = { version = "6.1.1", default-features = false, features = ["macos_kqueue"] }
 opentelemetry = { version = "0.19" }

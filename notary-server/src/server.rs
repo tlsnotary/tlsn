@@ -179,21 +179,12 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                 match acceptor.accept(stream).await {
                     Ok(stream) => {
                         info!("Accepted prover's TLS-secured TCP connection");
-                        // Hyper has its own `AsyncRead` and `AsyncWrite` traits and doesn't use tokio.
-                        // `TokioIo` converts between them.
+                        // Reference: https://github.com/tokio-rs/axum/blob/5201798d4e4d4759c208ef83e30ce85820c07baa/examples/low-level-rustls/src/main.rs#L67-L80
                         let io = TokioIo::new(stream);
-                        // Hyper also has its own `Service` trait and doesn't use tower. We can use
-                        // `hyper::service::service_fn` to create a hyper `Service` that calls our app through
-                        // `tower::Service::call`.
                         let hyper_service =
                             hyper::service::service_fn(move |request: Request<Incoming>| {
-                                // We have to clone `tower_service` because hyper's `Service` uses `&self` whereas
-                                // tower's `Service` requires `&mut self`.
-                                //
-                                // We don't need to call `poll_ready` since `Router` is always ready.
                                 tower_service.clone().call(request)
                             });
-
                         // Serve different requests using the same hyper protocol and axum router
                         let _ = protocol
                             .serve_connection(io, hyper_service)
@@ -209,6 +200,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             } else {
                 // When TLS is disabled
                 info!("Accepted prover's TCP connection",);
+                // Reference: https://github.com/tokio-rs/axum/blob/5201798d4e4d4759c208ef83e30ce85820c07baa/examples/low-level-rustls/src/main.rs#L67-L80
                 let io = TokioIo::new(stream);
                 let hyper_service =
                     hyper::service::service_fn(move |request: Request<Incoming>| {

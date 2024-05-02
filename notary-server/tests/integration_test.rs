@@ -1,9 +1,8 @@
 use async_tungstenite::{
     tokio::connect_async_with_tls_connector_and_config, tungstenite::protocol::WebSocketConfig,
 };
-use futures::AsyncWriteExt;
 use http_body_util::{BodyExt as _, Either, Empty, Full};
-use hyper::{client::conn::http1::Parts, Request, StatusCode};
+use hyper::{body::Bytes, client::conn::http1::Parts, Request, StatusCode};
 use hyper_tls::HttpsConnector;
 use hyper_util::{
     client::legacy::{connect::HttpConnector, Builder},
@@ -24,10 +23,7 @@ use tokio::{
     net::TcpStream,
 };
 use tokio_rustls::{client::TlsStream, TlsConnector};
-use tokio_util::{
-    bytes::Bytes,
-    compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt},
-};
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 use ws_stream_tungstenite::WsStream;
 
@@ -285,9 +281,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .method("POST")
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
-        .body(Full::new(Bytes::from(
-            serde_json::to_string("echo").unwrap(),
-        )))
+        .body(Full::<Bytes>::new("echo".into()))
         .unwrap();
 
     debug!("Sending request to server: {:?}", request);
@@ -297,17 +291,12 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     assert!(response.status() == StatusCode::OK);
 
     let payload = response.into_body().collect().await.unwrap().to_bytes();
-    let parsed =
-        serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
     debug!(
         "Received response from server: {:?}",
-        serde_json::to_string_pretty(&parsed).unwrap()
+        &String::from_utf8_lossy(&payload)
     );
 
-    let mut server_tls_conn = server_task.await.unwrap().unwrap();
-
-    // Make sure the server closes cleanly (sends close notify)
-    server_tls_conn.close().await.unwrap();
+    server_task.await.unwrap().unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
 
@@ -462,9 +451,7 @@ async fn test_websocket_prover() {
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("POST")
-        .body(Full::new(Bytes::from(
-            serde_json::to_string("echo").unwrap(),
-        )))
+        .body(Full::<Bytes>::new("echo".into()))
         .unwrap();
 
     debug!("Sending request to server: {:?}", request);
@@ -474,17 +461,12 @@ async fn test_websocket_prover() {
     assert!(response.status() == StatusCode::OK);
 
     let payload = response.into_body().collect().await.unwrap().to_bytes();
-    let parsed =
-        serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
     debug!(
         "Received response from server: {:?}",
-        serde_json::to_string_pretty(&parsed).unwrap()
+        &String::from_utf8_lossy(&payload)
     );
 
-    let mut server_tls_conn = server_task.await.unwrap().unwrap();
-
-    // Make sure the server closes cleanly (sends close notify)
-    server_tls_conn.close().await.unwrap();
+    server_task.await.unwrap().unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
 

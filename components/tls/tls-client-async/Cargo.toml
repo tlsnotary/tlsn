@@ -30,3 +30,5 @@ webpki-roots.workspace = true
 hyper = { workspace = true, features = ["client", "http1"] }
 tls-server-fixture = { path = "../tls-server-fixture" }
 rstest = { workspace = true }
+http-body-util.workspace = true
+hyper-util = { workspace = true, features = ["full"] }

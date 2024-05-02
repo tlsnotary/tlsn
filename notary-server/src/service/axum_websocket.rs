@@ -138,7 +138,6 @@ use async_tungstenite::{
 };
 use axum::{body::Bytes, extract::FromRequestParts, response::Response, Error};
 use axum_core::body::Body;
-
 use futures_util::{
     sink::{Sink, SinkExt},
     stream::{Stream, StreamExt},
@@ -148,7 +147,6 @@ use http::{
     request::Parts,
     Method, StatusCode,
 };
-use hyper::upgrade::{OnUpgrade, Upgraded};
 use hyper_util::rt::TokioIo;
 use sha1::{Digest, Sha1};
 use std::{
@@ -167,12 +165,12 @@ use tracing::error;
 ///
 /// See the [module docs](self) for an example.
 #[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
-pub struct WebSocketUpgrade<F = DefaultOnFailedUpdgrade> {
+pub struct WebSocketUpgrade<F = DefaultOnFailedUpgrade> {
     config: WebSocketConfig,
     /// The chosen protocol sent in the `Sec-WebSocket-Protocol` header of the response.
     protocol: Option<HeaderValue>,
     sec_websocket_key: HeaderValue,
-    on_upgrade: OnUpgrade,
+    on_upgrade: hyper::upgrade::OnUpgrade,
     on_failed_upgrade: F,
     sec_websocket_protocol: Option<HeaderValue>,
 }
@@ -189,7 +187,6 @@ impl<F> std::fmt::Debug for WebSocketUpgrade<F> {
 }
 
 impl<F> WebSocketUpgrade<F> {
-    /// Set the size of the internal message send queue.
     /// The target minimum size of the write buffer to reach before writing the data
     /// to the underlying stream.
     ///
@@ -323,7 +320,7 @@ impl<F> WebSocketUpgrade<F> {
     /// ```
     pub fn on_failed_upgrade<C>(self, callback: C) -> WebSocketUpgrade<C>
     where
-        C: OnFailedUpdgrade,
+        C: OnFailedUpgrade,
     {
         WebSocketUpgrade {
             config: self.config,
@@ -337,12 +334,12 @@ impl<F> WebSocketUpgrade<F> {
 
     /// Finalize upgrading the connection and call the provided callback with
     /// the stream.
-    #[must_use = "to setup the WebSocket connection, this response must be returned"]
+    #[must_use = "to set up the WebSocket connection, this response must be returned"]
     pub fn on_upgrade<C, Fut>(self, callback: C) -> Response
     where
         C: FnOnce(WebSocket) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
-        F: OnFailedUpdgrade,
+        F: OnFailedUpgrade,
     {
         let on_upgrade = self.on_upgrade;
         let config = self.config;
@@ -400,12 +397,12 @@ impl<F> WebSocketUpgrade<F> {
 /// What to do when a connection upgrade fails.
 ///
 /// See [`WebSocketUpgrade::on_failed_upgrade`] for more details.
-pub trait OnFailedUpdgrade: Send + 'static {
+pub trait OnFailedUpgrade: Send + 'static {
     /// Call the callback.
     fn call(self, error: Error);
 }
 
-impl<F> OnFailedUpdgrade for F
+impl<F> OnFailedUpgrade for F
 where
     F: FnOnce(Error) + Send + 'static,
 {
@@ -414,20 +411,20 @@ where
     }
 }
 
-/// The default `OnFailedUpdgrade` used by `WebSocketUpgrade`.
+/// The default `OnFailedUpgrade` used by `WebSocketUpgrade`.
 ///
 /// It simply ignores the error.
 #[non_exhaustive]
 #[derive(Debug)]
-pub struct DefaultOnFailedUpdgrade;
+pub struct DefaultOnFailedUpgrade;
 
-impl OnFailedUpdgrade for DefaultOnFailedUpdgrade {
+impl OnFailedUpgrade for DefaultOnFailedUpgrade {
     #[inline]
     fn call(self, _error: Error) {}
 }
 
 #[async_trait]
-impl<S> FromRequestParts<S> for WebSocketUpgrade<DefaultOnFailedUpdgrade>
+impl<S> FromRequestParts<S> for WebSocketUpgrade<DefaultOnFailedUpgrade>
 where
     S: Send + Sync,
 {
@@ -458,7 +455,7 @@ where
 
         let on_upgrade = parts
             .extensions
-            .remove::<OnUpgrade>()
+            .remove::<hyper::upgrade::OnUpgrade>()
             .ok_or(ConnectionNotUpgradable)?;
 
         let sec_websocket_protocol = parts.headers.get(header::SEC_WEBSOCKET_PROTOCOL).cloned();
@@ -469,11 +466,12 @@ where
             sec_websocket_key,
             on_upgrade,
             sec_websocket_protocol,
-            on_failed_upgrade: DefaultOnFailedUpdgrade,
+            on_failed_upgrade: DefaultOnFailedUpgrade,
         })
     }
 }
 
+/// NOTARY_MODIFICATION: Made this function public to be used in service.rs
 pub fn header_eq(headers: &HeaderMap, key: HeaderName, value: &'static str) -> bool {
     if let Some(header) = headers.get(&key) {
         header.as_bytes().eq_ignore_ascii_case(value.as_bytes())
@@ -501,13 +499,13 @@ fn header_contains(headers: &HeaderMap, key: HeaderName, value: &'static str) ->
 /// See [the module level documentation](self) for more details.
 #[derive(Debug)]
 pub struct WebSocket {
-    inner: WebSocketStream<TokioAdapter<TokioIo<Upgraded>>>,
+    inner: WebSocketStream<TokioAdapter<TokioIo<hyper::upgrade::Upgraded>>>,
     protocol: Option<HeaderValue>,
 }
 
 impl WebSocket {
-    /// Consume `self` and get the inner [`async_tungstenite::WebSocketStream`].
-    pub fn into_inner(self) -> WebSocketStream<TokioAdapter<TokioIo<Upgraded>>> {
+    /// NOTARY_MODIFICATION: Consume `self` and get the inner [`async_tungstenite::WebSocketStream`].
+    pub fn into_inner(self) -> WebSocketStream<TokioAdapter<TokioIo<hyper::upgrade::Upgraded>>> {
         self.inner
     }
 
@@ -748,9 +746,8 @@ fn sign(key: &[u8]) -> HeaderValue {
 pub mod rejection {
     //! WebSocket specific rejections.
 
-    use axum_core::{
-        __composite_rejection as composite_rejection, __define_rejection as define_rejection,
-    };
+    use axum_core::__composite_rejection as composite_rejection;
+    use axum_core::__define_rejection as define_rejection;
 
     define_rejection! {
         #[status = METHOD_NOT_ALLOWED]
