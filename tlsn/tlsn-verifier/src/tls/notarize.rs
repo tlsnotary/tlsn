@@ -77,6 +77,12 @@ impl Verifier<Notarize> {
 
             let signature = signer.sign(&session_header.to_bytes());
 
+            let message: &str = "Eternis:Aadhar";
+
+            info!("Signing message: :{}", message);
+
+            let signature2 = signer.sign(&message.to_bytes());
+
             #[cfg(feature = "tracing")]
             info!("Signed session header");
 
@@ -84,6 +90,7 @@ impl Verifier<Notarize> {
                 .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
                     header: session_header.clone(),
                     signature: signature.into(),
+                    signature2: signature2.into(),
                 }))
                 .await?;
 

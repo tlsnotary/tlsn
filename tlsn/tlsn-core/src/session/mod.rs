@@ -4,6 +4,7 @@ mod data;
 mod handshake;
 mod header;
 
+use mpz_core::serialize::CanonicalSerialize;
 use serde::{Deserialize, Serialize};
 
 pub use data::SessionData;
@@ -20,6 +21,7 @@ use crate::{
 pub struct NotarizedSession {
     header: SessionHeader,
     signature: Option<Signature>,
+    signature2: Option<Signature>,
     data: SessionData,
 }
 
@@ -27,10 +29,16 @@ opaque_debug::implement!(NotarizedSession);
 
 impl NotarizedSession {
     /// Create a new notarized session.
-    pub fn new(header: SessionHeader, signature: Option<Signature>, data: SessionData) -> Self {
+    pub fn new(
+        header: SessionHeader,
+        signature: Option<Signature>,
+        signature2: Option<Signature>,
+        data: SessionData,
+    ) -> Self {
         Self {
             header,
             signature,
+            signature2,
             data,
         }
     }
@@ -57,6 +65,11 @@ impl NotarizedSession {
     /// Returns the signature for the session header, if the notary signed it
     pub fn signature(&self) -> &Option<Signature> {
         &self.signature
+    }
+
+    /// Returns the signature2 for the session header, if the notary signed it
+    pub fn signature2(&self) -> Vec<u8> {
+        self.signature2.to_bytes()
     }
 
     /// Returns the [SessionData]
