@@ -38,7 +38,7 @@ pub trait Signer: Send + Sync {
 #[derive(Clone)]
 pub struct CertifiedKey {
     /// The certificate chain.
-    pub cert: Vec<tls_core::key::Certificate>,
+    pub cert: Vec<key::Certificate>,
 
     /// The certified key.
     pub key: Arc<dyn SigningKey>,
@@ -58,7 +58,7 @@ impl CertifiedKey {
     ///
     /// The cert chain must not be empty. The first certificate in the chain
     /// must be the end-entity certificate.
-    pub fn new(cert: Vec<tls_core::key::Certificate>, key: Arc<dyn SigningKey>) -> Self {
+    pub fn new(cert: Vec<key::Certificate>, key: Arc<dyn SigningKey>) -> Self {
         Self {
             cert,
             key,
@@ -68,7 +68,7 @@ impl CertifiedKey {
     }
 
     /// The end-entity certificate.
-    pub fn end_entity_cert(&self) -> Result<&tls_core::key::Certificate, SignError> {
+    pub fn end_entity_cert(&self) -> Result<&key::Certificate, SignError> {
         self.cert.first().ok_or(SignError(()))
     }
 
