@@ -16,7 +16,7 @@ use utils::range::RangeSet;
 async fn verify() {
     tracing_subscriber::fmt::init();
 
-    let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
+    let (socket_0, socket_1) = tokio::io::duplex(1 << 23);
 
     let (_, (sent, received, _session_info)) = tokio::join!(prover(socket_0), verifier(socket_1));
 
@@ -32,7 +32,7 @@ async fn verify() {
 
 #[instrument(skip(notary_socket))]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
-    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
 
     let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
 

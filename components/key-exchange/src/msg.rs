@@ -1,11 +1,12 @@
-//! This module contains the message types exchanged between user and notary
+//! This module contains the message types exchanged between the prover and the TLS verifier.
 
 use std::fmt::{self, Display, Formatter};
 
 use p256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey as P256PublicKey};
 use serde::{Deserialize, Serialize};
 
-/// A type for messages exchanged between user and notary during the key exchange protocol
+/// A type for messages exchanged between the prover and the TLS verifier during the key exchange
+/// protocol.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub enum KeyExchangeMessage {
@@ -13,14 +14,14 @@ pub enum KeyExchangeMessage {
     ServerPublicKey(PublicKey),
 }
 
-/// A wrapper for a serialized public key
+/// A wrapper for a serialized public key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
-    /// The sec1 serialized public key
+    /// The sec1 serialized public key.
     pub key: Vec<u8>,
 }
 
-/// An error that can occur during parsing of a public key
+/// An error that can occur during parsing of a public key.
 #[derive(Debug, thiserror::Error)]
 pub struct KeyParseError(#[from] p256::elliptic_curve::Error);
 

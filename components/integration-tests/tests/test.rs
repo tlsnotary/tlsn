@@ -345,7 +345,7 @@ async fn test_components() {
     let follower_private_key = SecretKey::random(&mut rng);
     let server_public_key = PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng));
 
-    // Setup complete
+    // Setup complete.
 
     let _ = tokio::try_join!(
         leader_ke.compute_client_key(leader_private_key),

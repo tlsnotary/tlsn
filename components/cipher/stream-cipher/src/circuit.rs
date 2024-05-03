@@ -1,7 +1,7 @@
 use mpz_circuits::{circuits::aes128_trace, once_cell::sync::Lazy, trace, Circuit, CircuitBuilder};
 use std::sync::Arc;
 
-/// AES encrypt counter block.
+/// AES encrypts a counter block.
 ///
 /// # Inputs
 ///

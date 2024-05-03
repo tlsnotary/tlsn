@@ -20,7 +20,7 @@ pub use crate::{
 };
 pub use config::{BlockCipherConfig, BlockCipherConfigBuilder, BlockCipherConfigBuilderError};
 
-/// Errors that can occur when using the block cipher
+/// Errors that can occur when using the block cipher.
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum BlockCipherError {
@@ -36,7 +36,7 @@ pub enum BlockCipherError {
     InvalidInputLength(usize, usize),
 }
 
-/// A trait for MPC block ciphers
+/// A trait for MPC block ciphers.
 #[async_trait]
 pub trait BlockCipher<Cipher>: Send + Sync
 where
@@ -47,22 +47,26 @@ where
 
     /// Encrypts the given plaintext keeping it hidden from the other party(s).
     ///
-    /// Returns the ciphertext
+    /// Returns the ciphertext.
     ///
-    /// * `plaintext` - The plaintext to encrypt
+    /// # Arguments
+    ///
+    /// * `plaintext` - The plaintext to encrypt.
     async fn encrypt_private(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError>;
 
     /// Encrypts a plaintext provided by the other party(s).
     ///
-    /// Returns the ciphertext
+    /// Returns the ciphertext.
     async fn encrypt_blind(&mut self) -> Result<Vec<u8>, BlockCipherError>;
 
     /// Encrypts a plaintext provided by both parties. Fails if the
     /// plaintext provided by both parties does not match.
     ///
-    /// Returns an additive share of the ciphertext
+    /// Returns an additive share of the ciphertext.
     ///
-    /// * `plaintext` - The plaintext to encrypt
+    /// # Arguments
+    ///
+    /// * `plaintext` - The plaintext to encrypt.
     async fn encrypt_share(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError>;
 }
 
@@ -95,7 +99,7 @@ mod tests {
         let leader_thread = leader_vm.new_thread("test").await.unwrap();
         let follower_thread = follower_vm.new_thread("test").await.unwrap();
 
-        // Key is public just for this test, typically it is private
+        // Key is public just for this test, typically it is private.
         let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
         let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
 
@@ -133,7 +137,7 @@ mod tests {
         let leader_thread = leader_vm.new_thread("test").await.unwrap();
         let follower_thread = follower_vm.new_thread("test").await.unwrap();
 
-        // Key is public just for this test, typically it is private
+        // Key is public just for this test, typically it is private.
         let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
         let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
 
