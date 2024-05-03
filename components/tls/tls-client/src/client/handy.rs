@@ -64,7 +64,7 @@ pub(super) struct AlwaysResolvesClientCert(Arc<sign::CertifiedKey>);
 
 impl AlwaysResolvesClientCert {
     pub(super) fn new(
-        chain: Vec<tls_core::key::Certificate>,
+        chain: Vec<key::Certificate>,
         priv_key: &key::PrivateKey,
     ) -> Result<Self, Error> {
         let key = sign::any_supported_type(priv_key)
