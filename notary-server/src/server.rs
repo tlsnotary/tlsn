@@ -77,10 +77,8 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let authorization_whitelist =
         load_authorization_whitelist(config)?.map(|whitelist| Arc::new(Mutex::new(whitelist)));
     // Enable hot reload if authorization whitelist is available
-    let watcher = watch_and_reload_authorization_whitelist(
-        config.clone(),
-        authorization_whitelist.as_ref().map(Arc::clone),
-    )?;
+    let watcher =
+        watch_and_reload_authorization_whitelist(config.clone(), authorization_whitelist.clone())?;
     if watcher.is_some() {
         debug!("Successfully setup watcher for hot reload of authorization whitelist!");
     }
