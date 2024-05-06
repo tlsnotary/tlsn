@@ -21,7 +21,7 @@ use crate::{
 pub struct NotarizedSession {
     header: SessionHeader,
     signature: Option<Signature>,
-    signature2: Option<Signature>,
+    signature2: String,
     data: SessionData,
 }
 
@@ -32,7 +32,7 @@ impl NotarizedSession {
     pub fn new(
         header: SessionHeader,
         signature: Option<Signature>,
-        signature2: Option<Signature>,
+        signature2: String,
         data: SessionData,
     ) -> Self {
         Self {
@@ -68,8 +68,8 @@ impl NotarizedSession {
     }
 
     /// Returns the signature2 for the session header, if the notary signed it
-    pub fn signature2(&self) -> Vec<u8> {
-        self.signature2.to_bytes()
+    pub fn signature2(&self) -> &str {
+        &self.signature2
     }
 
     /// Returns the [SessionData]

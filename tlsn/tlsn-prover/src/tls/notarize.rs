@@ -120,7 +120,7 @@ impl Prover<Notarize> {
         Ok(NotarizedSession::new(
             header,
             Some(signature),
-            Some(signature2),
+            signature2,
             session_data,
         ))
     }

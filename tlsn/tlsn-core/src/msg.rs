@@ -27,8 +27,8 @@ pub struct SignedSessionHeader {
     pub header: SessionHeader,
     /// The notary's signature
     pub signature: Signature,
-    /// Other signature, used for contract verification (temporary)
-    pub signature2: Signature,
+    /// The notary's signature, used for contract verification (temporary)
+    pub signature2: String,
 }
 
 /// Information about the values the prover wants to prove

@@ -5,20 +5,20 @@ use std::{result, str::FromStr};
 
 use secp256k1::ecdsa::Signature;
 
-/// Signer to generate Scp256k1 signature
-pub(crate) struct Signer {
+/// Signer256k1 to generate Scp256k1 signature
+pub(crate) struct Signer256k1 {
     pub(crate) public_key: PublicKey,
     secret_key: SecretKey,
     secp: Secp256k1<All>,
 }
 
-impl Signer {
+impl Signer256k1 {
     /// Set a new signer. Private_key is 32 bytes hex key, witout 0x prefix
-    pub(crate) fn new(private_key: String) -> Signer {
+    pub(crate) fn new(private_key: String) -> Signer256k1 {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_str(&private_key).unwrap();
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-        Signer {
+        Signer256k1 {
             secret_key,
             public_key,
             secp,
@@ -47,7 +47,7 @@ impl Signer {
         (&self).secp.sign_ecdsa(&message, &secret_key)
     }
 
-    ///verify ECDSA signature
+    ///verify
     pub(crate) fn verify(&self, data: String, signature: Signature) -> Result<(), io::Error> {
         let digest = sha256::Hash::hash(data.as_bytes());
         let message = Message::from_digest(digest.to_byte_array());
@@ -61,7 +61,7 @@ impl Signer {
             Err(err) => {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
-                    "Signature erification failed",
+                    "Signature verification failed",
                 ))
             }
         }
@@ -75,12 +75,10 @@ mod test {
     #[test]
     #[cfg(feature = "tracing")]
     fn test_secp256k1_signature2() {
-        use crate::tls::notarize::sign;
-
         dotenv::dotenv().ok();
 
         let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
-        let signer: Signer = Signer::new(private_key);
+        let signer: Signer256k1 = Signer256k1::new(private_key);
         signer.print();
 
         let signature = signer.sign(String::from("ETERNIS"));
