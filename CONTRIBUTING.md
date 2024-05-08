@@ -61,6 +61,7 @@ Comments for function arguments must adhere to this pattern:
 /// Performs a certain computation. Any other description of the function.
 ///
 /// # Arguments
+///
 /// * `arg1` - The first argument.
 /// * `arg2` - The second argument.
 pub fn compute(...
