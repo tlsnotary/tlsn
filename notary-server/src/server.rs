@@ -1,5 +1,6 @@
 use axum::{
-    http::{Request, StatusCode},
+    extract::Request,
+    http::StatusCode,
     middleware::from_extractor_with_state,
     response::{Html, IntoResponse},
     routing::{get, post},
@@ -7,10 +8,8 @@ use axum::{
 };
 use eyre::{ensure, eyre, Result};
 use futures_util::future::poll_fn;
-use hyper::server::{
-    accept::Accept,
-    conn::{AddrIncoming, Http},
-};
+use hyper::{body::Incoming, server::conn::http1};
+use hyper_util::rt::TokioIo;
 use notify::{
     event::ModifyKind, Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
@@ -25,11 +24,10 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
 };
-use tower_http::cors::CorsLayer;
-
 use tokio::{fs::File, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
-use tower::MakeService;
+use tower_http::cors::CorsLayer;
+use tower_service::Service;
 use tracing::{debug, error, info};
 
 use crate::{
@@ -89,15 +87,13 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         })?),
         config.server.port,
     );
-    let listener = TcpListener::bind(notary_address)
+    let mut listener = TcpListener::bind(notary_address)
         .await
         .map_err(|err| eyre!("Failed to bind server address to tcp listener: {err}"))?;
-    let mut listener = AddrIncoming::from_listener(listener)
-        .map_err(|err| eyre!("Failed to build hyper tcp listener: {err}"))?;
 
     info!("Listening for TCP traffic at {}", notary_address);
 
-    let protocol = Arc::new(Http::new());
+    let protocol = Arc::new(http1::Builder::new());
     let notary_globals = NotaryGlobals::new(
         notary_signing_key,
         config.notarization.clone(),
@@ -158,23 +154,21 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         .route("/notarize", get(upgrade_protocol))
         .layer(CorsLayer::permissive())
         .with_state(notary_globals);
-    let mut app = router.into_make_service();
 
     loop {
         // Poll and await for any incoming connection, ensure that all operations inside are infallible to prevent bringing down the server
-        let (_, stream) = match poll_fn(|cx| Pin::new(&mut listener).poll_accept(cx)).await {
-            Some(Ok(connection)) => (connection.remote_addr(), connection),
-            Some(Err(err)) => {
+        let stream = match poll_fn(|cx| Pin::new(&mut listener).poll_accept(cx)).await {
+            Ok((stream, _)) => stream,
+            Err(err) => {
                 error!("{}", NotaryServerError::Connection(err.to_string()));
                 continue;
             }
-            None => unreachable!("The poll_accept method should never return None"),
         };
         debug!("Received a prover's TCP connection");
 
+        let tower_service = router.clone();
         let tls_acceptor = tls_acceptor.clone();
         let protocol = protocol.clone();
-        let service = MakeService::<_, Request<hyper::Body>>::make_service(&mut app, &stream);
 
         // Spawn a new async task to handle the new connection
         tokio::spawn(async move {
@@ -183,10 +177,15 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                 match acceptor.accept(stream).await {
                     Ok(stream) => {
                         info!("Accepted prover's TLS-secured TCP connection");
+                        // Reference: https://github.com/tokio-rs/axum/blob/5201798d4e4d4759c208ef83e30ce85820c07baa/examples/low-level-rustls/src/main.rs#L67-L80
+                        let io = TokioIo::new(stream);
+                        let hyper_service =
+                            hyper::service::service_fn(move |request: Request<Incoming>| {
+                                tower_service.clone().call(request)
+                            });
                         // Serve different requests using the same hyper protocol and axum router
                         let _ = protocol
-                            // Can unwrap because it's infallible
-                            .serve_connection(stream, service.await.unwrap())
+                            .serve_connection(io, hyper_service)
                             // use with_upgrades to upgrade connection to websocket for websocket clients
                             // and to extract tcp connection for tcp clients
                             .with_upgrades()
@@ -199,10 +198,15 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             } else {
                 // When TLS is disabled
                 info!("Accepted prover's TCP connection",);
+                // Reference: https://github.com/tokio-rs/axum/blob/5201798d4e4d4759c208ef83e30ce85820c07baa/examples/low-level-rustls/src/main.rs#L67-L80
+                let io = TokioIo::new(stream);
+                let hyper_service =
+                    hyper::service::service_fn(move |request: Request<Incoming>| {
+                        tower_service.clone().call(request)
+                    });
                 // Serve different requests using the same hyper protocol and axum router
                 let _ = protocol
-                    // Can unwrap because it's infallible
-                    .serve_connection(stream, service.await.unwrap())
+                    .serve_connection(io, hyper_service)
                     // use with_upgrades to upgrade connection to websocket for websocket clients
                     // and to extract tcp connection for tcp clients
                     .with_upgrades()

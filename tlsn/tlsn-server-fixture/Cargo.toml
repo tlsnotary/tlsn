@@ -4,14 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-rustls = "0.4.1"
-axum = "0.6"
+axum = "0.7"
 anyhow = "1.0"
 futures.workspace = true
+futures-rustls = "0.26"
 hyper.workspace = true
-rustls = "0.21.7"
+hyper-util = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat", "io"] }
+tower-service = "0.3.2"
 
 [[bin]]
 name = "main"
