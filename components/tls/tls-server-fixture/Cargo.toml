@@ -10,10 +10,12 @@ edition = "2021"
 publish = false
 
 [dependencies]
-async-rustls.workspace = true
+bytes.workspace = true
 futures.workspace = true
+futures-rustls.workspace = true
+http-body-util.workspace = true
 hyper = { workspace = true, features = ["full"] }
-rustls = { version = "0.21", features = ["logging"] }
+hyper-util = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat", "io-util"] }
 tracing.workspace = true
 tokio.workspace = true
