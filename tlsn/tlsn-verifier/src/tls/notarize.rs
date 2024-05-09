@@ -28,6 +28,8 @@ impl Verifier<Notarize> {
     where
         T: Into<Signature>,
     {
+        info!("PPPPP Start finalize()");
+
         let Notarize {
             mut mux_ctrl,
             mut mux_fut,
@@ -45,11 +47,14 @@ impl Verifier<Notarize> {
         } = self.state;
 
         let notarize_fut = async {
+            info!("notarize_fut");
             let mut notarize_channel = mux_ctrl.get_channel("notarize").await?;
 
+            info!("notarize_fut: merkleroot");
             let merkle_root =
                 expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
 
+            info!("notarize_fut: ot_sender_actor");
             // Finalize all MPC before signing the session header
             let (mut ot_sender_actor, _, _) = futures::try_join!(
                 ot_fut,
@@ -57,11 +62,16 @@ impl Verifier<Notarize> {
                 ot_recv.shutdown().map_err(VerifierError::from)
             )?;
 
+            info!("notarize_fut: reveal");
             ot_sender_actor.reveal().await?;
 
+            info!("notarize_fut: finalize");
             vm.finalize()
                 .await
                 .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
+
+            #[cfg(feature = "tracing")]
+            info!("notarize_fut: verify");
 
             gf2.verify()
                 .await
