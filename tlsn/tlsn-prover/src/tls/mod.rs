@@ -154,15 +154,26 @@ impl Prover<state::Setup> {
             let mpc_ctrl = mpc_ctrl.clone();
             #[allow(clippy::let_and_return)]
             let fut = async move {
-                debug!("PPPPPP start close_connection");
+                debug!("PPPPPP start conn_fut");
+
                 let conn_fut = async {
                     let ClosedConnection { sent, recv, .. } = futures::select! {
-                        res = conn_fut.fuse() => res.unwrap(),
-                        _ = ot_fut => return Err(OTShutdownError).unwrap(),
-                        _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof)).unwrap(),
+                        res = conn_fut.fuse() => {
+                            match res {
+                                Ok(closed_conn) => closed_conn,
+                                Err(err) => {
+                                    panic!("res error {:?}", err);
+                                }
+                            }
+                        },
+                        _ = ot_fut => {
+                            panic!("ot_fut error");
+                        },
+                        _ = mux_fut => {
+                            panic!("_fut error");
+                        },
                     };
-
-                    debug!("PPPPPP start close_connection");
+                    debug!("PPPPPP end of future");
 
                     mpc_ctrl.close_connection().await?;
 
@@ -174,7 +185,6 @@ impl Prover<state::Setup> {
                 let ((sent, recv), mpc_tls_data) =
                     futures::try_join!(conn_fut, mpc_fut.map_err(ProverError::from)).unwrap();
 
-                debug!("PPPPPP end of future");
                 Ok(Prover {
                     config: self.config,
                     state: state::Closed {
