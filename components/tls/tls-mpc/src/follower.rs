@@ -515,14 +515,16 @@ impl MpcTlsFollower {
         #[cfg(feature = "tracing")]
         tracing::debug!("decrypting message");
 
-        if self.committed {
-            // At this point the AEAD key was revealed to the leader and the leader locally decrypted
-            // the TLS message and now is proving to us that they know the plaintext which encrypts
-            // to the ciphertext of this TLS message.
-            self.decrypter.verify_plaintext(msg).await?;
-        } else {
-            self.decrypter.decrypt_blind(msg).await?;
-        }
+        tracing::debug!("self.committed {:?}", self.committed);
+
+        // if self.committed {
+        //     // At this point the AEAD key was revealed to the leader and the leader locally decrypted
+        //     // the TLS message and now is proving to us that they know the plaintext which encrypts
+        //     // to the ciphertext of this TLS message.
+        //     self.decrypter.verify_plaintext(msg).await?;
+        // } else {
+        //     self.decrypter.decrypt_blind(msg).await?;
+        // }
 
         Ok(())
     }
