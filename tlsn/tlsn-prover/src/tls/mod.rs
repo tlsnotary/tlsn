@@ -149,6 +149,8 @@ impl Prover<state::Setup> {
 
         debug!("PPPPPP creating future with Box::pin");
         let fut = Box::pin({
+            debug!("PPPPPP start future");
+
             let mpc_ctrl = mpc_ctrl.clone();
             #[allow(clippy::let_and_return)]
             let fut = async move {
@@ -159,14 +161,19 @@ impl Prover<state::Setup> {
                         _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof)).unwrap(),
                     };
 
+                    debug!("PPPPPP start close_connection");
+
                     mpc_ctrl.close_connection().await?;
 
                     Ok::<_, ProverError>((sent, recv))
                 };
 
+                debug!("PPPPPP start mpc_tls_data");
+
                 let ((sent, recv), mpc_tls_data) =
                     futures::try_join!(conn_fut, mpc_fut.map_err(ProverError::from)).unwrap();
 
+                debug!("PPPPPP end of future");
                 Ok(Prover {
                     config: self.config,
                     state: state::Closed {
@@ -223,6 +230,7 @@ impl Prover<state::Closed> {
     /// If the verifier is a Notary, this function will transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
     pub fn start_notarize(self) -> Prover<Notarize> {
+        debug!("PPPPPP start_notarize");
         Prover {
             config: self.config,
             state: self.state.into(),
