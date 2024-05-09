@@ -183,6 +183,8 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     config_builder = config_builder.id(session_id);
 
+    debug!("config_builder.max_sent_data {:?}", max_sent_data);
+
     if let Some(max_sent_data) = max_sent_data {
         config_builder = config_builder.max_sent_data(max_sent_data);
     }
@@ -191,7 +193,11 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         config_builder = config_builder.max_recv_data(max_recv_data);
     }
 
+    debug!("config_builder.build");
+
     let config = config_builder.build()?;
+
+    debug!("Verifier::new");
 
     Verifier::new(config)
         .notarize::<_, Signature>(socket.compat(), signing_key)
