@@ -26,7 +26,7 @@ use tls_core::{
 };
 
 use crate::{
-    error::Kind,
+    error::{self, Kind},
     msg::{CloseConnection, Commit, MpcTlsFollowerMsg, MpcTlsMessage},
     record_layer::{Decrypter, Encrypter},
     Direction, MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
@@ -517,14 +517,24 @@ impl MpcTlsFollower {
 
         tracing::debug!("self.committed {:?}", self.committed);
 
-        // if self.committed {
-        //     // At this point the AEAD key was revealed to the leader and the leader locally decrypted
-        //     // the TLS message and now is proving to us that they know the plaintext which encrypts
-        //     // to the ciphertext of this TLS message.
-        //     self.decrypter.verify_plaintext(msg).await?;
-        // } else {
-        //     self.decrypter.decrypt_blind(msg).await?;
-        // }
+        if self.committed {
+            // At this point the AEAD key was revealed to the leader and the leader locally decrypted
+            // the TLS message and now is proving to us that they know the plaintext which encrypts
+            // to the ciphertext of this TLS message.
+            let res = self.decrypter.verify_plaintext(msg).await;
+
+            match res {
+                Ok(val) => tracing::debug!("verify_plaintext success {:?}", val),
+                Err(error) => tracing::debug!("verify_plaintext error {:?}", error),
+            }
+        } else {
+            let res = self.decrypter.decrypt_blind(msg).await;
+
+            match res {
+                Ok(val) => tracing::debug!("decrypt_blind success {:?}", val),
+                Err(error) => tracing::debug!("decrypt_blind error {:?}", error),
+            }
+        }
 
         Ok(())
     }
