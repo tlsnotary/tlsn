@@ -62,6 +62,7 @@ bincode = "1"
 hex = "0.4"
 bytes = "1.4"
 opaque-debug = "0.3"
+eyre = "0.6.8"
 
 tracing = "0.1"
 tracing-subscriber = "0.3"

@@ -20,9 +20,7 @@ http-body-util = "0.1"
 hyper = { version = "1.1", features = ["client", "http1", "server"] }
 hyper-util = {version = "0.1", features = ["full"]}
 notify = { version = "6.1.1", default-features = false, features = ["macos_kqueue"] }
-opentelemetry = { version = "0.19" }
 p256 = "0.13"
-rstest = "0.18"
 rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0.2" }
 serde = { version = "1.0.147", features = ["derive"] }
@@ -39,7 +37,6 @@ tower = { version = "0.4.12", features = ["make"] }
 tower-http = { version = "0.5", features = ["cors"] }
 tower-service = "0.3.2"
 tracing = "0.1"
-tracing-opentelemetry = "0.19"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.4.1", features = ["v4", "fast-rng"] }
 ws_stream_tungstenite = { version = "0.13.0", features = ["tokio_io"] }
@@ -47,6 +44,7 @@ ws_stream_tungstenite = { version = "0.13.0", features = ["tokio_io"] }
 [dev-dependencies]
 # specify vendored feature to use statically linked copy of OpenSSL
 hyper-tls = { version = "0.6.0", features = ["vendored"] }
+rstest = "0.18"
 tlsn-notary-client = { path = "../tlsn/tlsn-notary-client" }
 tlsn-prover = { path = "../tlsn/tlsn-prover", features = ["tracing"] }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }

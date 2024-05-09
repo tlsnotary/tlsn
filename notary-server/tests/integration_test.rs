@@ -9,10 +9,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
 };
 use rstest::rstest;
-use std::{
-    string::String,
-    time::Duration,
-};
+use std::{string::String, time::Duration};
 use tls_core::anchors::RootCertStore as TlsClientRootCertStore;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_notary_client::client::NotaryClient;

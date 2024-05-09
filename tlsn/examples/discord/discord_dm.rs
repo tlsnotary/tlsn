@@ -12,8 +12,6 @@ use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
-use tlsn_prover::tls::{Prover, ProverConfig};
-
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
 
@@ -35,26 +33,15 @@ async fn main() {
     let auth_token = env::var("AUTHORIZATION").unwrap();
     let user_agent = env::var("USER_AGENT").unwrap();
 
-    let (notary_tls_socket, session_id) = request_notarization(
+    // Create a new prover
+    let prover = request_notarization(
         NOTARY_HOST,
         NOTARY_PORT,
         Some(NOTARY_MAX_SENT),
         Some(NOTARY_MAX_RECV),
+        SERVER_DOMAIN,
     )
     .await;
-
-    // Basic default prover config using the session_id returned from /session endpoint just now
-    let config = ProverConfig::builder()
-        .id(session_id)
-        .server_dns(SERVER_DOMAIN)
-        .build()
-        .unwrap();
-
-    // Create a new prover and set up the MPC backend.
-    let prover = Prover::new(config)
-        .setup(notary_tls_socket.compat())
-        .await
-        .unwrap();
 
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
