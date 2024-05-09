@@ -167,9 +167,11 @@ impl Prover<state::Setup> {
                             }
                         },
                         _ = ot_fut => {
+                            debug!("ot_fut error");
                             panic!("ot_fut error");
                         },
                         _ = mux_fut => {
+                            debug!("_fut error");
                             panic!("_fut error");
                         },
                     };
