@@ -154,10 +154,11 @@ impl Prover<state::Setup> {
             let mpc_ctrl = mpc_ctrl.clone();
             #[allow(clippy::let_and_return)]
             let fut = async move {
+                debug!("PPPPPP start close_connection");
                 let conn_fut = async {
                     let ClosedConnection { sent, recv, .. } = futures::select! {
-                        res = conn_fut.fuse() => res?,
-                        _ = ot_fut => return Err(OTShutdownError)?,
+                        res = conn_fut.fuse() => res.unwrap(),
+                        _ = ot_fut => return Err(OTShutdownError).unwrap(),
                         _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof)).unwrap(),
                     };
 
