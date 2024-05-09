@@ -88,6 +88,8 @@ impl Verifier<state::Initialized> {
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
+        debug!("setup finished");
+
         Ok(Verifier {
             config: self.config,
             state: state::Setup {

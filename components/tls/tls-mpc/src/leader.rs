@@ -74,7 +74,7 @@ impl ludi::Actor for MpcTlsLeader {
 
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
         #[cfg(feature = "tracing")]
-        tracing::debug!("leader actor stopped");
+        tracing::debug!("PPPPPP leader actor stopped");
 
         let state::Closed { data } = self.state.take().try_into_closed()?;
 
@@ -261,6 +261,11 @@ impl MpcTlsLeader {
         &mut self,
         msg: PlainMessage,
     ) -> Result<OpaqueMessage, MpcTlsError> {
+        tracing::debug!(
+            "PPPPPP encrypt_application_data: {:?} {:?}",
+            msg.typ,
+            msg.payload
+        );
         self.state.try_as_active()?;
         self.check_transcript_length(Direction::Sent, msg.payload.0.len())?;
 
@@ -348,7 +353,7 @@ impl MpcTlsLeader {
         self.state.try_as_active()?;
 
         #[cfg(feature = "tracing")]
-        tracing::debug!("committing to transcript");
+        tracing::debug!("PPPPPP committing to transcript");
 
         self.channel.send(MpcTlsMessage::Commit(Commit)).await?;
 
@@ -374,7 +379,7 @@ impl MpcTlsLeader {
     #[msg(skip, name = "CloseConnection")]
     pub async fn close_connection(&mut self) -> Result<(), MpcTlsError> {
         #[cfg(feature = "tracing")]
-        tracing::debug!("closing connection");
+        tracing::debug!("PPPPPP closing connection");
 
         self.channel
             .send(MpcTlsMessage::CloseConnection(CloseConnection))
@@ -656,6 +661,7 @@ impl Backend for MpcTlsLeader {
         msg: PlainMessage,
         seq: u64,
     ) -> Result<OpaqueMessage, BackendError> {
+        tracing::debug!("PPPPPP encrypt");
         let msg = match msg.typ {
             ContentType::Handshake => self.encrypt_client_finished(msg).await,
             ContentType::ApplicationData => self.encrypt_application_data(msg).await,
@@ -676,6 +682,7 @@ impl Backend for MpcTlsLeader {
         msg: OpaqueMessage,
         seq: u64,
     ) -> Result<PlainMessage, BackendError> {
+        tracing::debug!("PPPPPP decrypt");
         let msg = match msg.typ {
             ContentType::Handshake => self.decrypt_server_finished(msg).await,
             ContentType::ApplicationData => self.decrypt_application_data(msg).await,
@@ -692,6 +699,7 @@ impl Backend for MpcTlsLeader {
     }
 
     async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
+        tracing::debug!("PPPPPP buffer_incoming");
         if self.committed {
             return Err(BackendError::InternalError(
                 "cannot buffer messages after committing to transcript".to_string(),
