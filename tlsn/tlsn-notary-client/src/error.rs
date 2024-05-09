@@ -1,4 +1,6 @@
-//! This module handles errors that might occur
+//! Notary client errors.
+//!
+//! This module handles errors that might occur during prover setup
 
 use derive_builder::UninitializedFieldError;
 use eyre::Report;

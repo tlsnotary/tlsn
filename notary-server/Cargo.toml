@@ -44,6 +44,7 @@ ws_stream_tungstenite = { version = "0.10.0", features = ["tokio_io"] }
 [dev-dependencies]
 # specify vendored feature to use statically linked copy of OpenSSL
 hyper-tls = { version = "0.5.0", features = ["vendored"] }
+tlsn-notary-client = { path = "../tlsn/tlsn-notary-client" }
 tlsn-prover = { path = "../tlsn/tlsn-prover", features = ["tracing"] }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 tlsn-tls-core = { path = "../components/tls/tls-core" }

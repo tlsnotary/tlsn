@@ -1,4 +1,6 @@
-//! This module handles setting up prover to connect to notary via TCP or TLS
+//! Notary client
+//!
+//! This module sets up prover to connect to notary via TCP or TLS
 
 use eyre::eyre;
 use http_body_util::{BodyExt as _, Either, Empty, Full};
@@ -35,13 +37,10 @@ pub struct NotaryClient {
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
     /// Root certificate store used for establishing TLS connection with notary
-    #[builder(setter(strip_option), default = "Some(notary_default_root_store()?)")]
+    #[builder(default = "Some(notary_default_root_store()?)")]
     notary_root_cert_store: Option<RootCertStore>,
     /// DNS name of notary server used for establishing TLS connection with notary
-    #[builder(
-        setter(into, strip_option),
-        default = "Some(\"tlsnotaryserver.io\".to_string())"
-    )]
+    #[builder(setter(into), default = "Some(\"tlsnotaryserver.io\".to_string())")]
     notary_dns: Option<String>,
     /// API key used to call notary server endpoints if whitelisting is enabled in notary server
     #[builder(setter(into, strip_option), default)]
@@ -55,6 +54,11 @@ pub struct NotaryClient {
 }
 
 impl NotaryClient {
+    /// Create a new builder for `NotaryClient`.
+    pub fn builder() -> NotaryClientBuilder {
+        NotaryClientBuilder::default()
+    }
+
     /// Returns a prover that connects to notary via TCP without TLS
     pub async fn setup_tcp_prover(&self) -> Result<Prover<Setup>, NotaryClientError> {
         #[cfg(feature = "tracing")]
@@ -142,7 +146,10 @@ impl NotaryClient {
         })?;
 
         let mut configuration_request_builder = Request::builder()
-            .uri(format!("{http_scheme}://{}:{}/session", self.host, self.port))
+            .uri(format!(
+                "{http_scheme}://{}:{}/session",
+                self.host, self.port
+            ))
             .method("POST")
             .header("Host", &self.host)
             // Need to specify application/json for axum to parse it as json
@@ -213,7 +220,7 @@ impl NotaryClient {
         );
 
         // Send notarization request via HTTP, where the underlying TCP/TLS connection will be extracted later
-        let mut notarization_request_builder = Request::builder()
+        let notarization_request = Request::builder()
             // Need to specify the session_id so that notary server knows the right configuration to use
             // as the configuration is set in the previous HTTP call
             .uri(format!(
@@ -224,14 +231,7 @@ impl NotaryClient {
             .header("Host", &self.host)
             .header("Connection", "Upgrade")
             // Need to specify this upgrade header for server to extract TCP/TLS connection later
-            .header("Upgrade", "TCP");
-
-        if let Some(api_key) = &self.api_key {
-            notarization_request_builder =
-                notarization_request_builder.header("Authorization", api_key);
-        }
-
-        let notarization_request = notarization_request_builder
+            .header("Upgrade", "TCP")
             .body(Either::Right(Empty::<Bytes>::new()))
             .map_err(|err| {
                 NotaryClientError::NotarizationRequest(format!(

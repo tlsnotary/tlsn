@@ -1,4 +1,4 @@
-//! The notary client library.
+//! Notary client library.
 //!
 //! This library contains TLSNotary notary client implementations, which helps to setup prover that
 //! connects to TLSN notary server via TCP or TLS
