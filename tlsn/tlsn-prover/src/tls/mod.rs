@@ -160,7 +160,10 @@ impl Prover<state::Setup> {
                     let ClosedConnection { sent, recv, .. } = futures::select! {
                         res = conn_fut.fuse() => {
                             match res {
-                                Ok(closed_conn) => closed_conn,
+                                Ok(closed_conn) => {
+                                    debug!("closed_conn");
+                                    closed_conn
+                                },
                                 Err(err) => {
                                     panic!("res error {:?}", err);
                                 }
