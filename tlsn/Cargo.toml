@@ -42,7 +42,9 @@ mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/
 
 futures = "0.3"
 tokio-util = "0.7"
-hyper = "<=0.14.26"
+http-body-util = "0.1"
+hyper = { version = "1.1", features = ["client", "http1", "server"] }
+hyper-util = { version = "0.1", features = ["full"] }
 tokio = "1"
 
 signature = "2"

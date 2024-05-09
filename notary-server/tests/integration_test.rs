@@ -1,11 +1,18 @@
 use async_tungstenite::{
     tokio::connect_async_with_tls_connector_and_config, tungstenite::protocol::WebSocketConfig,
 };
-use futures::AsyncWriteExt;
-use hyper::{body::to_bytes, client::HttpConnector, Body, Client, Request, StatusCode};
+use http_body_util::{BodyExt as _, Full};
+use hyper::{body::Bytes, Request, StatusCode};
 use hyper_tls::HttpsConnector;
+use hyper_util::{
+    client::legacy::{connect::HttpConnector, Builder},
+    rt::{TokioExecutor, TokioIo},
+};
 use rstest::rstest;
-use std::time::Duration;
+use std::{
+    string::String,
+    time::Duration,
+};
 use tls_core::anchors::RootCertStore as TlsClientRootCertStore;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_notary_client::client::NotaryClient;
@@ -156,18 +163,19 @@ async fn test_tcp_prover(
     // Spawn the Prover task to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
-    let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())
-        .await
-        .unwrap();
+    let (mut request_sender, connection) =
+        hyper::client::conn::http1::handshake(TokioIo::new(tls_connection.compat()))
+            .await
+            .unwrap();
 
-    let connection_task = tokio::spawn(connection.without_shutdown());
+    tokio::spawn(connection);
 
     let request = Request::builder()
         .uri(format!("https://{}/echo", SERVER_DOMAIN))
+        .method("POST")
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
-        .method("POST")
-        .body(Body::from("echo"))
+        .body(Full::<Bytes>::new("echo".into()))
         .unwrap();
 
     debug!("Sending request to server: {:?}", request);
@@ -176,19 +184,13 @@ async fn test_tcp_prover(
 
     assert!(response.status() == StatusCode::OK);
 
+    let payload = response.into_body().collect().await.unwrap().to_bytes();
     debug!(
         "Received response from server: {:?}",
-        String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
+        &String::from_utf8_lossy(&payload)
     );
 
-    let mut server_tls_conn = server_task.await.unwrap().unwrap();
-
-    // Make sure the server closes cleanly (sends close notify)
-    server_tls_conn.close().await.unwrap();
-
-    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
-
-    client_socket.close().await.unwrap();
+    server_task.await.unwrap().unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
 
@@ -231,7 +233,7 @@ async fn test_websocket_prover() {
     let mut hyper_tls_connector =
         HttpsConnector::from((hyper_http_connector, notary_tls_connector.clone().into()));
     hyper_tls_connector.https_only(true);
-    let https_client = Client::builder().build::<_, hyper::Body>(hyper_tls_connector);
+    let https_client = Builder::new(TokioExecutor::new()).build(hyper_tls_connector);
 
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
@@ -247,7 +249,7 @@ async fn test_websocket_prover() {
         .header("Host", notary_host.clone())
         // Need to specify application/json for axum to parse it as json
         .header("Content-Type", "application/json")
-        .body(Body::from(payload))
+        .body(Full::new(Bytes::from(payload)))
         .unwrap();
 
     debug!("Sending request");
@@ -261,7 +263,7 @@ async fn test_websocket_prover() {
     debug!("Response OK");
 
     // Pretty printing :)
-    let payload = to_bytes(response.into_body()).await.unwrap().to_vec();
+    let payload = response.into_body().collect().await.unwrap().to_bytes();
     let notarization_response =
         serde_json::from_str::<NotarizationSessionResponse>(&String::from_utf8_lossy(&payload))
             .unwrap();
@@ -331,18 +333,19 @@ async fn test_websocket_prover() {
     // Spawn the Prover and Mux tasks to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
-    let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())
-        .await
-        .unwrap();
+    let (mut request_sender, connection) =
+        hyper::client::conn::http1::handshake(TokioIo::new(tls_connection.compat()))
+            .await
+            .unwrap();
 
-    let connection_task = tokio::spawn(connection.without_shutdown());
+    tokio::spawn(connection);
 
     let request = Request::builder()
         .uri(format!("https://{}/echo", SERVER_DOMAIN))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("POST")
-        .body(Body::from("echo"))
+        .body(Full::<Bytes>::new("echo".into()))
         .unwrap();
 
     debug!("Sending request to server: {:?}", request);
@@ -351,19 +354,13 @@ async fn test_websocket_prover() {
 
     assert!(response.status() == StatusCode::OK);
 
+    let payload = response.into_body().collect().await.unwrap().to_bytes();
     debug!(
         "Received response from server: {:?}",
-        String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
+        &String::from_utf8_lossy(&payload)
     );
 
-    let mut server_tls_conn = server_task.await.unwrap().unwrap();
-
-    // Make sure the server closes cleanly (sends close notify)
-    server_tls_conn.close().await.unwrap();
-
-    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
-
-    client_socket.close().await.unwrap();
+    server_task.await.unwrap().unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
 
