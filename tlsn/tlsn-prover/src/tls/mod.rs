@@ -119,6 +119,7 @@ impl Prover<state::Setup> {
         self,
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture), ProverError> {
+        debug!("PPPPPP Start finalize()");
         let state::Setup {
             mux_ctrl,
             mut mux_fut,
@@ -130,18 +131,23 @@ impl Prover<state::Setup> {
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
-        let server_name = TlsServerName::try_from(self.config.server_dns())?;
+        debug!("PPPPPP TlsServerName()");
+        let server_name = TlsServerName::try_from(self.config.server_dns()).unwrap();
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(self.config.root_cert_store.clone())
             .with_no_client_auth();
+
+        debug!("PPPPPP ClientConnection");
         let client =
-            ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)?;
+            ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
+                .unwrap();
 
         let (conn, conn_fut) = bind_client(socket, client);
 
         let start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
+        debug!("PPPPPP creating future with Box::pin");
         let fut = Box::pin({
             let mpc_ctrl = mpc_ctrl.clone();
             #[allow(clippy::let_and_return)]
@@ -150,7 +156,7 @@ impl Prover<state::Setup> {
                     let ClosedConnection { sent, recv, .. } = futures::select! {
                         res = conn_fut.fuse() => res?,
                         _ = ot_fut => return Err(OTShutdownError)?,
-                        _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+                        _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof)).unwrap(),
                     };
 
                     mpc_ctrl.close_connection().await?;
@@ -159,7 +165,7 @@ impl Prover<state::Setup> {
                 };
 
                 let ((sent, recv), mpc_tls_data) =
-                    futures::try_join!(conn_fut, mpc_fut.map_err(ProverError::from))?;
+                    futures::try_join!(conn_fut, mpc_fut.map_err(ProverError::from)).unwrap();
 
                 Ok(Prover {
                     config: self.config,
@@ -184,6 +190,7 @@ impl Prover<state::Setup> {
             fut
         });
 
+        debug!("PPPPPP Box::pin");
         Ok((
             conn,
             ProverFuture {

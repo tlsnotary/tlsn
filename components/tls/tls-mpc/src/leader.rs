@@ -350,6 +350,8 @@ impl MpcTlsLeader {
     }
 
     async fn commit(&mut self) -> Result<(), MpcTlsError> {
+        tracing::debug!("PPPPPP commit");
+
         self.state.try_as_active()?;
 
         #[cfg(feature = "tracing")]
