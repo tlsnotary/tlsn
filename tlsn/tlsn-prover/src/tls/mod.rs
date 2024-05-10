@@ -131,8 +131,9 @@ impl Prover<state::Setup> {
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
-        debug!("PPPPPP TlsServerName()");
         let server_name = TlsServerName::try_from(self.config.server_dns()).unwrap();
+        debug!("PPPPPP TlsServerName() {:?}", self.config.server_dns());
+
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(self.config.root_cert_store.clone())
@@ -170,11 +171,11 @@ impl Prover<state::Setup> {
                             }
                         },
                         _ = ot_fut => {
-                            debug!("ot_fut error");
+                            debug!("PPPPPP ot_fut error");
                             panic!("ot_fut error");
                         },
                         _ = mux_fut => {
-                            debug!("_fut error");
+                            debug!("PPPPPP _fut error");
                             panic!("_fut error");
                         },
                     };
