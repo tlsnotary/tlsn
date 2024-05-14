@@ -75,11 +75,15 @@ jobs:
 
       - name: "Test"
         if: ${{ matrix.release != true }}
-        run: cargo test --lib --bins --tests --examples --workspace
+        # Run all tests (bins, examples, lib, integration and docs)
+        # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
+        run: cargo test
 
       - name: "Test all features"
         if: ${{ matrix.release != true && matrix.all-features == true }}
-        run: cargo test --lib --bins --tests --examples --workspace --all-features
+        # Run all tests (bins, examples, lib, integration and docs)
+        # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
+        run: cargo test --all-features
 
       - name: "Integration Test"
         if: ${{ matrix.release == true }}
