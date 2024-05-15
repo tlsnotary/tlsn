@@ -13,10 +13,10 @@ use tlsn_core::{
 };
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
+use chrono::prelude::Utc;
 use dotenv::dotenv;
 use p256::ecdsa::{signature::Signer as Signer2, Signature as Signature2, SigningKey};
 use std::env;
-
 mod sign;
 
 #[cfg(feature = "tracing")]
@@ -28,7 +28,7 @@ impl Verifier<Notarize> {
     where
         T: Into<Signature>,
     {
-        info!("PPPPP Start finalize()");
+        //info!("PPPPP Start finalize()");
 
         let Notarize {
             mut mux_ctrl,
@@ -47,14 +47,14 @@ impl Verifier<Notarize> {
         } = self.state;
 
         let notarize_fut = async {
-            info!("notarize_fut");
+            //info!("notarize_fut");
             let mut notarize_channel = mux_ctrl.get_channel("notarize").await?;
 
-            info!("notarize_fut: merkleroot");
+            //info!("notarize_fut: merkleroot");
             let merkle_root =
                 expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
 
-            info!("notarize_fut: ot_sender_actor");
+            //info!("notarize_fut: ot_sender_actor");
             // Finalize all MPC before signing the session header
             let (mut ot_sender_actor, _, _) = futures::try_join!(
                 ot_fut,
@@ -62,10 +62,10 @@ impl Verifier<Notarize> {
                 ot_recv.shutdown().map_err(VerifierError::from)
             )?;
 
-            info!("notarize_fut: reveal");
+            //info!("notarize_fut: reveal");
             ot_sender_actor.reveal().await?;
 
-            info!("notarize_fut: finalize");
+            //info!("notarize_fut: finalize");
             vm.finalize()
                 .await
                 .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
@@ -99,7 +99,13 @@ impl Verifier<Notarize> {
             let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
             //let private_key = String::from("PRIVATE_KEY");
             let signer: sign::Signer256k1 = sign::Signer256k1::new(private_key);
-            let signature3 = signer.sign(String::from("ETERNIS"));
+
+            // Get the current timestamp
+            let timestamp_str = Utc::now().to_rfc3339();
+
+            let message = format!("ETERNIS{}", timestamp_str);
+            //ahi
+            let signature2 = signer.sign(message.clone());
 
             #[cfg(feature = "tracing")]
             info!("Signed session header");
@@ -108,7 +114,8 @@ impl Verifier<Notarize> {
                 .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
                     header: session_header.clone(),
                     signature: signature.into(),
-                    signature2: hex::encode(signature3.serialize_compact()),
+                    signature2: hex::encode(signature2.serialize_compact()),
+                    message: message,
                 }))
                 .await?;
 

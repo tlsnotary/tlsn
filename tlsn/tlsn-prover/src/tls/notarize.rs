@@ -93,6 +93,7 @@ impl Prover<Notarize> {
                 header,
                 signature,
                 signature2,
+                message,
             },
         ) = futures::select_biased! {
             res = notarize_fut => res?,
@@ -122,6 +123,7 @@ impl Prover<Notarize> {
             Some(signature),
             signature2,
             session_data,
+            message,
         ))
     }
 }

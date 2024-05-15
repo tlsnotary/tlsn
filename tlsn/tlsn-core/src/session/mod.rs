@@ -23,6 +23,7 @@ pub struct NotarizedSession {
     signature: Option<Signature>,
     signature2: String,
     data: SessionData,
+    message: String,
 }
 
 opaque_debug::implement!(NotarizedSession);
@@ -34,12 +35,14 @@ impl NotarizedSession {
         signature: Option<Signature>,
         signature2: String,
         data: SessionData,
+        message: String,
     ) -> Self {
         Self {
             header,
             signature,
             signature2,
             data,
+            message,
         }
     }
 
@@ -70,6 +73,11 @@ impl NotarizedSession {
     /// Returns the signature2 for the session header, if the notary signed it
     pub fn signature2(&self) -> &str {
         &self.signature2
+    }
+
+    /// Returns the message that was signed
+    pub fn message(&self) -> &str {
+        &self.message
     }
 
     /// Returns the [SessionData]
