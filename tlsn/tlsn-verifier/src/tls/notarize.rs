@@ -95,9 +95,9 @@ impl Verifier<Notarize> {
 
             ///// ECDSA signing
             dotenv::dotenv().ok();
-            //let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
             //ethereum 32 bytes private key without 0x in front
-            let private_key = String::from("PRIVATE_KEY");
+            let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
+            //let private_key = String::from("PRIVATE_KEY");
             let signer: sign::Signer256k1 = sign::Signer256k1::new(private_key);
             let signature3 = signer.sign(String::from("ETERNIS"));
 
