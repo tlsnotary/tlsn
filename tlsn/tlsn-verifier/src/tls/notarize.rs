@@ -101,14 +101,16 @@ impl Verifier<Notarize> {
             let signer: sign::Signer256k1 = sign::Signer256k1::new(private_key);
 
             // Get the current timestamp
-            let timestamp_str = Utc::now().to_rfc3339();
+            let timestamp_str = Utc::now().timestamp();
 
-            let message = format!("ETERNIS{}", timestamp_str);
+            let message = format!("ETERNIS;{}", timestamp_str);
             //ahi
             let signature2 = signer.sign(message.clone());
 
             #[cfg(feature = "tracing")]
             info!("Signed session header");
+
+            info!("session_header {:?}", session_header);
 
             notarize_channel
                 .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
