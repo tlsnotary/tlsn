@@ -1,0 +1,31 @@
+server:
+  name: "notary-server"
+  host: "0.0.0.0"
+  port: 7047
+  html-info: |
+    <h1>Notary Server {version}!</h1>
+    <ul>
+    <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{git_commit_hash}">{git_commit_hash}</a></li>
+    <li>git commit timestamp: {git_commit_timestamp}</li>
+    <li>public key: <pre>{public_key}</pre></li>
+    </ul>
+    <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
+
+notarization:
+  max-transcript-size: 20480
+
+tls:
+  enabled: false
+  private-key-pem-path: "./fixture/tls/notary.key"
+  certificate-pem-path: "./fixture/tls/notary.crt"
+
+notary-key:
+  private-key-pem-path: "./fixture/notary/notary.key"
+  public-key-pem-path: "./fixture/notary/notary.pub"
+
+logging:
+  level: DEBUG
+
+authorization:
+  enabled: false
+  whitelist-csv-path: "./fixture/auth/whitelist.csv"

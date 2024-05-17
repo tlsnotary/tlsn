@@ -1,0 +1,30 @@
+server:
+  name: "notary-server"
+  host: "0.0.0.0"
+  port: 443
+  html-info: |
+    <h1>Eternis Notary Server {version}!</h1>
+    <ul>
+    <li>Version: https://github.com/asa93/tlsn/tree/alpha5-eternis </a></li>
+    <li>public key: <pre>{public_key}</pre></li>
+    </ul>
+    <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
+
+notarization:
+  max-transcript-size: 19096
+
+tls:
+  enabled: true
+  private-key-pem-path: "./fixture/tls/notary.key"
+  certificate-pem-path: "./fixture/tls/notary.crt"
+
+notary-key:
+  private-key-pem-path: "./fixture/notary/notary.key"
+  public-key-pem-path: "./fixture/notary/notary.pub"
+
+logging:
+  level: DEBUG
+
+authorization:
+  enabled: false
+  whitelist-csv-path: "./fixture/auth/whitelist.csv"
