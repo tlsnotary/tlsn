@@ -105,6 +105,7 @@ impl Verifier<Notarize> {
             dotenv::dotenv().ok();
             //ethereum 32 bytes private key without 0x in front
             let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
+            //let private_key = String::from("<private_key>");
 
             //create nullifier from user_id & notary pkey
             let nullifier_str = format!("{}{}", private_key, user_id);
