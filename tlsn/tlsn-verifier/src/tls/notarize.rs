@@ -119,7 +119,7 @@ impl Verifier<Notarize> {
 
             let message = format!("ETERNIS;{};{}", timestamp_str, user_nullifier);
             //ahi
-            let signature2 = signer.sign(message.clone());
+            let (_, signature2) = signer.sign(message.clone());
 
             #[cfg(feature = "tracing")]
             info!("Signed session header");
@@ -129,8 +129,8 @@ impl Verifier<Notarize> {
                 .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
                     header: session_header.clone(),
                     signature: signature.into(),
-                    signature2: hex::encode(signature2.serialize_compact()),
-                    message: message,
+                    signature2,
+                    message,
                 }))
                 .await?;
 
@@ -213,10 +213,10 @@ mod test {
 
         let message = format!("ETERNIS;{};{}", timestamp_str, user_nullifier);
         //ahi
-        let signature = signer.sign(message.clone());
+        let (signature, compressedSignature) = signer.sign(message.clone());
 
         #[cfg(feature = "tracing")]
         println!("message {}", message);
-        println!("signature {}", signature);
+        println!("signature 0x{}", compressedSignature);
     }
 }

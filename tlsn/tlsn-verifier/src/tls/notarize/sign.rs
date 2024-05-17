@@ -38,13 +38,14 @@ impl Signer256k1 {
     }
 
     ///sign an ECDSA signature of a message with the private key
-    pub(crate) fn sign(&self, data: String) -> Signature {
+    pub(crate) fn sign(&self, data: String) -> (Signature, String) {
         let secret_key = (&self).secret_key;
 
         let digest = sha256::Hash::hash(data.as_bytes());
         let message = Message::from_digest(digest.to_byte_array());
 
-        (&self).secp.sign_ecdsa(&message, &secret_key)
+        let signature = (&self).secp.sign_ecdsa(&message, &secret_key);
+        (signature, hex::encode(signature.serialize_compact()))
     }
 
     ///verify
@@ -81,12 +82,9 @@ mod test {
         let signer: Signer256k1 = Signer256k1::new(private_key);
         signer.print();
 
-        let signature = signer.sign(String::from("ETERNIS"));
+        let (signature, compressedSignature) = signer.sign(String::from("ETERNIS"));
 
-        println!(
-            "64-byte ECDSA signature {}",
-            hex::encode(signature.serialize_compact())
-        );
+        println!("64-byte ECDSA signature {}", compressedSignature);
 
         assert!(signer.verify(String::from("ETERNIS"), signature).is_ok());
     }
