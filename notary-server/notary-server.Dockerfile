@@ -37,4 +37,14 @@ COPY --from=builder /usr/local/cargo/bin/notary-server /usr/local/bin/notary-ser
 # Label to link this image with the repository in Github Container Registry (https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line)
 LABEL org.opencontainers.image.source=https://github.com/tlsnotary/tlsn
 LABEL org.opencontainers.image.description="An implementation of the notary server in Rust."
-CMD [ "notary-server" ]
+
+
+# Use the script as the entrypoint
+
+# Copy the entrypoint script
+COPY ./notary-server/entrypoint.sh /usr/local/bin/
+
+# Make the script executable
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["entrypoint.sh"]
