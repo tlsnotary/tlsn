@@ -185,3 +185,38 @@ fn parse_transcripts(session_transcripts: SessionTranscripts) -> (String, String
 
     return (host, user_id);
 }
+
+#[cfg(feature = "tracing")]
+mod test {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "tracing")]
+    fn test_signing_tls_session() {
+        println!("test_signing_tls_session");
+        let user_id = "43";
+
+        dotenv::dotenv().ok();
+        //ethereum 32 bytes private key without 0x in front
+        let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
+
+        //create nullifier from user_id & notary pkey
+        let nullifier_str = format!("{}{}", private_key, user_id);
+        let user_nullifier = sha256::Hash::hash(nullifier_str.as_bytes());
+
+        // TODO: verify that user_nullifier is unique by making call to API
+        //let private_key = String::from("PRIVATE_KEY");
+        let signer: sign::Signer256k1 = sign::Signer256k1::new(private_key);
+
+        // Get the current timestamp
+        let timestamp_str = Utc::now().timestamp();
+
+        let message = format!("ETERNIS;{};{}", timestamp_str, user_nullifier);
+        //ahi
+        let signature = signer.sign(message.clone());
+
+        #[cfg(feature = "tracing")]
+        println!("message {}", message);
+        println!("signature {}", signature);
+    }
+}
