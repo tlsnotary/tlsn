@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 use utils::range::RangeSet;
 
-use crate::{merkle::MerkleRoot, proof::SessionInfo, signature::Signature, SessionHeader};
+use crate::{
+    merkle::MerkleRoot, proof::SessionInfo, signature::Signature, SessionHeader, Transcript,
+};
 
 /// Top-level enum for all messages
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,6 +20,8 @@ pub enum TlsnMessage {
     SessionInfo(SessionInfo),
     /// Information about the values the prover wants to prove
     ProvingInfo(ProvingInfo),
+    /// Transcripts of TLS session
+    Transcripts(SessionTranscripts),
 }
 
 /// A signed session header.
@@ -42,4 +46,13 @@ pub struct ProvingInfo {
     pub recv_ids: RangeSet<usize>,
     /// Purported cleartext values
     pub cleartext: Vec<u8>,
+}
+
+/// Http plaintext data
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct SessionTranscripts {
+    /// Sent data
+    pub transcript_tx: Transcript,
+    /// Received data
+    pub transcript_rx: Transcript,
 }

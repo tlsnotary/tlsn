@@ -8,12 +8,13 @@ use super::{ff::ShareConversionReveal, state::Notarize, Prover, ProverError};
 use futures::{FutureExt, SinkExt, StreamExt};
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
-    msg::{SignedSessionHeader, TlsnMessage},
+    msg::{SessionTranscripts, SignedSessionHeader, TlsnMessage},
     transcript::Transcript,
     NotarizedSession, ServerName, SessionData,
 };
 #[cfg(feature = "tracing")]
 use tracing::instrument;
+use tracing::{debug, info};
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 impl Prover<Notarize> {
@@ -51,6 +52,15 @@ impl Prover<Notarize> {
 
         let commitments = builder.build()?;
 
+        info!("Sending transcripts!");
+        info!("transcript_tx {:?}", transcript_tx);
+        info!("transcript_rx {:?}", transcript_rx);
+
+        let session_transcripts = SessionTranscripts {
+            transcript_tx: transcript_tx.clone(),
+            transcript_rx: transcript_rx.clone(),
+        };
+
         let session_data = SessionData::new(
             ServerName::Dns(self.config.server_dns().to_string()),
             handshake_decommitment,
@@ -66,6 +76,10 @@ impl Prover<Notarize> {
 
             channel
                 .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))
+                .await?;
+
+            channel
+                .send(TlsnMessage::Transcripts(session_transcripts))
                 .await?;
 
             let notary_encoder_seed = vm

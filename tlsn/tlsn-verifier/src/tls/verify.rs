@@ -183,6 +183,8 @@ impl Verifier<VerifyState> {
             HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
 
         // Verify the TLS session
+        // here verify servername
+        info!("ahi");
         session_info.verify(&handshake_summary, self.config.cert_verifier())?;
 
         #[cfg(feature = "tracing")]
