@@ -73,7 +73,7 @@ jobs:
       - name: "Build"
         run: cargo build ${{ matrix.release && '--release' }}
 
-      - name: "Test ${{ matrix.release && '--release' || '' }} ${{ matrix.all-features && '--all-features' || '' }}"
+      - name: "Test ${RELEASE_OPTION} ${ALL_FEATURES_OPTION}"
         env:
           RELEASE_OPTION: ${{ matrix.release && '--release' || '' }}
           ALL_FEATURES_OPTION: ${{ matrix.all-features && '--all-features' || '' }}
