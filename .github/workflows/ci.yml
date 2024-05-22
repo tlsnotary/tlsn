@@ -73,13 +73,15 @@ jobs:
       - name: "Build"
         run: cargo build ${{ matrix.release && '--release' }}
 
-      - name: "Test"
+      - name: "Test ${{ matrix.release && '--release' || '' }} ${{ matrix.all-features && '--all-features' || '' }}"
         env:
           RELEASE_OPTION: ${{ matrix.release && '--release' || '' }}
           ALL_FEATURES_OPTION: ${{ matrix.all-features && '--all-features' || '' }}
         # Run all tests (bins, examples, lib, integration and docs)
         # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
-        run: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION
+        run: |
+          echo "Running command: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION"
+          cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION
 
       - name: "Check that benches compile"
         run: cargo bench --no-run
