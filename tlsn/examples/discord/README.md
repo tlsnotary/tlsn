@@ -29,13 +29,13 @@ You can find the `CHANNEL_ID` directly in the url:
 ## Start the notary server
 At the root level of this repository, run 
 ```sh
-cd notary-server
+cd notary/server
 cargo run --release
 ```
 
 The notary server will now be running in the background waiting for connections.
 
-For more information on how to configure the `Notary` server, please refer to [this](../../../notary-server/README.md#running-the-server).
+For more information on how to configure the `Notary` server, please refer to [this](../../../notary/server/README.md#running-the-server).
 
 ## Notarize
 

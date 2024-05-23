@@ -9,7 +9,7 @@ This crate is currently under active development and should not be used in produ
 ---
 ## Running the server
 ### ⚠️ Notice
-- When running this server against a prover (e.g. [Rust](https://github.com/tlsnotary/tlsn/tree/dev/tlsn/examples) or [browser extension](https://github.com/tlsnotary/tlsn-extension)), please ensure that the prover's version is the same as the version of this server
+- When running this server against a prover (e.g. [Rust](https://github.com/tlsnotary/tlsn/tree/main/tlsn/examples) or [browser extension](https://github.com/tlsnotary/tlsn-extension)), please ensure that the prover's version is the same as the version of this server
 - When running this server in a *production environment*, please first read this [page](https://docs.tlsnotary.org/developers/notary_server.html)
 - When running this server in a *local environment* with a browser extension, please turn off this server's TLS in the config (refer [here](#optional-tls))
 
@@ -48,7 +48,7 @@ docker run --init -p 127.0.0.1:7047:7047 -v <your config folder path>:/root/.not
 1. Configure the server setting in this config [file](./config/config.yaml).
 2. Build the docker image by running the following in a terminal at the root of this *repository*.
 ```bash
-docker build . -t notary-server:local -f notary-server/notary-server.Dockerfile
+docker build . -t notary-server:local -f notary/server/notary-server.Dockerfile
 ```
 3. Run the docker container and specify the port specified in the config file, e.g. for the default port 7047
 ```bash
@@ -109,7 +109,7 @@ To perform notarization, some parameters need to be configured by the prover and
 To streamline this process, a single HTTP endpoint (`/session`) is used by both TCP and WebSocket clients.
 
 #### Notarization
-After calling the configuration endpoint above, prover can proceed to start notarization. For TCP client, that means calling the `/notarize` endpoint using HTTP (`https`), while WebSocket client should call the same endpoint but using WebSocket (`wss`). Example implementations of these clients can be found in the [integration test](./tests/integration_test.rs).
+After calling the configuration endpoint above, prover can proceed to start notarization. For TCP client, that means calling the `/notarize` endpoint using HTTP (`https`), while WebSocket client should call the same endpoint but using WebSocket (`wss`). Example implementations of these clients can be found in the [integration test](../tests-integration/tests/notary.rs).
 
 #### Signatures
 Currently, both the private key (and cert) used to establish TLS connection with prover, and the private key used by notary server to sign the notarized transcript, are hardcoded PEM keys stored in this repository. Though the paths of these keys can be changed in the config (`notary-key` field) to use different keys instead.

@@ -32,11 +32,11 @@ jobs:
           - components/prf
           - components/tls
           - tlsn
-          - notary-server
+          - notary
         include:
           - package: components/integration-tests
             release: true
-          - package: notary-server
+          - package: notary
             release: true
           - package: tlsn
             all-features: true

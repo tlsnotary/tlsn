@@ -309,7 +309,7 @@ fn server_default_root_store() -> TlsClientRootCertStore {
 /// Default root store using self signed certs.
 fn notary_default_root_store() -> Result<RootCertStore, NotaryClientError> {
     let pem_file = std::str::from_utf8(include_bytes!(
-        "../../../notary-server/fixture/tls/rootCA.crt"
+        "../../../notary/server/fixture/tls/rootCA.crt"
     ))
     .map_err(|err| {
         NotaryClientError::Builder(format!("Failed to parse default root CA cert: {err}"))

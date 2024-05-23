@@ -1,6 +1,6 @@
 use elliptic_curve::pkcs8::DecodePrivateKey;
 use futures::{AsyncRead, AsyncWrite};
-use tlsn_notary_client::client::NotaryClient;
+use notary_client::client::NotaryClient;
 use tlsn_prover::tls::{state::Setup, Prover};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 
@@ -8,7 +8,7 @@ use tlsn_verifier::tls::{Verifier, VerifierConfig};
 pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn: T) {
     // Load the notary signing key
     let signing_key_str = std::str::from_utf8(include_bytes!(
-        "../../../notary-server/fixture/notary/notary.key"
+        "../../../notary/server/fixture/notary/notary.key"
     ))
     .unwrap();
     let signing_key = p256::ecdsa::SigningKey::from_pkcs8_pem(signing_key_str).unwrap();
