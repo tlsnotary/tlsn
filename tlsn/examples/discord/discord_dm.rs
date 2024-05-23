@@ -15,13 +15,18 @@ use tracing::debug;
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
 
-// Setting of the notary server — make sure these are the same with those in ../../../notary-server
+// Setting of the notary server — make sure these are the same with the config in ../../../notary-server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
-// Configuration of notarization
-const NOTARY_MAX_SENT: usize = 1 << 12;
-const NOTARY_MAX_RECV: usize = 1 << 14;
+// P/S: If the following limits are increased, please ensure max-transcript-size of
+// the notary server's config (../../../notary-server) is increased too, where
+// max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
+//
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
@@ -37,8 +42,8 @@ async fn main() {
     let prover = request_notarization(
         NOTARY_HOST,
         NOTARY_PORT,
-        Some(NOTARY_MAX_SENT),
-        Some(NOTARY_MAX_RECV),
+        Some(MAX_SENT_DATA),
+        Some(MAX_RECV_DATA),
         SERVER_DOMAIN,
     )
     .await;
