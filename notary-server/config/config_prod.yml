@@ -11,7 +11,7 @@ server:
     <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
 
 notarization:
-  max-transcript-size: 19096
+  max-transcript-size: 68096
 
 tls:
   enabled: true
