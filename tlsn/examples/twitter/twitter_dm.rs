@@ -33,14 +33,7 @@ async fn main() {
     let csrf_token = env::var("CSRF_TOKEN").unwrap();
 
     // Create a new prover
-    let prover = request_notarization(
-        NOTARY_HOST,
-        NOTARY_PORT,
-        None,
-        None,
-        SERVER_DOMAIN,
-    )
-    .await;
+    let prover = request_notarization(NOTARY_HOST, NOTARY_PORT, None, None, SERVER_DOMAIN).await;
 
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await

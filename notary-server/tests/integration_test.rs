@@ -100,9 +100,9 @@ async fn tcp_prover(
         .port(notary_config.server.port)
         .max_sent_data(MAX_SENT)
         .max_recv_data(MAX_RECV)
-        // set this to None to turn off TLS
+        // set this to None to turn off TLS with notary server
         .notary_dns(None)
-        // set this to None to turn off TLS
+        // set this to None to turn off TLS with notary server
         .notary_root_cert_store(None)
         .server_dns(SERVER_DOMAIN)
         .server_root_cert_store(server_root_store)
