@@ -1,10 +1,11 @@
 use bitcoin_hashes::{sha256, Hash};
-use secp256k1::{All, Message, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{All, Message, PublicKey, Scalar, Secp256k1, SecretKey};
 use std::io::{self, Error};
+use std::ops::Div;
 use std::{result, str::FromStr};
 
+use secp256k1::constants::CURVE_ORDER;
 use secp256k1::ecdsa::Signature;
-
 /// Signer256k1 to generate Scp256k1 signature
 pub(crate) struct Signer256k1 {
     pub(crate) public_key: PublicKey,
@@ -38,6 +39,7 @@ impl Signer256k1 {
     }
 
     ///sign an ECDSA signature of a message with the private key
+    /// Return a tuple with full signature and a 65-byte signature as expected in ethereum smart contracts
     pub(crate) fn sign(&self, data: String) -> (Signature, String) {
         let secret_key = (&self).secret_key;
 
@@ -45,7 +47,33 @@ impl Signer256k1 {
         let message = Message::from_digest(digest.to_byte_array());
 
         let signature = (&self).secp.sign_ecdsa(&message, &secret_key);
-        (signature, hex::encode(signature.serialize_compact()))
+
+        let last_byte = match &self.is_s_canonical(&signature) {
+            true => "1b",
+            false => "1c",
+        };
+
+        let signature_ethereum = format!(
+            "{}{}",
+            hex::encode(signature.serialize_compact()),
+            last_byte
+        );
+
+        (signature, signature_ethereum)
+    }
+
+    pub(crate) fn is_s_canonical(&self, signature: &Signature) -> bool {
+        // Get the `s` value from the signature
+
+        let signature_ = signature.serialize_compact();
+        let (_, s_bytes) = signature_.split_at(32);
+
+        // Convert `s_bytes` to `Scalar`
+        let s = Scalar::from_be_bytes(s_bytes.try_into().expect("length should be 32")).unwrap();
+        let curve_order = Scalar::from_le_bytes(CURVE_ORDER).unwrap();
+
+        // Check if `s` is in than the curve order
+        s <= curve_order
     }
 
     ///verify
@@ -72,6 +100,7 @@ impl Signer256k1 {
 #[cfg(feature = "tracing")]
 mod test {
     use super::*;
+    use chrono::prelude::Utc;
 
     #[test]
     #[cfg(feature = "tracing")]
@@ -80,14 +109,15 @@ mod test {
 
         let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
         let signer: Signer256k1 = Signer256k1::new(private_key);
+
+        let timestamp_str = Utc::now().timestamp();
+        let message = format!("ETERNIS;{}", timestamp_str);
+
+        let (signature, signature_ethereum) = signer.sign(message.clone());
+
         signer.print();
-
-        let message = String::from("ETERNIS");
-
-        let (signature, compressedSignature) = signer.sign(message.clone());
-
-        println!("64-byte compressed ECDSA signature {}", compressedSignature);
-        println!("uncompressed ECDSA signature {}", signature);
+        println!("message to sign {}", message);
+        println!("compact signature 0x{}", signature_ethereum);
 
         assert!(signer.verify(message.clone(), signature).is_ok());
     }

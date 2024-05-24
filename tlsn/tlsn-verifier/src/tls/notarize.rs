@@ -214,10 +214,11 @@ mod test {
 
         let message = format!("ETERNIS;{};{}", timestamp_str, user_nullifier);
         //ahi
-        let (signature, compressedSignature) = signer.sign(message.clone());
+        let (signature, signature_ethereum) = signer.sign(message.clone());
 
         #[cfg(feature = "tracing")]
         println!("message {}", message);
-        println!("signature 0x{}", compressedSignature);
+
+        println!("signature 0x{}", signature_ethereum);
     }
 }
