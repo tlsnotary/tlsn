@@ -6,8 +6,11 @@ use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::{env, str};
+use tls_core::anchors::RootCertStore;
 use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
-use tlsn_examples::request_notarization;
+use tlsn_examples::parse_cert;
+use tlsn_notary_client::{NotaryClient, NotaryConnection};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
@@ -21,6 +24,10 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KH
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
+// Setting to enable connecting to local notary server via TLS
+const NOTARY_CA_CERT_PATH: &str = "../../../notary-server/fixture/tls/rootCA.crt";
+const NOTARY_DNS: &str = "tlsnotaryserver.io";
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -32,9 +39,40 @@ async fn main() {
     let access_token = env::var("ACCESS_TOKEN").unwrap();
     let csrf_token = env::var("CSRF_TOKEN").unwrap();
 
-    // Create a new prover
-    let prover = request_notarization(NOTARY_HOST, NOTARY_PORT, None, None, SERVER_DOMAIN).await;
+    // Setup a client connection to the notary server via TLS
+    let root_ca_cert = parse_cert(NOTARY_CA_CERT_PATH).await;
+    let mut root_cert_store = RootCertStore::empty();
+    root_cert_store.add(&root_ca_cert).unwrap();
 
+    let notary_client = NotaryClient::builder()
+        .host(NOTARY_HOST)
+        .port(NOTARY_PORT)
+        .root_cert_store(Some(root_cert_store))
+        .notary_dns(Some(NOTARY_DNS.to_string()))
+        .build()
+        .unwrap();
+
+    // Send requests for configuration and notarization to the notary server
+    let (NotaryConnection::Tls(notary_socket), session_id) =
+        notary_client.request_notarization().await.unwrap()
+    else {
+        panic!("Invalid notary connection received: TCP");
+    };
+
+    // Configure a new prover with the unique session id returned from notary client
+    let prover_config = ProverConfig::builder()
+        .id(session_id)
+        .server_dns(SERVER_DOMAIN)
+        .build()
+        .unwrap();
+
+    // Create a new prover and set up the MPC backend.
+    let prover = Prover::new(prover_config)
+        .setup(notary_socket.compat())
+        .await
+        .unwrap();
+
+    // Open a new socket to the application server
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
         .unwrap();

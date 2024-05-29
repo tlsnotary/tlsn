@@ -1,8 +1,9 @@
 use elliptic_curve::pkcs8::DecodePrivateKey;
 use futures::{AsyncRead, AsyncWrite};
-use tlsn_notary_client::client::NotaryClient;
-use tlsn_prover::tls::{state::Setup, Prover};
+use std::io::BufReader;
+use tls_core::key::Certificate;
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tokio::fs::File;
 
 /// Runs a simple Notary with the provided connection to the Prover.
 pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn: T) {
@@ -23,31 +24,14 @@ pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn
         .unwrap();
 }
 
-/// Requests notarization from the Notary server.
-pub async fn request_notarization(
-    host: &str,
-    port: u16,
-    max_sent_data: Option<usize>,
-    max_recv_data: Option<usize>,
-    server_dns: &str,
-) -> Prover<Setup> {
-    let mut notary_client_builder = NotaryClient::builder();
-
-    notary_client_builder
-        .host(host)
-        .port(port)
-        .server_dns(server_dns);
-
-    if let Some(max_sent_data) = max_sent_data {
-        notary_client_builder.max_sent_data(max_sent_data);
-    }
-
-    if let Some(max_recv_data) = max_recv_data {
-        notary_client_builder.max_recv_data(max_recv_data);
-    }
-
-    let notary_client = notary_client_builder.build().unwrap();
-
-    // Setup tls connection to the notary server
-    notary_client.setup_tls_prover().await.unwrap()
+/// Parse certificate as tls-core's Certificate struct, so that one can use tls-client's RootCertStore to add the cert
+pub async fn parse_cert(file_path: &str) -> Certificate {
+    let key_file = File::open(file_path).await.unwrap().into_std().await;
+    let mut certificate_file_reader = BufReader::new(key_file);
+    let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut certificate_file_reader)
+        .unwrap()
+        .into_iter()
+        .map(Certificate)
+        .collect();
+    certificates.remove(0)
 }

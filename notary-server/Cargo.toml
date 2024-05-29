@@ -45,8 +45,9 @@ ws_stream_tungstenite = { version = "0.13.0", features = ["tokio_io"] }
 # specify vendored feature to use statically linked copy of OpenSSL
 hyper-tls = { version = "0.6.0", features = ["vendored"] }
 rstest = "0.18"
+tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 tlsn-notary-client = { path = "../tlsn/tlsn-notary-client" }
 tlsn-prover = { path = "../tlsn/tlsn-prover", features = ["tracing"] }
-tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
+tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tokio-native-tls = { version = "0.3.1", features = ["vendored"] }

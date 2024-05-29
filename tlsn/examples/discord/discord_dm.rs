@@ -6,8 +6,11 @@ use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::{env, ops::Range, str};
+use tls_core::anchors::RootCertStore;
 use tlsn_core::proof::TlsProof;
-use tlsn_examples::request_notarization;
+use tlsn_examples::parse_cert;
+use tlsn_notary_client::{NotaryClient, NotaryConnection};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
@@ -18,6 +21,10 @@ const SERVER_DOMAIN: &str = "discord.com";
 // Setting of the notary server — make sure these are the same with the config in ../../../notary-server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
+
+// Setting to enable connecting to local notary server via TLS
+const NOTARY_CA_CERT_PATH: &str = "../../../notary-server/fixture/tls/rootCA.crt";
+const NOTARY_DNS: &str = "tlsnotaryserver.io";
 
 // P/S: If the following limits are increased, please ensure max-transcript-size of
 // the notary server's config (../../../notary-server) is increased too, where
@@ -38,16 +45,44 @@ async fn main() {
     let auth_token = env::var("AUTHORIZATION").unwrap();
     let user_agent = env::var("USER_AGENT").unwrap();
 
-    // Create a new prover
-    let prover = request_notarization(
-        NOTARY_HOST,
-        NOTARY_PORT,
-        Some(MAX_SENT_DATA),
-        Some(MAX_RECV_DATA),
-        SERVER_DOMAIN,
-    )
-    .await;
+    // Setup a client connection to the notary server via TLS
+    let root_ca_cert = parse_cert(NOTARY_CA_CERT_PATH).await;
+    let mut root_cert_store = RootCertStore::empty();
+    root_cert_store.add(&root_ca_cert).unwrap();
 
+    let notary_client = NotaryClient::builder()
+        .host(NOTARY_HOST)
+        .port(NOTARY_PORT)
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .root_cert_store(Some(root_cert_store))
+        .notary_dns(Some(NOTARY_DNS.to_string()))
+        .build()
+        .unwrap();
+
+    // Send requests for configuration and notarization to the notary server
+    let (NotaryConnection::Tls(notary_socket), session_id) =
+        notary_client.request_notarization().await.unwrap()
+    else {
+        panic!("Invalid notary connection received: TCP");
+    };
+
+    // Configure a new prover with the unique session id returned from notary client
+    let prover_config = ProverConfig::builder()
+        .id(session_id)
+        .server_dns(SERVER_DOMAIN)
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    // Create a new prover and set up the MPC backend.
+    let prover = Prover::new(prover_config)
+        .setup(notary_socket.compat())
+        .await
+        .unwrap();
+
+    // Open a new socket to the application server
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
         .unwrap();

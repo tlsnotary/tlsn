@@ -1,45 +1,48 @@
 //! Notary client errors.
 //!
-//! This module handles errors that might occur during prover setup
+//! This module handles errors that might occur during connection setup and notarization requests
 
 use derive_builder::UninitializedFieldError;
-use eyre::Report;
-use std::error::Error;
-use tlsn_prover::tls::{ProverConfigBuilderError, ProverError};
+use std::{error::Error, fmt};
 
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
-pub enum NotaryClientError {
-    #[error(transparent)]
-    Unexpected(#[from] Report),
-    #[error("Failed to build notary client: {0}")]
-    Builder(String),
-    #[error("Failed to connect to notary: {0}")]
-    Connection(String),
-    #[error("Error occured when setting up TLS to connect to notary: {0}")]
-    TlsSetup(String),
-    #[error("Error occurred during configuration: {0}")]
-    Configuration(String),
-    #[error("Error occurred during notarization request: {0}")]
-    NotarizationRequest(String),
-    #[error("Error occurred during prover setup: {0}")]
-    ProverSetup(Box<dyn Error + Send + 'static>),
+pub struct ClientError {
+    kind: ErrorKind,
+    msg: Option<String>,
+    #[source]
+    source: Option<Box<dyn Error + Send + Sync>>,
 }
 
-impl From<ProverError> for NotaryClientError {
-    fn from(error: ProverError) -> Self {
-        Self::ProverSetup(Box::new(error))
+impl ClientError {
+    pub(crate) fn new(
+        kind: ErrorKind,
+        msg: Option<String>,
+        source: Option<Box<dyn Error + Send + Sync>>,
+    ) -> Self {
+        Self { kind, msg, source }
     }
 }
 
-impl From<ProverConfigBuilderError> for NotaryClientError {
-    fn from(error: ProverConfigBuilderError) -> Self {
-        Self::ProverSetup(Box::new(error))
+impl fmt::Display for ClientError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "client error: {:?}, msg: {:?}", self.kind, self.msg)
     }
 }
 
-impl From<UninitializedFieldError> for NotaryClientError {
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub(crate) enum ErrorKind {
+    Unexpected,
+    Builder,
+    Connection,
+    TlsSetup,
+    Configuration,
+    NotarizationRequest,
+}
+
+impl From<UninitializedFieldError> for ClientError {
     fn from(ufe: UninitializedFieldError) -> Self {
-        Self::Builder(ufe.to_string())
+        ClientError::new(ErrorKind::Builder, None, Some(Box::new(ufe)))
     }
 }

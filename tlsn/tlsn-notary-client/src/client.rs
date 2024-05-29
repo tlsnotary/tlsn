@@ -1,29 +1,40 @@
 //! Notary client
 //!
-//! This module sets up prover to connect to notary via TCP or TLS
+//! This module sets up connection to notary server via TCP or TLS, and subsequent requests for notarization
 
-use eyre::eyre;
 use http_body_util::{BodyExt as _, Either, Empty, Full};
 use hyper::{client::conn::http1::Parts, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
-use rustls::{Certificate, ClientConfig, RootCertStore};
 use std::sync::Arc;
-use tls_client::RootCertStore as TlsClientRootCertStore;
+use tls_client::{ClientConfig, ClientConnection, RootCertStore, RustCryptoBackend, ServerName};
+use tls_client_async::{bind_client, TlsConnection};
 use tlsn_common::config::{DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT};
-use tlsn_prover::tls::{state::Setup, Prover, ProverConfig};
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_rustls::TlsConnector;
-use tokio_util::{bytes::Bytes, compat::TokioAsyncReadCompatExt};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+};
+use tokio_util::{
+    bytes::Bytes,
+    compat::{Compat, FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt},
+};
 
 #[cfg(feature = "tracing")]
 use tracing::debug;
 
-use crate::error::NotaryClientError;
+use crate::error::{ClientError, ErrorKind};
 
-/// Client that setup prover to connect to notary server
+/// A Notary connection
+pub enum NotaryConnection {
+    /// Unencrypted TCP connection
+    Tcp(TcpStream),
+    /// TLS connection wrapped in Compat that implement tokio's AsyncRead, AsyncWrite
+    Tls(Compat<TlsConnection>),
+}
+
+/// Client that setup connection to notary server
 #[derive(Debug, Clone, derive_builder::Builder)]
-#[builder(build_fn(error = "NotaryClientError"))]
+#[builder(build_fn(error = "ClientError"))]
 pub struct NotaryClient {
     /// Host of the notary server endpoint
     #[builder(setter(into))]
@@ -36,21 +47,13 @@ pub struct NotaryClient {
     /// Maximum number of bytes that can be received.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
-    /// Root certificate store used for establishing TLS connection with notary
-    #[builder(default = "Some(notary_default_root_store()?)")]
-    notary_root_cert_store: Option<RootCertStore>,
-    /// DNS name of notary server used for establishing TLS connection with notary
-    #[builder(setter(into), default = "Some(\"tlsnotaryserver.io\".to_string())")]
+    /// Root certificate store used for establishing TLS connection with notary server (should be None if TLS is not used)
+    root_cert_store: Option<RootCertStore>,
+    /// Notary server DNS name (should be None if TLS is not used)
     notary_dns: Option<String>,
     /// API key used to call notary server endpoints if whitelisting is enabled in notary server
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
-    /// TLS root certificate store
-    #[builder(default = "server_default_root_store()")]
-    server_root_cert_store: TlsClientRootCertStore,
-    /// Application server DNS name
-    #[builder(setter(into))]
-    server_dns: String,
 }
 
 impl NotaryClient {
@@ -59,61 +62,67 @@ impl NotaryClient {
         NotaryClientBuilder::default()
     }
 
-    /// Returns a prover that connects to notary via TCP without TLS
-    pub async fn setup_tcp_prover(&self) -> Result<Prover<Setup>, NotaryClientError> {
-        #[cfg(feature = "tracing")]
-        debug!("Setting up tcp connection...");
-        let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
-            .await
-            .map_err(|err| NotaryClientError::Connection(err.to_string()))?;
+    /// Configures and requests for a notarization, returning a connection to the Notary if successful.
+    pub async fn request_notarization(&self) -> Result<(NotaryConnection, String), ClientError> {
+        if let (Some(notary_dns), Some(root_cert_store)) =
+            (self.notary_dns.as_ref(), self.root_cert_store.clone())
+        {
+            #[cfg(feature = "tracing")]
+            debug!("Setting up tls connection...");
 
-        self.request_notarization(notary_socket).await
-    }
+            // Uses tls-client's TLS setup methods to accept tls-client's RootCertStore, so that if needed
+            // one can just use a single RootCertStore type for both server and notary's TLS setup, instead of
+            // a different RootCertStore (e.g. rustls's) just for notary (server is using tls-client's RootCertStore)
+            let client_notary_config = ClientConfig::builder()
+                .with_safe_defaults()
+                .with_root_certificates(root_cert_store)
+                .with_no_client_auth();
 
-    /// Returns a prover that connects to notary via TCP-TLS
-    pub async fn setup_tls_prover(&self) -> Result<Prover<Setup>, NotaryClientError> {
-        #[cfg(feature = "tracing")]
-        debug!("Setting up tls connection...");
-        let notary_root_cert_store =
-            self.notary_root_cert_store
-                .clone()
-                .ok_or(NotaryClientError::TlsSetup(
-                    "Notary root cert store is not provided".to_string(),
-                ))?;
-        let notary_dns = self.notary_dns.as_ref().ok_or(NotaryClientError::TlsSetup(
-            "Notary dns is not provided".to_string(),
-        ))?;
-
-        let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
-            .await
-            .map_err(|err| NotaryClientError::Connection(err.to_string()))?;
-
-        let client_notary_config = ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(notary_root_cert_store)
-            .with_no_client_auth();
-
-        let notary_connector = TlsConnector::from(Arc::new(client_notary_config));
-        let notary_tls_socket = notary_connector
-            .connect(
-                notary_dns.as_str().try_into().map_err(|err| {
-                    NotaryClientError::TlsSetup(format!("Failed to parse notary dns: {err}"))
-                })?,
-                notary_socket,
+            let client_connection = ClientConnection::new(
+                Arc::new(client_notary_config),
+                Box::new(RustCryptoBackend::new()),
+                ServerName::try_from(notary_dns.as_str()).unwrap(),
             )
-            .await
             .map_err(|err| {
-                NotaryClientError::TlsSetup(format!("Failed to connect to notary via TLS: {err}"))
+                ClientError::new(
+                    ErrorKind::TlsSetup,
+                    Some("Failed to setup tls client connection".to_string()),
+                    Some(Box::new(err)),
+                )
             })?;
 
-        self.request_notarization(notary_tls_socket).await
+            let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
+                .await
+                .map_err(|err| {
+                    ClientError::new(ErrorKind::Connection, None, Some(Box::new(err)))
+                })?;
+            let (tls_conn, tls_fut) = bind_client(notary_socket.compat(), client_connection);
+            tokio::spawn(tls_fut);
+
+            self.send_request(tls_conn.compat())
+                .await
+                .map(|(connection, session_id)| (NotaryConnection::Tls(connection), session_id))
+        } else {
+            #[cfg(feature = "tracing")]
+            debug!("Setting up tcp connection...");
+
+            let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
+                .await
+                .map_err(|err| {
+                    ClientError::new(ErrorKind::Connection, None, Some(Box::new(err)))
+                })?;
+
+            self.send_request(notary_socket)
+                .await
+                .map(|(connection, session_id)| (NotaryConnection::Tcp(connection), session_id))
+        }
     }
 
-    /// Requests notarization from the Notary server.
-    async fn request_notarization<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    /// Send notarization request to the notary server.
+    async fn send_request<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         &self,
         notary_socket: S,
-    ) -> Result<Prover<Setup>, NotaryClientError> {
+    ) -> Result<(S, String), ClientError> {
         let http_scheme = if self.notary_dns.is_some() {
             "https"
         } else {
@@ -125,9 +134,11 @@ impl NotaryClient {
             hyper::client::conn::http1::handshake(TokioIo::new(notary_socket))
                 .await
                 .map_err(|err| {
-                    NotaryClientError::Connection(format!(
-                        "Failed to attach http client to notary socket: {err}"
-                    ))
+                    ClientError::new(
+                        ErrorKind::Connection,
+                        Some("Failed to attach http client to notary socket".to_string()),
+                        Some(Box::new(err)),
+                    )
                 })?;
 
         // Spawn the HTTP task to be run concurrently
@@ -140,9 +151,11 @@ impl NotaryClient {
             max_recv_data: Some(self.max_recv_data),
         })
         .map_err(|err| {
-            NotaryClientError::Configuration(format!(
-                "Failed to serialise http request for configuration: {err}"
-            ))
+            ClientError::new(
+                ErrorKind::Configuration,
+                Some("Failed to serialise http request for configuration".to_string()),
+                Some(Box::new(err)),
+            )
         })?;
 
         let mut configuration_request_builder = Request::builder()
@@ -165,9 +178,11 @@ impl NotaryClient {
                 configuration_request_payload,
             ))))
             .map_err(|err| {
-                NotaryClientError::Configuration(format!(
-                    "Failed to build http request for configuration: {err}"
-                ))
+                ClientError::new(
+                    ErrorKind::Configuration,
+                    Some("Failed to build http request for configuration".to_string()),
+                    Some(Box::new(err)),
+                )
             })?;
 
         #[cfg(feature = "tracing")]
@@ -177,19 +192,25 @@ impl NotaryClient {
             .send_request(configuration_request)
             .await
             .map_err(|err| {
-                NotaryClientError::Configuration(format!(
-                    "Failed to send http request for configuration: {err}"
-                ))
+                ClientError::new(
+                    ErrorKind::Configuration,
+                    Some("Failed to send http request for configuration".to_string()),
+                    Some(Box::new(err)),
+                )
             })?;
 
         #[cfg(feature = "tracing")]
         debug!("Sent configuration request");
 
         if configuration_response.status() != StatusCode::OK {
-            return Err(NotaryClientError::Configuration(format!(
-                "Configuration response is not OK: {:?}",
-                configuration_response
-            )));
+            return Err(ClientError::new(
+                ErrorKind::Configuration,
+                Some(format!(
+                    "Configuration response is not OK: {:?}",
+                    configuration_response
+                )),
+                None,
+            ));
         }
 
         let configuration_response_payload = configuration_response
@@ -197,9 +218,11 @@ impl NotaryClient {
             .collect()
             .await
             .map_err(|err| {
-                NotaryClientError::Configuration(format!(
-                    "Failed to parse configuration response: {err}"
-                ))
+                ClientError::new(
+                    ErrorKind::Configuration,
+                    Some("Failed to parse configuration response".to_string()),
+                    Some(Box::new(err)),
+                )
             })?
             .to_bytes();
 
@@ -208,9 +231,11 @@ impl NotaryClient {
                 &configuration_response_payload,
             ))
             .map_err(|err| {
-                NotaryClientError::Configuration(format!(
-                    "Failed to parse configuration response: {err}"
-                ))
+                ClientError::new(
+                    ErrorKind::Configuration,
+                    Some("Failed to parse configuration response".to_string()),
+                    Some(Box::new(err)),
+                )
             })?;
 
         #[cfg(feature = "tracing")]
@@ -234,9 +259,11 @@ impl NotaryClient {
             .header("Upgrade", "TCP")
             .body(Either::Right(Empty::<Bytes>::new()))
             .map_err(|err| {
-                NotaryClientError::NotarizationRequest(format!(
-                    "Failed to build http request for notarization: {err}"
-                ))
+                ClientError::new(
+                    ErrorKind::NotarizationRequest,
+                    Some("Failed to build http request for notarization".to_string()),
+                    Some(Box::new(err)),
+                )
             })?;
 
         #[cfg(feature = "tracing")]
@@ -246,19 +273,25 @@ impl NotaryClient {
             .send_request(notarization_request)
             .await
             .map_err(|err| {
-                NotaryClientError::NotarizationRequest(format!(
-                    "Failed to send http request for notarization: {err}"
-                ))
+                ClientError::new(
+                    ErrorKind::NotarizationRequest,
+                    Some("Failed to send http request for notarization".to_string()),
+                    Some(Box::new(err)),
+                )
             })?;
 
         #[cfg(feature = "tracing")]
         debug!("Sent notarization request");
 
         if notarization_response.status() != StatusCode::SWITCHING_PROTOCOLS {
-            return Err(NotaryClientError::NotarizationRequest(format!(
-                "Notarization response is not SWITCHING_PROTOCOL: {:?}",
-                notarization_response
-            )));
+            return Err(ClientError::new(
+                ErrorKind::NotarizationRequest,
+                Some(format!(
+                    "Notarization response is not SWITCHING_PROTOCOL: {:?}",
+                    notarization_response
+                )),
+                None,
+            ));
         }
 
         // Claim back notary socket after HTTP exchange is done
@@ -266,71 +299,27 @@ impl NotaryClient {
             io: notary_socket, ..
         } = notary_connection_task
             .await
-            .map_err(|err| eyre!("Error when joining notary connection task: {err}"))?
             .map_err(|err| {
-                eyre!("Failed to claim back notary socket after HTTP exchange is done: {err}")
+                ClientError::new(
+                    ErrorKind::Unexpected,
+                    Some("Error when joining notary connection task".to_string()),
+                    Some(Box::new(err)),
+                )
+            })?
+            .map_err(|err| {
+                ClientError::new(
+                    ErrorKind::Unexpected,
+                    Some(
+                        "Failed to claim back notary socket after HTTP exchange is done"
+                            .to_string(),
+                    ),
+                    Some(Box::new(err)),
+                )
             })?;
 
-        #[cfg(feature = "tracing")]
-        debug!("Setting up prover...");
-
-        // Basic default prover config using the session_id returned from /session endpoint just now
-        let prover_config = ProverConfig::builder()
-            .id(configuration_response_payload_parsed.session_id)
-            .server_dns(&self.server_dns)
-            .max_sent_data(self.max_sent_data)
-            .max_recv_data(self.max_recv_data)
-            .root_cert_store(self.server_root_cert_store.clone())
-            .build()?;
-
-        // Create a new prover
-        let prover = Prover::new(prover_config)
-            .setup(notary_socket.into_inner().compat())
-            .await?;
-
-        Ok(prover)
-    }
-}
-
-/// Default root store using mozilla certs.
-fn server_default_root_store() -> TlsClientRootCertStore {
-    let mut root_store = TlsClientRootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-        tls_client::OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject.as_ref(),
-            ta.subject_public_key_info.as_ref(),
-            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
-        )
-    }));
-
-    root_store
-}
-
-/// Default root store using self signed certs.
-fn notary_default_root_store() -> Result<RootCertStore, NotaryClientError> {
-    let pem_file = std::str::from_utf8(include_bytes!(
-        "../../../notary-server/fixture/tls/rootCA.crt"
-    ))
-    .map_err(|err| {
-        NotaryClientError::Builder(format!("Failed to parse default root CA cert: {err}"))
-    })?;
-
-    let mut reader = std::io::BufReader::new(pem_file.as_bytes());
-    let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut reader)
-        .map_err(|err| {
-            NotaryClientError::Builder(format!("Failed to setup default root CA cert: {err}"))
-        })?
-        .into_iter()
-        .map(Certificate)
-        .collect();
-    let certificate = certificates.remove(0);
-
-    let mut root_store = RootCertStore::empty();
-    root_store.add(&certificate).map_err(|err| {
-        NotaryClientError::Builder(format!(
-            "Fialed to add default root cert to root store: {err}"
+        Ok((
+            notary_socket.into_inner(),
+            configuration_response_payload_parsed.session_id,
         ))
-    })?;
-
-    Ok(root_store)
+    }
 }

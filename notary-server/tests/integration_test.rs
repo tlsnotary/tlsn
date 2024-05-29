@@ -10,23 +10,30 @@ use hyper_util::{
 };
 use rstest::rstest;
 use std::{string::String, time::Duration};
-use tls_core::anchors::RootCertStore as TlsClientRootCertStore;
+use tls_client_async::TlsConnection;
+use tls_core::{anchors::RootCertStore, key::Certificate};
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_notary_client::client::NotaryClient;
-use tlsn_prover::tls::{state::Setup, Prover, ProverConfig};
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tlsn_notary_client::{NotaryClient, NotaryConnection};
+use tlsn_prover::tls::{Prover, ProverConfig};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+};
+use tokio_util::compat::{Compat, FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 use ws_stream_tungstenite::WsStream;
 
 use notary_server::{
-    run_server, AuthorizationProperties, LoggingProperties, NotarizationProperties,
+    read_pem_file, run_server, AuthorizationProperties, LoggingProperties, NotarizationProperties,
     NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties,
     NotarySigningKeyProperties, ServerProperties, TLSProperties,
 };
 
+const MAX_SENT_DATA: usize = 1 << 13;
+const MAX_RECV_DATA: usize = 1 << 13;
+
+const NOTARY_CA_CERT_PATH: &str = "./fixture/tls/rootCA.crt";
 const NOTARY_CA_CERT_BYTES: &[u8] = include_bytes!("../fixture/tls/rootCA.crt");
-const MAX_SENT: usize = 1 << 13;
-const MAX_RECV: usize = 1 << 13;
 const API_KEY: &str = "test_api_key_0";
 
 fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> NotaryServerProperties {
@@ -83,48 +90,47 @@ async fn setup_config_and_server(
     notary_config
 }
 
-fn get_server_root_cert_store() -> TlsClientRootCertStore {
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-    root_store
-}
-
-async fn tcp_prover(
-    notary_config: NotaryServerProperties,
-    server_root_store: TlsClientRootCertStore,
-) -> Prover<Setup> {
+async fn tcp_prover(notary_config: NotaryServerProperties) -> (TcpStream, String) {
     let notary_client = NotaryClient::builder()
         .host(&notary_config.server.host)
         .port(notary_config.server.port)
-        .max_sent_data(MAX_SENT)
-        .max_recv_data(MAX_RECV)
-        // set this to None to turn off TLS with notary server
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .root_cert_store(None)
         .notary_dns(None)
-        // set this to None to turn off TLS with notary server
-        .notary_root_cert_store(None)
-        .server_dns(SERVER_DOMAIN)
-        .server_root_cert_store(server_root_store)
         .build()
         .unwrap();
 
-    notary_client.setup_tcp_prover().await.unwrap()
+    if let (NotaryConnection::Tcp(notary_socket), session_id) =
+        notary_client.request_notarization().await.unwrap()
+    {
+        (notary_socket, session_id)
+    } else {
+        panic!("Invalid notary connection received: TLS");
+    }
 }
 
-async fn tls_prover(
-    notary_config: NotaryServerProperties,
-    server_root_store: TlsClientRootCertStore,
-) -> Prover<Setup> {
+async fn tls_prover(notary_config: NotaryServerProperties) -> (Compat<TlsConnection>, String) {
+    let mut certificate_file_reader = read_pem_file(NOTARY_CA_CERT_PATH).await.unwrap();
+    let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut certificate_file_reader)
+        .unwrap()
+        .into_iter()
+        .map(Certificate)
+        .collect();
+    let certificate = certificates.remove(0);
+
+    let mut root_cert_store = RootCertStore::empty();
+    root_cert_store.add(&certificate).unwrap();
+
     let mut notary_client_builder = NotaryClient::builder();
 
     notary_client_builder
         .host(&notary_config.server.host)
         .port(notary_config.server.port)
-        .max_sent_data(MAX_SENT)
-        .max_recv_data(MAX_RECV)
-        .server_dns(SERVER_DOMAIN)
-        .server_root_cert_store(server_root_store);
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .root_cert_store(Some(root_cert_store))
+        .notary_dns(Some(notary_config.server.name));
 
     if notary_config.authorization.enabled {
         notary_client_builder.api_key(API_KEY);
@@ -132,31 +138,61 @@ async fn tls_prover(
 
     let notary_client = notary_client_builder.build().unwrap();
 
-    notary_client.setup_tls_prover().await.unwrap()
+    if let (NotaryConnection::Tls(notary_socket), session_id) =
+        notary_client.request_notarization().await.unwrap()
+    {
+        (notary_socket, session_id)
+    } else {
+        panic!("Invalid notary connection received: TCP");
+    }
 }
 
 #[rstest]
 #[case::with_tls_and_auth(
-    tls_prover(setup_config_and_server(100, 7047, true, true).await, get_server_root_cert_store())
+    tls_prover(setup_config_and_server(100, 7047, true, true).await)
 )]
 #[case::with_tls_and_no_auth(
-    tls_prover(setup_config_and_server(100, 7048, true, false).await, get_server_root_cert_store())
+    tls_prover(setup_config_and_server(100, 7048, true, false).await)
 )]
 #[case::without_tls(
-    tcp_prover(setup_config_and_server(100, 7049, false, false).await, get_server_root_cert_store())
+    tcp_prover(setup_config_and_server(100, 7049, false, false).await)
 )]
 #[awt]
 #[tokio::test]
-async fn test_tcp_prover(
+async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     #[future]
     #[case]
-    prover: Prover<Setup>,
+    requested_notarization: (S, String),
 ) {
+    let (notary_socket, session_id) = requested_notarization;
+
+    let mut root_cert_store = RootCertStore::empty();
+    root_cert_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+
+    // Prover config using the session_id returned from calling /session endpoint in notary client
+    let prover_config = ProverConfig::builder()
+        .id(session_id)
+        .server_dns(SERVER_DOMAIN)
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .root_cert_store(root_cert_store)
+        .build()
+        .unwrap();
+
+    // Create a new prover
+    let prover = Prover::new(prover_config)
+        .setup(notary_socket.compat())
+        .await
+        .unwrap();
+
     // Connect to the Server
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
     let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
     let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+
     // Spawn the Prover task to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
@@ -235,8 +271,8 @@ async fn test_websocket_prover() {
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: notary_server::ClientType::Websocket,
-        max_sent_data: Some(MAX_SENT),
-        max_recv_data: Some(MAX_RECV),
+        max_sent_data: Some(MAX_SENT_DATA),
+        max_recv_data: Some(MAX_RECV_DATA),
     })
     .unwrap();
 
@@ -315,8 +351,8 @@ async fn test_websocket_prover() {
         .id(notarization_response.session_id)
         .server_dns(SERVER_DOMAIN)
         .root_cert_store(root_store)
-        .max_sent_data(MAX_SENT)
-        .max_recv_data(MAX_RECV)
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
         .build()
         .unwrap();
 

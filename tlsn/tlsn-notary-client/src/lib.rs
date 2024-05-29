@@ -1,11 +1,14 @@
 //! Notary client library.
 //!
-//! This library contains TLSNotary notary client implementations, which helps to setup prover that
-//! connects to TLSN notary server via TCP or TLS
+//! This library contains TLSNotary notary client implementations, which helps to setup
+//! connection to TLSN notary server via TCP or TLS, and subsequent requests for notarization
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod client;
-pub mod error;
+mod client;
+mod error;
+
+pub use client::{NotaryClient, NotaryConnection};
+pub use error::ClientError;
