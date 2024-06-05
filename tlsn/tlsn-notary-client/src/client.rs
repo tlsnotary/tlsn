@@ -1,57 +1,126 @@
 //! Notary client
 //!
-//! This module sets up connection to notary server via TCP or TLS, and subsequent requests for notarization
+//! This module sets up connection to notary server via TCP or TLS, and subsequent requests for notarization.
 
 use http_body_util::{BodyExt as _, Either, Empty, Full};
 use hyper::{client::conn::http1::Parts, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
-use std::sync::Arc;
-use tls_client::{ClientConfig, ClientConnection, RootCertStore, RustCryptoBackend, ServerName};
-use tls_client_async::{bind_client, TlsConnection};
+use std::{
+    io::Error as IoError,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 use tlsn_common::config::{DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT};
 use tokio::{
-    io::{AsyncRead, AsyncWrite},
+    io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
 };
-use tokio_util::{
-    bytes::Bytes,
-    compat::{Compat, FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt},
+use tokio_rustls::{
+    client::TlsStream,
+    rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore},
+    TlsConnector,
 };
+use tokio_util::bytes::Bytes;
 
 #[cfg(feature = "tracing")]
 use tracing::debug;
 
 use crate::error::{ClientError, ErrorKind};
 
-/// A Notary connection
-pub enum NotaryConnection {
-    /// Unencrypted TCP connection
-    Tcp(TcpStream),
-    /// TLS connection wrapped in Compat that implement tokio's AsyncRead, AsyncWrite
-    Tls(Compat<TlsConnection>),
-}
-
-/// Client that setup connection to notary server
+/// Parameters used to configure notarization.
 #[derive(Debug, Clone, derive_builder::Builder)]
-#[builder(build_fn(error = "ClientError"))]
-pub struct NotaryClient {
-    /// Host of the notary server endpoint
-    #[builder(setter(into))]
-    host: String,
-    /// Port of the notary server endpoint
-    port: u16,
+pub struct NotarizationRequest {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
     /// Maximum number of bytes that can be received.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
-    /// Root certificate store used for establishing TLS connection with notary server (should be None if TLS is not used)
-    root_cert_store: Option<RootCertStore>,
-    /// Notary server DNS name (should be None if TLS is not used)
-    notary_dns: Option<String>,
-    /// API key used to call notary server endpoints if whitelisting is enabled in notary server
+}
+
+impl NotarizationRequest {
+    /// Create a new builder for `NotarizationRequest`.
+    pub fn builder() -> NotarizationRequestBuilder {
+        NotarizationRequestBuilder::default()
+    }
+}
+
+/// An accepted notarization request.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct Accepted {
+    /// Session identifier.
+    pub id: String,
+    /// Connection to the notary server to be used by a prover.
+    pub io: NotaryConnection,
+}
+
+/// A notary server connection.
+#[derive(Debug)]
+pub enum NotaryConnection {
+    /// Unencrypted TCP connection.
+    Tcp(TcpStream),
+    /// TLS connection.
+    Tls(TlsStream<TcpStream>),
+}
+
+impl AsyncRead for NotaryConnection {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<Result<(), IoError>> {
+        match self.get_mut() {
+            NotaryConnection::Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
+            NotaryConnection::Tls(stream) => Pin::new(stream).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for NotaryConnection {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, IoError>> {
+        match self.get_mut() {
+            NotaryConnection::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
+            NotaryConnection::Tls(stream) => Pin::new(stream).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), IoError>> {
+        match self.get_mut() {
+            NotaryConnection::Tcp(stream) => Pin::new(stream).poll_flush(cx),
+            NotaryConnection::Tls(stream) => Pin::new(stream).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), IoError>> {
+        match self.get_mut() {
+            NotaryConnection::Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
+            NotaryConnection::Tls(stream) => Pin::new(stream).poll_shutdown(cx),
+        }
+    }
+}
+
+/// Client that setup connection to notary server.
+#[derive(Debug, Clone, derive_builder::Builder)]
+pub struct NotaryClient {
+    /// Host of the notary server endpoint, either a DNS name (if TLS is used) or IP address.
+    #[builder(setter(into))]
+    host: String,
+    /// Port of the notary server endpoint.
+    port: u16,
+    /// Flag to turn on/off using TLS with notary server.
+    #[builder(setter(name = "enable_tls"), default = "true")]
+    tls: bool,
+    /// Root certificate store used for establishing TLS connection with notary server.
+    #[builder(default = "default_root_store()")]
+    root_cert_store: RootCertStore,
+    /// API key used to call notary server endpoints if whitelisting is enabled in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
 }
@@ -62,46 +131,50 @@ impl NotaryClient {
         NotaryClientBuilder::default()
     }
 
-    /// Configures and requests for a notarization, returning a connection to the Notary if successful.
-    pub async fn request_notarization(&self) -> Result<(NotaryConnection, String), ClientError> {
-        if let (Some(notary_dns), Some(root_cert_store)) =
-            (self.notary_dns.as_ref(), self.root_cert_store.clone())
-        {
+    /// Configures and requests for a notarization, returning a connection to the notary server if successful.
+    pub async fn request_notarization(
+        &self,
+        notarization_request: NotarizationRequest,
+    ) -> Result<Accepted, ClientError> {
+        if self.tls {
             #[cfg(feature = "tracing")]
             debug!("Setting up tls connection...");
 
-            // Uses tls-client's TLS setup methods to accept tls-client's RootCertStore, so that if needed
-            // one can just use a single RootCertStore type for both server and notary's TLS setup, instead of
-            // a different RootCertStore (e.g. rustls's) just for notary (server is using tls-client's RootCertStore)
             let client_notary_config = ClientConfig::builder()
                 .with_safe_defaults()
-                .with_root_certificates(root_cert_store)
+                .with_root_certificates(self.root_cert_store.clone())
                 .with_no_client_auth();
-
-            let client_connection = ClientConnection::new(
-                Arc::new(client_notary_config),
-                Box::new(RustCryptoBackend::new()),
-                ServerName::try_from(notary_dns.as_str()).unwrap(),
-            )
-            .map_err(|err| {
-                ClientError::new(
-                    ErrorKind::TlsSetup,
-                    Some("Failed to setup tls client connection".to_string()),
-                    Some(Box::new(err)),
-                )
-            })?;
 
             let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
                 .await
                 .map_err(|err| {
                     ClientError::new(ErrorKind::Connection, None, Some(Box::new(err)))
                 })?;
-            let (tls_conn, tls_fut) = bind_client(notary_socket.compat(), client_connection);
-            tokio::spawn(tls_fut);
 
-            self.send_request(tls_conn.compat())
+            let notary_connector = TlsConnector::from(Arc::new(client_notary_config));
+            let notary_tls_socket = notary_connector
+                .connect(
+                    self.host.as_str().try_into().map_err(|err| {
+                        ClientError::new(
+                            ErrorKind::TlsSetup,
+                            Some(format!(
+                                "Failed to parse notary server DNS name: {:?}",
+                                self.host
+                            )),
+                            Some(Box::new(err)),
+                        )
+                    })?,
+                    notary_socket,
+                )
                 .await
-                .map(|(connection, session_id)| (NotaryConnection::Tls(connection), session_id))
+                .map_err(|err| ClientError::new(ErrorKind::TlsSetup, None, Some(Box::new(err))))?;
+
+            self.send_request(notary_tls_socket, notarization_request)
+                .await
+                .map(|(connection, session_id)| Accepted {
+                    id: session_id,
+                    io: NotaryConnection::Tls(connection),
+                })
         } else {
             #[cfg(feature = "tracing")]
             debug!("Setting up tcp connection...");
@@ -112,9 +185,12 @@ impl NotaryClient {
                     ClientError::new(ErrorKind::Connection, None, Some(Box::new(err)))
                 })?;
 
-            self.send_request(notary_socket)
+            self.send_request(notary_socket, notarization_request)
                 .await
-                .map(|(connection, session_id)| (NotaryConnection::Tcp(connection), session_id))
+                .map(|(connection, session_id)| Accepted {
+                    id: session_id,
+                    io: NotaryConnection::Tcp(connection),
+                })
         }
     }
 
@@ -122,12 +198,9 @@ impl NotaryClient {
     async fn send_request<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         &self,
         notary_socket: S,
+        notarization_request: NotarizationRequest,
     ) -> Result<(S, String), ClientError> {
-        let http_scheme = if self.notary_dns.is_some() {
-            "https"
-        } else {
-            "http"
-        };
+        let http_scheme = if self.tls { "https" } else { "http" };
 
         // Attach the hyper HTTP client to the notary connection to send request to the /session endpoint to configure notarization and obtain session id
         let (mut notary_request_sender, notary_connection) =
@@ -147,8 +220,8 @@ impl NotaryClient {
         // Build the HTTP request to configure notarization
         let configuration_request_payload = serde_json::to_string(&NotarizationSessionRequest {
             client_type: ClientType::Tcp,
-            max_sent_data: Some(self.max_sent_data),
-            max_recv_data: Some(self.max_recv_data),
+            max_sent_data: Some(notarization_request.max_sent_data),
+            max_recv_data: Some(notarization_request.max_recv_data),
         })
         .map_err(|err| {
             ClientError::new(
@@ -322,4 +395,18 @@ impl NotaryClient {
             configuration_response_payload_parsed.session_id,
         ))
     }
+}
+
+/// Default root store using mozilla certs.
+fn default_root_store() -> RootCertStore {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject.as_ref(),
+            ta.subject_public_key_info.as_ref(),
+            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+        )
+    }));
+
+    root_store
 }

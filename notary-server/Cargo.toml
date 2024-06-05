@@ -48,6 +48,5 @@ rstest = "0.18"
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 tlsn-notary-client = { path = "../tlsn/tlsn-notary-client" }
 tlsn-prover = { path = "../tlsn/tlsn-prover", features = ["tracing"] }
-tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tokio-native-tls = { version = "0.3.1", features = ["vendored"] }
