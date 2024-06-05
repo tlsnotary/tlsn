@@ -1,0 +1,54 @@
+[libos]
+entrypoint = "{{ self_exe }}"
+
+
+[loader]
+entrypoint = "file:{{ gramine.libos }}"
+env.MALLOC_ARENA_MAX = "1"
+env.RUST_BACKTRACE = "full"
+env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}"
+log_level = "error"
+uid = 65534
+gid = 65534
+
+[fs]
+mounts = [
+    { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
+    { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
+    { path = "/fixture", uri = "file:fixture" },
+]
+
+[sgx]
+edmm_enable = true
+
+allowed_files = [
+    "file:fixture/tls",
+]
+trusted_files = [
+    "file:{{ gramine.runtimedir() }}/",
+    "file:{{ arch_libdir }}/",
+    "file:{{ self_exe }}",
+    { uri = "file:config/config.yaml" },
+    { uri = "file:fixture/notary/notary.key" },
+    { uri = "file:fixture/notary/notary.pub" },
+    { uri = "file:fixture/auth/whitelist.csv" },
+    { uri = "file:fixture/tls/notary.crt" },
+]
+max_threads = 32
+isvprodid = 0
+isvsvn = 0
+debug = false
+enable_stats = false
+enclave_size = "1024G"
+use_exinfo = false
+
+[sgx.cpu_features]
+avx = "unspecified"
+avx512 = "unspecified"
+amx = "unspecified"
+mpx = "disabled"
+pkru = "disabled"
+
+[sys]
+enable_sigterm_injection = true
+insecure__allow_eventfd = true

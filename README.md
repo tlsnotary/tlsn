@@ -52,6 +52,18 @@ at your option.
 
 This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-js`](https://github.com/tlsnotary/tlsn-js), [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), [`explorer`](https://github.com/tlsnotary/explorer), among others.
 
+## Reproduciple Builds & Attestation
+- We are using [Gramine](https://github.com/gramineproject) to generate SGX reports for notary-server builds; the report below is [dynamically generated](.github/workflows/sgx-report.yml): 
+    ```
+     Attributes:
+    mr_signer: 882f451378e083c19eddb338b19fa7ef02c66f9920db32c9acc6700430a7ad8a
+    mr_enclave: 57a5750ce03158f4ec665b6a880079900d3258b2f99df60eae995cf4ab46684c
+    isv_prod_id: 0
+    isv_svn: 0
+    debug_enclave: False
+     ```
+- if you build and run the notary-server with gramine, you should get the same mr_enclave hash as the one above.
+
 
 ## Contribution
 

@@ -33,3 +33,8 @@ Cargo.lock
 
 # metrics
 *.csv
+
+#gramine
+notary-server/*.sgx
+notary-server/*.manifest
+notary-server/*.sig

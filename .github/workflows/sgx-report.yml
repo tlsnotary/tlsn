@@ -1,0 +1,58 @@
+name: Create New SGX Report
+on: push
+jobs:
+  build_and_generate_report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./notary-server
+    name: install Gramine
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: add gramine key
+        run: |
+               sudo curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg
+               echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ $(lsb_release -sc) main" |  sudo tee /etc/apt/sources.list.d/gramine.list
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: rustc cargo gramine cmake clang gramine
+          version: 1.1
+          execute_install_scripts: true
+
+      - name: Set PATH
+        run: echo "export PATH=\$PATH:/usr/local/bin:/usr/bin" >> $GITHUB_ENV
+      - name: generate manifest and sig
+        run: |
+               make
+               /usr/bin/gramine-sgx-gen-private-key -f
+               /usr/bin/gramine-sgx-sign -v --manifest notary-server.manifest --output notary-server.sgx
+      - name: capture sig
+        id: sigstruct
+        run:  |
+               sigview=`/usr/bin/gramine-sgx-sigstruct-view notary-server.sig`
+               {
+                echo 'SGX_REPORT<<EOF'
+                echo "$sigview"
+                echo EOF
+               } >> "$GITHUB_ENV"
+               echo "$sigview"
+      - name: debug path first 
+        run: |
+               echo "GITHUB_ENV: $GITHUB_ENV"
+               echo "SGX_REPORT: $SGX_REPORT"
+      - name: update README
+        uses: jacobtomlinson/gha-find-replace@v3
+        with:
+          find: "(?si)attributes.*debug_enclave: (true|false)"
+          replace: "${{ env.SGX_REPORT }}"
+          include: "README.md"
+          regex: true
+      - name: Push changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with: 
+          commit_message: Automated SGX Report Gen
