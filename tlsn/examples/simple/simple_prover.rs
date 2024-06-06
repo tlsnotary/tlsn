@@ -13,7 +13,7 @@ use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 
 // Setting of the application server
-const SERVER_DOMAIN: &str = "example.com";
+const SERVER_DOMAIN: &str = "dummyjson.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
 use std::str;
@@ -66,7 +66,7 @@ async fn main() {
 
     // Build a simple HTTP request with common headers
     let request = Request::builder()
-        .uri("/")
+        .uri("/products/1")
         .header("Host", SERVER_DOMAIN)
         .header("Accept", "*/*")
         // Using "identity" instructs the Server not to use compression for its HTTP response.
@@ -150,6 +150,8 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     let sent_commitment = builder.commit_sent(&(0..sent_len)).unwrap();
     let recv_commitment = builder.commit_recv(&(0..recv_len)).unwrap();
 
+    println!("commitments: {:?}", builder.get_merkle_leaves());
+
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
 
@@ -160,6 +162,7 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     proof_builder.reveal_by_id(sent_commitment).unwrap();
     proof_builder.reveal_by_id(recv_commitment).unwrap();
 
+    //println!("commitments: {:?}", builder.get_merkle_leaves());
     let substrings_proof = proof_builder.build().unwrap();
 
     TlsProof {
