@@ -56,8 +56,8 @@ This repository contains the source code for the Rust implementation of the TLSN
 - We are using [Gramine](https://github.com/gramineproject) to generate SGX reports for notary-server builds; the report below is [dynamically generated](.github/workflows/sgx-report.yml): 
     ```
      Attributes:
-    mr_signer: 882f451378e083c19eddb338b19fa7ef02c66f9920db32c9acc6700430a7ad8a
-    mr_enclave: 57a5750ce03158f4ec665b6a880079900d3258b2f99df60eae995cf4ab46684c
+    mr_signer: b714cf47e702229cffb88e927124c36b16507d83b03b316f78e500b7bfb121a2
+    mr_enclave: eddae4733a236d3301a533f872c02422788f50d3de84b098bd101f5001cc43b1
     isv_prod_id: 0
     isv_svn: 0
     debug_enclave: False
