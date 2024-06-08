@@ -520,7 +520,7 @@ where
             .map(|(c, k)| c ^ k)
             .collect::<Vec<_>>();
 
-        // Prove plaintext encrypts back to ciphertext
+        // Prove plaintext encrypts back to ciphertext.
         let plaintext_ids = self.state.transcript.extend_plaintext(plaintext.len());
         let ciphertext = self
             .apply_keystream(
@@ -558,7 +558,7 @@ where
 
         self.decode_blind(keystream_ref.clone()).await?;
 
-        // Verify the plaintext encrypts back to ciphertext
+        // Verify the plaintext encrypts back to ciphertext.
         let plaintext_ids = self.state.transcript.extend_plaintext(ciphertext.len());
         let ciphertext_ref = self
             .apply_keystream(
@@ -592,7 +592,7 @@ where
             &ciphertext,
         )?;
 
-        // Prove plaintext encrypts back to ciphertext
+        // Prove plaintext encrypts back to ciphertext.
         let keystream = self
             .compute_keystream(
                 explicit_nonce,

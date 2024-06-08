@@ -18,6 +18,10 @@ use tracing::info;
 
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
+    ///
+    /// # Arguments
+    ///
+    /// * `signer` - The signer used to sign the notarization result.
     pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<SessionHeader, VerifierError>
     where
         T: Into<Signature>,
@@ -44,7 +48,7 @@ impl Verifier<Notarize> {
             let merkle_root =
                 expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
 
-            // Finalize all MPC before signing the session header
+            // Finalize all MPC before signing the session header.
             let (mut ot_sender_actor, _, _) = futures::try_join!(
                 ot_fut,
                 ot_send.shutdown().map_err(VerifierError::from),

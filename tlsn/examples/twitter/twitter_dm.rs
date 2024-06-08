@@ -19,13 +19,9 @@ const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-// Setting of the notary server — make sure these are the same with those in ../../../notary-server
+// Setting of the notary server — make sure these are the same with the config in ../../../notary-server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
-
-// Configuration of notarization
-const NOTARY_MAX_SENT: usize = 1 << 12;
-const NOTARY_MAX_RECV: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
@@ -38,13 +34,8 @@ async fn main() {
     let access_token = env::var("ACCESS_TOKEN").unwrap();
     let csrf_token = env::var("CSRF_TOKEN").unwrap();
 
-    let (notary_tls_socket, session_id) = request_notarization(
-        NOTARY_HOST,
-        NOTARY_PORT,
-        Some(NOTARY_MAX_SENT),
-        Some(NOTARY_MAX_RECV),
-    )
-    .await;
+    let (notary_tls_socket, session_id) =
+        request_notarization(NOTARY_HOST, NOTARY_PORT, None, None).await;
 
     // Basic default prover config using the session_id returned from /session endpoint just now
     let config = ProverConfig::builder()

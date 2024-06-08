@@ -27,14 +27,16 @@ ring = "0.17"
 p256 = "0.13"
 rustls-pemfile = "1"
 rustls = "0.20"
-async-rustls = "0.4"
+futures-rustls = "0.26"
 
 # async
 async-trait = "0.1"
 futures = "0.3"
 tokio = "1"
 tokio-util = "0.7"
-hyper = "0.14"
+http-body-util = "0.1"
+hyper = {version = "1.1", features = ["client", "http1"]}
+hyper-util = {version = "0.1", features = ["full"]}
 
 # serialization
 bytes = "1"

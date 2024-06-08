@@ -10,26 +10,26 @@ use crate::{
     prf::{prf, prf_trace},
 };
 
-/// Session Keys
+/// Session Keys.
 ///
-/// Compute expanded p1 which consists of client_write_key + server_write_key
-/// Compute expanded p2 which consists of client_IV + server_IV
+/// Computes expanded p1 which consists of client_write_key + server_write_key.
+/// Computes expanded p2 which consists of client_IV + server_IV.
 ///
 /// # Arguments
 ///
-/// * `builder_state`   - Reference to builder state
-/// * `pms`             - 32-byte premaster secret
-/// * `client_random`   - 32-byte client random
-/// * `server_random`   - 32-byte server random
+/// * `builder_state`   - Reference to builder state.
+/// * `pms`             - 32-byte premaster secret.
+/// * `client_random`   - 32-byte client random.
+/// * `server_random`   - 32-byte server random.
 ///
 /// # Returns
 ///
-/// * `client_write_key`    - 16-byte client write key
-/// * `server_write_key`    - 16-byte server write key
-/// * `client_IV`           - 4-byte client IV
-/// * `server_IV`           - 4-byte server IV
-/// * `outer_hash_state`    - 256-bit master-secret outer HMAC state
-/// * `inner_hash_state`    - 256-bit master-secret inner HMAC state
+/// * `client_write_key`    - 16-byte client write key.
+/// * `server_write_key`    - 16-byte server write key.
+/// * `client_IV`           - 4-byte client IV.
+/// * `server_IV`           - 4-byte server IV.
+/// * `outer_hash_state`    - 256-bit master-secret outer HMAC state.
+/// * `inner_hash_state`    - 256-bit master-secret inner HMAC state.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", skip(builder_state, pms))

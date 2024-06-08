@@ -1,5 +1,5 @@
 //! This module provides mock types for key exchange leader and follower and a function to create
-//! such a pair
+//! such a pair.
 
 use crate::{KeyExchangeConfig, KeyExchangeCore, KeyExchangeMessage, Role};
 
@@ -9,11 +9,11 @@ use point_addition::mock::{
 };
 use utils_aio::duplex::MemoryDuplex;
 
-/// A mock key exchange instance
+/// A mock key exchange instance.
 pub type MockKeyExchange<E> =
     KeyExchangeCore<MockPointAdditionSender, MockPointAdditionReceiver, E>;
 
-/// Create a mock pair of key exchange leader and follower
+/// Creates a mock pair of key exchange leader and follower.
 pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
     id: &str,
     leader_executor: E,

@@ -23,9 +23,9 @@ enum State {
     Error,
 }
 
-/// This is the common instance used by both sender and receiver
+/// This is the common instance used by both sender and receiver.
 ///
-/// It is an aio wrapper which mostly uses [GhashCore] for computation
+/// It is an aio wrapper which mostly uses [GhashCore] for computation.
 #[derive(Debug)]
 pub struct Ghash<C> {
     state: State,
@@ -37,11 +37,13 @@ impl<C> Ghash<C>
 where
     C: ShareConversion<Gf2_128> + Send + Sync + Debug,
 {
-    /// Creates a new instance
+    /// Creates a new instance.
     ///
-    /// * `config`      - The configuration for this Ghash instance
+    /// # Arguments
+    ///
+    /// * `config`      - The configuration for this Ghash instance.
     /// * `converter`   - An instance which allows to convert multiplicative into additive shares
-    ///                   and vice versa
+    ///                   and vice versa.
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", ret))]
     pub fn new(config: GhashConfig, converter: C) -> Self {
         Self {
@@ -51,7 +53,7 @@ where
         }
     }
 
-    /// Computes all the additive shares of the hashkey powers
+    /// Computes all the additive shares of the hashkey powers.
     ///
     /// We need this when the max block count changes.
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", err))]
@@ -91,7 +93,7 @@ where
         let mut h_additive = [0u8; 16];
         h_additive.copy_from_slice(key.as_slice());
 
-        // GHASH reflects the bits of the key
+        // GHASH reflects the bits of the key.
         let h_additive = Gf2_128::new(u128::from_be_bytes(h_additive).reverse_bits());
 
         let h_multiplicative = self.converter.to_multiplicative(vec![h_additive]).await?;
@@ -110,7 +112,7 @@ where
         tracing::instrument(level = "info", skip_all, err)
     )]
     async fn finalize(&mut self, mut input: Vec<u8>) -> Result<Vec<u8>, UniversalHashError> {
-        // Divide by block length and round up
+        // Divide by block length and round up.
         let block_count = input.len() / 16 + (input.len() % 16 != 0) as usize;
 
         if block_count > self.config.max_block_count {
@@ -119,12 +121,12 @@ where
 
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        // Calling finalize when not setup is a fatal error
+        // Calling finalize when not setup is a fatal error.
         let State::Ready { core } = state else {
             return Err(UniversalHashError::InvalidState("Key not set".to_string()));
         };
 
-        // Compute new shares if the block count increased
+        // Compute new shares if the block count increased.
         let core = if block_count > core.get_max_blocks() {
             self.compute_add_shares(core.change_max_hashkey(block_count))
                 .await?
@@ -132,10 +134,10 @@ where
             core
         };
 
-        // Pad input to a multiple of 16 bytes
+        // Pad input to a multiple of 16 bytes.
         input.resize(block_count * 16, 0);
 
-        // Convert input to blocks
+        // Convert input to blocks.
         let blocks = input
             .chunks_exact(16)
             .map(|chunk| {
@@ -149,7 +151,7 @@ where
             .finalize(&blocks)
             .expect("Input length should be valid");
 
-        // Reinsert state
+        // Reinsert state.
         self.state = State::Ready { core };
 
         Ok(tag.to_bytes().to_vec())
@@ -256,10 +258,10 @@ mod tests {
         let receiver_key: u128 = h ^ sender_key;
         let short_message: Vec<u8> = (0..128).map(|_| rng.gen()).collect();
 
-        // A longer message
+        // A longer message.
         let long_message: Vec<u8> = (0..192).map(|_| rng.gen()).collect();
 
-        // Create and setup sender and receiver for short message length
+        // Create and setup sender and receiver for short message length.
         let (mut sender, mut receiver) = create_pair("test", 1);
 
         let (sender_setup_fut, receiver_setup_fut) = (
@@ -271,14 +273,14 @@ mod tests {
         sender_result.unwrap();
         receiver_result.unwrap();
 
-        // Compute the shares for the short message
+        // Compute the shares for the short message.
         let sender_share_fut = sender.finalize(short_message.clone());
         let receiver_share_fut = receiver.finalize(short_message.clone());
 
         let (sender_result, receiver_result) = tokio::join!(sender_share_fut, receiver_share_fut);
         let (_, _) = (sender_result.unwrap(), receiver_result.unwrap());
 
-        // Now compute the shares for the longer message
+        // Now compute the shares for the longer message.
         let sender_share_fut = sender.finalize(long_message.clone());
         let receiver_share_fut = receiver.finalize(long_message.clone());
 
@@ -293,7 +295,7 @@ mod tests {
 
         assert_eq!(tag, ghash_reference_impl(h, &long_message));
 
-        // We should still be able to generate a Ghash output for the shorter message
+        // We should still be able to generate a Ghash output for the shorter message.
         let sender_share_fut = sender.finalize(short_message.clone());
         let receiver_share_fut = receiver.finalize(short_message.clone());
 

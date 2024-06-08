@@ -24,7 +24,7 @@ opaque_debug::implement!(Initialized);
 
 /// State after MPC setup has completed.
 pub struct Setup {
-    /// A muxer for communication with the Notary
+    /// A muxer for communication with the TLS verifier.
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 

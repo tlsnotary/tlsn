@@ -77,15 +77,15 @@ pub async fn upgrade_protocol(
     let session_id = params.session_id;
     // Fetch the configuration data from the store using the session_id
     // This also removes the configuration data from the store as each session_id can only be used once
-    let (max_sent_data, max_recv_data) = match notary_globals.store.lock().await.remove(&session_id)
-    {
-        Some(data) => (data.max_sent_data, data.max_recv_data),
-        None => {
-            let err_msg = format!("Session id {} does not exist", session_id);
-            error!(err_msg);
-            return NotaryServerError::BadProverRequest(err_msg).into_response();
-        }
-    };
+    let (max_sent_data, max_recv_data) =
+        match notary_globals.store.lock().unwrap().remove(&session_id) {
+            Some(data) => (data.max_sent_data, data.max_recv_data),
+            None => {
+                let err_msg = format!("Session id {} does not exist", session_id);
+                error!(err_msg);
+                return NotaryServerError::BadProverRequest(err_msg).into_response();
+            }
+        };
     // This completes the HTTP Upgrade request and returns a successful response to the client, meanwhile initiating the websocket or tcp connection
     match protocol_upgrade {
         ProtocolUpgrade::Ws(ws) => ws.on_upgrade(move |socket| {
@@ -148,7 +148,7 @@ pub async fn initialize(
     let prover_session_id = Uuid::new_v4().to_string();
 
     // Store the configuration data in a temporary store
-    notary_globals.store.lock().await.insert(
+    notary_globals.store.lock().unwrap().insert(
         prover_session_id.clone(),
         SessionData {
             max_sent_data: payload.max_sent_data,

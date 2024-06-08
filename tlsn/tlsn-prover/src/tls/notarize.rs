@@ -17,22 +17,22 @@ use tracing::instrument;
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 impl Prover<Notarize> {
-    /// Returns the transcript of the sent requests
+    /// Returns the transcript of the sent data.
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
     }
 
-    /// Returns the transcript of the received responses
+    /// Returns the transcript of the received data.
     pub fn recv_transcript(&self) -> &Transcript {
         &self.state.transcript_rx
     }
 
-    /// Returns the transcript commitment builder
+    /// Returns the transcript commitment builder.
     pub fn commitment_builder(&mut self) -> &mut TranscriptCommitmentBuilder {
         &mut self.state.builder
     }
 
-    /// Finalize the notarization returning a [`NotarizedSession`]
+    /// Finalizes the notarization returning a [`NotarizedSession`].
     #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
@@ -76,7 +76,7 @@ impl Prover<Notarize> {
 
             // This is a temporary approach until a maliciously secure share conversion protocol is implemented.
             // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
-            // TLS verifier to modify the prover's request.
+            // TLS verifier to modify the prover's sent data.
             gf2.reveal()
                 .await
                 .map_err(|e| ProverError::MpcError(Box::new(e)))?;
@@ -92,10 +92,10 @@ impl Prover<Notarize> {
             _ = ot_fut => return Err(OTShutdownError)?,
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
-        // Wait for the notary to correctly close the connection
+        // Wait for the notary to correctly close the connection.
         mux_fut.await?;
 
-        // Check the header is consistent with the Prover's view
+        // Check the header is consistent with the Prover's view.
         header
             .verify(
                 start_time,

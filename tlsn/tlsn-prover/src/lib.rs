@@ -1,4 +1,4 @@
-//! The prover library
+//! The prover library.
 //!
 //! This library contains TLSNotary prover implementations:
 //!   * [`tls`] for the low-level API for working with the underlying byte streams of a TLS connection.

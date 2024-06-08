@@ -1,9 +1,10 @@
 //! TLS prover.
 //!
-//! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of communications with a server.
+//! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of
+//! communications with a server.
 //!
-//! The TLS prover provides a low-level API, see the [`HTTP prover`](crate::http) which provides abstractions for working
-//! with HTTP sessions.
+//! The TLS prover provides a low-level API, see the [`HTTP prover`](crate::http) which provides
+//! abstractions for working with HTTP sessions.
 
 mod config;
 mod error;
@@ -64,14 +65,14 @@ impl Prover<state::Initialized> {
         }
     }
 
-    /// Set up the prover.
+    /// Sets up the prover.
     ///
     /// This performs all MPC setup prior to establishing the connection to the
     /// application server.
     ///
     /// # Arguments
     ///
-    /// * `socket` - The socket to the notary.
+    /// * `socket` - The socket to the TLS verifier.
     pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
@@ -213,7 +214,7 @@ impl Prover<state::Closed> {
 
     /// Starts notarization of the TLS session.
     ///
-    /// If the verifier is a Notary, this function will transition the prover to the next state
+    /// Used when the TLS verifier is a Notary to transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
     pub fn start_notarize(self) -> Prover<Notarize> {
         Prover {
