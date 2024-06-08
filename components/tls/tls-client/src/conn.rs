@@ -232,7 +232,7 @@ impl ConnectionCommon {
 
     /// Reads out any buffered plaintext received from the peer. Returns the
     /// number of bytes read.
-    pub fn read_plaintext(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    pub fn read_plaintext(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.common_state.received_plaintext.read(buf)
     }
 
