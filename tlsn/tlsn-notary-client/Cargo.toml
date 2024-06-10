@@ -15,6 +15,7 @@ notary-server = { path = "../../notary-server" }
 tlsn-common.workspace = true
 
 derive_builder.workspace = true
+futures.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
@@ -27,7 +28,6 @@ tokio = { workspace = true, features = [
   "io-std",
   "fs",
 ] }
-tokio-util.workspace = true
 tracing = { workspace = true, optional = true }
 
 serde = { version = "1.0.147", features = ["derive"] }
