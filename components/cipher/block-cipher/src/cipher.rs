@@ -251,7 +251,7 @@ where
             .ok_or_else(|| BlockCipherError::key_not_set())?;
 
         let BlockVars { msg, ciphertext } =
-            if let Some(vars) = self.state.preprocessed_private.pop_front() {
+            if let Some(vars) = self.state.preprocessed_public.pop_front() {
                 vars
             } else {
                 self.define_block(Visibility::Public)
