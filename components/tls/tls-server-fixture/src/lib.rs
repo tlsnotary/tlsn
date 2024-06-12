@@ -74,7 +74,7 @@ pub async fn bind_test_server<
 >(
     socket: Compat<T>,
 ) {
-    let key = PrivateKeyDer::Pkcs1(SERVER_KEY_DER.into());
+    let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
     let cert = CertificateDer::from(SERVER_CERT_DER);
 
     let config = ServerConfig::builder()
