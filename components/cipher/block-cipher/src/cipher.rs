@@ -8,6 +8,7 @@ use utils::id::NestedId;
 
 use crate::{BlockCipher, BlockCipherCircuit, BlockCipherConfig, BlockCipherError, Visibility};
 
+#[derive(Debug)]
 struct State {
     private_execution_id: NestedId,
     public_execution_id: NestedId,
@@ -16,12 +17,14 @@ struct State {
     key: Option<ValueRef>,
 }
 
+#[derive(Debug)]
 struct BlockVars {
     msg: ValueRef,
     ciphertext: ValueRef,
 }
 
 /// An MPC block cipher.
+#[derive(Debug)]
 pub struct MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,

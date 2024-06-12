@@ -15,6 +15,7 @@ use crate::{
 };
 
 /// An MPC stream cipher.
+#[derive(Debug)]
 pub struct MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
@@ -39,6 +40,8 @@ struct State<C> {
     /// Number of messages operated on.
     counter: usize,
 }
+
+opaque_debug::implement!(State<C>);
 
 #[derive(Clone)]
 struct EncodedKeyAndIv {
