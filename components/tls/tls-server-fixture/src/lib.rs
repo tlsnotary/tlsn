@@ -27,11 +27,11 @@ use tokio_util::{
 use tracing::Instrument;
 
 /// A certificate authority certificate fixture.
-pub static CA_CERT_DER: &[u8] = include_bytes!("rootCA.der");
+pub static CA_CERT_DER: &[u8] = include_bytes!("root_ca.der");
 /// A server certificate (domain=test-server.io) fixture.
-pub static SERVER_CERT_DER: &[u8] = include_bytes!("domain.der");
+pub static SERVER_CERT_DER: &[u8] = include_bytes!("test_server.der");
 /// A server private key fixture.
-pub static SERVER_KEY_DER: &[u8] = include_bytes!("domain_key.der");
+pub static SERVER_KEY_DER: &[u8] = include_bytes!("test_server_private_key.der");
 /// The domain name bound to the server certificate.
 pub static SERVER_DOMAIN: &str = "test-server.io";
 /// The length of an application record expected by the test TLS server.
@@ -44,7 +44,7 @@ pub static CLOSE_DELAY: u64 = 1000;
 pub async fn bind_test_server_hyper<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
 ) -> Result<(), hyper::Error> {
-    let key = PrivateKeyDer::Pkcs1(SERVER_KEY_DER.into());
+    let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
     let cert = CertificateDer::from(SERVER_CERT_DER);
 
     let config = ServerConfig::builder()
