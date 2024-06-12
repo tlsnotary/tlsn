@@ -9,7 +9,7 @@ pub enum Role {
     Follower,
 }
 
-/// A config used for [KeyExchangeCore](super::KeyExchangeCore).
+/// A config used for [MpcKeyExchange](super::MpcKeyExchange).
 #[derive(Debug, Clone, Builder)]
 pub struct KeyExchangeConfig {
     /// Protocol role.
