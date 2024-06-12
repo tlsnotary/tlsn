@@ -10,7 +10,7 @@ edition = "2021"
 
 [features]
 default = ["mock"]
-tracing = ["dep:tracing"]
+rayon = ["mpz-garble/rayon"]
 mock = []
 
 [dependencies]
@@ -23,7 +23,7 @@ cipher.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
-tracing = { workspace = true, optional = true }
+tracing.workspace = true
 
 [dev-dependencies]
 futures.workspace = true
