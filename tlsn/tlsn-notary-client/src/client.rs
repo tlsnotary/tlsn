@@ -22,10 +22,7 @@ use tokio_rustls::{
     rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore},
     TlsConnector,
 };
-use tracing::error;
-
-#[cfg(feature = "tracing")]
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::error::{ClientError, ErrorKind};
 
@@ -155,7 +152,6 @@ impl NotaryClient {
         notarization_request: NotarizationRequest,
     ) -> Result<Accepted, ClientError> {
         if self.tls {
-            #[cfg(feature = "tracing")]
             debug!("Setting up tls connection...");
 
             let client_notary_config = ClientConfig::builder()
@@ -186,7 +182,6 @@ impl NotaryClient {
                     io: NotaryConnection::Tls(connection),
                 })
         } else {
-            #[cfg(feature = "tracing")]
             debug!("Setting up tcp connection...");
 
             let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
@@ -270,7 +265,6 @@ impl NotaryClient {
                     ClientError::new(ErrorKind::Internal, Some(Box::new(err)))
                 })?;
 
-            #[cfg(feature = "tracing")]
             debug!("Sending configuration request: {:?}", configuration_request);
 
             let configuration_response = notary_request_sender
@@ -281,7 +275,6 @@ impl NotaryClient {
                     ClientError::new(ErrorKind::Http, Some(Box::new(err)))
                 })?;
 
-            #[cfg(feature = "tracing")]
             debug!("Sent configuration request");
 
             if configuration_response.status() != StatusCode::OK {
@@ -316,7 +309,6 @@ impl NotaryClient {
                     ClientError::new(ErrorKind::Internal, Some(Box::new(err)))
                 })?;
 
-            #[cfg(feature = "tracing")]
             debug!(
                 "Configuration response: {:?}",
                 configuration_response_payload_parsed
@@ -341,7 +333,6 @@ impl NotaryClient {
                     ClientError::new(ErrorKind::Internal, Some(Box::new(err)))
                 })?;
 
-            #[cfg(feature = "tracing")]
             debug!("Sending notarization request: {:?}", notarization_request);
 
             let notarization_response = notary_request_sender
@@ -352,7 +343,6 @@ impl NotaryClient {
                     ClientError::new(ErrorKind::Http, Some(Box::new(err)))
                 })?;
 
-            #[cfg(feature = "tracing")]
             debug!("Sent notarization request");
 
             if notarization_response.status() != StatusCode::SWITCHING_PROTOCOLS {
