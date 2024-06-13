@@ -130,7 +130,7 @@ mod tests {
             .new_thread(follower_ctx_1, follower_ot_send_1, follower_ot_recv_1)
             .unwrap();
 
-        // Setup public PMS for testing
+        // Set up public PMS for testing.
         let leader_pms = leader_thread_0.new_public_input::<[u8; 32]>("pms").unwrap();
         let follower_pms = follower_thread_0
             .new_public_input::<[u8; 32]>("pms")
