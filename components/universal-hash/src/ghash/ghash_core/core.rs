@@ -1,5 +1,6 @@
 use mpz_core::Block;
 use mpz_fields::{gf2_128::Gf2_128, Field};
+use tracing::instrument;
 
 use super::{
     compute_missing_mul_shares, compute_new_add_shares,
@@ -25,7 +26,6 @@ impl GhashCore {
     ///
     /// * `max_block_count` - Determines the maximum number of 128-bit message blocks we want to
     ///                       authenticate. Panics if `max_block_count` is 0.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug"))]
     pub(crate) fn new(max_block_count: usize) -> Self {
         assert!(max_block_count > 0);
 
@@ -39,10 +39,7 @@ impl GhashCore {
     /// powers of `H`.
     ///
     /// Converts `H` into `H`, `H^3`, `H^5`, ... depending on `self.max_block_count`.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(mul_share))
-    )]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn compute_odd_mul_powers(self, mul_share: Gf2_128) -> GhashCore<Intermediate> {
         let mut hashkey_powers = vec![mul_share];
 
@@ -64,7 +61,7 @@ impl GhashCore<Intermediate> {
     /// Takes into account cached additive shares, so that
     /// multiplicative ones for which already an additive one
     /// exists, are not returned.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn odd_mul_shares(&self) -> Vec<Gf2_128> {
         // If we already have some cached additive sharings, we do not need to compute new powers.
         // So we compute an offset to ignore them. We divide by 2 because
@@ -77,10 +74,7 @@ impl GhashCore<Intermediate> {
 
     /// Adds new additive shares of hashkey powers by also computing the even ones
     /// and transforms `self` into a `GhashCore<Finalized>`.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(new_additive_odd_shares))
-    )]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn add_new_add_shares(
         mut self,
         new_additive_odd_shares: &[Gf2_128],
@@ -106,7 +100,7 @@ impl GhashCore<Finalized> {
     /// Generates the GHASH output.
     ///
     /// Computes the 2PC additive share of the GHASH output.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", err, ret))]
+    #[instrument(level = "debug", skip_all, err)]
     pub(crate) fn finalize(&self, message: &[Block]) -> Result<Block, GhashError> {
         if message.len() > self.max_block_count {
             return Err(GhashError::InvalidMessageLength);
@@ -128,7 +122,7 @@ impl GhashCore<Finalized> {
     ///
     /// If we want to create a GHASH output for a new message, which is longer than the old one, we need
     /// to compute the missing shares of the powers of `H`.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
+    #[instrument(level = "debug", skip(self))]
     pub(crate) fn change_max_hashkey(
         self,
         new_highest_hashkey_power: usize,
