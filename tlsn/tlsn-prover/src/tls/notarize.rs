@@ -55,7 +55,7 @@ impl Prover<Notarize> {
         println!("Sending transcripts!");
         println!("transcript_tx {:?}", transcript_tx);
         println!("transcript_rx {:?}", transcript_rx);
-        println!("commitments {:?}", commitments.commitments_length());
+        //println!("commitments {:?}", commitments.commitments_length());
 
         let session_transcripts = SessionTranscripts {
             transcript_tx: transcript_tx.clone(),

@@ -188,6 +188,25 @@ fn parse_transcripts(session_transcripts: SessionTranscripts) -> (String, String
     return (host, user_id);
 }
 
+fn parse_value(str: String, start_key: String, end_key: String) -> String {
+    let key = String::from(start_key);
+
+    let parsed_value: String = match str.find(&key) {
+        Some(start_pos) => {
+            let start = start_pos + key.len();
+            let end_pos = str[start..].find(&end_key).unwrap();
+            str[start..start + end_pos].to_string()
+        }
+        err => {
+            println!("error parsing uid from transcript");
+            println!("{:?}", err);
+            "".to_string()
+            //panic()! uncomment in production
+        }
+    };
+    parsed_value
+}
+
 #[cfg(feature = "tracing")]
 mod test {
     use super::*;
@@ -221,5 +240,45 @@ mod test {
         println!("message {}", message);
 
         println!("signature 0x{}", signature_ethereum);
+    }
+
+    #[test]
+    #[cfg(feature = "tracing")]
+    fn test_parse() {
+        let json_str = String::from(
+            r#"
+        {
+            "name": "John Doe",
+            "age": 30,
+            "email": "john.doe@example.com"
+        }
+    "#,
+        );
+
+        let start_key = String::from("name\": \"");
+        let end_key = String::from("\"");
+
+        let parsed_value: String = parse_value(json_str, start_key, end_key);
+        println!("parsed_value: {}", parsed_value);
+        assert!(parsed_value == "John Doe")
+    }
+
+    #[test]
+    #[cfg(feature = "tracing")]
+    fn test_parse_2() {
+        use bitcoin_hashes::hex::parse;
+
+        let json_str = String::from(
+            r#"
+{"id":21142885,"displayName":"xxx9320","email":"xxx@gmail.com","userName":"xxx9320","thumbnailUrl":"https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png","profileUrl":"/zlim93200","registerDate":"2024-06-04T16:22:44.700Z","lastVisitDate":"2024-06-13T20:59:30.127Z","statusId":2,"canAct":true,"canBeSeen":true,"thumbnailName":"default-thumb.png","httpAcceptLanguage":"fr-FR,fr;q=0.9,en-US;q=0.8,en-FR;q=0.7,en;q=0.6,zh-FR;q=0.5,zh;q=0.4,ar-FR;q=0.3,ar;q=0.2"}
+} "#,
+        );
+        let start_key = String::from("userName\":\"");
+        let end_key = String::from("\",");
+
+        let parsed_value: String = parse_value(json_str, start_key, end_key);
+
+        println!("parsed_value: {}", parsed_value);
+        assert!(parsed_value == "xxx9320")
     }
 }
