@@ -155,14 +155,14 @@ async fn prf() {
     .unwrap();
 
     let _ = futures::try_join!(
-        leader.compute_client_finished_vd_private(cf_hs_hash),
-        follower.compute_client_finished_vd_blind()
+        leader.compute_client_finished_vd(Some(cf_hs_hash)),
+        follower.compute_client_finished_vd(None)
     )
     .unwrap();
 
     let _ = futures::try_join!(
-        leader.compute_server_finished_vd_private(sf_hs_hash),
-        follower.compute_server_finished_vd_blind()
+        leader.compute_server_finished_vd(Some(sf_hs_hash)),
+        follower.compute_server_finished_vd(None)
     )
     .unwrap();
 

@@ -42,6 +42,18 @@ pub trait Prf {
     /// * `pms` - The pre-master secret.
     async fn preprocess(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError>;
 
+    /// Computes the client finished verify data using the provided handshake hash.
+    async fn compute_client_finished_vd(
+        &mut self,
+        handshake_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 12], PrfError>;
+
+    /// Computes the server finished verify data using the provided handshake hash.
+    async fn compute_server_finished_vd(
+        &mut self,
+        handshake_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 12], PrfError>;
+
     /// Computes the session keys using the provided client random, server random and PMS.
     async fn compute_session_keys_private(
         &mut self,
@@ -49,26 +61,8 @@ pub trait Prf {
         server_random: [u8; 32],
     ) -> Result<SessionKeys, PrfError>;
 
-    /// Computes the client finished verify data using the provided handshake hash.
-    async fn compute_client_finished_vd_private(
-        &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError>;
-
-    /// Computes the server finished verify data using the provided handshake hash.
-    async fn compute_server_finished_vd_private(
-        &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError>;
-
     /// Computes the session keys using randoms provided by the other party.
     async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError>;
-
-    /// Computes the client finished verify data using the handshake hash provided by the other party.
-    async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError>;
-
-    /// Computes the server finished verify data using the handshake hash provided by the other party.
-    async fn compute_server_finished_vd_blind(&mut self) -> Result<(), PrfError>;
 }
 
 #[cfg(test)]
@@ -226,8 +220,8 @@ mod tests {
         let sf_hs_hash = [2u8; 32];
 
         let (cf_vd, _) = futures::try_join!(
-            leader.compute_client_finished_vd_private(cf_hs_hash),
-            follower.compute_client_finished_vd_blind()
+            leader.compute_client_finished_vd(Some(cf_hs_hash)),
+            follower.compute_client_finished_vd(None)
         )
         .unwrap();
 
@@ -236,8 +230,8 @@ mod tests {
         assert_eq!(cf_vd, expected_cf_vd);
 
         let (sf_vd, _) = futures::try_join!(
-            leader.compute_server_finished_vd_private(sf_hs_hash),
-            follower.compute_server_finished_vd_blind()
+            leader.compute_server_finished_vd(Some(sf_hs_hash)),
+            follower.compute_server_finished_vd(None)
         )
         .unwrap();
 

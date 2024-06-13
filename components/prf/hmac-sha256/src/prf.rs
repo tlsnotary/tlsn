@@ -166,7 +166,7 @@ where
     async fn execute_cf_vd(
         &mut self,
         handshake_hash: Option<[u8; 32]>,
-    ) -> Result<Option<[u8; 12]>, PrfError> {
+    ) -> Result<[u8; 12], PrfError> {
         let State::ClientFinished {
             hash_state,
             cf_vd,
@@ -195,16 +195,8 @@ where
             )
             .await?;
 
-        let vd = if handshake_hash.is_some() {
-            let mut outputs = self.thread_0.decode(&[cf_vd.vd]).await?;
-            let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
-
-            Some(vd)
-        } else {
-            self.thread_0.decode(&[cf_vd.vd]).await?;
-
-            None
-        };
+        let mut outputs = self.thread_0.decode(&[cf_vd.vd]).await?;
+        let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
 
         self.state = State::ServerFinished { hash_state, sf_vd };
 
@@ -215,7 +207,7 @@ where
     async fn execute_sf_vd(
         &mut self,
         handshake_hash: Option<[u8; 32]>,
-    ) -> Result<Option<[u8; 12]>, PrfError> {
+    ) -> Result<[u8; 12], PrfError> {
         let State::ServerFinished { hash_state, sf_vd } = self.state.take() else {
             return Err(PrfError::state("PRF not in server finished state"));
         };
@@ -239,16 +231,8 @@ where
             )
             .await?;
 
-        let vd = if handshake_hash.is_some() {
-            let mut outputs = self.thread_0.decode(&[sf_vd.vd]).await?;
-            let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
-
-            Some(vd)
-        } else {
-            self.thread_0.decode(&[sf_vd.vd]).await?;
-
-            None
-        };
+        let mut outputs = self.thread_0.decode(&[sf_vd.vd]).await?;
+        let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
 
         self.state = State::Complete;
 
@@ -294,13 +278,37 @@ where
     }
 
     #[instrument(level = "debug", skip_all, err)]
+    async fn compute_client_finished_vd(
+        &mut self,
+        handshake_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 12], PrfError> {
+        if (self.config.role != Role::Leader) && handshake_hash.is_some() {
+            return Err(PrfError::role("only leader can provide handshake hash"));
+        }
+
+        self.execute_cf_vd(handshake_hash).await
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
+    async fn compute_server_finished_vd(
+        &mut self,
+        handshake_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 12], PrfError> {
+        if (self.config.role != Role::Leader) && handshake_hash.is_some() {
+            return Err(PrfError::role("only leader can provide handshake hash"));
+        }
+
+        self.execute_sf_vd(handshake_hash).await
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
     async fn compute_session_keys_private(
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
     ) -> Result<SessionKeys, PrfError> {
         if self.config.role != Role::Leader {
-            return Err(PrfError::role("only leader can provide inputs".to_string()));
+            return Err(PrfError::role("only leader can provide inputs"));
         }
 
         self.execute_session_keys(Some((client_random, server_random)))
@@ -308,58 +316,12 @@ where
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn compute_client_finished_vd_private(
-        &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError> {
-        if self.config.role != Role::Leader {
-            return Err(PrfError::role("only leader can provide inputs".to_string()));
-        }
-
-        self.execute_cf_vd(Some(handshake_hash))
-            .await
-            .map(|hash| hash.expect("vd is decoded"))
-    }
-
-    #[instrument(level = "debug", skip_all, err)]
-    async fn compute_server_finished_vd_private(
-        &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError> {
-        if self.config.role != Role::Leader {
-            return Err(PrfError::role("only leader can provide inputs".to_string()));
-        }
-
-        self.execute_sf_vd(Some(handshake_hash))
-            .await
-            .map(|hash| hash.expect("vd is decoded"))
-    }
-
-    #[instrument(level = "debug", skip_all, err)]
     async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError> {
         if self.config.role != Role::Follower {
-            return Err(PrfError::role("leader must provide inputs".to_string()));
+            return Err(PrfError::role("leader must provide inputs"));
         }
 
         self.execute_session_keys(None).await
-    }
-
-    #[instrument(level = "debug", skip_all, err)]
-    async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError> {
-        if self.config.role != Role::Follower {
-            return Err(PrfError::role("leader must provide inputs".to_string()));
-        }
-
-        self.execute_cf_vd(None).await.map(|_| ())
-    }
-
-    #[instrument(level = "debug", skip_all, err)]
-    async fn compute_server_finished_vd_blind(&mut self) -> Result<(), PrfError> {
-        if self.config.role != Role::Follower {
-            return Err(PrfError::role("leader must provide inputs".to_string()));
-        }
-
-        self.execute_sf_vd(None).await.map(|_| ())
     }
 }
 
