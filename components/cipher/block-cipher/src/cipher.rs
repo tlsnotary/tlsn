@@ -79,7 +79,7 @@ where
                 let msg = self
                     .executor
                     .new_private_input::<C::BLOCK>(&format!("{}/msg", &id))
-                    .expect("failed to create message");
+                    .expect("message is not defined");
                 (id, msg)
             }
             Visibility::Blind => {
@@ -91,7 +91,7 @@ where
                 let msg = self
                     .executor
                     .new_blind_input::<C::BLOCK>(&format!("{}/msg", &id))
-                    .expect("failed to create message");
+                    .expect("message is not defined");
                 (id, msg)
             }
             Visibility::Public => {
@@ -103,7 +103,7 @@ where
                 let msg = self
                     .executor
                     .new_public_input::<C::BLOCK>(&format!("{}/msg", &id))
-                    .expect("failed to create message");
+                    .expect("message is not defined");
                 (id, msg)
             }
         };
@@ -111,7 +111,7 @@ where
         let ciphertext = self
             .executor
             .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))
-            .expect("failed to create ciphertext");
+            .expect("message is not defined");
 
         BlockVars { msg, ciphertext }
     }
