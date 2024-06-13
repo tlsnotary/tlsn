@@ -19,6 +19,7 @@ use dotenv::dotenv;
 use p256::ecdsa::{signature::Signer as Signer2, Signature as Signature2, SigningKey};
 use std::env;
 mod sign;
+mod signEd25519;
 
 #[cfg(feature = "tracing")]
 use tracing::info;

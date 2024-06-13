@@ -122,4 +122,3 @@ mod test {
         assert!(signer.verify(message.clone(), signature).is_ok());
     }
 }
-//8142e03923e58e4b819f73bde61d87978b8dd3715649b4afdc595e2f3279873b336ec1f59f18686f1c3e695a72a210df9db57c6413c518fb51adc1f074e469cb
