@@ -9,6 +9,7 @@
 mod cipher;
 mod circuit;
 mod config;
+mod error;
 
 use async_trait::async_trait;
 
@@ -19,21 +20,17 @@ pub use crate::{
     circuit::{Aes128, BlockCipherCircuit},
 };
 pub use config::{BlockCipherConfig, BlockCipherConfigBuilder, BlockCipherConfigBuilderError};
+pub use error::BlockCipherError;
 
-/// Errors that can occur when using the block cipher.
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum BlockCipherError {
-    #[error(transparent)]
-    MemoryError(#[from] mpz_garble::MemoryError),
-    #[error(transparent)]
-    ExecutionError(#[from] mpz_garble::ExecutionError),
-    #[error(transparent)]
-    DecodeError(#[from] mpz_garble::DecodeError),
-    #[error("Cipher key not set")]
-    KeyNotSet,
-    #[error("Input does not match block length: expected {0}, got {1}")]
-    InvalidInputLength(usize, usize),
+/// Visibility of a message plaintext.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Visibility {
+    /// Private message.
+    Private,
+    /// Blind message.
+    Blind,
+    /// Public message.
+    Public,
 }
 
 /// A trait for MPC block ciphers.
@@ -44,6 +41,18 @@ where
 {
     /// Sets the key for the block cipher.
     fn set_key(&mut self, key: ValueRef);
+
+    /// Preprocesses `count` blocks.
+    ///
+    /// # Arguments
+    ///
+    /// * `visibility` - The visibility of the plaintext.
+    /// * `count` - The number of blocks to preprocess.
+    async fn preprocess(
+        &mut self,
+        visibility: Visibility,
+        count: usize,
+    ) -> Result<(), BlockCipherError>;
 
     /// Encrypts the given plaintext keeping it hidden from the other party(s).
     ///
@@ -74,7 +83,7 @@ where
 mod tests {
     use super::*;
 
-    use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
+    use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory};
 
     use crate::circuit::Aes128;
 
@@ -95,21 +104,19 @@ mod tests {
 
         let key = [0u8; 16];
 
-        let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
-        let leader_thread = leader_vm.new_thread("test").await.unwrap();
-        let follower_thread = follower_vm.new_thread("test").await.unwrap();
+        let (leader_vm, follower_vm) = create_mock_deap_vm();
 
         // Key is public just for this test, typically it is private.
-        let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
-        let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
+        let leader_key = leader_vm.new_public_input::<[u8; 16]>("key").unwrap();
+        let follower_key = follower_vm.new_public_input::<[u8; 16]>("key").unwrap();
 
-        leader_thread.assign(&leader_key, key).unwrap();
-        follower_thread.assign(&follower_key, key).unwrap();
+        leader_vm.assign(&leader_key, key).unwrap();
+        follower_vm.assign(&follower_key, key).unwrap();
 
-        let mut leader = MpcBlockCipher::<Aes128, _>::new(leader_config, leader_thread);
+        let mut leader = MpcBlockCipher::<Aes128, _>::new(leader_config, leader_vm);
         leader.set_key(leader_key);
 
-        let mut follower = MpcBlockCipher::<Aes128, _>::new(follower_config, follower_thread);
+        let mut follower = MpcBlockCipher::<Aes128, _>::new(follower_config, follower_vm);
         follower.set_key(follower_key);
 
         let plaintext = [0u8; 16];
@@ -133,24 +140,82 @@ mod tests {
 
         let key = [0u8; 16];
 
-        let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
-        let leader_thread = leader_vm.new_thread("test").await.unwrap();
-        let follower_thread = follower_vm.new_thread("test").await.unwrap();
+        let (leader_vm, follower_vm) = create_mock_deap_vm();
 
         // Key is public just for this test, typically it is private.
-        let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
-        let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
+        let leader_key = leader_vm.new_public_input::<[u8; 16]>("key").unwrap();
+        let follower_key = follower_vm.new_public_input::<[u8; 16]>("key").unwrap();
 
-        leader_thread.assign(&leader_key, key).unwrap();
-        follower_thread.assign(&follower_key, key).unwrap();
+        leader_vm.assign(&leader_key, key).unwrap();
+        follower_vm.assign(&follower_key, key).unwrap();
 
-        let mut leader = MpcBlockCipher::<Aes128, _>::new(leader_config, leader_thread);
+        let mut leader = MpcBlockCipher::<Aes128, _>::new(leader_config, leader_vm);
         leader.set_key(leader_key);
 
-        let mut follower = MpcBlockCipher::<Aes128, _>::new(follower_config, follower_thread);
+        let mut follower = MpcBlockCipher::<Aes128, _>::new(follower_config, follower_vm);
         follower.set_key(follower_key);
 
         let plaintext = [0u8; 16];
+
+        let (leader_share, follower_share) = tokio::try_join!(
+            leader.encrypt_share(plaintext.to_vec()),
+            follower.encrypt_share(plaintext.to_vec())
+        )
+        .unwrap();
+
+        let expected = aes128(key, plaintext);
+
+        let result: [u8; 16] = std::array::from_fn(|i| leader_share[i] ^ follower_share[i]);
+
+        assert_eq!(result, expected);
+    }
+
+    #[tokio::test]
+    async fn test_block_cipher_preprocess() {
+        let leader_config = BlockCipherConfig::builder().id("test").build().unwrap();
+        let follower_config = BlockCipherConfig::builder().id("test").build().unwrap();
+
+        let key = [0u8; 16];
+
+        let (leader_vm, follower_vm) = create_mock_deap_vm();
+
+        // Key is public just for this test, typically it is private.
+        let leader_key = leader_vm.new_public_input::<[u8; 16]>("key").unwrap();
+        let follower_key = follower_vm.new_public_input::<[u8; 16]>("key").unwrap();
+
+        leader_vm.assign(&leader_key, key).unwrap();
+        follower_vm.assign(&follower_key, key).unwrap();
+
+        let mut leader = MpcBlockCipher::<Aes128, _>::new(leader_config, leader_vm);
+        leader.set_key(leader_key);
+
+        let mut follower = MpcBlockCipher::<Aes128, _>::new(follower_config, follower_vm);
+        follower.set_key(follower_key);
+
+        let plaintext = [0u8; 16];
+
+        tokio::try_join!(
+            leader.preprocess(Visibility::Private, 1),
+            follower.preprocess(Visibility::Blind, 1)
+        )
+        .unwrap();
+
+        let (leader_ciphertext, follower_ciphertext) = tokio::try_join!(
+            leader.encrypt_private(plaintext.to_vec()),
+            follower.encrypt_blind()
+        )
+        .unwrap();
+
+        let expected = aes128(key, plaintext);
+
+        assert_eq!(leader_ciphertext, expected.to_vec());
+        assert_eq!(leader_ciphertext, follower_ciphertext);
+
+        tokio::try_join!(
+            leader.preprocess(Visibility::Public, 1),
+            follower.preprocess(Visibility::Public, 1)
+        )
+        .unwrap();
 
         let (leader_share, follower_share) = tokio::try_join!(
             leader.encrypt_share(plaintext.to_vec()),
