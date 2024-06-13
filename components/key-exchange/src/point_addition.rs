@@ -61,7 +61,7 @@ fn decompose_point(point: EncodedPoint) -> Result<[P256; 2], KeyExchangeError> {
     ))?)
     .into();
 
-    // reverse to little endian
+    // Reverse to little endian.
     x.reverse();
     y.reverse();
 

@@ -129,7 +129,7 @@ where
         .await
     }
 
-    // Computes the PMS using both parties shares, performing an equality check
+    // Computes the PMS using both parties' shares, performing an equality check
     // to ensure the shares are equal.
     async fn compute_pms_with(
         &mut self,
@@ -186,7 +186,7 @@ where
             .try_into()
             .expect("eq is 32 bytes");
 
-        // Eq should be all zeros if pms_1 == pms_2
+        // Eq should be all zeros if pms_1 == pms_2.
         if eq != [0u8; 32] {
             return Err(KeyExchangeError::new(
                 ErrorKind::ShareConversion,
