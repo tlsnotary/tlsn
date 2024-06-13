@@ -453,7 +453,7 @@ mod tests {
     use mpz_garble::protocol::deap::mock::{create_mock_deap_vm, MockFollower, MockLeader};
     use mpz_share_conversion::ideal::{ideal_share_converter, IdealShareConverter};
     use p256::{NonZeroScalar, PublicKey, SecretKey};
-    use rand_chacha::ChaCha20Rng;
+    use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use serio::channel::MemoryDuplex;
 
@@ -503,7 +503,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_key_exchange() {
-        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+        let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
 
         let leader_private_key = SecretKey::random(&mut rng);
         let follower_private_key = SecretKey::random(&mut rng);
@@ -532,7 +532,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_compute_pms() {
-        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+        let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
 
         let leader_private_key = SecretKey::random(&mut rng);
         let follower_private_key = SecretKey::random(&mut rng);
@@ -558,7 +558,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_compute_pms_shares() {
-        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+        let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
         let (mut ctx_leader, mut ctx_follower) = test_st_executor(8);
         let (mut leader_converter_0, mut follower_converter_0) = ideal_share_converter();
         let (mut follower_converter_1, mut leader_converter_1) = ideal_share_converter();
@@ -614,7 +614,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_compute_pms_fail() {
-        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+        let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
 
         let leader_private_key = SecretKey::random(&mut rng);
         let follower_private_key = SecretKey::random(&mut rng);
