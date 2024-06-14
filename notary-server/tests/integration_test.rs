@@ -192,7 +192,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .unwrap();
 
     // Connect to the Server.
-    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
     let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
     let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
@@ -342,7 +342,7 @@ async fn test_websocket_prover() {
     let notary_ws_socket = WsStream::new(notary_ws_stream);
 
     // Connect to the Server
-    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
     let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
     let mut root_store = tls_core::anchors::RootCertStore::empty();
