@@ -41,5 +41,6 @@ hex.workspace = true
 dotenv.workspace = true
 chrono.workspace = true
 ed25519-dalek.workspace = true
+uuid.workspace = true
 
 tracing = { workspace = true, optional = true }

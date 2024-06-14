@@ -18,6 +18,7 @@ use chrono::prelude::Utc;
 use dotenv::dotenv;
 use p256::ecdsa::{signature::Signer as Signer2, Signature as Signature2, SigningKey};
 use std::env;
+use uuid::Uuid;
 mod sign;
 mod signEd25519;
 
@@ -54,17 +55,6 @@ impl Verifier<Notarize> {
 
             let merkle_root =
                 expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
-            //parse user session data from transcripts
-            let session_transcripts =
-                expect_msg_or_err!(notarize_channel, TlsnMessage::Transcripts)?;
-
-            info!(
-                " Received transcripts: {:?}",
-                session_transcripts.transcript_rx
-            );
-
-            let (host, user_id) = parse_transcripts(session_transcripts);
-            info!("host {:?} {:?}", host, user_id);
 
             //info!("notarize_fut: ot_sender_actor");
             // Finalize all MPC before signing the session header
@@ -108,18 +98,21 @@ impl Verifier<Notarize> {
             let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
             //let private_key = String::from("<private_key>");
 
+            //parse user session data from transcripts
+            let session_transcripts =
+                expect_msg_or_err!(notarize_channel, TlsnMessage::Transcripts)?;
+            let (host, user_id, uuid) = parse_transcripts(session_transcripts);
+
             //create nullifier from user_id & notary pkey
-            let nullifier_str = format!("{}{}{}", private_key, host, user_id);
-            let user_nullifier = sha256::Hash::hash(nullifier_str.as_bytes());
+            //let nullifier_str = format!("{}{}{}", private_key, host, user_id);
+            //let user_nullifier = sha256::Hash::hash(nullifier_str.as_bytes());
 
             // TODO: verify that user_nullifier is unique by making call to API
             //let private_key = String::from("PRIVATE_KEY");
             let signer: sign::Signer256k1 = sign::Signer256k1::new(private_key);
 
-            // Get the current timestamp
             let timestamp_str = Utc::now().timestamp();
-
-            let message = format!("ETERNIS;{};{}", timestamp_str, user_nullifier);
+            let message = format!("{};{};{};{}", host, timestamp_str, user_id, uuid);
             //ahi
             let (_, signature2) = signer.sign(message.clone());
 
@@ -155,37 +148,27 @@ impl Verifier<Notarize> {
     }
 }
 
-fn parse_transcripts(session_transcripts: SessionTranscripts) -> (String, String) {
-    let transcript_tx_str = String::from_utf8_lossy(session_transcripts.transcript_tx.data());
+fn parse_transcripts(session_transcripts: SessionTranscripts) -> (String, String, String) {
+    let transcript_tx_str =
+        String::from_utf8_lossy(session_transcripts.transcript_tx.data()).to_string();
+    let transcript_rx_str =
+        String::from_utf8_lossy(session_transcripts.transcript_rx.data()).to_string();
 
-    let host = match transcript_tx_str.find("host: ") {
-        Some(start_pos) => {
-            let host_start = start_pos + "host: ".len();
-            let end_pos = transcript_tx_str[host_start..].find("\r\n").unwrap();
-            transcript_tx_str[host_start..host_start + end_pos].to_string()
-        }
-        _ => {
-            info!("error parsing host from transcript");
-            panic!();
-        }
-    };
-    info!("Host: {:?}", host);
+    info!(" Received transcripts: {:?}", transcript_rx_str);
 
-    //Parse user_id
-    let user_id: String = match transcript_tx_str.find("uid: ") {
-        Some(start_pos) => {
-            let host_start = start_pos + "uid: ".len();
-            transcript_tx_str[host_start..].to_string()
-        }
-        _ => {
-            info!("error parsing uid from transcript");
-            "".to_string()
-            //panic()! uncomment in production
-        }
-    };
+    let start_key = String::from("userName\":\"");
+    let end_key = String::from("\"");
+    let user_id: String = parse_value(transcript_rx_str, start_key, end_key);
+
+    let start_key = String::from("host: ");
+    let end_key = String::from("\r\n");
+    let host: String = parse_value(transcript_tx_str, start_key, end_key);
+
+    let uuid = Uuid::new_v4().to_string();
+    info!("host {:?} user_id: {:?} uuid {:?}", host, user_id, uuid);
     info!("uid: {:?}", user_id);
 
-    return (host, user_id);
+    return (host, user_id, uuid);
 }
 
 fn parse_value(str: String, start_key: String, end_key: String) -> String {
@@ -198,7 +181,7 @@ fn parse_value(str: String, start_key: String, end_key: String) -> String {
             str[start..start + end_pos].to_string()
         }
         err => {
-            println!("error parsing uid from transcript");
+            println!("error parsing value from transcript");
             println!("{:?}", err);
             "".to_string()
             //panic()! uncomment in production
@@ -266,19 +249,19 @@ mod test {
     #[test]
     #[cfg(feature = "tracing")]
     fn test_parse_2() {
-        use bitcoin_hashes::hex::parse;
-
         let json_str = String::from(
             r#"
-{"id":21142885,"displayName":"xxx9320","email":"xxx@gmail.com","userName":"xxx9320","thumbnailUrl":"https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png","profileUrl":"/zlim93200","registerDate":"2024-06-04T16:22:44.700Z","lastVisitDate":"2024-06-13T20:59:30.127Z","statusId":2,"canAct":true,"canBeSeen":true,"thumbnailName":"default-thumb.png","httpAcceptLanguage":"fr-FR,fr;q=0.9,en-US;q=0.8,en-FR;q=0.7,en;q=0.6,zh-FR;q=0.5,zh;q=0.4,ar-FR;q=0.3,ar;q=0.2"}
-} "#,
+"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nDate: Fri, 14 Jun 2024 02:51:49 GMT\r\nTransfer-Encoding: chunked\r\nX-Frame-Options: SAMEORIGIN\r\nStrict-Transport-Security: max-age=63072000; includeSubDomains; preload\r\nContent-Security-Policy: object-src 'none'; script-src 'nonce-ZUToT69xQ40F4JPtCyvLZw==' 'report-sample' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' https: http:; base-uri 'none'; report-uri https://csp.withgoogle.com/csp/kaggle/20201130; frame-src 'self' https://www.kaggleusercontent.com https://www.youtube.com/embed/ https://polygraph-cool.github.io https://www.google.com/recaptcha/ https://www.docdroid.com https://www.docdroid.net https://kaggle-static.storage.googleapis.com https://kkb-production.jupyter-proxy.kaggle.net https://kkb-production.firebaseapp.com https://kaggle-metastore.firebaseapp.com https://apis.google.com https://content-sheets.googleapis.com/ https://accounts.google.com/ https://storage.googleapis.com https://docs.google.com https://drive.google.com https://calendar.google.com/;\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: strict-origin-when-cross-origin\r\nVia: 1.1 google\r\nAlt-Svc: h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000\r\nConnection: close\r\n\r\n192\r\n{\"id\":21142885,\"displayName\":\"Zlim93200\",\"email\":\"batchtrain@gmail.com\",\"userName\":\"zlim93200\",\"thumbnailUrl\":\"https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png\",\"profileUrl\":\"/zlim93200\",\"registerDate\":\"2024-06-04T16:22:44.700Z\",\"lastVisitDate\":\"2024-06-14T02:36:09.207Z\",\"statusId\":2,\"canAct\":true,\"canBeSeen\":true,\"thumbnailName\":\"default-thumb.png\",\"httpAcceptLanguage\":\"\"}\r\n0\r\n\r\n"
+"#,
         );
-        let start_key = String::from("userName\":\"");
-        let end_key = String::from("\",");
+
+        // \"userName\":\"zlim93200\"
+        let start_key = String::from("userName\\\":\\\"");
+        let end_key = String::from("\\\",");
 
         let parsed_value: String = parse_value(json_str, start_key, end_key);
 
         println!("parsed_value: {}", parsed_value);
-        assert!(parsed_value == "xxx9320")
+        assert!(parsed_value == "zlim93200")
     }
 }
