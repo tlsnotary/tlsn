@@ -22,7 +22,7 @@ use mpz_circuits::{Circuit, CircuitBuilder, Tracer};
 use std::sync::Arc;
 
 /// Builds session key derivation circuit.
-#[cfg_attr(feature = "tracing", tracing::instrument(level = "info"))]
+#[tracing::instrument(level = "trace")]
 pub fn build_session_keys() -> Arc<Circuit> {
     let builder = CircuitBuilder::new();
     let pms = builder.add_array_input::<u8, 32>();
@@ -40,7 +40,7 @@ pub fn build_session_keys() -> Arc<Circuit> {
 }
 
 /// Builds a verify data circuit.
-#[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(label)))]
+#[tracing::instrument(level = "trace")]
 pub fn build_verify_data(label: &[u8]) -> Arc<Circuit> {
     let builder = CircuitBuilder::new();
     let outer_state = builder.add_array_input::<u32, 8>();
