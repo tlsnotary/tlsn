@@ -30,10 +30,6 @@ use crate::{
 /// * `server_IV`           - 4-byte server IV.
 /// * `outer_hash_state`    - 256-bit master-secret outer HMAC state.
 /// * `inner_hash_state`    - 256-bit master-secret inner HMAC state.
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(builder_state, pms))
-)]
 #[allow(clippy::type_complexity)]
 pub fn session_keys_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
@@ -109,7 +105,6 @@ pub fn session_keys_trace<'a>(
 }
 
 /// Reference implementation of session keys derivation.
-#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip(pms)))]
 pub fn session_keys(
     pms: [u8; 32],
     client_random: [u8; 32],

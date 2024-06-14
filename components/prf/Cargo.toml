@@ -4,8 +4,10 @@ resolver = "2"
 
 [workspace.dependencies]
 # tlsn
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "fd47c02" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "fd47c02" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "fd47c02" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "fd47c02" }
 
 # async
 async-trait = "0.1"

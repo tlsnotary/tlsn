@@ -7,15 +7,11 @@ use async_trait::async_trait;
 
 use hmac_sha256_circuits::{build_session_keys, build_verify_data};
 use mpz_circuits::Circuit;
-use mpz_garble::{
-    config::Visibility, value::ValueRef, Decode, DecodePrivate, Execute, Load, Memory,
-};
-use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
+use mpz_common::cpu::CpuBackend;
+use mpz_garble::{config::Visibility, value::ValueRef, Decode, Execute, Load, Memory};
+use tracing::instrument;
 
 use crate::{Prf, PrfConfig, PrfError, Role, SessionKeys, CF_LABEL, SF_LABEL};
-
-#[cfg(feature = "tracing")]
-use tracing::instrument;
 
 /// Circuit for computing TLS session keys.
 static SESSION_KEYS_CIRC: OnceLock<Arc<Circuit>> = OnceLock::new();
@@ -47,10 +43,40 @@ pub(crate) struct VerifyData {
     pub(crate) vd: ValueRef,
 }
 
+#[derive(Debug)]
+pub(crate) enum State {
+    Initialized,
+    SessionKeys {
+        pms: ValueRef,
+        randoms: Randoms,
+        hash_state: HashState,
+        keys: crate::SessionKeys,
+        cf_vd: VerifyData,
+        sf_vd: VerifyData,
+    },
+    ClientFinished {
+        hash_state: HashState,
+        cf_vd: VerifyData,
+        sf_vd: VerifyData,
+    },
+    ServerFinished {
+        hash_state: HashState,
+        sf_vd: VerifyData,
+    },
+    Complete,
+    Error,
+}
+
+impl State {
+    fn take(&mut self) -> State {
+        std::mem::replace(self, State::Error)
+    }
+}
+
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
 pub struct MpcPrf<E> {
     config: PrfConfig,
-    state: state::State,
+    state: State,
     thread_0: E,
     thread_1: E,
 }
@@ -66,31 +92,40 @@ impl<E> Debug for MpcPrf<E> {
 
 impl<E> MpcPrf<E>
 where
-    E: Load + Memory + Execute + DecodePrivate + Send,
+    E: Load + Memory + Execute + Decode + Send,
 {
     /// Creates a new instance of the PRF.
     pub fn new(config: PrfConfig, thread_0: E, thread_1: E) -> MpcPrf<E> {
         MpcPrf {
             config,
-            state: state::State::Initialized,
+            state: State::Initialized,
             thread_0,
             thread_1,
         }
     }
 
+    /// Returns a mutable reference to the MPC thread.
+    pub fn thread_mut(&mut self) -> &mut E {
+        &mut self.thread_0
+    }
+
     /// Executes a circuit which computes TLS session keys.
+    #[instrument(level = "debug", skip_all, err)]
     async fn execute_session_keys(
         &mut self,
         randoms: Option<([u8; 32], [u8; 32])>,
     ) -> Result<SessionKeys, PrfError> {
-        let state::SessionKeys {
+        let State::SessionKeys {
             pms,
             randoms: randoms_refs,
             hash_state,
             keys,
             cf_vd,
             sf_vd,
-        } = std::mem::replace(&mut self.state, state::State::Error).try_into_session_keys()?;
+        } = self.state.take()
+        else {
+            return Err(PrfError::state("session keys not initialized"));
+        };
 
         let circ = SESSION_KEYS_CIRC
             .get()
@@ -118,24 +153,28 @@ where
             )
             .await?;
 
-        self.state = state::State::ClientFinished(state::ClientFinished {
+        self.state = State::ClientFinished {
             hash_state,
             cf_vd,
             sf_vd,
-        });
+        };
 
         Ok(keys)
     }
 
+    #[instrument(level = "debug", skip_all, err)]
     async fn execute_cf_vd(
         &mut self,
         handshake_hash: Option<[u8; 32]>,
-    ) -> Result<Option<[u8; 12]>, PrfError> {
-        let state::ClientFinished {
+    ) -> Result<[u8; 12], PrfError> {
+        let State::ClientFinished {
             hash_state,
             cf_vd,
             sf_vd,
-        } = std::mem::replace(&mut self.state, state::State::Error).try_into_client_finished()?;
+        } = self.state.take()
+        else {
+            return Err(PrfError::state("PRF not in client finished state"));
+        };
 
         let circ = CLIENT_VD_CIRC.get().expect("client vd circuit is set");
 
@@ -156,37 +195,31 @@ where
             )
             .await?;
 
-        let vd = if handshake_hash.is_some() {
-            let mut outputs = self.thread_0.decode_private(&[cf_vd.vd]).await?;
-            let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
+        let mut outputs = self.thread_0.decode(&[cf_vd.vd]).await?;
+        let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
 
-            Some(vd)
-        } else {
-            self.thread_0.decode_blind(&[cf_vd.vd]).await?;
-
-            None
-        };
-
-        self.state = state::State::ServerFinished(state::ServerFinished { hash_state, sf_vd });
+        self.state = State::ServerFinished { hash_state, sf_vd };
 
         Ok(vd)
     }
 
+    #[instrument(level = "debug", skip_all, err)]
     async fn execute_sf_vd(
         &mut self,
         handshake_hash: Option<[u8; 32]>,
-    ) -> Result<Option<[u8; 12]>, PrfError> {
-        let state::ServerFinished { hash_state, sf_vd } =
-            std::mem::replace(&mut self.state, state::State::Error).try_into_server_finished()?;
+    ) -> Result<[u8; 12], PrfError> {
+        let State::ServerFinished { hash_state, sf_vd } = self.state.take() else {
+            return Err(PrfError::state("PRF not in server finished state"));
+        };
 
         let circ = SERVER_VD_CIRC.get().expect("server vd circuit is set");
 
         if let Some(handshake_hash) = handshake_hash {
-            self.thread_1
+            self.thread_0
                 .assign(&sf_vd.handshake_hash, handshake_hash)?;
         }
 
-        self.thread_1
+        self.thread_0
             .execute(
                 circ.clone(),
                 &[
@@ -198,18 +231,10 @@ where
             )
             .await?;
 
-        let vd = if handshake_hash.is_some() {
-            let mut outputs = self.thread_1.decode_private(&[sf_vd.vd]).await?;
-            let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
+        let mut outputs = self.thread_0.decode(&[sf_vd.vd]).await?;
+        let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
 
-            Some(vd)
-        } else {
-            self.thread_1.decode_blind(&[sf_vd.vd]).await?;
-
-            None
-        };
-
-        self.state = state::State::Complete;
+        self.state = State::Complete;
 
         Ok(vd)
     }
@@ -218,11 +243,13 @@ where
 #[async_trait]
 impl<E> Prf for MpcPrf<E>
 where
-    E: Memory + Load + Execute + Decode + DecodePrivate + Send,
+    E: Memory + Load + Execute + Decode + Send,
 {
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn setup(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError> {
-        std::mem::replace(&mut self.state, state::State::Error).try_into_initialized()?;
+    #[instrument(level = "debug", skip_all, err)]
+    async fn preprocess(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError> {
+        let State::Initialized = self.state.take() else {
+            return Err(PrfError::state("PRF not in initialized state"));
+        };
 
         let visibility = match self.config.role {
             Role::Leader => Visibility::Private,
@@ -238,136 +265,63 @@ where
             setup_finished_msg(&mut self.thread_1, Msg::Sf, hash_state.clone(), visibility),
         )?;
 
-        self.state = state::State::SessionKeys(state::SessionKeys {
+        self.state = State::SessionKeys {
             pms,
             randoms,
             hash_state,
             keys: keys.clone(),
             cf_vd,
             sf_vd,
-        });
+        };
 
         Ok(keys)
     }
 
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
+    async fn compute_client_finished_vd(
+        &mut self,
+        handshake_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 12], PrfError> {
+        if (self.config.role != Role::Leader) && handshake_hash.is_some() {
+            return Err(PrfError::role("only leader can provide handshake hash"));
+        }
+
+        self.execute_cf_vd(handshake_hash).await
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
+    async fn compute_server_finished_vd(
+        &mut self,
+        handshake_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 12], PrfError> {
+        if (self.config.role != Role::Leader) && handshake_hash.is_some() {
+            return Err(PrfError::role("only leader can provide handshake hash"));
+        }
+
+        self.execute_sf_vd(handshake_hash).await
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
     async fn compute_session_keys_private(
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
     ) -> Result<SessionKeys, PrfError> {
         if self.config.role != Role::Leader {
-            return Err(PrfError::RoleError(
-                "only leader can provide inputs".to_string(),
-            ));
+            return Err(PrfError::role("only leader can provide inputs"));
         }
 
         self.execute_session_keys(Some((client_random, server_random)))
             .await
     }
 
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn compute_client_finished_vd_private(
-        &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError> {
-        if self.config.role != Role::Leader {
-            return Err(PrfError::RoleError(
-                "only leader can provide inputs".to_string(),
-            ));
-        }
-
-        self.execute_cf_vd(Some(handshake_hash))
-            .await
-            .map(|hash| hash.expect("vd is decoded"))
-    }
-
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn compute_server_finished_vd_private(
-        &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError> {
-        if self.config.role != Role::Leader {
-            return Err(PrfError::RoleError(
-                "only leader can provide inputs".to_string(),
-            ));
-        }
-
-        self.execute_sf_vd(Some(handshake_hash))
-            .await
-            .map(|hash| hash.expect("vd is decoded"))
-    }
-
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError> {
         if self.config.role != Role::Follower {
-            return Err(PrfError::RoleError(
-                "leader must provide inputs".to_string(),
-            ));
+            return Err(PrfError::role("leader must provide inputs"));
         }
 
         self.execute_session_keys(None).await
-    }
-
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError> {
-        if self.config.role != Role::Follower {
-            return Err(PrfError::RoleError(
-                "leader must provide inputs".to_string(),
-            ));
-        }
-
-        self.execute_cf_vd(None).await.map(|_| ())
-    }
-
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip(self), err))]
-    async fn compute_server_finished_vd_blind(&mut self) -> Result<(), PrfError> {
-        if self.config.role != Role::Follower {
-            return Err(PrfError::RoleError(
-                "leader must provide inputs".to_string(),
-            ));
-        }
-
-        self.execute_sf_vd(None).await.map(|_| ())
-    }
-}
-
-pub(crate) mod state {
-    use super::*;
-    use enum_try_as_inner::EnumTryAsInner;
-
-    #[derive(Debug, EnumTryAsInner)]
-    #[derive_err(Debug)]
-    pub(crate) enum State {
-        Initialized,
-        SessionKeys(SessionKeys),
-        ClientFinished(ClientFinished),
-        ServerFinished(ServerFinished),
-        Complete,
-        Error,
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct SessionKeys {
-        pub(crate) pms: ValueRef,
-        pub(crate) randoms: Randoms,
-        pub(crate) hash_state: HashState,
-        pub(crate) keys: crate::SessionKeys,
-        pub(crate) cf_vd: VerifyData,
-        pub(crate) sf_vd: VerifyData,
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct ClientFinished {
-        pub(crate) hash_state: HashState,
-        pub(crate) cf_vd: VerifyData,
-        pub(crate) sf_vd: VerifyData,
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct ServerFinished {
-        pub(crate) hash_state: HashState,
-        pub(crate) sf_vd: VerifyData,
     }
 }
 
@@ -388,7 +342,7 @@ async fn setup_session_keys<T: Memory + Load + Send>(
     let ms_inner_hash_state = thread.new_output::<[u32; 8]>("ms_inner_hash_state")?;
 
     if SESSION_KEYS_CIRC.get().is_none() {
-        _ = SESSION_KEYS_CIRC.set(Backend::spawn(build_session_keys).await);
+        _ = SESSION_KEYS_CIRC.set(CpuBackend::blocking(build_session_keys).await);
     }
 
     let circ = SESSION_KEYS_CIRC
@@ -454,7 +408,7 @@ async fn setup_finished_msg<T: Memory + Load + Send>(
     };
 
     if circ.get().is_none() {
-        _ = circ.set(Backend::spawn(move || build_verify_data(label)).await);
+        _ = circ.set(CpuBackend::blocking(move || build_verify_data(label)).await);
     }
 
     let circ = circ.get().expect("session keys circuit is set");
