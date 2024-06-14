@@ -14,10 +14,10 @@ openssl req -new -key test_server.key -out test_server.csr -subj "/C=US/ST=State
 openssl x509 -req -in test_server.csr -CA root_ca.crt -CAkey root_ca.key -CAcreateserial -out test_server.crt -days 825 -sha256 -extfile openssl.cnf -extensions v3_req
 
 # Convert the root CA certificate to DER format
-openssl x509 -in root_ca.crt -outform der -out root_ca.der
+openssl x509 -in root_ca.crt -outform der -out root_ca_cert.der
 
 # Convert the end entity certificate to DER format
-openssl x509 -in test_server.crt -outform der -out test_server.der
+openssl x509 -in test_server.crt -outform der -out test_server_cert.der
 
 # Convert the end entity certificate private key to DER format
 openssl pkcs8 -topk8 -inform PEM -outform DER -in test_server.key -out test_server_private_key.der -nocrypt
