@@ -150,8 +150,8 @@ async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
 }
 
 #[rstest]
-// For `tls_without_auth` test to pass, one need to add "<NOTARY_HOST> <NOTARY_DNS>" in /etc/hosts so that
-// this test programme can resolve the self-named NOTARY_DNS to NOTARY_HOST IP successfully
+// For `tls_without_auth` test to pass, one needs to add "<NOTARY_HOST> <NOTARY_DNS>" in /etc/hosts so that
+// this test programme can resolve the self-named NOTARY_DNS to NOTARY_HOST IP successfully.
 #[case::tls_without_auth(
     tls_prover(setup_config_and_server(100, 7047, true, false).await)
 )]
@@ -175,7 +175,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    // Prover config using the session_id returned from calling /session endpoint in notary client
+    // Prover config using the session_id returned from calling /session endpoint in notary client.
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
@@ -185,19 +185,19 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .build()
         .unwrap();
 
-    // Create a new prover
+    // Create a new Prover.
     let prover = Prover::new(prover_config)
         .setup(notary_socket.compat())
         .await
         .unwrap();
 
-    // Connect to the Server
+    // Connect to the Server.
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
     let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
     let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
 
-    // Spawn the Prover task to be run concurrently
+    // Spawn the Prover task to be run concurrently.
     let prover_task = tokio::spawn(prover_fut);
 
     let (mut request_sender, connection) =
