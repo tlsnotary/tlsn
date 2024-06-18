@@ -7,12 +7,11 @@ use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::{env, ops::Range, str};
 use tlsn_core::proof::TlsProof;
-use tlsn_examples::request_notarization;
+use tlsn_notary_client::{Accepted, NotarizationRequest, NotaryClient};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
-
-use tlsn_prover::tls::{Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
@@ -40,16 +39,34 @@ async fn main() {
     let auth_token = env::var("AUTHORIZATION").unwrap();
     let user_agent = env::var("USER_AGENT").unwrap();
 
-    let (notary_tls_socket, session_id) = request_notarization(
-        NOTARY_HOST,
-        NOTARY_PORT,
-        Some(MAX_SENT_DATA),
-        Some(MAX_RECV_DATA),
-    )
-    .await;
+    // Build a client to connect to the notary server.
+    let notary_client = NotaryClient::builder()
+        .host(NOTARY_HOST)
+        .port(NOTARY_PORT)
+        // WARNING: Always use TLS to connect to notary server, except if notary is running locally
+        // e.g. this example, hence `enable_tls` is set to False (else it always defaults to True).
+        .enable_tls(false)
+        .build()
+        .unwrap();
 
-    // Basic default prover config using the session_id returned from /session endpoint just now
-    let config = ProverConfig::builder()
+    // Send requests for configuration and notarization to the notary server.
+    let notarization_request = NotarizationRequest::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let Accepted {
+        io: notary_connection,
+        id: session_id,
+        ..
+    } = notary_client
+        .request_notarization(notarization_request)
+        .await
+        .unwrap();
+
+    // Configure a new prover with the unique session id returned from notary client.
+    let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
         .max_sent_data(MAX_SENT_DATA)
@@ -58,11 +75,12 @@ async fn main() {
         .unwrap();
 
     // Create a new prover and set up the MPC backend.
-    let prover = Prover::new(config)
-        .setup(notary_tls_socket.compat())
+    let prover = Prover::new(prover_config)
+        .setup(notary_connection.compat())
         .await
         .unwrap();
 
+    // Open a new socket to the application server.
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
         .unwrap();
