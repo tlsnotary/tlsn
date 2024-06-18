@@ -86,8 +86,8 @@ impl Signer256k1 {
             .verify_ecdsa(&message, &signature, &(self).public_key);
 
         match result {
-            Ok(result) => return Ok(()),
-            Err(err) => {
+            Ok(_) => return Ok(()),
+            Err(_) => {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     "Signature verification failed",
@@ -100,7 +100,7 @@ impl Signer256k1 {
 #[cfg(feature = "tracing")]
 mod test {
     use super::*;
-    use chrono::prelude::Utc;
+    use chrono::Utc;
 
     #[test]
     #[cfg(feature = "tracing")]

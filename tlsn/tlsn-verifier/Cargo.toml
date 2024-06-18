@@ -42,5 +42,11 @@ dotenv.workspace = true
 chrono.workspace = true
 ed25519-dalek.workspace = true
 uuid.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+reqwest.workspace = true
+tokio-compat.workspace = true
+futures01.workspace = true
 
 tracing = { workspace = true, optional = true }
