@@ -26,11 +26,11 @@ use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tower_service::Service;
 
 /// A certificate authority certificate fixture.
-pub static CA_CERT_DER: &[u8] = include_bytes!("tls/rootCA.der");
+pub static CA_CERT_DER: &[u8] = include_bytes!("tls/root_ca_cert.der");
 /// A server certificate (domain=test-server.io) fixture.
-pub static SERVER_CERT_DER: &[u8] = include_bytes!("tls/domain.der");
+pub static SERVER_CERT_DER: &[u8] = include_bytes!("tls/test_server_cert.der");
 /// A server private key fixture.
-pub static SERVER_KEY_DER: &[u8] = include_bytes!("tls/domain_key.der");
+pub static SERVER_KEY_DER: &[u8] = include_bytes!("tls/test_server_private_key.der");
 /// The domain name bound to the server certificate.
 pub static SERVER_DOMAIN: &str = "test-server.io";
 
@@ -51,7 +51,7 @@ fn app(state: AppState) -> Router {
 pub async fn bind<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
 ) -> anyhow::Result<()> {
-    let key = PrivateKeyDer::Pkcs1(SERVER_KEY_DER.into());
+    let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
     let cert = CertificateDer::from(SERVER_CERT_DER);
 
     let config = ServerConfig::builder()
