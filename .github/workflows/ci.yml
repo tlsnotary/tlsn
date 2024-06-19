@@ -73,8 +73,8 @@ jobs:
       - name: "Build"
         run: cargo build ${{ matrix.release && '--release' }}
 
-      - name: Add custom DNS entry to /etc/hosts for notary-server TLS test
-        if: matrix.package == 'notary-server'
+      - name: Add custom DNS entry to /etc/hosts for notary TLS test
+        if: matrix.package == 'notary'
         run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
 
       - name: "Test ${{ matrix.release && '--release' || '' }} ${{ matrix.all-features && '--all-features' || '' }}"
