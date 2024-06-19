@@ -1,10 +1,12 @@
 //! Mock implementation of AES-GCM for testing purposes.
 
 use block_cipher::{BlockCipherConfig, MpcBlockCipher};
-use mpz_garble::{Decode, DecodePrivate, Execute, Load, Memory, Prove, Verify, Vm};
+use mpz_common::executor::{test_st_executor, STExecutor};
+use mpz_garble::protocol::deap::mock::{MockFollower, MockLeader};
+use mpz_ot::ideal::ot::ideal_ot;
+use serio::channel::MemoryDuplex;
 use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfig};
-use tlsn_universal_hash::ghash::{mock_ghash_pair, GhashConfig};
-use utils_aio::duplex::MemoryDuplex;
+use tlsn_universal_hash::ghash::ideal_ghash;
 
 use super::*;
 
@@ -13,36 +15,45 @@ use super::*;
 /// # Arguments
 ///
 /// * `id` - The id of the AES-GCM instances.
-/// * `leader_vm` - The VM of the leader.
-/// * `follower_vm` - The VM of the follower.
+/// * `(leader, follower)` - The leader and follower vms.
 /// * `leader_config` - The configuration of the leader.
 /// * `follower_config` - The configuration of the follower.
-pub async fn create_mock_aes_gcm_pair<T>(
+pub async fn create_mock_aes_gcm_pair(
     id: &str,
-    leader_vm: &mut T,
-    follower_vm: &mut T,
+    (leader, follower): (MockLeader, MockFollower),
     leader_config: AesGcmConfig,
     follower_config: AesGcmConfig,
-) -> (MpcAesGcm, MpcAesGcm)
-where
-    T: Vm + Send,
-    <T as Vm>::Thread:
-        Memory + Execute + Load + Decode + DecodePrivate + Prove + Verify + Send + Sync,
-{
+) -> (
+    MpcAesGcm<STExecutor<MemoryDuplex>>,
+    MpcAesGcm<STExecutor<MemoryDuplex>>,
+) {
     let block_cipher_id = format!("{}/block_cipher", id);
+    let (ctx_leader, ctx_follower) = test_st_executor(128);
+
+    let (leader_ot_send, follower_ot_recv) = ideal_ot();
+    let (follower_ot_send, leader_ot_recv) = ideal_ot();
+
+    let block_leader = leader
+        .new_thread(ctx_leader, leader_ot_send, leader_ot_recv)
+        .unwrap();
+
+    let block_follower = follower
+        .new_thread(ctx_follower, follower_ot_send, follower_ot_recv)
+        .unwrap();
+
     let leader_block_cipher = MpcBlockCipher::new(
         BlockCipherConfig::builder()
             .id(block_cipher_id.clone())
             .build()
             .unwrap(),
-        leader_vm.new_thread(&block_cipher_id).await.unwrap(),
+        block_leader,
     );
     let follower_block_cipher = MpcBlockCipher::new(
         BlockCipherConfig::builder()
             .id(block_cipher_id.clone())
             .build()
             .unwrap(),
-        follower_vm.new_thread(&block_cipher_id).await.unwrap(),
+        block_follower,
     );
 
     let stream_cipher_id = format!("{}/stream_cipher", id);
@@ -51,40 +62,23 @@ where
             .id(stream_cipher_id.clone())
             .build()
             .unwrap(),
-        leader_vm
-            .new_thread_pool(&stream_cipher_id, 4)
-            .await
-            .unwrap(),
+        leader,
     );
     let follower_stream_cipher = MpcStreamCipher::new(
         StreamCipherConfig::builder()
             .id(stream_cipher_id.clone())
             .build()
             .unwrap(),
-        follower_vm
-            .new_thread_pool(&stream_cipher_id, 4)
-            .await
-            .unwrap(),
+        follower,
     );
 
-    let (leader_ghash, follower_ghash) = mock_ghash_pair(
-        GhashConfig::builder()
-            .id(format!("{}/ghash", id))
-            .initial_block_count(64)
-            .build()
-            .unwrap(),
-        GhashConfig::builder()
-            .id(format!("{}/ghash", id))
-            .initial_block_count(64)
-            .build()
-            .unwrap(),
-    );
+    let (ctx_a, ctx_b) = test_st_executor(128);
+    let (leader_ghash, follower_ghash) = ideal_ghash(ctx_a, ctx_b);
 
-    let (leader_channel, follower_channel) = MemoryDuplex::new();
-
+    let (ctx_a, ctx_b) = test_st_executor(128);
     let leader = MpcAesGcm::new(
         leader_config,
-        Box::new(leader_channel),
+        ctx_a,
         Box::new(leader_block_cipher),
         Box::new(leader_stream_cipher),
         Box::new(leader_ghash),
@@ -92,7 +86,7 @@ where
 
     let follower = MpcAesGcm::new(
         follower_config,
-        Box::new(follower_channel),
+        ctx_b,
         Box::new(follower_block_cipher),
         Box::new(follower_stream_cipher),
         Box::new(follower_ghash),
