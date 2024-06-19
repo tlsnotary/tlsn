@@ -121,20 +121,21 @@ pub(crate) mod airdrop {
             .send()
             .await;
 
-            let res = match res {
-                Ok(response) => response,
+            let followers = match res {
+                Ok(res) => {
+                    println!("status = {:?}", res.status());
+                    assert!(res.status() == 200, "failed to retrieve user attributes");
+                    let val: RespKaggle = res.json().await.unwrap();
+                    println!("{:?}", val.userProfile.usersFollowingMe.len());
+                    let followers: u64 = val.userProfile.usersFollowingMe.len().try_into().unwrap();
+                    followers
+                }
                 Err(err) => {
                     info!("error when querying kaggle attributes {:}", err);
-                    panic!("request to kaggle failed");
+                    0
+                    //panic!("request to kaggle failed");
                 }
             };
-
-            println!("status = {:?}", res.status());
-            assert!(res.status() == 200, "failed to retrieve user attributes");
-
-            let val: RespKaggle = res.json().await.unwrap();
-            println!("{:?}", val.userProfile.usersFollowingMe.len());
-            let followers: u64 = val.userProfile.usersFollowingMe.len().try_into().unwrap();
 
             info!("followers: {:?}", followers);
             assert!(followers >= MIN_FOLLOWERS, "Not enough followers");
