@@ -101,6 +101,7 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
     #[instrument(level = "debug", skip(self), err)]
     async fn preprocess(&mut self, len: usize) -> Result<(), AesGcmError> {
         futures::try_join!(
+            // Preprocess the GHASH key block.
             self.aes_block
                 .preprocess(block_cipher::Visibility::Public, 1)
                 .map_err(AesGcmError::from),

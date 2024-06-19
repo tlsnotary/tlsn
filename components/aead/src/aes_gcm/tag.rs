@@ -59,7 +59,7 @@ async fn compute_tag_share<C: StreamCipher<Aes128Ctr> + ?Sized, H: UniversalHash
 
 /// Computes the tag for a ciphertext and additional data.
 ///
-/// The commit reveal step is not required for computing a tag sent to the Server, as it
+/// The commit-reveal step is not required for computing a tag sent to the Server, as it
 /// will be able to detect if the tag is incorrect.
 #[instrument(level = "debug", skip_all, err)]
 pub(crate) async fn compute_tag<
@@ -89,8 +89,8 @@ pub(crate) async fn compute_tag<
 
 /// Verifies a purported tag against the ciphertext and additional data.
 ///
-/// Verifying a tag requires a commit reveal protocol between the leader and follower.
-/// Without it, the party which receives the others tag share first could trivially compute
+/// Verifying a tag requires a commit-reveal protocol between the leader and follower.
+/// Without it, the party which receives the other's tag share first could trivially compute
 /// a tag share which would cause an invalid message to be accepted.
 #[instrument(level = "debug", skip_all, err)]
 pub(crate) async fn verify_tag<
