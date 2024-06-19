@@ -47,4 +47,7 @@ COPY ./notary-server/entrypoint.sh /usr/local/bin/
 # Make the script executable
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+RUN apt-get update 
+RUN apt install curl -y
+
 ENTRYPOINT ["entrypoint.sh"]
