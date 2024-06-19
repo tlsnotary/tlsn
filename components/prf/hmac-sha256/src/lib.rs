@@ -35,34 +35,52 @@ pub struct SessionKeys {
 /// PRF trait for computing TLS PRF.
 #[async_trait]
 pub trait Prf {
-    /// Preprocesses the PRF.
+    /// Sets up the PRF.
     ///
     /// # Arguments
     ///
     /// * `pms` - The pre-master secret.
-    async fn preprocess(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError>;
+    async fn setup(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError>;
 
-    /// Computes the client finished verify data using the provided handshake hash.
+    /// Sets the client random.
+    ///
+    /// This must be set after calling [`Prf::setup`].
+    ///
+    /// Only the leader can provide the client random.
+    async fn set_client_random(&mut self, client_random: Option<[u8; 32]>) -> Result<(), PrfError>;
+
+    /// Preprocesses the PRF.
+    async fn preprocess(&mut self) -> Result<(), PrfError>;
+
+    /// Computes the client finished verify data.
+    ///
+    /// # Arguments
+    ///
+    /// * `handshake_hash` - The handshake transcript hash.
     async fn compute_client_finished_vd(
         &mut self,
-        handshake_hash: Option<[u8; 32]>,
+        handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PrfError>;
 
-    /// Computes the server finished verify data using the provided handshake hash.
+    /// Computes the server finished verify data.
+    ///
+    /// # Arguments
+    ///
+    /// * `handshake_hash` - The handshake transcript hash.
     async fn compute_server_finished_vd(
         &mut self,
-        handshake_hash: Option<[u8; 32]>,
+        handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PrfError>;
 
-    /// Computes the session keys using the provided client random, server random and PMS.
-    async fn compute_session_keys_private(
+    /// Computes the session keys.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_random` - The server random.
+    async fn compute_session_keys(
         &mut self,
-        client_random: [u8; 32],
         server_random: [u8; 32],
     ) -> Result<SessionKeys, PrfError>;
-
-    /// Computes the session keys using randoms provided by the other party.
-    async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError>;
 }
 
 #[cfg(test)]
@@ -150,15 +168,22 @@ mod tests {
             follower_thread_1,
         );
 
-        futures::try_join!(
-            leader.preprocess(leader_pms),
-            follower.preprocess(follower_pms)
-        )
-        .unwrap();
+        futures::join!(
+            async {
+                leader.setup(leader_pms).await.unwrap();
+                leader.set_client_random(Some(client_random)).await.unwrap();
+                leader.preprocess().await.unwrap();
+            },
+            async {
+                follower.setup(follower_pms).await.unwrap();
+                follower.set_client_random(None).await.unwrap();
+                follower.preprocess().await.unwrap();
+            }
+        );
 
         let (leader_session_keys, follower_session_keys) = futures::try_join!(
-            leader.compute_session_keys_private(client_random, server_random),
-            follower.compute_session_keys_blind()
+            leader.compute_session_keys(server_random),
+            follower.compute_session_keys(server_random)
         )
         .unwrap();
 
@@ -220,8 +245,8 @@ mod tests {
         let sf_hs_hash = [2u8; 32];
 
         let (cf_vd, _) = futures::try_join!(
-            leader.compute_client_finished_vd(Some(cf_hs_hash)),
-            follower.compute_client_finished_vd(None)
+            leader.compute_client_finished_vd(cf_hs_hash),
+            follower.compute_client_finished_vd(cf_hs_hash)
         )
         .unwrap();
 
@@ -230,8 +255,8 @@ mod tests {
         assert_eq!(cf_vd, expected_cf_vd);
 
         let (sf_vd, _) = futures::try_join!(
-            leader.compute_server_finished_vd(Some(sf_hs_hash)),
-            follower.compute_server_finished_vd(None)
+            leader.compute_server_finished_vd(sf_hs_hash),
+            follower.compute_server_finished_vd(sf_hs_hash)
         )
         .unwrap();
 
