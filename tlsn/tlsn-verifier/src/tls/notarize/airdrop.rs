@@ -1,6 +1,7 @@
 pub(crate) mod airdrop {
     use futures01::future::lazy;
     use p256::pkcs8::der::asn1::Int;
+    use reqwest::Response;
     use serde_json::Number;
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
@@ -118,8 +119,15 @@ pub(crate) mod airdrop {
             .header("x-xsrf-token", "CfDJ8CHCUm6ypKVLpjizcZHPE70HA0syy35mtn6KbUjCbOddkpiyjjo1c-dvBq0e71nnCYWEOLl6qRVufWFyh5GeEdnzdiM-ZcrEz4EboI5lussb4w")
             .json(&map)
             .send()
-            .await
-            .unwrap();
+            .await;
+
+            let res = match res {
+                Ok(response) => response,
+                Err(err) => {
+                    info!("error when querying kaggle attributes {:}", err);
+                    panic!("request to kaggle failed");
+                }
+            };
 
             println!("status = {:?}", res.status());
             assert!(res.status() == 200, "failed to retrieve user attributes");
