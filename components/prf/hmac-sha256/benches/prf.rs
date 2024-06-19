@@ -72,11 +72,18 @@ async fn preprocess() {
         follower_thread_1,
     );
 
-    futures::try_join!(
-        leader.preprocess(leader_pms),
-        follower.preprocess(follower_pms)
-    )
-    .unwrap();
+    futures::join!(
+        async {
+            leader.setup(leader_pms).await.unwrap();
+            leader.set_client_random(Some([0u8; 32])).await.unwrap();
+            leader.preprocess().await.unwrap();
+        },
+        async {
+            follower.setup(follower_pms).await.unwrap();
+            follower.set_client_random(None).await.unwrap();
+            follower.preprocess().await.unwrap();
+        }
+    );
 }
 
 async fn prf() {
@@ -133,36 +140,43 @@ async fn prf() {
         follower_thread_1,
     );
 
-    futures::try_join!(
-        leader.preprocess(leader_pms.clone()),
-        follower.preprocess(follower_pms.clone())
-    )
-    .unwrap();
-
     let pms = [42u8; 32];
     let client_random = [0u8; 32];
     let server_random = [1u8; 32];
     let cf_hs_hash = [2u8; 32];
     let sf_hs_hash = [3u8; 32];
 
+    futures::join!(
+        async {
+            leader.setup(leader_pms.clone()).await.unwrap();
+            leader.set_client_random(Some(client_random)).await.unwrap();
+            leader.preprocess().await.unwrap();
+        },
+        async {
+            follower.setup(follower_pms.clone()).await.unwrap();
+            follower.set_client_random(None).await.unwrap();
+            follower.preprocess().await.unwrap();
+        }
+    );
+
     leader.thread_mut().assign(&leader_pms, pms).unwrap();
     follower.thread_mut().assign(&follower_pms, pms).unwrap();
 
     let (_leader_keys, _follower_keys) = futures::try_join!(
-        leader.compute_session_keys_private(client_random, server_random),
-        follower.compute_session_keys_blind()
+        leader.compute_session_keys(server_random),
+        follower.compute_session_keys(server_random)
     )
     .unwrap();
 
     let _ = futures::try_join!(
-        leader.compute_client_finished_vd(Some(cf_hs_hash)),
-        follower.compute_client_finished_vd(None)
+        leader.compute_client_finished_vd(cf_hs_hash),
+        follower.compute_client_finished_vd(cf_hs_hash)
     )
     .unwrap();
 
     let _ = futures::try_join!(
-        leader.compute_server_finished_vd(Some(sf_hs_hash)),
-        follower.compute_server_finished_vd(None)
+        leader.compute_server_finished_vd(sf_hs_hash),
+        follower.compute_server_finished_vd(sf_hs_hash)
     )
     .unwrap();
 
