@@ -30,9 +30,9 @@ tracing = [
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c" }
 
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }
@@ -59,7 +59,7 @@ ludi = { git = "https://github.com/sinui0/ludi", rev = "b590de5" }
 tlsn-tls-client = { path = "../tls-client" }
 tlsn-tls-client-async = { path = "../tls-client-async" }
 tls-server-fixture = { path = "../tls-server-fixture" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c" }
 uid-mux = { path = "../../uid-mux" }
 
 tracing-subscriber.workspace = true
