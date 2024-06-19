@@ -235,14 +235,16 @@ where
         let thread = &mut self.thread_0;
 
         let randoms = Randoms {
+            // The client random is kept private so that the handshake transcript
+            // hashes do not leak information about the server's identity.
             client_random: thread.new_input::<[u8; 32]>(
-                "client_finished",
+                "client_random",
                 match self.config.role {
                     Role::Leader => Visibility::Private,
                     Role::Follower => Visibility::Blind,
                 },
             )?,
-            server_random: thread.new_input::<[u8; 32]>("server_finished", Visibility::Public)?,
+            server_random: thread.new_input::<[u8; 32]>("server_random", Visibility::Public)?,
         };
 
         let keys = SessionKeys {
