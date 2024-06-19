@@ -10,7 +10,6 @@ tlsn-core.workspace = true
 tlsn-prover = { workspace = true, features = ["tracing"] }
 tlsn-verifier.workspace = true
 
-eyre.workspace = true
 futures.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http1"] }
@@ -27,7 +26,6 @@ tokio = { workspace = true, features = [
 tokio-util.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
-webpki-roots.workspace = true
 
 chrono = "0.4"
 dotenv = "0.15.0"

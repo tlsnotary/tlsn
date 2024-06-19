@@ -12,6 +12,8 @@ hyper = { workspace = true, features = ["client", "http1", "server"] }
 hyper-util = { workspace = true, features = ["full"] }
 notary-client.workspace = true
 notary-server.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
 serde_json.workspace =true
 tlsn-prover = { workspace = true, features = ["tracing"] }
 tokio = { workspace = true, features = ["full"] }

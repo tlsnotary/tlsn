@@ -5,9 +5,10 @@
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
+use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use std::{env, str};
 use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
-use tlsn_examples::request_notarization;
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
@@ -17,13 +18,9 @@ const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-// Setting of the notary server — make sure these are the same with those in ../../../notary/server
+// Setting of the notary server — make sure these are the same with the config in ../../../notary/server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
-
-// Configuration of notarization
-const NOTARY_MAX_SENT: usize = 1 << 12;
-const NOTARY_MAX_RECV: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
@@ -36,16 +33,42 @@ async fn main() {
     let access_token = env::var("ACCESS_TOKEN").unwrap();
     let csrf_token = env::var("CSRF_TOKEN").unwrap();
 
-    // Create a new prover
-    let prover = request_notarization(
-        NOTARY_HOST,
-        NOTARY_PORT,
-        Some(NOTARY_MAX_SENT),
-        Some(NOTARY_MAX_RECV),
-        SERVER_DOMAIN,
-    )
-    .await;
+    // Build a client to connect to the notary server.
+    let notary_client = NotaryClient::builder()
+        .host(NOTARY_HOST)
+        .port(NOTARY_PORT)
+        // WARNING: Always use TLS to connect to notary server, except if notary is running locally
+        // e.g. this example, hence `enable_tls` is set to False (else it always defaults to True).
+        .enable_tls(false)
+        .build()
+        .unwrap();
 
+    // Send requests for configuration and notarization to the notary server.
+    let notarization_request = NotarizationRequest::builder().build().unwrap();
+
+    let Accepted {
+        io: notary_connection,
+        id: session_id,
+        ..
+    } = notary_client
+        .request_notarization(notarization_request)
+        .await
+        .unwrap();
+
+    // Configure a new prover with the unique session id returned from notary client.
+    let prover_config = ProverConfig::builder()
+        .id(session_id)
+        .server_dns(SERVER_DOMAIN)
+        .build()
+        .unwrap();
+
+    // Create a new prover and set up the MPC backend.
+    let prover = Prover::new(prover_config)
+        .setup(notary_connection.compat())
+        .await
+        .unwrap();
+
+    // Open a new socket to the application server.
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
         .unwrap();
