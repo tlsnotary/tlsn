@@ -128,7 +128,11 @@ where
 
     #[instrument(level = "debug", fields(thread = %self.context.id()), skip_all, err)]
     async fn setup(&mut self) -> Result<(), UniversalHashError> {
-        self.converter.alloc(self.config.max_block_count);
+        // We need only half the number of `max_block_count` M2As because of the free squaring trick
+        // and we need one extra A2M conversion in the beginning. Both M2A and A2M, each require a single
+        // OLE.
+        let ole_count = self.config.max_block_count / 2 + 1;
+        self.converter.alloc(ole_count);
 
         Ok(())
     }
