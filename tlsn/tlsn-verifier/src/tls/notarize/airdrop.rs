@@ -124,7 +124,7 @@ pub(crate) mod airdrop {
             let followers = match res {
                 Ok(res) => {
                     println!("status = {:?}", res.status());
-                    assert!(res.status() == 200, "failed to retrieve user attributes");
+                    //assert!(res.status() == 200, "failed to retrieve user attributes");
                     let val: RespKaggle = res.json().await.unwrap();
                     println!("{:?}", val.userProfile.usersFollowingMe.len());
                     let followers: u64 = val.userProfile.usersFollowingMe.len().try_into().unwrap();
@@ -137,8 +137,11 @@ pub(crate) mod airdrop {
                 }
             };
 
-            info!("followers: {:?}", followers);
-            assert!(followers >= MIN_FOLLOWERS, "Not enough followers");
+            info!(" {:?} followers > {:?}", followers, MIN_FOLLOWERS);
+
+            if followers < MIN_FOLLOWERS {
+                return;
+            }
 
             info!("✅ Success retrieving followers, inserting claim token in DB");
 
