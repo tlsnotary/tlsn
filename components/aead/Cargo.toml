@@ -25,7 +25,7 @@ mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "5
 ] }
 mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
 mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-serio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "ddbb8c2" }
+serio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f8d4533" }
 
 async-trait = "0.1"
 derive_builder = "0.12"

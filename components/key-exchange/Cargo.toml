@@ -30,7 +30,7 @@ async-trait = "0.1"
 thiserror = "1"
 serde = "1"
 futures = "0.3"
-serio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "ddbb8c2" }
+serio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f8d4533" }
 derive_builder = "0.12"
 tracing = "0.1"
 rand = "0.8"
