@@ -7,14 +7,15 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod components;
 mod config;
 pub(crate) mod error;
 pub(crate) mod follower;
 pub(crate) mod leader;
 pub mod msg;
 pub(crate) mod record_layer;
-pub(crate) mod setup;
 
+pub use components::build_components;
 pub use config::{
     MpcTlsCommonConfig, MpcTlsCommonConfigBuilder, MpcTlsCommonConfigBuilderError,
     MpcTlsFollowerConfig, MpcTlsFollowerConfigBuilder, MpcTlsFollowerConfigBuilderError,
@@ -24,7 +25,6 @@ pub use config::{
 pub use error::MpcTlsError;
 pub use follower::{FollowerCtrl, MpcTlsFollower, MpcTlsFollowerData};
 pub use leader::{LeaderCtrl, MpcTlsData, MpcTlsLeader};
-pub use setup::setup_components;
 use utils_aio::duplex::Duplex;
 
 /// A channel for sending and receiving messages between leader and follower
