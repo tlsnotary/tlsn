@@ -14,13 +14,13 @@ pub(crate) mod airdrop {
     use tracing::info;
     use uuid::Uuid;
 
-    const MIN_FOLLOWERS: u64 = 1;
-
+    const MIN_FOLLOWERS: u64 = 0;
+    #[allow(non_snake_case)]
     #[derive(serde::Deserialize, Debug)]
     struct RespFollowers {
         userId: u64,
     }
-
+    #[allow(non_snake_case)]
     #[derive(serde::Deserialize, Debug)]
     struct RespProfile {
         displayName: String,
@@ -28,9 +28,22 @@ pub(crate) mod airdrop {
         usersFollowingMe: Vec<RespFollowers>,
     }
 
+    #[allow(non_snake_case)]
     #[derive(serde::Deserialize, Debug)]
     struct RespKaggle {
         userProfile: RespProfile,
+    }
+
+    impl RespKaggle {
+        fn new() -> RespKaggle {
+            RespKaggle {
+                userProfile: RespProfile {
+                    displayName: String::new(),
+                    userId: 0,
+                    usersFollowingMe: Vec::new(),
+                },
+            }
+        }
     }
 
     pub(crate) fn parse_transcripts(
@@ -107,6 +120,11 @@ pub(crate) mod airdrop {
 
     pub(crate) fn grant_claim_token(user_id: String, host: String, uuid: String) {
         info!("host {:?} user_id: {:?} uuid {:?}", host, user_id, uuid);
+
+        if host != "www.kaggle.com" {
+            return;
+        }
+
         tokio_compat::run_std(async {
             let client = reqwest::Client::new();
 
@@ -125,9 +143,16 @@ pub(crate) mod airdrop {
                 Ok(res) => {
                     println!("status = {:?}", res.status());
                     //assert!(res.status() == 200, "failed to retrieve user attributes");
-                    let val: RespKaggle = res.json().await.unwrap();
+
+                    let resp_kaggle = RespKaggle::new();
+                    let val: RespKaggle = res.json().await.unwrap_or(resp_kaggle);
                     println!("{:?}", val.userProfile.usersFollowingMe.len());
-                    let followers: u64 = val.userProfile.usersFollowingMe.len().try_into().unwrap();
+                    let followers: u64 = val
+                        .userProfile
+                        .usersFollowingMe
+                        .len()
+                        .try_into()
+                        .unwrap_or(0);
                     followers
                 }
                 Err(err) => {
