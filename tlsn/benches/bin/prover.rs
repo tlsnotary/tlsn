@@ -15,6 +15,7 @@ use tlsn_benches::{
     set_interface, PROVER_INTERFACE,
 };
 
+use tlsn_common::config::ConfigurationData;
 use tlsn_core::Direction;
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -115,13 +116,18 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let start_time = Instant::now();
 
+    let configuration_data = ConfigurationData::builder()
+        .max_sent_data(upload_size + 256)
+        .max_recv_data(download_size + 256)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store())
-            .max_sent_data(upload_size + 256)
-            .max_recv_data(download_size + 256)
+            .configuration_data(configuration_data)
             .build()
             .context("invalid prover config")?,
     )

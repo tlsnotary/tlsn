@@ -30,6 +30,7 @@ sha1 = "0.10"
 structopt = "0.3.26"
 thiserror = "1"
 tlsn-verifier = { path = "../tlsn/tlsn-verifier", features = ["tracing"] }
+tlsn-common = { path = "../tlsn/tlsn-common", features = ["tracing"] }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.24.1" }
 tokio-util = { version = "0.7", features = ["compat"] }

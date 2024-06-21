@@ -2,6 +2,7 @@ use axum::http::StatusCode;
 use axum_core::response::{IntoResponse as AxumCoreIntoResponse, Response};
 use eyre::Report;
 use std::error::Error;
+use tlsn_common::config::ConfigurationDataBuilderError;
 
 use tlsn_verifier::tls::{VerifierConfigBuilderError, VerifierError};
 
@@ -27,6 +28,12 @@ impl From<VerifierError> for NotaryServerError {
 
 impl From<VerifierConfigBuilderError> for NotaryServerError {
     fn from(error: VerifierConfigBuilderError) -> Self {
+        Self::Notarization(Box::new(error))
+    }
+}
+
+impl From<ConfigurationDataBuilderError> for NotaryServerError {
+    fn from(error: ConfigurationDataBuilderError) -> Self {
         Self::Notarization(Box::new(error))
     }
 }

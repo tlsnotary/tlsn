@@ -1,5 +1,6 @@
 use std::error::Error;
 use tls_mpc::MpcTlsError;
+use tlsn_common::config::ConfigurationDataError;
 
 /// An error that can occur during TLS verification.
 #[derive(Debug, thiserror::Error)]
@@ -13,6 +14,8 @@ pub enum VerifierError {
     MpcError(Box<dyn Error + Send + Sync + 'static>),
     #[error("Range exceeds transcript length")]
     InvalidRange,
+    #[error(transparent)]
+    ConfigurationError(#[from] ConfigurationDataError),
 }
 
 impl From<MpcTlsError> for VerifierError {

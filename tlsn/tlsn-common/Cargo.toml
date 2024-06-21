@@ -11,5 +11,13 @@ tracing = ["uid-mux/tracing"]
 [dependencies]
 tlsn-utils-aio.workspace = true
 
+derive_builder.workspace = true
 futures.workspace = true
+thiserror.workspace = true
 uid-mux.workspace = true
+
+semver = "1.0"
+serde = { version = "1.0.147", features = ["derive"] }
+
+[dev-dependencies]
+rstest.workspace = true

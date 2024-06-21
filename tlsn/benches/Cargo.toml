@@ -10,6 +10,7 @@ charming = {version = "0.3.1", features = ["ssr"]}
 csv = "1.3.0"
 futures.workspace = true
 serde.workspace = true
+tlsn-common.workspace = true
 tlsn-core.workspace = true
 tlsn-prover.workspace = true
 tlsn-server-fixture.workspace = true

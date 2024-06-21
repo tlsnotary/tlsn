@@ -11,6 +11,7 @@ use axum::{
 use axum_macros::debug_handler;
 use chrono::Utc;
 use p256::ecdsa::{Signature, SigningKey};
+use tlsn_common::config::ConfigurationData;
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -179,19 +180,22 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
 
-    let mut config_builder = VerifierConfig::builder();
-
-    config_builder = config_builder.id(session_id);
+    let mut configuration_data_builder = ConfigurationData::builder();
 
     if let Some(max_sent_data) = max_sent_data {
-        config_builder = config_builder.max_sent_data(max_sent_data);
+        configuration_data_builder.max_sent_data(max_sent_data);
     }
 
     if let Some(max_recv_data) = max_recv_data {
-        config_builder = config_builder.max_recv_data(max_recv_data);
+        configuration_data_builder.max_recv_data(max_recv_data);
     }
 
-    let config = config_builder.build()?;
+    let configuration_data = configuration_data_builder.build()?;
+
+    let config = VerifierConfig::builder()
+        .id(session_id)
+        .configuration_data(configuration_data)
+        .build()?;
 
     Verifier::new(config)
         .notarize::<_, Signature>(socket.compat(), signing_key)

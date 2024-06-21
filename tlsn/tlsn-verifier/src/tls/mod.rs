@@ -34,8 +34,10 @@ use tlsn_common::{
     mux::{attach_mux, MuxControl},
     Role,
 };
-use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
-use utils_aio::{duplex::Duplex, mux::MuxChannel};
+use tlsn_core::{
+    msg::TlsnMessage, proof::SessionInfo, RedactedTranscript, SessionHeader, Signature,
+};
+use utils_aio::{duplex::Duplex, expect_msg_or_err, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, info, instrument};
@@ -79,6 +81,37 @@ impl Verifier<state::Initialized> {
 
         let mut mux_fut = MuxFuture {
             fut: Box::pin(async move { mux.run().await.map_err(VerifierError::from) }.fuse()),
+        };
+
+        let mut configuration_fut = Box::pin({
+            let self_configuration = self.config.configuration_data.clone();
+            let mut mux_ctrl = mux_ctrl.clone();
+            async move {
+                let mut channel = mux_ctrl.get_channel("configuration").await?;
+                let peer_configuration =
+                    expect_msg_or_err!(channel, TlsnMessage::ConfigurationData)?;
+                #[cfg(feature = "tracing")]
+                tracing::debug!(
+                    "Obtained configuration data from prover: {:?}",
+                    peer_configuration
+                );
+                #[cfg(feature = "tracing")]
+                tracing::debug!(
+                    "Comparing that with self configuration data {:?}",
+                    self_configuration
+                );
+                self_configuration.compare(&peer_configuration)?;
+                #[cfg(feature = "tracing")]
+                tracing::debug!("Configurations are compatible!");
+
+                Ok::<_, VerifierError>(())
+            }
+        })
+        .fuse();
+
+        let _ = futures::select_biased! {
+            res = configuration_fut => res?,
+            _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();

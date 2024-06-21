@@ -5,6 +5,7 @@ publish = false
 version = "0.0.0"
 
 [dependencies]
+tlsn-common.workspace = true
 tlsn-core.workspace = true
 tlsn-notary-client.workspace = true
 tlsn-prover = { workspace = true, features = ["tracing"] }

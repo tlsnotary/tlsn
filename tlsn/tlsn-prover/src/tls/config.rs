@@ -3,7 +3,7 @@ use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
 use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT},
+    config::{ot_recv_estimate, ot_send_estimate, ConfigurationData},
     Role,
 };
 
@@ -19,28 +19,15 @@ pub struct ProverConfig {
     /// TLS root certificate store.
     #[builder(setter(strip_option), default = "default_root_store()")]
     pub(crate) root_cert_store: RootCertStore,
-    /// Maximum number of bytes that can be sent.
-    #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
-    max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
-    #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    /// Configuration data to be checked with the verifier.
+    #[builder(default = "ConfigurationData::builder().build().unwrap()")]
+    pub configuration_data: ConfigurationData,
 }
 
 impl ProverConfig {
     /// Create a new builder for `ProverConfig`.
     pub fn builder() -> ProverConfigBuilder {
         ProverConfigBuilder::default()
-    }
-
-    /// Returns the maximum number of bytes that can be sent.
-    pub fn max_sent_data(&self) -> usize {
-        self.max_sent_data
-    }
-
-    /// Returns the maximum number of bytes that can be received.
-    pub fn max_recv_data(&self) -> usize {
-        self.max_recv_data
     }
 
     /// Returns the server DNS name.
@@ -55,13 +42,13 @@ impl ProverConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.max_sent_data)
+                            .max_size(self.configuration_data.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.max_recv_data)
+                            .max_size(self.configuration_data.max_recv_data())
                             .build()
                             .unwrap(),
                     )
@@ -96,11 +83,19 @@ impl ProverConfig {
     }
 
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
+        ot_send_estimate(
+            Role::Prover,
+            self.configuration_data.max_sent_data(),
+            self.configuration_data.max_recv_data(),
+        )
     }
 
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
+        ot_recv_estimate(
+            Role::Prover,
+            self.configuration_data.max_sent_data(),
+            self.configuration_data.max_recv_data(),
+        )
     }
 
     pub(crate) fn build_p256_sender_config(&self) -> SenderConfig {

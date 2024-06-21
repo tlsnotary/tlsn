@@ -4,6 +4,7 @@ use tlsn_benches::{
     config::{BenchInstance, Config},
     set_interface, VERIFIER_INTERFACE,
 };
+use tlsn_common::config::ConfigurationData;
 use tlsn_server_fixture::CA_CERT_DER;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -63,12 +64,17 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     set_interface(VERIFIER_INTERFACE, download, 1, download_delay)?;
 
+    let configuration_data = ConfigurationData::builder()
+        .max_sent_data(upload_size + 256)
+        .max_recv_data(download_size + 256)
+        .build()
+        .unwrap();
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
             .id("test")
             .cert_verifier(cert_verifier())
-            .max_sent_data(upload_size + 256)
-            .max_recv_data(download_size + 256)
+            .configuration_data(configuration_data)
             .build()?,
     );
 

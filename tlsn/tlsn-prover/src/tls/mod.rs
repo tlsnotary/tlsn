@@ -23,7 +23,7 @@ use tlsn_common::{
 
 use error::OTShutdownError;
 use future::{MuxFuture, OTFuture};
-use futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
+use futures::{AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryFutureExt};
 use mpz_garble::{config::Role as DEAPRole, protocol::deap::DEAPVm};
 use mpz_ot::{
     actor::kos::{ReceiverActor, SenderActor, SharedReceiver, SharedSender},
@@ -36,7 +36,7 @@ use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, LeaderCtrl, MpcTlsLeader, TlsRole};
-use tlsn_core::transcript::Transcript;
+use tlsn_core::{msg::TlsnMessage, transcript::Transcript};
 use utils_aio::mux::MuxChannel;
 
 #[cfg(feature = "formats")]
@@ -81,6 +81,32 @@ impl Prover<state::Initialized> {
 
         let mut mux_fut = MuxFuture {
             fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }.fuse()),
+        };
+
+        let mut configuration_fut = Box::pin({
+            let self_configuration = self.config.configuration_data.clone();
+            let mut mux_ctrl = mux_ctrl.clone();
+            async move {
+                let mut channel = mux_ctrl.get_channel("configuration").await?;
+                #[cfg(feature = "tracing")]
+                tracing::debug!(
+                    "Sending configuration data to verifier: {:?}",
+                    self_configuration
+                );
+                channel
+                    .send(TlsnMessage::ConfigurationData(self_configuration))
+                    .await?;
+                #[cfg(feature = "tracing")]
+                tracing::debug!("Sent configuration data to verifier");
+
+                Ok::<_, ProverError>(())
+            }
+        })
+        .fuse();
+
+        let _ = futures::select_biased! {
+            res = configuration_fut => res?,
+            _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
         let mpc_setup_fut = setup_mpc_backend(&self.config, mux_ctrl.clone());
