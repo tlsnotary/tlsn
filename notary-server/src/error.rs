@@ -1,7 +1,5 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
+use axum::http::StatusCode;
+use axum_core::response::{IntoResponse as AxumCoreIntoResponse, Response};
 use eyre::Report;
 use std::error::Error;
 
@@ -34,7 +32,7 @@ impl From<VerifierConfigBuilderError> for NotaryServerError {
 }
 
 /// Trait implementation to convert this error into an axum http response
-impl IntoResponse for NotaryServerError {
+impl AxumCoreIntoResponse for NotaryServerError {
     fn into_response(self) -> Response {
         match self {
             bad_request_error @ NotaryServerError::BadProverRequest(_) => {

@@ -5,48 +5,35 @@ publish = false
 version = "0.0.0"
 
 [dependencies]
-mpz-core.workspace = true
-notary-server = {path = "../../notary-server"}
 tlsn-core.workspace = true
-tlsn-prover = {workspace = true, features = ["tracing"]}
-tlsn-tls-client.workspace = true
-tlsn-tls-core.workspace = true
-tlsn-utils.workspace = true
+tlsn-notary-client.workspace = true
+tlsn-prover = { workspace = true, features = ["tracing"] }
 tlsn-verifier.workspace = true
 
-elliptic-curve = {version = "0.13.5", features = ["pkcs8"]}
-p256 = {workspace = true, features = ["ecdsa"]}
-webpki-roots.workspace = true
-
-async-tls = {version = "0.12", default-features = false, features = [
-  "client",
-]}
-chrono = "0.4"
 futures.workspace = true
-http-body-util = "0.1"
-hyper = {version = "1.1", features = ["client", "http1"]}
-hyper-util = {version = "0.1", features = ["full"]}
-rustls = {version = "0.21"}
-rustls-pemfile = {version = "1.0.2"}
-tokio = {workspace = true, features = [
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true, features = ["full"] }
+p256 = { workspace = true, features = ["ecdsa"] }
+tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
   "macros",
   "net",
   "io-std",
   "fs",
-]}
-tokio-rustls = {version = "0.24.1"}
+] }
 tokio-util.workspace = true
-
-dotenv = "0.15.0"
-eyre = "0.6.8"
-serde = {version = "1.0.147", features = ["derive"]}
-serde_json = "1.0"
 tracing-subscriber.workspace = true
 tracing.workspace = true
+webpki-roots.workspace = true
 
+chrono = "0.4"
+dotenv = "0.15.0"
+elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
 regex = "1.10.3"
+serde = { version = "1.0.147", features = ["derive"] }
+serde_json = "1.0"
 
 [[example]]
 name = "simple_prover"

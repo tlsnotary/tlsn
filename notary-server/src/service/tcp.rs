@@ -1,11 +1,12 @@
 use async_trait::async_trait;
 use axum::{
-    body,
     extract::FromRequestParts,
     http::{header, request::Parts, HeaderValue, StatusCode},
     response::Response,
 };
+use axum_core::body::Body;
 use hyper::upgrade::{OnUpgrade, Upgraded};
+use hyper_util::rt::TokioIo;
 use std::future::Future;
 use tracing::{debug, error, info};
 
@@ -46,7 +47,7 @@ impl TcpUpgrade {
     /// (2) Spawn a new thread to await on the OnUpgrade object to claim the underlying TCP connection
     pub fn on_upgrade<C, Fut>(self, callback: C) -> Response
     where
-        C: FnOnce(Upgraded) -> Fut + Send + 'static,
+        C: FnOnce(TokioIo<Upgraded>) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         let on_upgrade = self.on_upgrade;
@@ -58,6 +59,8 @@ impl TcpUpgrade {
                     return;
                 }
             };
+            let upgraded = TokioIo::new(upgraded);
+
             callback(upgraded).await;
         });
 
@@ -71,13 +74,13 @@ impl TcpUpgrade {
             .header(header::CONNECTION, UPGRADE)
             .header(header::UPGRADE, TCP);
 
-        builder.body(body::boxed(body::Empty::new())).unwrap()
+        builder.body(Body::empty()).unwrap()
     }
 }
 
 /// Perform notarization using the extracted tcp connection
 pub async fn tcp_notarize(
-    stream: Upgraded,
+    stream: TokioIo<Upgraded>,
     notary_globals: NotaryGlobals,
     session_id: String,
     max_sent_data: Option<usize>,

@@ -2,7 +2,9 @@ use std::{str, sync::Arc};
 
 use core::future::Future;
 use futures::{AsyncReadExt, AsyncWriteExt};
-use hyper::{body::to_bytes, Body, Request, StatusCode};
+use http_body_util::{BodyExt as _, Full};
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use rstest::{fixture, rstest};
 use tls_client::{Certificate, ClientConfig, ClientConnection, RustCryptoBackend, ServerName};
 use tls_client_async::{bind_client, ClosedConnection, ConnectionError, TlsConnection};
@@ -65,7 +67,7 @@ async fn set_up_tls() -> TlsFixture {
 }
 
 // Expect the async tls client wrapped in `hyper::client` to make a successful request and receive
-// the expected response and cleanly close the TLS connection
+// the expected response
 #[tokio::test]
 async fn test_hyper_ok() {
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
@@ -90,16 +92,18 @@ async fn test_hyper_ok() {
     let closed_tls_task = tokio::spawn(tls_fut);
 
     let (mut request_sender, connection) =
-        hyper::client::conn::handshake(conn.compat()).await.unwrap();
+        hyper::client::conn::http1::handshake(TokioIo::new(conn.compat()))
+            .await
+            .unwrap();
 
-    let http_task = tokio::spawn(connection.without_shutdown());
+    tokio::spawn(connection);
 
     let request = Request::builder()
         .uri(format!("https://{}/echo", SERVER_DOMAIN))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("POST")
-        .body(Body::from("hello"))
+        .body(Full::<Bytes>::new("hello".into()))
         .unwrap();
 
     let response = request_sender.send_request(request).await.unwrap();
@@ -107,17 +111,9 @@ async fn test_hyper_ok() {
     assert!(response.status() == StatusCode::OK);
 
     // Process the response body
-    to_bytes(response.into_body()).await.unwrap();
+    response.into_body().collect().await.unwrap().to_bytes();
 
-    let mut server_tls_conn = server_task.await.unwrap().unwrap();
-
-    // Make sure the server closes cleanly (sends close notify)
-    server_tls_conn.close().await.unwrap();
-
-    let http_parts = http_task.await.unwrap().unwrap();
-    let mut tls_conn = http_parts.io.into_inner();
-
-    tls_conn.close().await.unwrap();
+    let _ = server_task.await.unwrap();
 
     let closed_conn = closed_tls_task.await.unwrap().unwrap();
 

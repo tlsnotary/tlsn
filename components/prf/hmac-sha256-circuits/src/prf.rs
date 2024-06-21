@@ -75,16 +75,16 @@ fn p_hash(outer_state: [u32; 8], inner_state: [u32; 8], seed: &[u8], iterations:
     output
 }
 
-/// Computes PRF(secret, label, seed)
+/// Computes PRF(secret, label, seed).
 ///
 /// # Arguments
 ///
 /// * `builder_state`   - Reference to builder state.
-/// * `outer_state`     - The outer state of HMAC-SHA256
-/// * `inner_state`     - The inner state of HMAC-SHA256
-/// * `seed`            - The seed to use
-/// * `label`           - The label to use
-/// * `bytes`           - The number of bytes to output
+/// * `outer_state`     - The outer state of HMAC-SHA256.
+/// * `inner_state`     - The inner state of HMAC-SHA256.
+/// * `seed`            - The seed to use.
+/// * `label`           - The label to use.
+/// * `bytes`           - The number of bytes to output.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(
@@ -116,15 +116,15 @@ pub fn prf_trace<'a>(
     output
 }
 
-/// Reference implementation of PRF(secret, label, seed)
+/// Reference implementation of PRF(secret, label, seed).
 ///
 /// # Arguments
 ///
-/// * `outer_state` - The outer state of HMAC-SHA256
-/// * `inner_state` - The inner state of HMAC-SHA256
-/// * `seed`        - The seed to use
-/// * `label`       - The label to use
-/// * `bytes`       - The number of bytes to output
+/// * `outer_state` - The outer state of HMAC-SHA256.
+/// * `inner_state` - The inner state of HMAC-SHA256.
+/// * `seed`        - The seed to use.
+/// * `label`       - The label to use.
+/// * `bytes`       - The number of bytes to output.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", skip(outer_state, inner_state, seed, label))

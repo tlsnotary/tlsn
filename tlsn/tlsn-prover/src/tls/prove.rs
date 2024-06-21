@@ -163,7 +163,7 @@ impl Prover<ProveState> {
             ..
         } = self.state;
 
-        // Create session data and session_info
+        // Create session info.
         let session_info = SessionInfo {
             server_name: ServerName::Dns(self.config.server_dns().to_string()),
             handshake_decommitment,

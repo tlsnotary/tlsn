@@ -17,7 +17,6 @@ env:
 jobs:
   build_and_test:
     name: Build and test
-    if: ( ! github.event.pull_request.draft )
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -46,7 +45,7 @@ jobs:
         working-directory: ${{ matrix.package }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install nightly rust toolchain with rustfmt
         uses: dtolnay/rust-toolchain@stable
@@ -67,28 +66,26 @@ jobs:
         run: cargo clippy --all-features --examples -- -D warnings
 
       - name: Use caching
-        uses: Swatinem/rust-cache@v2.5.0
+        uses: Swatinem/rust-cache@v2.7.3
         with:
-          workspaces: ${{ matrix.package }} -> target
+          workspaces: ${{ matrix.package }}
 
       - name: "Build"
         run: cargo build ${{ matrix.release && '--release' }}
 
-      - name: "Test"
-        if: ${{ matrix.release != true }}
-        run: cargo test --lib --bins --tests --examples --workspace
+      - name: Add custom DNS entry to /etc/hosts for notary-server TLS test
+        if: matrix.package == 'notary-server'
+        run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
 
-      - name: "Test all features"
-        if: ${{ matrix.release != true && matrix.all-features == true }}
-        run: cargo test --lib --bins --tests --examples --workspace --all-features
-
-      - name: "Integration Test"
-        if: ${{ matrix.release == true }}
-        run: cargo test --release --tests
-
-      - name: "Integration Test all features"
-        if: ${{ matrix.release == true && matrix.all-features == true }}
-        run: cargo test --release --tests --all-features
+      - name: "Test ${{ matrix.release && '--release' || '' }} ${{ matrix.all-features && '--all-features' || '' }}"
+        env:
+          RELEASE_OPTION: ${{ matrix.release && '--release' || '' }}
+          ALL_FEATURES_OPTION: ${{ matrix.all-features && '--all-features' || '' }}
+        # Run all tests (bins, examples, lib, integration and docs)
+        # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
+        run: |
+          echo "Running command: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION"
+          cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION
 
       - name: "Check that benches compile"
         run: cargo bench --no-run

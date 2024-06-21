@@ -132,7 +132,7 @@ impl SessionInfo {
     ///
     /// # Arguments
     ///
-    /// * `notary_public_key` - The public key of the notary.
+    /// * `handshake_summary` - The summary of the handshake.
     pub fn verify_with_default_cert_verifier(
         &self,
         handshake_summary: &HandshakeSummary,

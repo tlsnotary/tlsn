@@ -9,7 +9,7 @@ use tlsn_common::{
 };
 use tlsn_core::proof::default_cert_verifier;
 
-/// Configuration for the [`Verifier`](crate::tls::Verifier)
+/// Configuration for the [`Verifier`](crate::tls::Verifier).
 #[allow(missing_docs)]
 #[derive(derive_builder::Builder)]
 #[builder(pattern = "owned")]
@@ -42,7 +42,7 @@ impl Debug for VerifierConfig {
 }
 
 impl VerifierConfig {
-    /// Create a new configuration builder.
+    /// Creates a new configuration builder.
     pub fn builder() -> VerifierConfigBuilder {
         VerifierConfigBuilder::default()
     }
@@ -62,7 +62,7 @@ impl VerifierConfig {
         self.max_recv_data
     }
 
-    /// Get the certificate verifier.
+    /// Returns the certificate verifier.
     pub fn cert_verifier(&self) -> &impl ServerCertVerifier {
         self.cert_verifier
             .as_ref()

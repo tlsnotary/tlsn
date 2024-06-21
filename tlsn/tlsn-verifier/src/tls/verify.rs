@@ -130,7 +130,7 @@ impl Verifier<VerifyState> {
         }
     }
 
-    /// Verify the TLS session.
+    /// Verifies the TLS session.
     pub async fn finalize(self) -> Result<SessionInfo, VerifierError> {
         let VerifyState {
             mut mux_ctrl,

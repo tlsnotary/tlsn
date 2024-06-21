@@ -12,7 +12,7 @@ struct State {
     key: Option<ValueRef>,
 }
 
-/// An MPC block cipher
+/// An MPC block cipher.
 pub struct MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
@@ -30,12 +30,12 @@ where
     C: BlockCipherCircuit,
     E: Memory + Execute + Decode + DecodePrivate + Send + Sync,
 {
-    /// Creates a new MPC block cipher
+    /// Creates a new MPC block cipher.
     ///
     /// # Arguments
     ///
-    /// * `config` - The configuration for the block cipher
-    /// * `executor` - The executor to use for the MPC
+    /// * `config` - The configuration for the block cipher.
+    /// * `executor` - The executor to use for the MPC.
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(level = "info", skip(executor))

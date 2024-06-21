@@ -4,10 +4,21 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use async_rustls::{server::TlsStream, TlsAcceptor};
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, FutureExt, TryStreamExt};
-use hyper::{server::conn::Http, service::service_fn, Body, Method, Request, Response, StatusCode};
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use bytes::Bytes;
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use futures_rustls::{
+    pki_types::{CertificateDer, PrivateKeyDer},
+    rustls::ServerConfig,
+    TlsAcceptor,
+};
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use hyper::{
+    body::{Frame, Incoming},
+    server::conn::http1,
+    service::service_fn,
+    Method, Request, Response, StatusCode,
+};
+use hyper_util::rt::TokioIo;
 use std::{io::Write, sync::Arc};
 use tokio_util::{
     compat::{Compat, FuturesAsyncReadCompatExt},
@@ -16,11 +27,11 @@ use tokio_util::{
 use tracing::Instrument;
 
 /// A certificate authority certificate fixture.
-pub static CA_CERT_DER: &[u8] = include_bytes!("rootCA.der");
+pub static CA_CERT_DER: &[u8] = include_bytes!("root_ca_cert.der");
 /// A server certificate (domain=test-server.io) fixture.
-pub static SERVER_CERT_DER: &[u8] = include_bytes!("domain.der");
+pub static SERVER_CERT_DER: &[u8] = include_bytes!("test_server_cert.der");
 /// A server private key fixture.
-pub static SERVER_KEY_DER: &[u8] = include_bytes!("domain_key.der");
+pub static SERVER_KEY_DER: &[u8] = include_bytes!("test_server_private_key.der");
 /// The domain name bound to the server certificate.
 pub static SERVER_DOMAIN: &str = "test-server.io";
 /// The length of an application record expected by the test TLS server.
@@ -32,12 +43,11 @@ pub static CLOSE_DELAY: u64 = 1000;
 #[tracing::instrument(skip(socket))]
 pub async fn bind_test_server_hyper<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
-) -> Result<TlsStream<T>, hyper::Error> {
-    let key = PrivateKey(SERVER_KEY_DER.to_vec());
-    let cert = Certificate(SERVER_CERT_DER.to_vec());
+) -> Result<(), hyper::Error> {
+    let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
+    let cert = CertificateDer::from(SERVER_CERT_DER);
 
     let config = ServerConfig::builder()
-        .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(vec![cert], key)
         .unwrap();
@@ -46,14 +56,13 @@ pub async fn bind_test_server_hyper<T: AsyncRead + AsyncWrite + Send + Unpin + '
 
     let conn = acceptor.accept(socket).await.unwrap();
 
+    let io = TokioIo::new(conn.compat());
+
     tracing::debug!("starting HTTP server");
 
-    Http::new()
-        .http1_only(true)
-        .http1_keep_alive(true)
-        .serve_connection(conn.compat(), service_fn(echo))
-        .without_shutdown()
-        .map(|res| res.map(|parts| parts.io.into_inner()))
+    http1::Builder::new()
+        .keep_alive(true)
+        .serve_connection(io, service_fn(echo))
         .in_current_span()
         .await
 }
@@ -65,11 +74,10 @@ pub async fn bind_test_server<
 >(
     socket: Compat<T>,
 ) {
-    let key = PrivateKey(SERVER_KEY_DER.to_vec());
-    let cert = Certificate(SERVER_CERT_DER.to_vec());
+    let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
+    let cert = CertificateDer::from(SERVER_CERT_DER);
 
     let config = ServerConfig::builder()
-        .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(vec![cert], key)
         .unwrap();
@@ -228,26 +236,35 @@ pub async fn bind_test_server<
     }
 }
 
+// Adapted from https://github.com/hyperium/hyper/blob/721785efad8537513e48d900a85c05ce79483018/examples/echo.rs
 #[tracing::instrument]
-async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn echo(
+    req: Request<Incoming>,
+) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
-        (&Method::GET, "/") => Ok(Response::new(Body::from(
+        (&Method::GET, "/") => Ok(Response::new(full(
             "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d 'hello world'`",
         ))),
 
         // Simply echo the body back to the client.
-        (&Method::POST, "/echo") => Ok(Response::new(req.into_body())),
+        (&Method::POST, "/echo") => Ok(Response::new(req.into_body().boxed())),
 
         // Convert to uppercase before sending back to client using a stream.
         (&Method::POST, "/echo/uppercase") => {
-            let chunk_stream = req.into_body().map_ok(|chunk| {
-                chunk
-                    .iter()
-                    .map(|byte| byte.to_ascii_uppercase())
-                    .collect::<Vec<u8>>()
+            let frame_stream = req.into_body().map_frame(|frame| {
+                let frame = if let Ok(data) = frame.into_data() {
+                    data.iter()
+                        .map(|byte| byte.to_ascii_uppercase())
+                        .collect::<Bytes>()
+                } else {
+                    Bytes::new()
+                };
+
+                Frame::data(frame)
             });
-            Ok(Response::new(Body::wrap_stream(chunk_stream)))
+
+            Ok(Response::new(frame_stream.boxed()))
         }
 
         // Reverse the entire body before sending back to the client.
@@ -257,17 +274,29 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         // So here we do `.await` on the future, waiting on concatenating the full body,
         // then afterwards the content can be reversed. Only then can we return a `Response`.
         (&Method::POST, "/echo/reversed") => {
-            let whole_body = hyper::body::to_bytes(req.into_body()).await?;
+            let whole_body = req.collect().await?.to_bytes();
 
             let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
-            Ok(Response::new(Body::from(reversed_body)))
+            Ok(Response::new(full(reversed_body)))
         }
 
         // Return the 404 Not Found for other routes.
         _ => {
-            let mut not_found = Response::default();
+            let mut not_found = Response::new(empty());
             *not_found.status_mut() = StatusCode::NOT_FOUND;
             Ok(not_found)
         }
     }
+}
+
+fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
+    Full::new(chunk.into())
+        .map_err(|never| match never {})
+        .boxed()
+}
+
+fn empty() -> BoxBody<Bytes, hyper::Error> {
+    Empty::<Bytes>::new()
+        .map_err(|never| match never {})
+        .boxed()
 }

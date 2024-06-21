@@ -1,4 +1,4 @@
-//! TLS Verifier
+//! TLS Verifier.
 
 pub(crate) mod config;
 mod error;
@@ -56,7 +56,7 @@ pub struct Verifier<T: state::VerifierState> {
 }
 
 impl Verifier<state::Initialized> {
-    /// Create a new verifier.
+    /// Creates a new verifier.
     pub fn new(config: VerifierConfig) -> Self {
         Self {
             config,
@@ -64,7 +64,7 @@ impl Verifier<state::Initialized> {
         }
     }
 
-    /// Set up the verifier.
+    /// Sets up the verifier.
     ///
     /// This performs all MPC setup.
     ///
@@ -107,6 +107,11 @@ impl Verifier<state::Initialized> {
     /// Runs the TLS verifier to completion, notarizing the TLS session.
     ///
     /// This is a convenience method which runs all the steps needed for notarization.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to the prover.
+    /// * `signer` - The signer used to sign the notarization result.
     pub async fn notarize<S: AsyncWrite + AsyncRead + Send + Unpin + 'static, T>(
         self,
         socket: S,
@@ -127,6 +132,10 @@ impl Verifier<state::Initialized> {
     /// Runs the TLS verifier to completion, verifying the TLS session.
     ///
     /// This is a convenience method which runs all the steps needed for verification.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to the prover.
     pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,

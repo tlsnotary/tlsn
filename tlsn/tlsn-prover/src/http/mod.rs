@@ -1,9 +1,10 @@
 //! HTTP Prover.
 //!
-//! An HTTP prover can be created from a TLS [`Prover`](crate::tls::Prover), after the TLS connection has been closed, by calling the
-//! [`to_http`](crate::tls::Prover::to_http) method.
+//! An HTTP prover can be created from a TLS [`Prover`](crate::tls::Prover), after the TLS connection
+//! has been closed, by calling the [`to_http`](crate::tls::Prover::to_http) method.
 //!
-//! The [`HttpProver`] provides higher-level APIs for committing and proving data communicated during an HTTP connection.
+//! The [`HttpProver`] provides higher-level APIs for committing and proving data communicated during
+//! an HTTP connection.
 
 pub mod state;
 
@@ -44,7 +45,7 @@ impl HttpProver<state::Closed> {
 
     /// Starts notarization of the HTTP session.
     ///
-    /// If the verifier is a Notary, this function will transition the prover to the next state
+    /// Used when the TLS verifier is a Notary to transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
     pub fn start_notarize(self) -> HttpProver<state::Notarize> {
         HttpProver {
