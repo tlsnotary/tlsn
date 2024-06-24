@@ -3,7 +3,7 @@ use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
 use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, ConfigurationData},
+    config::{ot_recv_estimate, ot_send_estimate, ConfigurationInfo},
     Role,
 };
 
@@ -19,9 +19,9 @@ pub struct ProverConfig {
     /// TLS root certificate store.
     #[builder(setter(strip_option), default = "default_root_store()")]
     pub(crate) root_cert_store: RootCertStore,
-    /// Configuration data to be checked with the verifier.
-    #[builder(default = "ConfigurationData::builder().build().unwrap()")]
-    pub configuration_data: ConfigurationData,
+    /// Initial configuration info to be checked with the verifier.
+    #[builder(default = "ConfigurationInfo::builder().build().unwrap()")]
+    pub configuration_info: ConfigurationInfo,
 }
 
 impl ProverConfig {
@@ -42,13 +42,13 @@ impl ProverConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.configuration_data.max_sent_data())
+                            .max_size(self.configuration_info.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.configuration_data.max_recv_data())
+                            .max_size(self.configuration_info.max_recv_data())
                             .build()
                             .unwrap(),
                     )
@@ -85,16 +85,16 @@ impl ProverConfig {
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
         ot_send_estimate(
             Role::Prover,
-            self.configuration_data.max_sent_data(),
-            self.configuration_data.max_recv_data(),
+            self.configuration_info.max_sent_data(),
+            self.configuration_info.max_recv_data(),
         )
     }
 
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
         ot_recv_estimate(
             Role::Prover,
-            self.configuration_data.max_sent_data(),
-            self.configuration_data.max_recv_data(),
+            self.configuration_info.max_sent_data(),
+            self.configuration_info.max_recv_data(),
         )
     }
 

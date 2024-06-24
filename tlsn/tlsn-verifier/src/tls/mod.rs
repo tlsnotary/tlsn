@@ -83,26 +83,15 @@ impl Verifier<state::Initialized> {
             fut: Box::pin(async move { mux.run().await.map_err(VerifierError::from) }.fuse()),
         };
 
+        // Receives configuration info from prover to perform compatibility check
         let mut configuration_fut = Box::pin({
-            let self_configuration = self.config.configuration_data.clone();
+            let self_configuration = self.config.configuration_info.clone();
             let mut mux_ctrl = mux_ctrl.clone();
             async move {
                 let mut channel = mux_ctrl.get_channel("configuration").await?;
                 let peer_configuration =
-                    expect_msg_or_err!(channel, TlsnMessage::ConfigurationData)?;
-                #[cfg(feature = "tracing")]
-                tracing::debug!(
-                    "Obtained configuration data from prover: {:?}",
-                    peer_configuration
-                );
-                #[cfg(feature = "tracing")]
-                tracing::debug!(
-                    "Comparing that with self configuration data {:?}",
-                    self_configuration
-                );
+                    expect_msg_or_err!(channel, TlsnMessage::ConfigurationInfo)?;
                 self_configuration.compare(&peer_configuration)?;
-                #[cfg(feature = "tracing")]
-                tracing::debug!("Configurations are compatible!");
 
                 Ok::<_, VerifierError>(())
             }

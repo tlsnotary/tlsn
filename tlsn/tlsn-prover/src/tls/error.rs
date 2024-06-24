@@ -1,6 +1,6 @@
 use std::error::Error;
 use tls_mpc::MpcTlsError;
-use tlsn_common::config::ConfigurationDataError;
+use tlsn_common::config::ConfigurationError;
 use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
 /// An error that can occur during proving.
@@ -30,7 +30,7 @@ pub enum ProverError {
     #[error("Range exceeds transcript length")]
     InvalidRange,
     #[error(transparent)]
-    ConfigurationError(#[from] ConfigurationDataError),
+    ConfigurationError(#[from] ConfigurationError),
 }
 
 impl From<MpcTlsError> for ProverError {

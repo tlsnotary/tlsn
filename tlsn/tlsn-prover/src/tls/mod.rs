@@ -83,21 +83,15 @@ impl Prover<state::Initialized> {
             fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }.fuse()),
         };
 
+        // Sends configuration info to verifier for compatibility check
         let mut configuration_fut = Box::pin({
-            let self_configuration = self.config.configuration_data.clone();
+            let self_configuration = self.config.configuration_info.clone();
             let mut mux_ctrl = mux_ctrl.clone();
             async move {
                 let mut channel = mux_ctrl.get_channel("configuration").await?;
-                #[cfg(feature = "tracing")]
-                tracing::debug!(
-                    "Sending configuration data to verifier: {:?}",
-                    self_configuration
-                );
                 channel
-                    .send(TlsnMessage::ConfigurationData(self_configuration))
+                    .send(TlsnMessage::ConfigurationInfo(self_configuration))
                     .await?;
-                #[cfg(feature = "tracing")]
-                tracing::debug!("Sent configuration data to verifier");
 
                 Ok::<_, ProverError>(())
             }

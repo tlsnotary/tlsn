@@ -21,13 +21,13 @@ const OTS_PER_BYTE_SENT: usize = 8;
 // Without deferred decryption we use 16, with it we use 8.
 const OTS_PER_BYTE_RECV: usize = 16;
 
-// Current version that is running
+// Current version that is running.
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-/// Configuration data to be exchanged in the beginning of the protocol to check compatibility.
+/// Configuration info to be exchanged initially between prover and verifier for compatibility check.
 #[derive(derive_builder::Builder, Clone, Debug, Deserialize, Serialize)]
 #[non_exhaustive]
-pub struct ConfigurationData {
+pub struct ConfigurationInfo {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
@@ -39,10 +39,10 @@ pub struct ConfigurationData {
     version: String,
 }
 
-impl ConfigurationData {
-    /// Creates a new builder for `ConfigurationData`.
-    pub fn builder() -> ConfigurationDataBuilder {
-        ConfigurationDataBuilder::default()
+impl ConfigurationInfo {
+    /// Creates a new builder for `ConfigurationInfo`.
+    pub fn builder() -> ConfigurationInfoBuilder {
+        ConfigurationInfoBuilder::default()
     }
 
     /// Returns the maximum number of bytes that can be sent.
@@ -55,26 +55,27 @@ impl ConfigurationData {
         self.max_recv_data
     }
 
-    /// Perform compatibility check of the configuration data at the beginning of the protocol between prover and verifier.
-    pub fn compare(&self, configuration: &Self) -> Result<(), ConfigurationDataError> {
+    /// Performs compatibility check of the configuration info between prover and verifier.
+    pub fn compare(&self, configuration: &Self) -> Result<(), ConfigurationError> {
         self.check_max_transcript_size(configuration.max_sent_data, configuration.max_recv_data)?;
         self.check_version(&configuration.version)?;
         Ok(())
     }
 
+    // Checks if both the sent and recv limits are the same.
     fn check_max_transcript_size(
         &self,
         max_sent_data: usize,
         max_recv_data: usize,
-    ) -> Result<(), ConfigurationDataError> {
+    ) -> Result<(), ConfigurationError> {
         if max_sent_data != self.max_sent_data {
-            return Err(ConfigurationDataError::max_transcript_size(
+            return Err(ConfigurationError::max_transcript_size(
                 "prover and verifier have different max_sent_data configured",
             ));
         }
 
         if max_recv_data != self.max_recv_data {
-            return Err(ConfigurationDataError::max_transcript_size(
+            return Err(ConfigurationError::max_transcript_size(
                 "prover and verifier have different max_recv_data configured",
             ));
         }
@@ -82,15 +83,16 @@ impl ConfigurationData {
         Ok(())
     }
 
-    fn check_version(&self, version: &str) -> Result<(), ConfigurationDataError> {
+    // Checks if both versions are the same (might support check for different but compatible versions in the future).
+    fn check_version(&self, version: &str) -> Result<(), ConfigurationError> {
         let self_version = Version::parse(&self.version)
-            .map_err(|err| ConfigurationDataError::new(ErrorKind::Version, err))?;
+            .map_err(|err| ConfigurationError::new(ErrorKind::Version, err))?;
 
         let peer_version = Version::parse(version)
-            .map_err(|err| ConfigurationDataError::new(ErrorKind::Version, err))?;
+            .map_err(|err| ConfigurationError::new(ErrorKind::Version, err))?;
 
         if peer_version != self_version {
-            return Err(ConfigurationDataError::version(
+            return Err(ConfigurationError::version(
                 "prover and verifier are running different versions",
             ));
         }
@@ -99,15 +101,15 @@ impl ConfigurationData {
     }
 }
 
-/// A ConfigurationData error.
-#[derive(Debug, thiserror::Error)]
-pub struct ConfigurationDataError {
+/// A Configuration error.
+#[derive(thiserror::Error, Debug)]
+pub struct ConfigurationError {
     kind: ErrorKind,
     #[source]
     source: Option<Box<dyn Error + Send + Sync>>,
 }
 
-impl ConfigurationDataError {
+impl ConfigurationError {
     fn new<E>(kind: ErrorKind, source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync>>,
@@ -133,7 +135,7 @@ impl ConfigurationDataError {
     }
 }
 
-impl fmt::Display for ConfigurationDataError {
+impl fmt::Display for ConfigurationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
             ErrorKind::MaxTranscriptSize => write!(f, "max transcript size error")?,
@@ -187,13 +189,13 @@ mod test {
 
     #[fixture]
     #[once]
-    fn self_config() -> ConfigurationData {
-        ConfigurationData::builder().build().unwrap()
+    fn self_config() -> ConfigurationInfo {
+        ConfigurationInfo::builder().build().unwrap()
     }
 
     #[rstest]
-    fn test_check_success(self_config: &ConfigurationData) {
-        let peer_config = ConfigurationData::builder().build().unwrap();
+    fn test_check_success(self_config: &ConfigurationInfo) {
+        let peer_config = ConfigurationInfo::builder().build().unwrap();
         assert!(self_config.compare(&peer_config).is_ok())
     }
 
@@ -202,11 +204,11 @@ mod test {
     #[case::diff_max_recv_data(DEFAULT_MAX_SENT_LIMIT, 1 << 11)]
     #[case::diff_max_sent_recv_data(1 << 10, 1 << 11)]
     fn test_check_fail(
-        self_config: &ConfigurationData,
+        self_config: &ConfigurationInfo,
         #[case] max_sent_data: usize,
         #[case] max_recv_data: usize,
     ) {
-        let peer_config = ConfigurationData::builder()
+        let peer_config = ConfigurationInfo::builder()
             .max_sent_data(max_sent_data)
             .max_recv_data(max_recv_data)
             .build()

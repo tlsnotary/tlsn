@@ -12,7 +12,7 @@ use rstest::rstest;
 use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_common::config::ConfigurationData;
+use tlsn_common::config::ConfigurationInfo;
 use tlsn_notary_client::{NotarizationRequest, NotaryClient, NotaryConnection};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -176,7 +176,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let configuration_data = ConfigurationData::builder()
+    let configuration_info = ConfigurationInfo::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
         .build()
@@ -186,7 +186,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
-        .configuration_data(configuration_data)
+        .configuration_info(configuration_info)
         .root_cert_store(root_cert_store)
         .build()
         .unwrap();
@@ -356,7 +356,7 @@ async fn test_websocket_prover() {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let configuration_data = ConfigurationData::builder()
+    let configuration_info = ConfigurationInfo::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
         .build()
@@ -367,7 +367,7 @@ async fn test_websocket_prover() {
         .id(notarization_response.session_id)
         .server_dns(SERVER_DOMAIN)
         .root_cert_store(root_store)
-        .configuration_data(configuration_data)
+        .configuration_info(configuration_info)
         .build()
         .unwrap();
 

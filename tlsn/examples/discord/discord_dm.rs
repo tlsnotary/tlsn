@@ -6,7 +6,7 @@ use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::{env, ops::Range, str};
-use tlsn_common::config::ConfigurationData;
+use tlsn_common::config::ConfigurationInfo;
 use tlsn_core::proof::TlsProof;
 use tlsn_notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use tlsn_prover::tls::{Prover, ProverConfig};
@@ -66,7 +66,8 @@ async fn main() {
         .await
         .unwrap();
 
-    let configuration_data = ConfigurationData::builder()
+    // Setup initial configuration info for prover.
+    let configuration_info = ConfigurationInfo::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
         .build()
@@ -76,7 +77,7 @@ async fn main() {
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
-        .configuration_data(configuration_data)
+        .configuration_info(configuration_info)
         .build()
         .unwrap();
 
