@@ -22,8 +22,6 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - components/integration-tests
-          - components/uid-mux
           - components/cipher
           - components/universal-hash
           - components/aead
@@ -34,7 +32,7 @@ jobs:
           - tlsn
           - notary-server
         include:
-          - package: components/integration-tests
+          - package: components/tls/tls-mpc
             release: true
           - package: notary-server
             release: true
@@ -81,7 +79,7 @@ jobs:
         # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
         run: |
           echo "Running command: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION"
-          cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION
+          cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION -- --include-ignored
 
       - name: "Check that benches compile"
         run: cargo bench --no-run
