@@ -16,33 +16,28 @@ pub mod state;
 pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 pub use future::ProverFuture;
-use tlsn_common::{
-    mux::{attach_mux, MuxControl},
-    Role,
-};
-
-use error::OTShutdownError;
-use future::{MuxFuture, OTFuture};
-use futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
-use mpz_garble::{config::Role as DEAPRole, protocol::deap::DEAPVm};
-use mpz_ot::{
-    actor::kos::{ReceiverActor, SenderActor, SharedReceiver, SharedSender},
-    chou_orlandi, kos,
-};
-use mpz_share_conversion as ff;
-use rand::Rng;
 use state::{Notarize, Prove};
+
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use mpz_common::Allocate;
+use mpz_garble::config::Role as DEAPRole;
+use mpz_ot::{chou_orlandi, kos};
+use rand::Rng;
+use serio::StreamExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tls_mpc::{setup_components, LeaderCtrl, MpcTlsLeader, TlsRole};
+use tls_mpc::{build_components, LeaderCtrl, MpcTlsLeader, TlsRole};
+use tlsn_common::{
+    mux::{attach_mux, MuxControl},
+    DEAPThread, Executor, OTReceiver, OTSender, Role,
+};
 use tlsn_core::transcript::Transcript;
-use utils_aio::mux::MuxChannel;
+use uid_mux::FramedUidMux as _;
 
 #[cfg(feature = "formats")]
 use crate::http::{state as http_state, HttpProver, HttpProverError};
 
-#[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};
 
 /// A prover instance.
@@ -73,31 +68,41 @@ impl Prover<state::Initialized> {
     /// # Arguments
     ///
     /// * `socket` - The socket to the TLS verifier.
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
     ) -> Result<Prover<state::Setup>, ProverError> {
-        let (mut mux, mux_ctrl) = attach_mux(socket, Role::Prover);
+        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
 
-        let mut mux_fut = MuxFuture {
-            fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }.fuse()),
-        };
+        let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
-        let mpc_setup_fut = setup_mpc_backend(&self.config, mux_ctrl.clone());
-        let (mpc_tls, vm, _, gf2, ot_fut) = futures::select! {
-            res = mpc_setup_fut.fuse() => res?,
-            _ = (&mut mux_fut).fuse() => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-        };
+        let (mpc_tls, vm, ot_recv) = mux_fut
+            .poll_with(setup_mpc_backend(&self.config, &mux_ctrl, &mut exec))
+            .await?;
+
+        let io = mux_fut
+            .poll_with(
+                mux_ctrl
+                    .open_framed(b"tlsnotary")
+                    .map_err(ProverError::from),
+            )
+            .await?;
+
+        let ctx = mux_fut
+            .poll_with(exec.new_thread().map_err(ProverError::from))
+            .await?;
 
         Ok(Prover {
             config: self.config,
             state: state::Setup {
+                io,
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 vm,
-                ot_fut,
-                gf2,
+                ot_recv,
+                ctx,
             },
         })
     }
@@ -112,21 +117,19 @@ impl Prover<state::Setup> {
     /// # Arguments
     ///
     /// * `socket` - The socket to the server.
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(level = "debug", skip(self, socket), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn connect<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture), ProverError> {
         let state::Setup {
+            io,
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
             vm,
-            mut ot_fut,
-            gf2,
+            ot_recv,
+            ctx,
         } = self.state;
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
@@ -145,31 +148,31 @@ impl Prover<state::Setup> {
 
         let fut = Box::pin({
             let mpc_ctrl = mpc_ctrl.clone();
-            #[allow(clippy::let_and_return)]
-            let fut = async move {
+            async move {
                 let conn_fut = async {
-                    let ClosedConnection { sent, recv, .. } = futures::select! {
-                        res = conn_fut.fuse() => res?,
-                        _ = ot_fut => return Err(OTShutdownError)?,
-                        _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-                    };
+                    let ClosedConnection { sent, recv, .. } = mux_fut
+                        .poll_with(conn_fut.map_err(ProverError::from))
+                        .await?;
 
                     mpc_ctrl.close_connection().await?;
 
                     Ok::<_, ProverError>((sent, recv))
                 };
 
-                let ((sent, recv), mpc_tls_data) =
-                    futures::try_join!(conn_fut, mpc_fut.map_err(ProverError::from))?;
+                let ((sent, recv), mpc_tls_data) = futures::try_join!(
+                    conn_fut,
+                    mpc_fut.in_current_span().map_err(ProverError::from)
+                )?;
 
                 Ok(Prover {
                     config: self.config,
                     state: state::Closed {
+                        io,
                         mux_ctrl,
                         mux_fut,
                         vm,
-                        ot_fut,
-                        gf2,
+                        ot_recv,
+                        ctx,
                         start_time,
                         handshake_decommitment: mpc_tls_data
                             .handshake_decommitment
@@ -179,10 +182,8 @@ impl Prover<state::Setup> {
                         transcript_rx: Transcript::new(recv),
                     },
                 })
-            };
-            #[cfg(feature = "tracing")]
-            let fut = fut.instrument(debug_span!("prover_tls_connection"));
-            fut
+            }
+            .instrument(debug_span!("prover"))
         });
 
         Ok((
@@ -236,122 +237,116 @@ impl Prover<state::Closed> {
 }
 
 /// Performs a setup of the various MPC subprotocols.
-#[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-#[allow(clippy::type_complexity)]
+#[instrument(level = "debug", skip_all, err)]
 async fn setup_mpc_backend(
     config: &ProverConfig,
-    mut mux: MuxControl,
-) -> Result<
-    (
-        MpcTlsLeader,
-        DEAPVm<SharedSender, SharedReceiver>,
-        SharedReceiver,
-        ff::ConverterSender<ff::Gf2_128, SharedSender>,
-        OTFuture,
-    ),
-    ProverError,
-> {
-    let (ot_send_sink, ot_send_stream) = mux.get_channel("ot/0").await?.split();
-    let (ot_recv_sink, ot_recv_stream) = mux.get_channel("ot/1").await?.split();
-
-    let mut ot_sender_actor = SenderActor::new(
-        kos::Sender::new(
-            config.build_ot_sender_config(),
-            chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
-        ),
-        ot_send_sink,
-        ot_send_stream,
+    mux: &MuxControl,
+    exec: &mut Executor,
+) -> Result<(MpcTlsLeader, DEAPThread, OTReceiver), ProverError> {
+    let mut ot_sender = kos::Sender::new(
+        config.build_ot_sender_config(),
+        chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
     );
+    ot_sender.alloc(config.ot_sender_setup_count());
 
-    let mut ot_receiver_actor = ReceiverActor::new(
-        kos::Receiver::new(
-            config.build_ot_receiver_config(),
-            chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
-        ),
-        ot_recv_sink,
-        ot_recv_stream,
+    let mut ot_receiver = kos::Receiver::new(
+        config.build_ot_receiver_config(),
+        chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
     );
+    ot_receiver.alloc(config.ot_receiver_setup_count());
 
-    let ot_send = ot_sender_actor.sender();
-    let ot_recv = ot_receiver_actor.receiver();
+    let ot_sender = OTSender::new(ot_sender);
+    let ot_receiver = OTReceiver::new(ot_receiver);
 
-    #[cfg(feature = "tracing")]
-    debug!("Starting OT setup");
-
-    futures::try_join!(
-        ot_sender_actor
-            .setup(config.ot_sender_setup_count())
-            .map_err(ProverError::from),
-        ot_receiver_actor
-            .setup(config.ot_receiver_setup_count())
-            .map_err(ProverError::from)
+    let (
+        ctx_vm,
+        ctx_ke_0,
+        ctx_ke_1,
+        ctx_prf_0,
+        ctx_prf_1,
+        ctx_encrypter_block_cipher,
+        ctx_encrypter_stream_cipher,
+        ctx_encrypter_ghash,
+        ctx_encrypter,
+        ctx_decrypter_block_cipher,
+        ctx_decrypter_stream_cipher,
+        ctx_decrypter_ghash,
+        ctx_decrypter,
+    ) = futures::try_join!(
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
     )?;
 
-    #[cfg(feature = "tracing")]
-    debug!("OT setup complete");
-
-    let ot_fut = OTFuture {
-        fut: Box::pin(
-            async move {
-                futures::try_join!(
-                    ot_sender_actor.run().map_err(ProverError::from),
-                    ot_receiver_actor.run().map_err(ProverError::from)
-                )?;
-
-                Ok(())
-            }
-            .fuse(),
-        ),
-    };
-
-    let mut vm = DEAPVm::new(
-        "vm",
+    let vm = DEAPThread::new(
         DEAPRole::Leader,
         rand::rngs::OsRng.gen(),
-        mux.get_channel("vm").await?,
-        Box::new(mux.clone()),
-        ot_send.clone(),
-        ot_recv.clone(),
+        ctx_vm,
+        ot_sender.clone(),
+        ot_receiver.clone(),
     );
 
-    let p256_sender_config = config.build_p256_sender_config();
-    let channel = mux.get_channel(p256_sender_config.id()).await?;
-    let p256_send =
-        ff::ConverterSender::<ff::P256, _>::new(p256_sender_config, ot_send.clone(), channel);
-
-    let p256_receiver_config = config.build_p256_receiver_config();
-    let channel = mux.get_channel(p256_receiver_config.id()).await?;
-    let p256_recv =
-        ff::ConverterReceiver::<ff::P256, _>::new(p256_receiver_config, ot_recv.clone(), channel);
-
-    let gf2_config = config.build_gf2_config();
-    let channel = mux.get_channel(gf2_config.id()).await?;
-    let gf2 = ff::ConverterSender::<ff::Gf2_128, _>::new(gf2_config, ot_send.clone(), channel);
-
     let mpc_tls_config = config.build_mpc_tls_config();
-
-    let (ke, prf, encrypter, decrypter) = setup_components(
-        mpc_tls_config.common(),
+    let (ke, prf, encrypter, decrypter) = build_components(
         TlsRole::Leader,
-        &mut mux,
-        &mut vm,
-        p256_send,
-        p256_recv,
-        gf2.handle()
-            .map_err(|e| ProverError::MpcError(Box::new(e)))?,
-    )
-    .await
-    .map_err(|e| ProverError::MpcError(Box::new(e)))?;
+        mpc_tls_config.common(),
+        ctx_ke_0,
+        ctx_encrypter,
+        ctx_decrypter,
+        ctx_encrypter_ghash,
+        ctx_decrypter_ghash,
+        vm.new_thread(ctx_ke_1, ot_sender.clone(), ot_receiver.clone())?,
+        vm.new_thread(ctx_prf_0, ot_sender.clone(), ot_receiver.clone())?,
+        vm.new_thread(ctx_prf_1, ot_sender.clone(), ot_receiver.clone())?,
+        vm.new_thread(
+            ctx_encrypter_block_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )?,
+        vm.new_thread(
+            ctx_decrypter_block_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )?,
+        vm.new_thread(
+            ctx_encrypter_stream_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )?,
+        vm.new_thread(
+            ctx_decrypter_stream_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )?,
+        ot_sender.clone(),
+        ot_receiver.clone(),
+    );
 
-    let channel = mux.get_channel(mpc_tls_config.common().id()).await?;
-    let mut mpc_tls = MpcTlsLeader::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
+    let channel = mux.open_framed(b"mpc_tls").await?;
+    let mut mpc_tls = MpcTlsLeader::new(
+        mpc_tls_config,
+        Box::new(StreamExt::compat_stream(channel)),
+        ke,
+        prf,
+        encrypter,
+        decrypter,
+    );
 
     mpc_tls.setup().await?;
 
-    #[cfg(feature = "tracing")]
     debug!("MPC backend setup complete");
 
-    Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))
+    Ok((mpc_tls, vm, ot_receiver))
 }
 
 /// A controller for the prover.

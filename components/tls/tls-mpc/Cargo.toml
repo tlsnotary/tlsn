@@ -18,13 +18,13 @@ default = []
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
 
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }
@@ -33,10 +33,8 @@ tlsn-aead = { path = "../../aead" }
 tlsn-key-exchange = { path = "../../key-exchange" }
 tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f8d4533" }
-uid-mux = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f8d4533", features = [
-    "serio",
-] }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
+uid-mux = { version = "0.1", features = ["serio"] }
 
 p256.workspace = true
 rand.workspace = true
@@ -53,9 +51,7 @@ ludi = { git = "https://github.com/sinui0/ludi", rev = "b590de5" }
 tlsn-tls-client = { path = "../tls-client" }
 tlsn-tls-client-async = { path = "../tls-client-async" }
 tls-server-fixture = { path = "../tls-server-fixture" }
-serio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f8d4533", features = [
-    "compat",
-] }
+serio = { version = "0.1", features = ["compat"] }
 
 tracing-subscriber.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }

@@ -9,11 +9,6 @@ members = [
 ]
 resolver = "2"
 
-[patch."https://github.com/tlsnotary/tlsn-utils"]
-tlsn-utils-aio = { git = "https://github.com/tlsnotary//tlsn-utils", rev = "f8d4533" }
-uid-mux = { git = "https://github.com/tlsnotary//tlsn-utils", rev = "f8d4533" }
-serio = { git = "https://github.com/tlsnotary//tlsn-utils", rev = "f8d4533" }
-
 [workspace.dependencies]
 # rand
 rand = "0.8"
