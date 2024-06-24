@@ -62,7 +62,7 @@ docker run --init -p 127.0.0.1:7047:7047 notary-server:local
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture notary-server:local
 ```
-- Example 2: Using a different key for notarization:
+- Example 2: Using a different key for notarizations:
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture/notary notary-server:local
 ```
@@ -75,7 +75,7 @@ Defined in the [OpenAPI specification](./openapi.yaml).
 ### WebSocket APIs
 #### /notarize
 ##### Description
-To perform notarization using the session id (unique id returned upon calling the `/session` endpoint successfully).
+To perform a notarization using a session id (an unique id returned upon calling the `/session` endpoint successfully).
 
 ##### Query Parameter
 `sessionId`
@@ -91,18 +91,18 @@ The default logging strategy of this server is set to `DEBUG` verbosity level fo
 
 In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field under `logging`.
 
-One can also provide custom filtering logic by adding a `filter` field  under `logging` in the config file above, and use a value that follows the tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+One can also provide a custom filtering logic by adding a `filter` field  under `logging` in the config file above, and use a value that follows the tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
 
 ---
 ## Architecture
 ### Objective
-The main objective of a notary server is to perform notarization together with a prover. In this case, the prover can either be
+The main objective of a notary server is to perform notarizations together with a prover. In this case, the prover can either be a
 1. TCP client — which has access and control over the transport layer, i.e. TCP
-2. WebSocket client — which has no access over TCP and instead uses WebSocket for notarization
+2. WebSocket client — which has no access over TCP and instead uses WebSocket for notarizations
 
 ### Features
 #### Notarization Configuration
-To perform notarization, some parameters need to be configured by the prover and the notary server (more details in the [OpenAPI specification](./openapi.yaml)), i.e.
+To perform a notarization, some parameters need to be configured by the prover and the notary server (more details in the [OpenAPI specification](./openapi.yaml)), i.e.
 - maximum transcript size
 - unique session id
 
@@ -112,7 +112,7 @@ To streamline this process, a single HTTP endpoint (`/session`) is used by both 
 After calling the configuration endpoint above, the prover can proceed to start the notarization. For a TCP client, that means calling the `/notarize` endpoint using HTTP (`https`), while a WebSocket client should call the same endpoint but using WebSocket (`wss`). Example implementations of these clients can be found in the [integration test](../tests-integration/tests/notary.rs).
 
 #### Signatures
-Currently, both the private key (and cert) used to establish TLS connection with the prover, and the private key used by the notary server to sign the notarized transcript, are hardcoded PEM keys stored in this repository. Though the paths of these keys can be changed in the config (`notary-key` field) to use different keys instead.
+Currently, both the private key (and cert) used to establish a TLS connection with the prover, and the private key used by the notary server to sign the notarized transcript, are hardcoded PEM keys stored in this repository. Though the paths of these keys can be changed in the config (`notary-key` field) to use different keys instead.
 
 #### Authorization
 An optional authorization module is available to only allow requests with a valid API key attached in the authorization header. The API key whitelist path (as well as the flag to enable/disable this module) can be changed in the config (`authorization` field).
@@ -130,7 +130,7 @@ The toggle to turn on/off TLS is in the config (`tls` field).
 
 ### Design Choices
 #### Web Framework
-Axum is chosen as the framework to serve HTTP and WebSocket requests from the prover clients due to its rich and well supported features, e.g. native integration with Tokio/Hyper/Tower, customizable middleware, ability to support lower level integration of TLS ([example](https://github.com/tokio-rs/axum/blob/main/examples/low-level-rustls/src/main.rs)). To simplify the notary server setup, a single Axum router is used to support both HTTP and WebSocket connections, i.e. all requests can be made to the same port of the notary server.
+Axum is chosen as the framework to serve HTTP and WebSocket requests from the prover clients due to its rich and well supported features, e.g. native integration with Tokio/Hyper/Tower, customizable middleware, the ability to support lower level integrations of TLS ([example](https://github.com/tokio-rs/axum/blob/main/examples/low-level-rustls/src/main.rs)). To simplify the notary server setup, a single Axum router is used to support both HTTP and WebSocket connections, i.e. all requests can be made to the same port of the notary server.
 
 #### WebSocket
 Axum's internal implementation of WebSocket uses [tokio_tungstenite](https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/), which provides a WebSocket struct that doesn't implement [AsyncRead](https://docs.rs/futures/latest/futures/io/trait.AsyncRead.html) and [AsyncWrite](https://docs.rs/futures/latest/futures/io/trait.AsyncWrite.html). Both these traits are required by the TLSN core libraries for the prover and the notary. To overcome this, a [slight modification](./src/service/axum_websocket.rs) of Axum's implementation of WebSocket is used, where [async_tungstenite](https://docs.rs/async-tungstenite/latest/async_tungstenite/) is used instead so that [ws_stream_tungstenite](https://docs.rs/ws_stream_tungstenite/latest/ws_stream_tungstenite/index.html) can be used to wrap on top of the WebSocket struct to get AsyncRead and AsyncWrite implemented.
