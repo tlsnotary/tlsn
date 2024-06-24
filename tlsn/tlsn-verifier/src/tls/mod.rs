@@ -98,7 +98,7 @@ impl Verifier<state::Initialized> {
         })
         .fuse();
 
-        let _ = futures::select_biased! {
+        futures::select_biased! {
             res = configuration_fut => res?,
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
