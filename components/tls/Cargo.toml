@@ -9,6 +9,11 @@ members = [
 ]
 resolver = "2"
 
+[patch."https://github.com/tlsnotary/tlsn-utils"]
+tlsn-utils-aio = { git = "https://github.com/tlsnotary//tlsn-utils", rev = "f8d4533" }
+uid-mux = { git = "https://github.com/tlsnotary//tlsn-utils", rev = "f8d4533" }
+serio = { git = "https://github.com/tlsnotary//tlsn-utils", rev = "f8d4533" }
+
 [workspace.dependencies]
 # rand
 rand = "0.8"
@@ -35,8 +40,8 @@ futures = "0.3"
 tokio = "1"
 tokio-util = "0.7"
 http-body-util = "0.1"
-hyper = {version = "1.1", features = ["client", "http1"]}
-hyper-util = {version = "0.1", features = ["full"]}
+hyper = { version = "1.1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["full"] }
 
 # serialization
 bytes = "1"
