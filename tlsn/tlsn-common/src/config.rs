@@ -22,7 +22,7 @@ const OTS_PER_BYTE_SENT: usize = 8;
 const OTS_PER_BYTE_RECV: usize = 16;
 
 // Current version that is running.
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Configuration info to be exchanged initially between prover and verifier for compatibility check.
 #[derive(derive_builder::Builder, Clone, Debug, Deserialize, Serialize)]
