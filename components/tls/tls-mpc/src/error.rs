@@ -63,6 +63,8 @@ impl MpcTlsError {
 pub(crate) enum Kind {
     /// An unexpected state was encountered
     State,
+    /// Context error.
+    Ctx,
     /// IO related error
     Io,
     /// An error occurred during MPC
@@ -87,6 +89,7 @@ impl Display for Kind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Kind::State => write!(f, "State"),
+            Kind::Ctx => write!(f, "Context"),
             Kind::Io => write!(f, "Io"),
             Kind::Mpc => write!(f, "Mpc"),
             Kind::KeyExchange => write!(f, "KeyExchange"),
@@ -116,6 +119,16 @@ impl From<ludi::MessageError> for MpcTlsError {
             ludi::MessageError::Closed => Self::other("actor channel closed"),
             ludi::MessageError::Interrupted => Self::other("actor interrupted during handling"),
             _ => Self::other_with_source("unknown actor error", err),
+        }
+    }
+}
+
+impl From<mpz_common::ContextError> for MpcTlsError {
+    fn from(err: mpz_common::ContextError) -> Self {
+        Self {
+            kind: Kind::Ctx,
+            msg: "context error".to_string(),
+            source: Some(Box::new(err)),
         }
     }
 }

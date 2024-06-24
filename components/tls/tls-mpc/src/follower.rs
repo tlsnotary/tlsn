@@ -11,7 +11,7 @@ use mpz_core::hash::Hash;
 
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 
-use aead::Aead;
+use aead::{aes_gcm::AesGcmError, Aead};
 use hmac_sha256::Prf;
 use ke::KeyExchange;
 use tls_core::{
@@ -20,10 +20,12 @@ use tls_core::{
         alert::AlertMessagePayload,
         base::Payload,
         codec::Codec,
-        enums::{AlertDescription, ContentType, NamedGroup, ProtocolVersion},
+        enums::{AlertDescription, ContentType, HandshakeType, NamedGroup, ProtocolVersion},
+        handshake::{HandshakeMessagePayload, HandshakePayload},
         message::{OpaqueMessage, PlainMessage},
     },
 };
+use tracing::{debug, instrument, Instrument};
 
 use crate::{
     error::Kind,
@@ -73,8 +75,7 @@ impl ludi::Actor for MpcTlsFollower {
     type Error = MpcTlsError;
 
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
-        #[cfg(feature = "tracing")]
-        tracing::debug!("follower actor stopped");
+        debug!("follower actor stopped");
 
         let Closed {
             handshake_commitment,
@@ -94,14 +95,14 @@ impl ludi::Actor for MpcTlsFollower {
 }
 
 impl MpcTlsFollower {
-    /// Create a new follower instance
+    /// Creates a new follower.
     pub fn new(
         config: MpcTlsFollowerConfig,
         channel: MpcTlsChannel,
         ke: Box<dyn KeyExchange + Send>,
         prf: Box<dyn Prf + Send>,
-        encrypter: Box<dyn Aead + Send>,
-        decrypter: Box<dyn Aead + Send>,
+        encrypter: Box<dyn Aead<Error = AesGcmError> + Send>,
+        decrypter: Box<dyn Aead<Error = AesGcmError> + Send>,
     ) -> Self {
         let encrypter = Encrypter::new(
             encrypter,
@@ -131,13 +132,11 @@ impl MpcTlsFollower {
     }
 
     /// Performs any one-time setup operations.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
         let pms = self.ke.setup().await?;
         let session_keys = self.prf.setup(pms.into_value()).await?;
+        futures::try_join!(self.encrypter.setup(), self.decrypter.setup())?;
 
         futures::try_join!(
             self.encrypter
@@ -146,12 +145,17 @@ impl MpcTlsFollower {
                 .set_key(session_keys.server_write_key, session_keys.server_iv)
         )?;
 
+        self.ke.preprocess().await?;
+        self.prf.preprocess().await?;
+
         futures::try_join!(
             self.encrypter
                 .preprocess(self.config.common().tx_config().max_size()),
             // For now we just preprocess enough for the handshake
-            self.decrypter.preprocess(256)
+            self.decrypter.preprocess(256),
         )?;
+
+        self.prf.set_client_random(None).await?;
 
         Ok(())
     }
@@ -203,7 +207,7 @@ impl MpcTlsFollower {
             }
         };
 
-        (ctrl, fut)
+        (ctrl, fut.in_current_span())
     }
 
     fn check_transcript_length(&self, direction: Direction, len: usize) -> Result<(), MpcTlsError> {
@@ -261,32 +265,13 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
-    async fn compute_client_key(&mut self) -> Result<(), MpcTlsError> {
-        self.state.take().try_into_init()?;
-
-        _ = self
-            .ke
-            .compute_client_key(p256::SecretKey::random(&mut rand::rngs::OsRng))
-            .await?;
-
-        self.state = State::ClientKey;
-
-        Ok(())
-    }
-
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn compute_key_exchange(
         &mut self,
         handshake_commitment: Option<Hash>,
+        server_random: [u8; 32],
     ) -> Result<(), MpcTlsError> {
-        self.state.take().try_into_client_key()?;
+        self.state.take().try_into_init()?;
 
         if self.config.common().handshake_commit() && handshake_commitment.is_none() {
             return Err(MpcTlsError::new(
@@ -304,11 +289,9 @@ impl MpcTlsFollower {
             .expect("server key should be set after computing pms");
 
         // PRF
-        self.prf.compute_session_keys_blind().await?;
+        self.prf.compute_session_keys(server_random).await?;
 
-        // We have to do this sequentially right now because of a sync issue in mpz
-        self.encrypter.setup().await?;
-        self.decrypter.setup().await?;
+        futures::try_join!(self.encrypter.start(), self.decrypter.start())?;
 
         self.state = State::Ke(Ke {
             handshake_commitment,
@@ -321,37 +304,44 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
-    async fn client_finished_vd(&mut self) -> Result<(), MpcTlsError> {
+    #[instrument(level = "trace", skip_all, err)]
+    async fn client_finished_vd(&mut self, handshake_hash: [u8; 32]) -> Result<(), MpcTlsError> {
         let Ke {
             handshake_commitment,
             server_key,
         } = self.state.take().try_into_ke()?;
 
-        self.prf.compute_client_finished_vd_blind().await?;
+        let client_finished = self.prf.compute_client_finished_vd(handshake_hash).await?;
 
         self.state = State::Cf(Cf {
             handshake_commitment,
             server_key,
+            client_finished,
         });
 
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
-    async fn server_finished_vd(&mut self) -> Result<(), MpcTlsError> {
+    #[instrument(level = "trace", skip_all, err)]
+    async fn server_finished_vd(&mut self, handshake_hash: [u8; 32]) -> Result<(), MpcTlsError> {
         let Sf {
             handshake_commitment,
             server_key,
+            server_finished,
         } = self.state.take().try_into_sf()?;
 
-        self.prf.compute_server_finished_vd_blind().await?;
+        let expected_server_finished = self.prf.compute_server_finished_vd(handshake_hash).await?;
+
+        let Some(server_finished) = server_finished else {
+            return Err(MpcTlsError::new(Kind::State, "server finished is not set"));
+        };
+
+        if server_finished != expected_server_finished {
+            return Err(MpcTlsError::new(
+                Kind::Prf,
+                "server finished does not match",
+            ));
+        }
 
         self.state = State::Active(Active {
             handshake_commitment,
@@ -362,32 +352,39 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn encrypt_client_finished(&mut self) -> Result<(), MpcTlsError> {
         let Cf {
             handshake_commitment,
             server_key,
+            client_finished,
         } = self.state.take().try_into_cf()?;
 
+        let msg = HandshakeMessagePayload {
+            typ: HandshakeType::Finished,
+            payload: HandshakePayload::Finished(Payload::new(client_finished)),
+        };
+        let mut payload = Vec::new();
+        msg.encode(&mut payload);
+
         self.encrypter
-            .encrypt_blind(ContentType::Handshake, ProtocolVersion::TLSv1_2, 16)
+            .encrypt_public(PlainMessage {
+                typ: ContentType::Handshake,
+                version: ProtocolVersion::TLSv1_2,
+                payload: Payload(payload),
+            })
             .await?;
 
         self.state = State::Sf(Sf {
             handshake_commitment,
             server_key,
+            server_finished: None,
         });
 
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn encrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
         self.is_accepting_messages()?;
         if let Some(alert) = AlertMessagePayload::read_bytes(&msg) {
@@ -416,10 +413,7 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn encrypt_message(&mut self, len: usize) -> Result<(), MpcTlsError> {
         self.is_accepting_messages()?;
         self.check_transcript_length(Direction::Sent, len)?;
@@ -432,10 +426,7 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     fn commit_message(&mut self, payload: Vec<u8>) -> Result<(), MpcTlsError> {
         self.is_accepting_messages()?;
         self.check_transcript_length(Direction::Recv, payload.len())?;
@@ -450,28 +441,37 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn decrypt_server_finished(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
-        self.state.try_as_sf()?;
+        let Sf {
+            server_finished, ..
+        } = self.state.try_as_sf_mut()?;
 
-        self.decrypter
-            .decrypt_blind(OpaqueMessage {
+        let msg = self
+            .decrypter
+            .decrypt_public(OpaqueMessage {
                 typ: ContentType::Handshake,
                 version: ProtocolVersion::TLSv1_2,
                 payload: Payload::new(msg),
             })
             .await?;
 
+        let msg = msg.payload.0;
+        if msg.len() != 16 {
+            return Err(MpcTlsError::new(
+                Kind::Decrypt,
+                "server finished message is not 16 bytes",
+            ));
+        }
+
+        let sf: [u8; 12] = msg[4..].try_into().expect("slice should be 12 bytes");
+
+        server_finished.replace(sf);
+
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn decrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
         self.state.try_as_active()?;
 
@@ -500,10 +500,7 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn decrypt_message(&mut self) -> Result<(), MpcTlsError> {
         let Active { buffer, .. } = self.state.try_as_active_mut()?;
 
@@ -512,8 +509,7 @@ impl MpcTlsFollower {
             "attempted to decrypt message when no messages are committed",
         ))?;
 
-        #[cfg(feature = "tracing")]
-        tracing::debug!("decrypting message");
+        debug!("decrypting message");
 
         if self.committed {
             // At this point the AEAD key was revealed to the leader and the leader locally decrypted
@@ -527,10 +523,7 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     fn close_connection(&mut self) -> Result<(), MpcTlsError> {
         let Active {
             handshake_commitment,
@@ -556,8 +549,7 @@ impl MpcTlsFollower {
     async fn commit(&mut self) -> Result<(), MpcTlsError> {
         let Active { buffer, .. } = self.state.try_as_active()?;
 
-        #[cfg(feature = "tracing")]
-        tracing::debug!("leader committed transcript");
+        debug!("leader committed transcript");
 
         self.committed = true;
 
@@ -574,21 +566,23 @@ impl MpcTlsFollower {
 #[msg(name = "{name}")]
 #[msg(attrs(derive(Debug, serde::Serialize, serde::Deserialize)))]
 impl MpcTlsFollower {
-    pub async fn compute_client_key(&mut self) {
-        ctx.try_or_stop(|_| self.compute_client_key()).await;
-    }
-
-    pub async fn compute_key_exchange(&mut self, handshake_commitment: Option<Hash>) {
-        ctx.try_or_stop(|_| self.compute_key_exchange(handshake_commitment))
+    pub async fn compute_key_exchange(
+        &mut self,
+        handshake_commitment: Option<Hash>,
+        server_random: [u8; 32],
+    ) {
+        ctx.try_or_stop(|_| self.compute_key_exchange(handshake_commitment, server_random))
             .await;
     }
 
-    pub async fn client_finished_vd(&mut self) {
-        ctx.try_or_stop(|_| self.client_finished_vd()).await;
+    pub async fn client_finished_vd(&mut self, handshake_hash: [u8; 32]) {
+        ctx.try_or_stop(|_| self.client_finished_vd(handshake_hash))
+            .await;
     }
 
-    pub async fn server_finished_vd(&mut self) {
-        ctx.try_or_stop(|_| self.server_finished_vd()).await;
+    pub async fn server_finished_vd(&mut self, handshake_hash: [u8; 32]) {
+        ctx.try_or_stop(|_| self.server_finished_vd(handshake_hash))
+            .await;
     }
 
     pub async fn encrypt_client_finished(&mut self) {
@@ -646,7 +640,6 @@ mod state {
     #[derive_err(Debug)]
     pub(super) enum State {
         Init,
-        ClientKey,
         Ke(Ke),
         Cf(Cf),
         Sf(Sf),
@@ -677,12 +670,14 @@ mod state {
     pub(super) struct Cf {
         pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
+        pub(super) client_finished: [u8; 12],
     }
 
     #[derive(Debug)]
     pub(super) struct Sf {
         pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
+        pub(super) server_finished: Option<[u8; 12]>,
     }
 
     #[derive(Debug)]

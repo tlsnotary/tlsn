@@ -1,3 +1,4 @@
+use aead::aes_gcm::AesGcmError;
 use mpz_garble::value::ValueRef;
 
 use tls_core::{
@@ -12,7 +13,7 @@ use tls_core::{
 use crate::{error::Kind, MpcTlsError};
 
 pub(crate) struct Encrypter {
-    aead: Box<dyn aead::Aead>,
+    aead: Box<dyn aead::Aead<Error = AesGcmError>>,
     seq: u64,
     sent_bytes: usize,
     transcript_id: String,
@@ -21,7 +22,7 @@ pub(crate) struct Encrypter {
 
 impl Encrypter {
     pub(crate) fn new(
-        aead: Box<dyn aead::Aead>,
+        aead: Box<dyn aead::Aead<Error = AesGcmError>>,
         transcript_id: String,
         opaque_transcript_id: String,
     ) -> Self {
@@ -61,6 +62,15 @@ impl Encrypter {
             .setup()
             .await
             .map_err(|e| MpcTlsError::new_with_source(Kind::Encrypt, "setup error", e))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn start(&mut self) -> Result<(), MpcTlsError> {
+        self.aead
+            .start()
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Encrypt, "start error", e))?;
 
         Ok(())
     }
@@ -176,7 +186,7 @@ impl Encrypter {
 }
 
 pub(crate) struct Decrypter {
-    aead: Box<dyn aead::Aead>,
+    aead: Box<dyn aead::Aead<Error = AesGcmError>>,
     seq: u64,
     recv_bytes: usize,
     transcript_id: String,
@@ -185,7 +195,7 @@ pub(crate) struct Decrypter {
 
 impl Decrypter {
     pub(crate) fn new(
-        aead: Box<dyn aead::Aead>,
+        aead: Box<dyn aead::Aead<Error = AesGcmError>>,
         transcript_id: String,
         opaque_transcript_id: String,
     ) -> Self {
@@ -225,6 +235,15 @@ impl Decrypter {
             .setup()
             .await
             .map_err(|e| MpcTlsError::new_with_source(Kind::Decrypt, "setup error", e))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn start(&mut self) -> Result<(), MpcTlsError> {
+        self.aead
+            .start()
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Decrypt, "start error", e))?;
 
         Ok(())
     }
