@@ -22,7 +22,7 @@ use uuid::Uuid;
 mod airdrop;
 mod sign;
 mod sign_ed25519;
-use airdrop::airdrop::{check_followers, insert_token, parse_transcripts};
+use airdrop::airdrop::{check_followers, insert_claim_key, parse_transcripts, view_claim_key};
 
 #[cfg(feature = "tracing")]
 use tracing::info;
@@ -104,12 +104,19 @@ impl Verifier<Notarize> {
             let session_transcripts =
                 expect_msg_or_err!(notarize_channel, TlsnMessage::Transcripts)?;
             let (host, user_id) = parse_transcripts(session_transcripts);
-            let claim_token = Uuid::new_v4().to_string();
+
             let mut is_valid = check_followers(user_id.clone()).await;
+
+            let (has_claim_key, mut claim_token) = view_claim_key(user_id.clone()).await;
+
             println!("is_valid = {:?}", is_valid);
-            if is_valid {
+            println!("has_claim_key = {:?}", has_claim_key);
+            println!("claim_key = {:?}", claim_token);
+
+            if is_valid && !has_claim_key {
+                claim_token = Uuid::new_v4().to_string();
                 let inserted =
-                    insert_token(user_id.clone(), host.clone(), claim_token.clone()).await;
+                    insert_claim_key(user_id.clone(), host.clone(), claim_token.clone()).await;
                 println!("claim_token inserted = {:?}", inserted);
 
                 if !inserted {

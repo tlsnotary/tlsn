@@ -33,6 +33,20 @@ pub(crate) mod airdrop {
         success: bool,
     }
 
+    #[derive(serde::Deserialize, Debug)]
+    #[allow(non_snake_case)]
+    struct Claim {
+        id: u64,
+        user_id: String,
+        website: String,
+        claim_key: String,
+        claimed: bool,
+    }
+
+    #[derive(serde::Deserialize, Debug)]
+    struct RespClaimView {
+        claims: Vec<Claim>,
+    }
     #[allow(non_snake_case)]
     #[derive(serde::Deserialize, Debug)]
     struct RespKaggle {
@@ -89,7 +103,7 @@ pub(crate) mod airdrop {
         parsed_value
     }
 
-    pub(crate) async fn insert_token(user_id: String, host: String, uuid: String) -> bool {
+    pub(crate) async fn insert_claim_key(user_id: String, host: String, uuid: String) -> bool {
         info!("host {:?} user_id: {:?} uuid {:?}", host, user_id, uuid);
 
         if host != "www.kaggle.com" {
@@ -121,6 +135,35 @@ pub(crate) mod airdrop {
         println!("res = {:#?}", resp_claim_insert);
 
         return resp_claim_insert.success;
+    }
+
+    pub(crate) async fn view_claim_key(user_id: String) -> (bool, String) {
+        let client = reqwest::Client::new();
+
+        let mut map = HashMap::new();
+        map.insert("user_id", user_id);
+
+        let res = client
+            .post("https://airdrop-server.fly.dev/view-user-claims")
+            .header(
+                "Authorization",
+                "56tkps/VSmPdGTjN/TaKLOPN9LlT8v9IO7FzUV+nOHA=",
+            )
+            .json(&map)
+            .send()
+            .await
+            .unwrap();
+
+        println!("status = {:?}", res.status());
+
+        let resp_claim_insert: RespClaimView = res.json().await.unwrap();
+        println!("res = {:#?}", resp_claim_insert);
+
+        if resp_claim_insert.claims.len() > 0 {
+            return (true, resp_claim_insert.claims[0].claim_key.clone());
+        } else {
+            return (false, "".to_string());
+        }
     }
 
     pub(crate) async fn check_followers(user_id: String) -> bool {
@@ -226,12 +269,21 @@ pub(crate) mod airdrop {
 
         #[tokio::test]
         #[cfg(feature = "tracing")]
-        async fn test_insert_token() {
-            let user_id = "Zlim93200".to_string();
+        async fn test_insert_claim_key() {
+            let user_id = "Zlim93200".to_string().to_lowercase();
             let host = "www.kaggle.com".to_string();
             let claim_token = "token123".to_string();
 
-            let resp = insert_token(user_id, host, claim_token).await;
+            let resp = insert_claim_key(user_id, host, claim_token).await;
+            println!("{resp:#?}");
+        }
+
+        #[tokio::test]
+        #[cfg(feature = "tracing")]
+        async fn test_view_claim_key() {
+            let user_id = "Zlim93200".to_string().to_lowercase();
+
+            let resp = view_claim_key(user_id).await;
             println!("{resp:#?}");
         }
 
@@ -256,7 +308,7 @@ pub(crate) mod airdrop {
             println!("is_valid = {:?}", is_valid);
 
             if is_valid {
-                let inserted = insert_token(user_id, host, uuid).await;
+                let inserted = insert_claim_key(user_id, host, uuid).await;
                 println!("inserted = {:?}", inserted);
             }
             //assert!(result == 42, "Failed to grant claim token");
