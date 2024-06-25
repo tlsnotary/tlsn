@@ -22,8 +22,6 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - components/integration-tests
-          - components/uid-mux
           - components/cipher
           - components/universal-hash
           - components/aead
@@ -34,11 +32,13 @@ jobs:
           - tlsn
           - notary
         include:
-          - package: components/integration-tests
+          - package: components/tls/tls-mpc
+            ignored: true
             release: true
           - package: notary
             release: true
           - package: tlsn
+            ignored: true
             all-features: true
     defaults:
       run:
@@ -80,12 +80,14 @@ jobs:
       - name: "Test ${{ matrix.release && '--release' || '' }} ${{ matrix.all-features && '--all-features' || '' }}"
         env:
           RELEASE_OPTION: ${{ matrix.release && '--release' || '' }}
+          # Includes tests marked as `ignore`.
+          IGNORED_OPTION: ${{ matrix.ignored && '--include-ignored' || '' }}
           ALL_FEATURES_OPTION: ${{ matrix.all-features && '--all-features' || '' }}
         # Run all tests (bins, examples, lib, integration and docs)
         # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
         run: |
-          echo "Running command: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION"
-          cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION
+          echo "Running command: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION -- $IGNORED_OPTION"
+          cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION -- $IGNORED_OPTION
 
       - name: "Check that benches compile"
         run: cargo bench --no-run
