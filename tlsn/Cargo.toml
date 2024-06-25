@@ -6,7 +6,6 @@ members = [
     "tlsn-prover",
     "tlsn-formats",
     "tlsn-server-fixture",
-    "tlsn-notary-client",
     "tests-integration",
     "examples",
     "benches",
@@ -20,8 +19,8 @@ tlsn-prover = { path = "tlsn-prover" }
 tlsn-verifier = { path = "tlsn-verifier" }
 tlsn-server-fixture = { path = "tlsn-server-fixture" }
 tlsn-formats = { path = "tlsn-formats" }
-tlsn-notary-client = { path = "tlsn-notary-client" }
 
+notary-client = { path = "../notary/client" }
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }
 tlsn-tls-client = { path = "../components/tls/tls-client" }

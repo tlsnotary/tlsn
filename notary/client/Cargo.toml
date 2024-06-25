@@ -1,17 +1,16 @@
 [package]
-name = "tlsn-notary-client"
+name = "notary-client"
 version = "0.1.0-alpha.5"
 edition = "2021"
 
 [dependencies]
-notary-server = { path = "../../notary-server" }
-tlsn-common.workspace = true
+tlsn-common = { path = "../../tlsn/tlsn-common" }
 
-derive_builder.workspace = true
-futures.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
+notary-server.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = [
   "rt",
@@ -21,9 +20,9 @@ tokio = { workspace = true, features = [
   "io-std",
   "fs",
 ] }
+tokio-rustls.workspace = true
 tracing.workspace = true
 
-serde = { version = "1.0.147", features = ["derive"] }
-serde_json = "1.0"
-tokio-rustls = "0.24.1"
+derive_builder = "0.12"
+futures = "0.3"
 webpki-roots = "0.26"

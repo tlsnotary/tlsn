@@ -27,7 +27,7 @@ Next, open the **Developer Tools**, go to the **Network** tab, and refresh the p
 ![Screenshot](twitter_dm_browser.png)
 
 ## Start the notary server
-1. Edit the notary server [config file](../../../notary-server/config/config.yaml) to turn off TLS so that self-signed certificates can be avoided.
+1. Edit the notary server [config file](../../../notary/server/config/config.yaml) to turn off TLS so that self-signed certificates can be avoided.
    ```yaml
     tls:
         enabled: false
@@ -35,13 +35,13 @@ Next, open the **Developer Tools**, go to the **Network** tab, and refresh the p
    ```
 2. Run the following at the root level of this repository to start the notary server:
    ```shell
-   cd notary-server
+   cd notary/server
    cargo run --release
    ```
 
 The notary server will now be running in the background waiting for connections.
 
-For more information on how to configure the notary server, please refer to [this](../../../notary-server/README.md#running-the-server).
+For more information on how to configure the notary server, please refer to [this](../../../notary/server/README.md#running-the-server).
 
 ## Notarize
 

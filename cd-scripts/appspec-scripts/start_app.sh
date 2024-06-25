@@ -12,7 +12,7 @@ if [ $APP_NAME = "stable" ]; then
   for PORT in $STABLE_PORTS; do
     PORT_LISTENING=$(netstat -lnt4 | egrep -cw $PORT || true)
     if [ $PORT_LISTENING -eq 0 ]; then
-      cd ~/${APP_NAME}_${TAG}/tlsn/notary-server
+      cd ~/${APP_NAME}_${TAG}/tlsn/notary/server
       target/release/notary-server --config-file ~/.notary/${APP_NAME}_${PORT}/config.yaml &> ~/${APP_NAME}_${TAG}/tlsn/notary.log &
       # Create a tag that will be used for service validation
       INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
@@ -21,7 +21,7 @@ if [ $APP_NAME = "stable" ]; then
     fi
   done
 else
-  cd ~/$APP_NAME/tlsn/notary-server
+  cd ~/$APP_NAME/tlsn/notary/server
   target/release/notary-server --config-file ~/.notary/$APP_NAME/config.yaml &> ~/$APP_NAME/tlsn/notary.log &
 fi
 

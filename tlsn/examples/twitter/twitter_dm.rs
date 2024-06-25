@@ -1,13 +1,13 @@
 // This example shows how to notarize Twitter DMs.
 //
-// The example uses the notary server implemented in ../../../notary-server
+// The example uses the notary server implemented in ../../../notary/server
 
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
+use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use std::{env, str};
 use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
-use tlsn_notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -18,7 +18,7 @@ const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-// Setting of the notary server — make sure these are the same with the config in ../../../notary-server
+// Setting of the notary server — make sure these are the same with the config in ../../../notary/server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
