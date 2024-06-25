@@ -16,27 +16,27 @@ default = ["mock"]
 mock = []
 
 [dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c", features = [
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e", features = [
     "ideal",
 ] }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
 
 p256 = { version = "0.13", features = ["ecdh", "serde"] }
 async-trait = "0.1"
 thiserror = "1"
 serde = "1"
 futures = "0.3"
-serio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f8d4533" }
+serio = "0.1"
 derive_builder = "0.12"
 tracing = "0.1"
 rand = "0.8"
 
 [dev-dependencies]
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "544cf5c", features = [
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e", features = [
     "ideal",
 ] }
 
