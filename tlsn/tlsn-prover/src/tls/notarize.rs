@@ -79,6 +79,7 @@ impl Prover<Notarize> {
             })
             .await?;
 
+        // Wait for the notary to correctly close the connection.
         if !mux_fut.is_complete() {
             mux_ctrl.mux().close();
             mux_fut.await?;

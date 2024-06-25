@@ -57,6 +57,8 @@ impl Verifier<state::Initialized> {
     ) -> Result<Verifier<state::Setup>, VerifierError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
 
+        // Maximum thread forking concurrency of 8.
+        // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();

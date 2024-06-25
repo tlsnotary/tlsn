@@ -163,6 +163,7 @@ impl Prover<ProveState> {
             })
             .await?;
 
+        // Wait for the verifier to correctly close the connection.
         if !mux_fut.is_complete() {
             mux_ctrl.mux().close();
             mux_fut.await?;

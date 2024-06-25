@@ -8,12 +8,8 @@ edition = "2021"
 default = []
 
 [dependencies]
-mpz-share-conversion.workspace = true
 mpz-garble.workspace = true
-mpz-garble-core.workspace = true
 mpz-ot.workspace = true
-mpz-ole.workspace = true
-mpz-core.workspace = true
 mpz-common.workspace = true
 
 futures.workspace = true

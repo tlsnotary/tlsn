@@ -75,6 +75,8 @@ impl Prover<state::Initialized> {
     ) -> Result<Prover<state::Setup>, ProverError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
 
+        // Maximum thread forking concurrency of 8.
+        // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
         let (mpc_tls, vm, ot_recv) = mux_fut
