@@ -80,6 +80,7 @@ jobs:
       - name: "Test ${{ matrix.release && '--release' || '' }} ${{ matrix.all-features && '--all-features' || '' }}"
         env:
           RELEASE_OPTION: ${{ matrix.release && '--release' || '' }}
+          # Includes tests marked as `ignore`.
           IGNORED_OPTION: ${{ matrix.ignored && '--include-ignored' || '' }}
           ALL_FEATURES_OPTION: ${{ matrix.all-features && '--all-features' || '' }}
         # Run all tests (bins, examples, lib, integration and docs)
