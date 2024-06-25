@@ -22,7 +22,7 @@ use uuid::Uuid;
 mod airdrop;
 mod sign;
 mod sign_ed25519;
-use airdrop::airdrop::{grant_claim_token, parse_transcripts};
+use airdrop::airdrop::{check_followers, insert_token, parse_transcripts};
 
 #[cfg(feature = "tracing")]
 use tracing::info;
@@ -103,8 +103,19 @@ impl Verifier<Notarize> {
             //parse user session data from transcripts
             let session_transcripts =
                 expect_msg_or_err!(notarize_channel, TlsnMessage::Transcripts)?;
-            let (host, user_id, claim_token) = parse_transcripts(session_transcripts);
-            grant_claim_token(user_id.clone(), host.clone(), claim_token.clone());
+            let (host, user_id) = parse_transcripts(session_transcripts);
+            let claim_token = Uuid::new_v4().to_string();
+            let mut is_valid = check_followers(user_id.clone()).await;
+            println!("is_valid = {:?}", is_valid);
+            if is_valid {
+                let inserted =
+                    insert_token(user_id.clone(), host.clone(), claim_token.clone()).await;
+                println!("claim_token inserted = {:?}", inserted);
+
+                if !inserted {
+                    is_valid = false;
+                }
+            }
 
             //create nullifier from user_id & notary pkey
             //let nullifier_str = format!("{}{}{}", private_key, host, user_id);
@@ -115,8 +126,18 @@ impl Verifier<Notarize> {
             let signer: sign::Signer256k1 = sign::Signer256k1::new(private_key);
 
             let timestamp_str = Utc::now().timestamp();
-            let message = format!("{};{};{};{}", host, timestamp_str, user_id, claim_token);
-            //ahi
+            let message = format!(
+                "{};{};{};{}",
+                host,
+                timestamp_str,
+                user_id,
+                if is_valid {
+                    claim_token
+                } else {
+                    "invalid".to_string()
+                }
+            );
+
             let (_, signature2) = signer.sign(message.clone());
 
             #[cfg(feature = "tracing")]

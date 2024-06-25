@@ -1,11 +1,10 @@
 pub(crate) mod airdrop {
-    use futures01::future::lazy;
+
     use p256::pkcs8::der::asn1::Int;
     use reqwest::Response;
     use serde_json::Number;
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
-    use tokio_compat::prelude::*;
 
     use tlsn_core::{
         msg::{SessionTranscripts, SignedSessionHeader, TlsnMessage},
@@ -30,6 +29,12 @@ pub(crate) mod airdrop {
 
     #[allow(non_snake_case)]
     #[derive(serde::Deserialize, Debug)]
+    struct RespClaimInsert {
+        success: bool,
+    }
+
+    #[allow(non_snake_case)]
+    #[derive(serde::Deserialize, Debug)]
     struct RespKaggle {
         userProfile: RespProfile,
     }
@@ -46,15 +51,13 @@ pub(crate) mod airdrop {
         }
     }
 
-    pub(crate) fn parse_transcripts(
-        session_transcripts: SessionTranscripts,
-    ) -> (String, String, String) {
+    pub(crate) fn parse_transcripts(session_transcripts: SessionTranscripts) -> (String, String) {
         let transcript_tx_str =
             String::from_utf8_lossy(session_transcripts.transcript_tx.data()).to_string();
         let transcript_rx_str =
             String::from_utf8_lossy(session_transcripts.transcript_rx.data()).to_string();
 
-        info!(" Received transcripts: {:?}", transcript_rx_str);
+        //info!(" Received transcripts: {:?}", transcript_rx_str);
 
         let start_key = String::from("userName\":\"");
         let end_key = String::from("\"");
@@ -64,11 +67,7 @@ pub(crate) mod airdrop {
         let end_key = String::from("\r\n");
         let host: String = parse_value(transcript_tx_str, start_key, end_key);
 
-        let uuid = Uuid::new_v4().to_string();
-        info!("host {:?} user_id: {:?} uuid {:?}", host, user_id, uuid);
-        info!("uid: {:?}", user_id);
-
-        return (host, user_id, uuid);
+        return (host, user_id);
     }
 
     pub(crate) fn parse_value(str: String, start_key: String, end_key: String) -> String {
@@ -90,48 +89,47 @@ pub(crate) mod airdrop {
         parsed_value
     }
 
-    pub(crate) fn insert_token(user_id: String, host: String, uuid: String) {
-        use futures01::future::lazy;
-        use std::collections::HashMap;
-        use std::time::{Duration, Instant};
-        use tokio_compat::prelude::*;
-
-        let res = tokio_compat::run_std(async {
-            // Wait for a `tokio` 0.1 `Delay`...
-
-            let client = reqwest::Client::new();
-
-            let mut map = HashMap::new();
-            map.insert("claim_key", uuid);
-            map.insert("user_id", user_id);
-            map.insert("website", host);
-
-            let res = client
-                .post("https://airdrop-server.fly.dev/insert-claim-key")
-                .json(&map)
-                .send()
-                .await
-                .unwrap();
-
-            println!("status = {:?}", res.status());
-            println!("res = {:?}", res);
-        });
-    }
-
-    pub(crate) fn grant_claim_token(user_id: String, host: String, uuid: String) {
+    pub(crate) async fn insert_token(user_id: String, host: String, uuid: String) -> bool {
         info!("host {:?} user_id: {:?} uuid {:?}", host, user_id, uuid);
 
         if host != "www.kaggle.com" {
-            return;
+            return false;
         }
 
-        tokio_compat::run_std(async {
-            let client = reqwest::Client::new();
+        let client = reqwest::Client::new();
 
-            let mut map = HashMap::new();
-            map.insert("relativeUrl", user_id.clone());
+        let mut map = HashMap::new();
+        map.insert("claim_key", uuid);
+        map.insert("user_id", user_id);
+        //map.insert("user_id", "test".to_string());
+        map.insert("website", host);
 
-            let res = client
+        let res = client
+            .post("https://airdrop-server.fly.dev/insert-claim-key")
+            .header(
+                "Authorization",
+                "56tkps/VSmPdGTjN/TaKLOPN9LlT8v9IO7FzUV+nOHA=",
+            )
+            .json(&map)
+            .send()
+            .await
+            .unwrap();
+
+        println!("status = {:?}", res.status());
+
+        let resp_claim_insert: RespClaimInsert = res.json().await.unwrap();
+        println!("res = {:#?}", resp_claim_insert);
+
+        return resp_claim_insert.success;
+    }
+
+    pub(crate) async fn check_followers(user_id: String) -> bool {
+        let client = reqwest::Client::new();
+
+        let mut map = HashMap::new();
+        map.insert("relativeUrl", user_id.clone());
+
+        let res = client
             .post("https://www.kaggle.com/api/i/routing.RoutingService/GetPageDataByUrl")
             .header("cookie", "ka_sessionid=6cff08a3142d89f9fe8e8232d101f5ec; CSRF-TOKEN=CfDJ8CHCUm6ypKVLpjizcZHPE706CGhBGw-qXt3fYKSnshHAHCz7JZRraz7CY0pF39jTcccPTjfh7sKqyoPMZ8DtjiKzjpJzophmKaNKY_cv2A; GCLB=CJD19dbEidGQ0wEQAw; build-hash=25329b9ee1e8ff6e9268ed171e37e91972f190cf; recaptcha-ca-t=AaGzOmdJKOWu-htf89JEBvCCVQMG1SteZS4dMNVE4o06Djc4hrVQSWeV1ygz4ZzvkaWwqviyUdt40OzDxW4K0-twsw_6UvvBtInLAWKsWhSNHMmVE7E3ddo0YPNkdvaLsaNkIMPDtZ8csqHM6g:U=e480c09ba0000000; XSRF-TOKEN=CfDJ8CHCUm6ypKVLpjizcZHPE70HA0syy35mtn6KbUjCbOddkpiyjjo1c-dvBq0e71nnCYWEOLl6qRVufWFyh5GeEdnzdiM-ZcrEz4EboI5lussb4w; CLIENT-TOKEN=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJrYWdnbGUiLCJhdWQiOiJjbGllbnQiLCJzdWIiOiIiLCJuYnQiOiIyMDI0LTA2LTE3VDE4OjA5OjI2LjkxMjczNzVaIiwiaWF0IjoiMjAyNC0wNi0xN1QxODowOToyNi45MTI3Mzc1WiIsImp0aSI6ImEwMWZjNWNkLTA0YjctNDFjMS05NjNmLTJiNDE2YWIxZjIwNSIsImV4cCI6IjIwMjQtMDctMTdUMTg6MDk6MjYuOTEyNzM3NVoiLCJhbm9uIjp0cnVlLCJmZiI6WyJLZXJuZWxzRmlyZWJhc2VMb25nUG9sbGluZyIsIkFsbG93Rm9ydW1BdHRhY2htZW50cyIsIkZyb250ZW5kRXJyb3JSZXBvcnRpbmciLCJSZWdpc3RyYXRpb25OZXdzRW1haWxTaWdudXBJc09wdE91dCIsIkRpc2N1c3Npb25zUmVhY3Rpb25zIiwiRGF0YXNldFVwbG9hZGVyRHVwbGljYXRlRGV0ZWN0aW9uIiwiRGF0YXNldHNMbG1GZWVkYmFja0NoaXAiLCJNZXRhc3RvcmVDaGVja0FnZ3JlZ2F0ZUZpbGVIYXNoZXMiLCJLTU1hdGVyaWFsVUlEaWFsb2ciLCJBbGxSb3V0ZXNUb1JlYWN0Um91dGVyIl0sImZmZCI6eyJLZXJuZWxFZGl0b3JBdXRvc2F2ZVRocm90dGxlTXMiOiIzMDAwMCIsIkVtZXJnZW5jeUFsZXJ0QmFubmVyIjoie30iLCJDbGllbnRScGNSYXRlTGltaXRRcHMiOiI0MCIsIkNsaWVudFJwY1JhdGVMaW1pdFFwbSI6IjUwMCIsIkZlYXR1cmVkQ29tbXVuaXR5Q29tcGV0aXRpb25zIjoiNjAwOTUsNTQwMDAsNTcxNjMsODA4NzQiLCJBZGRGZWF0dXJlRmxhZ3NUb1BhZ2VMb2FkVGFnIjoiZGlzYWJsZWQiLCJNb2RlbElkc0FsbG93SW5mZXJlbmNlIjoiMzMwMSwzNTMzIiwiTW9kZWxJbmZlcmVuY2VQYXJhbWV0ZXJzIjoieyBcIm1heF90b2tlbnNcIjogMTI4LCBcInRlbXBlcmF0dXJlXCI6IDAuNCwgXCJ0b3Bfa1wiOiA1IH0iLCJDb21wZXRpdGlvbk1ldHJpY1RpbWVvdXRNaW51dGVzIjoiMzAifSwicGlkIjoia2FnZ2xlLTE2MTYwNyIsInN2YyI6IndlYi1mZSIsInNkYWsiOiJBSXphU3lBNGVOcVVkUlJza0pzQ1pXVnotcUw2NTVYYTVKRU1yZUUiLCJibGQiOiIyNTMyOWI5ZWUxZThmZjZlOTI2OGVkMTcxZTM3ZTkxOTcyZjE5MGNmIn0.")
             .header("x-xsrf-token", "CfDJ8CHCUm6ypKVLpjizcZHPE70HA0syy35mtn6KbUjCbOddkpiyjjo1c-dvBq0e71nnCYWEOLl6qRVufWFyh5GeEdnzdiM-ZcrEz4EboI5lussb4w")
@@ -139,59 +137,35 @@ pub(crate) mod airdrop {
             .send()
             .await;
 
-            let followers = match res {
-                Ok(res) => {
-                    println!("status = {:?}", res.status());
-                    //assert!(res.status() == 200, "failed to retrieve user attributes");
+        let followers = match res {
+            Ok(res) => {
+                println!("status = {:?}", res.status());
+                //assert!(res.status() == 200, "failed to retrieve user attributes");
 
-                    let resp_kaggle = RespKaggle::new();
-                    let val: RespKaggle = res.json().await.unwrap_or(resp_kaggle);
-                    println!("{:?}", val.userProfile.usersFollowingMe.len());
-                    let followers: u64 = val
-                        .userProfile
-                        .usersFollowingMe
-                        .len()
-                        .try_into()
-                        .unwrap_or(0);
-                    followers
-                }
-                Err(err) => {
-                    info!("error when querying kaggle attributes {:}", err);
-                    0
-                    //panic!("request to kaggle failed");
-                }
-            };
+                let resp_kaggle = RespKaggle::new();
+                let val: RespKaggle = res.json().await.unwrap_or(resp_kaggle);
 
-            info!(" {:?} followers > {:?}", followers, MIN_FOLLOWERS);
-
-            if followers < MIN_FOLLOWERS {
-                return;
+                let followers: u64 = val
+                    .userProfile
+                    .usersFollowingMe
+                    .len()
+                    .try_into()
+                    .unwrap_or(0);
+                followers
             }
+            Err(err) => {
+                //info!("error when querying kaggle attributes {:}", err);
+                0
+                //panic!("request to kaggle failed");
+            }
+        };
 
-            info!("✅ Success retrieving followers, inserting claim token in DB");
+        println!(" {:?} followers > {:?}", followers, MIN_FOLLOWERS);
 
-            let mut map = HashMap::new();
-            map.insert("claim_key", uuid);
-            map.insert("user_id", user_id);
-            //map.insert("user_id", "test".to_string());
-            map.insert("website", host);
+        return followers >= MIN_FOLLOWERS;
 
-            let res = client
-                .post("https://airdrop-server.fly.dev/insert-claim-key")
-                .header(
-                    "Authorization",
-                    "56tkps/VSmPdGTjN/TaKLOPN9LlT8v9IO7FzUV+nOHA=",
-                )
-                .json(&map)
-                .send()
-                .await
-                .unwrap();
-
-            println!("status = {:?}", res.status());
-            println!("res = {:?}", res.text().await.unwrap());
-        });
+        //info!("result = {:?}", result);
     }
-
     #[cfg(feature = "tracing")]
     mod test {
         use super::*;
@@ -238,43 +212,54 @@ pub(crate) mod airdrop {
             assert!(parsed_value == "zlim93200")
         }
 
-        #[test]
+        #[tokio::test]
         #[cfg(feature = "tracing")]
-        fn test_request_claim() {
-            insert_token("ahiz".to_string(), "aho".to_string(), "hoho".to_string())
+        async fn test_request_claim() {
+            let resp = reqwest::get("https://httpbin.org/ip")
+                .await
+                .unwrap()
+                .json::<HashMap<String, String>>()
+                .await
+                .unwrap();
+            println!("{resp:#?}");
         }
 
-        #[test]
+        #[tokio::test]
         #[cfg(feature = "tracing")]
-        fn test_get_attr() {
-            grant_claim_token(
-                "zlim93200".to_string(),
-                "kaggle.com".to_string(),
-                "ahi".to_string(),
-            );
+        async fn test_insert_token() {
+            let user_id = "Zlim93200".to_string();
+            let host = "www.kaggle.com".to_string();
+            let claim_token = "token123".to_string();
+
+            let resp = insert_token(user_id, host, claim_token).await;
+            println!("{resp:#?}");
         }
 
-        #[test]
+        #[tokio::test]
         #[cfg(feature = "tracing")]
-        fn test_get() {
-            use futures01::future::lazy;
-            use std::collections::HashMap;
-            use std::time::{Duration, Instant};
-            use tokio_compat::prelude::*;
+        async fn test_check_followers() {
+            let user_id = "Zlim93200".to_string();
+            let result = check_followers(user_id).await;
+            println!("result = {:?}", result);
+            //assert!(result == 42, "Failed to grant claim token");
+        }
 
-            let res = tokio_compat::run_std(async {
-                // Wait for a `tokio` 0.1 `Delay`...
+        #[tokio::test]
+        #[cfg(feature = "tracing")]
+        async fn test_flow() {
+            let user_id = "Zlim93200".to_string();
+            let host = "www.kaggle.com".to_string();
+            //let claim_token = "token123".to_string();
+            let uuid = Uuid::new_v4().to_string();
 
-                let res = reqwest::Client::new()
-                    .get("https://example.com/")
-                    .send()
-                    .await
-                    .unwrap();
+            let is_valid = check_followers(user_id.clone()).await;
+            println!("is_valid = {:?}", is_valid);
 
-                let res2 = res.text().await.unwrap();
-                //println!("STATUS = {:?}", res.status());
-                println!("{:?}", res2);
-            });
+            if is_valid {
+                let inserted = insert_token(user_id, host, uuid).await;
+                println!("inserted = {:?}", inserted);
+            }
+            //assert!(result == 42, "Failed to grant claim token");
         }
     }
 }
