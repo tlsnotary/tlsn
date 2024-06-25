@@ -7,9 +7,6 @@ on:
     tags:
       - "[v]?[0-9]+.[0-9]+.[0-9]+*"
   pull_request:
-    branches:
-      - dev
-
 env:
   CARGO_TERM_COLOR: always
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
@@ -77,6 +74,7 @@ jobs:
           ALL_FEATURES_OPTION: ${{ matrix.all-features && '--all-features' || '' }}
         # Run all tests (bins, examples, lib, integration and docs)
         # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
+        # `-- --include-ignored` to include the expensive integration tests
         run: |
           echo "Running command: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION"
           cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION -- --include-ignored
