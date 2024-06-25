@@ -6,6 +6,7 @@ pub(crate) mod airdrop {
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
+    use std::env;
     use tlsn_core::{
         msg::{SessionTranscripts, SignedSessionHeader, TlsnMessage},
         HandshakeSummary, SessionHeader, Signature, Transcript,
@@ -14,6 +15,9 @@ pub(crate) mod airdrop {
     use uuid::Uuid;
 
     const MIN_FOLLOWERS: u64 = 0;
+
+    const AIRDROP_SERVER: &str = "https://airdrop-server.fly.dev";
+
     #[allow(non_snake_case)]
     #[derive(serde::Deserialize, Debug)]
     struct RespFollowers {
@@ -118,12 +122,11 @@ pub(crate) mod airdrop {
         //map.insert("user_id", "test".to_string());
         map.insert("website", host);
 
+        let url = format!("{:}/insert-claim-key", AIRDROP_SERVER);
+        let airdrop_server_auth = std::env::var("AIRDROP_SERVER_AUTH").unwrap();
         let res = client
-            .post("https://airdrop-server.fly.dev/insert-claim-key")
-            .header(
-                "Authorization",
-                "56tkps/VSmPdGTjN/TaKLOPN9LlT8v9IO7FzUV+nOHA=",
-            )
+            .post(url)
+            .header("Authorization", airdrop_server_auth)
             .json(&map)
             .send()
             .await
@@ -143,12 +146,11 @@ pub(crate) mod airdrop {
         let mut map = HashMap::new();
         map.insert("user_id", user_id);
 
+        let url = format!("{:}/view-user-claims", AIRDROP_SERVER);
+        let airdrop_server_auth = std::env::var("AIRDROP_SERVER_AUTH").unwrap();
         let res = client
-            .post("https://airdrop-server.fly.dev/view-user-claims")
-            .header(
-                "Authorization",
-                "56tkps/VSmPdGTjN/TaKLOPN9LlT8v9IO7FzUV+nOHA=",
-            )
+            .post(url)
+            .header("Authorization", airdrop_server_auth)
             .json(&map)
             .send()
             .await
@@ -217,28 +219,7 @@ pub(crate) mod airdrop {
 
         #[test]
         #[cfg(feature = "tracing")]
-        fn test_parse() {
-            let json_str = String::from(
-                r#"
-            {
-                "name": "John Doe",
-                "age": 30,
-                "email": "john.doe@example.com"
-            }
-        "#,
-            );
-
-            let start_key = String::from("name\": \"");
-            let end_key = String::from("\"");
-
-            let parsed_value: String = parse_value(json_str, start_key, end_key);
-            println!("parsed_value: {}", parsed_value);
-            assert!(parsed_value == "John Doe")
-        }
-
-        #[test]
-        #[cfg(feature = "tracing")]
-        fn test_parse_2() {
+        fn test_parsing() {
             let json_str = String::from(
                 r#"
     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nDate: Fri, 14 Jun 2024 02:51:49 GMT\r\nTransfer-Encoding: chunked\r\nX-Frame-Options: SAMEORIGIN\r\nStrict-Transport-Security: max-age=63072000; includeSubDomains; preload\r\nContent-Security-Policy: object-src 'none'; script-src 'nonce-ZUToT69xQ40F4JPtCyvLZw==' 'report-sample' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' https: http:; base-uri 'none'; report-uri https://csp.withgoogle.com/csp/kaggle/20201130; frame-src 'self' https://www.kaggleusercontent.com https://www.youtube.com/embed/ https://polygraph-cool.github.io https://www.google.com/recaptcha/ https://www.docdroid.com https://www.docdroid.net https://kaggle-static.storage.googleapis.com https://kkb-production.jupyter-proxy.kaggle.net https://kkb-production.firebaseapp.com https://kaggle-metastore.firebaseapp.com https://apis.google.com https://content-sheets.googleapis.com/ https://accounts.google.com/ https://storage.googleapis.com https://docs.google.com https://drive.google.com https://calendar.google.com/;\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: strict-origin-when-cross-origin\r\nVia: 1.1 google\r\nAlt-Svc: h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000\r\nConnection: close\r\n\r\n192\r\n{\"id\":21142885,\"displayName\":\"Zlim93200\",\"email\":\"batchtrain@gmail.com\",\"userName\":\"zlim93200\",\"thumbnailUrl\":\"https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png\",\"profileUrl\":\"/zlim93200\",\"registerDate\":\"2024-06-04T16:22:44.700Z\",\"lastVisitDate\":\"2024-06-14T02:36:09.207Z\",\"statusId\":2,\"canAct\":true,\"canBeSeen\":true,\"thumbnailName\":\"default-thumb.png\",\"httpAcceptLanguage\":\"\"}\r\n0\r\n\r\n"
@@ -253,18 +234,6 @@ pub(crate) mod airdrop {
 
             println!("parsed_value: {}", parsed_value);
             assert!(parsed_value == "zlim93200")
-        }
-
-        #[tokio::test]
-        #[cfg(feature = "tracing")]
-        async fn test_request_claim() {
-            let resp = reqwest::get("https://httpbin.org/ip")
-                .await
-                .unwrap()
-                .json::<HashMap<String, String>>()
-                .await
-                .unwrap();
-            println!("{resp:#?}");
         }
 
         #[tokio::test]
