@@ -9,7 +9,7 @@
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [apache-badge]: https://img.shields.io/github/license/saltstack/salt
 [actions-badge]: https://github.com/tlsnotary/tlsn/actions/workflows/ci.yml/badge.svg
-[actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Arust+branch%3Adev
+[actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Aci+branch%3Adev
 
 [Website](https://tlsnotary.org) |
 [Documentation](https://docs.tlsnotary.org) |
