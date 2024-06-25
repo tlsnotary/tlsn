@@ -26,18 +26,21 @@ tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }
 tlsn-tls-client = { path = "../components/tls/tls-client" }
 tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
-uid-mux = { path = "../components/uid-mux" }
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
+serio = "0.1"
+uid-mux = { version = "0.1", features = ["serio"] }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c " }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c " }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c " }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c " }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c " }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "477448c " }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
 
 futures = "0.3"
 tokio-util = "0.7"
