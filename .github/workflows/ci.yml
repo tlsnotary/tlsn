@@ -26,11 +26,12 @@ jobs:
           - components/universal-hash
           - components/aead
           - components/key-exchange
-          - components/point-addition
           - components/prf
           - components/tls
+          - components/tls/tls-mpc
           - tlsn
           - notary
+          - tlsn/tests-integration
         include:
           - package: components/tls/tls-mpc
             ignored: true
@@ -38,8 +39,10 @@ jobs:
           - package: notary
             release: true
           - package: tlsn
-            ignored: true
             all-features: true
+          - package: tlsn/tests-integration
+            release: true
+            ignored: true
     defaults:
       run:
         working-directory: ${{ matrix.package }}
