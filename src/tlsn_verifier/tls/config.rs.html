@@ -123,25 +123,7 @@
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>mpz_ot::{chou_orlandi, kos};
-<span class="kw">use </span>mpz_share_conversion::{ReceiverConfig, SenderConfig};
 <span class="kw">use </span>std::fmt::{Debug, Formatter, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
 <span class="kw">use </span>tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
@@ -264,22 +246,6 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ot_receiver_setup_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         ot_recv_estimate(Role::Verifier, <span class="self">self</span>.max_sent_data, <span class="self">self</span>.max_recv_data)
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_p256_sender_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SenderConfig {
-        SenderConfig::builder().id(<span class="string">"p256/1"</span>).build().unwrap()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_p256_receiver_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ReceiverConfig {
-        ReceiverConfig::builder().id(<span class="string">"p256/0"</span>).build().unwrap()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_gf2_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ReceiverConfig {
-        ReceiverConfig::builder()
-            .id(<span class="string">"gf2"</span>)
-            .record()
-            .build()
-            .unwrap()
     }
 }
 </code></pre></div></section></main></body></html>

@@ -89,43 +89,20 @@
 <a href="#89" id="89">89</a>
 <a href="#90" id="90">90</a>
 <a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the notarization phase of the verifier.
 //!
 //! The TLS verifier is only a notary.
 
 </span><span class="kw">use super</span>::{state::Notarize, Verifier, VerifierError};
-<span class="kw">use </span>futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 <span class="kw">use </span>mpz_core::serialize::CanonicalSerialize;
-<span class="kw">use </span>mpz_share_conversion::ShareConversionVerify;
+<span class="kw">use </span>mpz_ot::CommittedOTSender;
+<span class="kw">use </span>serio::{stream::IoStreamExt, SinkExt <span class="kw">as _</span>};
 <span class="kw">use </span>signature::Signer;
 <span class="kw">use </span>tlsn_core::{
-    msg::{SignedSessionHeader, TlsnMessage},
-    HandshakeSummary, SessionHeader, Signature,
+    merkle::MerkleRoot, msg::SignedSessionHeader, HandshakeSummary, SessionHeader, Signature,
 };
-<span class="kw">use </span>utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
-<span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-</span><span class="kw">use </span>tracing::info;
+<span class="kw">use </span>tracing::{debug, info, instrument};
 
 <span class="kw">impl </span>Verifier&lt;Notarize&gt; {
     <span class="doccomment">/// Notarizes the TLS session.
@@ -133,18 +110,18 @@
     /// # Arguments
     ///
     /// * `signer` - The signer used to sign the notarization result.
+    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize&lt;T&gt;(<span class="self">self</span>, signer: <span class="kw-2">&amp;</span><span class="kw">impl </span>Signer&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;SessionHeader, VerifierError&gt;
     <span class="kw">where
         </span>T: Into&lt;Signature&gt;,
     {
         <span class="kw">let </span>Notarize {
-            <span class="kw-2">mut </span>mux_ctrl,
+            <span class="kw-2">mut </span>io,
+            mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             <span class="kw-2">mut </span>vm,
-            ot_send,
-            ot_recv,
-            ot_fut,
-            <span class="kw-2">mut </span>gf2,
+            <span class="kw-2">mut </span>ot_send,
+            <span class="kw-2">mut </span>ctx,
             encoder_seed,
             start_time,
             server_ephemeral_key,
@@ -153,69 +130,52 @@
             recv_len,
         } = <span class="self">self</span>.state;
 
-        <span class="kw">let </span>notarize_fut = <span class="kw">async </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>notarize_channel = mux_ctrl.get_channel(<span class="string">"notarize"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>session_header = mux_fut
+            .poll_with(<span class="kw">async </span>{
+                <span class="kw">let </span>merkle_root: MerkleRoot = io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="kw">let </span>merkle_root =
-                <span class="macro">expect_msg_or_err!</span>(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)<span class="question-mark">?</span>;
+                <span class="comment">// Finalize all MPC before signing the session header.
+                </span>ot_send.reveal(<span class="kw-2">&amp;mut </span>ctx).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="comment">// Finalize all MPC before signing the session header.
-            </span><span class="kw">let </span>(<span class="kw-2">mut </span>ot_sender_actor, <span class="kw">_</span>, <span class="kw">_</span>) = <span class="macro">futures::try_join!</span>(
-                ot_fut,
-                ot_send.shutdown().map_err(VerifierError::from),
-                ot_recv.shutdown().map_err(VerifierError::from)
-            )<span class="question-mark">?</span>;
+                <span class="macro">debug!</span>(<span class="string">"revealed OT secret"</span>);
 
-            ot_sender_actor.reveal().<span class="kw">await</span><span class="question-mark">?</span>;
+                vm.finalize()
+                    .<span class="kw">await
+                    </span>.map_err(|e| VerifierError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
 
-            vm.finalize()
-                .<span class="kw">await
-                </span>.map_err(|e| VerifierError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
+                <span class="macro">info!</span>(<span class="string">"Finalized all MPC"</span>);
 
-            gf2.verify()
-                .<span class="kw">await
-                </span>.map_err(|e| VerifierError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
+                <span class="kw">let </span>handshake_summary =
+                    HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
 
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="macro">info!</span>(<span class="string">"Finalized all MPC"</span>);
+                <span class="kw">let </span>session_header = SessionHeader::new(
+                    encoder_seed,
+                    merkle_root,
+                    sent_len,
+                    recv_len,
+                    handshake_summary,
+                );
 
-            <span class="kw">let </span>handshake_summary =
-                HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
+                <span class="kw">let </span>signature = signer.sign(<span class="kw-2">&amp;</span>session_header.to_bytes());
 
-            <span class="kw">let </span>session_header = SessionHeader::new(
-                encoder_seed,
-                merkle_root,
-                sent_len,
-                recv_len,
-                handshake_summary,
-            );
+                <span class="macro">info!</span>(<span class="string">"Signed session header"</span>);
 
-            <span class="kw">let </span>signature = signer.sign(<span class="kw-2">&amp;</span>session_header.to_bytes());
-
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="macro">info!</span>(<span class="string">"Signed session header"</span>);
-
-            notarize_channel
-                .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
+                io.send(SignedSessionHeader {
                     header: session_header.clone(),
                     signature: signature.into(),
-                }))
+                })
                 .<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="macro">info!</span>(<span class="string">"Sent session header"</span>);
+                <span class="macro">info!</span>(<span class="string">"Sent session header"</span>);
 
-            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(session_header)
-        };
+                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(session_header)
+            })
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="kw">let </span>session_header = <span class="macro">futures::select!</span> {
-            res = notarize_fut.fuse() =&gt; res<span class="question-mark">?</span>,
-            <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span>mux_fut =&gt; <span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
-        };
-
-        <span class="kw">let </span><span class="kw-2">mut </span>mux_ctrl = mux_ctrl.into_inner();
-
-        <span class="macro">futures::try_join!</span>(mux_ctrl.close().map_err(VerifierError::from), mux_fut)<span class="question-mark">?</span>;
+        <span class="kw">if </span>!mux_fut.is_complete() {
+            mux_ctrl.mux().close();
+            mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
+        }
 
         <span class="prelude-val">Ok</span>(session_header)
     }

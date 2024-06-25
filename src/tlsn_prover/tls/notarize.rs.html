@@ -103,33 +103,18 @@
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the notarization phase of the prover.
 //!
 //! The prover deals with a TLS verifier that is only a notary.
 
-</span><span class="kw">use </span><span class="kw">crate</span>::tls::error::OTShutdownError;
-
-<span class="kw">use super</span>::{ff::ShareConversionReveal, state::Notarize, Prover, ProverError};
-<span class="kw">use </span>futures::{FutureExt, SinkExt, StreamExt};
+</span><span class="kw">use super</span>::{state::Notarize, Prover, ProverError};
+<span class="kw">use </span>mpz_ot::VerifiableOTReceiver;
+<span class="kw">use </span>serio::{stream::IoStreamExt <span class="kw">as _</span>, SinkExt <span class="kw">as _</span>};
 <span class="kw">use </span>tlsn_core::{
-    commitment::TranscriptCommitmentBuilder,
-    msg::{SignedSessionHeader, TlsnMessage},
-    transcript::Transcript,
+    commitment::TranscriptCommitmentBuilder, msg::SignedSessionHeader, transcript::Transcript,
     NotarizedSession, ServerName, SessionData,
 };
-<span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-</span><span class="kw">use </span>tracing::instrument;
-<span class="kw">use </span>utils_aio::{expect_msg_or_err, mux::MuxChannel};
+<span class="kw">use </span>tracing::{debug, instrument};
 
 <span class="kw">impl </span>Prover&lt;Notarize&gt; {
     <span class="doccomment">/// Returns the transcript of the sent data.
@@ -148,14 +133,15 @@
     }
 
     <span class="doccomment">/// Finalizes the notarization returning a [`NotarizedSession`].
-    </span><span class="attr">#[cfg_attr(feature = <span class="string">"tracing"</span>, instrument(level = <span class="string">"info"</span>, skip(<span class="self">self</span>), err))]
+    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;NotarizedSession, ProverError&gt; {
         <span class="kw">let </span>Notarize {
-            <span class="kw-2">mut </span>mux_ctrl,
+            <span class="kw-2">mut </span>io,
+            mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             <span class="kw-2">mut </span>vm,
-            <span class="kw-2">mut </span>ot_fut,
-            <span class="kw-2">mut </span>gf2,
+            <span class="kw-2">mut </span>ot_recv,
+            <span class="kw-2">mut </span>ctx,
             start_time,
             handshake_decommitment,
             server_public_key,
@@ -176,39 +162,33 @@
 
         <span class="kw">let </span>merkle_root = session_data.commitments().merkle_root();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>notarize_fut = Box::pin(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux_ctrl.get_channel(<span class="string">"notarize"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>(notary_encoder_seed, SignedSessionHeader { header, signature }) = mux_fut
+            .poll_with(<span class="kw">async </span>{
+                <span class="macro">debug!</span>(<span class="string">"starting finalization"</span>);
 
-            channel
-                .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))
-                .<span class="kw">await</span><span class="question-mark">?</span>;
+                io.send(merkle_root).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="kw">let </span>notary_encoder_seed = vm
-                .finalize()
-                .<span class="kw">await
-                </span>.map_err(|e| ProverError::MpcError(Box::new(e)))<span class="question-mark">?
-                </span>.expect(<span class="string">"encoder seed returned"</span>);
+                ot_recv.accept_reveal(<span class="kw-2">&amp;mut </span>ctx).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="comment">// This is a temporary approach until a maliciously secure share conversion protocol is implemented.
-            // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
-            // TLS verifier to modify the prover's sent data.
-            </span>gf2.reveal()
-                .<span class="kw">await
-                </span>.map_err(|e| ProverError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
+                <span class="macro">debug!</span>(<span class="string">"received OT secret"</span>);
 
-            <span class="kw">let </span>signed_header = <span class="macro">expect_msg_or_err!</span>(channel, TlsnMessage::SignedSessionHeader)<span class="question-mark">?</span>;
+                <span class="kw">let </span>notary_encoder_seed = vm
+                    .finalize()
+                    .<span class="kw">await
+                    </span>.map_err(|e| ProverError::MpcError(Box::new(e)))<span class="question-mark">?
+                    </span>.expect(<span class="string">"encoder seed returned"</span>);
 
-            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;((notary_encoder_seed, signed_header))
-        })
-        .fuse();
+                <span class="kw">let </span>signed_header: SignedSessionHeader = io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="kw">let </span>(notary_encoder_seed, SignedSessionHeader { header, signature }) = <span class="macro">futures::select_biased!</span> {
-            res = notarize_fut =&gt; res<span class="question-mark">?</span>,
-            <span class="kw">_ </span>= ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(OTShutdownError)<span class="question-mark">?</span>,
-            <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span>mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
-        };
+                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;((notary_encoder_seed, signed_header))
+            })
+            .<span class="kw">await</span><span class="question-mark">?</span>;
+
         <span class="comment">// Wait for the notary to correctly close the connection.
-        </span>mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
+        </span><span class="kw">if </span>!mux_fut.is_complete() {
+            mux_ctrl.mux().close();
+            mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
+        }
 
         <span class="comment">// Check the header is consistent with the Prover's view.
         </span>header

@@ -157,61 +157,21 @@
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the verification phase of the verifier.
 //!
 //! The TLS verifier is an application-specific verifier.
 
 </span><span class="kw">use super</span>::{state::Verify <span class="kw">as </span>VerifyState, Verifier, VerifierError};
-<span class="kw">use </span>futures::{FutureExt, StreamExt, TryFutureExt};
 <span class="kw">use </span>mpz_circuits::types::Value;
-<span class="kw">use </span>mpz_garble::{Memory, Verify, Vm};
-<span class="kw">use </span>mpz_share_conversion::ShareConversionVerify;
+<span class="kw">use </span>mpz_garble::{Memory, Verify};
+<span class="kw">use </span>mpz_ot::CommittedOTSender;
+<span class="kw">use </span>serio::stream::IoStreamExt;
 <span class="kw">use </span>tlsn_core::{
-    msg::TlsnMessage, proof::SessionInfo, transcript::get_value_ids, Direction, HandshakeSummary,
+    msg::ProvingInfo, proof::SessionInfo, transcript::get_value_ids, Direction, HandshakeSummary,
     RedactedTranscript, TranscriptSlice,
 };
-<span class="kw">use </span>utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
-<span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-</span><span class="kw">use </span>tracing::info;
+<span class="kw">use </span>tracing::info;
 
 <span class="kw">impl </span>Verifier&lt;VerifyState&gt; {
     <span class="doccomment">/// Receives the **purported** transcript from the Prover.
@@ -222,159 +182,123 @@
     </span><span class="kw">pub async fn </span>receive(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(RedactedTranscript, RedactedTranscript), VerifierError&gt; {
-        <span class="kw">let </span>verify_fut = <span class="kw">async </span>{
-            <span class="comment">// Create a new channel and vm thread if not already present
-            </span><span class="kw">let </span>channel = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>channel) = <span class="self">self</span>.state.channel {
-                channel
-            } <span class="kw">else </span>{
-                <span class="self">self</span>.state.channel = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.mux_ctrl.get_channel(<span class="string">"prove-verify"</span>).<span class="kw">await</span><span class="question-mark">?</span>);
-                <span class="self">self</span>.state.channel.as_mut().unwrap()
-            };
+        <span class="self">self</span>.state
+            .mux_fut
+            .poll_with(<span class="kw">async </span>{
+                <span class="comment">// Receive the proving info from the prover
+                </span><span class="kw">let </span><span class="kw-2">mut </span>proving_info: ProvingInfo = <span class="self">self</span>.state.io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>cleartext = proving_info.cleartext.clone();
 
-            <span class="kw">let </span>verify_thread = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>verify_thread) = <span class="self">self</span>.state.verify_thread {
-                verify_thread
-            } <span class="kw">else </span>{
-                <span class="self">self</span>.state.verify_thread = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.vm.new_thread(<span class="string">"prove-verify"</span>).<span class="kw">await</span><span class="question-mark">?</span>);
-                <span class="self">self</span>.state.verify_thread.as_mut().unwrap()
-            };
+                <span class="macro">info!</span>(<span class="string">"Received proving info from prover"</span>);
 
-            <span class="comment">// Receive the proving info from the prover
-            </span><span class="kw">let </span><span class="kw-2">mut </span>proving_info = <span class="macro">expect_msg_or_err!</span>(channel, TlsnMessage::ProvingInfo)<span class="question-mark">?</span>;
-            <span class="kw">let </span><span class="kw-2">mut </span>cleartext = proving_info.cleartext.clone();
+                <span class="comment">// Check ranges
+                </span><span class="kw">if </span>proving_info.sent_ids.max().unwrap_or_default() &gt; <span class="self">self</span>.state.sent_len
+                    || proving_info.recv_ids.max().unwrap_or_default() &gt; <span class="self">self</span>.state.recv_len
+                {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(VerifierError::InvalidRange);
+                }
 
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="macro">info!</span>(<span class="string">"Received proving info from prover"</span>);
+                <span class="comment">// Now verify the transcript parts which the prover wants to reveal
+                </span><span class="kw">let </span>sent_value_ids = proving_info
+                    .sent_ids
+                    .iter_ranges()
+                    .map(|r| get_value_ids(<span class="kw-2">&amp;</span>r.into(), Direction::Sent).collect::&lt;Vec&lt;String&gt;&gt;());
+                <span class="kw">let </span>recv_value_ids = proving_info.recv_ids.iter_ranges().map(|r| {
+                    get_value_ids(<span class="kw-2">&amp;</span>r.into(), Direction::Received).collect::&lt;Vec&lt;String&gt;&gt;()
+                });
 
-            <span class="comment">// Check ranges
-            </span><span class="kw">if </span>proving_info.sent_ids.max().unwrap_or_default() &gt; <span class="self">self</span>.state.sent_len
-                || proving_info.recv_ids.max().unwrap_or_default() &gt; <span class="self">self</span>.state.recv_len
-            {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(VerifierError::InvalidRange);
-            }
+                <span class="kw">let </span>value_refs = sent_value_ids
+                    .chain(recv_value_ids)
+                    .map(|ids| {
+                        <span class="kw">let </span>inner_refs = ids
+                            .iter()
+                            .map(|id| {
+                                <span class="self">self</span>.state
+                                    .vm
+                                    .get_value(id.as_str())
+                                    .expect(<span class="string">"Byte should be in VM memory"</span>)
+                            })
+                            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-            <span class="comment">// Now verify the transcript parts which the prover wants to reveal
-            </span><span class="kw">let </span>sent_value_ids = proving_info
-                .sent_ids
-                .iter_ranges()
-                .map(|r| get_value_ids(<span class="kw-2">&amp;</span>r.into(), Direction::Sent).collect::&lt;Vec&lt;String&gt;&gt;());
-            <span class="kw">let </span>recv_value_ids = proving_info
-                .recv_ids
-                .iter_ranges()
-                .map(|r| get_value_ids(<span class="kw-2">&amp;</span>r.into(), Direction::Received).collect::&lt;Vec&lt;String&gt;&gt;());
+                        <span class="self">self</span>.state
+                            .vm
+                            .array_from_values(inner_refs.as_slice())
+                            .expect(<span class="string">"Byte should be in VM Memory"</span>)
+                    })
+                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-            <span class="kw">let </span>value_refs = sent_value_ids
-                .chain(recv_value_ids)
-                .map(|ids| {
-                    <span class="kw">let </span>inner_refs = ids
-                        .iter()
-                        .map(|id| {
-                            verify_thread
-                                .get_value(id.as_str())
-                                .expect(<span class="string">"Byte should be in VM memory"</span>)
-                        })
-                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="kw">let </span>values = proving_info
+                    .sent_ids
+                    .iter_ranges()
+                    .chain(proving_info.recv_ids.iter_ranges())
+                    .map(|range| {
+                        Value::Array(cleartext.drain(..range.len()).map(|b| (b).into()).collect())
+                    })
+                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-                    verify_thread
-                        .array_from_values(inner_refs.as_slice())
-                        .expect(<span class="string">"Byte should be in VM Memory"</span>)
-                })
-                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="comment">// Check that purported values are correct
+                </span><span class="self">self</span>.state.vm.verify(<span class="kw-2">&amp;</span>value_refs, <span class="kw-2">&amp;</span>values).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="kw">let </span>values = proving_info
-                .sent_ids
-                .iter_ranges()
-                .chain(proving_info.recv_ids.iter_ranges())
-                .map(|range| {
-                    Value::Array(cleartext.drain(..range.len()).map(|b| (b).into()).collect())
-                })
-                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="macro">info!</span>(<span class="string">"Successfully verified purported cleartext"</span>);
 
-            <span class="comment">// Check that purported values are correct
-            </span>verify_thread.verify(<span class="kw-2">&amp;</span>value_refs, <span class="kw-2">&amp;</span>values).<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="comment">// Create redacted transcripts
+                </span><span class="kw">let </span><span class="kw-2">mut </span>transcripts = proving_info
+                    .sent_ids
+                    .iter_ranges()
+                    .chain(proving_info.recv_ids.iter_ranges())
+                    .map(|range| {
+                        TranscriptSlice::new(
+                            range.clone(),
+                            proving_info.cleartext.drain(..range.len()).collect(),
+                        )
+                    })
+                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="macro">info!</span>(<span class="string">"Successfully verified purported cleartext"</span>);
+                <span class="kw">let </span>recv_transcripts =
+                    transcripts.split_off(proving_info.sent_ids.iter_ranges().count());
+                <span class="kw">let </span>(sent_redacted, recv_redacted) = (
+                    RedactedTranscript::new(<span class="self">self</span>.state.sent_len, transcripts),
+                    RedactedTranscript::new(<span class="self">self</span>.state.recv_len, recv_transcripts),
+                );
 
-            <span class="comment">// Create redacted transcripts
-            </span><span class="kw">let </span><span class="kw-2">mut </span>transcripts = proving_info
-                .sent_ids
-                .iter_ranges()
-                .chain(proving_info.recv_ids.iter_ranges())
-                .map(|range| {
-                    TranscriptSlice::new(
-                        range.clone(),
-                        proving_info.cleartext.drain(..range.len()).collect(),
-                    )
-                })
-                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="macro">info!</span>(<span class="string">"Successfully created redacted transcripts"</span>);
 
-            <span class="kw">let </span>recv_transcripts =
-                transcripts.split_off(proving_info.sent_ids.iter_ranges().count());
-            <span class="kw">let </span>(sent_redacted, recv_redacted) = (
-                RedactedTranscript::new(<span class="self">self</span>.state.sent_len, transcripts),
-                RedactedTranscript::new(<span class="self">self</span>.state.recv_len, recv_transcripts),
-            );
-
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="macro">info!</span>(<span class="string">"Successfully created redacted transcripts"</span>);
-
-            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;((sent_redacted, recv_redacted))
-        };
-
-        <span class="macro">futures::select!</span> {
-            res = verify_fut.fuse() =&gt; res,
-            <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span><span class="self">self</span>.state.mux_fut =&gt; <span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
-        }
-    }
+                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;((sent_redacted, recv_redacted))
+            })
+            .<span class="kw">await
+    </span>}
 
     <span class="doccomment">/// Verifies the TLS session.
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SessionInfo, VerifierError&gt; {
         <span class="kw">let </span>VerifyState {
-            <span class="kw-2">mut </span>mux_ctrl,
+            <span class="kw-2">mut </span>io,
+            mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             <span class="kw-2">mut </span>vm,
-            ot_send,
-            ot_recv,
-            ot_fut,
-            <span class="kw-2">mut </span>gf2,
+            <span class="kw-2">mut </span>ot_send,
+            <span class="kw-2">mut </span>ctx,
             start_time,
             server_ephemeral_key,
             handshake_commitment,
             ..
         } = <span class="self">self</span>.state;
 
-        <span class="kw">let </span>finalize_fut = <span class="kw">async </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux_ctrl.get_channel(<span class="string">"finalize"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>session_info = mux_fut
+            .poll_with(<span class="kw">async </span>{
+                <span class="comment">// Finalize all MPC
+                </span>ot_send.reveal(<span class="kw-2">&amp;mut </span>ctx).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="comment">// Finalize all MPC
-            </span><span class="kw">let </span>(<span class="kw-2">mut </span>ot_sender_actor, <span class="kw">_</span>, <span class="kw">_</span>) = <span class="macro">futures::try_join!</span>(
-                ot_fut,
-                ot_send.shutdown().map_err(VerifierError::from),
-                ot_recv.shutdown().map_err(VerifierError::from)
-            )<span class="question-mark">?</span>;
+                vm.finalize()
+                    .<span class="kw">await
+                    </span>.map_err(|e| VerifierError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
 
-            ot_sender_actor.reveal().<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="kw">let </span>session_info: SessionInfo = io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
 
-            vm.finalize()
-                .<span class="kw">await
-                </span>.map_err(|e| VerifierError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
+                <span class="macro">info!</span>(<span class="string">"Finalized all MPC"</span>);
 
-            gf2.verify()
-                .<span class="kw">await
-                </span>.map_err(|e| VerifierError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
-
-            <span class="kw">let </span>session_info = <span class="macro">expect_msg_or_err!</span>(channel, TlsnMessage::SessionInfo)<span class="question-mark">?</span>;
-
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="macro">info!</span>(<span class="string">"Finalized all MPC"</span>);
-
-            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(session_info)
-        };
-
-        <span class="kw">let </span>session_info = <span class="macro">futures::select!</span> {
-            res = finalize_fut.fuse() =&gt; res<span class="question-mark">?</span>,
-            <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span>mux_fut =&gt; <span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
-        };
+                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(session_info)
+            })
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="kw">let </span>handshake_summary =
             HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
@@ -382,12 +306,12 @@
         <span class="comment">// Verify the TLS session
         </span>session_info.verify(<span class="kw-2">&amp;</span>handshake_summary, <span class="self">self</span>.config.cert_verifier())<span class="question-mark">?</span>;
 
-        <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-        </span><span class="macro">info!</span>(<span class="string">"Successfully verified session"</span>);
+        <span class="macro">info!</span>(<span class="string">"Successfully verified session"</span>);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>mux_ctrl = mux_ctrl.into_inner();
-
-        <span class="macro">futures::try_join!</span>(mux_ctrl.close().map_err(VerifierError::from), mux_fut)<span class="question-mark">?</span>;
+        <span class="kw">if </span>!mux_fut.is_complete() {
+            mux_ctrl.mux().close();
+            mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
+        }
 
         <span class="prelude-val">Ok</span>(session_info)
     }

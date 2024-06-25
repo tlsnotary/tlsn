@@ -140,34 +140,15 @@
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier state.
 
 </span><span class="kw">use </span>mpz_core::hash::Hash;
-<span class="kw">use </span>mpz_garble::protocol::deap::{DEAPThread, DEAPVm};
-<span class="kw">use </span>mpz_ot::actor::kos::{SharedReceiver, SharedSender};
-<span class="kw">use </span>mpz_share_conversion::{ConverterReceiver, Gf2_128};
 <span class="kw">use </span>tls_core::key::PublicKey;
 <span class="kw">use </span>tls_mpc::MpcTlsFollower;
-<span class="kw">use </span>tlsn_common::mux::MuxControl;
-<span class="kw">use </span>tlsn_core::msg::TlsnMessage;
-<span class="kw">use </span>utils_aio::duplex::Duplex;
-
-<span class="kw">use </span><span class="kw">crate</span>::tls::future::{MuxFuture, OTFuture};
+<span class="kw">use </span>tlsn_common::{
+    mux::{MuxControl, MuxFuture},
+    Context, DEAPThread, Io, OTSender,
+};
 
 <span class="doccomment">/// TLS Verifier state.
 </span><span class="kw">pub trait </span>VerifierState: sealed::Sealed {}
@@ -179,29 +160,27 @@
 
 <span class="doccomment">/// State after MPC setup has completed.
 </span><span class="kw">pub struct </span>Setup {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) mpc_tls: MpcTlsFollower,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPVm&lt;SharedSender, SharedReceiver&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: SharedSender,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_recv: SharedReceiver,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_fut: OTFuture,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) gf2: ConverterReceiver&lt;Gf2_128, SharedReceiver&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) encoder_seed: [u8; <span class="number">32</span>],
 }
 
 <span class="doccomment">/// State after the TLS connection has been closed.
 </span><span class="kw">pub struct </span>Closed {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPVm&lt;SharedSender, SharedReceiver&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: SharedSender,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_recv: SharedReceiver,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_fut: OTFuture,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) gf2: ConverterReceiver&lt;Gf2_128, SharedReceiver&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) encoder_seed: [u8; <span class="number">32</span>],
     <span class="kw">pub</span>(<span class="kw">crate</span>) start_time: u64,
@@ -215,14 +194,13 @@
 
 <span class="doccomment">/// Notarizing state.
 </span><span class="kw">pub struct </span>Notarize {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPVm&lt;SharedSender, SharedReceiver&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: SharedSender,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_recv: SharedReceiver,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_fut: OTFuture,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) gf2: ConverterReceiver&lt;Gf2_128, SharedReceiver&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) encoder_seed: [u8; <span class="number">32</span>],
     <span class="kw">pub</span>(<span class="kw">crate</span>) start_time: u64,
@@ -237,13 +215,12 @@
 <span class="kw">impl </span>From&lt;Closed&gt; <span class="kw">for </span>Notarize {
     <span class="kw">fn </span>from(value: Closed) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
+            io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
             vm: value.vm,
             ot_send: value.ot_send,
-            ot_recv: value.ot_recv,
-            ot_fut: value.ot_fut,
-            gf2: value.gf2,
+            ctx: value.ctx,
             encoder_seed: value.encoder_seed,
             start_time: value.start_time,
             server_ephemeral_key: value.server_ephemeral_key,
@@ -256,23 +233,19 @@
 
 <span class="doccomment">/// Verifying state.
 </span><span class="kw">pub struct </span>Verify {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPVm&lt;SharedSender, SharedReceiver&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: SharedSender,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_recv: SharedReceiver,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_fut: OTFuture,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) gf2: ConverterReceiver&lt;Gf2_128, SharedReceiver&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) start_time: u64,
     <span class="kw">pub</span>(<span class="kw">crate</span>) server_ephemeral_key: PublicKey,
     <span class="kw">pub</span>(<span class="kw">crate</span>) handshake_commitment: Hash,
     <span class="kw">pub</span>(<span class="kw">crate</span>) sent_len: usize,
     <span class="kw">pub</span>(<span class="kw">crate</span>) recv_len: usize,
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) channel: <span class="prelude-ty">Option</span>&lt;Box&lt;<span class="kw">dyn </span>Duplex&lt;TlsnMessage&gt;&gt;&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) verify_thread: <span class="prelude-ty">Option</span>&lt;DEAPThread&lt;SharedSender, SharedReceiver&gt;&gt;,
 }
 
 <span class="macro">opaque_debug::implement!</span>(Verify);
@@ -280,20 +253,17 @@
 <span class="kw">impl </span>From&lt;Closed&gt; <span class="kw">for </span>Verify {
     <span class="kw">fn </span>from(value: Closed) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
+            io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
             vm: value.vm,
             ot_send: value.ot_send,
-            ot_recv: value.ot_recv,
-            ot_fut: value.ot_fut,
-            gf2: value.gf2,
+            ctx: value.ctx,
             start_time: value.start_time,
             server_ephemeral_key: value.server_ephemeral_key,
             handshake_commitment: value.handshake_commitment,
             sent_len: value.sent_len,
             recv_len: value.recv_len,
-            channel: <span class="prelude-val">None</span>,
-            verify_thread: <span class="prelude-val">None</span>,
         }
     }
 }

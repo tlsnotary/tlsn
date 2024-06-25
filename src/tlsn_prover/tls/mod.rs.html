@@ -374,9 +374,6 @@
 <a href="#374" id="374">374</a>
 <a href="#375" id="375">375</a>
 <a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS prover.
 //!
 //! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of
@@ -395,34 +392,29 @@
 <span class="kw">pub use </span>config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 <span class="kw">pub use </span>error::ProverError;
 <span class="kw">pub use </span>future::ProverFuture;
-<span class="kw">use </span>tlsn_common::{
-    mux::{attach_mux, MuxControl},
-    Role,
-};
-
-<span class="kw">use </span>error::OTShutdownError;
-<span class="kw">use </span>future::{MuxFuture, OTFuture};
-<span class="kw">use </span>futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
-<span class="kw">use </span>mpz_garble::{config::Role <span class="kw">as </span>DEAPRole, protocol::deap::DEAPVm};
-<span class="kw">use </span>mpz_ot::{
-    actor::kos::{ReceiverActor, SenderActor, SharedReceiver, SharedSender},
-    chou_orlandi, kos,
-};
-<span class="kw">use </span>mpz_share_conversion <span class="kw">as </span>ff;
-<span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>state::{Notarize, Prove};
+
+<span class="kw">use </span>futures::{AsyncRead, AsyncWrite, TryFutureExt};
+<span class="kw">use </span>mpz_common::Allocate;
+<span class="kw">use </span>mpz_garble::config::Role <span class="kw">as </span>DEAPRole;
+<span class="kw">use </span>mpz_ot::{chou_orlandi, kos};
+<span class="kw">use </span>rand::Rng;
+<span class="kw">use </span>serio::StreamExt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>tls_client::{ClientConnection, ServerName <span class="kw">as </span>TlsServerName};
 <span class="kw">use </span>tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-<span class="kw">use </span>tls_mpc::{setup_components, LeaderCtrl, MpcTlsLeader, TlsRole};
+<span class="kw">use </span>tls_mpc::{build_components, LeaderCtrl, MpcTlsLeader, TlsRole};
+<span class="kw">use </span>tlsn_common::{
+    mux::{attach_mux, MuxControl},
+    DEAPThread, Executor, OTReceiver, OTSender, Role,
+};
 <span class="kw">use </span>tlsn_core::transcript::Transcript;
-<span class="kw">use </span>utils_aio::mux::MuxChannel;
+<span class="kw">use </span>uid_mux::FramedUidMux <span class="kw">as _</span>;
 
 <span class="attr">#[cfg(feature = <span class="string">"formats"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::http::{state <span class="kw">as </span>http_state, HttpProver, HttpProverError};
 
-<span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-</span><span class="kw">use </span>tracing::{debug, debug_span, instrument, Instrument};
+<span class="kw">use </span>tracing::{debug, debug_span, instrument, Instrument};
 
 <span class="doccomment">/// A prover instance.
 </span><span class="attr">#[derive(Debug)]
@@ -452,31 +444,43 @@
     /// # Arguments
     ///
     /// * `socket` - The socket to the TLS verifier.
+    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>setup&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>&gt;(
         <span class="self">self</span>,
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Prover&lt;state::Setup&gt;, ProverError&gt; {
-        <span class="kw">let </span>(<span class="kw-2">mut </span>mux, mux_ctrl) = attach_mux(socket, Role::Prover);
+        <span class="kw">let </span>(<span class="kw-2">mut </span>mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>mux_fut = MuxFuture {
-            fut: Box::pin(<span class="kw">async move </span>{ mux.run().<span class="kw">await</span>.map_err(ProverError::from) }.fuse()),
-        };
+        <span class="comment">// Maximum thread forking concurrency of 8.
+        // TODO: Determine the optimal number of threads.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>exec = Executor::new(mux_ctrl.clone(), <span class="number">8</span>);
 
-        <span class="kw">let </span>mpc_setup_fut = setup_mpc_backend(<span class="kw-2">&amp;</span><span class="self">self</span>.config, mux_ctrl.clone());
-        <span class="kw">let </span>(mpc_tls, vm, <span class="kw">_</span>, gf2, ot_fut) = <span class="macro">futures::select!</span> {
-            res = mpc_setup_fut.fuse() =&gt; res<span class="question-mark">?</span>,
-            <span class="kw">_ </span>= (<span class="kw-2">&amp;mut </span>mux_fut).fuse() =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
-        };
+        <span class="kw">let </span>(mpc_tls, vm, ot_recv) = mux_fut
+            .poll_with(setup_mpc_backend(<span class="kw-2">&amp;</span><span class="self">self</span>.config, <span class="kw-2">&amp;</span>mux_ctrl, <span class="kw-2">&amp;mut </span>exec))
+            .<span class="kw">await</span><span class="question-mark">?</span>;
+
+        <span class="kw">let </span>io = mux_fut
+            .poll_with(
+                mux_ctrl
+                    .open_framed(<span class="string">b"tlsnotary"</span>)
+                    .map_err(ProverError::from),
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
+
+        <span class="kw">let </span>ctx = mux_fut
+            .poll_with(exec.new_thread().map_err(ProverError::from))
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(Prover {
             config: <span class="self">self</span>.config,
             state: state::Setup {
+                io,
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 vm,
-                ot_fut,
-                gf2,
+                ot_recv,
+                ctx,
             },
         })
     }
@@ -491,21 +495,19 @@
     /// # Arguments
     ///
     /// * `socket` - The socket to the server.
-    </span><span class="attr">#[cfg_attr(
-        feature = <span class="string">"tracing"</span>,
-        instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, socket), err)
-    )]
+    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>connect&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>&gt;(
         <span class="self">self</span>,
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(TlsConnection, ProverFuture), ProverError&gt; {
         <span class="kw">let </span>state::Setup {
+            io,
             mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             mpc_tls,
             vm,
-            <span class="kw-2">mut </span>ot_fut,
-            gf2,
+            ot_recv,
+            ctx,
         } = <span class="self">self</span>.state;
 
         <span class="kw">let </span>(mpc_ctrl, mpc_fut) = mpc_tls.run();
@@ -524,31 +526,31 @@
 
         <span class="kw">let </span>fut = Box::pin({
             <span class="kw">let </span>mpc_ctrl = mpc_ctrl.clone();
-            <span class="attr">#[allow(clippy::let_and_return)]
-            </span><span class="kw">let </span>fut = <span class="kw">async move </span>{
+            <span class="kw">async move </span>{
                 <span class="kw">let </span>conn_fut = <span class="kw">async </span>{
-                    <span class="kw">let </span>ClosedConnection { sent, recv, .. } = <span class="macro">futures::select!</span> {
-                        res = conn_fut.fuse() =&gt; res<span class="question-mark">?</span>,
-                        <span class="kw">_ </span>= ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(OTShutdownError)<span class="question-mark">?</span>,
-                        <span class="kw">_ </span>= mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
-                    };
+                    <span class="kw">let </span>ClosedConnection { sent, recv, .. } = mux_fut
+                        .poll_with(conn_fut.map_err(ProverError::from))
+                        .<span class="kw">await</span><span class="question-mark">?</span>;
 
                     mpc_ctrl.close_connection().<span class="kw">await</span><span class="question-mark">?</span>;
 
                     <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;((sent, recv))
                 };
 
-                <span class="kw">let </span>((sent, recv), mpc_tls_data) =
-                    <span class="macro">futures::try_join!</span>(conn_fut, mpc_fut.map_err(ProverError::from))<span class="question-mark">?</span>;
+                <span class="kw">let </span>((sent, recv), mpc_tls_data) = <span class="macro">futures::try_join!</span>(
+                    conn_fut,
+                    mpc_fut.in_current_span().map_err(ProverError::from)
+                )<span class="question-mark">?</span>;
 
                 <span class="prelude-val">Ok</span>(Prover {
                     config: <span class="self">self</span>.config,
                     state: state::Closed {
+                        io,
                         mux_ctrl,
                         mux_fut,
                         vm,
-                        ot_fut,
-                        gf2,
+                        ot_recv,
+                        ctx,
                         start_time,
                         handshake_decommitment: mpc_tls_data
                             .handshake_decommitment
@@ -558,10 +560,8 @@
                         transcript_rx: Transcript::new(recv),
                     },
                 })
-            };
-            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-            </span><span class="kw">let </span>fut = fut.instrument(<span class="macro">debug_span!</span>(<span class="string">"prover_tls_connection"</span>));
-            fut
+            }
+            .instrument(<span class="macro">debug_span!</span>(<span class="string">"prover"</span>))
         });
 
         <span class="prelude-val">Ok</span>((
@@ -615,122 +615,116 @@
 }
 
 <span class="doccomment">/// Performs a setup of the various MPC subprotocols.
-</span><span class="attr">#[cfg_attr(feature = <span class="string">"tracing"</span>, instrument(level = <span class="string">"debug"</span>, skip_all, err))]
-#[allow(clippy::type_complexity)]
+</span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
 </span><span class="kw">async fn </span>setup_mpc_backend(
     config: <span class="kw-2">&amp;</span>ProverConfig,
-    <span class="kw-2">mut </span>mux: MuxControl,
-) -&gt; <span class="prelude-ty">Result</span>&lt;
-    (
-        MpcTlsLeader,
-        DEAPVm&lt;SharedSender, SharedReceiver&gt;,
-        SharedReceiver,
-        ff::ConverterSender&lt;ff::Gf2_128, SharedSender&gt;,
-        OTFuture,
-    ),
-    ProverError,
-&gt; {
-    <span class="kw">let </span>(ot_send_sink, ot_send_stream) = mux.get_channel(<span class="string">"ot/0"</span>).<span class="kw">await</span><span class="question-mark">?</span>.split();
-    <span class="kw">let </span>(ot_recv_sink, ot_recv_stream) = mux.get_channel(<span class="string">"ot/1"</span>).<span class="kw">await</span><span class="question-mark">?</span>.split();
-
-    <span class="kw">let </span><span class="kw-2">mut </span>ot_sender_actor = SenderActor::new(
-        kos::Sender::new(
-            config.build_ot_sender_config(),
-            chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
-        ),
-        ot_send_sink,
-        ot_send_stream,
+    mux: <span class="kw-2">&amp;</span>MuxControl,
+    exec: <span class="kw-2">&amp;mut </span>Executor,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(MpcTlsLeader, DEAPThread, OTReceiver), ProverError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>ot_sender = kos::Sender::new(
+        config.build_ot_sender_config(),
+        chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
     );
+    ot_sender.alloc(config.ot_sender_setup_count());
 
-    <span class="kw">let </span><span class="kw-2">mut </span>ot_receiver_actor = ReceiverActor::new(
-        kos::Receiver::new(
-            config.build_ot_receiver_config(),
-            chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
-        ),
-        ot_recv_sink,
-        ot_recv_stream,
+    <span class="kw">let </span><span class="kw-2">mut </span>ot_receiver = kos::Receiver::new(
+        config.build_ot_receiver_config(),
+        chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
     );
+    ot_receiver.alloc(config.ot_receiver_setup_count());
 
-    <span class="kw">let </span>ot_send = ot_sender_actor.sender();
-    <span class="kw">let </span>ot_recv = ot_receiver_actor.receiver();
+    <span class="kw">let </span>ot_sender = OTSender::new(ot_sender);
+    <span class="kw">let </span>ot_receiver = OTReceiver::new(ot_receiver);
 
-    <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-    </span><span class="macro">debug!</span>(<span class="string">"Starting OT setup"</span>);
-
-    <span class="macro">futures::try_join!</span>(
-        ot_sender_actor
-            .setup(config.ot_sender_setup_count())
-            .map_err(ProverError::from),
-        ot_receiver_actor
-            .setup(config.ot_receiver_setup_count())
-            .map_err(ProverError::from)
+    <span class="kw">let </span>(
+        ctx_vm,
+        ctx_ke_0,
+        ctx_ke_1,
+        ctx_prf_0,
+        ctx_prf_1,
+        ctx_encrypter_block_cipher,
+        ctx_encrypter_stream_cipher,
+        ctx_encrypter_ghash,
+        ctx_encrypter,
+        ctx_decrypter_block_cipher,
+        ctx_decrypter_stream_cipher,
+        ctx_decrypter_ghash,
+        ctx_decrypter,
+    ) = <span class="macro">futures::try_join!</span>(
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
+        exec.new_thread(),
     )<span class="question-mark">?</span>;
 
-    <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-    </span><span class="macro">debug!</span>(<span class="string">"OT setup complete"</span>);
-
-    <span class="kw">let </span>ot_fut = OTFuture {
-        fut: Box::pin(
-            <span class="kw">async move </span>{
-                <span class="macro">futures::try_join!</span>(
-                    ot_sender_actor.run().map_err(ProverError::from),
-                    ot_receiver_actor.run().map_err(ProverError::from)
-                )<span class="question-mark">?</span>;
-
-                <span class="prelude-val">Ok</span>(())
-            }
-            .fuse(),
-        ),
-    };
-
-    <span class="kw">let </span><span class="kw-2">mut </span>vm = DEAPVm::new(
-        <span class="string">"vm"</span>,
+    <span class="kw">let </span>vm = DEAPThread::new(
         DEAPRole::Leader,
         rand::rngs::OsRng.gen(),
-        mux.get_channel(<span class="string">"vm"</span>).<span class="kw">await</span><span class="question-mark">?</span>,
-        Box::new(mux.clone()),
-        ot_send.clone(),
-        ot_recv.clone(),
+        ctx_vm,
+        ot_sender.clone(),
+        ot_receiver.clone(),
     );
 
-    <span class="kw">let </span>p256_sender_config = config.build_p256_sender_config();
-    <span class="kw">let </span>channel = mux.get_channel(p256_sender_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">let </span>p256_send =
-        ff::ConverterSender::&lt;ff::P256, <span class="kw">_</span>&gt;::new(p256_sender_config, ot_send.clone(), channel);
-
-    <span class="kw">let </span>p256_receiver_config = config.build_p256_receiver_config();
-    <span class="kw">let </span>channel = mux.get_channel(p256_receiver_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">let </span>p256_recv =
-        ff::ConverterReceiver::&lt;ff::P256, <span class="kw">_</span>&gt;::new(p256_receiver_config, ot_recv.clone(), channel);
-
-    <span class="kw">let </span>gf2_config = config.build_gf2_config();
-    <span class="kw">let </span>channel = mux.get_channel(gf2_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">let </span>gf2 = ff::ConverterSender::&lt;ff::Gf2_128, <span class="kw">_</span>&gt;::new(gf2_config, ot_send.clone(), channel);
-
     <span class="kw">let </span>mpc_tls_config = config.build_mpc_tls_config();
-
-    <span class="kw">let </span>(ke, prf, encrypter, decrypter) = setup_components(
-        mpc_tls_config.common(),
+    <span class="kw">let </span>(ke, prf, encrypter, decrypter) = build_components(
         TlsRole::Leader,
-        <span class="kw-2">&amp;mut </span>mux,
-        <span class="kw-2">&amp;mut </span>vm,
-        p256_send,
-        p256_recv,
-        gf2.handle()
-            .map_err(|e| ProverError::MpcError(Box::new(e)))<span class="question-mark">?</span>,
-    )
-    .<span class="kw">await
-    </span>.map_err(|e| ProverError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
+        mpc_tls_config.common(),
+        ctx_ke_0,
+        ctx_encrypter,
+        ctx_decrypter,
+        ctx_encrypter_ghash,
+        ctx_decrypter_ghash,
+        vm.new_thread(ctx_ke_1, ot_sender.clone(), ot_receiver.clone())<span class="question-mark">?</span>,
+        vm.new_thread(ctx_prf_0, ot_sender.clone(), ot_receiver.clone())<span class="question-mark">?</span>,
+        vm.new_thread(ctx_prf_1, ot_sender.clone(), ot_receiver.clone())<span class="question-mark">?</span>,
+        vm.new_thread(
+            ctx_encrypter_block_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )<span class="question-mark">?</span>,
+        vm.new_thread(
+            ctx_decrypter_block_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )<span class="question-mark">?</span>,
+        vm.new_thread(
+            ctx_encrypter_stream_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )<span class="question-mark">?</span>,
+        vm.new_thread(
+            ctx_decrypter_stream_cipher,
+            ot_sender.clone(),
+            ot_receiver.clone(),
+        )<span class="question-mark">?</span>,
+        ot_sender.clone(),
+        ot_receiver.clone(),
+    );
 
-    <span class="kw">let </span>channel = mux.get_channel(mpc_tls_config.common().id()).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>mpc_tls = MpcTlsLeader::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
+    <span class="kw">let </span>channel = mux.open_framed(<span class="string">b"mpc_tls"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>mpc_tls = MpcTlsLeader::new(
+        mpc_tls_config,
+        Box::new(StreamExt::compat_stream(channel)),
+        ke,
+        prf,
+        encrypter,
+        decrypter,
+    );
 
     mpc_tls.setup().<span class="kw">await</span><span class="question-mark">?</span>;
 
-    <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
-    </span><span class="macro">debug!</span>(<span class="string">"MPC backend setup complete"</span>);
+    <span class="macro">debug!</span>(<span class="string">"MPC backend setup complete"</span>);
 
-    <span class="prelude-val">Ok</span>((mpc_tls, vm, ot_recv, gf2, ot_fut))
+    <span class="prelude-val">Ok</span>((mpc_tls, vm, ot_receiver))
 }
 
 <span class="doccomment">/// A controller for the prover.
