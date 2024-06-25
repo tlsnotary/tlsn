@@ -18,13 +18,13 @@ default = []
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }

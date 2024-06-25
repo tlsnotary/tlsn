@@ -19,12 +19,12 @@ mock = ["mpz-common/test-utils", "dep:mpz-ot"]
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e", optional = true, features = [
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", optional = true, features = [
     "ideal",
 ] }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "435526e" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 serio = "0.1"
 
 async-trait = "0.1"
