@@ -24,7 +24,7 @@ if [ $APP_NAME = "stable" ]; then
     done
 
     echo "The oldest version is running under: $OLDEST_DIR"
-    PID=$(lsof $OLDEST_DIR/tlsn/notary/server/target/release/notary-server | awk '{ print $2 }' | tail -1)
+    PID=$(lsof $OLDEST_DIR/tlsn/notary/target/release/notary-server | awk '{ print $2 }' | tail -1)
     kill -15 $PID || true
     rm -rf  $OLDEST_DIR
   fi
