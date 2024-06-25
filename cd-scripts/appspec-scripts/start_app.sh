@@ -12,8 +12,7 @@ if [ $APP_NAME = "stable" ]; then
   for PORT in $STABLE_PORTS; do
     PORT_LISTENING=$(netstat -lnt4 | egrep -cw $PORT || true)
     if [ $PORT_LISTENING -eq 0 ]; then
-      cd ~/${APP_NAME}_${TAG}/tlsn/notary
-      target/release/notary-server --config-file ~/.notary/${APP_NAME}_${PORT}/config.yaml &> ~/${APP_NAME}_${TAG}/tlsn/notary.log &
+      ~/${APP_NAME}_${TAG}/tlsn/notary/target/release/notary-server --config-file ~/.notary/${APP_NAME}_${PORT}/config.yaml &> ~/${APP_NAME}_${TAG}/tlsn/notary.log &
       # Create a tag that will be used for service validation
       INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
       aws ec2 create-tags --resources $INSTANCE_ID --tags "Key=port,Value=$PORT"
@@ -21,8 +20,7 @@ if [ $APP_NAME = "stable" ]; then
     fi
   done
 else
-  cd ~/$APP_NAME/tlsn/notary
-  target/release/notary-server --config-file ~/.notary/$APP_NAME/config.yaml &> ~/$APP_NAME/tlsn/notary.log &
+  ~/$APP_NAME/tlsn/notary/target/release/notary-server --config-file ~/.notary/$APP_NAME/config.yaml &> ~/$APP_NAME/tlsn/notary.log &
 fi
 
 exit 0
