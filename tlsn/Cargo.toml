@@ -27,9 +27,9 @@ tlsn-tls-client = { path = "../components/tls/tls-client" }
 tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
 serio = "0.1"
 uid-mux = { version = "0.1", features = ["serio"] }
 
