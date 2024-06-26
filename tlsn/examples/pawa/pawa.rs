@@ -41,7 +41,7 @@ async fn main() -> std::io::Result<()> {
     // Basic default prover config using the session_id returned from /session endpoint just now
     let config = ProverConfig::builder()
         .id(session_id)
-        .server_dns("api.sandbox.pawapay.com")
+        .server_dns("https://api.sandbox.pawapay.cloud/")
         .build()
         .unwrap();
 
@@ -73,17 +73,19 @@ async fn main() -> std::io::Result<()> {
     // Spawn the HTTP task to be run concurrently
     tokio::spawn(connection);
 
+    let current_timestamp = Utc::now().to_rfc3339();
+
     // Build the HTTP request to send the payout
     let request_body = serde_json::json!({
         "payoutId": payout_id,
-        "amount": "15",
-        "currency": "ZMW",
-        "country": "ZMB",
-        "correspondent": "MTN_MOMO_ZMB",
+        "amount": "19",
+        "currency": "GHS",
+        "country": "GHA",
+        "correspondent": "MTN_MOMO_GHA",
         "recipient": {
             "type": "MSISDN",
             "address": {
-                "value": "260763456789"
+                "value": "233593456119"
             }
         },
         "customerTimestamp": "2020-02-21T17:32:28Z",
