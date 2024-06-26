@@ -1,5 +1,8 @@
-use actix_web::{web, App, HttpServer, HttpResponse, Responder, post};
+use hyper::{Body, Request, Response, Server, Method, StatusCode};
+use hyper::service::{make_service_fn, service_fn};
+use hyper_util::rt::TokioIo;
 use serde::Deserialize;
+use std::convert::Infallible;
 use std::env;
 use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
 use tlsn_examples::request_notarization;
@@ -7,6 +10,7 @@ use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 use tlsn_prover::tls::{Prover, ProverConfig};
+use chrono::Utc;
 
 #[derive(Deserialize)]
 struct PayoutStatus {
@@ -14,14 +18,22 @@ struct PayoutStatus {
     payout_id: String,
 }
 
-#[post("/callback")]
-async fn callback_handler(info: web::Json<PayoutStatus>) -> impl Responder {
-    debug!("Received callback: {:?}", info);
-    // Notarize the callback response here
-    HttpResponse::Ok().json("Callback received")
+async fn callback_handler(req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    if req.method() == Method::POST && req.uri().path() == "/callback" {
+        let whole_body = hyper::body::to_bytes(req.into_body()).await.unwrap();
+        let payout_status: PayoutStatus = serde_json::from_slice(&whole_body).unwrap();
+        debug!("Received callback: {:?}", payout_status);
+        // Notarize the callback response here
+        Ok(Response::new(Body::from("Callback received")))
+    } else {
+        Ok(Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::from("Not Found"))
+            .unwrap())
+    }
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
 
@@ -111,7 +123,7 @@ async fn main() -> std::io::Result<()> {
         .header("Content-Type", "application/json; charset=UTF-8")
         .header("Authorization", format!("Bearer {}", api_token))
         .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
-        .body(Empty::<Bytes>::new())
+        .body(Body::from(request_body.to_string()))
         .unwrap();
 
     debug!("Sending request");
@@ -129,9 +141,8 @@ async fn main() -> std::io::Result<()> {
     debug!("Request OK");
 
     // Pretty printing :)
-    let payload = response.into_body().collect().await.unwrap().to_bytes();
-    let parsed =
-        serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
+    let payload = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let parsed = serde_json::from_slice::<serde_json::Value>(&payload).unwrap();
     debug!("{}", serde_json::to_string_pretty(&parsed).unwrap());
 
     // The Prover task should be done now, so we can grab it.
@@ -209,12 +220,18 @@ async fn main() -> std::io::Result<()> {
         .await
         .unwrap();
 
-    // Start the Actix-web server to handle callbacks
-    HttpServer::new(|| {
-        App::new()
-            .service(callback_handler)
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
+    // Start the hyper server to handle callbacks
+    let make_svc = make_service_fn(|_conn| {
+        async { Ok::<_, Infallible>(service_fn(callback_handler)) }
+    });
+
+    let addr = ([127, 0, 0, 1], 8080).into();
+
+    let server = Server::bind(&addr).serve(make_svc);
+
+    println!("Listening on http://{}", addr);
+
+    server.await?;
+
+    Ok(())
 }
