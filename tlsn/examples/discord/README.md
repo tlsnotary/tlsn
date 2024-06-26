@@ -54,41 +54,26 @@ RUST_LOG=debug,yamux=info cargo run --release --example discord_dm
 If everything goes well, you should see output similar to the following:
 
 ```log
-..
-2023-09-22T14:40:51.416047Z DEBUG discord_dm: [
+...
+2024-06-26T08:18:21.318297Z DEBUG connect:tls_connection: tls_client_async: handshake complete
+2024-06-26T08:18:23.080786Z DEBUG connect:tls_connection: tls_client_async: server closed connection
+2024-06-26T08:18:23.080811Z DEBUG connect:commit: tls_mpc::leader: committing to transcript
+2024-06-26T08:18:23.080798Z DEBUG discord_dm: Sent request
+2024-06-26T08:18:23.080828Z DEBUG discord_dm: Request OK
+2024-06-26T08:18:23.080829Z DEBUG connect:tls_connection: tls_client_async: client shutdown
+2024-06-26T08:18:23.080876Z DEBUG discord_dm: [
   {
     "attachments": [],
-    "author": {
-      "accent_color": null,
-      "avatar": "dd07631c9613240aa969d6e7916eb7ae",
-      "avatar_decoration_data": null,
-      "banner": null,
-      "banner_color": null,
-      "discriminator": "0",
-      "flags": 0,
-      "global_name": "sinu",
-      "id": "662709891017867273",
-      "public_flags": 0,
-      "username": "sinu_"
-    },
-    "channel_id": "1154750485639745567",
-    "components": [],
-    "content": "Hello ETHGlobal NY!!",
-    "edited_timestamp": null,
-    "embeds": [],
-    "flags": 0,
-    "id": "1154750835784429678",
-    "mention_everyone": false,
-    "mention_roles": [],
-    "mentions": [],
-    "pinned": false,
-    "timestamp": "2023-09-22T12:07:33.484000+00:00",
-    "tts": false,
-    "type": 0
-  },
-  ..
+...
+  }
 ]
-2023-09-22T14:40:51.847455Z DEBUG discord_dm: Notarization complete!
+2024-06-26T08:18:23.080901Z DEBUG connect:close_connection: tls_mpc::leader: closing connection
+2024-06-26T08:18:23.080978Z DEBUG connect: tls_mpc::leader: leader actor stopped
+2024-06-26T08:18:23.083223Z DEBUG finalize: tlsn_prover::tls::notarize: starting finalization
+2024-06-26T08:18:23.086064Z DEBUG finalize: tlsn_prover::tls::notarize: received OT secret
+2024-06-26T08:18:24.424286Z  INFO finalize:poll{role=Client}:handle_shutdown: uid_mux::yamux: mux connection closed
+2024-06-26T08:18:24.424301Z  INFO finalize:poll{role=Client}: uid_mux::yamux: connection complete
+2024-06-26T08:18:24.424526Z DEBUG discord_dm: Notarization complete!
 ```
 
 If the transcript was too long, you may encounter the following error. This occurs because there is a default limit of notarization size to 16kB:
@@ -109,4 +94,4 @@ cargo run --release --example discord_dm_verifier
 
 This will verify the proof and print out the redacted transcript!
 
-> **_NOTE:_** ℹ️ <https://tlsnotary.github.io/proof_viz/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof.
+> **_NOTE:_** ℹ️ <https://explorer.tlsnotary.org/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof.
