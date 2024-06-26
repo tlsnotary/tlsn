@@ -12,7 +12,6 @@ use tlsn_prover::tls::{Prover, ProverConfig};
 struct PayoutStatus {
     status: String,
     payout_id: String,
-    // Add other fields as necessary
 }
 
 #[post("/callback")]
