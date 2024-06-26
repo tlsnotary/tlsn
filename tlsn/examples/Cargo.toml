@@ -24,7 +24,7 @@ async-tls = {version = "0.12", default-features = false, features = [
 chrono = "0.4"
 futures.workspace = true
 http-body-util = "0.1"
-hyper = {version = "1.1", features = ["client", "http1"]}
+hyper = {version = "0.14", features = ["client", "http1"]}
 hyper-util = {version = "0.1", features = ["full"]}
 rustls = {version = "0.21"}
 rustls-pemfile = {version = "1.0.2"}

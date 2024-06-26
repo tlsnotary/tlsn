@@ -1,5 +1,7 @@
-use hyper::{Body, Request, Response, Server, Method, StatusCode};
-use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Request, Response, Method, StatusCode};
+use hyper::service::service_fn;
+use hyper::body::to_bytes;
+use hyper::client::conn::http1;
 use hyper_util::rt::TokioIo;
 use serde::Deserialize;
 use std::convert::Infallible;
@@ -7,12 +9,13 @@ use std::env;
 use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
 use tlsn_examples::request_notarization;
 use tokio::io::AsyncWriteExt as _;
+use tokio::net::TcpListener;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use chrono::Utc;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct PayoutStatus {
     status: String,
     payout_id: String,
@@ -20,7 +23,7 @@ struct PayoutStatus {
 
 async fn callback_handler(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     if req.method() == Method::POST && req.uri().path() == "/callback" {
-        let whole_body = hyper::body::to_bytes(req.into_body()).await.unwrap();
+        let whole_body = to_bytes(req.into_body()).await.unwrap();
         let payout_status: PayoutStatus = serde_json::from_slice(&whole_body).unwrap();
         debug!("Received callback: {:?}", payout_status);
         // Notarize the callback response here
@@ -78,7 +81,7 @@ async fn main() -> std::io::Result<()> {
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the TLS connection
-    let (mut request_sender, connection) = hyper::client::conn::http1::handshake(tls_connection)
+    let (mut request_sender, connection) = http1::handshake(tls_connection)
         .await
         .unwrap();
 
@@ -141,7 +144,7 @@ async fn main() -> std::io::Result<()> {
     debug!("Request OK");
 
     // Pretty printing :)
-    let payload = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let payload = to_bytes(response.into_body()).await.unwrap();
     let parsed = serde_json::from_slice::<serde_json::Value>(&payload).unwrap();
     debug!("{}", serde_json::to_string_pretty(&parsed).unwrap());
 
@@ -221,17 +224,21 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
 
     // Start the hyper server to handle callbacks
-    let make_svc = make_service_fn(|_conn| {
-        async { Ok::<_, Infallible>(service_fn(callback_handler)) }
-    });
+    let make_svc = service_fn(callback_handler);
 
     let addr = ([127, 0, 0, 1], 8080).into();
-
-    let server = Server::bind(&addr).serve(make_svc);
+    let listener = TcpListener::bind(addr).await?;
 
     println!("Listening on http://{}", addr);
 
-    server.await?;
+    loop {
+        let (stream, _) = listener.accept().await?;
+        let service = make_svc.clone();
 
-    Ok(())
+        tokio::spawn(async move {
+            if let Err(err) = hyper::server::conn::Http::new().serve_connection(stream, service).await {
+                eprintln!("Error serving connection: {:?}", err);
+            }
+        });
+    }
 }
