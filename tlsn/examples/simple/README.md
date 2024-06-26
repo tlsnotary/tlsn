@@ -74,7 +74,7 @@ cargo run --release --example simple_verifier
 ...
 ```
 
-You can also use <https://explorer.tlsnotary.org/> to inspect your proofs. Simply drag and drop `simple_proof.json` from your file explorer into the drop zone. Redacted bytes are marked with X characters. You can get the Notary public key by visiting <http://localhost:7047/>
+You can also use <https://explorer.tlsnotary.org/> to inspect your proofs. Simply drag and drop `simple_proof.json` from your file explorer into the drop zone. Redacted bytes are marked with X characters. [Notary public key](../../../notary/server/fixture/notary/notary.pub)
 
 ### (Optional) Extra Experiments
 
