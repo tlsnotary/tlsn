@@ -71,3 +71,7 @@ path = "discord/discord_dm_verifier.rs"
 [[example]]
 name = "interactive"
 path = "interactive/interactive.rs"
+
+[[example]]
+name = "pawa"
+path = "pawa/pawa.rs"

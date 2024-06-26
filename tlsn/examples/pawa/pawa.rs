@@ -88,7 +88,7 @@ async fn main() -> std::io::Result<()> {
                 "value": "233593456119"
             }
         },
-        "customerTimestamp": "2020-02-21T17:32:28Z",
+        "customerTimestamp": current_timestamp,
         "statementDescription": "Note of 4 to 22 chars",
         "metadata": [
             {
@@ -104,8 +104,8 @@ async fn main() -> std::io::Result<()> {
     });
 
     let request = Request::builder()
-        .uri("https://api.sandbox.pawapay.com/v1/payouts")
-        .header("Host", "api.sandbox.pawapay.com")
+        .uri("https://api.sandbox.pawapay.cloud/payouts")
+        .header("Host", "api.sandbox.pawapay.cloud")
         .header("Accept", "*/*")
         .header("Accept-Encoding", "gzip, x-gzip, deflate")
         .header("Content-Type", "application/json; charset=UTF-8")
