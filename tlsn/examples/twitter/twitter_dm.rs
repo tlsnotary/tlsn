@@ -26,7 +26,7 @@ const NOTARY_PORT: u16 = 7047;
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    // Load secret variables frome environment for twitter server connection
+    // Load secret variables from environment for twitter server connection
     dotenv::dotenv().ok();
     let conversation_id = env::var("CONVERSATION_ID").unwrap();
     let auth_token = env::var("AUTH_TOKEN").unwrap();
