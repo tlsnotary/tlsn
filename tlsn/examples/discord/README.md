@@ -48,32 +48,34 @@ For more information on how to configure the `Notary` server, please refer to [t
 In this tlsn/examples/discord folder, run the following command:
 
 ```sh
-RUST_LOG=debug,yamux=info cargo run --release --example discord_dm
+RUST_LOG=DEBUG,uid_mux=INFO,yamux=INFO cargo run --release --example discord_dm
 ```
 
 If everything goes well, you should see output similar to the following:
 
 ```log
 ...
-2024-06-26T08:18:21.318297Z DEBUG connect:tls_connection: tls_client_async: handshake complete
-2024-06-26T08:18:23.080786Z DEBUG connect:tls_connection: tls_client_async: server closed connection
-2024-06-26T08:18:23.080811Z DEBUG connect:commit: tls_mpc::leader: committing to transcript
-2024-06-26T08:18:23.080798Z DEBUG discord_dm: Sent request
-2024-06-26T08:18:23.080828Z DEBUG discord_dm: Request OK
-2024-06-26T08:18:23.080829Z DEBUG connect:tls_connection: tls_client_async: client shutdown
-2024-06-26T08:18:23.080876Z DEBUG discord_dm: [
+2024-06-26T08:49:47.017439Z DEBUG connect:tls_connection: tls_client_async: handshake complete
+2024-06-26T08:49:48.676459Z DEBUG connect:tls_connection: tls_client_async: server closed connection
+2024-06-26T08:49:48.676481Z DEBUG connect:commit: tls_mpc::leader: committing to transcript
+2024-06-26T08:49:48.676503Z DEBUG connect:tls_connection: tls_client_async: client shutdown
+2024-06-26T08:49:48.676466Z DEBUG discord_dm: Sent request
+2024-06-26T08:49:48.676550Z DEBUG discord_dm: Request OK
+2024-06-26T08:49:48.676598Z DEBUG connect:close_connection: tls_mpc::leader: closing connection
+2024-06-26T08:49:48.676613Z DEBUG connect: tls_mpc::leader: leader actor stopped
+2024-06-26T08:49:48.676618Z DEBUG discord_dm: [
   {
     "attachments": [],
-...
+    ...
+    "channel_id": "1154750485639745567",
+    ...
   }
 ]
-2024-06-26T08:18:23.080901Z DEBUG connect:close_connection: tls_mpc::leader: closing connection
-2024-06-26T08:18:23.080978Z DEBUG connect: tls_mpc::leader: leader actor stopped
-2024-06-26T08:18:23.083223Z DEBUG finalize: tlsn_prover::tls::notarize: starting finalization
-2024-06-26T08:18:23.086064Z DEBUG finalize: tlsn_prover::tls::notarize: received OT secret
-2024-06-26T08:18:24.424286Z  INFO finalize:poll{role=Client}:handle_shutdown: uid_mux::yamux: mux connection closed
-2024-06-26T08:18:24.424301Z  INFO finalize:poll{role=Client}: uid_mux::yamux: connection complete
-2024-06-26T08:18:24.424526Z DEBUG discord_dm: Notarization complete!
+2024-06-26T08:49:48.678621Z DEBUG finalize: tlsn_prover::tls::notarize: starting finalization
+2024-06-26T08:49:48.680839Z DEBUG finalize: tlsn_prover::tls::notarize: received OT secret
+2024-06-26T08:49:50.004432Z  INFO finalize:poll{role=Client}:handle_shutdown: uid_mux::yamux: mux connection closed
+2024-06-26T08:49:50.004448Z  INFO finalize:poll{role=Client}: uid_mux::yamux: connection complete
+2024-06-26T08:49:50.004583Z DEBUG discord_dm: Notarization complete!
 ```
 
 If the transcript was too long, you may encounter the following error. This occurs because there is a default limit of notarization size to 16kB:
