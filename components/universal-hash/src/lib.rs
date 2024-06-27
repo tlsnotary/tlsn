@@ -34,6 +34,12 @@ pub trait UniversalHash: Send {
     /// * `key` - Key to use for the hash function.
     async fn set_key(&mut self, key: Vec<u8>) -> Result<(), UniversalHashError>;
 
+    /// Performs any necessary one-time setup.
+    async fn setup(&mut self) -> Result<(), UniversalHashError>;
+
+    /// Preprocesses the hash function.
+    async fn preprocess(&mut self) -> Result<(), UniversalHashError>;
+
     /// Computes hash of the input, padding the input to the block size
     /// if needed.
     ///

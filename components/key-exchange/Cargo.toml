@@ -1,11 +1,11 @@
 [package]
 name = "tlsn-key-exchange"
 authors = ["TLSNotary Team"]
-description = "Implementation of the TLSNotary-specific key-exchange protocol"
+description = "Implementation of the 3-party key-exchange protocol"
 keywords = ["tls", "mpc", "2pc", "pms", "key-exchange"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2021"
 
 [lib]
@@ -13,26 +13,34 @@ name = "key_exchange"
 
 [features]
 default = ["mock"]
-tracing = ["dep:tracing", "tlsn-point-addition/tracing"]
 mock = []
 
 [dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
-mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-tlsn-point-addition = { path = "../point-addition" }
-p256 = { version = "0.13", features = ["ecdh"] }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+    "ideal",
+] }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+
+p256 = { version = "0.13", features = ["ecdh", "serde"] }
 async-trait = "0.1"
 thiserror = "1"
 serde = "1"
 futures = "0.3"
+serio = "0.1"
 derive_builder = "0.12"
-tracing = { version = "0.1", optional = true }
+tracing = "0.1"
+rand = "0.8"
 
 [dev-dependencies]
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+    "ideal",
+] }
+
+rand = "0.8"
 rand_chacha = "0.3"
 rand_core = "0.6"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }

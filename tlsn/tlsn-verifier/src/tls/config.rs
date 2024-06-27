@@ -1,5 +1,4 @@
 use mpz_ot::{chou_orlandi, kos};
-use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use std::fmt::{Debug, Formatter, Result};
 use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
@@ -117,21 +116,5 @@ impl VerifierConfig {
             self.configuration_info.max_sent_data(),
             self.configuration_info.max_recv_data(),
         )
-    }
-
-    pub(crate) fn build_p256_sender_config(&self) -> SenderConfig {
-        SenderConfig::builder().id("p256/1").build().unwrap()
-    }
-
-    pub(crate) fn build_p256_receiver_config(&self) -> ReceiverConfig {
-        ReceiverConfig::builder().id("p256/0").build().unwrap()
-    }
-
-    pub(crate) fn build_gf2_config(&self) -> ReceiverConfig {
-        ReceiverConfig::builder()
-            .id("gf2")
-            .record()
-            .build()
-            .unwrap()
     }
 }

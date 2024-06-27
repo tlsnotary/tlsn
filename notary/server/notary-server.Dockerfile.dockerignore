@@ -1,8 +1,8 @@
 # exclude everything
 *
 
-# include notary-server
-!/notary-server
+# include notary
+!/notary
 
 # include core library dependencies
 !/tlsn

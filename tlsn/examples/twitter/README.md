@@ -15,7 +15,6 @@ Then in that `.env` file, set the values of the following constants by following
 | Name            | Example                                                 | Location in Request Headers Section (within Network Tab of Developer Tools)      |
 | --------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | CONVERSATION_ID | `20124652-973145016511139841`                           | Look for `Referer`, then extract the `ID` in `https://twitter.com/messages/<ID>` |
-| CLIENT_UUID     | `e6f00000-cccc-dddd-bbbb-eeeeeefaaa27`                  | Look for `X-Client-Uuid`, then copy the entire value                             |
 | AUTH_TOKEN      | `670ccccccbe2bbbbbbbc1025aaaaaafa55555551`              | Look for `Cookie`, then extract the `token` in `;auth_token=<token>;`            |
 | ACCESS_TOKEN    | `AAAAAAAAAAAAAAAAAAAAANRILgAA...4puTs%3D1Zv7...WjCpTnA` | Look for `Authorization`, then extract the `token` in `Bearer <token>`           |
 | CSRF_TOKEN      | `77d8ef46bd57f722ea7e9f...f4235a713040bfcaac1cd6909`    | Look for `X-Csrf-Token`, then copy the entire value                              |
@@ -27,7 +26,7 @@ Next, open the **Developer Tools**, go to the **Network** tab, and refresh the p
 ![Screenshot](twitter_dm_browser.png)
 
 ## Start the notary server
-1. Edit the notary server [config file](../../../notary-server/config/config.yaml) to turn off TLS so that self-signed certificates can be avoided.
+1. Edit the notary server [config file](../../../notary/server/config/config.yaml) to turn off TLS so that self-signed certificates can be avoided.
    ```yaml
     tls:
         enabled: false
@@ -35,72 +34,63 @@ Next, open the **Developer Tools**, go to the **Network** tab, and refresh the p
    ```
 2. Run the following at the root level of this repository to start the notary server:
    ```shell
-   cd notary-server
+   cd notary/server
    cargo run --release
    ```
 
 The notary server will now be running in the background waiting for connections.
 
-For more information on how to configure the notary server, please refer to [this](../../../notary-server/README.md#running-the-server).
+For more information on how to configure the notary server, please refer to [this](../../../notary/server/README.md#running-the-server).
 
 ## Notarize
 
 In this tlsn/examples/twitter folder, run the following command:
 
 ```sh
-RUST_LOG=debug,yamux=info cargo run --release --example twitter_dm
+RUST_LOG=DEBUG,uid_mux=INFO,yamux=INFO cargo run --release --example twitter_dm
 ```
 
 If everything goes well, you should see output similar to the following:
 
 ```log
-   Compiling tlsn-examples v0.0.0 (/Users/heeckhau/tlsnotary/tlsn/tlsn/examples)
-    Finished release [optimized] target(s) in 8.52s
-     Running `/Users/heeckhau/tlsnotary/tlsn/tlsn/target/release/examples/twitter_dm`
-2023-08-15T12:49:38.532924Z DEBUG rustls::client::hs: No cached session for DnsName("tlsnotaryserver.io")
-2023-08-15T12:49:38.533384Z DEBUG rustls::client::hs: Not resuming any session
-2023-08-15T12:49:38.543493Z DEBUG rustls::client::hs: Using ciphersuite TLS13_AES_256_GCM_SHA384
-2023-08-15T12:49:38.543632Z DEBUG rustls::client::tls13: Not resuming
-2023-08-15T12:49:38.543792Z DEBUG rustls::client::tls13: TLS1.3 encrypted extensions: [ServerNameAck]
-2023-08-15T12:49:38.543803Z DEBUG rustls::client::hs: ALPN protocol is None
-2023-08-15T12:49:38.544305Z DEBUG twitter_dm: Sending configuration request
-2023-08-15T12:49:38.544556Z DEBUG hyper::proto::h1::io: flushed 163 bytes
-2023-08-15T12:49:38.546069Z DEBUG hyper::proto::h1::io: parsed 3 headers
-2023-08-15T12:49:38.546078Z DEBUG hyper::proto::h1::conn: incoming body is content-length (52 bytes)
-2023-08-15T12:49:38.546168Z DEBUG hyper::proto::h1::conn: incoming body completed
-2023-08-15T12:49:38.546187Z DEBUG twitter_dm: Sent configuration request
-2023-08-15T12:49:38.546192Z DEBUG twitter_dm: Response OK
-2023-08-15T12:49:38.546224Z DEBUG twitter_dm: Notarization response: NotarizationSessionResponse { session_id: "2675e0f9-d06c-499b-8e9e-2b893a6d7356" }
-2023-08-15T12:49:38.546257Z DEBUG twitter_dm: Sending notarization request
-2023-08-15T12:49:38.546291Z DEBUG hyper::proto::h1::io: flushed 152 bytes
-2023-08-15T12:49:38.546743Z DEBUG hyper::proto::h1::io: parsed 3 headers
-2023-08-15T12:49:38.546748Z DEBUG hyper::proto::h1::conn: incoming body is empty
-2023-08-15T12:49:38.546766Z DEBUG twitter_dm: Sent notarization request
-2023-08-15T12:49:38.546772Z DEBUG twitter_dm: Switched protocol OK
-2023-08-15T12:49:40.088422Z DEBUG twitter_dm: Sending request
-2023-08-15T12:49:40.088464Z DEBUG hyper::proto::h1::io: flushed 950 bytes
-2023-08-15T12:49:40.143884Z DEBUG tls_client::client::hs: ALPN protocol is None
-2023-08-15T12:49:40.143893Z DEBUG tls_client::client::hs: Using ciphersuite Tls12(Tls12CipherSuite { suite: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, algorithm: AES_128_GCM })
-2023-08-15T12:49:40.144666Z DEBUG tls_client::client::tls12: ECDHE curve is ECParameters { curve_type: NamedCurve, named_group: secp256r1 }
-2023-08-15T12:49:40.144687Z DEBUG tls_client::client::tls12: Server DNS name is DnsName(DnsName(DnsName("twitter.com")))
-2023-08-15T12:51:01.336491Z DEBUG hyper::proto::h1::io: parsed 31 headers
-2023-08-15T12:51:01.336507Z DEBUG hyper::proto::h1::conn: incoming body is content-length (4330 bytes)
-2023-08-15T12:51:01.336516Z DEBUG hyper::proto::h1::conn: incoming body completed
-2023-08-15T12:51:01.336528Z DEBUG twitter_dm: Sent request
-2023-08-15T12:51:01.336537Z DEBUG twitter_dm: Request OK
-2023-08-15T12:51:01.336585Z DEBUG twitter_dm: {
+2024-06-26T08:45:15.435493Z DEBUG notary_client::client: Setting up tcp connection...
+2024-06-26T08:45:15.436451Z DEBUG notary_client::client: Sending configuration request: Request { method: POST, uri: http://127.0.0.1:7047/session, version: HTTP/1.1, headers: {"host": "127.0.0.1", "content-type": "application/json"}, body: Left(Full { data: Some(b"{\"clientType\":\"Tcp\",\"maxSentData\":4096,\"maxRecvData\":16384}") }) }
+2024-06-26T08:45:15.442448Z DEBUG notary_client::client: Sent configuration request
+2024-06-26T08:45:15.442525Z DEBUG notary_client::client: Configuration response: NotarizationSessionResponse { session_id: "60fdaee7-fb36-420f-96e7-bfeb8732623c" }
+2024-06-26T08:45:15.442532Z DEBUG notary_client::client: Sending notarization request: Request { method: GET, uri: http://127.0.0.1:7047/notarize?sessionId=60fdaee7-fb36-420f-96e7-bfeb8732623c, version: HTTP/1.1, headers: {"host": "127.0.0.1", "connection": "Upgrade", "upgrade": "TCP"}, body: Right(Empty) }
+2024-06-26T08:45:15.442883Z DEBUG notary_client::client: Sent notarization request
+2024-06-26T08:45:18.569677Z DEBUG setup:setup_mpc_backend: tlsn_prover::tls: MPC backend setup complete
+2024-06-26T08:45:18.596747Z DEBUG twitter_dm: Sending request
+2024-06-26T08:45:18.607345Z DEBUG connect:tls_connection: tls_client::client::hs: ALPN protocol is None    
+2024-06-26T08:45:18.607360Z DEBUG connect:tls_connection: tls_client::client::hs: Using ciphersuite Tls12(Tls12CipherSuite { suite: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, algorithm: AES_128_GCM })    
+2024-06-26T08:45:18.607528Z DEBUG connect:tls_connection: tls_client::client::tls12: ECDHE curve is ECParameters { curve_type: NamedCurve, named_group: secp256r1 }    
+2024-06-26T08:45:18.607539Z DEBUG connect:tls_connection: tls_client::client::tls12: Server DNS name is DnsName(DnsName(DnsName("twitter.com")))    
+2024-06-26T08:45:18.607838Z DEBUG connect:handle:client_key: key_exchange::exchange: received public key share from follower
+2024-06-26T08:45:19.740173Z DEBUG connect:tls_connection: tls_client_async: handshake complete
+2024-06-26T08:45:20.442786Z DEBUG connect:tls_connection: tls_client_async: server closed connection
+2024-06-26T08:45:20.442852Z DEBUG connect:commit: tls_mpc::leader: committing to transcript
+2024-06-26T08:45:23.770382Z DEBUG twitter_dm: Sent request
+2024-06-26T08:45:23.770400Z DEBUG twitter_dm: Request OK
+2024-06-26T08:45:23.770382Z DEBUG connect:tls_connection: tls_client_async: client shutdown
+2024-06-26T08:45:23.770469Z DEBUG twitter_dm: {
   "conversation_timeline": {
     "entries": [
       {
         "message": {
-          "conversation_id": "20124652-45653288",
-        ...
-        "withheld_in_countries": []
-      }
-    }
-  }
+          ...
+        }
+      },
+      ...
+    ],
+    ...
 }
-2023-08-15T12:51:08.854818Z DEBUG twitter_dm: Notarization complete!
+2024-06-26T08:45:23.770497Z DEBUG connect:close_connection: tls_mpc::leader: closing connection
+2024-06-26T08:45:23.770687Z DEBUG connect: tls_mpc::leader: leader actor stopped
+2024-06-26T08:45:23.780574Z DEBUG finalize: tlsn_prover::tls::notarize: starting finalization
+2024-06-26T08:45:23.788046Z DEBUG finalize: tlsn_prover::tls::notarize: received OT secret
+2024-06-26T08:45:26.334296Z  INFO finalize:poll{role=Client}:client_handle_inbound: uid_mux::yamux: remote closed connection
+2024-06-26T08:45:26.334316Z  INFO finalize:poll{role=Client}: uid_mux::yamux: connection complete
+2024-06-26T08:45:26.334612Z DEBUG twitter_dm: Notarization complete!
 ```
 
 If the transcript was too long, you may encounter the following error:
@@ -109,4 +99,4 @@ If the transcript was too long, you may encounter the following error:
 thread 'tokio-runtime-worker' panicked at 'called `Result::unwrap()` on an `Err` value: IOError(Custom { kind: InvalidData, error: BackendError(DecryptionError("Other: KOSReceiverActor is not setup")) })', /Users/heeckhau/tlsnotary/tlsn/tlsn/tlsn-prover/src/lib.rs:173:50
 ```
 
-> **_NOTE:_** ℹ️ <https://tlsnotary.github.io/proof_viz/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof.
+> **_NOTE:_** ℹ️ <https://explorer.tlsnotary.org/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof. [Notary public key](../../../notary/server/fixture/notary/notary.pub)

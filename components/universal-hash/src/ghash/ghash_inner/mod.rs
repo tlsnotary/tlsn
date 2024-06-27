@@ -6,13 +6,16 @@ use crate::{
     UniversalHash, UniversalHashError,
 };
 use async_trait::async_trait;
+use mpz_common::{Context, Preprocess};
 use mpz_core::Block;
-use mpz_share_conversion::{Gf2_128, ShareConversion};
+use mpz_fields::gf2_128::Gf2_128;
+use mpz_share_conversion::{ShareConversionError, ShareConvert};
 use std::fmt::Debug;
+use tracing::instrument;
 
 mod config;
-#[cfg(feature = "mock")]
-pub(crate) mod mock;
+#[cfg(feature = "ideal")]
+pub(crate) mod ideal;
 
 pub use config::{GhashConfig, GhashConfigBuilder, GhashConfigBuilderError};
 
@@ -26,16 +29,17 @@ enum State {
 /// This is the common instance used by both sender and receiver.
 ///
 /// It is an aio wrapper which mostly uses [GhashCore] for computation.
-#[derive(Debug)]
-pub struct Ghash<C> {
+pub struct Ghash<C, Ctx> {
     state: State,
     config: GhashConfig,
     converter: C,
+    context: Ctx,
 }
 
-impl<C> Ghash<C>
+impl<C, Ctx> Ghash<C, Ctx>
 where
-    C: ShareConversion<Gf2_128> + Send + Sync + Debug,
+    Ctx: Context,
+    C: ShareConvert<Ctx, Gf2_128>,
 {
     /// Creates a new instance.
     ///
@@ -44,41 +48,53 @@ where
     /// * `config`      - The configuration for this Ghash instance.
     /// * `converter`   - An instance which allows to convert multiplicative into additive shares
     ///                   and vice versa.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", ret))]
-    pub fn new(config: GhashConfig, converter: C) -> Self {
+    /// * `context`     - The context.
+    pub fn new(config: GhashConfig, converter: C, context: Ctx) -> Self {
         Self {
             state: State::Init,
             config,
             converter,
+            context,
         }
     }
 
     /// Computes all the additive shares of the hashkey powers.
     ///
     /// We need this when the max block count changes.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", err))]
+    #[instrument(level = "debug", skip_all, err)]
     async fn compute_add_shares(
         &mut self,
         core: GhashCore<Intermediate>,
     ) -> Result<GhashCore<Finalized>, UniversalHashError> {
         let odd_mul_shares = core.odd_mul_shares();
 
-        let add_shares = self.converter.to_additive(odd_mul_shares).await?;
+        let add_shares = self
+            .converter
+            .to_additive(&mut self.context, odd_mul_shares)
+            .await?;
         let core = core.add_new_add_shares(&add_shares);
 
         Ok(core)
     }
 }
 
+impl<C, Ctx> Debug for Ghash<C, Ctx> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ghash")
+            .field("state", &self.state)
+            .field("config", &self.config)
+            .field("converter", &"{{ .. }}".to_string())
+            .finish()
+    }
+}
+
 #[async_trait]
-impl<C> UniversalHash for Ghash<C>
+impl<Ctx, C> UniversalHash for Ghash<C, Ctx>
 where
-    C: ShareConversion<Gf2_128> + Send + Sync + Debug,
+    Ctx: Context,
+    C: Preprocess<Ctx, Error = ShareConversionError> + ShareConvert<Ctx, Gf2_128> + Send,
 {
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "info", skip(key), err)
-    )]
+    #[instrument(level = "info", fields(thread = %self.context.id()), skip_all, err)]
     async fn set_key(&mut self, key: Vec<u8>) -> Result<(), UniversalHashError> {
         if key.len() != 16 {
             return Err(UniversalHashError::KeyLengthError(16, key.len()));
@@ -96,7 +112,10 @@ where
         // GHASH reflects the bits of the key.
         let h_additive = Gf2_128::new(u128::from_be_bytes(h_additive).reverse_bits());
 
-        let h_multiplicative = self.converter.to_multiplicative(vec![h_additive]).await?;
+        let h_multiplicative = self
+            .converter
+            .to_multiplicative(&mut self.context, vec![h_additive])
+            .await?;
 
         let core = GhashCore::new(self.config.initial_block_count);
         let core = core.compute_odd_mul_powers(h_multiplicative[0]);
@@ -107,10 +126,25 @@ where
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "info", skip_all, err)
-    )]
+    #[instrument(level = "debug", fields(thread = %self.context.id()), skip_all, err)]
+    async fn setup(&mut self) -> Result<(), UniversalHashError> {
+        // We need only half the number of `max_block_count` M2As because of the free squaring trick
+        // and we need one extra A2M conversion in the beginning. Both M2A and A2M, each require a single
+        // OLE.
+        let ole_count = self.config.max_block_count / 2 + 1;
+        self.converter.alloc(ole_count);
+
+        Ok(())
+    }
+
+    #[instrument(level = "debug", fields(thread = %self.context.id()), skip_all, err)]
+    async fn preprocess(&mut self) -> Result<(), UniversalHashError> {
+        self.converter.preprocess(&mut self.context).await?;
+
+        Ok(())
+    }
+
+    #[instrument(level = "debug", fields(thread = %self.context.id()), skip_all, err)]
     async fn finalize(&mut self, mut input: Vec<u8>) -> Result<Vec<u8>, UniversalHashError> {
         // Divide by block length and round up.
         let block_count = input.len() / 16 + (input.len() % 16 != 0) as usize;
@@ -160,49 +194,62 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{mock::mock_ghash_pair, GhashConfig, UniversalHash};
+    use crate::{
+        ghash::{Ghash, GhashConfig},
+        UniversalHash,
+    };
     use ghash_rc::{
         universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
         GHash as GhashReference,
     };
+    use mpz_common::{executor::test_st_executor, Context};
+    use mpz_share_conversion::ideal::{ideal_share_converter, IdealShareConverter};
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
-    fn create_pair(id: &str, block_count: usize) -> (impl UniversalHash, impl UniversalHash) {
+    fn create_pair<Ctx: Context>(
+        block_count: usize,
+        context_alice: Ctx,
+        context_bob: Ctx,
+    ) -> (
+        Ghash<IdealShareConverter, Ctx>,
+        Ghash<IdealShareConverter, Ctx>,
+    ) {
+        let (convert_a, convert_b) = ideal_share_converter();
+
         let config = GhashConfig::builder()
-            .id(id)
             .initial_block_count(block_count)
             .build()
             .unwrap();
 
-        mock_ghash_pair(config.clone(), config)
+        (
+            Ghash::new(config.clone(), convert_a, context_alice),
+            Ghash::new(config, convert_b, context_bob),
+        )
     }
 
     #[tokio::test]
     async fn test_ghash_output() {
+        let (ctx_a, ctx_b) = test_st_executor(8);
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let h: u128 = rng.gen();
         let sender_key: u128 = rng.gen();
         let receiver_key: u128 = h ^ sender_key;
         let message: Vec<u8> = (0..128).map(|_| rng.gen()).collect();
 
-        let (mut sender, mut receiver) = create_pair("test", 1);
+        let (mut sender, mut receiver) = create_pair(1, ctx_a, ctx_b);
 
-        let (sender_setup_fut, receiver_setup_fut) = (
+        tokio::try_join!(
             sender.set_key(sender_key.to_be_bytes().to_vec()),
-            receiver.set_key(receiver_key.to_be_bytes().to_vec()),
-        );
+            receiver.set_key(receiver_key.to_be_bytes().to_vec())
+        )
+        .unwrap();
 
-        let (sender_result, receiver_result) = tokio::join!(sender_setup_fut, receiver_setup_fut);
-        sender_result.unwrap();
-        receiver_result.unwrap();
-
-        let sender_share_fut = sender.finalize(message.clone());
-        let receiver_share_fut = receiver.finalize(message.clone());
-
-        let (sender_share, receiver_share) = tokio::join!(sender_share_fut, receiver_share_fut);
-        let sender_share = sender_share.unwrap();
-        let receiver_share = receiver_share.unwrap();
+        let (sender_share, receiver_share) = tokio::try_join!(
+            sender.finalize(message.clone()),
+            receiver.finalize(message.clone())
+        )
+        .unwrap();
 
         let tag = sender_share
             .iter()
@@ -215,6 +262,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ghash_output_padded() {
+        let (ctx_a, ctx_b) = test_st_executor(8);
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let h: u128 = rng.gen();
         let sender_key: u128 = rng.gen();
@@ -223,23 +271,19 @@ mod tests {
         // Message length is not a multiple of the block length
         let message: Vec<u8> = (0..126).map(|_| rng.gen()).collect();
 
-        let (mut sender, mut receiver) = create_pair("test", 1);
+        let (mut sender, mut receiver) = create_pair(1, ctx_a, ctx_b);
 
-        let (sender_setup_fut, receiver_setup_fut) = (
+        tokio::try_join!(
             sender.set_key(sender_key.to_be_bytes().to_vec()),
-            receiver.set_key(receiver_key.to_be_bytes().to_vec()),
-        );
+            receiver.set_key(receiver_key.to_be_bytes().to_vec())
+        )
+        .unwrap();
 
-        let (sender_result, receiver_result) = tokio::join!(sender_setup_fut, receiver_setup_fut);
-        sender_result.unwrap();
-        receiver_result.unwrap();
-
-        let sender_share_fut = sender.finalize(message.clone());
-        let receiver_share_fut = receiver.finalize(message.clone());
-
-        let (sender_share, receiver_share) = tokio::join!(sender_share_fut, receiver_share_fut);
-        let sender_share = sender_share.unwrap();
-        let receiver_share = receiver_share.unwrap();
+        let (sender_share, receiver_share) = tokio::try_join!(
+            sender.finalize(message.clone()),
+            receiver.finalize(message.clone())
+        )
+        .unwrap();
 
         let tag = sender_share
             .iter()
@@ -252,6 +296,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ghash_long_message() {
+        let (ctx_a, ctx_b) = test_st_executor(8);
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let h: u128 = rng.gen();
         let sender_key: u128 = rng.gen();
@@ -262,30 +307,27 @@ mod tests {
         let long_message: Vec<u8> = (0..192).map(|_| rng.gen()).collect();
 
         // Create and setup sender and receiver for short message length.
-        let (mut sender, mut receiver) = create_pair("test", 1);
+        let (mut sender, mut receiver) = create_pair(1, ctx_a, ctx_b);
 
-        let (sender_setup_fut, receiver_setup_fut) = (
+        tokio::try_join!(
             sender.set_key(sender_key.to_be_bytes().to_vec()),
-            receiver.set_key(receiver_key.to_be_bytes().to_vec()),
-        );
-
-        let (sender_result, receiver_result) = tokio::join!(sender_setup_fut, receiver_setup_fut);
-        sender_result.unwrap();
-        receiver_result.unwrap();
+            receiver.set_key(receiver_key.to_be_bytes().to_vec())
+        )
+        .unwrap();
 
         // Compute the shares for the short message.
-        let sender_share_fut = sender.finalize(short_message.clone());
-        let receiver_share_fut = receiver.finalize(short_message.clone());
-
-        let (sender_result, receiver_result) = tokio::join!(sender_share_fut, receiver_share_fut);
-        let (_, _) = (sender_result.unwrap(), receiver_result.unwrap());
+        tokio::try_join!(
+            sender.finalize(short_message.clone()),
+            receiver.finalize(short_message.clone())
+        )
+        .unwrap();
 
         // Now compute the shares for the longer message.
-        let sender_share_fut = sender.finalize(long_message.clone());
-        let receiver_share_fut = receiver.finalize(long_message.clone());
-
-        let (sender_result, receiver_result) = tokio::join!(sender_share_fut, receiver_share_fut);
-        let (sender_share, receiver_share) = (sender_result.unwrap(), receiver_result.unwrap());
+        let (sender_share, receiver_share) = tokio::try_join!(
+            sender.finalize(long_message.clone()),
+            receiver.finalize(long_message.clone())
+        )
+        .unwrap();
 
         let tag = sender_share
             .iter()
@@ -296,11 +338,11 @@ mod tests {
         assert_eq!(tag, ghash_reference_impl(h, &long_message));
 
         // We should still be able to generate a Ghash output for the shorter message.
-        let sender_share_fut = sender.finalize(short_message.clone());
-        let receiver_share_fut = receiver.finalize(short_message.clone());
-
-        let (sender_result, receiver_result) = tokio::join!(sender_share_fut, receiver_share_fut);
-        let (sender_share, receiver_share) = (sender_result.unwrap(), receiver_result.unwrap());
+        let (sender_share, receiver_share) = tokio::try_join!(
+            sender.finalize(short_message.clone()),
+            receiver.finalize(short_message.clone())
+        )
+        .unwrap();
 
         let tag = sender_share
             .iter()

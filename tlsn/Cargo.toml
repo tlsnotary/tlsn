@@ -6,7 +6,6 @@ members = [
     "tlsn-prover",
     "tlsn-formats",
     "tlsn-server-fixture",
-    "tlsn-notary-client",
     "tests-integration",
     "examples",
     "benches",
@@ -20,25 +19,28 @@ tlsn-prover = { path = "tlsn-prover" }
 tlsn-verifier = { path = "tlsn-verifier" }
 tlsn-server-fixture = { path = "tlsn-server-fixture" }
 tlsn-formats = { path = "tlsn-formats" }
-tlsn-notary-client = { path = "tlsn-notary-client" }
 
+notary-client = { path = "../notary/client" }
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }
 tlsn-tls-client = { path = "../components/tls/tls-client" }
 tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
-uid-mux = { path = "../components/uid-mux" }
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
+serio = "0.1"
+uid-mux = { version = "0.1", features = ["serio"] }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 
 futures = "0.3"
 tokio-util = "0.7"

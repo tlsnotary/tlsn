@@ -1,14 +1,14 @@
 // This example shows how to notarize Discord DMs.
 //
-// The example uses the notary server implemented in ../../../notary-server
+// The example uses the notary server implemented in ../../../notary/server
 
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
+use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use std::{env, ops::Range, str};
 use tlsn_common::config::ConfigurationInfo;
 use tlsn_core::proof::TlsProof;
-use tlsn_notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -17,12 +17,12 @@ use tracing::debug;
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
 
-// Setting of the notary server — make sure these are the same with the config in ../../../notary-server
+// Setting of the notary server — make sure these are the same with the config in ../../../notary/server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
 // P/S: If the following limits are increased, please ensure max-transcript-size of
-// the notary server's config (../../../notary-server) is increased too, where
+// the notary server's config (../../../notary/server) is increased too, where
 // max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
 //
 // Maximum number of bytes that can be sent from prover to server

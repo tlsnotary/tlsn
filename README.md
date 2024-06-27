@@ -9,7 +9,7 @@
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [apache-badge]: https://img.shields.io/github/license/saltstack/salt
 [actions-badge]: https://github.com/tlsnotary/tlsn/actions/workflows/ci.yml/badge.svg
-[actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Arust+branch%3Adev
+[actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Aci+branch%3Adev
 
 [Website](https://tlsnotary.org) |
 [Documentation](https://docs.tlsnotary.org) |
@@ -47,7 +47,7 @@ at your option.
     - [examples](./tlsn/examples/): Examples on how to use the TLSNotary protocol.
     - [tlsn-prover](./tlsn/tlsn-prover/): The library for the prover component.
     - [tlsn-verifier](./tlsn/tlsn-verifier/): The library for the verifier component.
-- [notary-server](./notary-server/): Implements the [notary server](https://docs.tlsnotary.org/intro.html#tls-verification-with-a-general-purpose-notary).
+- [notary](./notary/): Implements the [notary server](https://docs.tlsnotary.org/intro.html#tls-verification-with-a-general-purpose-notary) and its client.
 - [components](./components/): Houses low-level libraries utilized by [tlsn](./tlsn/).
 
 This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-js`](https://github.com/tlsnotary/tlsn-js), [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), [`explorer`](https://github.com/tlsnotary/explorer), among others.

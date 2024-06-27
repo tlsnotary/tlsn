@@ -6,9 +6,9 @@ version = "0.0.0"
 
 [dependencies]
 tlsn-common.workspace = true
+notary-client.workspace = true
 tlsn-core.workspace = true
-tlsn-notary-client.workspace = true
-tlsn-prover = { workspace = true, features = ["tracing"] }
+tlsn-prover = { workspace = true }
 tlsn-verifier.workspace = true
 
 futures.workspace = true
@@ -29,7 +29,6 @@ tokio = { workspace = true, features = [
 tokio-util.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
-webpki-roots.workspace = true
 
 chrono = "0.4"
 dotenv = "0.15.0"

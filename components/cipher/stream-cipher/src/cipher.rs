@@ -94,22 +94,13 @@ impl CtrCircuit for Aes128Ctr {
 
         let key: &[u8; 16] = key
             .try_into()
-            .map_err(|_| StreamCipherError::InvalidKeyLength {
-                expected: 16,
-                actual: key.len(),
-            })?;
+            .map_err(|_| StreamCipherError::key_len::<Self>(key.len()))?;
         let iv: &[u8; 4] = iv
             .try_into()
-            .map_err(|_| StreamCipherError::InvalidIvLength {
-                expected: 4,
-                actual: iv.len(),
-            })?;
-        let explicit_nonce: &[u8; 8] = explicit_nonce.try_into().map_err(|_| {
-            StreamCipherError::InvalidExplicitNonceLength {
-                expected: 8,
-                actual: explicit_nonce.len(),
-            }
-        })?;
+            .map_err(|_| StreamCipherError::iv_len::<Self>(iv.len()))?;
+        let explicit_nonce: &[u8; 8] = explicit_nonce
+            .try_into()
+            .map_err(|_| StreamCipherError::explicit_nonce_len::<Self>(explicit_nonce.len()))?;
 
         let mut full_iv = [0u8; 16];
         full_iv[0..4].copy_from_slice(iv);

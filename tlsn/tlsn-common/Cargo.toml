@@ -1,21 +1,24 @@
 [package]
 name = "tlsn-common"
 description = "Common code shared between tlsn-prover and tlsn-verifier"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2021"
 
 [features]
-default = ["tracing"]
-tracing = ["uid-mux/tracing"]
+default = []
 
 [dependencies]
-tlsn-utils-aio.workspace = true
+mpz-garble.workspace = true
+mpz-ot.workspace = true
+mpz-common.workspace = true
 
 derive_builder.workspace = true
 futures.workspace = true
 serde.workspace = true
+serio = { workspace = true, features = ["codec", "bincode"] }
 thiserror.workspace = true
-uid-mux.workspace = true
+tracing.workspace = true
+uid-mux = { workspace = true, features = ["serio"] }
 
 semver = "1.0"
 
