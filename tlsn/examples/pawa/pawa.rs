@@ -1,62 +1,109 @@
-use hyper::{Body, Request, Response, Method, StatusCode};
-use hyper::service::service_fn;
-use hyper::body::to_bytes;
-use hyper::client::conn::http1;
+use actix_web::{post, web, App, HttpServer, HttpResponse};
+use http_body_util::{BodyExt, Empty};
+use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use serde::Deserialize;
-use std::convert::Infallible;
-use std::env;
-use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
 use tlsn_examples::request_notarization;
+use std::io::Write;
+use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
-use tokio::net::TcpListener;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
-use tlsn_prover::tls::{Prover, ProverConfig};
-use chrono::Utc;
 
-#[derive(Debug, Deserialize)]
-struct PayoutStatus {
+#[derive(Deserialize, Debug)]
+struct PayoutCallback {
+    amount: String,
+    correspondent: String,
+    country: String,
+    created: String,
+    currency: String,
+    customerTimestamp: String,
+    failureReason: Option<FailureReason>,
+    payoutId: String,
+    recipient: Recipient,
+    statementDescription: String,
     status: String,
-    payout_id: String,
 }
 
-async fn callback_handler(req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    if req.method() == Method::POST && req.uri().path() == "/callback" {
-        let whole_body = to_bytes(req.into_body()).await.unwrap();
-        let payout_status: PayoutStatus = serde_json::from_slice(&whole_body).unwrap();
-        debug!("Received callback: {:?}", payout_status);
-        // Notarize the callback response here
-        Ok(Response::new(Body::from("Callback received")))
-    } else {
-        Ok(Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::from("Not Found"))
-            .unwrap())
+#[derive(Deserialize, Debug)]
+struct FailureReason {
+    failureCode: String,
+    failureMessage: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct Recipient {
+    #[serde(rename = "type")]
+    recipient_type: String,
+    address: Address,
+}
+
+#[derive(Deserialize, Debug)]
+struct Address {
+    value: String,
+}
+
+#[post("/callback")]
+async fn callback(payout: web::Json<PayoutCallback>) -> HttpResponse {
+    let log_message = format!("Received callback: {:?}", payout);
+    println!("{}", log_message);
+
+    // Write to a log file for further inspection
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open("callback.log")
+        .unwrap();
+    writeln!(file, "{}", log_message).unwrap();
+
+    match payout.status.as_str() {
+        "FAILED" => {
+            if let Some(failure_reason) = &payout.failureReason {
+                println!("Payout failed: {} - {}", failure_reason.failureCode, failure_reason.failureMessage);
+            }
+        }
+        "ACCEPTED" | "COMPLETED" => {
+            println!("Payout accepted: {}", payout.payoutId);
+            if let Err(e) = notarize_callback(&payout).await {
+                eprintln!("Error notarizing callback: {:?}", e);
+            }
+        }
+        "ENQUEUED" => {
+            println!("Payout enqueued: {}", payout.payoutId);
+        }
+        _ => {
+            println!("Unknown status: {}", payout.status);
+        }
     }
+
+    HttpResponse::Ok().finish()
 }
 
-#[tokio::main]
-async fn main() -> std::io::Result<()> {
-    tracing_subscriber::fmt::init();
 
-    // Load secret variables from environment for pawaPay server connection
-    dotenv::dotenv().ok();
-    let api_token = env::var("API_TOKEN").unwrap();
-    let payout_id = env::var("PAYOUT_ID").unwrap();
+async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::error::Error>> {
+    // tracing_subscriber::fmt::init();
+
+    // Setting of the notary server
+    const NOTARY_HOST: &str = "127.0.0.1";
+    const NOTARY_PORT: u16 = 7047;
+
+    // Configuration of notarization
+    const NOTARY_MAX_SENT: usize = 1 << 12;
+    const NOTARY_MAX_RECV: usize = 1 << 14;
 
     let (notary_tls_socket, session_id) = request_notarization(
-        "127.0.0.1",
-        7047,
-        Some(1 << 12),
-        Some(1 << 14),
+        NOTARY_HOST,
+        NOTARY_PORT,
+        Some(NOTARY_MAX_SENT),
+        Some(NOTARY_MAX_RECV),
     )
     .await;
 
     // Basic default prover config using the session_id returned from /session endpoint just now
     let config = ProverConfig::builder()
         .id(session_id)
-        .server_dns("https://api.sandbox.pawapay.cloud/")
+        .server_dns("api.sandbox.pawapay.cloud")
         .build()
         .unwrap();
 
@@ -66,7 +113,7 @@ async fn main() -> std::io::Result<()> {
         .await
         .unwrap();
 
-    let client_socket = tokio::net::TcpStream::connect(("3.64.89.224", 443))
+    let client_socket = tokio::net::TcpStream::connect(("api.sandbox.pawapay.cloud", 443))
         .await
         .unwrap();
 
@@ -81,52 +128,23 @@ async fn main() -> std::io::Result<()> {
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the TLS connection
-    let (mut request_sender, connection) = http1::handshake(tls_connection)
+    let (mut request_sender, connection) = hyper::client::conn::http1::handshake(tls_connection)
         .await
         .unwrap();
 
     // Spawn the HTTP task to be run concurrently
     tokio::spawn(connection);
 
-    let current_timestamp = Utc::now().to_rfc3339();
-
-    // Build the HTTP request to send the payout
-    let request_body = serde_json::json!({
-        "payoutId": payout_id,
-        "amount": "19",
-        "currency": "GHS",
-        "country": "GHA",
-        "correspondent": "MTN_MOMO_GHA",
-        "recipient": {
-            "type": "MSISDN",
-            "address": {
-                "value": "233593456119"
-            }
-        },
-        "customerTimestamp": current_timestamp,
-        "statementDescription": "Note of 4 to 22 chars",
-        "metadata": [
-            {
-                "fieldName": "orderId",
-                "fieldValue": "ORD-123456789"
-            },
-            {
-                "fieldName": "customerId",
-                "fieldValue": "customer@email.com",
-                "isPII": true
-            }
-        ]
-    });
-
+    // Build the HTTP request to fetch the callback data
     let request = Request::builder()
-        .uri("https://api.sandbox.pawapay.cloud/payouts")
+        .uri(format!(
+            "https://api.sandbox.pawapay.cloud/payouts/{}",
+            payout.payoutId
+        ))
         .header("Host", "api.sandbox.pawapay.cloud")
         .header("Accept", "*/*")
-        .header("Accept-Encoding", "gzip, x-gzip, deflate")
-        .header("Content-Type", "application/json; charset=UTF-8")
-        .header("Authorization", format!("Bearer {}", api_token))
-        .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
-        .body(Body::from(request_body.to_string()))
+        .header("Connection", "close")
+        .body(Empty::<Bytes>::new())
         .unwrap();
 
     debug!("Sending request");
@@ -144,8 +162,9 @@ async fn main() -> std::io::Result<()> {
     debug!("Request OK");
 
     // Pretty printing :)
-    let payload = to_bytes(response.into_body()).await.unwrap();
-    let parsed = serde_json::from_slice::<serde_json::Value>(&payload).unwrap();
+    let payload = response.into_body().collect().await.unwrap().to_bytes();
+    let parsed =
+        serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
     debug!("{}", serde_json::to_string_pretty(&parsed).unwrap());
 
     // The Prover task should be done now, so we can grab it.
@@ -163,7 +182,7 @@ async fn main() -> std::io::Result<()> {
     debug!("Notarization complete!");
 
     // Dump the notarized session to a file
-    let mut file = tokio::fs::File::create("pawapay_payout.json").await.unwrap();
+    let mut file = tokio::fs::File::create("callback_notarized.json").await.unwrap();
     file.write_all(
         serde_json::to_string_pretty(notarized_session.session())
             .unwrap()
@@ -216,29 +235,23 @@ async fn main() -> std::io::Result<()> {
     };
 
     // Dump the proof to a file.
-    let mut file = tokio::fs::File::create("pawapay_payout_proof.json")
+    let mut file = tokio::fs::File::create("callback_proof.json")
         .await
         .unwrap();
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
         .unwrap();
 
-    // Start the hyper server to handle callbacks
-    let make_svc = service_fn(callback_handler);
+    Ok(())
+}
 
-    let addr = ([127, 0, 0, 1], 8080).into();
-    let listener = TcpListener::bind(addr).await?;
-
-    println!("Listening on http://{}", addr);
-
-    loop {
-        let (stream, _) = listener.accept().await?;
-        let service = make_svc.clone();
-
-        tokio::spawn(async move {
-            if let Err(err) = hyper::server::conn::Http::new().serve_connection(stream, service).await {
-                eprintln!("Error serving connection: {:?}", err);
-            }
-        });
-    }
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| {
+        App::new()
+            .service(callback)
+    })
+    .bind("127.0.0.1:8088")?
+    .run()
+    .await
 }
