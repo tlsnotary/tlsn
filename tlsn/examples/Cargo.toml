@@ -5,19 +5,17 @@ publish = false
 version = "0.0.0"
 
 [dependencies]
-actix-web = "4.0"
 notary-client.workspace = true
 tlsn-core.workspace = true
 tlsn-prover = { workspace = true }
 tlsn-verifier.workspace = true
 
 futures.workspace = true
-http-body-util = "0.1"
-hyper = {version = "1.1", features = ["client", "http1"]}
-hyper-util = {version = "0.1", features = ["full"]}
-rustls = {version = "0.21"}
-rustls-pemfile = {version = "1.0.2"}
-tokio = {workspace = true, features = [
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true, features = ["full"] }
+p256 = { workspace = true, features = ["ecdsa"] }
+tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
   "macros",
@@ -33,6 +31,9 @@ chrono = "0.4"
 dotenv = "0.15.0"
 elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
 regex = "1.10.3"
+serde = { version = "1.0.147", features = ["derive"] }
+serde_json = "1.0"
+actix-web = "4.8.0"
 
 [[example]]
 name = "simple_prover"
