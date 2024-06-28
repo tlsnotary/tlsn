@@ -1,0 +1,26 @@
+[workspace]
+members = ["server", "client", "integration-tests"]
+resolver = "2"
+
+[workspace.dependencies]
+notary-server = { path = "server" }
+notary-client = { path = "client" }
+
+tlsn-prover = { path = "../tlsn/tlsn-prover" }
+
+async-tungstenite = { version = "0.25", features = ["tokio-native-tls"] }
+http = "1.1"
+http-body-util = "0.1"
+hyper = { version = "1.1", features = ["client", "http1", "server"] }
+hyper-util = { version = "0.1", features = ["full"] }
+rustls = { version = "0.21" }
+rustls-pemfile = { version = "1.0.2" }
+serde_json = "1.0"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.24.1" }
+tokio-util = { version = "0.7", features = ["compat"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.4.1", features = ["v4", "fast-rng"] }
+ws_stream_tungstenite = { version = "0.13.0", features = ["tokio_io"] }

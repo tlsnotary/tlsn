@@ -2,45 +2,41 @@
 //!
 //! The prover deals with a TLS verifier that is only a notary.
 
-use crate::tls::error::OTShutdownError;
-
-use super::{ff::ShareConversionReveal, state::Notarize, Prover, ProverError};
-use futures::{FutureExt, SinkExt, StreamExt};
+use super::{state::Notarize, Prover, ProverError};
+use mpz_ot::VerifiableOTReceiver;
+use serio::{stream::IoStreamExt as _, SinkExt as _};
 use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder,
-    msg::{SignedSessionHeader, TlsnMessage},
-    transcript::Transcript,
+    commitment::TranscriptCommitmentBuilder, msg::SignedSessionHeader, transcript::Transcript,
     NotarizedSession, ServerName, SessionData,
 };
-#[cfg(feature = "tracing")]
-use tracing::instrument;
-use utils_aio::{expect_msg_or_err, mux::MuxChannel};
+use tracing::{debug, instrument};
 
 impl Prover<Notarize> {
-    /// Returns the transcript of the sent requests
+    /// Returns the transcript of the sent data.
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
     }
 
-    /// Returns the transcript of the received responses
+    /// Returns the transcript of the received data.
     pub fn recv_transcript(&self) -> &Transcript {
         &self.state.transcript_rx
     }
 
-    /// Returns the transcript commitment builder
+    /// Returns the transcript commitment builder.
     pub fn commitment_builder(&mut self) -> &mut TranscriptCommitmentBuilder {
         &mut self.state.builder
     }
 
-    /// Finalize the notarization returning a [`NotarizedSession`]
-    #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
+    /// Finalizes the notarization returning a [`NotarizedSession`].
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
-            mut mux_ctrl,
+            mut io,
+            mux_ctrl,
             mut mux_fut,
             mut vm,
-            mut ot_fut,
-            mut gf2,
+            mut ot_recv,
+            mut ctx,
             start_time,
             handshake_decommitment,
             server_public_key,
@@ -61,41 +57,35 @@ impl Prover<Notarize> {
 
         let merkle_root = session_data.commitments().merkle_root();
 
-        let mut notarize_fut = Box::pin(async move {
-            let mut channel = mux_ctrl.get_channel("notarize").await?;
+        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = mux_fut
+            .poll_with(async {
+                debug!("starting finalization");
 
-            channel
-                .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))
-                .await?;
+                io.send(merkle_root).await?;
 
-            let notary_encoder_seed = vm
-                .finalize()
-                .await
-                .map_err(|e| ProverError::MpcError(Box::new(e)))?
-                .expect("encoder seed returned");
+                ot_recv.accept_reveal(&mut ctx).await?;
 
-            // This is a temporary approach until a maliciously secure share conversion protocol is implemented.
-            // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
-            // TLS verifier to modify the prover's request.
-            gf2.reveal()
-                .await
-                .map_err(|e| ProverError::MpcError(Box::new(e)))?;
+                debug!("received OT secret");
 
-            let signed_header = expect_msg_or_err!(channel, TlsnMessage::SignedSessionHeader)?;
+                let notary_encoder_seed = vm
+                    .finalize()
+                    .await
+                    .map_err(|e| ProverError::MpcError(Box::new(e)))?
+                    .expect("encoder seed returned");
 
-            Ok::<_, ProverError>((notary_encoder_seed, signed_header))
-        })
-        .fuse();
+                let signed_header: SignedSessionHeader = io.expect_next().await?;
 
-        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select_biased! {
-            res = notarize_fut => res?,
-            _ = ot_fut => return Err(OTShutdownError)?,
-            _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-        };
-        // Wait for the notary to correctly close the connection
-        mux_fut.await?;
+                Ok::<_, ProverError>((notary_encoder_seed, signed_header))
+            })
+            .await?;
 
-        // Check the header is consistent with the Prover's view
+        // Wait for the notary to correctly close the connection.
+        if !mux_fut.is_complete() {
+            mux_ctrl.mux().close();
+            mux_fut.await?;
+        }
+
+        // Check the header is consistent with the Prover's view.
         header
             .verify(
                 start_time,

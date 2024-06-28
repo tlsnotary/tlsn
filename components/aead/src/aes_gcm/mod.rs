@@ -1,251 +1,146 @@
 //! This module provides an implementation of 2PC AES-GCM.
 
 mod config;
+mod error;
 #[cfg(feature = "mock")]
 pub mod mock;
 mod tag;
 
 pub use config::{AesGcmConfig, AesGcmConfigBuilder, AesGcmConfigBuilderError, Role};
-
-use crate::{
-    msg::{AeadMessage, TagShare},
-    Aead, AeadChannel, AeadError,
-};
+pub use error::AesGcmError;
 
 use async_trait::async_trait;
-use futures::{SinkExt, StreamExt, TryFutureExt};
-
 use block_cipher::{Aes128, BlockCipher};
-use mpz_core::commit::HashCommit;
+use futures::TryFutureExt;
+use mpz_common::Context;
 use mpz_garble::value::ValueRef;
 use tlsn_stream_cipher::{Aes128Ctr, StreamCipher};
 use tlsn_universal_hash::UniversalHash;
-use utils_aio::expect_msg_or_err;
+use tracing::instrument;
 
-pub(crate) use tag::AesGcmTagShare;
-use tag::{build_ghash_data, AES_GCM_TAG_LEN};
+use crate::{
+    aes_gcm::tag::{compute_tag, verify_tag, TAG_LEN},
+    Aead,
+};
 
-/// An implementation of 2PC AES-GCM.
-pub struct MpcAesGcm {
+/// MPC AES-GCM.
+pub struct MpcAesGcm<Ctx> {
     config: AesGcmConfig,
-    channel: AeadChannel,
+    ctx: Ctx,
     aes_block: Box<dyn BlockCipher<Aes128>>,
     aes_ctr: Box<dyn StreamCipher<Aes128Ctr>>,
     ghash: Box<dyn UniversalHash>,
 }
 
-impl std::fmt::Debug for MpcAesGcm {
+impl<Ctx> std::fmt::Debug for MpcAesGcm<Ctx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MpcAesGcm")
             .field("config", &self.config)
-            .field("channel", &"AeadChannel {{ ... }}")
-            .field("aes_block", &"BlockCipher {{ ... }}")
-            .field("aes_ctr", &"StreamCipher {{ ... }}")
-            .field("ghash", &"UniversalHash {{ ... }}")
             .finish()
     }
 }
 
-impl MpcAesGcm {
+impl<Ctx: Context> MpcAesGcm<Ctx> {
     /// Creates a new instance of [`MpcAesGcm`].
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "info", skip(channel, aes_block, aes_ctr, ghash), ret)
-    )]
     pub fn new(
         config: AesGcmConfig,
-        channel: AeadChannel,
+        context: Ctx,
         aes_block: Box<dyn BlockCipher<Aes128>>,
         aes_ctr: Box<dyn StreamCipher<Aes128Ctr>>,
         ghash: Box<dyn UniversalHash>,
     ) -> Self {
         Self {
             config,
-            channel,
+            ctx: context,
             aes_block,
             aes_ctr,
             ghash,
         }
     }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", err))]
-    async fn compute_j0_share(&mut self, explicit_nonce: Vec<u8>) -> Result<Vec<u8>, AeadError> {
-        let j0_share = self
-            .aes_ctr
-            .share_keystream_block(explicit_nonce.clone(), 1)
-            .await?;
-
-        Ok(j0_share)
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", err, ret))]
-    async fn compute_tag_share(
-        &mut self,
-        explicit_nonce: Vec<u8>,
-        aad: Vec<u8>,
-        ciphertext: Vec<u8>,
-    ) -> Result<AesGcmTagShare, AeadError> {
-        let j0_share = self.compute_j0_share(explicit_nonce.clone()).await?;
-
-        let hash = self
-            .ghash
-            .finalize(build_ghash_data(aad, ciphertext))
-            .await?;
-
-        let mut tag_share = [0u8; 16];
-        tag_share.copy_from_slice(&hash[..]);
-        for i in 0..16 {
-            tag_share[i] ^= j0_share[i];
-        }
-
-        Ok(AesGcmTagShare(tag_share))
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", err, ret))]
-    async fn compute_tag(
-        &mut self,
-        explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
-        aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
-        let tag_share = self
-            .compute_tag_share(explicit_nonce, aad, ciphertext.clone())
-            .await?;
-
-        let tag = match self.config.role() {
-            Role::Leader => {
-                // Send commitment of tag share to follower
-                let (tag_share_decommitment, tag_share_commitment) =
-                    TagShare::from(tag_share).hash_commit();
-
-                self.channel
-                    .send(AeadMessage::TagShareCommitment(tag_share_commitment))
-                    .await?;
-
-                // Expect tag share from follower
-                let msg = expect_msg_or_err!(self.channel, AeadMessage::TagShare)?;
-
-                let other_tag_share = AesGcmTagShare::from_unchecked(&msg.share)?;
-
-                // Send decommitment (tag share) to follower
-                self.channel
-                    .send(AeadMessage::TagShareDecommitment(tag_share_decommitment))
-                    .await?;
-
-                tag_share + other_tag_share
-            }
-            Role::Follower => {
-                // Wait for commitment from leader
-                let commitment = expect_msg_or_err!(self.channel, AeadMessage::TagShareCommitment)?;
-
-                // Send tag share to leader
-                self.channel
-                    .send(AeadMessage::TagShare(tag_share.into()))
-                    .await?;
-
-                // Expect decommitment (tag share) from leader
-                let decommitment =
-                    expect_msg_or_err!(self.channel, AeadMessage::TagShareDecommitment)?;
-
-                // Verify decommitment
-                decommitment.verify(&commitment).map_err(|_| {
-                    AeadError::ValidationError(
-                        "Leader tag share commitment verification failed".to_string(),
-                    )
-                })?;
-
-                let other_tag_share =
-                    AesGcmTagShare::from_unchecked(&decommitment.into_inner().share)?;
-
-                tag_share + other_tag_share
-            }
-        };
-
-        Ok(tag)
-    }
-
-    /// Splits off the tag from the end of the payload and verifies it.
-    async fn _verify_tag(
-        &mut self,
-        explicit_nonce: Vec<u8>,
-        payload: &mut Vec<u8>,
-        aad: Vec<u8>,
-    ) -> Result<(), AeadError> {
-        let purported_tag = payload.split_off(payload.len() - AES_GCM_TAG_LEN);
-
-        let tag = self
-            .compute_tag(explicit_nonce, payload.clone(), aad)
-            .await?;
-
-        // Reject if tag is incorrect.
-        if tag != purported_tag {
-            return Err(AeadError::CorruptedTag);
-        }
-
-        Ok(())
-    }
 }
 
 #[async_trait]
-impl Aead for MpcAesGcm {
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err))]
-    async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), AeadError> {
+impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
+    type Error = AesGcmError;
+
+    #[instrument(level = "info", skip_all, err)]
+    async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), AesGcmError> {
         self.aes_block.set_key(key.clone());
         self.aes_ctr.set_key(key, iv);
 
         Ok(())
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err))]
-    async fn decode_key_private(&mut self) -> Result<(), AeadError> {
+    #[instrument(level = "info", skip_all, err)]
+    async fn decode_key_private(&mut self) -> Result<(), AesGcmError> {
         self.aes_ctr
             .decode_key_private()
             .await
-            .map_err(AeadError::from)
+            .map_err(AesGcmError::from)
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err))]
-    async fn decode_key_blind(&mut self) -> Result<(), AeadError> {
+    #[instrument(level = "info", skip_all, err)]
+    async fn decode_key_blind(&mut self) -> Result<(), AesGcmError> {
         self.aes_ctr
             .decode_key_blind()
             .await
-            .map_err(AeadError::from)
+            .map_err(AesGcmError::from)
     }
 
     fn set_transcript_id(&mut self, id: &str) {
         self.aes_ctr.set_transcript_id(id)
     }
 
-    async fn preprocess(&mut self, len: usize) -> Result<(), AeadError> {
-        self.aes_ctr.preprocess(len).await.map_err(AeadError::from)
+    #[instrument(level = "debug", skip(self), err)]
+    async fn setup(&mut self) -> Result<(), AesGcmError> {
+        self.ghash.setup().await?;
+
+        Ok(())
     }
 
-    async fn setup(&mut self) -> Result<(), AeadError> {
-        // Share zero block
+    #[instrument(level = "debug", skip(self), err)]
+    async fn preprocess(&mut self, len: usize) -> Result<(), AesGcmError> {
+        futures::try_join!(
+            // Preprocess the GHASH key block.
+            self.aes_block
+                .preprocess(block_cipher::Visibility::Public, 1)
+                .map_err(AesGcmError::from),
+            self.aes_ctr.preprocess(len).map_err(AesGcmError::from),
+            self.ghash.preprocess().map_err(AesGcmError::from),
+        )?;
+
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
+    async fn start(&mut self) -> Result<(), AesGcmError> {
         let h_share = self.aes_block.encrypt_share(vec![0u8; 16]).await?;
         self.ghash.set_key(h_share).await?;
 
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(plaintext), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
+    ) -> Result<Vec<u8>, AesGcmError> {
         let ciphertext = self
             .aes_ctr
             .encrypt_public(explicit_nonce.clone(), plaintext)
             .await?;
 
-        let tag = self
-            .compute_tag(explicit_nonce, ciphertext.clone(), aad)
-            .await?;
+        let tag = compute_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            explicit_nonce,
+            ciphertext.clone(),
+            aad,
+        )
+        .await?;
 
         let mut payload = ciphertext;
         payload.extend(tag);
@@ -253,24 +148,27 @@ impl Aead for MpcAesGcm {
         Ok(payload)
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(plaintext), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
+    ) -> Result<Vec<u8>, AesGcmError> {
         let ciphertext = self
             .aes_ctr
             .encrypt_private(explicit_nonce.clone(), plaintext)
             .await?;
 
-        let tag = self
-            .compute_tag(explicit_nonce, ciphertext.clone(), aad)
-            .await?;
+        let tag = compute_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            explicit_nonce,
+            ciphertext.clone(),
+            aad,
+        )
+        .await?;
 
         let mut payload = ciphertext;
         payload.extend(tag);
@@ -278,21 +176,27 @@ impl Aead for MpcAesGcm {
         Ok(payload)
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", err))]
+    #[instrument(level = "debug", skip_all, err)]
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext_len: usize,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
+    ) -> Result<Vec<u8>, AesGcmError> {
         let ciphertext = self
             .aes_ctr
             .encrypt_blind(explicit_nonce.clone(), plaintext_len)
             .await?;
 
-        let tag = self
-            .compute_tag(explicit_nonce, ciphertext.clone(), aad)
-            .await?;
+        let tag = compute_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            explicit_nonce,
+            ciphertext.clone(),
+            aad,
+        )
+        .await?;
 
         let mut payload = ciphertext;
         payload.extend(tag);
@@ -300,154 +204,238 @@ impl Aead for MpcAesGcm {
         Ok(payload)
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(payload), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         mut payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
-        self._verify_tag(explicit_nonce.clone(), &mut payload, aad)
+    ) -> Result<Vec<u8>, AesGcmError> {
+        let purported_tag: [u8; TAG_LEN] = payload
+            .split_off(payload.len() - TAG_LEN)
+            .try_into()
+            .map_err(|_| AesGcmError::payload("payload is not long enough to contain tag"))?;
+        let ciphertext = payload;
+
+        verify_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            *self.config.role(),
+            explicit_nonce.clone(),
+            ciphertext.clone(),
+            aad,
+            purported_tag,
+        )
+        .await?;
+
+        let plaintext = self
+            .aes_ctr
+            .decrypt_public(explicit_nonce, ciphertext)
             .await?;
 
-        self.aes_ctr
-            .decrypt_public(explicit_nonce, payload)
-            .map_err(AeadError::from)
-            .await
+        Ok(plaintext)
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(payload), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn decrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
         mut payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
-        self._verify_tag(explicit_nonce.clone(), &mut payload, aad)
+    ) -> Result<Vec<u8>, AesGcmError> {
+        let purported_tag: [u8; TAG_LEN] = payload
+            .split_off(payload.len() - TAG_LEN)
+            .try_into()
+            .map_err(|_| AesGcmError::payload("payload is not long enough to contain tag"))?;
+        let ciphertext = payload;
+
+        verify_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            *self.config.role(),
+            explicit_nonce.clone(),
+            ciphertext.clone(),
+            aad,
+            purported_tag,
+        )
+        .await?;
+
+        let plaintext = self
+            .aes_ctr
+            .decrypt_private(explicit_nonce, ciphertext)
             .await?;
 
-        self.aes_ctr
-            .decrypt_private(explicit_nonce, payload)
-            .map_err(AeadError::from)
-            .await
+        Ok(plaintext)
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(payload), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
         mut payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<(), AeadError> {
-        self._verify_tag(explicit_nonce.clone(), &mut payload, aad)
-            .await?;
+    ) -> Result<(), AesGcmError> {
+        let purported_tag: [u8; TAG_LEN] = payload
+            .split_off(payload.len() - TAG_LEN)
+            .try_into()
+            .map_err(|_| AesGcmError::payload("payload is not long enough to contain tag"))?;
+        let ciphertext = payload;
+
+        verify_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            *self.config.role(),
+            explicit_nonce.clone(),
+            ciphertext.clone(),
+            aad,
+            purported_tag,
+        )
+        .await?;
 
         self.aes_ctr
-            .decrypt_blind(explicit_nonce, payload)
-            .map_err(AeadError::from)
-            .await
+            .decrypt_blind(explicit_nonce, ciphertext)
+            .await?;
+
+        Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(payload), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn verify_tag(
         &mut self,
         explicit_nonce: Vec<u8>,
         mut payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<(), AeadError> {
-        self._verify_tag(explicit_nonce.clone(), &mut payload, aad)
-            .await
+    ) -> Result<(), AesGcmError> {
+        let purported_tag: [u8; TAG_LEN] = payload
+            .split_off(payload.len() - TAG_LEN)
+            .try_into()
+            .map_err(|_| AesGcmError::payload("payload is not long enough to contain tag"))?;
+        let ciphertext = payload;
+
+        verify_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            *self.config.role(),
+            explicit_nonce,
+            ciphertext,
+            aad,
+            purported_tag,
+        )
+        .await?;
+
+        Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(payload), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
         mut payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
-        self._verify_tag(explicit_nonce.clone(), &mut payload, aad)
+    ) -> Result<Vec<u8>, AesGcmError> {
+        let purported_tag: [u8; TAG_LEN] = payload
+            .split_off(payload.len() - TAG_LEN)
+            .try_into()
+            .map_err(|_| AesGcmError::payload("payload is not long enough to contain tag"))?;
+        let ciphertext = payload;
+
+        verify_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            *self.config.role(),
+            explicit_nonce.clone(),
+            ciphertext.clone(),
+            aad,
+            purported_tag,
+        )
+        .await?;
+
+        let plaintext = self
+            .aes_ctr
+            .prove_plaintext(explicit_nonce, ciphertext)
             .await?;
 
-        self.prove_plaintext_no_tag(explicit_nonce, payload).await
+        Ok(plaintext)
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(ciphertext), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn prove_plaintext_no_tag(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError> {
+    ) -> Result<Vec<u8>, AesGcmError> {
         self.aes_ctr
             .prove_plaintext(explicit_nonce, ciphertext)
-            .map_err(AeadError::from)
+            .map_err(AesGcmError::from)
             .await
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(payload), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn verify_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
         mut payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<(), AeadError> {
-        self._verify_tag(explicit_nonce.clone(), &mut payload, aad)
+    ) -> Result<(), AesGcmError> {
+        let purported_tag: [u8; TAG_LEN] = payload
+            .split_off(payload.len() - TAG_LEN)
+            .try_into()
+            .map_err(|_| AesGcmError::payload("payload is not long enough to contain tag"))?;
+        let ciphertext = payload;
+
+        verify_tag(
+            &mut self.ctx,
+            self.aes_ctr.as_mut(),
+            self.ghash.as_mut(),
+            *self.config.role(),
+            explicit_nonce.clone(),
+            ciphertext.clone(),
+            aad,
+            purported_tag,
+        )
+        .await?;
+
+        self.aes_ctr
+            .verify_plaintext(explicit_nonce, ciphertext)
             .await?;
 
-        self.verify_plaintext_no_tag(explicit_nonce, payload).await
+        Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(ciphertext), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn verify_plaintext_no_tag(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), AesGcmError> {
         self.aes_ctr
             .verify_plaintext(explicit_nonce, ciphertext)
-            .map_err(AeadError::from)
+            .map_err(AesGcmError::from)
             .await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{mock::create_mock_aes_gcm_pair, *};
-    use crate::Aead;
+    use super::*;
 
-    use mpz_garble::{
-        protocol::deap::mock::{create_mock_deap_vm, MockFollower, MockLeader},
-        Memory, Vm,
+    use crate::{
+        aes_gcm::{mock::create_mock_aes_gcm_pair, AesGcmConfigBuilder, Role},
+        Aead,
     };
-
     use ::aes_gcm::{
         aead::{AeadInPlace, KeyInit},
         Aes128Gcm, Nonce,
     };
+    use error::ErrorKind;
+    use mpz_common::executor::STExecutor;
+    use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory};
+    use serio::channel::MemoryDuplex;
 
     fn reference_impl(
         key: &[u8],
@@ -471,30 +459,31 @@ mod tests {
     async fn setup_pair(
         key: Vec<u8>,
         iv: Vec<u8>,
-    ) -> ((MpcAesGcm, MpcAesGcm), (MockLeader, MockFollower)) {
-        let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test_vm").await;
+    ) -> (
+        MpcAesGcm<STExecutor<MemoryDuplex>>,
+        MpcAesGcm<STExecutor<MemoryDuplex>>,
+    ) {
+        let (leader_vm, follower_vm) = create_mock_deap_vm();
 
-        let leader_thread = leader_vm.new_thread("test_thread").await.unwrap();
-        let leader_key = leader_thread
+        let leader_key = leader_vm
             .new_public_array_input::<u8>("key", key.len())
             .unwrap();
-        let leader_iv = leader_thread
+        let leader_iv = leader_vm
             .new_public_array_input::<u8>("iv", iv.len())
             .unwrap();
 
-        leader_thread.assign(&leader_key, key.clone()).unwrap();
-        leader_thread.assign(&leader_iv, iv.clone()).unwrap();
+        leader_vm.assign(&leader_key, key.clone()).unwrap();
+        leader_vm.assign(&leader_iv, iv.clone()).unwrap();
 
-        let follower_thread = follower_vm.new_thread("test_thread").await.unwrap();
-        let follower_key = follower_thread
+        let follower_key = follower_vm
             .new_public_array_input::<u8>("key", key.len())
             .unwrap();
-        let follower_iv = follower_thread
+        let follower_iv = follower_vm
             .new_public_array_input::<u8>("iv", iv.len())
             .unwrap();
 
-        follower_thread.assign(&follower_key, key.clone()).unwrap();
-        follower_thread.assign(&follower_iv, iv.clone()).unwrap();
+        follower_vm.assign(&follower_key, key.clone()).unwrap();
+        follower_vm.assign(&follower_iv, iv.clone()).unwrap();
 
         let leader_config = AesGcmConfigBuilder::default()
             .id("test".to_string())
@@ -509,8 +498,7 @@ mod tests {
 
         let (mut leader, mut follower) = create_mock_aes_gcm_pair(
             "test",
-            &mut leader_vm,
-            &mut follower_vm,
+            (leader_vm, follower_vm),
             leader_config,
             follower_config,
         )
@@ -523,8 +511,9 @@ mod tests {
         .unwrap();
 
         futures::try_join!(leader.setup(), follower.setup()).unwrap();
+        futures::try_join!(leader.start(), follower.start()).unwrap();
 
-        ((leader, follower), (leader_vm, follower_vm))
+        (leader, follower)
     }
 
     #[tokio::test]
@@ -535,8 +524,7 @@ mod tests {
         let plaintext = vec![1u8; 32];
         let aad = vec![2u8; 12];
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         let (leader_ciphertext, follower_ciphertext) = tokio::try_join!(
             leader.encrypt_private(explicit_nonce.clone(), plaintext.clone(), aad.clone(),),
@@ -559,8 +547,7 @@ mod tests {
         let plaintext = vec![1u8; 32];
         let aad = vec![2u8; 12];
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         let (leader_ciphertext, follower_ciphertext) = tokio::try_join!(
             leader.encrypt_public(explicit_nonce.clone(), plaintext.clone(), aad.clone(),),
@@ -584,8 +571,7 @@ mod tests {
         let aad = vec![2u8; 12];
         let ciphertext = reference_impl(&key, &iv, &explicit_nonce, &plaintext, &aad);
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         let (leader_plaintext, _) = tokio::try_join!(
             leader.decrypt_private(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
@@ -611,8 +597,7 @@ mod tests {
         let mut corrupted = ciphertext.clone();
         corrupted[len - 1] -= 1;
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         // leader receives corrupted tag
         let err = tokio::try_join!(
@@ -620,10 +605,9 @@ mod tests {
             follower.decrypt_blind(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),)
         )
         .unwrap_err();
-        assert!(matches!(err, AeadError::CorruptedTag));
+        assert_eq!(err.kind(), ErrorKind::Tag);
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         // follower receives corrupted tag
         let err = tokio::try_join!(
@@ -631,7 +615,7 @@ mod tests {
             follower.decrypt_blind(explicit_nonce.clone(), corrupted.clone(), aad.clone(),)
         )
         .unwrap_err();
-        assert!(matches!(err, AeadError::CorruptedTag));
+        assert_eq!(err.kind(), ErrorKind::Tag);
     }
 
     #[tokio::test]
@@ -643,8 +627,7 @@ mod tests {
         let aad = vec![2u8; 12];
         let ciphertext = reference_impl(&key, &iv, &explicit_nonce, &plaintext, &aad);
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         let (leader_plaintext, follower_plaintext) = tokio::try_join!(
             leader.decrypt_public(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
@@ -667,31 +650,29 @@ mod tests {
 
         let len = ciphertext.len();
 
-        // corrupt tag
+        // Corrupt tag.
         let mut corrupted = ciphertext.clone();
         corrupted[len - 1] -= 1;
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
-        // leader receives corrupted tag
+        // Leader receives corrupted tag.
         let err = tokio::try_join!(
             leader.decrypt_public(explicit_nonce.clone(), corrupted.clone(), aad.clone(),),
             follower.decrypt_public(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),)
         )
         .unwrap_err();
-        assert!(matches!(err, AeadError::CorruptedTag));
+        assert_eq!(err.kind(), ErrorKind::Tag);
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
-        // follower receives corrupted tag
+        // Follower receives corrupted tag.
         let err = tokio::try_join!(
             leader.decrypt_public(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
             follower.decrypt_public(explicit_nonce.clone(), corrupted.clone(), aad.clone(),)
         )
         .unwrap_err();
-        assert!(matches!(err, AeadError::CorruptedTag));
+        assert_eq!(err.kind(), ErrorKind::Tag);
     }
 
     #[tokio::test]
@@ -705,8 +686,7 @@ mod tests {
 
         let len = ciphertext.len();
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            setup_pair(key.clone(), iv.clone()).await;
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         tokio::try_join!(
             leader.verify_tag(explicit_nonce.clone(), ciphertext.clone(), aad.clone()),
@@ -714,7 +694,7 @@ mod tests {
         )
         .unwrap();
 
-        // corrupt tag
+        //Corrupt tag.
         let mut corrupted = ciphertext.clone();
         corrupted[len - 1] -= 1;
 
@@ -723,7 +703,7 @@ mod tests {
             follower.verify_tag(explicit_nonce.clone(), corrupted, aad.clone())
         );
 
-        assert!(matches!(leader_res.unwrap_err(), AeadError::CorruptedTag));
-        assert!(matches!(follower_res.unwrap_err(), AeadError::CorruptedTag));
+        assert_eq!(leader_res.unwrap_err().kind(), ErrorKind::Tag);
+        assert_eq!(follower_res.unwrap_err().kind(), ErrorKind::Tag);
     }
 }

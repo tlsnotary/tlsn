@@ -8,17 +8,17 @@ use mpz_circuits::{
 
 /// A block cipher circuit.
 pub trait BlockCipherCircuit: Default + Clone + Send + Sync {
-    /// The key type
+    /// The key type.
     type KEY: StaticValueType + Send + Sync;
-    /// The block type
+    /// The block type.
     type BLOCK: StaticValueType + TryFrom<Vec<u8>> + TryFrom<Value> + Into<Vec<u8>> + Send + Sync;
 
-    /// The length of the key
+    /// The length of the key.
     const KEY_LEN: usize;
-    /// The length of the block
+    /// The length of the block.
     const BLOCK_LEN: usize;
 
-    /// Returns the circuit of the cipher
+    /// Returns the circuit of the cipher.
     fn circuit() -> Arc<Circuit>;
 }
 

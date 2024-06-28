@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use async_rustls::TlsAcceptor;
 use axum::{
     extract::{Query, State},
     response::{Html, Json},
@@ -11,17 +10,27 @@ use axum::{
     Router,
 };
 use futures::{channel::oneshot, AsyncRead, AsyncWrite};
-use hyper::{body::Bytes, server::conn::Http, StatusCode};
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use futures_rustls::{
+    pki_types::{CertificateDer, PrivateKeyDer},
+    rustls::ServerConfig,
+    TlsAcceptor,
+};
+use hyper::{
+    body::{Bytes, Incoming},
+    server::conn::http1,
+    Request, StatusCode,
+};
+use hyper_util::rt::TokioIo;
 
 use tokio_util::compat::FuturesAsyncReadCompatExt;
+use tower_service::Service;
 
 /// A certificate authority certificate fixture.
-pub static CA_CERT_DER: &[u8] = include_bytes!("tls/rootCA.der");
+pub static CA_CERT_DER: &[u8] = include_bytes!("tls/root_ca_cert.der");
 /// A server certificate (domain=test-server.io) fixture.
-pub static SERVER_CERT_DER: &[u8] = include_bytes!("tls/domain.der");
+pub static SERVER_CERT_DER: &[u8] = include_bytes!("tls/test_server_cert.der");
 /// A server private key fixture.
-pub static SERVER_KEY_DER: &[u8] = include_bytes!("tls/domain_key.der");
+pub static SERVER_KEY_DER: &[u8] = include_bytes!("tls/test_server_private_key.der");
 /// The domain name bound to the server certificate.
 pub static SERVER_DOMAIN: &str = "test-server.io";
 
@@ -42,11 +51,10 @@ fn app(state: AppState) -> Router {
 pub async fn bind<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
 ) -> anyhow::Result<()> {
-    let key = PrivateKey(SERVER_KEY_DER.to_vec());
-    let cert = Certificate(SERVER_CERT_DER.to_vec());
+    let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
+    let cert = CertificateDer::from(SERVER_CERT_DER);
 
     let config = ServerConfig::builder()
-        .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(vec![cert], key)
         .unwrap();
@@ -55,16 +63,22 @@ pub async fn bind<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
 
     let conn = acceptor.accept(socket).await?;
 
+    let io = TokioIo::new(conn.compat());
+
     let (sender, receiver) = oneshot::channel();
     let state = AppState {
         shutdown: Some(sender),
     };
+    let tower_service = app(state);
+
+    let hyper_service = hyper::service::service_fn(move |request: Request<Incoming>| {
+        tower_service.clone().call(request)
+    });
 
     tokio::select! {
-        _ = Http::new()
-            .http1_only(true)
-            .http1_keep_alive(false)
-            .serve_connection(conn.compat(), app(state)) => {},
+        _ = http1::Builder::new()
+                .keep_alive(false)
+                .serve_connection(io, hyper_service) => {},
         _ = receiver => {},
     }
 

@@ -1,5 +1,4 @@
 use mpz_ot::{chou_orlandi, kos};
-use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
 use tlsn_common::{
@@ -101,18 +100,6 @@ impl ProverConfig {
 
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
         ot_recv_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
-    }
-
-    pub(crate) fn build_p256_sender_config(&self) -> SenderConfig {
-        SenderConfig::builder().id("p256/0").build().unwrap()
-    }
-
-    pub(crate) fn build_p256_receiver_config(&self) -> ReceiverConfig {
-        ReceiverConfig::builder().id("p256/1").build().unwrap()
-    }
-
-    pub(crate) fn build_gf2_config(&self) -> SenderConfig {
-        SenderConfig::builder().id("gf2").record().build().unwrap()
     }
 }
 

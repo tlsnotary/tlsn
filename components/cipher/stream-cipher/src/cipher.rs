@@ -9,9 +9,9 @@ use crate::{circuit::AES_CTR, StreamCipherError};
 
 /// A counter-mode block cipher circuit.
 pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
-    /// The key type
+    /// The key type.
     type KEY: StaticValueType + TryFrom<Vec<u8>> + Send + Sync + 'static;
-    /// The block type
+    /// The block type.
     type BLOCK: StaticValueType
         + TryFrom<Vec<u8>>
         + TryFrom<Value>
@@ -20,7 +20,7 @@ pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
-    /// The IV type
+    /// The IV type.
     type IV: StaticValueType
         + TryFrom<Vec<u8>>
         + TryFrom<Value>
@@ -28,7 +28,7 @@ pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
-    /// The nonce type
+    /// The nonce type.
     type NONCE: StaticValueType
         + TryFrom<Vec<u8>>
         + TryFrom<Value>
@@ -40,19 +40,19 @@ pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
         + std::fmt::Debug
         + 'static;
 
-    /// The length of the key
+    /// The length of the key.
     const KEY_LEN: usize;
-    /// The length of the block
+    /// The length of the block.
     const BLOCK_LEN: usize;
-    /// The length of the IV
+    /// The length of the IV.
     const IV_LEN: usize;
-    /// The length of the nonce
+    /// The length of the nonce.
     const NONCE_LEN: usize;
 
-    /// Returns the circuit of the cipher
+    /// Returns the circuit of the cipher.
     fn circuit() -> Arc<Circuit>;
 
-    /// Applies the keystream to the message
+    /// Applies the keystream to the message.
     fn apply_keystream(
         key: &[u8],
         iv: &[u8],
@@ -94,22 +94,13 @@ impl CtrCircuit for Aes128Ctr {
 
         let key: &[u8; 16] = key
             .try_into()
-            .map_err(|_| StreamCipherError::InvalidKeyLength {
-                expected: 16,
-                actual: key.len(),
-            })?;
+            .map_err(|_| StreamCipherError::key_len::<Self>(key.len()))?;
         let iv: &[u8; 4] = iv
             .try_into()
-            .map_err(|_| StreamCipherError::InvalidIvLength {
-                expected: 4,
-                actual: iv.len(),
-            })?;
-        let explicit_nonce: &[u8; 8] = explicit_nonce.try_into().map_err(|_| {
-            StreamCipherError::InvalidExplicitNonceLength {
-                expected: 8,
-                actual: explicit_nonce.len(),
-            }
-        })?;
+            .map_err(|_| StreamCipherError::iv_len::<Self>(iv.len()))?;
+        let explicit_nonce: &[u8; 8] = explicit_nonce
+            .try_into()
+            .map_err(|_| StreamCipherError::explicit_nonce_len::<Self>(explicit_nonce.len()))?;
 
         let mut full_iv = [0u8; 16];
         full_iv[0..4].copy_from_slice(iv);

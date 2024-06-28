@@ -1,0 +1,31 @@
+[package]
+name = "integration-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
+http.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["client", "http1", "server"] }
+hyper-util = { workspace = true, features = ["full"] }
+notary-client.workspace = true
+notary-server.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+serde_json.workspace = true
+tlsn-prover = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["compat"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+uuid = { workspace = true, features = ["v4", "fast-rng"] }
+ws_stream_tungstenite = { workspace = true, features = ["tokio_io"] }
+
+# specify vendored feature to use statically linked copy of OpenSSL
+hyper-tls = { version = "0.6.0", features = ["vendored"] }
+rstest = "0.18"
+tls-server-fixture = { path = "../../components/tls/tls-server-fixture" }
+tlsn-tls-core = { path = "../../components/tls/tls-core" }
+tokio-native-tls = { version = "0.3.1", features = ["vendored"] }

@@ -1,21 +1,16 @@
 //! TLS prover states.
 
-use crate::tls::{MuxFuture, OTFuture};
 use mpz_core::commit::Decommitment;
-use mpz_garble::protocol::deap::{DEAPThread, DEAPVm, PeerEncodings};
+use mpz_garble::protocol::deap::PeerEncodings;
 use mpz_garble_core::{encoding_state, EncodedValue};
-use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
-use mpz_share_conversion::{ConverterSender, Gf2_128};
 use std::collections::HashMap;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
-use tlsn_common::mux::MuxControl;
-use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder,
-    msg::{ProvingInfo, TlsnMessage},
-    Transcript,
+use tlsn_common::{
+    mux::{MuxControl, MuxFuture},
+    Context, DEAPThread, Io, OTReceiver,
 };
-use utils_aio::duplex::Duplex;
+use tlsn_core::{commitment::TranscriptCommitmentBuilder, msg::ProvingInfo, Transcript};
 
 /// Entry state
 pub struct Initialized;
@@ -24,26 +19,27 @@ opaque_debug::implement!(Initialized);
 
 /// State after MPC setup has completed.
 pub struct Setup {
-    /// A muxer for communication with the Notary
+    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) mpc_tls: MpcTlsLeader,
-    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
-    pub(crate) ot_fut: OTFuture,
-    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+    pub(crate) vm: DEAPThread,
+    pub(crate) ot_recv: OTReceiver,
+    pub(crate) ctx: Context,
 }
 
 opaque_debug::implement!(Setup);
 
 /// State after the TLS connection has been closed.
 pub struct Closed {
+    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
-    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
-    pub(crate) ot_fut: OTFuture,
-    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+    pub(crate) vm: DEAPThread,
+    pub(crate) ot_recv: OTReceiver,
+    pub(crate) ctx: Context,
 
     pub(crate) start_time: u64,
     pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
@@ -57,13 +53,13 @@ opaque_debug::implement!(Closed);
 
 /// Notarizing state.
 pub struct Notarize {
-    /// A muxer for communication with the Notary
+    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
-    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
-    pub(crate) ot_fut: OTFuture,
-    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+    pub(crate) vm: DEAPThread,
+    pub(crate) ot_recv: OTReceiver,
+    pub(crate) ctx: Context,
 
     pub(crate) start_time: u64,
     pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
@@ -92,11 +88,12 @@ impl From<Closed> for Notarize {
         );
 
         Self {
+            io: state.io,
             mux_ctrl: state.mux_ctrl,
             mux_fut: state.mux_fut,
             vm: state.vm,
-            ot_fut: state.ot_fut,
-            gf2: state.gf2,
+            ot_recv: state.ot_recv,
+            ctx: state.ctx,
             start_time: state.start_time,
             handshake_decommitment: state.handshake_decommitment,
             server_public_key: state.server_public_key,
@@ -109,12 +106,13 @@ impl From<Closed> for Notarize {
 
 /// Proving state.
 pub struct Prove {
+    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
-    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
-    pub(crate) ot_fut: OTFuture,
-    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+    pub(crate) vm: DEAPThread,
+    pub(crate) ot_recv: OTReceiver,
+    pub(crate) ctx: Context,
 
     pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
 
@@ -122,24 +120,21 @@ pub struct Prove {
     pub(crate) transcript_rx: Transcript,
 
     pub(crate) proving_info: ProvingInfo,
-    pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
-    pub(crate) prove_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
 
 impl From<Closed> for Prove {
     fn from(state: Closed) -> Self {
         Self {
+            io: state.io,
             mux_ctrl: state.mux_ctrl,
             mux_fut: state.mux_fut,
             vm: state.vm,
-            ot_fut: state.ot_fut,
-            gf2: state.gf2,
+            ot_recv: state.ot_recv,
+            ctx: state.ctx,
             handshake_decommitment: state.handshake_decommitment,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
             proving_info: ProvingInfo::default(),
-            channel: None,
-            prove_thread: None,
         }
     }
 }
@@ -163,7 +158,7 @@ mod sealed {
 }
 
 fn collect_encodings(
-    vm: &DEAPVm<SharedSender, SharedReceiver>,
+    vm: &impl PeerEncodings,
     transcript_tx: &Transcript,
     transcript_rx: &Transcript,
 ) -> HashMap<String, EncodedValue<encoding_state::Active>> {

@@ -127,7 +127,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // Verify MPC-TLS and wait for (redacted) data.
     let (sent, received, session_info) = verifier.verify(socket.compat()).await.unwrap();
 
-    // Check send data: check host.
+    // Check sent data: check host.
     let sent_data = String::from_utf8(sent.data().to_vec()).expect("Verifier expected sent data");
     sent_data
         .find(SERVER_DOMAIN)
