@@ -1,0 +1,16 @@
+name: on release hook
+on:
+  create:
+    branches:
+      - 'release/*'
+  workflow_dispatch:
+
+permissions:
+  attestations: write
+  contents: read
+  id-token: write
+    
+jobs:
+  create-gramine-attestation:
+    uses: maceip/tlsn/.github/workflows/gramine-report.yml@sgx-attest
+    secrets: inherit

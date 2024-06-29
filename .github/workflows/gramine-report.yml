@@ -1,29 +1,39 @@
-name: Create New SGX Report
-on: push
+name: generate a gramine signature, which can be verified later
+
+on:
+  workflow_call:
+  
+permissions:
+  attestations: write
+  id-token: write
+  contents: read
+
+
 jobs:
-  build_and_generate_report:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         shell: bash
-        working-directory: ./notary-server
-    name: install Gramine
     steps:
-      - uses: actions/checkout@v4
+      - name: get src
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
       - name: add gramine key
         run: |
                sudo curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg
                echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ $(lsb_release -sc) main" |  sudo tee /etc/apt/sources.list.d/gramine.list
-      - uses: awalsh128/cache-apt-pkgs-action@latest
+      - name: apt get
+        uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: rustc cargo gramine cmake clang gramine
           version: 1.1
           execute_install_scripts: true
-
       - name: Set PATH
         run: echo "export PATH=\$PATH:/usr/local/bin:/usr/bin" >> $GITHUB_ENV
       - name: generate manifest and sig
@@ -41,18 +51,13 @@ jobs:
                 echo EOF
                } >> "$GITHUB_ENV"
                echo "$sigview"
-      - name: debug path first 
-        run: |
-               echo "GITHUB_ENV: $GITHUB_ENV"
-               echo "SGX_REPORT: $SGX_REPORT"
-      - name: update README
-        uses: jacobtomlinson/gha-find-replace@v3
+      - name: create artifact
+        run: echo "${{ env.SGX_REPORT }}" > /home/runner/work/_temp/notary-server.sig
+      - name: upload it
+        uses: actions/upload-artifact@v4
         with:
-          find: "(?si)attributes.*debug_enclave: (true|false)"
-          replace: "${{ env.SGX_REPORT }}"
-          include: "README.md"
-          regex: true
-      - name: Push changes
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with: 
-          commit_message: Automated SGX Report Gen
+            path: /home/runner/work/_temp/notary-server.sig
+      - name: get github to sign our measurement
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: /home/runner/work/_temp/notary-server.sig
