@@ -21,6 +21,7 @@ use crate::{MpcTlsCommonConfig, TlsRole};
 
 /// Builds the components for MPC-TLS.
 // TODO: Better dependency injection!!
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub fn build_components<Ctx, T, OTS, OTR>(
     role: TlsRole,
     config: &MpcTlsCommonConfig,
