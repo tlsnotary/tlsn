@@ -169,10 +169,10 @@ mod tests {
         );
 
         // Sum check.
-        for k in 0..message_len {
+        for (k, item) in powers_h.iter().enumerate().take(message_len) {
             assert_eq!(
                 sender.state().add_shares[k] + receiver.state().add_shares[k],
-                powers_h[k]
+                *item
             );
         }
     }
