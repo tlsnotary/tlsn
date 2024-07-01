@@ -33,7 +33,7 @@ fn runtime_vs_latency(all_data: &Vec<Metrics>) -> Result<Chart, Box<dyn std::err
     const TITLE: &str = "Runtime vs Latency";
 
     let data: Vec<Vec<f32>> = all_data
-        .into_iter()
+        .iter()
         .filter(|record| record.name == "latency")
         .map(|record| {
             let total_delay = record.upload_delay + record.download_delay; // Calculate the sum of upload and download delays.
@@ -87,17 +87,17 @@ fn runtime_vs_bandwidth(all_data: &Vec<Metrics>) -> Result<Chart, Box<dyn std::e
     const TITLE: &str = "Runtime vs Bandwidth";
 
     let download_data: Vec<Vec<f32>> = all_data
-        .into_iter()
+        .iter()
         .filter(|record| record.name == "download_bandwidth")
         .map(|record| vec![record.download as f32, record.runtime as f32])
         .collect();
     let upload_deferred_data: Vec<Vec<f32>> = all_data
-        .into_iter()
+        .iter()
         .filter(|record| record.name == "upload_bandwidth" && record.defer_decryption)
         .map(|record| vec![record.upload as f32, record.runtime as f32])
         .collect();
     let upload_non_deferred_data: Vec<Vec<f32>> = all_data
-        .into_iter()
+        .iter()
         .filter(|record| record.name == "upload_bandwidth" && !record.defer_decryption)
         .map(|record| vec![record.upload as f32, record.runtime as f32])
         .collect();
