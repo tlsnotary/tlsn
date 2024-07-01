@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn runtime_vs_latency(all_data: &Vec<Metrics>) -> Result<Chart, Box<dyn std::error::Error>> {
+fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error::Error>> {
     const TITLE: &str = "Runtime vs Latency";
 
     let data: Vec<Vec<f32>> = all_data
@@ -83,7 +83,7 @@ fn runtime_vs_latency(all_data: &Vec<Metrics>) -> Result<Chart, Box<dyn std::err
     Ok(chart)
 }
 
-fn runtime_vs_bandwidth(all_data: &Vec<Metrics>) -> Result<Chart, Box<dyn std::error::Error>> {
+fn runtime_vs_bandwidth(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error::Error>> {
     const TITLE: &str = "Runtime vs Bandwidth";
 
     let download_data: Vec<Vec<f32>> = all_data
