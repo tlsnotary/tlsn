@@ -122,7 +122,7 @@ where
             .state
             .encoded_key_iv
             .as_ref()
-            .ok_or_else(|| StreamCipherError::key_not_set())?;
+            .ok_or_else(StreamCipherError::key_not_set)?;
 
         let keystream = self
             .state
@@ -275,7 +275,7 @@ where
             .state
             .encoded_key_iv
             .clone()
-            .ok_or_else(|| StreamCipherError::key_not_set())?;
+            .ok_or_else(StreamCipherError::key_not_set)?;
 
         let [key, iv]: [_; 2] = self
             .thread
@@ -298,7 +298,7 @@ where
             .state
             .encoded_key_iv
             .clone()
-            .ok_or_else(|| StreamCipherError::key_not_set())?;
+            .ok_or_else(StreamCipherError::key_not_set)?;
 
         self.thread.decode_blind(&[key, iv]).await?;
 
@@ -327,7 +327,7 @@ where
             .state
             .encoded_key_iv
             .as_ref()
-            .ok_or_else(|| StreamCipherError::key_not_set())?;
+            .ok_or_else(StreamCipherError::key_not_set)?;
 
         self.state
             .keystream
@@ -567,7 +567,7 @@ where
             .state
             .key_iv
             .clone()
-            .ok_or_else(|| StreamCipherError::key_not_set())?;
+            .ok_or_else(StreamCipherError::key_not_set)?;
 
         let plaintext = C::apply_keystream(
             &key,
@@ -643,7 +643,7 @@ where
             .state
             .encoded_key_iv
             .as_ref()
-            .ok_or_else(|| StreamCipherError::key_not_set())?;
+            .ok_or_else(StreamCipherError::key_not_set)?;
 
         let key_block = self
             .state
