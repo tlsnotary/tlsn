@@ -58,7 +58,8 @@ impl BlockVars {
         self.blocks
             .iter()
             .flat_map(|block| block.iter())
-            .take(len).cloned()
+            .take(len)
+            .cloned()
             .map(|byte| ValueRef::Value { id: byte })
             .collect()
     }
