@@ -103,7 +103,7 @@ The main objective of a notary server is to perform notarizations together with 
 ### Features
 #### Notarization Configuration
 To perform a notarization, some parameters need to be configured by the prover and the notary server (more details in the [OpenAPI specification](./openapi.yaml)), i.e.
-- maximum transcript size
+- maximum data that can be sent and received
 - unique session id
 
 To streamline this process, a single HTTP endpoint (`/session`) is used by both TCP and WebSocket clients.
