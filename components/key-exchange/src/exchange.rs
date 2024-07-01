@@ -200,6 +200,7 @@ where
 }
 
 #[async_trait]
+#[allow(clippy::blocks_in_conditions)]
 impl<Ctx, C0, C1, E> KeyExchange for MpcKeyExchange<Ctx, C0, C1, E>
 where
     Ctx: Context,
@@ -457,6 +458,7 @@ mod tests {
     use rand_core::SeedableRng;
     use serio::channel::MemoryDuplex;
 
+    #[allow(clippy::type_complexity)]
     fn create_pair() -> (
         MpcKeyExchange<
             STExecutor<MemoryDuplex>,
