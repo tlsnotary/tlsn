@@ -131,6 +131,7 @@ impl<C: CtrCircuit> KeyStream<C> {
     }
 
     #[instrument(level = "debug", skip_all, err)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn compute<T>(
         &mut self,
         thread: &mut T,
