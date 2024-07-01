@@ -19,18 +19,18 @@ struct PayoutCallback {
     country: String,
     created: String,
     currency: String,
-    customerTimestamp: String,
-    failureReason: Option<FailureReason>,
-    payoutId: String,
+    customer_timestamp: String,
+    failure_reason: Option<FailureReason>,
+    payout_id: String,
     recipient: Recipient,
-    statementDescription: String,
+    statement_description: String,
     status: String,
 }
 
 #[derive(Deserialize, Debug)]
 struct FailureReason {
-    failureCode: String,
-    failureMessage: String,
+    failure_code: String,
+    failure_message: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -85,8 +85,8 @@ async fn callback(payout: web::Json<PayoutCallback>) -> HttpResponse {
 
 async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::error::Error>> {
     // Setting of the notary server
-    const NOTARY_HOST: &str = "127.0.0.1";
-    const NOTARY_PORT: u16 = 7047;
+    const NOTARY_HOST: &str = "https://notary.pse.dev/v0.1.0-alpha.6";
+    const NOTARY_PORT: u16 = 443;
 
     // Build a client to connect to the notary server.
     let notary_client = NotaryClient::builder()
@@ -142,16 +142,16 @@ async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::e
     prover_ctrl.defer_decryption().await?;
     let response = request_sender.send_request(request).await?;
 
-    debug!("Sent request");
-    if response.status() != StatusCode::OK {
-        return Err(Box::new(ClientError {
-            kind: ClientErrorKind::Http,
-            source: Some(hyper::Error::from(hyper::http::Error::from(
-                format!("Unexpected status code: {}", response.status()),
-            ))),
-        }));
-    }
-    debug!("Request OK");
+    // debug!("Sent request");
+    // if response.status() != StatusCode::OK {
+    //     return Err(Box::new(ClientError {
+    //         kind: ClientErrorKind::Http,
+    //         source: Some(hyper::Error::from(hyper::http::Error::from(
+    //             format!("Unexpected status code: {}", response.status()),
+    //         ))),
+    //     }));
+    // }
+    // debug!("Request OK");
 
     // Pretty printing :)
     let payload = response.into_body().collect().await?.to_bytes();
