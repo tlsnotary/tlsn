@@ -62,18 +62,18 @@ async fn callback(payout: web::Json<PayoutCallback>) -> HttpResponse {
 
     match payout.status.as_str() {
         "FAILED" => {
-            if let Some(failure_reason) = &payout.failureReason {
-                warn!("Payout failed: {} - {}", failure_reason.failureCode, failure_reason.failureMessage);
+            if let Some(failure_reason) = &payout.failure_reason {
+                warn!("Payout failed: {} - {}", failure_reason.failure_code, failure_reason.failure_message);
             }
         }
         "ACCEPTED" | "COMPLETED" => {
-            info!("Payout accepted: {}", payout.payoutId);
+            info!("Payout accepted: {}", payout.payout_id);
             if let Err(e) = notarize_callback(&payout).await {
                 error!("Error notarizing callback: {:?}", e);
             }
         }
         "ENQUEUED" => {
-            info!("Payout enqueued: {}", payout.payoutId);
+            info!("Payout enqueued: {}", payout.payout_id);
         }
         _ => {
             warn!("Unknown status: {}", payout.status);
@@ -92,7 +92,6 @@ async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::e
     let notary_client = NotaryClient::builder()
         .host(NOTARY_HOST)
         .port(NOTARY_PORT)
-        .enable_tls(false)
         .build()?;
 
     // Send requests for configuration and notarization to the notary server.
@@ -129,7 +128,7 @@ async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::e
 
     // Build the HTTP request to fetch the callback data
     let request = Request::builder()
-        .uri(format!("https://api.sandbox.pawapay.cloud/payouts/{}", payout.payoutId))
+        .uri(format!("https://api.sandbox.pawapay.cloud/payouts/{}", payout.payout_id))
         .header("Host", "api.sandbox.pawapay.cloud")
         .header("Accept", "*/*")
         .header("Connection", "close")
