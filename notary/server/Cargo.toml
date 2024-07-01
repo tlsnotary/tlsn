@@ -26,7 +26,6 @@ axum = { version = "0.7", features = ["ws"] }
 axum-core = "0.4"
 axum-macros = "0.4"
 base64 = "0.21.0"
-chrono = "0.4.31"
 csv = "1.3.0"
 eyre = "0.6.8"
 futures = "0.3"

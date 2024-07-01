@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::{DateTime, Utc};
 use p256::ecdsa::SigningKey;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -48,7 +47,6 @@ pub enum ClientType {
 pub struct SessionData {
     pub max_sent_data: Option<usize>,
     pub max_recv_data: Option<usize>,
-    pub created_at: DateTime<Utc>,
 }
 
 /// Global data that needs to be shared with the axum handlers
