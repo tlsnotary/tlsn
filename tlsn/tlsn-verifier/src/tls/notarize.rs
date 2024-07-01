@@ -21,7 +21,6 @@ use std::env;
 use uuid::Uuid;
 mod airdrop;
 mod sign;
-mod sign_ed25519;
 use airdrop::airdrop::{check_followers, insert_claim_key, parse_transcripts, view_claim_key};
 
 #[cfg(feature = "tracing")]

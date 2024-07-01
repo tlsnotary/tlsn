@@ -1,4 +1,5 @@
 pub mod axum_websocket;
+pub mod sign_ed2559;
 pub mod tcp;
 pub mod websocket;
 
@@ -201,7 +202,9 @@ pub async fn verify_proof(
     )
         .into_response()
 }
+use sign_ed2559::*;
 use std::time::Duration;
+
 pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<String, Error> {
     let TlsProof {
         // The session proof establishes the identity of the server and the commitments
