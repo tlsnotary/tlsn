@@ -41,7 +41,7 @@ use crate::{
     },
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
-    service::{initialize, upgrade_protocol},
+    service::{initialize, upgrade_protocol, verify_proof},
     util::parse_csv_file,
 };
 
@@ -158,6 +158,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             NotaryGlobals,
         >(notary_globals.clone()))
         .route("/notarize", get(upgrade_protocol))
+        .route("/verify", post(verify_proof))
         .layer(CorsLayer::permissive())
         .with_state(notary_globals);
     let mut app = router.into_make_service();
@@ -217,8 +218,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
 /// Load notary signing key from static file
 async fn load_notary_signing_key(config: &NotarySigningKeyProperties) -> Result<SigningKey> {
     debug!("Loading notary server's signing key");
-
-    debug!("Slim");
 
     let notary_signing_key = SigningKey::read_pkcs8_pem_file(&config.private_key_pem_path)
         .map_err(|err| eyre!("Failed to load notary signing key for notarization: {err}"))?;

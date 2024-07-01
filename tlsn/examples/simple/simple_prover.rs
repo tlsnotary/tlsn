@@ -150,7 +150,7 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     let sent_commitment = builder.commit_sent(&(0..sent_len)).unwrap();
     let recv_commitment = builder.commit_recv(&(0..recv_len)).unwrap();
 
-    println!("commitments: {:?}", builder.get_merkle_leaves());
+    // println!("commitments: {:?}", builder.get_merkle_leaves());
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();

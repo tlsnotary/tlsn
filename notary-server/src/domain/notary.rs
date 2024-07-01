@@ -27,6 +27,21 @@ pub struct NotarizationSessionRequest {
     pub max_recv_data: Option<usize>,
 }
 
+/// Request object of the /session API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationRequest {
+    /// Session id that is returned from /session API
+    pub session_id: String,
+}
+
+use tlsn_core::proof::{SessionProof, SubstringsProof};
+#[derive(serde::Serialize, Debug, Deserialize)]
+pub struct TLSProof {
+    pub session: SessionProof,
+    pub substrings: SubstringsProof,
+}
+
 /// Request query of the /notarize API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

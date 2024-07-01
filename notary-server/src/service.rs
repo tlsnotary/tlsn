@@ -7,6 +7,7 @@ use axum::{
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
     http::{header, request::Parts, StatusCode},
     response::{IntoResponse, Json, Response},
+    Error,
 };
 use axum_macros::debug_handler;
 use chrono::Utc;
@@ -20,13 +21,13 @@ use uuid::Uuid;
 use crate::{
     domain::notary::{
         NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
-        NotaryGlobals, SessionData,
+        NotaryGlobals, SessionData, TLSProof, VerificationRequest,
     },
     error::NotaryServerError,
     service::{
         axum_websocket::{header_eq, WebSocketUpgrade},
         tcp::{tcp_notarize, TcpUpgrade},
-        websocket::websocket_notarize,
+        websocket::{websocket_notarize, websocket_verify},
     },
 };
 
@@ -109,8 +110,6 @@ pub async fn upgrade_protocol(
     }
 }
 
-/// Handler to initialize and configure notarization for both TCP and WebSocket clients
-#[debug_handler(state = NotaryGlobals)]
 pub async fn initialize(
     State(notary_globals): State<NotaryGlobals>,
     payload: Result<Json<NotarizationSessionRequest>, JsonRejection>,
@@ -169,6 +168,121 @@ pub async fn initialize(
         .into_response()
 }
 
+use tlsn_core::proof::{SessionProof, SubstringsProof, TlsProof};
+/// Handler to verify the TLS proof and sign it with EDDSA
+#[debug_handler(state = NotaryGlobals)]
+pub async fn verify_proof(
+    State(notary_globals): State<NotaryGlobals>,
+    payload: Result<Json<TlsProof>, JsonRejection>,
+) -> impl IntoResponse {
+    info!(?payload, "Received request for verifying TLS proof");
+
+    // Parse the body payload and extract TLSProof
+    let payload: TlsProof = match payload {
+        Ok(Json(payload)) => payload,
+        Err(err) => {
+            error!("Malformed payload submitted for initializing notarization: {err}");
+            return NotaryServerError::BadProverRequest(err.to_string()).into_response();
+        }
+    };
+
+    info!("payload: {:#?}", payload);
+
+    let notary_pubkey = hex::encode(notary_globals.notary_signing_key.to_bytes());
+
+    _ = verify(payload, &notary_pubkey).await;
+
+    // Return a JSON with field success = "OK" in the response to the client
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "success": "OK"
+        })),
+    )
+        .into_response()
+}
+use std::time::Duration;
+pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<String, Error> {
+    let TlsProof {
+        // The session proof establishes the identity of the server and the commitments
+        // to the TLS transcript.
+        session,
+        // The substrings proof proves select portions of the transcript, while redacting
+        // anything the Prover chose not to disclose.
+        substrings,
+    } = proof;
+
+    info!(
+        "!@# notary_pubkey {}, {}",
+        notary_pubkey_str,
+        notary_pubkey_str.len()
+    );
+    // session
+    //     .verify_with_default_cert_verifier(get_notary_pubkey(notary_pubkey_str)?)
+    //     .map_err(|e| &format!("Session verification failed: {:?}", e))?;
+
+    let SessionProof {
+        // The session header that was signed by the Notary is a succinct commitment to the TLS transcript.
+        header,
+        // This is the server name, checked against the certificate chain shared in the TLS handshake.
+        session_info,
+        ..
+    } = session;
+
+    // The time at which the session was recorded
+    let time = chrono::DateTime::UNIX_EPOCH + Duration::from_secs(header.time());
+
+    // Verify the substrings proof against the session header.
+    //
+    // This returns the redacted transcripts
+    let (mut sent, mut recv) = substrings.verify(&header).unwrap();
+    // Replace the bytes which the Prover chose not to disclose with 'X'
+    sent.set_redacted(b'X');
+    recv.set_redacted(b'X');
+
+    info!("-------------------------------------------------------------------");
+    info!(
+        "Successfully verified that the bytes below came from a session with {:?} at {}.",
+        session_info.server_name, time
+    );
+    info!("Note that the bytes which the Prover chose not to disclose are shown as X.");
+    info!("Bytes sent:");
+    info!(
+        "{}",
+        String::from_utf8(sent.data().to_vec())
+            .unwrap_or("Could not convert sent data to string".to_string())
+    );
+    info!("Bytes received:");
+    info!(
+        "{}",
+        String::from_utf8(recv.data().to_vec())
+            .unwrap_or("Could not convert recv data to string".to_string())
+    );
+    info!("-------------------------------------------------------------------");
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct VerifyResult {
+        pub server_name: String,
+        pub time: u64,
+        pub sent: String,
+        pub recv: String,
+    }
+
+    let result = VerifyResult {
+        server_name: String::from(session_info.server_name.as_str()),
+        time: header.time(),
+        sent: String::from_utf8(sent.data().to_vec())
+            .unwrap_or("Could not convert sent data to string".to_string()),
+        recv: String::from_utf8(recv.data().to_vec())
+            .unwrap_or("Could not convert recv data to string".to_string()),
+    };
+    let res =
+        serde_json::to_string_pretty(&result).unwrap_or("Could not serialize result".to_string());
+
+    Ok(res)
+}
+
 /// Run the notarization
 pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     socket: T,
@@ -199,9 +313,42 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     debug!("Verifier::new");
 
-    Verifier::new(config)
+    let verifier = Verifier::new(config);
+
+    verifier
         .notarize::<_, Signature>(socket.compat(), signing_key)
         .await?;
+
+    Ok(())
+}
+
+/// Run the notarization
+pub async fn verify_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    socket: T,
+    _: &SigningKey,
+    session_id: &str,
+) -> Result<(), NotaryServerError> {
+    debug!(?session_id, "Starting verification...");
+
+    let mut config_builder = VerifierConfig::builder();
+
+    config_builder = config_builder.id(session_id);
+
+    debug!("config_builder.build");
+
+    let config = config_builder.build()?;
+
+    debug!("Verifier::new");
+
+    let verifier = Verifier::new(config);
+
+    // Verify MPC-TLS and wait for (redacted) data.
+    //let (sent, received, session_info) = verifier.verify(socket.compat()).await.unwrap();
+
+    info!("Verification successful");
+    // info!("{:#?}", session_info);
+    // info!("{:#?}", sent);
+    // info!("{:#?}", received);
 
     Ok(())
 }

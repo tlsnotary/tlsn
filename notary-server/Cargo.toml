@@ -17,7 +17,9 @@ futures = "0.3"
 futures-util = "0.3.28"
 http = "0.2.9"
 hyper = { version = "0.14", features = ["client", "http1", "server", "tcp"] }
-notify = { version = "6.1.1", default-features = false, features = ["macos_kqueue"] }
+notify = { version = "6.1.1", default-features = false, features = [
+    "macos_kqueue",
+] }
 opentelemetry = { version = "0.19" }
 p256 = "0.13"
 rstest = "0.18"
@@ -30,6 +32,7 @@ sha1 = "0.10"
 structopt = "0.3.26"
 thiserror = "1"
 tlsn-verifier = { path = "../tlsn/tlsn-verifier", features = ["tracing"] }
+tlsn-core = { path = "../tlsn/tlsn-core" }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.24.1" }
 tokio-util = { version = "0.7", features = ["compat"] }
@@ -40,6 +43,7 @@ tracing-opentelemetry = "0.19"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.4.1", features = ["v4", "fast-rng"] }
 ws_stream_tungstenite = { version = "0.10.0", features = ["tokio_io"] }
+hex = "0.4.3"
 
 [dev-dependencies]
 # specify vendored feature to use statically linked copy of OpenSSL
