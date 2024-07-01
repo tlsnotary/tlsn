@@ -93,6 +93,7 @@ pub(crate) async fn compute_tag<
 /// Without it, the party which receives the other's tag share first could trivially compute
 /// a tag share which would cause an invalid message to be accepted.
 #[instrument(level = "debug", skip_all, err)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn verify_tag<
     Ctx: Context,
     C: StreamCipher<Aes128Ctr> + ?Sized,
