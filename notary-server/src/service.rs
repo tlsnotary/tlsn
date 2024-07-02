@@ -28,7 +28,7 @@ use crate::{
     service::{
         axum_websocket::{header_eq, WebSocketUpgrade},
         tcp::{tcp_notarize, TcpUpgrade},
-        websocket::{websocket_notarize, websocket_verify},
+        websocket::websocket_notarize,
     },
 };
 
@@ -329,37 +329,6 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     verifier
         .notarize::<_, Signature>(socket.compat(), signing_key)
         .await?;
-
-    Ok(())
-}
-
-/// Run the notarization
-pub async fn verify_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-    socket: T,
-    _: &SigningKey,
-    session_id: &str,
-) -> Result<(), NotaryServerError> {
-    debug!(?session_id, "Starting verification...");
-
-    let mut config_builder = VerifierConfig::builder();
-
-    config_builder = config_builder.id(session_id);
-
-    debug!("config_builder.build");
-
-    let config = config_builder.build()?;
-
-    debug!("Verifier::new");
-
-    let verifier = Verifier::new(config);
-
-    // Verify MPC-TLS and wait for (redacted) data.
-    //let (sent, received, session_info) = verifier.verify(socket.compat()).await.unwrap();
-
-    info!("Verification successful");
-    // info!("{:#?}", session_info);
-    // info!("{:#?}", sent);
-    // info!("{:#?}", received);
 
     Ok(())
 }
