@@ -1,6 +1,6 @@
 use actix_web::{post, web, App, HttpServer, HttpResponse};
 use http_body_util::{BodyExt, Empty};
-use hyper::{body::Bytes, Request, StatusCode};
+use hyper::{body::Bytes, Request};
 use hyper_util::rt::TokioIo;
 use serde::Deserialize;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
@@ -10,7 +10,6 @@ use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::{debug, error, info, warn};
-use tracing_subscriber;
 
 #[derive(Deserialize, Debug)]
 struct PayoutCallback {
@@ -19,18 +18,18 @@ struct PayoutCallback {
     country: String,
     created: String,
     currency: String,
-    customer_timestamp: String,
-    failure_reason: Option<FailureReason>,
-    payout_id: String,
+    customerTimestamp: String,
+    failureReason: Option<FailureReason>,
+    payoutId: String,
     recipient: Recipient,
-    statement_description: String,
+    statementDescription: String,
     status: String,
 }
 
 #[derive(Deserialize, Debug)]
 struct FailureReason {
-    failure_code: String,
-    failure_message: String,
+    failureCode: String,
+    failureMessage: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -62,18 +61,18 @@ async fn callback(payout: web::Json<PayoutCallback>) -> HttpResponse {
 
     match payout.status.as_str() {
         "FAILED" => {
-            if let Some(failure_reason) = &payout.failure_reason {
-                warn!("Payout failed: {} - {}", failure_reason.failure_code, failure_reason.failure_message);
+            if let Some(failure_reason) = &payout.failureReason {
+                warn!("Payout failed: {} - {}", failure_reason.failureCode, failure_reason.failureMessage);
             }
         }
         "ACCEPTED" | "COMPLETED" => {
-            info!("Payout accepted: {}", payout.payout_id);
+            info!("Payout accepted: {}", payout.payoutId);
             if let Err(e) = notarize_callback(&payout).await {
                 error!("Error notarizing callback: {:?}", e);
             }
         }
         "ENQUEUED" => {
-            info!("Payout enqueued: {}", payout.payout_id);
+            info!("Payout enqueued: {}", payout.payoutId);
         }
         _ => {
             warn!("Unknown status: {}", payout.status);
@@ -85,7 +84,7 @@ async fn callback(payout: web::Json<PayoutCallback>) -> HttpResponse {
 
 async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::error::Error>> {
     // Setting of the notary server
-    const NOTARY_HOST: &str = "https://notary.pse.dev/v0.1.0-alpha.6";
+    const NOTARY_HOST: &str = "notary.pse.dev";
     const NOTARY_PORT: u16 = 443;
 
     // Build a client to connect to the notary server.
@@ -93,9 +92,16 @@ async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::e
         .host(NOTARY_HOST)
         .port(NOTARY_PORT)
         .build()?;
+    info!("Created Notary client");
+    info!("host: {:?}", notary_client.host);
+    info!("port: {:?}", notary_client.port);
+    info!("does root cert store exist? {:?}", notary_client.root_cert_store.is_empty());
+    info!("enable_tls: {:?}", notary_client.tls);
+    info!("does api key exist? {:?}", notary_client.api_key.is_some());
 
     // Send requests for configuration and notarization to the notary server.
     let notarization_request = NotarizationRequest::builder().build()?;
+    info!("Created Notarization Request: {:?}", notarization_request);
     let Accepted { io: notary_connection, id: session_id, .. } = notary_client
         .request_notarization(notarization_request)
         .await?;
@@ -128,7 +134,7 @@ async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::e
 
     // Build the HTTP request to fetch the callback data
     let request = Request::builder()
-        .uri(format!("https://api.sandbox.pawapay.cloud/payouts/{}", payout.payout_id))
+        .uri(format!("https://api.sandbox.pawapay.cloud/payouts/{}", payout.payoutId))
         .header("Host", "api.sandbox.pawapay.cloud")
         .header("Accept", "*/*")
         .header("Connection", "close")
@@ -141,20 +147,9 @@ async fn notarize_callback(payout: &PayoutCallback) -> Result<(), Box<dyn std::e
     prover_ctrl.defer_decryption().await?;
     let response = request_sender.send_request(request).await?;
 
-    // debug!("Sent request");
-    // if response.status() != StatusCode::OK {
-    //     return Err(Box::new(ClientError {
-    //         kind: ClientErrorKind::Http,
-    //         source: Some(hyper::Error::from(hyper::http::Error::from(
-    //             format!("Unexpected status code: {}", response.status()),
-    //         ))),
-    //     }));
-    // }
-    // debug!("Request OK");
+    let payload = response.into_body().collect().await.unwrap().to_bytes();
 
-    // Pretty printing :)
-    let payload = response.into_body().collect().await?.to_bytes();
-    let parsed = serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload))?;
+    let parsed = serde_json::from_str(&String::from_utf8_lossy(&payload))?;
     debug!("{}", serde_json::to_string_pretty(&parsed)?);
 
     // The Prover task should be done now, so we can grab it.
