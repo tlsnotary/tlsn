@@ -1,5 +1,6 @@
-use futures::AsyncWriteExt;
-use hyper::{body::to_bytes, Body, Request, StatusCode};
+use http_body_util::{BodyExt as _, Empty};
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
@@ -15,7 +16,7 @@ use utils::range::RangeSet;
 async fn verify() {
     tracing_subscriber::fmt::init();
 
-    let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
+    let (socket_0, socket_1) = tokio::io::duplex(1 << 23);
 
     let (_, (sent, received, _session_info)) = tokio::join!(prover(socket_0), verifier(socket_1));
 
@@ -31,7 +32,7 @@ async fn verify() {
 
 #[instrument(skip(notary_socket))]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
-    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
 
     let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
 
@@ -56,34 +57,29 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let prover_task = tokio::spawn(prover_fut);
 
-    let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())
-        .await
-        .unwrap();
+    let (mut request_sender, connection) =
+        hyper::client::conn::http1::handshake(TokioIo::new(tls_connection.compat()))
+            .await
+            .unwrap();
 
-    let connection_task = tokio::spawn(connection.without_shutdown());
+    tokio::spawn(connection);
 
     let request = Request::builder()
         .uri(format!("https://{}", SERVER_DOMAIN))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("GET")
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap();
 
     let response = request_sender.send_request(request).await.unwrap();
 
     assert!(response.status() == StatusCode::OK);
 
-    println!(
-        "{:?}",
-        String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
-    );
+    let payload = response.into_body().collect().await.unwrap().to_bytes();
+    println!("{:?}", &String::from_utf8_lossy(&payload));
 
-    server_task.await.unwrap();
-
-    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
-
-    client_socket.close().await.unwrap();
+    let _ = server_task.await.unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_prove();
 

@@ -3,33 +3,34 @@
 //! The TLS verifier is only a notary.
 
 use super::{state::Notarize, Verifier, VerifierError};
-use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 use mpz_core::serialize::CanonicalSerialize;
-use mpz_share_conversion::ShareConversionVerify;
+use mpz_ot::CommittedOTSender;
+use serio::{stream::IoStreamExt, SinkExt as _};
 use signature::Signer;
 use tlsn_core::{
-    msg::{SignedSessionHeader, TlsnMessage},
-    HandshakeSummary, SessionHeader, Signature,
+    merkle::MerkleRoot, msg::SignedSessionHeader, HandshakeSummary, SessionHeader, Signature,
 };
-use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
-#[cfg(feature = "tracing")]
-use tracing::info;
+use tracing::{debug, info, instrument};
 
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
+    ///
+    /// # Arguments
+    ///
+    /// * `signer` - The signer used to sign the notarization result.
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<SessionHeader, VerifierError>
     where
         T: Into<Signature>,
     {
         let Notarize {
-            mut mux_ctrl,
+            mut io,
+            mux_ctrl,
             mut mux_fut,
             mut vm,
-            ot_send,
-            ot_recv,
-            ot_fut,
-            mut gf2,
+            mut ot_send,
+            mut ctx,
             encoder_seed,
             start_time,
             server_ephemeral_key,
@@ -38,69 +39,52 @@ impl Verifier<Notarize> {
             recv_len,
         } = self.state;
 
-        let notarize_fut = async {
-            let mut notarize_channel = mux_ctrl.get_channel("notarize").await?;
+        let session_header = mux_fut
+            .poll_with(async {
+                let merkle_root: MerkleRoot = io.expect_next().await?;
 
-            let merkle_root =
-                expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
+                // Finalize all MPC before signing the session header.
+                ot_send.reveal(&mut ctx).await?;
 
-            // Finalize all MPC before signing the session header
-            let (mut ot_sender_actor, _, _) = futures::try_join!(
-                ot_fut,
-                ot_send.shutdown().map_err(VerifierError::from),
-                ot_recv.shutdown().map_err(VerifierError::from)
-            )?;
+                debug!("revealed OT secret");
 
-            ot_sender_actor.reveal().await?;
+                vm.finalize()
+                    .await
+                    .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
 
-            vm.finalize()
-                .await
-                .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
+                info!("Finalized all MPC");
 
-            gf2.verify()
-                .await
-                .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
+                let handshake_summary =
+                    HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
 
-            #[cfg(feature = "tracing")]
-            info!("Finalized all MPC");
+                let session_header = SessionHeader::new(
+                    encoder_seed,
+                    merkle_root,
+                    sent_len,
+                    recv_len,
+                    handshake_summary,
+                );
 
-            let handshake_summary =
-                HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
+                let signature = signer.sign(&session_header.to_bytes());
 
-            let session_header = SessionHeader::new(
-                encoder_seed,
-                merkle_root,
-                sent_len,
-                recv_len,
-                handshake_summary,
-            );
+                info!("Signed session header");
 
-            let signature = signer.sign(&session_header.to_bytes());
-
-            #[cfg(feature = "tracing")]
-            info!("Signed session header");
-
-            notarize_channel
-                .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
+                io.send(SignedSessionHeader {
                     header: session_header.clone(),
                     signature: signature.into(),
-                }))
+                })
                 .await?;
 
-            #[cfg(feature = "tracing")]
-            info!("Sent session header");
+                info!("Sent session header");
 
-            Ok::<_, VerifierError>(session_header)
-        };
+                Ok::<_, VerifierError>(session_header)
+            })
+            .await?;
 
-        let session_header = futures::select! {
-            res = notarize_fut.fuse() => res?,
-            _ = &mut mux_fut => Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-        };
-
-        let mut mux_ctrl = mux_ctrl.into_inner();
-
-        futures::try_join!(mux_ctrl.close().map_err(VerifierError::from), mux_fut)?;
+        if !mux_fut.is_complete() {
+            mux_ctrl.mux().close();
+            mux_fut.await?;
+        }
 
         Ok(session_header)
     }

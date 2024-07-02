@@ -55,7 +55,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let mut response = vec![0u8; 1024];
     tls_connection.read_to_end(&mut response).await.unwrap();
 
-    server_task.await.unwrap();
+    let _ = server_task.await.unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
     let sent_tx_len = prover.sent_transcript().data().len();

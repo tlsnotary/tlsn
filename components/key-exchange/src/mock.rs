@@ -1,56 +1,71 @@
 //! This module provides mock types for key exchange leader and follower and a function to create
-//! such a pair
+//! such a pair.
 
-use crate::{KeyExchangeConfig, KeyExchangeCore, KeyExchangeMessage, Role};
+use crate::{KeyExchangeConfig, MpcKeyExchange, Role};
 
+use mpz_common::executor::{test_st_executor, STExecutor};
 use mpz_garble::{Decode, Execute, Memory};
-use point_addition::mock::{
-    mock_point_converter_pair, MockPointAdditionReceiver, MockPointAdditionSender,
-};
-use utils_aio::duplex::MemoryDuplex;
+use mpz_share_conversion::ideal::{ideal_share_converter, IdealShareConverter};
+use serio::channel::MemoryDuplex;
 
-/// A mock key exchange instance
+/// A mock key exchange instance.
 pub type MockKeyExchange<E> =
-    KeyExchangeCore<MockPointAdditionSender, MockPointAdditionReceiver, E>;
+    MpcKeyExchange<STExecutor<MemoryDuplex>, IdealShareConverter, IdealShareConverter, E>;
 
-/// Create a mock pair of key exchange leader and follower
+/// Creates a mock pair of key exchange leader and follower.
 pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
-    id: &str,
     leader_executor: E,
     follower_executor: E,
 ) -> (MockKeyExchange<E>, MockKeyExchange<E>) {
-    let (leader_pa_sender, follower_pa_recvr) = mock_point_converter_pair(&format!("{}/pa/0", id));
-    let (follower_pa_sender, leader_pa_recvr) = mock_point_converter_pair(&format!("{}/pa/1", id));
-
-    let (leader_channel, follower_channel) = MemoryDuplex::<KeyExchangeMessage>::new();
+    let (leader_ctx, follower_ctx) = test_st_executor(8);
+    let (leader_converter_0, follower_converter_0) = ideal_share_converter();
+    let (leader_converter_1, follower_converter_1) = ideal_share_converter();
 
     let key_exchange_config_leader = KeyExchangeConfig::builder()
-        .id(id)
         .role(Role::Leader)
         .build()
         .unwrap();
 
     let key_exchange_config_follower = KeyExchangeConfig::builder()
-        .id(id)
         .role(Role::Follower)
         .build()
         .unwrap();
 
-    let leader = KeyExchangeCore::new(
-        Box::new(leader_channel),
-        leader_pa_sender,
-        leader_pa_recvr,
-        leader_executor,
+    let leader = MpcKeyExchange::new(
         key_exchange_config_leader,
+        leader_ctx,
+        leader_converter_0,
+        leader_converter_1,
+        leader_executor,
     );
 
-    let follower = KeyExchangeCore::new(
-        Box::new(follower_channel),
-        follower_pa_sender,
-        follower_pa_recvr,
-        follower_executor,
+    let follower = MpcKeyExchange::new(
         key_exchange_config_follower,
+        follower_ctx,
+        follower_converter_0,
+        follower_converter_1,
+        follower_executor,
     );
 
     (leader, follower)
+}
+
+#[cfg(test)]
+mod tests {
+    use mpz_garble::protocol::deap::mock::create_mock_deap_vm;
+
+    use crate::KeyExchange;
+
+    use super::*;
+
+    #[test]
+    fn test_mock_is_ke() {
+        let (leader_vm, follower_vm) = create_mock_deap_vm();
+        let (leader, follower) = create_mock_key_exchange_pair(leader_vm, follower_vm);
+
+        fn is_key_exchange<T: KeyExchange>(_: T) {}
+
+        is_key_exchange(leader);
+        is_key_exchange(follower);
+    }
 }

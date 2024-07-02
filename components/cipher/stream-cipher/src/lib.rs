@@ -1,14 +1,16 @@
 //! This crate provides a 2PC stream cipher implementation using a block cipher in counter mode.
 //!
-//! Each party plays a specific role, either the `StreamCipherLeader` or the `StreamCipherFollower`. Both parties
-//! work together to encrypt and decrypt messages using a shared key.
+//! Each party plays a specific role, either the `StreamCipherLeader` or the `StreamCipherFollower`.
+//! Both parties work together to encrypt and decrypt messages using a shared key.
 //!
 //! # Transcript
 //!
-//! Using the `record` flag, the `StreamCipherFollower` can optionally use a dedicated stream when encoding the plaintext labels, which
-//! allows the `StreamCipherLeader` to build a transcript of active labels which are pushed to the provided `TranscriptSink`.
+//! Using the `record` flag, the `StreamCipherFollower` can optionally use a dedicated stream when
+//! encoding the plaintext labels, which allows the `StreamCipherLeader` to build a transcript of
+//! active labels which are pushed to the provided `TranscriptSink`.
 //!
-//! Afterwards, the `StreamCipherLeader` can create commitments to the transcript which can be used in a selective disclosure protocol.
+//! Afterwards, the `StreamCipherLeader` can create commitments to the transcript which can be used in
+//! a selective disclosure protocol.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -17,43 +19,17 @@
 mod cipher;
 mod circuit;
 mod config;
+pub(crate) mod error;
 pub(crate) mod keystream;
 mod stream_cipher;
 
 pub use self::cipher::{Aes128Ctr, CtrCircuit};
 pub use config::{StreamCipherConfig, StreamCipherConfigBuilder, StreamCipherConfigBuilderError};
+pub use error::StreamCipherError;
 pub use stream_cipher::MpcStreamCipher;
 
 use async_trait::async_trait;
 use mpz_garble::value::ValueRef;
-
-/// Error that can occur when using a stream cipher
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum StreamCipherError {
-    #[error(transparent)]
-    MemoryError(#[from] mpz_garble::MemoryError),
-    #[error(transparent)]
-    LoadError(#[from] mpz_garble::LoadError),
-    #[error(transparent)]
-    ExecutionError(#[from] mpz_garble::ExecutionError),
-    #[error(transparent)]
-    DecodeError(#[from] mpz_garble::DecodeError),
-    #[error(transparent)]
-    ProveError(#[from] mpz_garble::ProveError),
-    #[error(transparent)]
-    VerifyError(#[from] mpz_garble::VerifyError),
-    #[error("key and iv is not set")]
-    KeyIvNotSet,
-    #[error("invalid key length: expected {expected}, got {actual}")]
-    InvalidKeyLength { expected: usize, actual: usize },
-    #[error("invalid iv length: expected {expected}, got {actual}")]
-    InvalidIvLength { expected: usize, actual: usize },
-    #[error("invalid explicit nonce length: expected {expected}, got {actual}")]
-    InvalidExplicitNonceLength { expected: usize, actual: usize },
-    #[error("missing value for {0}")]
-    MissingValue(String),
-}
 
 /// A trait for MPC stream ciphers.
 #[async_trait]
@@ -93,8 +69,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `plaintext`: The message to apply the keystream to.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `plaintext` - The message to apply the keystream to.
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -106,8 +82,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `plaintext`: The message to apply the keystream to.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `plaintext` - The message to apply the keystream to.
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -118,8 +94,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `len`: The length of the plaintext provided by another party.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `len` - The length of the plaintext provided by another party.
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -131,8 +107,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt.
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -144,8 +120,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt.
     async fn decrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -157,8 +133,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt.
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -175,8 +151,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt and prove.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt and prove.
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -187,8 +163,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to verify.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to verify.
     async fn verify_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -199,8 +175,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream block.
-    /// * `ctr`: The counter to use for the keystream block.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream block.
+    /// * `ctr` - The counter to use for the keystream block.
     async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -217,10 +193,8 @@ mod tests {
     use super::*;
 
     use mpz_garble::{
-        protocol::deap::mock::{
-            create_mock_deap_vm, MockFollower, MockFollowerThread, MockLeader, MockLeaderThread,
-        },
-        Memory, Vm,
+        protocol::deap::mock::{create_mock_deap_vm, MockFollower, MockLeader},
+        Memory,
     };
     use rstest::*;
 
@@ -228,38 +202,23 @@ mod tests {
         start_ctr: usize,
         key: [u8; 16],
         iv: [u8; 4],
-        thread_count: usize,
     ) -> (
-        (
-            MpcStreamCipher<C, MockLeaderThread>,
-            MpcStreamCipher<C, MockFollowerThread>,
-        ),
-        (MockLeader, MockFollower),
+        MpcStreamCipher<C, MockLeader>,
+        MpcStreamCipher<C, MockFollower>,
     ) {
-        let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
+        let (leader_vm, follower_vm) = create_mock_deap_vm();
 
-        let leader_thread = leader_vm.new_thread("key_config").await.unwrap();
-        let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
-        let leader_iv = leader_thread.new_public_input::<[u8; 4]>("iv").unwrap();
+        let leader_key = leader_vm.new_public_input::<[u8; 16]>("key").unwrap();
+        let leader_iv = leader_vm.new_public_input::<[u8; 4]>("iv").unwrap();
 
-        leader_thread.assign(&leader_key, key).unwrap();
-        leader_thread.assign(&leader_iv, iv).unwrap();
+        leader_vm.assign(&leader_key, key).unwrap();
+        leader_vm.assign(&leader_iv, iv).unwrap();
 
-        let follower_thread = follower_vm.new_thread("key_config").await.unwrap();
-        let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
-        let follower_iv = follower_thread.new_public_input::<[u8; 4]>("iv").unwrap();
+        let follower_key = follower_vm.new_public_input::<[u8; 16]>("key").unwrap();
+        let follower_iv = follower_vm.new_public_input::<[u8; 4]>("iv").unwrap();
 
-        follower_thread.assign(&follower_key, key).unwrap();
-        follower_thread.assign(&follower_iv, iv).unwrap();
-
-        let leader_thread_pool = leader_vm
-            .new_thread_pool("mock", thread_count)
-            .await
-            .unwrap();
-        let follower_thread_pool = follower_vm
-            .new_thread_pool("mock", thread_count)
-            .await
-            .unwrap();
+        follower_vm.assign(&follower_key, key).unwrap();
+        follower_vm.assign(&follower_iv, iv).unwrap();
 
         let leader_config = StreamCipherConfig::builder()
             .id("test")
@@ -273,13 +232,13 @@ mod tests {
             .build()
             .unwrap();
 
-        let mut leader = MpcStreamCipher::<C, _>::new(leader_config, leader_thread_pool);
+        let mut leader = MpcStreamCipher::<C, _>::new(leader_config, leader_vm);
         leader.set_key(leader_key, leader_iv);
 
-        let mut follower = MpcStreamCipher::<C, _>::new(follower_config, follower_thread_pool);
+        let mut follower = MpcStreamCipher::<C, _>::new(follower_config, follower_vm);
         follower.set_key(follower_key, follower_iv);
 
-        ((leader, follower), (leader_vm, follower_vm))
+        (leader, follower)
     }
 
     #[rstest]
@@ -292,8 +251,7 @@ mod tests {
 
         let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            create_test_pair::<Aes128Ctr>(1, key, iv, 8).await;
+        let (mut leader, mut follower) = create_test_pair::<Aes128Ctr>(1, key, iv).await;
 
         let leader_fut = async {
             let leader_encrypted_msg = leader
@@ -348,8 +306,7 @@ mod tests {
 
         let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg).unwrap();
 
-        let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
-            create_test_pair::<Aes128Ctr>(1, key, iv, 8).await;
+        let (mut leader, mut follower) = create_test_pair::<Aes128Ctr>(1, key, iv).await;
 
         let leader_fut = async {
             let leader_decrypted_msg = leader
@@ -384,7 +341,11 @@ mod tests {
         assert_eq!(leader_decrypted_msg, msg);
         assert_eq!(follower_encrypted_msg, ciphertext);
 
-        futures::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
+        futures::try_join!(
+            leader.thread_mut().finalize(),
+            follower.thread_mut().finalize()
+        )
+        .unwrap();
     }
 
     #[rstest]
@@ -395,8 +356,7 @@ mod tests {
         let iv = [0u8; 4];
         let explicit_nonce = [0u8; 8];
 
-        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
-            create_test_pair::<Aes128Ctr>(1, key, iv, 8).await;
+        let (mut leader, mut follower) = create_test_pair::<Aes128Ctr>(1, key, iv).await;
 
         let leader_fut = async {
             leader
@@ -438,8 +398,7 @@ mod tests {
 
         let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 2, &explicit_nonce, &msg).unwrap();
 
-        let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
-            create_test_pair::<Aes128Ctr>(2, key, iv, 8).await;
+        let (mut leader, mut follower) = create_test_pair::<Aes128Ctr>(2, key, iv).await;
 
         futures::try_join!(leader.decode_key_private(), follower.decode_key_blind()).unwrap();
 
@@ -448,7 +407,11 @@ mod tests {
             follower.verify_plaintext(explicit_nonce.to_vec(), ciphertext)
         )
         .unwrap();
-        futures::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
+        futures::try_join!(
+            leader.thread_mut().finalize(),
+            follower.thread_mut().finalize()
+        )
+        .unwrap();
     }
 
     #[rstest]
@@ -466,8 +429,7 @@ mod tests {
 
         let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg).unwrap();
 
-        let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
-            create_test_pair::<Aes128Ctr>(1, key, iv, 8).await;
+        let (mut leader, mut follower) = create_test_pair::<Aes128Ctr>(1, key, iv).await;
 
         let leader_fut = async {
             leader.preprocess(len).await.unwrap();
@@ -491,6 +453,10 @@ mod tests {
 
         assert_eq!(leader_decrypted_msg, msg);
 
-        futures::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
+        futures::try_join!(
+            leader.thread_mut().finalize(),
+            follower.thread_mut().finalize()
+        )
+        .unwrap();
     }
 }

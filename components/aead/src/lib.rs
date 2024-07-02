@@ -13,17 +13,9 @@
 #![forbid(unsafe_code)]
 
 pub mod aes_gcm;
-pub mod msg;
-
-pub use msg::AeadMessage;
 
 use async_trait::async_trait;
-
 use mpz_garble::value::ValueRef;
-use utils_aio::duplex::Duplex;
-
-/// A channel for sending and receiving AEAD messages.
-pub type AeadChannel = Box<dyn Duplex<AeadMessage>>;
 
 /// An error that can occur during AEAD operations.
 #[derive(Debug, thiserror::Error)]
@@ -46,16 +38,19 @@ pub enum AeadError {
 /// This trait defines the interface for AEADs.
 #[async_trait]
 pub trait Aead: Send {
+    /// The error type for the AEAD.
+    type Error: std::error::Error + Send + Sync + 'static;
+
     /// Sets the key for the AEAD.
-    async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), AeadError>;
+    async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), Self::Error>;
 
     /// Decodes the key for the AEAD, revealing it to this party.
-    async fn decode_key_private(&mut self) -> Result<(), AeadError>;
+    async fn decode_key_private(&mut self) -> Result<(), Self::Error>;
 
     /// Decodes the key for the AEAD, revealing it to the other party(s).
-    async fn decode_key_blind(&mut self) -> Result<(), AeadError>;
+    async fn decode_key_blind(&mut self) -> Result<(), Self::Error>;
 
-    /// Sets the transcript id
+    /// Sets the transcript id.
     ///
     /// The AEAD assigns unique identifiers to each byte of plaintext
     /// during encryption and decryption.
@@ -70,17 +65,22 @@ pub trait Aead: Send {
     /// The state of a transcript counter is preserved between calls to `set_transcript_id`.
     fn set_transcript_id(&mut self, id: &str);
 
-    /// Preprocesses for the given number of bytes.
-    async fn preprocess(&mut self, len: usize) -> Result<(), AeadError>;
-
     /// Performs any necessary one-time setup for the AEAD.
+    async fn setup(&mut self) -> Result<(), Self::Error>;
+
+    /// Preprocesses for the given number of bytes.
+    async fn preprocess(&mut self, len: usize) -> Result<(), Self::Error>;
+
+    /// Starts the AEAD.
     ///
-    /// This method must be called after the key has been set.
-    async fn setup(&mut self) -> Result<(), AeadError>;
+    /// This method performs initialization for the AEAD after setting the key.
+    async fn start(&mut self) -> Result<(), Self::Error>;
 
     /// Encrypts a plaintext message, returning the ciphertext and tag.
     ///
     /// The plaintext is provided by both parties.
+    ///
+    /// # Arguments
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The plaintext to encrypt.
@@ -90,9 +90,11 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Encrypts a plaintext message, hiding it from the other party, returning the ciphertext and tag.
+    ///
+    /// # Arguments
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The plaintext to encrypt.
@@ -102,10 +104,12 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Encrypts a plaintext message provided by the other party, returning
     /// the ciphertext and tag.
+    ///
+    /// # Arguments
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext_len` - The length of the plaintext to encrypt.
@@ -115,11 +119,13 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         plaintext_len: usize,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Decrypts a ciphertext message, returning the plaintext to both parties.
     ///
     /// This method checks the authenticity of the ciphertext, tag and additional data.
+    ///
+    /// # Arguments
     ///
     /// * `explicit_nonce` - The explicit nonce to use for decryption.
     /// * `payload` - The ciphertext and tag to authenticate and decrypt.
@@ -129,11 +135,13 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Decrypts a ciphertext message, returning the plaintext only to this party.
     ///
     /// This method checks the authenticity of the ciphertext, tag and additional data.
+    ///
+    /// # Arguments
     ///
     /// * `explicit_nonce` - The explicit nonce to use for decryption.
     /// * `payload` - The ciphertext and tag to authenticate and decrypt.
@@ -143,11 +151,13 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Decrypts a ciphertext message, returning the plaintext only to the other party.
     ///
     /// This method checks the authenticity of the ciphertext, tag and additional data.
+    ///
+    /// # Arguments
     ///
     /// * `explicit_nonce` - The explicit nonce to use for decryption.
     /// * `payload` - The ciphertext and tag to authenticate and decrypt.
@@ -157,11 +167,13 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<(), AeadError>;
+    ) -> Result<(), Self::Error>;
 
     /// Verifies the tag of a ciphertext message.
     ///
     /// This method checks the authenticity of the ciphertext, tag and additional data.
+    ///
+    /// # Arguments
     ///
     /// * `explicit_nonce` - The explicit nonce to use for decryption.
     /// * `payload` - The ciphertext and tag to authenticate and decrypt.
@@ -171,7 +183,7 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<(), AeadError>;
+    ) -> Result<(), Self::Error>;
 
     /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
     /// plaintext is correct.
@@ -183,15 +195,15 @@ pub trait Aead: Send {
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `payload`: The ciphertext and tag to decrypt and prove.
-    /// * `aad`: Additional authenticated data.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `payload` - The ciphertext and tag to decrypt and prove.
+    /// * `aad` - Additional authenticated data.
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
         payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
     /// plaintext is correct.
@@ -207,27 +219,27 @@ pub trait Aead: Send {
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to decrypt and prove.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to decrypt and prove.
     async fn prove_plaintext_no_tag(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `payload`: The ciphertext and tag to verify.
-    /// * `aad`: Additional authenticated data.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `payload` - The ciphertext and tag to verify.
+    /// * `aad` - Additional authenticated data.
     async fn verify_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
         payload: Vec<u8>,
         aad: Vec<u8>,
-    ) -> Result<(), AeadError>;
+    ) -> Result<(), Self::Error>;
 
     /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
     ///
@@ -237,11 +249,11 @@ pub trait Aead: Send {
     ///
     /// # Arguments
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `ciphertext`: The ciphertext to verify.
+    /// * `explicit_nonce` - The explicit nonce to use for the keystream.
+    /// * `ciphertext` - The ciphertext to verify.
     async fn verify_plaintext_no_tag(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
-    ) -> Result<(), AeadError>;
+    ) -> Result<(), Self::Error>;
 }

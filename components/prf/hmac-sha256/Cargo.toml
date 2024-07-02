@@ -5,7 +5,7 @@ description = "A 2PC implementation of TLS HMAC-SHA256 PRF"
 keywords = ["tls", "mpc", "2pc", "hmac", "sha256"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2021"
 
 [lib]
@@ -13,23 +13,24 @@ name = "hmac_sha256"
 
 [features]
 default = ["mock"]
-tracing = ["dep:tracing", "tlsn-hmac-sha256-circuits/tracing"]
+rayon = ["mpz-common/rayon"]
 mock = []
 
 [dependencies]
 tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
 mpz-garble.workspace = true
 mpz-circuits.workspace = true
+mpz-common.workspace = true
 
 async-trait.workspace = true
 futures.workspace = true
 thiserror.workspace = true
-tracing = { workspace = true, optional = true }
+tracing.workspace = true
 derive_builder = "0.12"
-enum-try-as-inner = "0.1"
 
 [dev-dependencies]
+mpz-common = { workspace = true, features = ["test-utils"] }
+mpz-ot = { workspace = true, features = ["ideal"] }
 criterion = { workspace = true, features = ["async_tokio"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 

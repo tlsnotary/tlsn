@@ -15,16 +15,17 @@
 //! additive shares of `H^n` for all needed `n`, we can compute an additive share of the GHASH
 //! output.
 
-/// Contains the core logic for ghash
+/// Contains the core logic for ghash.
 mod core;
 
-/// Contains the different states
+/// Contains the different states.
 pub(crate) mod state;
 
 pub(crate) use self::core::GhashCore;
 
 use mpz_fields::{compute_product_repeated, gf2_128::Gf2_128};
 use thiserror::Error;
+use tracing::instrument;
 
 #[derive(Debug, Error)]
 pub(crate) enum GhashError {
@@ -32,20 +33,19 @@ pub(crate) enum GhashError {
     InvalidMessageLength,
 }
 
-/// Computes missing odd multiplicative shares of the hashkey powers
+/// Computes missing odd multiplicative shares of the hashkey powers.
 ///
 /// Checks if depending on the number of `needed` shares, we need more odd multiplicative shares and
 /// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
 /// derive even additive shares from odd additive shares, which we call free squaring.
 ///
-/// * `present_odd_mul_shares`  - multiplicative odd shares already present
-/// * `needed`                  - how many powers we need including odd and even
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(present_odd_mul_shares))
-)]
+/// # Arguments
+///
+/// * `present_odd_mul_shares`  - Multiplicative odd shares already present.
+/// * `needed`                  - How many powers we need including odd and even.
+#[instrument(level = "trace", skip(present_odd_mul_shares))]
 fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed: usize) {
-    // divide by 2 and round up
+    // Divide by 2 and round up.
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
     let present_odd_len = present_odd_mul_shares.len();
 
@@ -66,27 +66,26 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed:
 /// which we refer to as free squaring. Every additive share of an even power of
 /// `H` can be computed without an OT interaction by squaring the corresponding additive share
 /// of an odd power of `H`, e.g. if we have a share of H^3, we can derive the share of H^6 by doing
-/// (H^3)^2
+/// (H^3)^2.
 ///
-/// * `new_add_odd_shares` - new odd additive shares we got as a result of doing an OT on odd
-///                          multiplicative shares
-/// * `add_shares`         - all additive shares (even and odd) we already have. This is a mutable
-///                          reference to cached_add_shares in [crate::ghash::state::Intermediate]
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(new_add_odd_shares, add_shares))
-)]
+/// # Arguments
+///
+/// * `new_add_odd_shares` - New odd additive shares we got as a result of doing an OT on odd
+///                          multiplicative shares.
+/// * `add_shares`         - All additive shares (even and odd) we already have. This is a mutable
+///                          reference to cached_add_shares in [crate::ghash::state::Intermediate].
+#[instrument(level = "trace", skip_all)]
 fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<Gf2_128>) {
     for (odd_share, current_odd_power) in new_add_odd_shares
         .iter()
         .zip((add_shares.len() + 1..).step_by(2))
     {
-        // `add_shares` always have an even number of shares so we simply add the next odd share
+        // `add_shares` always have an even number of shares so we simply add the next odd share.
         add_shares.push(*odd_share);
 
-        // now we need to compute the next even share and add it
-        // note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
-        // is the share of H^5
+        // Now we need to compute the next even share and add it.
+        // Note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
+        // is the share of H^5.
         let mut base_share = add_shares[current_odd_power / 2];
         base_share = base_share * base_share;
         add_shares.push(base_share);
@@ -115,7 +114,7 @@ mod tests {
     fn test_ghash_product_sharing() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The Ghash key
+        // The Ghash key.
         let h: Gf2_128 = rng.gen();
         let message = Block::random_vec(&mut rng, 10);
         let message_len = message.len();
@@ -126,14 +125,14 @@ mod tests {
         let mut powers_h = vec![h];
         compute_product_repeated(&mut powers_h, h * h, number_of_powers_needed);
 
-        // Length check
+        // Length check.
         assert_eq!(sender.state().odd_mul_shares.len(), number_of_powers_needed);
         assert_eq!(
             receiver.state().odd_mul_shares.len(),
             number_of_powers_needed
         );
 
-        // Product check
+        // Product check.
         for (k, (sender_share, receiver_share)) in std::iter::zip(
             sender.state().odd_mul_shares.iter(),
             receiver.state().odd_mul_shares.iter(),
@@ -148,7 +147,7 @@ mod tests {
     fn test_ghash_sum_sharing() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The Ghash key
+        // The Ghash key.
         let h: Gf2_128 = rng.gen();
         let message = Block::random_vec(&mut rng, 10);
         let message_len = message.len();
@@ -159,7 +158,7 @@ mod tests {
         let mut powers_h = vec![h];
         compute_product_repeated(&mut powers_h, h, message_len);
 
-        // Length check
+        // Length check.
         assert_eq!(
             sender.state().add_shares.len(),
             message_len + (message_len & 1)
@@ -169,7 +168,7 @@ mod tests {
             message_len + (message_len & 1)
         );
 
-        // Sum check
+        // Sum check.
         for k in 0..message_len {
             assert_eq!(
                 sender.state().add_shares[k] + receiver.state().add_shares[k],
@@ -182,7 +181,7 @@ mod tests {
     fn test_ghash_output() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The Ghash key
+        // The Ghash key.
         let h: Gf2_128 = rng.gen();
         let message = Block::random_vec(&mut rng, 10);
 
@@ -201,7 +200,7 @@ mod tests {
     fn test_ghash_change_message_short() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The Ghash key
+        // The Ghash key.
         let h: Gf2_128 = rng.gen();
         let message = Block::random_vec(&mut rng, 10);
 
@@ -230,7 +229,7 @@ mod tests {
     fn test_ghash_change_message_long() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The Ghash key
+        // The Ghash key.
         let h: Gf2_128 = rng.gen();
         let message = Block::random_vec(&mut rng, 10);
 
@@ -266,14 +265,14 @@ mod tests {
 
         compute_missing_mul_shares(&mut powers, needed);
 
-        // Check length
+        // Check length.
         if needed / 2 + (needed & 1) <= powers_len {
             assert_eq!(powers.len(), powers_len);
         } else {
             assert_eq!(powers.len(), needed / 2 + (needed & 1))
         }
 
-        // Check shares
+        // Check shares.
         let first = *powers.first().unwrap();
         let factor = first * first;
 
@@ -291,7 +290,7 @@ mod tests {
         let new_add_odd_shares: Vec<Gf2_128> = gen_gf2_128_vec();
         let mut add_shares: Vec<Gf2_128> = gen_gf2_128_vec();
 
-        // We have the invariant that len of add_shares is always even
+        // We have the invariant that len of add_shares is always even.
         if add_shares.len() & 1 == 1 {
             add_shares.push(rng.gen());
         }
@@ -300,13 +299,13 @@ mod tests {
 
         compute_new_add_shares(&new_add_odd_shares, &mut add_shares);
 
-        // Check new length
+        // Check new length.
         assert_eq!(
             add_shares.len(),
             original_len + 2 * new_add_odd_shares.len()
         );
 
-        // Check odd shares
+        // Check odd shares.
         for (k, l) in (original_len..add_shares.len())
             .step_by(2)
             .zip(0..original_len)
@@ -314,7 +313,7 @@ mod tests {
             assert_eq!(add_shares[k], new_add_odd_shares[l]);
         }
 
-        // Check even shares
+        // Check even shares.
         for k in (original_len + 1..add_shares.len()).step_by(2) {
             assert_eq!(add_shares[k], add_shares[k / 2] * add_shares[k / 2]);
         }
@@ -323,7 +322,7 @@ mod tests {
     fn gen_gf2_128_vec() -> Vec<Gf2_128> {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // Sample some message
+        // Sample some message.
         let message_len: usize = rng.gen_range(16..128);
         let mut message: Vec<Gf2_128> = vec![Gf2_128::zero(); message_len];
         message.iter_mut().for_each(|x| *x = rng.gen());
@@ -346,7 +345,7 @@ mod tests {
     ) -> (GhashCore<Intermediate>, GhashCore<Intermediate>) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // Create a multiplicative sharing
+        // Create a multiplicative sharing.
         let h1_multiplicative: Gf2_128 = rng.gen();
         let h2_multiplicative: Gf2_128 = hashkey * h1_multiplicative.inverse();
 

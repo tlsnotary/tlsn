@@ -1,0 +1,15 @@
+# exclude everything
+*
+
+# include notary
+!/notary
+
+# include core library dependencies
+!/tlsn
+!/components
+
+# include .git for program to get git info
+!/.git
+
+# exclude any /target folders inside the included folders above
+**/target*

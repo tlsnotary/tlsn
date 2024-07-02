@@ -1,18 +1,30 @@
-use std::marker::PhantomData;
+use std::{collections::VecDeque, marker::PhantomData};
 
 use async_trait::async_trait;
 
-use mpz_garble::{value::ValueRef, Decode, DecodePrivate, Execute, Memory};
+use mpz_garble::{value::ValueRef, Decode, DecodePrivate, Execute, Load, Memory};
+use tracing::instrument;
 use utils::id::NestedId;
 
-use crate::{BlockCipher, BlockCipherCircuit, BlockCipherConfig, BlockCipherError};
+use crate::{BlockCipher, BlockCipherCircuit, BlockCipherConfig, BlockCipherError, Visibility};
 
+#[derive(Debug)]
 struct State {
-    execution_id: NestedId,
+    private_execution_id: NestedId,
+    public_execution_id: NestedId,
+    preprocessed_private: VecDeque<BlockVars>,
+    preprocessed_public: VecDeque<BlockVars>,
     key: Option<ValueRef>,
 }
 
-/// An MPC block cipher
+#[derive(Debug)]
+struct BlockVars {
+    msg: ValueRef,
+    ciphertext: ValueRef,
+}
+
+/// An MPC block cipher.
+#[derive(Debug)]
 pub struct MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
@@ -30,26 +42,78 @@ where
     C: BlockCipherCircuit,
     E: Memory + Execute + Decode + DecodePrivate + Send + Sync,
 {
-    /// Creates a new MPC block cipher
+    /// Creates a new MPC block cipher.
     ///
     /// # Arguments
     ///
-    /// * `config` - The configuration for the block cipher
-    /// * `executor` - The executor to use for the MPC
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "info", skip(executor))
-    )]
+    /// * `config` - The configuration for the block cipher.
+    /// * `executor` - The executor to use for the MPC.
     pub fn new(config: BlockCipherConfig, executor: E) -> Self {
-        let execution_id = NestedId::new(&config.id).append_counter();
+        let private_execution_id = NestedId::new(&config.id)
+            .append_string("private")
+            .append_counter();
+        let public_execution_id = NestedId::new(&config.id)
+            .append_string("public")
+            .append_counter();
         Self {
             state: State {
-                execution_id,
+                private_execution_id,
+                public_execution_id,
+                preprocessed_private: VecDeque::new(),
+                preprocessed_public: VecDeque::new(),
                 key: None,
             },
             executor,
             _cipher: PhantomData,
         }
+    }
+
+    fn define_block(&mut self, vis: Visibility) -> BlockVars {
+        let (id, msg) = match vis {
+            Visibility::Private => {
+                let id = self
+                    .state
+                    .private_execution_id
+                    .increment_in_place()
+                    .to_string();
+                let msg = self
+                    .executor
+                    .new_private_input::<C::BLOCK>(&format!("{}/msg", &id))
+                    .expect("message is not defined");
+                (id, msg)
+            }
+            Visibility::Blind => {
+                let id = self
+                    .state
+                    .private_execution_id
+                    .increment_in_place()
+                    .to_string();
+                let msg = self
+                    .executor
+                    .new_blind_input::<C::BLOCK>(&format!("{}/msg", &id))
+                    .expect("message is not defined");
+                (id, msg)
+            }
+            Visibility::Public => {
+                let id = self
+                    .state
+                    .public_execution_id
+                    .increment_in_place()
+                    .to_string();
+                let msg = self
+                    .executor
+                    .new_public_input::<C::BLOCK>(&format!("{}/msg", &id))
+                    .expect("message is not defined");
+                (id, msg)
+            }
+        };
+
+        let ciphertext = self
+            .executor
+            .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))
+            .expect("message is not defined");
+
+        BlockVars { msg, ciphertext }
     }
 }
 
@@ -57,33 +121,66 @@ where
 impl<C, E> BlockCipher<C> for MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
-    E: Memory + Execute + Decode + DecodePrivate + Send + Sync + Send,
+    E: Memory + Load + Execute + Decode + DecodePrivate + Send + Sync + Send,
 {
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip_all))]
+    #[instrument(level = "trace", skip_all)]
     fn set_key(&mut self, key: ValueRef) {
         self.state.key = Some(key);
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "debug", skip_all, err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
+    async fn preprocess(
+        &mut self,
+        visibility: Visibility,
+        count: usize,
+    ) -> Result<(), BlockCipherError> {
+        let key = self
+            .state
+            .key
+            .clone()
+            .ok_or_else(|| BlockCipherError::key_not_set())?;
+
+        for _ in 0..count {
+            let vars = self.define_block(visibility);
+
+            self.executor
+                .load(
+                    C::circuit(),
+                    &[key.clone(), vars.msg.clone()],
+                    &[vars.ciphertext.clone()],
+                )
+                .await?;
+
+            match visibility {
+                Visibility::Private | Visibility::Blind => {
+                    self.state.preprocessed_private.push_back(vars)
+                }
+                Visibility::Public => self.state.preprocessed_public.push_back(vars),
+            }
+        }
+
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
     async fn encrypt_private(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError> {
         let len = plaintext.len();
         let block: C::BLOCK = plaintext
             .try_into()
-            .map_err(|_| BlockCipherError::InvalidInputLength(C::BLOCK_LEN, len))?;
+            .map_err(|_| BlockCipherError::invalid_message_length::<C>(len))?;
 
-        let key = self.state.key.clone().ok_or(BlockCipherError::KeyNotSet)?;
+        let key = self
+            .state
+            .key
+            .clone()
+            .ok_or_else(|| BlockCipherError::key_not_set())?;
 
-        let id = self.state.execution_id.increment_in_place().to_string();
-
-        let msg = self
-            .executor
-            .new_private_input::<C::BLOCK>(&format!("{}/msg", &id))?;
-        let ciphertext = self
-            .executor
-            .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))?;
+        let BlockVars { msg, ciphertext } =
+            if let Some(vars) = self.state.preprocessed_private.pop_front() {
+                vars
+            } else {
+                self.define_block(Visibility::Private)
+            };
 
         self.executor.assign(&msg, block)?;
 
@@ -106,21 +203,20 @@ where
         Ok(ciphertext.into())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn encrypt_blind(&mut self) -> Result<Vec<u8>, BlockCipherError> {
-        let key = self.state.key.clone().ok_or(BlockCipherError::KeyNotSet)?;
+        let key = self
+            .state
+            .key
+            .clone()
+            .ok_or_else(|| BlockCipherError::key_not_set())?;
 
-        let id = self.state.execution_id.increment_in_place().to_string();
-
-        let msg = self
-            .executor
-            .new_blind_input::<C::BLOCK>(&format!("{}/msg", &id))?;
-        let ciphertext = self
-            .executor
-            .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))?;
+        let BlockVars { msg, ciphertext } =
+            if let Some(vars) = self.state.preprocessed_private.pop_front() {
+                vars
+            } else {
+                self.define_block(Visibility::Blind)
+            };
 
         self.executor
             .execute(C::circuit(), &[key, msg], &[ciphertext.clone()])
@@ -141,26 +237,25 @@ where
         Ok(ciphertext.into())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, plaintext), err)
-    )]
+    #[instrument(level = "debug", skip_all, err)]
     async fn encrypt_share(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError> {
         let len = plaintext.len();
         let block: C::BLOCK = plaintext
             .try_into()
-            .map_err(|_| BlockCipherError::InvalidInputLength(C::BLOCK_LEN, len))?;
+            .map_err(|_| BlockCipherError::invalid_message_length::<C>(len))?;
 
-        let key = self.state.key.clone().ok_or(BlockCipherError::KeyNotSet)?;
+        let key = self
+            .state
+            .key
+            .clone()
+            .ok_or_else(|| BlockCipherError::key_not_set())?;
 
-        let id = self.state.execution_id.increment_in_place().to_string();
-
-        let msg = self
-            .executor
-            .new_public_input::<C::BLOCK>(&format!("{}/msg", &id))?;
-        let ciphertext = self
-            .executor
-            .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))?;
+        let BlockVars { msg, ciphertext } =
+            if let Some(vars) = self.state.preprocessed_public.pop_front() {
+                vars
+            } else {
+                self.define_block(Visibility::Public)
+            };
 
         self.executor.assign(&msg, block)?;
 

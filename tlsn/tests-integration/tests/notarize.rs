@@ -1,5 +1,6 @@
-use futures::AsyncWriteExt;
-use hyper::{body::to_bytes, Body, Request, StatusCode};
+use http_body_util::{BodyExt as _, Empty};
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -44,34 +45,29 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let prover_task = tokio::spawn(prover_fut);
 
-    let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())
-        .await
-        .unwrap();
+    let (mut request_sender, connection) =
+        hyper::client::conn::http1::handshake(TokioIo::new(tls_connection.compat()))
+            .await
+            .unwrap();
 
-    let connection_task = tokio::spawn(connection.without_shutdown());
+    tokio::spawn(connection);
 
     let request = Request::builder()
         .uri(format!("https://{}/bytes?size=16000", SERVER_DOMAIN))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("GET")
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap();
 
     let response = request_sender.send_request(request).await.unwrap();
 
     assert!(response.status() == StatusCode::OK);
 
-    println!(
-        "{:?}",
-        String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
-    );
+    let payload = response.into_body().collect().await.unwrap().to_bytes();
+    println!("{:?}", &String::from_utf8_lossy(&payload));
 
-    server_task.await.unwrap();
-
-    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
-
-    client_socket.close().await.unwrap();
+    let _ = server_task.await.unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
     let sent_tx_len = prover.sent_transcript().data().len();
