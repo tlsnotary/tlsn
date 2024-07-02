@@ -18,8 +18,8 @@ impl SignerEd25519 {
         }
     }
 
-    pub(crate) fn sign(&self, message: String) -> Signature {
-        self.signing_key.sign(message.as_bytes())
+    pub(crate) fn sign(&self, message: impl AsRef<[u8]>) -> Signature {
+        self.signing_key.sign(message.as_ref())
     }
 
     pub(crate) fn verify(&self, message: String, signature: Signature) -> bool {
@@ -33,7 +33,7 @@ mod test {
     use super::Signature;
     use super::SignerEd25519;
     #[test]
-    fn test2() {
+    fn test() {
         let private_key_env = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
         println!("private_key {:}", private_key_env);
         let signer = SignerEd25519::new(private_key_env);

@@ -191,21 +191,23 @@ pub async fn verify_proof(
 
     let notary_pubkey = hex::encode(notary_globals.notary_signing_key.to_bytes());
 
-    _ = verify(payload, &notary_pubkey).await;
+    let signature = verify(payload, &notary_pubkey).await.unwrap();
 
     // Return a JSON with field success = "OK" in the response to the client
     (
         StatusCode::OK,
         Json(serde_json::json!({
-            "success": "OK"
+            "success": "OK",
+            "signature": signature.to_string()
         })),
     )
         .into_response()
 }
-use sign_ed2559::*;
+use ed25519_dalek::Signature as Ed25519Signature;
+use sign_ed2559::SignerEd25519;
 use std::time::Duration;
 
-pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<String, Error> {
+pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<Ed25519Signature, Error> {
     let TlsProof {
         // The session proof establishes the identity of the server and the commitments
         // to the TLS transcript.
@@ -280,10 +282,16 @@ pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<String, 
         recv: String::from_utf8(recv.data().to_vec())
             .unwrap_or("Could not convert recv data to string".to_string()),
     };
-    let res =
-        serde_json::to_string_pretty(&result).unwrap_or("Could not serialize result".to_string());
+    _ = serde_json::to_string_pretty(&result).unwrap_or("Could not serialize result".to_string());
 
-    Ok(res)
+    // sign merkle_root with EDDSA
+    let private_key_env = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
+    let signer = SignerEd25519::new(private_key_env);
+    info!("signing_key {:#?}", signer.signing_key);
+    let signature: Ed25519Signature = signer.sign(header.merkle_root().to_inner());
+    info!("signature {:#?}", signature);
+
+    Ok(signature)
 }
 
 /// Run the notarization
