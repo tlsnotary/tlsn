@@ -198,7 +198,7 @@ impl MpcTlsFollower {
             loop {
                 futures::select! {
                     res = &mut remote_fut => {
-                        res?
+                        res?;
                     },
                     res = &mut actor_fut => return res,
                 }
