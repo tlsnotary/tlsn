@@ -5,12 +5,12 @@ description = "2PC stream cipher implementation"
 keywords = ["tls", "mpc", "2pc", "stream-cipher"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2021"
 
 [features]
 default = ["mock"]
-tracing = ["dep:tracing"]
+rayon = ["mpz-garble/rayon"]
 mock = []
 
 [dependencies]
@@ -23,7 +23,8 @@ cipher.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
-tracing = { workspace = true, optional = true }
+tracing.workspace = true
+opaque-debug = "0.3"
 
 [dev-dependencies]
 futures.workspace = true

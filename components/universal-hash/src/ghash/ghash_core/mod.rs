@@ -25,6 +25,7 @@ pub(crate) use self::core::GhashCore;
 
 use mpz_fields::{compute_product_repeated, gf2_128::Gf2_128};
 use thiserror::Error;
+use tracing::instrument;
 
 #[derive(Debug, Error)]
 pub(crate) enum GhashError {
@@ -42,10 +43,7 @@ pub(crate) enum GhashError {
 ///
 /// * `present_odd_mul_shares`  - Multiplicative odd shares already present.
 /// * `needed`                  - How many powers we need including odd and even.
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(present_odd_mul_shares))
-)]
+#[instrument(level = "trace", skip(present_odd_mul_shares))]
 fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed: usize) {
     // Divide by 2 and round up.
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
@@ -76,10 +74,7 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed:
 ///                          multiplicative shares.
 /// * `add_shares`         - All additive shares (even and odd) we already have. This is a mutable
 ///                          reference to cached_add_shares in [crate::ghash::state::Intermediate].
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(new_add_odd_shares, add_shares))
-)]
+#[instrument(level = "trace", skip_all)]
 fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<Gf2_128>) {
     for (odd_share, current_odd_power) in new_add_odd_shares
         .iter()

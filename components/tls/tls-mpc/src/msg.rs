@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Kind,
     follower::{
-        ClientFinishedVd, CommitMessage, ComputeClientKey, ComputeKeyExchange, DecryptAlert,
-        DecryptMessage, DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
+        ClientFinishedVd, CommitMessage, ComputeKeyExchange, DecryptAlert, DecryptMessage,
+        DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
         ServerFinishedVd,
     },
     leader::{
@@ -26,7 +26,6 @@ use crate::{
 #[allow(missing_docs)]
 #[derive(Debug, Serialize, Deserialize)]
 pub enum MpcTlsMessage {
-    ComputeClientKey(ComputeClientKey),
     ComputeKeyExchange(ComputeKeyExchange),
     ClientFinishedVd(ClientFinishedVd),
     EncryptClientFinished(EncryptClientFinished),
@@ -48,7 +47,6 @@ impl TryFrom<MpcTlsMessage> for MpcTlsFollowerMsg {
     fn try_from(msg: MpcTlsMessage) -> Result<Self, Self::Error> {
         #[allow(unreachable_patterns)]
         match msg {
-            MpcTlsMessage::ComputeClientKey(msg) => Ok(Self::ComputeClientKey(msg)),
             MpcTlsMessage::ComputeKeyExchange(msg) => Ok(Self::ComputeKeyExchange(msg)),
             MpcTlsMessage::ClientFinishedVd(msg) => Ok(Self::ClientFinishedVd(msg)),
             MpcTlsMessage::EncryptClientFinished(msg) => Ok(Self::EncryptClientFinished(msg)),
@@ -105,7 +103,6 @@ pub enum MpcTlsLeaderMsg {
 #[allow(missing_docs)]
 #[ludi(return_attrs(allow(missing_docs)))]
 pub enum MpcTlsFollowerMsg {
-    ComputeClientKey(ComputeClientKey),
     ComputeKeyExchange(ComputeKeyExchange),
     ClientFinishedVd(ClientFinishedVd),
     EncryptClientFinished(EncryptClientFinished),

@@ -12,8 +12,6 @@ pub enum ProverError {
     AsyncClientError(#[from] tls_client_async::ConnectionError),
     #[error(transparent)]
     IOError(#[from] std::io::Error),
-    #[error(transparent)]
-    MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("notarization error: {0}")]
     NotarizationError(String),
     #[error(transparent)]
@@ -30,6 +28,21 @@ pub enum ProverError {
     InvalidRange,
 }
 
+impl From<uid_mux::yamux::ConnectionError> for ProverError {
+    fn from(e: uid_mux::yamux::ConnectionError) -> Self {
+        Self::IOError(std::io::Error::new(
+            std::io::ErrorKind::ConnectionAborted,
+            e,
+        ))
+    }
+}
+
+impl From<mpz_common::ContextError> for ProverError {
+    fn from(e: mpz_common::ContextError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
 impl From<MpcTlsError> for ProverError {
     fn from(e: MpcTlsError) -> Self {
         Self::MpcError(Box::new(e))
@@ -42,8 +55,32 @@ impl From<mpz_ot::OTError> for ProverError {
     }
 }
 
+impl From<mpz_ot::kos::SenderError> for ProverError {
+    fn from(e: mpz_ot::kos::SenderError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_ole::OLEError> for ProverError {
+    fn from(e: mpz_ole::OLEError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_ot::kos::ReceiverError> for ProverError {
+    fn from(e: mpz_ot::kos::ReceiverError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
 impl From<mpz_garble::VmError> for ProverError {
     fn from(e: mpz_garble::VmError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::protocol::deap::DEAPError> for ProverError {
+    fn from(e: mpz_garble::protocol::deap::DEAPError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }
@@ -56,35 +93,6 @@ impl From<mpz_garble::MemoryError> for ProverError {
 
 impl From<mpz_garble::ProveError> for ProverError {
     fn from(e: mpz_garble::ProveError) -> Self {
-        Self::MpcError(Box::new(e))
-    }
-}
-
-impl From<mpz_ot::actor::kos::SenderActorError> for ProverError {
-    fn from(value: mpz_ot::actor::kos::SenderActorError) -> Self {
-        Self::MpcError(Box::new(value))
-    }
-}
-
-impl From<mpz_ot::actor::kos::ReceiverActorError> for ProverError {
-    fn from(value: mpz_ot::actor::kos::ReceiverActorError) -> Self {
-        Self::MpcError(Box::new(value))
-    }
-}
-
-#[derive(Debug)]
-pub struct OTShutdownError;
-
-impl std::fmt::Display for OTShutdownError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ot shutdown prior to completion")
-    }
-}
-
-impl Error for OTShutdownError {}
-
-impl From<OTShutdownError> for ProverError {
-    fn from(e: OTShutdownError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }
