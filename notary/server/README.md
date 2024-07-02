@@ -134,3 +134,8 @@ Axum is chosen as the framework to serve HTTP and WebSocket requests from the pr
 
 #### WebSocket
 Axum's internal implementation of WebSocket uses [tokio_tungstenite](https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/), which provides a WebSocket struct that doesn't implement [AsyncRead](https://docs.rs/futures/latest/futures/io/trait.AsyncRead.html) and [AsyncWrite](https://docs.rs/futures/latest/futures/io/trait.AsyncWrite.html). Both these traits are required by the TLSN core libraries for the prover and the notary. To overcome this, a [slight modification](./src/service/axum_websocket.rs) of Axum's implementation of WebSocket is used, where [async_tungstenite](https://docs.rs/async-tungstenite/latest/async_tungstenite/) is used instead so that [ws_stream_tungstenite](https://docs.rs/ws_stream_tungstenite/latest/ws_stream_tungstenite/index.html) can be used to wrap on top of the WebSocket struct to get AsyncRead and AsyncWrite implemented.
+
+## Reproduciple Builds & Attestation
+- We are using [Gramine](https://github.com/gramineproject) to generate SGX reports for notary-server;
+- Each release of tlsn will include a build artifact attested by github, which includes the gramine signature.
+- if you build and run the notary-server with gramine, you should get the same mr_enclave hash as in our release artifact.

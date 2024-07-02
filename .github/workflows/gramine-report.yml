@@ -1,0 +1,63 @@
+name: generate a gramine signature, which can be verified later
+
+on:
+  workflow_call:
+  
+permissions:
+  attestations: write
+  id-token: write
+  contents: read
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: get src
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: add gramine key
+        run: |
+               sudo curl --fail --silent --show-error --location --output /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg
+               echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ $(lsb_release -sc) main" |  sudo tee /etc/apt/sources.list.d/gramine.list
+      - name: apt get
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages:  cargo gramine cmake clang
+          version: 1.1
+          execute_install_scripts: true
+      - name: Set PATH
+        run: echo "export PATH=\$PATH:/usr/local/bin:/usr/bin" >> $GITHUB_ENV
+      - name: generate manifest and sig
+        run: |
+               make
+               /usr/bin/gramine-sgx-gen-private-key -f
+               /usr/bin/gramine-sgx-sign -v --manifest notary-server.manifest --output notary-server.sgx
+      - name: capture sig
+        id: sigstruct
+        run:  |
+               sigview=`/usr/bin/gramine-sgx-sigstruct-view notary-server.sig`
+               {
+                echo 'SGX_REPORT<<EOF'
+                echo "$sigview"
+                echo EOF
+               } >> "$GITHUB_ENV"
+               echo "$sigview"
+      - name: write report to artifact file
+        run: echo "${{ env.SGX_REPORT }}" > /home/runner/work/_temp/notary-server.txt
+      - name: upload it
+        uses: actions/upload-artifact@v4
+        with:
+            path: /home/runner/work/_temp/notary-server.txt
+      - name: get github to sign our measurement
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: /home/runner/work/_temp/notary-server.txt
