@@ -130,10 +130,10 @@ async fn insert_claim_key(user_id: String, host: String, uuid: String) -> bool {
         .await
         .unwrap();
 
-    println!("status = {:?}", res.status());
+    //println!("status = {:?}", res.status());
 
     let resp_claim_insert: RespClaimInsert = res.json().await.unwrap();
-    println!("res = {:#?}", resp_claim_insert);
+    //println!("res = {:#?}", resp_claim_insert);
 
     return resp_claim_insert.success;
 }
@@ -274,6 +274,11 @@ pub async fn generate_claim_key(
     println!("host = {:?}", host);
     println!("user_id = {:?}", user_id);
 
+    if host != "www.kaggle.com" {
+        println!("🟠 Host invalid");
+        return ("".to_string(), false);
+    }
+
     //check validity of attribute
     let mut is_valid = check_followers(user_id.clone()).await;
     let (has_claim_key, mut claim_key) = view_claim_key(user_id.clone()).await;
@@ -281,11 +286,11 @@ pub async fn generate_claim_key(
     if is_valid && !has_claim_key {
         println!("✅ valid user_id, inserting claim key...");
         claim_key = Uuid::new_v4().to_string();
-        println!("🔑 claim_key = {:?}", claim_key);
+        println!("🔑 claim_key = {:}", claim_key);
         let inserted = insert_claim_key(user_id.clone(), host.clone(), claim_key.clone()).await;
         println!(
-            "claim_token inserted = {:?}",
-            if inserted { "✅ " } else { "❌ " }
+            "{:?} claim_token inserted ",
+            if inserted { "🟢 " } else { "❌ " }
         );
 
         if !inserted {

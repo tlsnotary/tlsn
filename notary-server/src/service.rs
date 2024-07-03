@@ -314,7 +314,7 @@ pub async fn verify(
     let signer = SignerEd25519::new(private_key_env);
     info!("signing_key {:#?}", signer.signing_key);
     let signature: Ed25519Signature = signer.sign(header.merkle_root().to_inner());
-    info!("signature {:#?}", signature);
+    info!("signature {:#?}", signature.to_string());
 
     Ok((signature, format!("{:};{:?}", claim_key, is_valid)))
 }
