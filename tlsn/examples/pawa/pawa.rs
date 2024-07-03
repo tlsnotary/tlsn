@@ -164,7 +164,7 @@ async fn main() -> std::io::Result<()> {
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the TLS connection
-    let (mut request_sender, connection) = hyper::client::conn::http1::handshake(tls_connection)
+    let (mut request_sender, connection) = hyper::client::conn::http1::handshake::<_, Body>(tls_connection)
         .await
         .unwrap();
 
@@ -184,50 +184,8 @@ async fn main() -> std::io::Result<()> {
     .bind("127.0.0.1:8088")?
     .run();
 
-    // here we manually send the request
+    // Here we manually send the request
     debug!("Please send the payout now");
-
-    // // Send payout request
-    // let payout_request = PayoutRequest {
-    //     payoutId: Uuid::new_v4().to_string(),
-    //     amount: "19".to_string(),
-    //     currency: "GHS".to_string(),
-    //     country: "GHA".to_string(),
-    //     correspondent: "MTN_MOMO_GHA".to_string(),
-    //     recipient: Recipient {
-    //         recipient_type: "MSISDN".to_string(),
-    //         address: Address {
-    //             value: "233593456789".to_string(),
-    //         },
-    //     },
-    //     customerTimestamp: "2024-06-27T01:32:28Z".to_string(),
-    //     statementDescription: "For the culture".to_string(),
-    // };
-
-    // let request = Request::builder()
-    //     .uri("https://api.sandbox.pawapay.cloud/payouts")
-    //     .header("Host", "api.sandbox.pawapay.cloud")
-    //     .header("Accept", "*/*")
-    //     .header("Accept-Encoding", "identity")
-    //     .header("Connection", "close")
-    //     .header(
-    //         "User-Agent",
-    //         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    //     )
-    //     .header("Authorization", format!("Bearer {}", jwt))
-    //     .header("Content-Type", "application/json")
-    //     .body(&mut Body::from(serde_json::to_vec(&payout_request).unwrap()))
-    //     .unwrap();
-
-    // debug!("Sending request");
-
-    // // Because we don't need to decrypt the response right away, we can defer decryption
-    // // until after the connection is closed. This will speed up the proving process!
-    // prover_ctrl.defer_decryption().await.unwrap();
-
-    // request_sender.send_request(request).await.unwrap();
-
-    // debug!("Sent request");
 
     // Wait for the callback to be received
     let payout_callback = rx.await.expect("Failed to receive callback");
