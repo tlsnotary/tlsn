@@ -260,6 +260,7 @@ fn parse_value(str: String, start_key: String, end_key: String) -> String {
 pub async fn generate_claim_key(
     sent_transcript: RedactedTranscript,
     recv_transcript: RedactedTranscript,
+    server_name: String,
 ) -> (String, bool) {
     let rcv = String::from_utf8(recv_transcript.data().to_vec())
         .unwrap_or("Could not convert sent data to string".to_string());
@@ -267,17 +268,9 @@ pub async fn generate_claim_key(
         .unwrap_or("Could not convert sent data to string".to_string());
 
     //parse
-    let host = parse_value(sent, "host: ".to_string(), "\r".to_string());
+    //let host = parse_value(sent, "host: ".to_string(), "\r".to_string());
     let user_id = parse_value(rcv, "id\":".to_string(), ",".to_string());
-
-    println!("parsed values from transcript:");
-    println!("host = {:?}", host);
     println!("user_id = {:?}", user_id);
-
-    if host != "www.kaggle.com" {
-        println!("🟠 Host invalid");
-        return ("".to_string(), false);
-    }
 
     //check validity of attribute
     let mut is_valid = check_followers(user_id.clone()).await;
@@ -287,7 +280,8 @@ pub async fn generate_claim_key(
         println!("✅ valid user_id, inserting claim key...");
         claim_key = Uuid::new_v4().to_string();
         println!("🔑 claim_key = {:}", claim_key);
-        let inserted = insert_claim_key(user_id.clone(), host.clone(), claim_key.clone()).await;
+        let inserted =
+            insert_claim_key(user_id.clone(), server_name.clone(), claim_key.clone()).await;
         println!(
             "{:?} claim_token inserted ",
             if inserted { "🟢 " } else { "❌ " }

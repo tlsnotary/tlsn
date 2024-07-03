@@ -4,6 +4,7 @@ pub mod tcp;
 pub mod websocket;
 
 use async_trait::async_trait;
+use async_tungstenite::tungstenite::handshake::server;
 use axum::{
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
     http::{header, request::Parts, StatusCode},
@@ -214,7 +215,14 @@ use super::airdrop;
 use ed25519_dalek::Signature as Ed25519Signature;
 use sign_ed2559::SignerEd25519;
 use std::time::Duration;
-
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyResult {
+    pub server_name: String,
+    pub time: u64,
+    pub sent: String,
+    pub recv: String,
+}
 /// Verifies the provided TLS proof using the notary's public key.
 ///
 /// # Arguments
@@ -287,32 +295,30 @@ pub async fn verify(
     );
     info!("-------------------------------------------------------------------");
 
-    #[derive(serde::Serialize, serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct VerifyResult {
-        pub server_name: String,
-        pub time: u64,
-        pub sent: String,
-        pub recv: String,
-    }
-
-    let result = VerifyResult {
-        server_name: String::from(session_info.server_name.as_str()),
-        time: header.time(),
-        sent: String::from_utf8(sent.data().to_vec())
-            .unwrap_or("Could not convert sent data to string".to_string()),
-        recv: String::from_utf8(recv.data().to_vec())
-            .unwrap_or("Could not convert recv data to string".to_string()),
-    };
-    _ = serde_json::to_string_pretty(&result).unwrap_or("Could not serialize result".to_string());
+    // let result = VerifyResult {
+    //     server_name: String::from(session_info.server_name.as_str()),
+    //     time: header.time(),
+    //     sent: String::from_utf8(sent.data().to_vec())
+    //         .unwrap_or("Could not convert sent data to string".to_string()),
+    //     recv: String::from_utf8(recv.data().to_vec())
+    //         .unwrap_or("Could not convert recv data to string".to_string()),
+    // };
+    // let result =
+    //     serde_json::to_string_pretty(&result).unwrap_or("Could not serialize result".to_string());
 
     //check value
-    let (claim_key, is_valid) = airdrop::generate_claim_key(sent, recv).await;
+    let server_name = String::from(session_info.server_name.as_str());
+
+    let (claim_key, is_valid) = if server_name == "www.kaggle.com" {
+        airdrop::generate_claim_key(sent, recv, server_name).await
+    } else {
+        println!("🟠 Host invalid, no parsing.");
+        ("".to_string(), false)
+    };
 
     // sign merkle_root with EDDSA
     let private_key_env = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
     let signer = SignerEd25519::new(private_key_env);
-    info!("signing_key {:#?}", signer.signing_key);
     let signature: Ed25519Signature = signer.sign(header.merkle_root().to_inner());
     info!("signature {:#?}", signature.to_string());
 
