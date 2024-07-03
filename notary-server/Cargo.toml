@@ -45,6 +45,8 @@ uuid = { version = "1.4.1", features = ["v4", "fast-rng"] }
 ws_stream_tungstenite = { version = "0.10.0", features = ["tokio_io"] }
 hex = "0.4.3"
 ed25519-dalek = "=2.1.1"
+reqwest = { version = "0.12", features = ["json"] }
+dotenv = "0.15.0"
 
 [dev-dependencies]
 # specify vendored feature to use statically linked copy of OpenSSL

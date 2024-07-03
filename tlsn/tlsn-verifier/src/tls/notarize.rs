@@ -19,9 +19,10 @@ use dotenv::dotenv;
 use p256::ecdsa::{signature::Signer as Signer2, Signature as Signature2, SigningKey};
 use std::env;
 use uuid::Uuid;
-mod airdrop;
+
 mod sign;
-use airdrop::airdrop::{check_followers, insert_claim_key, parse_transcripts, view_claim_key};
+
+// use super::airdrop;
 
 #[cfg(feature = "tracing")]
 use tracing::info;
@@ -99,29 +100,30 @@ impl Verifier<Notarize> {
             let private_key = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
             //let private_key = String::from("<private_key>");
 
-            //parse user session data from transcripts
-            let session_transcripts =
-                expect_msg_or_err!(notarize_channel, TlsnMessage::Transcripts)?;
-            let (host, user_id) = parse_transcripts(session_transcripts);
+            // //parse user session data from transcripts
+            // let session_transcripts =
+            //     expect_msg_or_err!(notarize_channel, TlsnMessage::Transcripts)?;
+            // let (host, user_id) = airdrop::parse_transcripts(session_transcripts);
 
-            let mut is_valid = check_followers(user_id.clone()).await;
+            // let mut is_valid = airdrop::check_followers(user_id.clone()).await;
 
-            let (has_claim_key, mut claim_token) = view_claim_key(user_id.clone()).await;
+            // let (has_claim_key, mut claim_token) = airdrop::view_claim_key(user_id.clone()).await;
 
-            println!("is_valid = {:?}", is_valid);
-            println!("has_claim_key = {:?}", has_claim_key);
-            println!("claim_key = {:?}", claim_token);
+            // println!("is_valid = {:?}", is_valid);
+            // println!("has_claim_key = {:?}", has_claim_key);
+            // println!("claim_key = {:?}", claim_token);
 
-            if is_valid && !has_claim_key {
-                claim_token = Uuid::new_v4().to_string();
-                let inserted =
-                    insert_claim_key(user_id.clone(), host.clone(), claim_token.clone()).await;
-                println!("claim_token inserted = {:?}", inserted);
+            // if is_valid && !has_claim_key {
+            //     claim_token = Uuid::new_v4().to_string();
+            //     let inserted =
+            //         airdrop::insert_claim_key(user_id.clone(), host.clone(), claim_token.clone())
+            //             .await;
+            //     println!("claim_token inserted = {:?}", inserted);
 
-                if !inserted {
-                    is_valid = false;
-                }
-            }
+            //     if !inserted {
+            //         is_valid = false;
+            //     }
+            // }
 
             //create nullifier from user_id & notary pkey
             //let nullifier_str = format!("{}{}{}", private_key, host, user_id);
@@ -132,18 +134,19 @@ impl Verifier<Notarize> {
             let signer: sign::Signer256k1 = sign::Signer256k1::new(private_key);
 
             let timestamp_str = Utc::now().timestamp();
-            let message = format!(
-                "{};{};{};{}",
-                host,
-                timestamp_str,
-                user_id,
-                if is_valid {
-                    claim_token
-                } else {
-                    "invalid".to_string()
-                }
-            );
+            // let message = format!(
+            //     "{};{};{};{}",
+            //     host,
+            //     timestamp_str,
+            //     user_id,
+            //     if is_valid {
+            //         claim_token
+            //     } else {
+            //         "invalid".to_string()
+            //     }
+            // );
 
+            let message = "deprecated".to_string();
             let (_, signature2) = signer.sign(message.clone());
 
             #[cfg(feature = "tracing")]

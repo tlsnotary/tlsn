@@ -1,5 +1,6 @@
 //! TLS Verifier
 
+pub mod airdrop;
 pub(crate) mod config;
 mod error;
 mod future;

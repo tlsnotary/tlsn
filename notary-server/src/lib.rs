@@ -1,3 +1,4 @@
+mod airdrop;
 mod config;
 mod domain;
 mod error;

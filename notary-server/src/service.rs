@@ -169,7 +169,10 @@ pub async fn initialize(
         .into_response()
 }
 
-use tlsn_core::proof::{SessionProof, SubstringsProof, TlsProof};
+use tlsn_core::{
+    proof::{SessionProof, SubstringsProof, TlsProof},
+    transcript,
+};
 /// Handler to verify the TLS proof and sign it with EDDSA
 #[debug_handler(state = NotaryGlobals)]
 pub async fn verify_proof(
@@ -191,23 +194,42 @@ pub async fn verify_proof(
 
     let notary_pubkey = hex::encode(notary_globals.notary_signing_key.to_bytes());
 
-    let signature = verify(payload, &notary_pubkey).await.unwrap();
+    let (signature, message) = verify(payload, &notary_pubkey).await.unwrap();
+
+    println!("{:?} {:?}", signature, message);
 
     // Return a JSON with field success = "OK" in the response to the client
     (
         StatusCode::OK,
         Json(serde_json::json!({
             "success": "OK",
-            "signature": signature.to_string()
+            "signature": signature.to_string(),
+            "message" : message
         })),
     )
         .into_response()
 }
+
+use super::airdrop;
 use ed25519_dalek::Signature as Ed25519Signature;
 use sign_ed2559::SignerEd25519;
 use std::time::Duration;
 
-pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<Ed25519Signature, Error> {
+/// Verifies the provided TLS proof using the notary's public key.
+///
+/// # Arguments
+///
+/// * `proof` - The TLS proof to be verified.
+/// * `notary_pubkey_str` - The notary's public key as a string.
+///
+/// # Returns
+///
+/// A result containing a tuple with the Ed25519 signature and a message that can be empty
+/// or an error if the verification fails.
+pub async fn verify(
+    proof: TlsProof,
+    notary_pubkey_str: &str,
+) -> Result<(Ed25519Signature, String), Error> {
     let TlsProof {
         // The session proof establishes the identity of the server and the commitments
         // to the TLS transcript.
@@ -284,6 +306,9 @@ pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<Ed25519S
     };
     _ = serde_json::to_string_pretty(&result).unwrap_or("Could not serialize result".to_string());
 
+    //check value
+    let (claim_key, is_valid) = airdrop::generate_claim_key(sent, recv).await;
+
     // sign merkle_root with EDDSA
     let private_key_env = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
     let signer = SignerEd25519::new(private_key_env);
@@ -291,7 +316,7 @@ pub async fn verify(proof: TlsProof, notary_pubkey_str: &str) -> Result<Ed25519S
     let signature: Ed25519Signature = signer.sign(header.merkle_root().to_inner());
     info!("signature {:#?}", signature);
 
-    Ok(signature)
+    Ok((signature, format!("{:};{:?}", claim_key, is_valid)))
 }
 
 /// Run the notarization
