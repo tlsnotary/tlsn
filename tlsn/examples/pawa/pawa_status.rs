@@ -1,5 +1,5 @@
 use dotenv::dotenv;
-use std::{env, io::Write, sync::Arc};
+use std::{env, io::{self, Write}, sync::Arc};
 use tokio::{io::AsyncWriteExt as _, sync::Mutex};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
@@ -17,5 +17,12 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
 
     let jwt = env::var("JWT").expect("JWT must be set");
-    let payout_id = env::var("PAYOUT_ID").expect("PAYOUT_ID must be set");
+
+    const NOTARY_HOST: &str = "notary.pse.dev";
+    const NOTARY_PORT: u16 = 443;
+
+    let notary_client = NotaryClient::builder().host(NOTARY_HOST).port(NOTARY_PORT).enable_tls(true).build().unwrap();
+    info!("Created Notary Client");
+    Ok(())
+
 }
