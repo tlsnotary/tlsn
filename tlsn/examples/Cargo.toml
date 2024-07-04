@@ -62,5 +62,9 @@ name = "interactive"
 path = "interactive/interactive.rs"
 
 [[example]]
-name = "pawa"
-path = "pawa/pawa.rs"
+name = "pawac"
+path = "pawa/pawa_callback.rs"
+
+[[example]]
+name = "pawas"
+path = "pawa/pawa_status.rs"
