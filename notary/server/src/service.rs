@@ -9,6 +9,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
+use chrono::Utc;
 use p256::ecdsa::{Signature, SigningKey};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -152,6 +153,7 @@ pub async fn initialize(
         SessionData {
             max_sent_data: payload.max_sent_data,
             max_recv_data: payload.max_recv_data,
+            created_at: Utc::now(),
         },
     );
 
