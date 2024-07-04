@@ -42,7 +42,7 @@ async fn alpn_test_error(
 
     for version in tls_client::ALL_VERSIONS {
         let mut client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
-        client_config.alpn_protocols.clone_from(&client_protos);
+        client_config.alpn_protocols = client_protos.clone();
 
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -890,7 +890,8 @@ async fn client_error_is_sticky() {
 
 #[tokio::test]
 async fn client_is_send() {
-    let (_client, _) = make_pair(KeyType::Rsa).await;
+    let (client, _) = make_pair(KeyType::Rsa).await;
+    &client as &dyn Send;
 }
 
 #[tokio::test]
@@ -1373,7 +1374,6 @@ async fn server_streamowned_read() {
     }
 }
 
-#[allow(dead_code)]
 struct FailsWrites {
     errkind: io::ErrorKind,
     after: usize,
