@@ -1,6 +1,9 @@
 use p256::ecdsa::SigningKey;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::{Arc, Mutex}};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
 
