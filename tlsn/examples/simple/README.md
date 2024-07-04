@@ -85,6 +85,6 @@ Feel free to try these extra challenges:
 
 ### Next steps
 
-Try out the [Discord example](../discord/README.md) and notarize a Discord conversations.
+Try out the [Discord example](../Discord/README.md) and notarize a Discord conversations.
 
 
