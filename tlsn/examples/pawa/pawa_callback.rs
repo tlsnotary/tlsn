@@ -11,51 +11,7 @@ use tokio::{io::AsyncWriteExt as _, sync::Mutex};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-
-#[derive(Serialize)]
-struct PayoutRequest {
-    payoutId: String,
-    amount: String,
-    currency: String,
-    country: String,
-    correspondent: String,
-    recipient: Recipient,
-    customerTimestamp: String,
-    statementDescription: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Recipient {
-    #[serde(rename = "type")]
-    recipient_type: String,
-    address: Address,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Address {
-    value: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct PayoutCallback {
-    amount: String,
-    correspondent: String,
-    country: String,
-    created: String,
-    currency: String,
-    customerTimestamp: String,
-    failureReason: Option<FailureReason>,
-    payoutId: String,
-    recipient: Recipient,
-    statementDescription: String,
-    status: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct FailureReason {
-    failureCode: String,
-    failureMessage: String,
-}
+use tlsn_examples::{PayoutRequest, PayoutCallback, Recipient, Address};
 
 #[post("/callback")]
 async fn callback(
