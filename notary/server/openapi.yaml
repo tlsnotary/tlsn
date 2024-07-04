@@ -183,6 +183,7 @@ components:
           type: integer
       required:
         - "clientType"
+        - "maxTranscriptSize"
     NotarizationSessionResponse:
       type: object
       properties:

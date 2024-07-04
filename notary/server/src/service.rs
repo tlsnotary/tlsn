@@ -155,7 +155,7 @@ pub async fn initialize(
         },
     );
 
-trace!("Latest store state: {:?}", notary_globals.store);
+    trace!("Latest store state: {:?}", notary_globals.store);
 
     // Return the session id in the response to the client
     (
