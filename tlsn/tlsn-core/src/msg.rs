@@ -1,7 +1,6 @@
 //! Protocol message types.
 
 use serde::{Deserialize, Serialize};
-use tlsn_common::config::ConfigurationInfo;
 use utils::range::RangeSet;
 
 use crate::{merkle::MerkleRoot, proof::SessionInfo, signature::Signature, SessionHeader};
@@ -19,8 +18,6 @@ pub enum TlsnMessage {
     SessionInfo(SessionInfo),
     /// Information about the values the prover wants to prove
     ProvingInfo(ProvingInfo),
-    /// Information about initial configuration.
-    ConfigurationInfo(ConfigurationInfo),
 }
 
 /// A signed session header.

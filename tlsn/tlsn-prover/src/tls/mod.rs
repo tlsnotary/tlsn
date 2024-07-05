@@ -23,7 +23,7 @@ use mpz_common::Allocate;
 use mpz_garble::config::Role as DEAPRole;
 use mpz_ot::{chou_orlandi, kos};
 use rand::Rng;
-use serio::StreamExt;
+use serio::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
@@ -32,7 +32,7 @@ use tlsn_common::{
     mux::{attach_mux, MuxControl},
     DEAPThread, Executor, OTReceiver, OTSender, Role,
 };
-use tlsn_core::{msg::TlsnMessage, transcript::Transcript};
+use tlsn_core::transcript::Transcript;
 use uid_mux::FramedUidMux as _;
 
 #[cfg(feature = "formats")]
@@ -75,25 +75,20 @@ impl Prover<state::Initialized> {
     ) -> Result<Prover<state::Setup>, ProverError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
 
+        let mut io = mux_fut
+            .poll_with(
+                mux_ctrl
+                    .open_framed(b"tlsnotary")
+                    .map_err(ProverError::from),
+            )
+            .await?;
+
         // Sends configuration info to verifier for compatibility check
-        // let mut configuration_fut = Box::pin({
-        //     let self_configuration = self.config.configuration_info.clone();
-        //     let mut mux_ctrl = mux_ctrl.clone();
-        //     async move {
-        //         let mut channel = mux_ctrl.get_channel("configuration").await?;
-        //         channel
-        //             .send(TlsnMessage::ConfigurationInfo(self_configuration))
-        //             .await?;
-
-        //         Ok::<_, ProverError>(())
-        //     }
-        // })
-        // .fuse();
-
-        // futures::select_biased! {
-        //     res = configuration_fut => res?,
-        //     _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-        // };
+        mux_fut.poll_with(async {
+            io.send(self.config.configuration_info.clone()).await?;
+            Ok::<_, ProverError>(())
+        })
+        .await?;
 
         // Maximum thread forking concurrency of 8.
         // TODO: Determine the optimal number of threads.
@@ -101,14 +96,6 @@ impl Prover<state::Initialized> {
 
         let (mpc_tls, vm, ot_recv) = mux_fut
             .poll_with(setup_mpc_backend(&self.config, &mux_ctrl, &mut exec))
-            .await?;
-
-        let io = mux_fut
-            .poll_with(
-                mux_ctrl
-                    .open_framed(b"tlsnotary")
-                    .map_err(ProverError::from),
-            )
             .await?;
 
         let ctx = mux_fut

@@ -9,7 +9,7 @@ mod verify;
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
 use mpz_common::Allocate;
-use serio::StreamExt;
+use serio::{stream::IoStreamExt, StreamExt};
 use uid_mux::FramedUidMux;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -22,10 +22,9 @@ use signature::Signer;
 use state::{Notarize, Verify};
 use tls_mpc::{build_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
 use tlsn_common::{
-    mux::{attach_mux, MuxControl},
-    DEAPThread, Executor, OTReceiver, OTSender, Role,
+    config::ConfigurationInfo, mux::{attach_mux, MuxControl}, DEAPThread, Executor, OTReceiver, OTSender, Role
 };
-use tlsn_core::{msg::TlsnMessage, proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
+use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
 
 use tracing::{debug, info, instrument};
 
@@ -61,25 +60,24 @@ impl Verifier<state::Initialized> {
         // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
+        let mut io = mux_fut
+            .poll_with(
+                mux_ctrl
+                    .open_framed(b"tlsnotary")
+                    .map_err(VerifierError::from),
+            )
+            .await?;
+
         // Receives configuration info from prover to perform compatibility check
-        // let mut configuration_fut = Box::pin({
-        //     let self_configuration = self.config.configuration_info.clone();
-        //     let mut mux_ctrl = mux_ctrl.clone();
-        //     async move {
-        //         let mut channel = mux_ctrl.get_channel("configuration").await?;
-        //         let peer_configuration =
-        //             expect_msg_or_err!(channel, TlsnMessage::ConfigurationInfo)?;
-        //         self_configuration.compare(&peer_configuration)?;
+        mux_fut.poll_with(async {
+            let peer_configuration: ConfigurationInfo = io.expect_next().await?;
+            debug!("Received peer configuration: {:?}", peer_configuration);
+            self.config.configuration_info.compare(&peer_configuration)?;
+            debug!("Successfully compared to self configuration: {:?}", self.config.configuration_info);
 
-        //         Ok::<_, VerifierError>(())
-        //     }
-        // })
-        // .fuse();
-
-        // futures::select_biased! {
-        //     res = configuration_fut => res?,
-        //     _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-        // };
+            Ok::<_, VerifierError>(())
+        })
+        .await?;
 
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
         let (mpc_tls, vm, ot_send) = mux_fut
@@ -89,14 +87,6 @@ impl Verifier<state::Initialized> {
                 &mut exec,
                 encoder_seed,
             ))
-            .await?;
-
-        let io = mux_fut
-            .poll_with(
-                mux_ctrl
-                    .open_framed(b"tlsnotary")
-                    .map_err(VerifierError::from),
-            )
             .await?;
 
         let ctx = mux_fut

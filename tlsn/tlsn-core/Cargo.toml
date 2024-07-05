@@ -13,7 +13,6 @@ default = []
 fixtures = ["dep:hex"]
 
 [dependencies]
-tlsn-common.workspace = true
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 
 tlsn-utils.workspace = true
