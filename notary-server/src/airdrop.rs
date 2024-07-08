@@ -323,7 +323,7 @@ pub async fn generate_signature_userid(
     attr_transcript: RedactedTranscript,
     server_name: String,
     merkle_root: &MerkleRoot,
-) -> Result<String, Error> {
+) -> Result<(String, Vec<u8>), Error> {
     // Convert the received transcript to a UTF-8 string
     let auth_rcv = String::from_utf8(recv_transcript.data().to_vec())
         .unwrap_or("Could not convert sent data to string".to_string());
@@ -382,11 +382,11 @@ pub async fn generate_signature_userid(
         let signature: Ed25519Signature = signer.sign(combined_bytes);
         info!("signature {}", signature.to_string());
 
-        return Ok(signature.to_string());
+        return Ok((signature.to_string(), nullifier_vec));
     } else {
-        // If the user already has a claim key, return an empty string
+        // If the user already has a claim key, return an empty string and an empty vector
         println!("🟠 User_id already inserted");
-        return Ok("".to_string());
+        return Ok(("".to_string(), Vec::new()));
     }
 }
 
