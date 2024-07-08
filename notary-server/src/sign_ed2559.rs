@@ -18,9 +18,9 @@ impl SignerEd25519 {
         self.signing_key.sign(message.as_ref())
     }
 
-    pub(crate) fn verify(&self, message: String, signature: Signature) -> bool {
+    pub(crate) fn verify(&self, message: impl AsRef<[u8]>, signature: Signature) -> bool {
         self.signing_key
-            .verify(message.as_bytes(), &signature)
+            .verify(message.as_ref(), &signature)
             .is_ok()
     }
 }
@@ -38,5 +38,33 @@ mod test {
         let message: String = String::from("This is a test of the tsunami alert system.");
         let signature: Signature = signer.sign(message.clone());
         assert!(signer.verify(message, signature));
+    }
+
+    #[test]
+    fn test_verify() {
+        let private_key_env = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
+        let signer = SignerEd25519::new(private_key_env);
+
+        let signature =
+            "8A3BD8D67D535E03424743A49737B40592B6A8F973712A2DF65BC4B1493BE127A8B30F7F47BE650887B6C8CA2CFB3401B85A7895788DEDE8EB2B3B00154C6603";
+
+        let merkle_root = [
+            149, 169, 221, 96, 239, 142, 48, 24, 181, 120, 87, 116, 138, 112, 141, 210, 107, 166,
+            53, 220, 100, 183, 250, 22, 190, 61, 169, 236, 21, 50, 36, 171,
+        ];
+        let user_id = "1";
+
+        let mut combined_bytes = user_id.as_bytes().to_vec();
+        combined_bytes.extend_from_slice(&merkle_root);
+
+        let signature = &hex::decode(signature).expect("Failed to decode hex signature");
+
+        let signature: &[u8; 64] = signature
+            .as_slice()
+            .try_into()
+            .expect("Signature must be exactly 64 bytes");
+
+        let signature = Signature::from_bytes(signature);
+        assert!(signer.verify(combined_bytes, signature));
     }
 }
