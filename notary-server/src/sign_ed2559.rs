@@ -46,7 +46,7 @@ mod test {
         let signer = SignerEd25519::new(private_key_env);
 
         let signature =
-            "8A3BD8D67D535E03424743A49737B40592B6A8F973712A2DF65BC4B1493BE127A8B30F7F47BE650887B6C8CA2CFB3401B85A7895788DEDE8EB2B3B00154C6603";
+            "8A73D7A1F3F9BD2CEB611A9FE685D785AC43F2B377AFE168CB7A644102AF1F934AB6E80761373D132AB9C1713978EEC3916B5F7C5A91952A582B8DEDCD558A01";
 
         let merkle_root = [
             149, 169, 221, 96, 239, 142, 48, 24, 181, 120, 87, 116, 138, 112, 141, 210, 107, 166,
@@ -54,7 +54,13 @@ mod test {
         ];
         let user_id = "1";
 
-        let mut combined_bytes = user_id.as_bytes().to_vec();
+        use sha1::{Digest, Sha1};
+        let mut hasher = Sha1::new();
+        hasher.update(user_id.as_bytes());
+        let nullifier = hasher.finalize();
+        let nullifier_vec = nullifier.to_vec();
+
+        let mut combined_bytes = nullifier_vec;
         combined_bytes.extend_from_slice(&merkle_root);
 
         let signature = &hex::decode(signature).expect("Failed to decode hex signature");

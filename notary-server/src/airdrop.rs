@@ -367,8 +367,15 @@ pub async fn generate_signature_userid(
         let private_key_env: String = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
         let signer = SignerEd25519::new(private_key_env);
 
+        // We create a nullifier of user_id
+        use sha1::{Digest, Sha1};
+        let mut hasher = Sha1::new();
+        hasher.update(user_id.as_bytes());
+        let nullifier = hasher.finalize();
+        let nullifier_vec = nullifier.to_vec();
+
         // Concatenate bytes of user_id and merkle_root.to_bytes() in one variable
-        let mut combined_bytes = user_id.as_bytes().to_vec();
+        let mut combined_bytes = nullifier_vec.to_vec();
         combined_bytes.extend_from_slice(&merkle_root.to_bytes());
 
         // Sign the combined bytes
