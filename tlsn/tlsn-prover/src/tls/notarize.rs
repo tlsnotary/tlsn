@@ -102,15 +102,7 @@ impl Prover<Notarize> {
         })
         .fuse();
 
-        let (
-            notary_encoder_seed,
-            SignedSessionHeader {
-                header,
-                signature,
-                signature2,
-                message,
-            },
-        ) = futures::select_biased! {
+        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select_biased! {
             res = notarize_fut => res?,
             _ = ot_fut => return Err(OTShutdownError)?,
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -133,12 +125,6 @@ impl Prover<Notarize> {
                 )
             })?;
 
-        Ok(NotarizedSession::new(
-            header,
-            Some(signature),
-            signature2,
-            session_data,
-            message,
-        ))
+        Ok(NotarizedSession::new(header, Some(signature), session_data))
     }
 }

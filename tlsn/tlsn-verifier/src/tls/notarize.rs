@@ -146,9 +146,6 @@ impl Verifier<Notarize> {
             //     }
             // );
 
-            let message = "deprecated".to_string();
-            let (_, signature2) = signer.sign(message.clone());
-
             #[cfg(feature = "tracing")]
             info!("Signed session header");
             info!("session_header {:?}", session_header);
@@ -157,8 +154,6 @@ impl Verifier<Notarize> {
                 .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
                     header: session_header.clone(),
                     signature: signature.into(),
-                    signature2,
-                    message,
                 }))
                 .await?;
 
