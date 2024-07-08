@@ -1,5 +1,4 @@
 pub mod axum_websocket;
-pub mod sign_ed2559;
 pub mod tcp;
 pub mod websocket;
 
@@ -13,6 +12,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use chrono::Utc;
+
 use p256::ecdsa::{Signature, SigningKey};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -172,18 +172,29 @@ pub async fn initialize(
 
 use tlsn_core::{
     proof::{SessionProof, SubstringsProof, TlsProof},
+    session::SessionHeader,
     transcript,
 };
+
+/// Proof that a transcript of communications took place between a Prover and Server.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct VerifyProofRequest {
+    /// Proof of the TLS handshake, server identity, and commitments to the transcript.
+    pub auth_proof: TLSProof,
+    /// Proof of the user attributes
+    pub attribute_proof: TLSProof,
+}
+
 /// Handler to verify the TLS proof and sign it with EDDSA
 #[debug_handler(state = NotaryGlobals)]
 pub async fn verify_proof(
     State(notary_globals): State<NotaryGlobals>,
-    payload: Result<Json<TlsProof>, JsonRejection>,
+    payload: Result<Json<VerifyProofRequest>, JsonRejection>,
 ) -> impl IntoResponse {
-    info!(?payload, "Received request for verifying TLS proof");
+    info!("📨 Received request to verify TLS proof");
 
     // Parse the body payload and extract TLSProof
-    let payload: TlsProof = match payload {
+    let payload: VerifyProofRequest = match payload {
         Ok(Json(payload)) => payload,
         Err(err) => {
             error!("Malformed payload submitted for initializing notarization: {err}");
@@ -191,13 +202,8 @@ pub async fn verify_proof(
         }
     };
 
-    info!("payload: {:#?}", payload);
-
-    let notary_pubkey = hex::encode(notary_globals.notary_signing_key.to_bytes());
-
-    let (signature, message) = verify(payload, &notary_pubkey).await.unwrap();
-
-    println!("{:?} {:?}", signature, message);
+    //info!("payload: {:#?}", payload);
+    let (signature) = verify(payload).await.unwrap();
 
     // Return a JSON with field success = "OK" in the response to the client
     (
@@ -205,15 +211,12 @@ pub async fn verify_proof(
         Json(serde_json::json!({
             "success": "OK",
             "signature": signature.to_string(),
-            "message" : message
         })),
     )
         .into_response()
 }
 
 use super::airdrop;
-use ed25519_dalek::Signature as Ed25519Signature;
-use sign_ed2559::SignerEd25519;
 use std::time::Duration;
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -223,6 +226,54 @@ pub struct VerifyResult {
     pub sent: String,
     pub recv: String,
 }
+
+/// Parses authentication and attribute proofs from TLSProof structures
+///
+/// # Arguments
+/// * `auth_proof` - TLSProof for authentication
+/// * `attribute_proof` - TLSProof for attributes
+///
+/// # Returns
+/// A tuple containing parsed data for both proofs:
+/// ((auth_header, auth_server_name, auth_substrings), (attr_header, attr_server_name, attr_substrings))
+pub fn parse_proofs(
+    auth_proof: TLSProof,
+    attribute_proof: TLSProof,
+) -> (
+    (SessionHeader, String, SubstringsProof),
+    (SessionHeader, String, SubstringsProof),
+) {
+    // Extract authentication proof components
+    let TLSProof {
+        session: auth_session,
+        substrings: auth_substrings,
+    } = auth_proof;
+    let SessionProof {
+        header: auth_header,
+        session_info: auth_session_info,
+        ..
+    } = auth_session;
+    let auth_server_name = String::from(auth_session_info.server_name.as_str());
+
+    // Extract attribute proof components
+    let TLSProof {
+        session: attr_session,
+        substrings: attr_substrings,
+    } = attribute_proof;
+    let SessionProof {
+        header: attr_header,
+        session_info: attr_session_info,
+        ..
+    } = attr_session;
+    let attr_server_name = String::from(attr_session_info.server_name.as_str());
+
+    // Return parsed components
+    (
+        (auth_header, auth_server_name, auth_substrings),
+        (attr_header, attr_server_name, attr_substrings),
+    )
+}
+
 /// Verifies the provided TLS proof using the notary's public key.
 ///
 /// # Arguments
@@ -234,95 +285,91 @@ pub struct VerifyResult {
 ///
 /// A result containing a tuple with the Ed25519 signature and a message that can be empty
 /// or an error if the verification fails.
-pub async fn verify(
-    proof: TlsProof,
-    notary_pubkey_str: &str,
-) -> Result<(Ed25519Signature, String), Error> {
-    let TlsProof {
-        // The session proof establishes the identity of the server and the commitments
-        // to the TLS transcript.
-        session,
-        // The substrings proof proves select portions of the transcript, while redacting
-        // anything the Prover chose not to disclose.
-        substrings,
-    } = proof;
+///
 
-    info!(
-        "!@# notary_pubkey {}, {}",
-        notary_pubkey_str,
-        notary_pubkey_str.len()
-    );
+pub async fn verify(request: VerifyProofRequest) -> Result<String, NotaryServerError> {
+    let (
+        (auth_header, auth_server_name, auth_substrings),
+        (attr_header, attr_server_name, attr_substrings),
+    ) = parse_proofs(request.auth_proof, request.attribute_proof);
+
+    // verify that proofs are from same server
+    if attr_server_name != auth_server_name {
+        return Err(NotaryServerError::BadProverRequest(
+            "Server names do not match".to_string(),
+        ));
+    }
+
+    // @TODO verify tls certificates
     // session
     //     .verify_with_default_cert_verifier(get_notary_pubkey(notary_pubkey_str)?)
     //     .map_err(|e| &format!("Session verification failed: {:?}", e))?;
 
-    let SessionProof {
-        // The session header that was signed by the Notary is a succinct commitment to the TLS transcript.
-        header,
-        // This is the server name, checked against the certificate chain shared in the TLS handshake.
-        session_info,
-        ..
-    } = session;
+    //@TEST to uncomment in production
+    //let time = chrono::DateTime::UNIX_EPOCH + Duration::from_secs(auth_header.time());
+    // Verify that the session is not older than 24 hours
+    // let current_time = chrono::Utc::now().timestamp() as u64;
+    // let session_time = header.time();
+    // let time_difference = current_time.saturating_sub(session_time);
+    // const TWENTY_FOUR_HOURS_IN_SECONDS: u64 = 24 * 60 * 60;
+    // if time_difference > TWENTY_FOUR_HOURS_IN_SECONDS {
+    //     return Err(NotaryServerError::BadProverRequest(
+    //         "Session is older than 24 hours".to_string(),
+    //     ));
+    // }
 
-    // The time at which the session was recorded
-    let time = chrono::DateTime::UNIX_EPOCH + Duration::from_secs(header.time());
+    let (mut auth_sent, mut auth_recv) = auth_substrings.verify(&auth_header).unwrap();
+    let (mut attr_sent, mut attr_recv) = attr_substrings.verify(&attr_header).unwrap();
 
-    // Verify the substrings proof against the session header.
-    //
-    // This returns the redacted transcripts
-    let (mut sent, mut recv) = substrings.verify(&header).unwrap();
     // Replace the bytes which the Prover chose not to disclose with 'X'
-    sent.set_redacted(b'X');
-    recv.set_redacted(b'X');
+    attr_recv.set_redacted(b'X');
+    auth_recv.set_redacted(b'X');
 
-    info!("-------------------------------------------------------------------");
-    info!(
-        "Successfully verified that the bytes below came from a session with {:?} at {}.",
-        session_info.server_name, time
-    );
-    info!("Note that the bytes which the Prover chose not to disclose are shown as X.");
-    info!("Bytes sent:");
-    info!(
-        "{}",
-        String::from_utf8(sent.data().to_vec())
-            .unwrap_or("Could not convert sent data to string".to_string())
-    );
-    info!("Bytes received:");
-    info!(
-        "{}",
-        String::from_utf8(recv.data().to_vec())
-            .unwrap_or("Could not convert recv data to string".to_string())
-    );
-    info!("-------------------------------------------------------------------");
+    //@Note uncomment to verify that fields have been hidden
+    // info!("-------------------------------------------------------------------");
+    // info!(
+    //     "Successfully verified that the bytes below came from a session with {:?} at {}.",
+    //     session_info.server_name, time
+    // );
+    // info!("Bytes sent:");
+    // info!(
+    //     "{}",
+    //     String::from_utf8(sent.data().to_vec())
+    //         .unwrap_or("Could not convert sent data to string".to_string())
+    // );
+    // info!("Bytes received:");
+    // info!(
+    //     "{}",
+    //     String::from_utf8(attr_recv.data().to_vec())
+    //         .unwrap_or("Could not convert recv data to string".to_string())
+    // );
+    // info!(
+    //     "{}",
+    //     String::from_utf8(auth_recv.data().to_vec())
+    //         .unwrap_or("Could not convert recv data to string".to_string())
+    // );
+    // info!("-------------------------------------------------------------------");
 
-    // let result = VerifyResult {
-    //     server_name: String::from(session_info.server_name.as_str()),
-    //     time: header.time(),
-    //     sent: String::from_utf8(sent.data().to_vec())
-    //         .unwrap_or("Could not convert sent data to string".to_string()),
-    //     recv: String::from_utf8(recv.data().to_vec())
-    //         .unwrap_or("Could not convert recv data to string".to_string()),
-    // };
-    // let result =
-    //     serde_json::to_string_pretty(&result).unwrap_or("Could not serialize result".to_string());
-
-    //check value
-    let server_name = String::from(session_info.server_name.as_str());
-
-    let (claim_key, is_valid) = if server_name == "www.kaggle.com" {
-        airdrop::generate_claim_key(sent, recv, server_name).await
+    // @DEBUG : remove dummyjson
+    // if it's kaggle, we will parse user_id from transcript, check dedup then return an auth_signature
+    if auth_server_name == "www.kaggle.com" || auth_server_name == "dummyjson.com" {
+        let res = airdrop::generate_signature_userid(
+            auth_recv,
+            attr_recv,
+            auth_server_name,
+            &attr_header.merkle_root(),
+        )
+        .await;
+        return match res {
+            Ok(signature) => Ok(signature),
+            Err(e) => Err(NotaryServerError::BadProverRequest(e.to_string())),
+        };
     } else {
-        println!("🟠 Host invalid, no parsing.");
-        ("".to_string(), false)
-    };
-
-    // sign merkle_root with EDDSA
-    let private_key_env = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
-    let signer = SignerEd25519::new(private_key_env);
-    let signature: Ed25519Signature = signer.sign(header.merkle_root().to_inner());
-    info!("signature {:#?}", signature.to_string());
-
-    Ok((signature, format!("{:};{:?}", claim_key, is_valid)))
+        return Err(NotaryServerError::BadProverRequest(format!(
+            "Server '{}' is not in the list of supported servers",
+            auth_server_name
+        )));
+    }
 }
 
 /// Run the notarization

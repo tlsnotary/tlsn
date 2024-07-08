@@ -145,6 +145,9 @@ impl<'a> SubstringsProofBuilder<'a> {
             ..
         } = self;
 
+        println!("commitments {:?}", commitments);
+        // println!("openings {:?}", openings);
+
         let mut indices = openings
             .keys()
             .map(|id| id.to_inner() as usize)
@@ -322,5 +325,10 @@ impl SubstringsProof {
             RedactedTranscript::new(header.sent_len(), sent_slices),
             RedactedTranscript::new(header.recv_len(), recv_slices),
         ))
+    }
+
+    /// Returns the field `openings` of `SubstringsProof`.
+    pub fn openings(&self) -> &(CommitmentInfo, CommitmentOpening) {
+        &self.openings[&CommitmentId::new(0)]
     }
 }

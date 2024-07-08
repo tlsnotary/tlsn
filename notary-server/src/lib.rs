@@ -6,6 +6,7 @@ mod middleware;
 mod server;
 mod server_tracing;
 mod service;
+mod sign_ed2559;
 mod util;
 
 pub use config::{

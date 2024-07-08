@@ -11,6 +11,8 @@ fn main() {
     let proof = std::fs::read_to_string("simple_proof.json").unwrap();
     let proof: TlsProof = serde_json::from_str(proof.as_str()).unwrap();
 
+    println!("{:?}", proof);
+
     let TlsProof {
         // The session proof establishes the identity of the server and the commitments
         // to the TLS transcript.

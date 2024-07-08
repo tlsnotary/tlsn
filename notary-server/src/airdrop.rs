@@ -1,14 +1,19 @@
 //! TLS Airdrop
 //!
+use super::sign_ed2559;
+use axum::Error;
 use p256::pkcs8::der::asn1::Int;
 use reqwest::Response;
 use serde_json::Number;
+use sign_ed2559::SignerEd25519;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tlsn_core::RedactedTranscript;
 
+use mpz_core::serialize::CanonicalSerialize;
 use std::env;
 use tlsn_core::{
+    merkle::MerkleRoot,
     msg::{SessionTranscripts, SignedSessionHeader, TlsnMessage},
     HandshakeSummary, SessionHeader, Signature, Transcript,
 };
@@ -106,10 +111,6 @@ fn parse_transcripts(sent: String, rcv: String) -> (String, String) {
 ///
 /// A boolean indicating whether the claim key was successfully inserted.
 async fn insert_claim_key(user_id: String, host: String, uuid: String) -> bool {
-    if host != "www.kaggle.com" {
-        return false;
-    }
-
     let client = reqwest::Client::new();
 
     let mut map = HashMap::new();
@@ -118,10 +119,9 @@ async fn insert_claim_key(user_id: String, host: String, uuid: String) -> bool {
     //map.insert("user_id", "test".to_string());
     map.insert("website", host);
 
-    println!("✏️inserting claim_key..");
-
     let url = format!("{:}/insert-claim-key", AIRDROP_SERVER);
     let airdrop_server_auth = std::env::var("AIRDROP_SERVER_AUTH").unwrap();
+
     let res = client
         .post(url)
         .header("Authorization", airdrop_server_auth)
@@ -163,10 +163,10 @@ async fn view_claim_key(user_id: String) -> (bool, String) {
         .await
         .unwrap();
 
-    println!("status = {:?}", res.status());
+    //println!("status = {:?}", res.status());
 
     let resp_claim_insert: RespClaimView = res.json().await.unwrap();
-    println!("res = {:#?}", resp_claim_insert);
+    //println!("res = {:#?}", resp_claim_insert);
 
     if resp_claim_insert.claims.len() > 0 {
         return (true, resp_claim_insert.claims[0].claim_key.clone());
@@ -174,6 +174,8 @@ async fn view_claim_key(user_id: String) -> (bool, String) {
         return (false, "".to_string());
     }
 }
+
+//@TODO : to remove, deprecated
 /// Checks the number of followers for a given user.
 ///
 /// # Arguments
@@ -257,6 +259,7 @@ fn parse_value(str: String, start_key: String, end_key: String) -> String {
     parsed_value
 }
 
+/// @WARNING: deprecated, to remove
 pub async fn generate_claim_key(
     sent_transcript: RedactedTranscript,
     recv_transcript: RedactedTranscript,
@@ -291,12 +294,93 @@ pub async fn generate_claim_key(
             is_valid = false;
         }
     } else if has_claim_key {
-        println!("🟠 User already has claim key");
+        println!("🟠 User already has already ");
     } else {
         println!("❌ invalid user_id");
     }
 
     (claim_key, is_valid)
+}
+
+use ed25519_dalek::Signature as Ed25519Signature;
+
+/// @NOTE: new method: the notary doesn't query the follower of users
+///
+/// This function generates a signature for a user ID extracted from the received transcript.
+/// It first converts the received transcript to a UTF-8 string, then parses the user ID from it.
+/// If the user does not already have a claim key, it inserts a new claim key and generates a signature.
+///
+/// # Arguments
+///
+/// * `recv_transcript` - The received transcript containing the user ID.
+/// * `server_name` - The name of the server.
+///
+/// # Returns
+///
+/// A string containing the generated signature, or an empty string if the user already has a claim key.
+pub async fn generate_signature_userid(
+    recv_transcript: RedactedTranscript,
+    attr_transcript: RedactedTranscript,
+    server_name: String,
+    merkle_root: &MerkleRoot,
+) -> Result<String, Error> {
+    // Convert the received transcript to a UTF-8 string
+    let auth_rcv = String::from_utf8(recv_transcript.data().to_vec())
+        .unwrap_or("Could not convert sent data to string".to_string());
+
+    let attr_rcv = String::from_utf8(attr_transcript.data().to_vec())
+        .unwrap_or("Could not convert sent data to string".to_string());
+
+    // Parse the user ID from the received transcripts
+    let user_id = parse_value(auth_rcv, "id\":".to_string(), ",".to_string());
+
+    let user_id_2 = parse_value(attr_rcv, "id\":".to_string(), ",".to_string());
+
+    println!("user_id = {:} user_id_2 = {:}", user_id, user_id_2);
+
+    if user_id != user_id_2 {
+        return Err(Error::new(format!(
+            "User ID mismatch between auth and attribute requests {} {}",
+            user_id, user_id_2
+        )));
+    }
+
+    // Check if the user already has a claim key
+    let (has_claim_key, mut claim_key) = view_claim_key(user_id.clone()).await;
+
+    if !has_claim_key {
+        // If the user does not have a claim key, insert a new claim key
+        println!("✅ valid user_id, inserting in DB...");
+        claim_key = Uuid::new_v4().to_string(); //@TODO : claimkey is useless now, need to remove
+        println!("🔑 params : {:} {:} {:} ", claim_key, user_id, server_name);
+        let inserted =
+            insert_claim_key(user_id.clone(), server_name.clone(), claim_key.clone()).await;
+        println!("{} inserted ", if inserted { "🟢" } else { "❌" });
+
+        if !inserted {
+            return Err(Error::new("Not inserted"));
+        }
+
+        // Convert merkle_root to bytes
+
+        // If the claim key was successfully inserted, generate a signature
+        let private_key_env: String = std::env::var("NOTARY_PRIVATE_KEY_SECP256k1").unwrap();
+        let signer = SignerEd25519::new(private_key_env);
+
+        // Concatenate bytes of user_id and merkle_root.to_bytes() in one variable
+        let mut combined_bytes = user_id.as_bytes().to_vec();
+        combined_bytes.extend_from_slice(&merkle_root.to_bytes());
+
+        // Sign the combined bytes
+        let signature: Ed25519Signature = signer.sign(combined_bytes);
+        info!("signature {}", signature.to_string());
+
+        return Ok(signature.to_string());
+    } else {
+        // If the user already has a claim key, return an empty string
+        println!("🟠 User_id already inserted");
+        return Ok("".to_string());
+    }
 }
 
 mod test {

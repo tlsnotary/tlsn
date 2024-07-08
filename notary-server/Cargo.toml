@@ -47,6 +47,7 @@ hex = "0.4.3"
 ed25519-dalek = "=2.1.1"
 reqwest = { version = "0.12", features = ["json"] }
 dotenv = "0.15.0"
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
 
 [dev-dependencies]
 # specify vendored feature to use statically linked copy of OpenSSL

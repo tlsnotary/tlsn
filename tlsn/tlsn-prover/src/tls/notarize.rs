@@ -79,9 +79,9 @@ impl Prover<Notarize> {
                 .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))
                 .await?;
 
-            channel
-                .send(TlsnMessage::Transcripts(session_transcripts))
-                .await?;
+            // channel
+            //     .send(TlsnMessage::Transcripts(session_transcripts))
+            //     .await?;
 
             let notary_encoder_seed = vm
                 .finalize()
