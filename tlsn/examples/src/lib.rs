@@ -106,7 +106,7 @@ pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn
         .unwrap();
 }
 
-pub async fn run(payout_id: &str) -> std::io::Result<()> {
+pub async fn run_pawa(payout_id: &str) -> std::io::Result<()> {
     println!("Payout ID: {}", payout_id);
     let server_domain = "api.sandbox.pawapay.cloud";
 

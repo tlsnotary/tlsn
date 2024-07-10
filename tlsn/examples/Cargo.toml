@@ -68,3 +68,7 @@ path = "pawa/pawa_callback.rs"
 [[example]]
 name = "paw"
 path = "paw/paw.rs"
+
+[lib]
+name = "tlsn_examples"
+path = "src/lib.rs"
