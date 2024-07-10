@@ -36,3 +36,5 @@ Cargo.lock
 
 # Callback log for pawa
 tlsn/examples/pawa/callback.log
+tlsn/examples/paw/payout_status.json
+tlsn/examples/paw/payout_status_proof.json
