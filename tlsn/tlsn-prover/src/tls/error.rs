@@ -1,6 +1,6 @@
 use std::error::Error;
 use tls_mpc::MpcTlsError;
-use tlsn_common::config::ConfigurationError;
+use tlsn_common::config::ProtocolConfigError;
 use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
 /// An error that can occur during proving.
@@ -28,7 +28,7 @@ pub enum ProverError {
     #[error("Range exceeds transcript length")]
     InvalidRange,
     #[error(transparent)]
-    ConfigurationError(#[from] ConfigurationError),
+    ProtocolConfigError(#[from] ProtocolConfigError),
 }
 
 impl From<uid_mux::yamux::ConnectionError> for ProverError {

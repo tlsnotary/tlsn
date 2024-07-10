@@ -7,7 +7,7 @@ use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use std::{env, ops::Range, str};
-use tlsn_common::config::ConfigurationInfo;
+use tlsn_common::config::ProtocolConfig;
 use tlsn_core::proof::TlsProof;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
@@ -66,8 +66,8 @@ async fn main() {
         .await
         .unwrap();
 
-    // Setup initial configuration info for prover.
-    let configuration_info = ConfigurationInfo::builder()
+    // Setup protocol configuration for prover.
+    let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
         .build()
@@ -77,7 +77,7 @@ async fn main() {
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
-        .configuration_info(configuration_info)
+        .protocol_config(protocol_config)
         .build()
         .unwrap();
 

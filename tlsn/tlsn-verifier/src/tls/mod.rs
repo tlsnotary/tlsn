@@ -22,7 +22,9 @@ use signature::Signer;
 use state::{Notarize, Verify};
 use tls_mpc::{build_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
 use tlsn_common::{
-    config::ConfigurationInfo, mux::{attach_mux, MuxControl}, DEAPThread, Executor, OTReceiver, OTSender, Role
+    config::ProtocolConfig,
+    mux::{attach_mux, MuxControl},
+    DEAPThread, Executor, OTReceiver, OTSender, Role,
 };
 use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
 
@@ -51,7 +53,7 @@ impl Verifier<state::Initialized> {
     ///
     /// * `socket` - The socket to the prover.
     pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
+        mut self,
         socket: S,
     ) -> Result<Verifier<state::Setup>, VerifierError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
@@ -68,16 +70,18 @@ impl Verifier<state::Initialized> {
             )
             .await?;
 
-        // Receives configuration info from prover to perform compatibility check
-        mux_fut.poll_with(async {
-            let peer_configuration: ConfigurationInfo = io.expect_next().await?;
-            debug!("Received peer configuration: {:?}", peer_configuration);
-            self.config.configuration_info.compare(&peer_configuration)?;
-            debug!("Successfully compared to self configuration: {:?}", self.config.configuration_info);
+        // Receives protocol configuration from prover to perform compatibility check
+        mux_fut
+            .poll_with(async {
+                let peer_configuration: ProtocolConfig = io.expect_next().await?;
+                self.config
+                    .protocol_config_validator
+                    .validate(&peer_configuration)?;
+                self.config.set_protocol_config(peer_configuration);
 
-            Ok::<_, VerifierError>(())
-        })
-        .await?;
+                Ok::<_, VerifierError>(())
+            })
+            .await?;
 
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
         let (mpc_tls, vm, ot_send) = mux_fut

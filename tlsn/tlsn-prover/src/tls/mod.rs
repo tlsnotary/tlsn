@@ -83,12 +83,13 @@ impl Prover<state::Initialized> {
             )
             .await?;
 
-        // Sends configuration info to verifier for compatibility check
-        mux_fut.poll_with(async {
-            io.send(self.config.configuration_info.clone()).await?;
-            Ok::<_, ProverError>(())
-        })
-        .await?;
+        // Sends protocol configuration to verifier for compatibility check
+        mux_fut
+            .poll_with(async {
+                io.send(self.config.protocol_config.clone()).await?;
+                Ok::<_, ProverError>(())
+            })
+            .await?;
 
         // Maximum thread forking concurrency of 8.
         // TODO: Determine the optimal number of threads.

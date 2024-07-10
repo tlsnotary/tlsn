@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter, Result};
 use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
 use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, ConfigurationInfo},
+    config::{ot_recv_estimate, ot_send_estimate, ProtocolConfig, ProtocolConfigValidator},
     Role,
 };
 use tlsn_core::proof::default_cert_verifier;
@@ -15,9 +15,10 @@ use tlsn_core::proof::default_cert_verifier;
 pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
-    /// Configuration info to be checked with that of the prover.
-    #[builder(default = "ConfigurationInfo::builder().build().unwrap()")]
-    pub configuration_info: ConfigurationInfo,
+    #[builder(default = "ProtocolConfigValidator::builder().build().unwrap()")]
+    pub protocol_config_validator: ProtocolConfigValidator,
+    #[builder(setter(skip), default)]
+    protocol_config: Option<ProtocolConfig>,
     #[builder(
         pattern = "owned",
         setter(strip_option),
@@ -30,8 +31,14 @@ impl Debug for VerifierConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("VerifierConfig")
             .field("id", &self.id)
-            .field("max_sent_data", &self.configuration_info.max_sent_data())
-            .field("max_recv_data", &self.configuration_info.max_recv_data())
+            .field(
+                "max_sent_data",
+                &self.protocol_config_validator.max_sent_data(),
+            )
+            .field(
+                "max_recv_data",
+                &self.protocol_config_validator.max_recv_data(),
+            )
             .field("cert_verifier", &"_")
             .finish()
     }
@@ -53,6 +60,10 @@ impl VerifierConfig {
         self.cert_verifier
             .as_ref()
             .expect("Certificate verifier should be set")
+    }
+
+    pub(crate) fn set_protocol_config(&mut self, config: ProtocolConfig) {
+        self.protocol_config = Some(config);
     }
 
     pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
@@ -84,13 +95,13 @@ impl VerifierConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.configuration_info.max_sent_data())
+                            .max_size(self.protocol_config.as_ref().unwrap().max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.configuration_info.max_recv_data())
+                            .max_size(self.protocol_config.as_ref().unwrap().max_recv_data())
                             .build()
                             .unwrap(),
                     )
@@ -105,16 +116,16 @@ impl VerifierConfig {
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
         ot_send_estimate(
             Role::Verifier,
-            self.configuration_info.max_sent_data(),
-            self.configuration_info.max_recv_data(),
+            self.protocol_config.as_ref().unwrap().max_sent_data(),
+            self.protocol_config.as_ref().unwrap().max_recv_data(),
         )
     }
 
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
         ot_recv_estimate(
             Role::Verifier,
-            self.configuration_info.max_sent_data(),
-            self.configuration_info.max_recv_data(),
+            self.protocol_config.as_ref().unwrap().max_sent_data(),
+            self.protocol_config.as_ref().unwrap().max_recv_data(),
         )
     }
 }
