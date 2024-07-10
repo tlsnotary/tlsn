@@ -33,3 +33,6 @@ Cargo.lock
 
 # metrics
 *.csv
+
+# Callback log for pawa
+tlsn/examples/pawa/callback.log

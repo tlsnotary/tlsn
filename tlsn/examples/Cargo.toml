@@ -33,6 +33,9 @@ elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
 regex = "1.10.3"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0"
+actix-web = "4.8.0"
+reqwest = "0.12.5"
+uuid = "1.9.1"
 
 [[example]]
 name = "simple_prover"
@@ -57,3 +60,11 @@ path = "discord/discord_dm_verifier.rs"
 [[example]]
 name = "interactive"
 path = "interactive/interactive.rs"
+
+[[example]]
+name = "pawac"
+path = "pawa/pawa_callback.rs"
+
+[[example]]
+name = "pawas"
+path = "pawa/pawa_status.rs"

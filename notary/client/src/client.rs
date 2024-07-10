@@ -112,19 +112,19 @@ impl AsyncWrite for NotaryConnection {
 pub struct NotaryClient {
     /// Host of the notary server endpoint, either a DNS name (if TLS is used) or IP address.
     #[builder(setter(into))]
-    host: String,
+    pub host: String,
     /// Port of the notary server endpoint.
     #[builder(default = "self.default_port()")]
-    port: u16,
+    pub port: u16,
     /// Flag to turn on/off using TLS with notary server.
     #[builder(setter(name = "enable_tls"), default = "true")]
-    tls: bool,
+    pub tls: bool,
     /// Root certificate store used for establishing TLS connection with notary server.
     #[builder(default = "default_root_store()")]
-    root_cert_store: RootCertStore,
+    pub root_cert_store: RootCertStore,
     /// API key used to call notary server endpoints if whitelisting is enabled in notary server.
     #[builder(setter(into, strip_option), default)]
-    api_key: Option<String>,
+    pub api_key: Option<String>,
 }
 
 impl NotaryClientBuilder {
@@ -243,7 +243,7 @@ impl NotaryClient {
 
             let mut configuration_request_builder = Request::builder()
                 .uri(format!(
-                    "{http_scheme}://{}:{}/session",
+                    "{http_scheme}://{}:{}/v0.1.0-alpha.6/session",
                     self.host, self.port
                 ))
                 .method("POST")
@@ -319,7 +319,7 @@ impl NotaryClient {
                 // Need to specify the session_id so that notary server knows the right configuration to use
                 // as the configuration is set in the previous HTTP call.
                 .uri(format!(
-                    "{http_scheme}://{}:{}/notarize?sessionId={}",
+                    "{http_scheme}://{}:{}/v0.1.0-alpha.6/notarize?sessionId={}",
                     self.host, self.port, &configuration_response_payload_parsed.session_id
                 ))
                 .method("GET")
