@@ -16,6 +16,7 @@ use tracing::{debug, info};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    // todo: replace this logic with logic that listens to the smart contract events and fulfills a payout to the number specified. It then uses that uuid to spin up the notary and prove that the payment went through.
     print!("Enter payout id: ");
     io::stdout().flush().expect("Failed to flush stdout");
 
@@ -88,33 +89,10 @@ async fn main() -> std::io::Result<()> {
 
     tokio::spawn(connection);
 
-    // Create the request
-    // let request = Request::builder()
-    //     .method("GET")
-    //     .uri(format!(
-    //         "https://{}/payouts/{}",
-    //         server_domain, payout_id
-    //     ))
-    //     .header("Authorization", format!("Bearer {jwt}"))
-    //     .header("Content-Type", "application/json")
-    //     .body(Empty::<Bytes>::new()).unwrap();
+    let url = format!("https://{}/payouts/{}", server_domain, payout_id);
 
-    // let request = Request::get(format!("https://{}/payouts/{}", server_domain, payout_id))
-    //     .header(
-    //         hyper::header::AUTHORIZATION,
-    //         format!("Bearer {}", jwt.to_string()),
-    //     )
-    //     .header("Content-Type", "application/json")
-    //     .header(hyper::header::HOST, server_domain.to_string())
-    //     .body(Empty::<Bytes>::new())
-    //     .unwrap();
-
-    let url = "https://api.sandbox.pawapay.cloud/payouts/55b3c3e9-7919-48cc-96f4-a80c988b36c2"
-        .parse::<hyper::Uri>().unwrap();
-    let jwt = "eyJraWQiOiIxIiwiYWxnIjoiSFMyNTYifQ.eyJqdGkiOiJlNWZhYzYyMS0wNWM1LTQ5ZTMtYjg2OS1kODAyMWU5YzI3NmEiLCJzdWIiOiIxOTg5IiwiaWF0IjoxNzE5NDc5OTY2LCJleHAiOjIwMzUwMTI3NjYsInBtIjoiREFGLFBBRiIsInR0IjoiQUFUIn0.1SjH1y-FCIfKYQncc_pNaTZ232ImZH7vTpg3Ab9wlPM";
-    // Create an HTTP request with an empty body and the required headers
     let request = Request::get(url.clone())
-        .header("Authorization", format!("Bearer {}", jwt))
+        .header("Authorization", format!("Bearer {}", jwt.as_str()))
         .header(hyper::header::CONTENT_TYPE, "application/json")
         .header(hyper::header::HOST, "api.sandbox.pawapay.cloud")
         .header("Connection", "close")
@@ -126,8 +104,6 @@ async fn main() -> std::io::Result<()> {
 
     debug!("Sending request: {:?}", request);
 
-    // Because we don't need to decrypt the response right away, we can defer decryption
-    // until after the connection is closed. This will speed up the proving process!
     prover_ctrl.defer_decryption().await.unwrap();
 
     let response = request_sender.send_request(request).await.unwrap();
@@ -138,16 +114,13 @@ async fn main() -> std::io::Result<()> {
 
     debug!("Request OK");
 
-    // Pretty printing :)
     let payload = response.into_body().collect().await.unwrap().to_bytes();
     debug!("Payload: {:?}", payload);
     let response_body = String::from_utf8_lossy(&payload);
     println!("Response: {}", response_body);
 
-    // Deserialize the response
     let payout_responses: Vec<PayoutResponse> = serde_json::from_str(&response_body).unwrap();
 
-    // Assert the status is COMPLETED
     for payout_response in payout_responses {
         assert_eq!(
             payout_response.status, "COMPLETED",
@@ -155,16 +128,12 @@ async fn main() -> std::io::Result<()> {
         );
     }
 
-    // The Prover task should be done now, so we can grab it.
     let prover = prover_task.await.unwrap().unwrap();
 
-    // Upgrade the prover to an HTTP prover, and start notarization.
     let mut prover = prover.to_http().unwrap().start_notarize();
 
-    // Commit to the transcript with the default committer, which will commit using BLAKE3.
     prover.commit().unwrap();
 
-    // Finalize, returning the notarized HTTP session
     let notarized_session = prover.finalize().await.unwrap();
 
     debug!("Notarization complete!");
@@ -196,6 +165,7 @@ async fn main() -> std::io::Result<()> {
 
     for header in &request.headers {
         // Only reveal the host header
+        // todo: reveal the payment uuid and the status as well
         if header.name.as_str().eq_ignore_ascii_case("Host") {
             proof_builder
                 .reveal_sent(header, CommitmentKind::Blake3)
@@ -221,6 +191,9 @@ async fn main() -> std::io::Result<()> {
         session: session_proof,
         substrings: substrings_proof,
     };
+
+    //todo: extract the signature and send it on chain
+    // for now: just verify the signature here and sign a message with a wallet in this .env
 
     // Dump the proof to a file.
     let mut file = tokio::fs::File::create("payout_status_proof.json")
