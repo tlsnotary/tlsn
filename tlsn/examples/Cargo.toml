@@ -66,5 +66,5 @@ name = "pawac"
 path = "pawa/pawa_callback.rs"
 
 [[example]]
-name = "pawas"
-path = "pawa/pawa_status.rs"
+name = "paw"
+path = "paw/paw.rs"
