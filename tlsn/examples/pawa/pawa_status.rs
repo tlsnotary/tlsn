@@ -1,21 +1,18 @@
 use dotenv::dotenv;
 use http_body_util::{BodyExt, Empty};
-use hyper::{body::Bytes, Request, Uri};
-use hyper::header::AUTHORIZATION;
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
-use tlsn_core::commitment::CommitmentKind;
-use tlsn_core::proof::TlsProof;
 use std::{
     env,
     io::{self, Write},
 };
+use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
+use tlsn_examples::PayoutResponse;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
-use hyper_util::rt::TokioIo;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::{debug, info};
-use tlsn_examples::PayoutResponse;
-
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -33,8 +30,8 @@ async fn main() -> std::io::Result<()> {
     let server_domain = "api.sandbox.pawapay.cloud";
 
     tracing_subscriber::fmt()
-    .with_env_filter("debug,yamux=info")
-    .init();
+        .with_env_filter("debug,yamux=info")
+        .init();
 
     dotenv().ok();
 
@@ -91,17 +88,41 @@ async fn main() -> std::io::Result<()> {
 
     tokio::spawn(connection);
 
-    // Construct the URL
-    let url = format!("https://{}/payouts/{}", server_domain, payout_id);
-    let uri: Uri = url.parse().unwrap();
-
     // Create the request
-    let request = Request::builder()
-        .method("GET")
-        .uri(uri.clone())
-        .header(AUTHORIZATION, format!("Bearer {}", jwt))
-        .body(Empty::<Bytes>::new())
-        .unwrap();
+    // let request = Request::builder()
+    //     .method("GET")
+    //     .uri(format!(
+    //         "https://{}/payouts/{}",
+    //         server_domain, payout_id
+    //     ))
+    //     .header("Authorization", format!("Bearer {jwt}"))
+    //     .header("Content-Type", "application/json")
+    //     .body(Empty::<Bytes>::new()).unwrap();
+
+    // let request = Request::get(format!("https://{}/payouts/{}", server_domain, payout_id))
+    //     .header(
+    //         hyper::header::AUTHORIZATION,
+    //         format!("Bearer {}", jwt.to_string()),
+    //     )
+    //     .header("Content-Type", "application/json")
+    //     .header(hyper::header::HOST, server_domain.to_string())
+    //     .body(Empty::<Bytes>::new())
+    //     .unwrap();
+
+    let url = "https://api.sandbox.pawapay.cloud/payouts/55b3c3e9-7919-48cc-96f4-a80c988b36c2"
+        .parse::<hyper::Uri>().unwrap();
+    let jwt = "eyJraWQiOiIxIiwiYWxnIjoiSFMyNTYifQ.eyJqdGkiOiJlNWZhYzYyMS0wNWM1LTQ5ZTMtYjg2OS1kODAyMWU5YzI3NmEiLCJzdWIiOiIxOTg5IiwiaWF0IjoxNzE5NDc5OTY2LCJleHAiOjIwMzUwMTI3NjYsInBtIjoiREFGLFBBRiIsInR0IjoiQUFUIn0.1SjH1y-FCIfKYQncc_pNaTZ232ImZH7vTpg3Ab9wlPM";
+    // Create an HTTP request with an empty body and the required headers
+    let request = Request::get(url.clone())
+        .header("Authorization", format!("Bearer {}", jwt))
+        .header(hyper::header::CONTENT_TYPE, "application/json")
+        .header(hyper::header::HOST, "api.sandbox.pawapay.cloud")
+        .header("Connection", "close")
+        .header("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
+        .header("Pragma", "no-cache")
+        .header("Expires", "0")
+        .header("Accept", "*/*")
+        .body(Empty::<Bytes>::new()).unwrap();
 
     debug!("Sending request: {:?}", request);
 
@@ -113,7 +134,7 @@ async fn main() -> std::io::Result<()> {
 
     debug!("Sent request");
 
-    // assert!(response.status() == StatusCode::OK, "{}", response.status());
+    assert!(response.status() == StatusCode::OK, "{}", response.status());
 
     debug!("Request OK");
 
@@ -128,7 +149,10 @@ async fn main() -> std::io::Result<()> {
 
     // Assert the status is COMPLETED
     for payout_response in payout_responses {
-        assert_eq!(payout_response.status, "COMPLETED", "Payout status is not COMPLETED");
+        assert_eq!(
+            payout_response.status, "COMPLETED",
+            "Payout status is not COMPLETED"
+        );
     }
 
     // The Prover task should be done now, so we can grab it.
