@@ -138,7 +138,6 @@ async fn main() -> std::io::Result<()> {
 
     debug!("Notarization complete!");
 
-    // Dump the notarized session to a file
     let mut file = tokio::fs::File::create("payout_status.json").await.unwrap();
     file.write_all(
         serde_json::to_string_pretty(notarized_session.session())
@@ -152,7 +151,6 @@ async fn main() -> std::io::Result<()> {
 
     let mut proof_builder = notarized_session.session().data().build_substrings_proof();
 
-    // Prove the request, while redacting the secrets from it.
     let request = &notarized_session.transcript().requests[0];
 
     proof_builder
@@ -164,7 +162,6 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
 
     for header in &request.headers {
-        // Only reveal the host header
         // todo: reveal the payment uuid and the status as well
         if header.name.as_str().eq_ignore_ascii_case("Host") {
             proof_builder
@@ -177,14 +174,12 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    // Prove the entire response, as we don't need to redact anything
     let response = &notarized_session.transcript().responses[0];
 
     proof_builder
         .reveal_recv(response, CommitmentKind::Blake3)
         .unwrap();
 
-    // Build the proof
     let substrings_proof = proof_builder.build().unwrap();
 
     let proof = TlsProof {
@@ -195,7 +190,6 @@ async fn main() -> std::io::Result<()> {
     //todo: extract the signature and send it on chain
     // for now: just verify the signature here and sign a message with a wallet in this .env
 
-    // Dump the proof to a file.
     let mut file = tokio::fs::File::create("payout_status_proof.json")
         .await
         .unwrap();
