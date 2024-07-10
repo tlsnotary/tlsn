@@ -1,15 +1,15 @@
+use dotenv::dotenv;
 use elliptic_curve::pkcs8::DecodePrivateKey;
 use futures::{AsyncRead, AsyncWrite};
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
-use serde::{Deserialize, Serialize};
-use dotenv::dotenv;
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
+use serde::{Deserialize, Serialize};
 use std::{env, io::Write};
 use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
 use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::{debug, info};
@@ -106,7 +106,7 @@ pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn
         .unwrap();
 }
 
-pub async fn run_pawa(payout_id: &str) -> std::io::Result<()> {
+pub async fn run_pawa(payout_id: &str) -> std::io::Result<(bool)> {
     println!("Payout ID: {}", payout_id);
     let server_domain = "api.sandbox.pawapay.cloud";
 
@@ -176,11 +176,15 @@ pub async fn run_pawa(payout_id: &str) -> std::io::Result<()> {
         .header(hyper::header::CONTENT_TYPE, "application/json")
         .header(hyper::header::HOST, "api.sandbox.pawapay.cloud")
         .header("Connection", "close")
-        .header("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
+        .header(
+            "Cache-Control",
+            "no-cache, no-store, max-age=0, must-revalidate",
+        )
         .header("Pragma", "no-cache")
         .header("Expires", "0")
         .header("Accept", "*/*")
-        .body(Empty::<Bytes>::new()).unwrap();
+        .body(Empty::<Bytes>::new())
+        .unwrap();
 
     debug!("Sending request: {:?}", request);
 
@@ -277,5 +281,11 @@ pub async fn run_pawa(payout_id: &str) -> std::io::Result<()> {
         .await
         .unwrap();
 
-    Ok(())
+    // let resolution: bool = if let Some(session) = proof.session.into() {
+    //     session.verify(notary_public_key, cert_verifier).is_ok()
+    // } else {
+    //     false
+    // };
+
+    Ok(true) // todo: fix resolution logic
 }
