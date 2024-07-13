@@ -44,7 +44,8 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
             html_info: "example html response".to_string(),
         },
         notarization: NotarizationProperties {
-            max_transcript_size: 1 << 14,
+            max_sent_data: 1 << 13,
+            max_recv_data: 1 << 14,
         },
         tls: TLSProperties {
             enabled: tls_enabled,
