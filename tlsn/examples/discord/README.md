@@ -27,7 +27,7 @@ You can find the `CHANNEL_ID` directly in the url:
 `https://discord.com/channels/@me/{CHANNEL_ID)`
 
 ## Start the notary server
-1. Edit the notary server [config file](../../../notary/server/config/config.yaml) to turn off TLS so that self-signed certificates can be avoided.
+1. Edit the notary server [config file](../../../notary/server/config/config.yaml) to turn off TLS so that self-signed certificates can be avoided (⚠️ this is only for local development purposes — TLS must be used in production).
    ```yaml
     tls:
         enabled: false
