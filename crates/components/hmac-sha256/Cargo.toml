@@ -18,14 +18,14 @@ mock = []
 
 [dependencies]
 tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
-mpz-garble.workspace = true
-mpz-circuits.workspace = true
-mpz-common.workspace = true
+mpz-garble = { workspace = true }
+mpz-circuits = { workspace = true }
+mpz-common = { workspace = true }
 
-async-trait.workspace = true
-futures.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
+async-trait = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 derive_builder = "0.12"
 
 [dev-dependencies]

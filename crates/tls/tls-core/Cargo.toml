@@ -21,15 +21,15 @@ logging = ["tracing"]
 prf = ["dep:hmac", "dep:sha2"]
 
 [dependencies]
-rand.workspace = true
-sct.workspace = true
+rand = { workspace = true }
+sct = { workspace = true }
 webpki = { workspace = true, features = ["alloc", "std"] }
 tracing = { workspace = true, optional = true }
-ring.workspace = true
-futures.workspace = true
+ring = { workspace = true }
+futures = { workspace = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
-rustls-pemfile.workspace = true
-thiserror.workspace = true
-web-time.workspace = true
+rustls-pemfile = { workspace = true }
+thiserror = { workspace = true }
+web-time = { workspace = true }
 hmac = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }

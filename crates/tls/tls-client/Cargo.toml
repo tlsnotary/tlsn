@@ -16,19 +16,19 @@ name = "tls_client"
 tlsn-tls-backend = { path = "../tls-backend" }
 tlsn-tls-core = { path = "../tls-core" }
 
-async-trait.workspace = true
+async-trait = { workspace = true }
 log = { workspace = true, optional = true }
-ring.workspace = true
-sct.workspace = true
+ring = { workspace = true }
+sct = { workspace = true }
 webpki = { workspace = true, features = ["alloc", "std"] }
-aes-gcm.workspace = true
+aes-gcm = { workspace = true }
 p256 = { workspace = true, features = ["ecdh"] }
-rand.workspace = true
-hmac.workspace = true
+rand = { workspace = true }
+hmac = { workspace = true }
 sha2 = { workspace = true, features = ["compress"] }
-digest.workspace = true
-futures.workspace = true
-web-time.workspace = true
+digest = { workspace = true }
+futures = { workspace = true }
+web-time = { workspace = true }
 
 [features]
 default = ["logging", "tls12"]
@@ -36,9 +36,9 @@ logging = ["log"]
 tls12 = []
 
 [dev-dependencies]
-env_logger.workspace = true
-webpki-roots.workspace = true
-rustls-pemfile.workspace = true
+env_logger = { workspace = true }
+webpki-roots = { workspace = true }
+rustls-pemfile = { workspace = true }
 rustls = { workspace = true, features = ["tls12"] }
 tokio = { workspace = true, features = ["rt", "macros"] }
 

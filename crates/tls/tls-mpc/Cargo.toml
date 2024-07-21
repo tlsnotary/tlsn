@@ -36,15 +36,15 @@ tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
 uid-mux = { version = "0.1", features = ["serio"] }
 
-p256.workspace = true
-rand.workspace = true
-futures.workspace = true
-async-trait.workspace = true
-serde.workspace = true
-derive_builder.workspace = true
-enum-try-as-inner.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
+p256 = { workspace = true }
+rand = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+derive_builder = { workspace = true }
+enum-try-as-inner = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 ludi = { git = "https://github.com/sinui0/ludi", rev = "b590de5" }
 
 [dev-dependencies]
@@ -53,6 +53,6 @@ tlsn-tls-client-async = { path = "../tls-client-async" }
 tls-server-fixture = { path = "../tls-server-fixture" }
 serio = { version = "0.1", features = ["compat"] }
 
-tracing-subscriber.workspace = true
+tracing-subscriber = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat"] }

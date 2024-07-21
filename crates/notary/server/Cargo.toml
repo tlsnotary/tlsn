@@ -5,18 +5,18 @@ edition = "2021"
 
 [dependencies]
 async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
-http.workspace = true
-http-body-util.workspace = true
+http = { workspace = true }
+http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1", "server"] }
 hyper-util = { workspace = true, features = ["full"] }
-rustls.workspace = true
-rustls-pemfile.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tokio-rustls.workspace = true
+tokio-rustls = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
-tracing.workspace = true
+tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 ws_stream_tungstenite = { workspace = true, features = ["tokio_io"] }

@@ -5,13 +5,13 @@ publish = false
 version = "0.0.0"
 
 [dependencies]
-notary-client.workspace = true
-tlsn-core.workspace = true
+notary-client = { workspace = true }
+tlsn-core = { workspace = true }
 tlsn-prover = { workspace = true }
-tlsn-verifier.workspace = true
+tlsn-verifier = { workspace = true }
 
-futures.workspace = true
-http-body-util.workspace = true
+futures = { workspace = true }
+http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
 p256 = { workspace = true, features = ["ecdsa"] }
@@ -23,9 +23,9 @@ tokio = { workspace = true, features = [
   "io-std",
   "fs",
 ] }
-tokio-util.workspace = true
-tracing-subscriber.workspace = true
-tracing.workspace = true
+tokio-util = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing = { workspace = true }
 
 chrono = "0.4"
 dotenv = "0.15.0"

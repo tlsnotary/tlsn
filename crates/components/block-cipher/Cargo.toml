@@ -16,15 +16,15 @@ default = ["mock"]
 mock = []
 
 [dependencies]
-mpz-circuits.workspace = true
-mpz-garble.workspace = true
-tlsn-utils.workspace = true
-async-trait.workspace = true
-thiserror.workspace = true
-derive_builder.workspace = true
-tracing.workspace = true
+mpz-circuits = { workspace = true }
+mpz-garble = { workspace = true }
+tlsn-utils = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+derive_builder = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
-aes.workspace = true
-cipher.workspace = true
+aes = { workspace = true }
+cipher = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }

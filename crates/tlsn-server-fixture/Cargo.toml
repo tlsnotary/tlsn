@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 axum = "0.7"
 anyhow = "1.0"
-futures.workspace = true
+futures = { workspace = true }
 futures-rustls = "0.26"
-hyper.workspace = true
+hyper = { workspace = true }
 hyper-util = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat", "io"] }
