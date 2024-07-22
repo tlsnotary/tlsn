@@ -252,7 +252,6 @@
 // Require docs for public APIs, deny unsafe code, etc.
 #![forbid(unsafe_code)]
 #![allow(dead_code, unused_imports)]
-#![cfg_attr(not(read_buf), forbid(unstable_features))]
 #![deny(
     clippy::clone_on_ref_ptr,
     clippy::use_self,
@@ -276,15 +275,6 @@
 #![allow(clippy::all)]
 // Enable documentation for all features on docs.rs
 #![cfg_attr(docsrs, feature(doc_cfg))]
-// XXX: Because of https://github.com/rust-lang/rust/issues/54726, we cannot
-// write `#![rustversion::attr(nightly, feature(read_buf))]` here. Instead,
-// build.rs set `read_buf` for (only) Rust Nightly to get the same effect.
-//
-// All the other conditional logic in the crate could use
-// `#[rustversion::nightly]` instead of `#[cfg(read_buf)]`; `#[cfg(read_buf)]`
-// is used to avoid needing `rustversion` to be compiled twice during
-// cross-compiling.
-#![cfg_attr(read_buf, feature(read_buf))]
 
 // log for logging (optional).
 #[cfg(feature = "logging")]
@@ -359,8 +349,6 @@ pub use tls_core::{
     suites::{SupportedCipherSuite, ALL_CIPHER_SUITES},
     versions::{SupportedProtocolVersion, ALL_VERSIONS},
 };
-//pub use crate::stream::{Stream, StreamOwned};
-//pub use crate::ticketer::Ticketer;
 
 /// Items for use in a client.
 pub mod client {
@@ -379,16 +367,6 @@ pub mod client {
         ResolvesClientCert, ServerName, StoresClientSessions,
     };
     pub use handy::{ClientSessionMemoryCache, NoClientSessionStorage};
-
-    #[cfg(feature = "dangerous_configuration")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous_configuration")))]
-    pub use crate::verify::{
-        CertificateTransparencyPolicy, HandshakeSignatureValid, ServerCertVerified,
-        ServerCertVerifier, WebPkiVerifier,
-    };
-    #[cfg(feature = "dangerous_configuration")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous_configuration")))]
-    pub use client_conn::danger::DangerousClientConfig;
 }
 
 pub use client::{ClientConfig, ClientConnection, ServerName};
@@ -415,13 +393,6 @@ pub mod sign;
 /// This is the rustls manual.
 pub mod manual;
 
-/** Type renames. */
-#[allow(clippy::upper_case_acronyms)]
-#[cfg(feature = "dangerous_configuration")]
-#[cfg_attr(docsrs, doc(cfg(feature = "dangerous_configuration")))]
-#[doc(hidden)]
-#[deprecated(since = "0.20.0", note = "Use client::WebPkiVerifier")]
-pub type WebPKIVerifier = client::WebPkiVerifier;
 #[allow(clippy::upper_case_acronyms)]
 #[doc(hidden)]
 #[deprecated(since = "0.20.0", note = "Use Error")]
