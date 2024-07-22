@@ -94,7 +94,7 @@ async fn bytes(
         .and_then(|size| size.parse::<usize>().ok())
         .unwrap_or(1);
 
-    if params.get("shutdown").is_some() {
+    if params.contains_key("shutdown") {
         _ = state.lock().unwrap().shutdown.take().unwrap().send(());
     }
 
@@ -110,7 +110,7 @@ async fn json(
         .and_then(|size| size.parse::<usize>().ok())
         .unwrap_or(1);
 
-    if params.get("shutdown").is_some() {
+    if params.contains_key("shutdown") {
         _ = state.lock().unwrap().shutdown.take().unwrap().send(());
     }
 
@@ -126,7 +126,7 @@ async fn html(
     State(state): State<Arc<Mutex<AppState>>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Html<&'static str> {
-    if params.get("shutdown").is_some() {
+    if params.contains_key("shutdown") {
         _ = state.lock().unwrap().shutdown.take().unwrap().send(());
     }
 

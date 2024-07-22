@@ -171,39 +171,11 @@ impl ClientConfig {
                 .any(|cs| cs.version().version == v)
     }
 
-    /// Access configuration options whose use is dangerous and requires
-    /// extra care.
-    #[cfg(feature = "dangerous_configuration")]
-    pub fn dangerous(&mut self) -> danger::DangerousClientConfig {
-        danger::DangerousClientConfig { cfg: self }
-    }
-
     pub(super) fn find_cipher_suite(&self, suite: CipherSuite) -> Option<SupportedCipherSuite> {
         self.cipher_suites
             .iter()
             .copied()
             .find(|&scs| scs.suite() == suite)
-    }
-}
-
-/// Container for unsafe APIs
-#[cfg(feature = "dangerous_configuration")]
-pub(super) mod danger {
-    use std::sync::Arc;
-
-    use super::{verify::ServerCertVerifier, ClientConfig};
-
-    /// Accessor for dangerous configuration options.
-    pub struct DangerousClientConfig<'a> {
-        /// The underlying ClientConfig
-        pub cfg: &'a mut ClientConfig,
-    }
-
-    impl<'a> DangerousClientConfig<'a> {
-        /// Overrides the default `ServerCertVerifier` with something else.
-        pub fn set_certificate_verifier(&mut self, verifier: Arc<dyn ServerCertVerifier>) {
-            self.cfg.verifier = verifier;
-        }
     }
 }
 

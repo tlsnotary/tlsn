@@ -96,19 +96,6 @@ impl ChunkVecBuffer {
         Ok(offs)
     }
 
-    #[cfg(read_buf)]
-    /// Read data out of this object, writing it into `buf`.
-    pub(crate) fn read_buf(&mut self, buf: &mut io::ReadBuf<'_>) -> io::Result<()> {
-        while !self.is_empty() && buf.remaining() > 0 {
-            let chunk = self.chunks[0].as_slice();
-            let used = std::cmp::min(chunk.len(), buf.remaining());
-            buf.append(&chunk[..used]);
-            self.consume(used);
-        }
-
-        Ok(())
-    }
-
     fn consume(&mut self, mut used: usize) {
         while let Some(mut buf) = self.chunks.pop_front() {
             if used < buf.len() {
@@ -171,39 +158,5 @@ mod test {
         let mut buf = [0u8; 12];
         assert_eq!(cvb.read(&mut buf).unwrap(), 12);
         assert_eq!(buf.to_vec(), b"helloworldhe".to_vec());
-    }
-
-    #[cfg(read_buf)]
-    #[test]
-    fn read_buf() {
-        use std::{io::ReadBuf, mem::MaybeUninit};
-
-        {
-            let mut cvb = ChunkVecBuffer::new(None);
-            cvb.append(b"test ".to_vec());
-            cvb.append(b"fixture ".to_vec());
-            cvb.append(b"data".to_vec());
-
-            let mut buf = [MaybeUninit::<u8>::uninit(); 8];
-            let mut buf = ReadBuf::uninit(&mut buf);
-            cvb.read_buf(&mut buf).unwrap();
-            assert_eq!(buf.filled(), b"test fix");
-            buf.clear();
-            cvb.read_buf(&mut buf).unwrap();
-            assert_eq!(buf.filled(), b"ture dat");
-            buf.clear();
-            cvb.read_buf(&mut buf).unwrap();
-            assert_eq!(buf.filled(), b"a");
-        }
-
-        {
-            let mut cvb = ChunkVecBuffer::new(None);
-            cvb.append(b"short message".to_vec());
-
-            let mut buf = [MaybeUninit::<u8>::uninit(); 1024];
-            let mut buf = ReadBuf::uninit(&mut buf);
-            cvb.read_buf(&mut buf).unwrap();
-            assert_eq!(buf.filled(), b"short message");
-        }
     }
 }

@@ -58,8 +58,8 @@ impl BlockVars {
         self.blocks
             .iter()
             .flat_map(|block| block.iter())
-            .cloned()
             .take(len)
+            .cloned()
             .map(|byte| ValueRef::Value { id: byte })
             .collect()
     }
@@ -132,6 +132,7 @@ impl<C: CtrCircuit> KeyStream<C> {
     }
 
     #[instrument(level = "debug", skip_all, err)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn compute<T>(
         &mut self,
         thread: &mut T,

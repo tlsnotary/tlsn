@@ -55,10 +55,10 @@ pub(crate) enum ExecutionMode {
 }
 
 pub(crate) fn is_valid_mode(mode: &ExecutionMode, input_text: &InputText) -> bool {
-    match (mode, input_text) {
-        (ExecutionMode::Mpc, _) => true,
-        (ExecutionMode::Prove, InputText::Private { .. }) => true,
-        (ExecutionMode::Verify, InputText::Blind { .. }) => true,
-        _ => false,
-    }
+    matches!(
+        (mode, input_text),
+        (ExecutionMode::Mpc, _)
+            | (ExecutionMode::Prove, InputText::Private { .. })
+            | (ExecutionMode::Verify, InputText::Blind { .. })
+    )
 }

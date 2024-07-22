@@ -26,22 +26,6 @@ impl ConfigBuilder<WantsVerifier> {
             },
         }
     }
-
-    #[cfg(feature = "dangerous_configuration")]
-    /// Set a custom certificate verifier.
-    pub fn with_custom_certificate_verifier(
-        self,
-        verifier: Arc<dyn verify::ServerCertVerifier>,
-    ) -> ConfigBuilder<WantsClientCert> {
-        ConfigBuilder {
-            state: WantsClientCert {
-                cipher_suites: self.state.cipher_suites,
-                kx_groups: self.state.kx_groups,
-                versions: self.state.versions,
-                verifier,
-            },
-        }
-    }
 }
 
 /// A config builder state where the caller needs to supply a certificate transparency policy or

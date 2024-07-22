@@ -97,9 +97,6 @@ mod test {
     #[test]
     fn test_api_key_is_absent() {
         let whitelist = get_whitelist_fixture();
-        assert_eq!(
-            api_key_is_valid("test-api-keY-0", &Arc::new(whitelist)),
-            false
-        );
+        assert!(!api_key_is_valid("test-api-keY-0", &Arc::new(whitelist)));
     }
 }

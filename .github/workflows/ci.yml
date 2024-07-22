@@ -29,8 +29,8 @@ jobs:
           - components/prf
           - components/tls
           - components/tls/tls-mpc
-          - tlsn
           - notary
+          - tlsn
           - tlsn/tests-integration
         include:
           - package: components/tls/tls-mpc
@@ -66,7 +66,7 @@ jobs:
           components: clippy
 
       - name: "Clippy"
-        run: cargo clippy --all-features --examples -- -D warnings
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.3

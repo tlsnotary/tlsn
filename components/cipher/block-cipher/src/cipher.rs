@@ -118,6 +118,7 @@ where
 }
 
 #[async_trait]
+#[allow(clippy::blocks_in_conditions)]
 impl<C, E> BlockCipher<C> for MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
@@ -138,7 +139,7 @@ where
             .state
             .key
             .clone()
-            .ok_or_else(|| BlockCipherError::key_not_set())?;
+            .ok_or_else(BlockCipherError::key_not_set)?;
 
         for _ in 0..count {
             let vars = self.define_block(visibility);
@@ -173,7 +174,7 @@ where
             .state
             .key
             .clone()
-            .ok_or_else(|| BlockCipherError::key_not_set())?;
+            .ok_or_else(BlockCipherError::key_not_set)?;
 
         let BlockVars { msg, ciphertext } =
             if let Some(vars) = self.state.preprocessed_private.pop_front() {
@@ -209,7 +210,7 @@ where
             .state
             .key
             .clone()
-            .ok_or_else(|| BlockCipherError::key_not_set())?;
+            .ok_or_else(BlockCipherError::key_not_set)?;
 
         let BlockVars { msg, ciphertext } =
             if let Some(vars) = self.state.preprocessed_private.pop_front() {
@@ -248,7 +249,7 @@ where
             .state
             .key
             .clone()
-            .ok_or_else(|| BlockCipherError::key_not_set())?;
+            .ok_or_else(BlockCipherError::key_not_set)?;
 
         let BlockVars { msg, ciphertext } =
             if let Some(vars) = self.state.preprocessed_public.pop_front() {

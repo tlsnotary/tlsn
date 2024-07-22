@@ -8,13 +8,9 @@ license = "MIT OR Apache-2.0"
 version = "0.1.0-alpha.6"
 edition = "2021"
 autobenches = false
-build = "build.rs"
 
 [lib]
 name = "tls_client"
-
-[build-dependencies]
-rustversion = { version = "1", optional = true }
 
 [dependencies]
 tlsn-tls-backend = { path = "../tls-backend" }
@@ -37,9 +33,7 @@ web-time.workspace = true
 [features]
 default = ["logging", "tls12"]
 logging = ["log"]
-dangerous_configuration = []
 tls12 = []
-read_buf = ["rustversion"]
 
 [dev-dependencies]
 env_logger.workspace = true

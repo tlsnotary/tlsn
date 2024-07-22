@@ -89,6 +89,7 @@ impl<C, Ctx> Debug for Ghash<C, Ctx> {
 }
 
 #[async_trait]
+#[allow(clippy::blocks_in_conditions)]
 impl<Ctx, C> UniversalHash for Ghash<C, Ctx>
 where
     Ctx: Context,
