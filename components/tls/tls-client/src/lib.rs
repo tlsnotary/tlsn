@@ -259,7 +259,6 @@
     trivial_casts,
     trivial_numeric_casts,
     missing_docs,
-    //unreachable_pub,
     unused_import_braces,
     unused_extern_crates,
     unused_qualifications
@@ -274,13 +273,7 @@
 //   a false positive, https://github.com/rust-lang/rust-clippy/issues/5210
 // - new_without_default: for internal constructors, the indirection is not
 //   helpful
-#![allow(
-    clippy::too_many_arguments,
-    clippy::new_ret_no_self,
-    clippy::ptr_arg,
-    clippy::single_component_path_imports,
-    clippy::new_without_default
-)]
+#![allow(clippy::all)]
 // Enable documentation for all features on docs.rs
 #![cfg_attr(docsrs, feature(doc_cfg))]
 // XXX: Because of https://github.com/rust-lang/rust/issues/54726, we cannot

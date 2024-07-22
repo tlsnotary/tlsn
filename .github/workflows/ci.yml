@@ -65,19 +65,8 @@ jobs:
           toolchain: stable
           components: clippy
 
-      # Cargo tool used to exclude components/tls/tls-client crate when running cargo clippy in components/tls workspace
-      - name: Install cargo hack
-        if: matrix.package == 'components/tls'
-        uses: taiki-e/install-action@cargo-hack
-
-      # Temporarily excludes components/tls/tls-client crate (tlsn-tls-client) from cargo clippy until the crate's test is fixed
       - name: "Clippy"
-        run: |
-          if [[ "${{ matrix.package }}" == "components/tls" ]]; then
-            cargo hack clippy --workspace --exclude tlsn-tls-client --all-features --all-targets -- -D warnings
-          else
-            cargo clippy --all-features --all-targets -- -D warnings
-          fi
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.3
