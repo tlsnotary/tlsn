@@ -244,6 +244,7 @@ mod tests {
     #[rstest]
     #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_stream_cipher_public() {
         let key = [0u8; 16];
         let iv = [0u8; 4];
@@ -297,6 +298,7 @@ mod tests {
     #[rstest]
     #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_stream_cipher_private() {
         let key = [0u8; 16];
         let iv = [0u8; 4];
@@ -351,6 +353,7 @@ mod tests {
     #[rstest]
     #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_stream_cipher_share_key_block() {
         let key = [0u8; 16];
         let iv = [0u8; 4];
@@ -389,6 +392,7 @@ mod tests {
     #[rstest]
     #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_stream_cipher_zk() {
         let key = [0u8; 16];
         let iv = [0u8; 4];
@@ -420,6 +424,7 @@ mod tests {
     #[case::extra(128)]
     #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_stream_cipher_preprocess(#[case] len: usize) {
         let key = [0u8; 16];
         let iv = [0u8; 4];

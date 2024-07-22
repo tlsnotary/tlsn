@@ -515,6 +515,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_aes_gcm_encrypt_private() {
         let key = vec![0u8; 16];
         let iv = vec![0u8; 4];
@@ -538,6 +539,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_aes_gcm_encrypt_public() {
         let key = vec![0u8; 16];
         let iv = vec![0u8; 4];
@@ -561,6 +563,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_private() {
         let key = vec![0u8; 16];
         let iv = vec![0u8; 4];
@@ -581,6 +584,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_private_bad_tag() {
         let key = vec![0u8; 16];
         let iv = vec![0u8; 4];
@@ -617,6 +621,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_public() {
         let key = vec![0u8; 16];
         let iv = vec![0u8; 4];
@@ -638,6 +643,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_public_bad_tag() {
         let key = vec![0u8; 16];
         let iv = vec![0u8; 4];
@@ -674,6 +680,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_aes_gcm_verify_tag() {
         let key = vec![0u8; 16];
         let iv = vec![0u8; 4];

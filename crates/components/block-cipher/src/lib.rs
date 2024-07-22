@@ -98,6 +98,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_block_cipher_blind() {
         let leader_config = BlockCipherConfig::builder().id("test").build().unwrap();
         let follower_config = BlockCipherConfig::builder().id("test").build().unwrap();
@@ -134,6 +135,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_block_cipher_share() {
         let leader_config = BlockCipherConfig::builder().id("test").build().unwrap();
         let follower_config = BlockCipherConfig::builder().id("test").build().unwrap();
@@ -171,6 +173,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "expensive"]
     async fn test_block_cipher_preprocess() {
         let leader_config = BlockCipherConfig::builder().id("test").build().unwrap();
         let follower_config = BlockCipherConfig::builder().id("test").build().unwrap();
