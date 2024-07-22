@@ -33,9 +33,7 @@ web-time.workspace = true
 [features]
 default = ["logging", "tls12"]
 logging = ["log"]
-# dangerous_configuration = []
 tls12 = []
-# read_buf = ["rustversion"]
 
 [dev-dependencies]
 env_logger.workspace = true
