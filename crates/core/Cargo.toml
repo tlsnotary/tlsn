@@ -14,33 +14,30 @@ fixtures = ["dep:hex"]
 
 [dependencies]
 tlsn-tls-core = { workspace = true, features = ["serde"] }
-
 tlsn-utils = { workspace = true }
 
+mpz-circuits = { workspace = true }
 mpz-core = { workspace = true }
 mpz-garble-core = { workspace = true }
-mpz-circuits = { workspace = true }
-
-thiserror = { workspace = true }
-serde = { workspace = true }
-p256 = { workspace = true, features = ["serde"] }
-webpki-roots = { workspace = true }
-rs_merkle = { workspace = true }
-rstest = { workspace = true, optional = true }
-hex = { workspace = true, optional = true }
-bytes = { workspace = true, features = ["serde"] }
-opaque-debug = { workspace = true }
 
 bimap = { version = "0.6.3", features = ["serde"] }
-
+bytes = { workspace = true, features = ["serde"] }
+hex = { workspace = true, optional = true }
+opaque-debug = { workspace = true }
+p256 = { workspace = true, features = ["serde"] }
+rs_merkle = { workspace = true }
+rstest = { workspace = true, optional = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
 web-time = { workspace = true }
+webpki-roots = { workspace = true }
 
 [dev-dependencies]
-rstest = { workspace = true }
-hex = { workspace = true }
-rand_core = { workspace = true }
-rand_chacha = { workspace = true }
 bincode = { workspace = true }
+hex = { workspace = true }
+rand_chacha = { workspace = true }
+rand_core = { workspace = true }
+rstest = { workspace = true }
 
 [[test]]
 name = "api"

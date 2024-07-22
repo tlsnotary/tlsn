@@ -8,11 +8,11 @@ edition = "2021"
 default = []
 
 [dependencies]
+mpz-common = { workspace = true }
 mpz-garble = { workspace = true }
 mpz-ot = { workspace = true }
-mpz-common = { workspace = true }
 
 futures = { workspace = true }
 serio = { workspace = true, features = ["codec", "bincode"] }
-uid-mux = { workspace = true, features = ["serio"] }
 tracing = { workspace = true }
+uid-mux = { workspace = true, features = ["serio"] }

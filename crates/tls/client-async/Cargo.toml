@@ -16,19 +16,21 @@ default = ["tracing"]
 tracing = ["dep:tracing"]
 
 [dependencies]
-tlsn-tls-client = { path = "../tls-client" }
+tlsn-tls-client = { workspace = true }
+
 bytes = { workspace = true }
 futures = { workspace = true }
+thiserror = { workspace = true }
 tokio-util = { workspace = true, features = ["io", "compat"] }
 tracing = { workspace = true, optional = true }
-thiserror = { workspace = true }
 
 [dev-dependencies]
-tracing-subscriber = { workspace = true }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
-webpki-roots = { workspace = true }
-hyper = { workspace = true, features = ["client", "http1"] }
-tls-server-fixture = { path = "../tls-server-fixture" }
-rstest = { workspace = true }
+tls-server-fixture = { workspace = true }
+
 http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
+rstest = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+tracing-subscriber = { workspace = true }
+webpki-roots = { workspace = true }

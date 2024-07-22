@@ -16,6 +16,6 @@ futures-rustls = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["full"] }
 hyper-util = { workspace = true, features = ["full"] }
+tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat", "io-util"] }
 tracing = { workspace = true }
-tokio = { workspace = true }

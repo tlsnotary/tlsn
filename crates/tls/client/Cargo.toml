@@ -13,8 +13,8 @@ autobenches = false
 name = "tls_client"
 
 [dependencies]
-tlsn-tls-backend = { path = "../tls-backend" }
-tlsn-tls-core = { path = "../tls-core" }
+tlsn-tls-backend = { workspace = true }
+tlsn-tls-core = { workspace = true }
 
 async-trait = { workspace = true }
 log = { workspace = true, optional = true }

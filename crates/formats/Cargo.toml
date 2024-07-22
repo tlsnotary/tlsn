@@ -8,8 +8,8 @@ tlsn-core = { workspace = true }
 tlsn-utils = { workspace = true }
 
 bytes = { workspace = true }
-spansy = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
+spansy = { workspace = true, features = ["serde"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]

@@ -17,21 +17,22 @@ rayon = ["mpz-common/rayon"]
 mock = []
 
 [dependencies]
-tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
+tlsn-hmac-sha256-circuits = { workspace = true }
+
 mpz-garble = { workspace = true }
 mpz-circuits = { workspace = true }
 mpz-common = { workspace = true }
 
 async-trait = { workspace = true }
+derive_builder = { workspace = true }
 futures = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-derive_builder = "0.12"
 
 [dev-dependencies]
+criterion = { workspace = true, features = ["async_tokio"] }
 mpz-common = { workspace = true, features = ["test-utils"] }
 mpz-ot = { workspace = true, features = ["ideal"] }
-criterion = { workspace = true, features = ["async_tokio"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 
 [[bench]]

@@ -16,24 +16,26 @@ default = ["mock"]
 mock = ["mpz-common/test-utils", "dep:mpz-ot"]
 
 [dependencies]
-tlsn-block-cipher = { path = "../cipher/block-cipher" }
-tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
-tlsn-universal-hash = { path = "../universal-hash" }
+tlsn-block-cipher = { workspace = true }
+tlsn-stream-cipher = { workspace = true }
+tlsn-universal-hash = { workspace = true }
+
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", optional = true, features = [
     "ideal",
 ] }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-serio = "0.1"
 
-async-trait = "0.1"
-derive_builder = "0.12"
-thiserror = "1"
-futures = "0.3"
-serde = "1"
-tracing = "0.1"
+serio = { workspace = true }
+
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
-aes-gcm = "0.10"
+aes-gcm = { workspace = true }

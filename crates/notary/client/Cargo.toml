@@ -4,8 +4,10 @@ version = "0.1.0-alpha.6"
 edition = "2021"
 
 [dependencies]
-tlsn-common = { path = "../../tlsn/tlsn-common" }
+tlsn-common = { workspace = true }
 
+derive_builder = { workspace = true }
+futures = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
@@ -22,7 +24,4 @@ tokio = { workspace = true, features = [
 ] }
 tokio-rustls = { workspace = true }
 tracing = { workspace = true }
-
-derive_builder = "0.12"
-futures = "0.3"
-webpki-roots = "0.26"
+webpki-roots = { workspace = true }

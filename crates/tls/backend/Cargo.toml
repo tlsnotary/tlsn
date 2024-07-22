@@ -11,10 +11,9 @@ edition = "2021"
 [lib]
 name = "tls_backend"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-tlsn-tls-core = { path = "../tls-core" }
+tlsn-tls-core = { workspace = true }
+
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
