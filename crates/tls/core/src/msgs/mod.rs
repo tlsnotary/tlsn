@@ -31,8 +31,10 @@ mod test {
 
     #[test]
     fn smoketest() {
-        use super::codec::Reader;
-        use super::message::{Message, OpaqueMessage};
+        use super::{
+            codec::Reader,
+            message::{Message, OpaqueMessage},
+        };
         let bytes = include_bytes!("handshake-test.1.bin");
         let mut r = Reader::init(bytes);
 
