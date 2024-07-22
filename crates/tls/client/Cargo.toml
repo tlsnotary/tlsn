@@ -39,7 +39,7 @@ tls12 = []
 env_logger = { workspace = true }
 webpki-roots = { workspace = true }
 rustls-pemfile = { workspace = true }
-rustls = { workspace = true, features = ["tls12"] }
+rustls = { version = "0.20", features = ["tls12"] }
 tokio = { workspace = true, features = ["rt", "macros"] }
 
 [[example]]

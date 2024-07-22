@@ -429,10 +429,7 @@ mod tests {
         aes_gcm::{mock::create_mock_aes_gcm_pair, AesGcmConfigBuilder, Role},
         Aead,
     };
-    use ::aes_gcm::{
-        aead::{AeadInPlace, KeyInit},
-        Aes128Gcm, Nonce,
-    };
+    use ::aes_gcm::{aead::AeadInPlace, Aes128Gcm, NewAead, Nonce};
     use error::ErrorKind;
     use mpz_common::executor::STExecutor;
     use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory};
