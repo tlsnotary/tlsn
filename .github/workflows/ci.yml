@@ -75,7 +75,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.5.0
 
       - name: Build
-        run: cargo build --target wasm32-unknown-unknown
+        run: cargo build -p tlsn-tls-client -p tlsn-tls-core -p tlsn-core --target wasm32-unknown-unknown
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
