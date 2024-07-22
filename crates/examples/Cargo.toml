@@ -11,7 +11,7 @@ tlsn-prover = { workspace = true }
 tlsn-verifier = { workspace = true }
 
 chrono = { workspace = true }
-dotenv = "0.15.0"
+dotenv = { version = "0.15.0" }
 elliptic-curve = { workspace = true, features = ["pkcs8"] }
 futures = { workspace = true }
 http-body-util = { workspace = true }

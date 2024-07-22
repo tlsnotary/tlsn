@@ -24,7 +24,7 @@ async-trait = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = { workspace = true }
 tracing = { workspace = true }
-opaque-debug = "0.3"
+opaque-debug = { workspace = true }
 
 [dev-dependencies]
 futures = { workspace = true }
