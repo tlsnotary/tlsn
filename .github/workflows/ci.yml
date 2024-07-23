@@ -15,49 +15,31 @@ env:
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
-  build_and_test:
-    name: Build and test
+  fmt:
+    name: Check formatting
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        package:
-          - components/cipher
-          - components/universal-hash
-          - components/aead
-          - components/key-exchange
-          - components/prf
-          - components/tls
-          - components/tls/tls-mpc
-          - notary
-          - tlsn
-          - tlsn/tests-integration
-        include:
-          - package: components/tls/tls-mpc
-            ignored: true
-            release: true
-          - package: notary
-            release: true
-          - package: tlsn
-            all-features: true
-          - package: tlsn/tests-integration
-            release: true
-            ignored: true
-    defaults:
-      run:
-        working-directory: ${{ matrix.package }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+        # We use nightly to support `imports_granularity` feature
       - name: Install nightly rust toolchain with rustfmt
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
           components: rustfmt
 
-      - name: "Check formatting"
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.7.3
+
+      - name: Check formatting
         run: cargo +nightly fmt --check --all
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -65,32 +47,52 @@ jobs:
           toolchain: stable
           components: clippy
 
-      - name: "Clippy"
+      - name: Clippy
         run: cargo clippy --all-features --all-targets -- -D warnings
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.3
-        with:
-          workspaces: ${{ matrix.package }}
 
-      - name: "Build"
-        run: cargo build ${{ matrix.release && '--release' }}
+      - name: Build
+        run: cargo build --all-targets
+
+      - name: Test
+        run: cargo test
+  build-wasm:
+    name: Build for target wasm32-unknown-unknown
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install stable rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          toolchain: stable
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.5.0
+
+      - name: Build
+        run: cargo build -p tlsn-tls-client -p tlsn-tls-core -p tlsn-core --target wasm32-unknown-unknown
+  tests-integration:
+    name: Run tests release build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install stable rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.7.3
 
       - name: Add custom DNS entry to /etc/hosts for notary TLS test
-        if: matrix.package == 'notary'
         run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
 
-      - name: "Test ${{ matrix.release && '--release' || '' }} ${{ matrix.all-features && '--all-features' || '' }}"
-        env:
-          RELEASE_OPTION: ${{ matrix.release && '--release' || '' }}
-          # Includes tests marked as `ignore`.
-          IGNORED_OPTION: ${{ matrix.ignored && '--include-ignored' || '' }}
-          ALL_FEATURES_OPTION: ${{ matrix.all-features && '--all-features' || '' }}
-        # Run all tests (bins, examples, lib, integration and docs)
-        # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
-        run: |
-          echo "Running command: cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION -- $IGNORED_OPTION"
-          cargo test $RELEASE_OPTION $ALL_FEATURES_OPTION -- $IGNORED_OPTION
-
-      - name: "Check that benches compile"
-        run: cargo bench --no-run
+      - name: Run integration tests
+        run: cargo test --release --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored

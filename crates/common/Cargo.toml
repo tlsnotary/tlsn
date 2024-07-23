@@ -1,0 +1,18 @@
+[package]
+name = "tlsn-common"
+description = "Common code shared between tlsn-prover and tlsn-verifier"
+version = "0.1.0-alpha.6"
+edition = "2021"
+
+[features]
+default = []
+
+[dependencies]
+mpz-common = { workspace = true }
+mpz-garble = { workspace = true }
+mpz-ot = { workspace = true }
+
+futures = { workspace = true }
+serio = { workspace = true, features = ["codec", "bincode"] }
+tracing = { workspace = true }
+uid-mux = { workspace = true, features = ["serio"] }
