@@ -1,3 +1,5 @@
+#![allow(clippy::single_range_in_vec_init)]
+
 use std::collections::HashMap;
 
 use tls_core::verify::WebPkiVerifier;
