@@ -47,11 +47,11 @@ jobs:
           toolchain: stable
           components: clippy
 
-      - name: Clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
-
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.3
+
+      - name: Clippy
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
       - name: Build
         run: cargo build --all-targets
@@ -95,4 +95,4 @@ jobs:
         run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
 
       - name: Run integration tests
-        run: cargo test --release --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored
+        run: cargo test --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored

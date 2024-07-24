@@ -27,6 +27,10 @@ members = [
 ]
 resolver = "2"
 
+[profile.tests-integration]
+inherits = "release"
+opt-level = 1
+
 [workspace.dependencies]
 notary-client = { path = "crates/notary/client" }
 notary-server = { path = "crates/notary/server" }
