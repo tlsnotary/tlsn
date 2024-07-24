@@ -179,7 +179,7 @@ impl MpcTlsLeader {
             Direction::Sent => {
                 let new_len = self.encrypter.sent_bytes() + len;
                 let max_size = self.config.common().tx_config().max_online_size()
-                    + self.config.common().rx_config().max_offline_size();
+                    + self.config.common().tx_config().max_offline_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,
@@ -192,7 +192,7 @@ impl MpcTlsLeader {
             }
             Direction::Recv => {
                 let new_len = self.decrypter.recv_bytes() + len;
-                let max_size = self.config.common().tx_config().max_online_size()
+                let max_size = self.config.common().rx_config().max_online_size()
                     + self.config.common().rx_config().max_offline_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
