@@ -89,11 +89,11 @@ jobs:
       - name: Use caching
         uses: Swatinem/rust-cache@v2.5.0
         with:
-          workspaces: tlsn/tlsn-wasm-test-runner -> ../target
+          workspaces: crates/wasm-test-runner -> ../target
 
       - name: Run tests
         run: |
-          cd tlsn/tlsn-wasm-test-runner
+          cd crates/wasm-test-runner
           RUST_LOG=debug ./run.sh
   tests-integration:
     name: Run tests release build
