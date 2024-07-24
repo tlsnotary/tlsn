@@ -63,7 +63,7 @@ impl VerifierConfig {
 
     /// Returns the maximum number of bytes that can be sent offline.
     pub fn max_sent_data_offline(&self) -> usize {
-        self.max_sent_data_online
+        self.max_sent_data_offline
     }
 
     /// Returns the maximum number of bytes that can be received online.
@@ -135,16 +135,16 @@ impl VerifierConfig {
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
         ot_send_estimate(
             Role::Verifier,
-            self.max_sent_data_online,
-            self.max_recv_data_online,
+            self.max_sent_data_online + self.max_sent_data_offline,
+            self.max_recv_data_online + self.max_recv_data_offline,
         )
     }
 
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
         ot_recv_estimate(
             Role::Verifier,
-            self.max_sent_data_online,
-            self.max_recv_data_online,
+            self.max_sent_data_online + self.max_sent_data_offline,
+            self.max_recv_data_online + self.max_recv_data_offline,
         )
     }
 }
