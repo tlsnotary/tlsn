@@ -38,12 +38,13 @@ use uid_mux::FramedUidMux as _;
 #[cfg(feature = "formats")]
 use crate::http::{state as http_state, HttpProver, HttpProverError};
 
-use tracing::{debug, debug_span, instrument, Instrument};
+use tracing::{debug, info_span, instrument, Instrument, Span};
 
 /// A prover instance.
 #[derive(Debug)]
 pub struct Prover<T: state::ProverState> {
     config: ProverConfig,
+    span: Span,
     state: T,
 }
 
@@ -54,8 +55,10 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The configuration for the prover.
     pub fn new(config: ProverConfig) -> Self {
+        let span = info_span!("prover", id = config.id());
         Self {
             config,
+            span,
             state: state::Initialized,
         }
     }
@@ -68,7 +71,7 @@ impl Prover<state::Initialized> {
     /// # Arguments
     ///
     /// * `socket` - The socket to the TLS verifier.
-    #[instrument(level = "debug", skip_all, err)]
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
@@ -97,6 +100,7 @@ impl Prover<state::Initialized> {
 
         Ok(Prover {
             config: self.config,
+            span: self.span,
             state: state::Setup {
                 io,
                 mux_ctrl,
@@ -119,7 +123,7 @@ impl Prover<state::Setup> {
     /// # Arguments
     ///
     /// * `socket` - The socket to the server.
-    #[instrument(level = "debug", skip_all, err)]
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn connect<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
@@ -149,6 +153,7 @@ impl Prover<state::Setup> {
         let start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
         let fut = Box::pin({
+            let span = self.span.clone();
             let mpc_ctrl = mpc_ctrl.clone();
             async move {
                 let conn_fut = async {
@@ -168,6 +173,7 @@ impl Prover<state::Setup> {
 
                 Ok(Prover {
                     config: self.config,
+                    span: self.span,
                     state: state::Closed {
                         io,
                         mux_ctrl,
@@ -185,7 +191,7 @@ impl Prover<state::Setup> {
                     },
                 })
             }
-            .instrument(debug_span!("prover"))
+            .instrument(span)
         });
 
         Ok((
@@ -222,6 +228,7 @@ impl Prover<state::Closed> {
     pub fn start_notarize(self) -> Prover<Notarize> {
         Prover {
             config: self.config,
+            span: self.span,
             state: self.state.into(),
         }
     }
@@ -233,6 +240,7 @@ impl Prover<state::Closed> {
     pub fn start_prove(self) -> Prover<Prove> {
         Prover {
             config: self.config,
+            span: self.span,
             state: self.state.into(),
         }
     }
@@ -245,6 +253,8 @@ async fn setup_mpc_backend(
     mux: &MuxControl,
     exec: &mut Executor,
 ) -> Result<(MpcTlsLeader, DEAPThread, OTReceiver), ProverError> {
+    debug!("starting MPC backend setup");
+
     let mut ot_sender = kos::Sender::new(
         config.build_ot_sender_config(),
         chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),

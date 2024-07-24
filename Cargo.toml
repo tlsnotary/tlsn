@@ -23,7 +23,9 @@ members = [
     "crates/tls/core",
     "crates/tls/mpc",
     "crates/tls/server-fixture",
+    "crates/wasm-test-runner",
     "crates/verifier",
+    "crates/wasm",
 ]
 resolver = "2"
 
@@ -97,8 +99,10 @@ http-body-util = { version = "0.1" }
 hyper = { version = "1.1" }
 hyper-util = { version = "0.1" }
 log = { version = "0.4" }
+once_cell = { version = "1.19" }
 opaque-debug = { version = "0.3" }
 p256 = { version = "0.13" }
+pin-project-lite = { version = "0.2" }
 rand = { version = "0.8" }
 rand_chacha = { version = "0.3" }
 rand_core = { version = "0.6" }

@@ -59,7 +59,7 @@ jobs:
       - name: Test
         run: cargo test
   build-wasm:
-    name: Build for target wasm32-unknown-unknown
+    name: Build and test wasm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -71,11 +71,30 @@ jobs:
           targets: wasm32-unknown-unknown
           toolchain: stable
 
+      - name: Install nightly rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown,x86_64-unknown-linux-gnu
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install chromedriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-chromedriver
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
       - name: Use caching
         uses: Swatinem/rust-cache@v2.5.0
+        with:
+          workspaces: tlsn/tlsn-wasm-test-runner -> ../target
 
-      - name: Build
-        run: cargo build -p tlsn-tls-client -p tlsn-tls-core -p tlsn-core --target wasm32-unknown-unknown
+      - name: Run tests
+        run: |
+          cd tlsn/tlsn-wasm-test-runner
+          RUST_LOG=debug ./run.sh
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest

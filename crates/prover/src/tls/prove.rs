@@ -60,7 +60,7 @@ impl Prover<ProveState> {
     }
 
     /// Prove transcript values
-    #[instrument(level = "debug", skip_all, err)]
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn prove(&mut self) -> Result<(), ProverError> {
         let mut proving_info = std::mem::take(&mut self.state.proving_info);
 
@@ -127,7 +127,7 @@ impl Prover<ProveState> {
     }
 
     /// Finalize the proving
-    #[instrument(level = "debug", skip_all, err)]
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn finalize(self) -> Result<(), ProverError> {
         let ProveState {
             mut io,

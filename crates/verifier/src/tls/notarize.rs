@@ -19,7 +19,7 @@ impl Verifier<Notarize> {
     /// # Arguments
     ///
     /// * `signer` - The signer used to sign the notarization result.
-    #[instrument(level = "debug", skip_all, err)]
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<SessionHeader, VerifierError>
     where
         T: Into<Signature>,

@@ -28,7 +28,7 @@ impl Prover<Notarize> {
     }
 
     /// Finalizes the notarization returning a [`NotarizedSession`].
-    #[instrument(level = "debug", skip_all, err)]
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
             mut io,

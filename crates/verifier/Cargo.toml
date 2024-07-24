@@ -38,3 +38,4 @@ rand = { workspace = true }
 signature = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+web-time = { workspace = true }
