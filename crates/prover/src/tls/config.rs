@@ -18,12 +18,16 @@ pub struct ProverConfig {
     /// TLS root certificate store.
     #[builder(setter(strip_option), default = "default_root_store()")]
     pub(crate) root_cert_store: RootCertStore,
-    /// Maximum number of bytes that can be sent.
+    /// Maximum number of bytes that can be sent online.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
-    max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
+    max_sent_data_online: usize,
+    /// Maximum number of bytes that can be sent offline.
+    max_sent_data_offline: usize,
+    /// Maximum number of bytes that can be received online.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    max_recv_data_online: usize,
+    /// Maximum number of bytes that can be received offline.
+    max_recv_data_offline: usize,
 }
 
 impl ProverConfig {
@@ -37,14 +41,24 @@ impl ProverConfig {
         &self.id
     }
 
-    /// Returns the maximum number of bytes that can be sent.
-    pub fn max_sent_data(&self) -> usize {
-        self.max_sent_data
+    /// Returns the maximum number of bytes that can be sent online.
+    pub fn max_sent_data_online(&self) -> usize {
+        self.max_sent_data_online
     }
 
-    /// Returns the maximum number of bytes that can be received.
-    pub fn max_recv_data(&self) -> usize {
-        self.max_recv_data
+    /// Returns the maximum number of bytes that can be sent offline.
+    pub fn max_sent_data_offline(&self) -> usize {
+        self.max_sent_data_online
+    }
+
+    /// Returns the maximum number of bytes that can be received online.
+    pub fn max_recv_data_online(&self) -> usize {
+        self.max_recv_data_online
+    }
+
+    /// Returns the maximum number of bytes that can be received offline.
+    pub fn max_recv_data_offline(&self) -> usize {
+        self.max_recv_data_offline
     }
 
     /// Returns the server DNS name.
@@ -59,13 +73,15 @@ impl ProverConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_online_size(self.max_sent_data)
+                            .max_online_size(self.max_sent_data_online)
+                            .max_offline_size(self.max_sent_data_offline)
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_online_size(self.max_recv_data)
+                            .max_online_size(self.max_recv_data_online)
+                            .max_offline_size(self.max_recv_data_offline)
                             .build()
                             .unwrap(),
                     )

@@ -15,12 +15,15 @@ use tlsn_core::proof::default_cert_verifier;
 pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
-    /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
-    max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
+    max_sent_data_online: usize,
+    /// Maximum number of bytes that can be sent offline.
+    max_sent_data_offline: usize,
+    /// Maximum number of bytes that can be received online.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    max_recv_data_online: usize,
+    /// Maximum number of bytes that can be received offline.
+    max_recv_data_offline: usize,
     #[builder(
         pattern = "owned",
         setter(strip_option),
@@ -33,8 +36,10 @@ impl Debug for VerifierConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("VerifierConfig")
             .field("id", &self.id)
-            .field("max_sent_data", &self.max_sent_data)
-            .field("max_recv_data", &self.max_recv_data)
+            .field("max_sent_data_online", &self.max_sent_data_online)
+            .field("max_sent_data_offline", &self.max_sent_data_offline)
+            .field("max_recv_data_online", &self.max_recv_data_online)
+            .field("max_recv_data_offline", &self.max_recv_data_offline)
             .field("cert_verifier", &"_")
             .finish()
     }
@@ -51,14 +56,24 @@ impl VerifierConfig {
         &self.id
     }
 
-    /// Returns the maximum number of bytes that can be sent.
-    pub fn max_sent_data(&self) -> usize {
-        self.max_sent_data
+    /// Returns the maximum number of bytes that can be sent online.
+    pub fn max_sent_data_online(&self) -> usize {
+        self.max_sent_data_online
     }
 
-    /// Returns the maximum number of bytes that can be received.
-    pub fn max_recv_data(&self) -> usize {
-        self.max_recv_data
+    /// Returns the maximum number of bytes that can be sent offline.
+    pub fn max_sent_data_offline(&self) -> usize {
+        self.max_sent_data_online
+    }
+
+    /// Returns the maximum number of bytes that can be received online.
+    pub fn max_recv_data_online(&self) -> usize {
+        self.max_recv_data_online
+    }
+
+    /// Returns the maximum number of bytes that can be received offline.
+    pub fn max_recv_data_offline(&self) -> usize {
+        self.max_recv_data_offline
     }
 
     /// Returns the certificate verifier.
@@ -97,13 +112,15 @@ impl VerifierConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_online_size(self.max_sent_data)
+                            .max_online_size(self.max_sent_data_online)
+                            .max_offline_size(self.max_sent_data_offline)
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_online_size(self.max_recv_data)
+                            .max_online_size(self.max_recv_data_online)
+                            .max_offline_size(self.max_recv_data_offline)
                             .build()
                             .unwrap(),
                     )
@@ -116,10 +133,18 @@ impl VerifierConfig {
     }
 
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(Role::Verifier, self.max_sent_data, self.max_recv_data)
+        ot_send_estimate(
+            Role::Verifier,
+            self.max_sent_data_online,
+            self.max_recv_data_online,
+        )
     }
 
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(Role::Verifier, self.max_sent_data, self.max_recv_data)
+        ot_recv_estimate(
+            Role::Verifier,
+            self.max_sent_data_online,
+            self.max_recv_data_online,
+        )
     }
 }
