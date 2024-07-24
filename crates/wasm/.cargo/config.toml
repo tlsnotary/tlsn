@@ -2,4 +2,4 @@
 target = "wasm32-unknown-unknown"
 
 [target.wasm32-unknown-unknown]
-rustflags = ["-C", "target-feature=+atomics,+bulk-memory,+mutable-globals", "-Z", "build-std=panic_abort,std"]
+rustflags = ["-C", "target-feature=+atomics,+bulk-memory,+mutable-globals"]

@@ -6,21 +6,21 @@ use tsify_next::Tsify;
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum LoggingLevel {
-    TRACE,
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
 }
 
 impl From<LoggingLevel> for Level {
     fn from(value: LoggingLevel) -> Self {
         match value {
-            LoggingLevel::TRACE => Level::TRACE,
-            LoggingLevel::DEBUG => Level::DEBUG,
-            LoggingLevel::INFO => Level::INFO,
-            LoggingLevel::WARN => Level::WARN,
-            LoggingLevel::ERROR => Level::ERROR,
+            LoggingLevel::Trace => Level::TRACE,
+            LoggingLevel::Debug => Level::DEBUG,
+            LoggingLevel::Info => Level::INFO,
+            LoggingLevel::Warn => Level::WARN,
+            LoggingLevel::Error => Level::ERROR,
         }
     }
 }
@@ -28,17 +28,17 @@ impl From<LoggingLevel> for Level {
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum SpanEvent {
-    NEW,
-    CLOSE,
-    ACTIVE,
+    New,
+    Close,
+    Active,
 }
 
 impl From<SpanEvent> for FmtSpan {
     fn from(value: SpanEvent) -> Self {
         match value {
-            SpanEvent::NEW => FmtSpan::NEW,
-            SpanEvent::CLOSE => FmtSpan::CLOSE,
-            SpanEvent::ACTIVE => FmtSpan::ACTIVE,
+            SpanEvent::New => FmtSpan::NEW,
+            SpanEvent::Close => FmtSpan::CLOSE,
+            SpanEvent::Active => FmtSpan::ACTIVE,
         }
     }
 }
@@ -59,7 +59,7 @@ pub struct CrateLogFilter {
 }
 
 pub(crate) fn filter(config: LoggingConfig) -> impl Fn(&Metadata) -> bool {
-    let default_level: Level = config.level.unwrap_or(LoggingLevel::INFO).into();
+    let default_level: Level = config.level.unwrap_or(LoggingLevel::Info).into();
     let crate_filters = config
         .crate_filters
         .unwrap_or_default()
@@ -73,9 +73,9 @@ pub(crate) fn filter(config: LoggingConfig) -> impl Fn(&Metadata) -> bool {
                 .iter()
                 .find_map(|(filter_name, filter_level)| {
                     if crate_name.eq_ignore_ascii_case(filter_name) {
-                        return Some(filter_level);
+                        Some(filter_level)
                     } else {
-                        return None;
+                        None
                     }
                 })
                 .unwrap_or(&default_level)
