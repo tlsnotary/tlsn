@@ -97,13 +97,13 @@ impl VerifierConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.max_sent_data)
+                            .max_online_size(self.max_sent_data)
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.max_recv_data)
+                            .max_online_size(self.max_recv_data)
                             .build()
                             .unwrap(),
                     )
