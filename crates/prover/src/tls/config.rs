@@ -25,6 +25,7 @@ pub struct ProverConfig {
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data_online: usize,
     /// Maximum number of bytes that will be decrypted after the TLS connection is closed.
+    #[builder(default = "0")]
     max_deferred_size: usize,
 }
 
