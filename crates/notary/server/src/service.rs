@@ -182,11 +182,11 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     config_builder = config_builder.id(session_id);
 
     if let Some(max_sent_data) = max_sent_data {
-        config_builder = config_builder.max_sent_data(max_sent_data);
+        config_builder = config_builder.max_sent_data_online(max_sent_data);
     }
 
     if let Some(max_recv_data) = max_recv_data {
-        config_builder = config_builder.max_recv_data(max_recv_data);
+        config_builder = config_builder.max_recv_data_online(max_recv_data);
     }
 
     let config = config_builder.build()?;

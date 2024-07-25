@@ -16,8 +16,8 @@ pub struct TranscriptConfig {
     opaque_id: String,
     /// The maximum length of the transcript in bytes for en-/decryption during the MPC-TLS connection.
     max_online_size: usize,
-    /// The maximum length of the transcript in bytes for proving after the MPC-TLS connection.
-    max_offline_size: usize,
+    /// Maximum number of bytes that will be decrypted after the TLS connection is closed.
+    max_deferred_size: usize,
 }
 
 impl TranscriptConfig {
@@ -29,7 +29,7 @@ impl TranscriptConfig {
             .id(DEFAULT_TX_TRANSCRIPT_ID.to_string())
             .opaque_id(DEFAULT_OPAQUE_TX_TRANSCRIPT_ID.to_string())
             .max_online_size(DEFAULT_TRANSCRIPT_MAX_SIZE)
-            .max_offline_size(0);
+            .max_deferred_size(0);
 
         builder
     }
@@ -42,7 +42,7 @@ impl TranscriptConfig {
             .id(DEFAULT_RX_TRANSCRIPT_ID.to_string())
             .opaque_id(DEFAULT_OPAQUE_RX_TRANSCRIPT_ID.to_string())
             .max_online_size(DEFAULT_TRANSCRIPT_MAX_SIZE)
-            .max_offline_size(0);
+            .max_deferred_size(0);
 
         builder
     }
@@ -67,9 +67,9 @@ impl TranscriptConfig {
         self.max_online_size
     }
 
-    /// Returns the maximum offline length of the transcript in bytes.
-    pub fn max_offline_size(&self) -> usize {
-        self.max_offline_size
+    /// Returns the maximum number of bytes that will be decrypted after the TLS connection is closed.
+    pub fn max_deferred_size(&self) -> usize {
+        self.max_deferred_size
     }
 }
 
