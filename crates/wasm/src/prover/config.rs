@@ -17,11 +17,11 @@ impl From<ProverConfig> for tlsn_prover::tls::ProverConfig {
         builder.server_dns(value.server_dns);
 
         if let Some(value) = value.max_sent_data {
-            builder.max_sent_data(value);
+            builder.max_sent_data_online(value);
         }
 
         if let Some(value) = value.max_recv_data {
-            builder.max_recv_data(value);
+            builder.max_recv_data_online(value);
         }
 
         builder.build().unwrap()

@@ -72,8 +72,8 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
 
     let config = VerifierConfig::builder()
         .id("test")
-        .max_sent_data(1024)
-        .max_recv_data(1024)
+        .max_sent_data_online(1024)
+        .max_recv_data_online(1024)
         .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();
@@ -89,8 +89,8 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
 async fn handle_notary(io: TcpStream) -> Result<()> {
     let config = VerifierConfig::builder()
         .id("test")
-        .max_sent_data(1024)
-        .max_recv_data(1024)
+        .max_sent_data_online(1024)
+        .max_recv_data_online(1024)
         .build()
         .unwrap();
 
@@ -115,8 +115,8 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
-            .max_sent_data(1024)
-            .max_recv_data(1024)
+            .max_sent_data_online(1024)
+            .max_recv_data_online(1024)
             .root_cert_store(root_store)
             .build()
             .unwrap(),
