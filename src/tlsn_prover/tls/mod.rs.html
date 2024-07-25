@@ -374,6 +374,16 @@
 <a href="#374" id="374">374</a>
 <a href="#375" id="375">375</a>
 <a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS prover.
 //!
 //! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of
@@ -414,12 +424,13 @@
 <span class="attr">#[cfg(feature = <span class="string">"formats"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::http::{state <span class="kw">as </span>http_state, HttpProver, HttpProverError};
 
-<span class="kw">use </span>tracing::{debug, debug_span, instrument, Instrument};
+<span class="kw">use </span>tracing::{debug, info_span, instrument, Instrument, Span};
 
 <span class="doccomment">/// A prover instance.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Prover&lt;T: state::ProverState&gt; {
     config: ProverConfig,
+    span: Span,
     state: T,
 }
 
@@ -430,8 +441,10 @@
     ///
     /// * `config` - The configuration for the prover.
     </span><span class="kw">pub fn </span>new(config: ProverConfig) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>span = <span class="macro">info_span!</span>(<span class="string">"prover"</span>, id = config.id());
         <span class="self">Self </span>{
             config,
+            span,
             state: state::Initialized,
         }
     }
@@ -444,7 +457,7 @@
     /// # Arguments
     ///
     /// * `socket` - The socket to the TLS verifier.
-    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>setup&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>&gt;(
         <span class="self">self</span>,
         socket: S,
@@ -473,6 +486,7 @@
 
         <span class="prelude-val">Ok</span>(Prover {
             config: <span class="self">self</span>.config,
+            span: <span class="self">self</span>.span,
             state: state::Setup {
                 io,
                 mux_ctrl,
@@ -495,7 +509,7 @@
     /// # Arguments
     ///
     /// * `socket` - The socket to the server.
-    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>connect&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>&gt;(
         <span class="self">self</span>,
         socket: S,
@@ -525,6 +539,7 @@
         <span class="kw">let </span>start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
         <span class="kw">let </span>fut = Box::pin({
+            <span class="kw">let </span>span = <span class="self">self</span>.span.clone();
             <span class="kw">let </span>mpc_ctrl = mpc_ctrl.clone();
             <span class="kw">async move </span>{
                 <span class="kw">let </span>conn_fut = <span class="kw">async </span>{
@@ -544,6 +559,7 @@
 
                 <span class="prelude-val">Ok</span>(Prover {
                     config: <span class="self">self</span>.config,
+                    span: <span class="self">self</span>.span,
                     state: state::Closed {
                         io,
                         mux_ctrl,
@@ -561,7 +577,7 @@
                     },
                 })
             }
-            .instrument(<span class="macro">debug_span!</span>(<span class="string">"prover"</span>))
+            .instrument(span)
         });
 
         <span class="prelude-val">Ok</span>((
@@ -598,6 +614,7 @@
     </span><span class="kw">pub fn </span>start_notarize(<span class="self">self</span>) -&gt; Prover&lt;Notarize&gt; {
         Prover {
             config: <span class="self">self</span>.config,
+            span: <span class="self">self</span>.span,
             state: <span class="self">self</span>.state.into(),
         }
     }
@@ -609,6 +626,7 @@
     </span><span class="kw">pub fn </span>start_prove(<span class="self">self</span>) -&gt; Prover&lt;Prove&gt; {
         Prover {
             config: <span class="self">self</span>.config,
+            span: <span class="self">self</span>.span,
             state: <span class="self">self</span>.state.into(),
         }
     }
@@ -621,6 +639,8 @@
     mux: <span class="kw-2">&amp;</span>MuxControl,
     exec: <span class="kw-2">&amp;mut </span>Executor,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(MpcTlsLeader, DEAPThread, OTReceiver), ProverError&gt; {
+    <span class="macro">debug!</span>(<span class="string">"starting MPC backend setup"</span>);
+
     <span class="kw">let </span><span class="kw-2">mut </span>ot_sender = kos::Sender::new(
         config.build_ot_sender_config(),
         chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),

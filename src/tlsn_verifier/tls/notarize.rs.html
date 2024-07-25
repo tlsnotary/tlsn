@@ -110,7 +110,7 @@
     /// # Arguments
     ///
     /// * `signer` - The signer used to sign the notarization result.
-    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize&lt;T&gt;(<span class="self">self</span>, signer: <span class="kw-2">&amp;</span><span class="kw">impl </span>Signer&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;SessionHeader, VerifierError&gt;
     <span class="kw">where
         </span>T: Into&lt;Signature&gt;,

@@ -116,6 +116,11 @@
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>mpz_ot::{chou_orlandi, kos};
 <span class="kw">use </span>tls_client::RootCertStore;
 <span class="kw">use </span>tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
@@ -148,6 +153,11 @@
     <span class="doccomment">/// Create a new builder for `ProverConfig`.
     </span><span class="kw">pub fn </span>builder() -&gt; ProverConfigBuilder {
         ProverConfigBuilder::default()
+    }
+
+    <span class="doccomment">/// Returns the instance id.
+    </span><span class="kw">pub fn </span>id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.id
     }
 
     <span class="doccomment">/// Returns the maximum number of bytes that can be sent.

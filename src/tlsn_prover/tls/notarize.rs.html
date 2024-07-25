@@ -133,7 +133,7 @@
     }
 
     <span class="doccomment">/// Finalizes the notarization returning a [`NotarizedSession`].
-    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;NotarizedSession, ProverError&gt; {
         <span class="kw">let </span>Notarize {
             <span class="kw-2">mut </span>io,

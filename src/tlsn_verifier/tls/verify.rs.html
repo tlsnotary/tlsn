@@ -157,6 +157,8 @@
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the verification phase of the verifier.
 //!
 //! The TLS verifier is an application-specific verifier.
@@ -171,7 +173,7 @@
     RedactedTranscript, TranscriptSlice,
 };
 
-<span class="kw">use </span>tracing::info;
+<span class="kw">use </span>tracing::{info, instrument};
 
 <span class="kw">impl </span>Verifier&lt;VerifyState&gt; {
     <span class="doccomment">/// Receives the **purported** transcript from the Prover.
@@ -179,6 +181,7 @@
     /// # Warning
     ///
     /// The content of the received transcripts can not be considered authentic until after finalization.
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"info"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>receive(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(RedactedTranscript, RedactedTranscript), VerifierError&gt; {
@@ -269,6 +272,7 @@
     </span>}
 
     <span class="doccomment">/// Verifies the TLS session.
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"info"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SessionInfo, VerifierError&gt; {
         <span class="kw">let </span>VerifyState {
             <span class="kw-2">mut </span>io,

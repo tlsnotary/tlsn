@@ -234,7 +234,7 @@
     }
 
     <span class="doccomment">/// Prove transcript values
-    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>prove(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>proving_info = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.state.proving_info);
 
@@ -301,7 +301,7 @@
     }
 
     <span class="doccomment">/// Finalize the proving
-    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
+    </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
         <span class="kw">let </span>ProveState {
             <span class="kw-2">mut </span>io,
