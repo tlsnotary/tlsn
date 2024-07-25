@@ -52,7 +52,7 @@ impl TryFrom<HttpRequest> for hyper::Request<Full<Bytes>> {
         let mut builder = hyper::Request::builder();
         builder = builder.uri(value.uri).method(value.method);
         for (name, value) in value.headers {
-            builder = builder.header(name, value.to_vec());
+            builder = builder.header(name, value);
         }
 
         if let Some(body) = value.body {
