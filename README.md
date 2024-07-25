@@ -43,12 +43,11 @@ at your option.
 
 ## Directory
 
-- [tlsn](./tlsn/): The home for examples and API libraries.
-    - [examples](./tlsn/examples/): Examples on how to use the TLSNotary protocol.
-    - [tlsn-prover](./tlsn/tlsn-prover/): The library for the prover component.
-    - [tlsn-verifier](./tlsn/tlsn-verifier/): The library for the verifier component.
-- [notary](./notary/): Implements the [notary server](https://docs.tlsnotary.org/intro.html#tls-verification-with-a-general-purpose-notary) and its client.
-- [components](./components/): Houses low-level libraries utilized by [tlsn](./tlsn/).
+- [examples](./crates/examples/): Examples on how to use the TLSNotary protocol.
+- [tlsn-prover](./crates/prover/): The library for the prover component.
+- [tlsn-verifier](./crates/verifier/): The library for the verifier component.
+- [notary](./crates/notary/): Implements the [notary server](https://docs.tlsnotary.org/intro.html#tls-verification-with-a-general-purpose-notary) and its client.
+- [components](./crates/components/): Houses low-level libraries.
 
 This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-js`](https://github.com/tlsnotary/tlsn-js), [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), [`explorer`](https://github.com/tlsnotary/explorer), among others.
 
