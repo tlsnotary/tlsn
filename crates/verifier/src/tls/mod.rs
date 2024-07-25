@@ -12,7 +12,7 @@ use mpz_common::Allocate;
 use serio::StreamExt;
 use uid_mux::FramedUidMux;
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use web_time::{SystemTime, UNIX_EPOCH};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpz_garble::config::Role as DEAPRole;
@@ -27,19 +27,22 @@ use tlsn_common::{
 };
 use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
 
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, info_span, instrument, Span};
 
 /// A Verifier instance.
 pub struct Verifier<T: state::VerifierState> {
     config: VerifierConfig,
+    span: Span,
     state: T,
 }
 
 impl Verifier<state::Initialized> {
     /// Creates a new verifier.
     pub fn new(config: VerifierConfig) -> Self {
+        let span = info_span!("verifier", id = config.id());
         Self {
             config,
+            span,
             state: state::Initialized,
         }
     }
@@ -51,6 +54,7 @@ impl Verifier<state::Initialized> {
     /// # Arguments
     ///
     /// * `socket` - The socket to the prover.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
@@ -85,6 +89,7 @@ impl Verifier<state::Initialized> {
 
         Ok(Verifier {
             config: self.config,
+            span: self.span,
             state: state::Setup {
                 io,
                 mux_ctrl,
@@ -106,6 +111,7 @@ impl Verifier<state::Initialized> {
     ///
     /// * `socket` - The socket to the prover.
     /// * `signer` - The signer used to sign the notarization result.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn notarize<S: AsyncWrite + AsyncRead + Send + Unpin + 'static, T>(
         self,
         socket: S,
@@ -130,6 +136,7 @@ impl Verifier<state::Initialized> {
     /// # Arguments
     ///
     /// * `socket` - The socket to the prover.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
@@ -144,6 +151,7 @@ impl Verifier<state::Initialized> {
 
 impl Verifier<state::Setup> {
     /// Runs the verifier until the TLS connection is closed.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
         let state::Setup {
             io,
@@ -177,6 +185,7 @@ impl Verifier<state::Setup> {
 
         Ok(Verifier {
             config: self.config,
+            span: self.span,
             state: state::Closed {
                 io,
                 mux_ctrl,
@@ -203,6 +212,7 @@ impl Verifier<state::Closed> {
     pub fn start_notarize(self) -> Verifier<Notarize> {
         Verifier {
             config: self.config,
+            span: self.span,
             state: self.state.into(),
         }
     }
@@ -214,6 +224,7 @@ impl Verifier<state::Closed> {
     pub fn start_verify(self) -> Verifier<Verify> {
         Verifier {
             config: self.config,
+            span: self.span,
             state: self.state.into(),
         }
     }
@@ -227,6 +238,8 @@ async fn setup_mpc_backend(
     exec: &mut Executor,
     encoder_seed: [u8; 32],
 ) -> Result<(MpcTlsFollower, DEAPThread, OTSender), VerifierError> {
+    debug!("starting MPC backend setup");
+
     let mut ot_sender = kos::Sender::new(
         config.build_ot_sender_config(),
         chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),

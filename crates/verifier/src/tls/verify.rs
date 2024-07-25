@@ -12,7 +12,7 @@ use tlsn_core::{
     RedactedTranscript, TranscriptSlice,
 };
 
-use tracing::info;
+use tracing::{info, instrument};
 
 impl Verifier<VerifyState> {
     /// Receives the **purported** transcript from the Prover.
@@ -20,6 +20,7 @@ impl Verifier<VerifyState> {
     /// # Warning
     ///
     /// The content of the received transcripts can not be considered authentic until after finalization.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn receive(
         &mut self,
     ) -> Result<(RedactedTranscript, RedactedTranscript), VerifierError> {
@@ -110,6 +111,7 @@ impl Verifier<VerifyState> {
     }
 
     /// Verifies the TLS session.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn finalize(self) -> Result<SessionInfo, VerifierError> {
         let VerifyState {
             mut io,

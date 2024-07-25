@@ -32,6 +32,11 @@ impl ProverConfig {
         ProverConfigBuilder::default()
     }
 
+    /// Returns the instance id.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
     /// Returns the maximum number of bytes that can be sent.
     pub fn max_sent_data(&self) -> usize {
         self.max_sent_data
