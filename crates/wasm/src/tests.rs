@@ -13,9 +13,6 @@ use crate::{
     verifier::JsVerifier,
 };
 
-#[cfg(target_arch = "wasm32")]
-pub use wasm_bindgen_rayon::init_thread_pool;
-
 static CA_CERT_DER: &[u8] = include_bytes!("../../server-fixture/src/tls/root_ca_cert.der");
 static SERVER_DOMAIN: &str = "test-server.io";
 

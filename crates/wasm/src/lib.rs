@@ -25,6 +25,9 @@ use wasm_bindgen::prelude::*;
 #[cfg(feature = "test")]
 pub use tests::*;
 
+#[cfg(target_arch = "wasm32")]
+pub use wasm_bindgen_rayon::init_thread_pool;
+
 /// Initializes logging.
 #[wasm_bindgen]
 pub fn init_logging(config: Option<LoggingConfig>) {
