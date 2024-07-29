@@ -423,99 +423,99 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::{
-        aes_gcm::{mock::create_mock_aes_gcm_pair, AesGcmConfigBuilder, Role},
-        Aead,
-    };
-    use ::aes_gcm::{aead::AeadInPlace, Aes128Gcm, NewAead, Nonce};
-    use error::ErrorKind;
-    use mpz_common::executor::STExecutor;
-    use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory};
-    use serio::channel::MemoryDuplex;
-
-    fn reference_impl(
-        key: &[u8],
-        iv: &[u8],
-        explicit_nonce: &[u8],
-        plaintext: &[u8],
-        aad: &[u8],
-    ) -> Vec<u8> {
-        let cipher = Aes128Gcm::new_from_slice(key).unwrap();
-        let nonce = [iv, explicit_nonce].concat();
-        let nonce = Nonce::from_slice(nonce.as_slice());
-
-        let mut ciphertext = plaintext.to_vec();
-        cipher
-            .encrypt_in_place(nonce, aad, &mut ciphertext)
-            .unwrap();
-
-        ciphertext
-    }
-
-    async fn setup_pair(
-        key: Vec<u8>,
-        iv: Vec<u8>,
-    ) -> (
-        MpcAesGcm<STExecutor<MemoryDuplex>>,
-        MpcAesGcm<STExecutor<MemoryDuplex>>,
-    ) {
-        let (leader_vm, follower_vm) = create_mock_deap_vm();
-
-        let leader_key = leader_vm
-            .new_public_array_input::<u8>("key", key.len())
-            .unwrap();
-        let leader_iv = leader_vm
-            .new_public_array_input::<u8>("iv", iv.len())
-            .unwrap();
-
-        leader_vm.assign(&leader_key, key.clone()).unwrap();
-        leader_vm.assign(&leader_iv, iv.clone()).unwrap();
-
-        let follower_key = follower_vm
-            .new_public_array_input::<u8>("key", key.len())
-            .unwrap();
-        let follower_iv = follower_vm
-            .new_public_array_input::<u8>("iv", iv.len())
-            .unwrap();
-
-        follower_vm.assign(&follower_key, key.clone()).unwrap();
-        follower_vm.assign(&follower_iv, iv.clone()).unwrap();
-
-        let leader_config = AesGcmConfigBuilder::default()
-            .id("test".to_string())
-            .role(Role::Leader)
-            .build()
-            .unwrap();
-        let follower_config = AesGcmConfigBuilder::default()
-            .id("test".to_string())
-            .role(Role::Follower)
-            .build()
-            .unwrap();
-
-        let (mut leader, mut follower) = create_mock_aes_gcm_pair(
-            "test",
-            (leader_vm, follower_vm),
-            leader_config,
-            follower_config,
-        )
-        .await;
-
-        futures::try_join!(
-            leader.set_key(leader_key, leader_iv),
-            follower.set_key(follower_key, follower_iv)
-        )
-        .unwrap();
-
-        futures::try_join!(leader.setup(), follower.setup()).unwrap();
-        futures::try_join!(leader.start(), follower.start()).unwrap();
-
-        (leader, follower)
-    }
-
-    // TODO: The following tests time-out on Github CI pipeline, which is not reproducible local. Needs
-    // further investigation
+    // TODO: The following tests time-out on Github CI pipeline, which is not reproducible local.
+    // Needs further investigation.
+    //
+    //    use super::*;
+    //
+    //    use crate::{
+    //        aes_gcm::{mock::create_mock_aes_gcm_pair, AesGcmConfigBuilder, Role},
+    //        Aead,
+    //    };
+    //    use ::aes_gcm::{aead::AeadInPlace, Aes128Gcm, NewAead, Nonce};
+    //    use mpz_common::executor::STExecutor;
+    //    use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory};
+    //    use serio::channel::MemoryDuplex;
+    //
+    //    fn reference_impl(
+    //        key: &[u8],
+    //        iv: &[u8],
+    //        explicit_nonce: &[u8],
+    //        plaintext: &[u8],
+    //        aad: &[u8],
+    //    ) -> Vec<u8> {
+    //        let cipher = Aes128Gcm::new_from_slice(key).unwrap();
+    //        let nonce = [iv, explicit_nonce].concat();
+    //        let nonce = Nonce::from_slice(nonce.as_slice());
+    //
+    //        let mut ciphertext = plaintext.to_vec();
+    //        cipher
+    //            .encrypt_in_place(nonce, aad, &mut ciphertext)
+    //            .unwrap();
+    //
+    //        ciphertext
+    //    }
+    //
+    //    async fn setup_pair(
+    //        key: Vec<u8>,
+    //        iv: Vec<u8>,
+    //    ) -> (
+    //        MpcAesGcm<STExecutor<MemoryDuplex>>,
+    //        MpcAesGcm<STExecutor<MemoryDuplex>>,
+    //    ) {
+    //        let (leader_vm, follower_vm) = create_mock_deap_vm();
+    //
+    //        let leader_key = leader_vm
+    //            .new_public_array_input::<u8>("key", key.len())
+    //            .unwrap();
+    //        let leader_iv = leader_vm
+    //            .new_public_array_input::<u8>("iv", iv.len())
+    //            .unwrap();
+    //
+    //        leader_vm.assign(&leader_key, key.clone()).unwrap();
+    //        leader_vm.assign(&leader_iv, iv.clone()).unwrap();
+    //
+    //        let follower_key = follower_vm
+    //            .new_public_array_input::<u8>("key", key.len())
+    //            .unwrap();
+    //        let follower_iv = follower_vm
+    //            .new_public_array_input::<u8>("iv", iv.len())
+    //            .unwrap();
+    //
+    //        follower_vm.assign(&follower_key, key.clone()).unwrap();
+    //        follower_vm.assign(&follower_iv, iv.clone()).unwrap();
+    //
+    //        let leader_config = AesGcmConfigBuilder::default()
+    //            .id("test".to_string())
+    //            .role(Role::Leader)
+    //            .build()
+    //            .unwrap();
+    //        let follower_config = AesGcmConfigBuilder::default()
+    //            .id("test".to_string())
+    //            .role(Role::Follower)
+    //            .build()
+    //            .unwrap();
+    //
+    //        let (mut leader, mut follower) = create_mock_aes_gcm_pair(
+    //            "test",
+    //            (leader_vm, follower_vm),
+    //            leader_config,
+    //            follower_config,
+    //        )
+    //        .await;
+    //
+    //        futures::try_join!(
+    //            leader.set_key(leader_key, leader_iv),
+    //            follower.set_key(follower_key, follower_iv)
+    //        )
+    //        .unwrap();
+    //
+    //        futures::try_join!(leader.setup(), follower.setup()).unwrap();
+    //        futures::try_join!(leader.start(), follower.start()).unwrap();
+    //
+    //        (leader, follower)
+    //    }
+    //
     //    #[tokio::test]
     //    #[ignore = "expensive"]
     //    async fn test_aes_gcm_encrypt_private() {
