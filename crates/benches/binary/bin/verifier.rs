@@ -1,8 +1,3 @@
-use anyhow::Context;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::compat::TokioAsyncReadCompatExt;
-use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
-
 use tls_core::verify::WebPkiVerifier;
 use tlsn_benches::{
     config::{BenchInstance, Config},
@@ -11,6 +6,11 @@ use tlsn_benches::{
 use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_server_fixture_certs::CA_CERT_DER;
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
+
+use anyhow::Context;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -72,7 +72,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .id("test")
+            .id("bench")
             .cert_verifier(cert_verifier())
             .protocol_config_validator(config_validator)
             .build()?,

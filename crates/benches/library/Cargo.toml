@@ -1,0 +1,22 @@
+[package]
+edition = "2021"
+name = "tlsn-benches-library"
+publish = false
+version = "0.1.0"
+
+[dependencies]
+tlsn-core = { workspace = true }
+tlsn-prover = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+tlsn-tls-core = { workspace = true }
+
+anyhow = "1.0"
+async-trait = "0.1.81"
+futures = { version = "0.3", features = ["compat"] }
+tokio = {version = "1", default-features = false, features = ["rt", "macros"]}
+tokio-tungstenite-wasm = "0.3.1"
+tokio-util= {version = "0.7", features = ["compat", "io"]}
+toml = "0.8.11"
+
+
+

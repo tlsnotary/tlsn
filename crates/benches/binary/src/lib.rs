@@ -1,5 +1,6 @@
 pub mod config;
 pub mod metrics;
+pub mod prover;
 
 use std::{io, process::Command};
 
@@ -27,6 +28,10 @@ pub fn set_up() -> io::Result<()> {
     set_device_up(PROVER_NAMESPACE, PROVER_INTERFACE)?;
     set_device_up(VERIFIER_NAMESPACE, VERIFIER_INTERFACE)?;
 
+    // Bring up the loopback interface.
+    set_device_up(PROVER_NAMESPACE, "lo")?;
+    set_device_up(VERIFIER_NAMESPACE, "lo")?;
+
     // Assign IPs
     assign_ip_to_interface(PROVER_NAMESPACE, PROVER_INTERFACE, PROVER_SUBNET)?;
     assign_ip_to_interface(VERIFIER_NAMESPACE, VERIFIER_INTERFACE, VERIFIER_SUBNET)?;
@@ -35,12 +40,12 @@ pub fn set_up() -> io::Result<()> {
     set_default_route(
         PROVER_NAMESPACE,
         PROVER_INTERFACE,
-        PROVER_SUBNET.split('/').next().unwrap(),
+        PROVER_SUBNET.split('/').nth(0).unwrap(),
     )?;
     set_default_route(
         VERIFIER_NAMESPACE,
         VERIFIER_INTERFACE,
-        VERIFIER_SUBNET.split('/').next().unwrap(),
+        VERIFIER_SUBNET.split('/').nth(0).unwrap(),
     )?;
 
     Ok(())
@@ -49,7 +54,7 @@ pub fn set_up() -> io::Result<()> {
 pub fn clean_up() {
     // Delete interface pair
     if let Err(e) = Command::new("ip")
-        .args([
+        .args(&[
             "netns",
             "exec",
             PROVER_NAMESPACE,
@@ -65,14 +70,14 @@ pub fn clean_up() {
 
     // Delete namespaces
     if let Err(e) = Command::new("ip")
-        .args(["netns", "del", PROVER_NAMESPACE])
+        .args(&["netns", "del", PROVER_NAMESPACE])
         .status()
     {
         println!("Error deleting namespace {}: {}", PROVER_NAMESPACE, e);
     }
 
     if let Err(e) = Command::new("ip")
-        .args(["netns", "del", VERIFIER_NAMESPACE])
+        .args(&["netns", "del", VERIFIER_NAMESPACE])
         .status()
     {
         println!("Error deleting namespace {}: {}", VERIFIER_NAMESPACE, e);
@@ -138,7 +143,7 @@ pub fn set_interface(interface: &str, egress: usize, burst: usize, delay: usize)
 fn create_network_namespace(name: &str) -> io::Result<()> {
     // Check if namespace already exists
     if Command::new("ip")
-        .args(["netns", "list"])
+        .args(&["netns", "list"])
         .output()?
         .stdout
         .windows(name.len())
@@ -148,7 +153,7 @@ fn create_network_namespace(name: &str) -> io::Result<()> {
         return Ok(());
     } else {
         println!("Creating namespace {}", name);
-        Command::new("ip").args(["netns", "add", name]).status()?;
+        Command::new("ip").args(&["netns", "add", name]).status()?;
     }
 
     Ok(())
@@ -170,7 +175,7 @@ fn create_veth_pair(
 
     // Create veth pair
     Command::new("ip")
-        .args([
+        .args(&[
             "link",
             "add",
             left_interface,
@@ -196,7 +201,7 @@ fn create_veth_pair(
 
 fn attach_interface_to_namespace(namespace: &str, interface: &str) -> io::Result<()> {
     Command::new("ip")
-        .args(["link", "set", interface, "netns", namespace])
+        .args(&["link", "set", interface, "netns", namespace])
         .status()?;
 
     println!("Attached {} to namespace {}", interface, namespace);
@@ -206,7 +211,7 @@ fn attach_interface_to_namespace(namespace: &str, interface: &str) -> io::Result
 
 fn set_default_route(namespace: &str, interface: &str, ip: &str) -> io::Result<()> {
     Command::new("ip")
-        .args([
+        .args(&[
             "netns", "exec", namespace, "ip", "route", "add", "default", "via", ip, "dev",
             interface,
         ])
@@ -225,7 +230,7 @@ fn is_interface_present_in_namespace(
     interface: &str,
 ) -> Result<bool, std::io::Error> {
     Ok(Command::new("ip")
-        .args([
+        .args(&[
             "netns", "exec", namespace, "ip", "link", "list", "dev", interface,
         ])
         .output()?
@@ -236,7 +241,7 @@ fn is_interface_present_in_namespace(
 
 fn set_device_up(namespace: &str, interface: &str) -> io::Result<()> {
     Command::new("ip")
-        .args([
+        .args(&[
             "netns", "exec", namespace, "ip", "link", "set", interface, "up",
         ])
         .status()?;
@@ -246,7 +251,7 @@ fn set_device_up(namespace: &str, interface: &str) -> io::Result<()> {
 
 fn assign_ip_to_interface(namespace: &str, interface: &str, ip: &str) -> io::Result<()> {
     Command::new("ip")
-        .args([
+        .args(&[
             "netns", "exec", namespace, "ip", "addr", "add", ip, "dev", interface,
         ])
         .status()?;

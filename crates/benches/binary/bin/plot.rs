@@ -1,3 +1,5 @@
+use tlsn_benches::metrics::Metrics;
+
 use charming::{
     component::{
         Axis, DataView, Feature, Legend, Restore, SaveAsImage, Title, Toolbox, ToolboxDataZoom,
@@ -7,7 +9,7 @@ use charming::{
     theme::Theme,
     Chart, HtmlRenderer,
 };
-use tlsn_benches::metrics::Metrics;
+use csv;
 
 const THEME: Theme = Theme::Default;
 
@@ -18,10 +20,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut rdr = csv::Reader::from_path(csv_file)?;
 
-    // Prepare data for plotting
+    // Prepare data for plotting.
     let all_data: Vec<Metrics> = rdr
         .deserialize::<Metrics>()
-        .collect::<Result<Vec<_>, _>>()?; // Attempt to collect all results, return an error if any fail
+        .collect::<Result<Vec<_>, _>>()?; // Attempt to collect all results, return an error if any fail.
 
     let _chart = runtime_vs_latency(&all_data)?;
     let _chart = runtime_vs_bandwidth(&all_data)?;
@@ -29,11 +31,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error::Error>> {
+fn runtime_vs_latency(all_data: &Vec<Metrics>) -> Result<Chart, Box<dyn std::error::Error>> {
     const TITLE: &str = "Runtime vs Latency";
 
     let data: Vec<Vec<f32>> = all_data
-        .iter()
+        .into_iter()
         .filter(|record| record.name == "latency")
         .map(|record| {
             let total_delay = record.upload_delay + record.download_delay; // Calculate the sum of upload and download delays.
@@ -83,21 +85,21 @@ fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error:
     Ok(chart)
 }
 
-fn runtime_vs_bandwidth(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error::Error>> {
+fn runtime_vs_bandwidth(all_data: &Vec<Metrics>) -> Result<Chart, Box<dyn std::error::Error>> {
     const TITLE: &str = "Runtime vs Bandwidth";
 
     let download_data: Vec<Vec<f32>> = all_data
-        .iter()
+        .into_iter()
         .filter(|record| record.name == "download_bandwidth")
         .map(|record| vec![record.download as f32, record.runtime as f32])
         .collect();
     let upload_deferred_data: Vec<Vec<f32>> = all_data
-        .iter()
+        .into_iter()
         .filter(|record| record.name == "upload_bandwidth" && record.defer_decryption)
         .map(|record| vec![record.upload as f32, record.runtime as f32])
         .collect();
     let upload_non_deferred_data: Vec<Vec<f32>> = all_data
-        .iter()
+        .into_iter()
         .filter(|record| record.name == "upload_bandwidth" && !record.defer_decryption)
         .map(|record| vec![record.upload as f32, record.runtime as f32])
         .collect();
