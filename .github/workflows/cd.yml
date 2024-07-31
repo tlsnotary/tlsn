@@ -49,4 +49,4 @@ jobs:
           push: true
           tags: ${{ steps.meta-notary-server.outputs.tags }}
           labels: ${{ steps.meta-notary-server.outputs.labels }}
-          file: ./notary/server/notary-server.Dockerfile
+          file: ./crates/notary/server/notary-server.Dockerfile
