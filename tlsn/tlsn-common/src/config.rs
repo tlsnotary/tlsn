@@ -27,7 +27,6 @@ static VERSION: Lazy<Version> = Lazy::new(|| {
 
 /// Protocol configuration to be setup initially by prover and verifier.
 #[derive(derive_builder::Builder, Clone, Debug, Deserialize, Serialize)]
-#[non_exhaustive]
 pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
@@ -60,7 +59,6 @@ impl ProtocolConfig {
 /// Protocol configuration validator used by checker (i.e. verifier) to perform compatibility check
 /// with the peer (i.e. prover)'s configuration.
 #[derive(derive_builder::Builder, Clone, Debug)]
-#[non_exhaustive]
 pub struct ProtocolConfigValidator {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]

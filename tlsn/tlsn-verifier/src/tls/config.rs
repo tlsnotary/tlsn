@@ -17,8 +17,6 @@ pub struct VerifierConfig {
     id: String,
     #[builder(default = "ProtocolConfigValidator::builder().build().unwrap()")]
     pub protocol_config_validator: ProtocolConfigValidator,
-    #[builder(setter(skip), default)]
-    protocol_config: Option<ProtocolConfig>,
     #[builder(
         pattern = "owned",
         setter(strip_option),
@@ -62,10 +60,6 @@ impl VerifierConfig {
             .expect("Certificate verifier should be set")
     }
 
-    pub(crate) fn set_protocol_config(&mut self, config: ProtocolConfig) {
-        self.protocol_config = Some(config);
-    }
-
     pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
         chou_orlandi::SenderConfig::default()
     }
@@ -88,20 +82,20 @@ impl VerifierConfig {
         kos::ReceiverConfig::default()
     }
 
-    pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsFollowerConfig {
+    pub(crate) fn build_mpc_tls_config(&self, protocol_config: &ProtocolConfig) -> MpcTlsFollowerConfig {
         MpcTlsFollowerConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.protocol_config.as_ref().unwrap().max_sent_data())
+                            .max_size(protocol_config.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.protocol_config.as_ref().unwrap().max_recv_data())
+                            .max_size(protocol_config.max_recv_data())
                             .build()
                             .unwrap(),
                     )
@@ -113,19 +107,19 @@ impl VerifierConfig {
             .unwrap()
     }
 
-    pub(crate) fn ot_sender_setup_count(&self) -> usize {
+    pub(crate) fn ot_sender_setup_count(&self, protocol_config: &ProtocolConfig) -> usize {
         ot_send_estimate(
             Role::Verifier,
-            self.protocol_config.as_ref().unwrap().max_sent_data(),
-            self.protocol_config.as_ref().unwrap().max_recv_data(),
+            protocol_config.max_sent_data(),
+            protocol_config.max_recv_data(),
         )
     }
 
-    pub(crate) fn ot_receiver_setup_count(&self) -> usize {
+    pub(crate) fn ot_receiver_setup_count(&self, protocol_config: &ProtocolConfig) -> usize {
         ot_recv_estimate(
             Role::Verifier,
-            self.protocol_config.as_ref().unwrap().max_sent_data(),
-            self.protocol_config.as_ref().unwrap().max_recv_data(),
+            protocol_config.max_sent_data(),
+            protocol_config.max_recv_data(),
         )
     }
 }

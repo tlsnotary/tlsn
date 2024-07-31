@@ -53,7 +53,7 @@ impl Verifier<state::Initialized> {
     ///
     /// * `socket` - The socket to the prover.
     pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        mut self,
+        self,
         socket: S,
     ) -> Result<Verifier<state::Setup>, VerifierError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
@@ -71,15 +71,14 @@ impl Verifier<state::Initialized> {
             .await?;
 
         // Receives protocol configuration from prover to perform compatibility check
-        mux_fut
+        let protocol_config = mux_fut
             .poll_with(async {
                 let peer_configuration: ProtocolConfig = io.expect_next().await?;
                 self.config
                     .protocol_config_validator
                     .validate(&peer_configuration)?;
-                self.config.set_protocol_config(peer_configuration);
 
-                Ok::<_, VerifierError>(())
+                Ok::<_, VerifierError>(peer_configuration)
             })
             .await?;
 
@@ -90,6 +89,7 @@ impl Verifier<state::Initialized> {
                 &mux_ctrl,
                 &mut exec,
                 encoder_seed,
+                protocol_config,
             ))
             .await?;
 
@@ -240,18 +240,19 @@ async fn setup_mpc_backend(
     mux: &MuxControl,
     exec: &mut Executor,
     encoder_seed: [u8; 32],
+    protocol_config: ProtocolConfig,
 ) -> Result<(MpcTlsFollower, DEAPThread, OTSender), VerifierError> {
     let mut ot_sender = kos::Sender::new(
         config.build_ot_sender_config(),
         chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
     );
-    ot_sender.alloc(config.ot_sender_setup_count());
+    ot_sender.alloc(config.ot_sender_setup_count(&protocol_config));
 
     let mut ot_receiver = kos::Receiver::new(
         config.build_ot_receiver_config(),
         chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
     );
-    ot_receiver.alloc(config.ot_receiver_setup_count());
+    ot_receiver.alloc(config.ot_receiver_setup_count(&protocol_config));
 
     let ot_sender = OTSender::new(ot_sender);
     let ot_receiver = OTReceiver::new(ot_receiver);
@@ -294,7 +295,7 @@ async fn setup_mpc_backend(
         ot_receiver.clone(),
     );
 
-    let mpc_tls_config = config.build_mpc_tls_config();
+    let mpc_tls_config = config.build_mpc_tls_config(&protocol_config);
     let (ke, prf, encrypter, decrypter) = build_components(
         TlsRole::Follower,
         mpc_tls_config.common(),
