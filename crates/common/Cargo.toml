@@ -14,14 +14,14 @@ mpz-ot = { workspace = true }
 
 derive_builder = { workspace = true }
 futures = { workspace = true }
+once_cell = { workspace = true }
 serde = { workspace = true }
 serio = { workspace = true, features = ["codec", "bincode"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 uid-mux = { workspace = true, features = ["serio"] }
 
-once_cell = "1.19"
-semver = "1.0"
+semver = { version = "1.0" }
 
 [dev-dependencies]
-rstest.workspace = true
+rstest = { workspace = true }
