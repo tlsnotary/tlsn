@@ -71,8 +71,6 @@ Could not find directory of OpenSSL installation, and this `-sys` crate cannot
 ```
 Make sure you have the development packages of OpenSSL installed (`libssl-dev` on Ubuntu or `openssl-devel` on Fedora).
 
-If you want to contribute; Thanks a lot! please check <CONTRIBUTING.md> first.
-
 ## Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
