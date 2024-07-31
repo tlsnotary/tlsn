@@ -39,6 +39,12 @@ pub struct ProtocolConfig {
     version: String,
 }
 
+impl Default for ProtocolConfig {
+    fn default() -> Self {
+        Self::builder().build().unwrap()
+    }
+}
+
 impl ProtocolConfig {
     /// Creates a new builder for `ProtocolConfig`.
     pub fn builder() -> ProtocolConfigBuilder {
@@ -69,6 +75,12 @@ pub struct ProtocolConfigValidator {
     /// Version that is being run by checker.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
+}
+
+impl Default for ProtocolConfigValidator {
+    fn default() -> Self {
+        Self::builder().build().unwrap()
+    }
 }
 
 impl ProtocolConfigValidator {
