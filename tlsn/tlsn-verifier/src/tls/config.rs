@@ -82,7 +82,10 @@ impl VerifierConfig {
         kos::ReceiverConfig::default()
     }
 
-    pub(crate) fn build_mpc_tls_config(&self, protocol_config: &ProtocolConfig) -> MpcTlsFollowerConfig {
+    pub(crate) fn build_mpc_tls_config(
+        &self,
+        protocol_config: &ProtocolConfig,
+    ) -> MpcTlsFollowerConfig {
         MpcTlsFollowerConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
