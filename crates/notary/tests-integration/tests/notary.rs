@@ -165,6 +165,7 @@ async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
 )]
 #[awt]
 #[tokio::test]
+#[ignore = "expensive"]
 async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     #[future]
     #[case]
@@ -252,6 +253,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 }
 
 #[tokio::test]
+#[ignore = "expensive"]
 async fn test_websocket_prover() {
     // Notary server configuration setup
     let notary_config = setup_config_and_server(100, 7050, true, false).await;
