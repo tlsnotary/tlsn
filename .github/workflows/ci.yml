@@ -62,8 +62,8 @@ jobs:
 
       - name: Test
         run: cargo test
-  build-wasm:
-    name: Build and test wasm
+  wasm:
+    name: Build and Test wasm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -97,6 +97,20 @@ jobs:
         run: |
           cd crates/wasm-test-runner
           ./run.sh
+
+      - name: Run build
+        run: |
+          cd crates/wasm
+          ./build.sh
+
+      - name: Save artifacts
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.ref_name }}-tlsn-wasm-pkg
+          path: ./crates/wasm/pkg
+          if-no-files-found: error
+
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
