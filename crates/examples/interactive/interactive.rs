@@ -1,7 +1,6 @@
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
-use regex::Regex;
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{state::Prove, Prover, ProverConfig};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -10,13 +9,13 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 const SECRET: &str = "TLSNotary's private key 🤡";
-const SERVER_DOMAIN: &str = "notary.pse.dev";
+const SERVER_DOMAIN: &str = "example.com";
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let uri = "https://notary.pse.dev/info";
+    let uri = "https://example.com";
     let id = "interactive verifier demo";
 
     // Connect prover and verifier.
@@ -137,8 +136,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let response =
         String::from_utf8(received.data().to_vec()).expect("Verifier expected received data");
     response
-        .find("BEGIN PUBLIC KEY")
-        .expect("Expected valid public key in JSON response");
+        .find("Example Domain")
+        .expect("Expected valid data from example.com");
 
     // Check Session info: server name.
     assert_eq!(session_info.server_name.as_str(), SERVER_DOMAIN);
@@ -150,17 +149,17 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 fn redact_and_reveal_received_data(prover: &mut Prover<Prove>) {
     let recv_transcript_len = prover.recv_transcript().data().len();
 
-    // Get the commit hash from the received data.
+    // Get the received data as a string.
     let received_string = String::from_utf8(prover.recv_transcript().data().to_vec()).unwrap();
-    let re = Regex::new(r#""gitCommitHash"\s?:\s?"(.*?)""#).unwrap();
-    let commit_hash_match = re.captures(&received_string).unwrap().get(1).unwrap();
+    // Find the substring "illustrative".
+    let start = received_string
+        .find("illustrative")
+        .expect("Error: The substring 'illustrative' was not found in the received data.");
+    let end = start + "illustrative".len();
 
-    // Reveal everything except for the commit hash.
-    _ = prover.reveal(0..commit_hash_match.start(), Direction::Received);
-    _ = prover.reveal(
-        commit_hash_match.end()..recv_transcript_len,
-        Direction::Received,
-    );
+    // Reveal everything except for the substring "illustrative".
+    _ = prover.reveal(0..start, Direction::Received);
+    _ = prover.reveal(end..recv_transcript_len, Direction::Received);
 }
 
 /// Redacts and reveals sent data to the verifier.
