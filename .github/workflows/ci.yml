@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -87,9 +87,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Use caching
-        uses: Swatinem/rust-cache@v2.5.0
-        with:
-          workspaces: crates/wasm-test-runner -> ../target
+        uses: Swatinem/rust-cache@v2.7.3
 
       - name: Run tests
         run: |
