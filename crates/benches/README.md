@@ -19,7 +19,7 @@ sudo apt-get install iproute2 -y
 
 Running the benches requires root privileges because they will set up virtual interfaces. The script is designed to fully clean up when the benches are done, but run them at your own risk.
 
-Make sure you're in the `tlsn/benches/` directory, build the binaries then run the script:
+Make sure you're in the `crates/benches/` directory, build the binaries then run the script:
 
 ```sh
 cargo build --release

@@ -1,12 +1,9 @@
 # exclude everything
 *
 
-# include notary
-!/notary
-
-# include core library dependencies
-!/tlsn
-!/components
+# include notary and core library dependencies
+!/crates
+!/Cargo.toml
 
 # include .git for program to get git info
 !/.git
