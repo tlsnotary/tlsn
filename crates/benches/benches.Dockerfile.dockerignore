@@ -1,0 +1,2 @@
+# exclude any /target folders
+**/target*

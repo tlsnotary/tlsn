@@ -12,16 +12,16 @@ jobs:
 
     - name: Build Docker Image
       run: |
-        docker build -t tlsn-bench . -f ./tlsn/benches/benches.Dockerfile
+        docker build -t tlsn-bench . -f ./crates/benches/benches.Dockerfile
 
     - name: Run Benchmarks
       run: |
-        docker run --privileged -v ${{ github.workspace }}/tlsn/benches/:/benches tlsn-bench
+        docker run --privileged -v ${{ github.workspace }}/crates/benches/:/benches tlsn-bench
 
     - name: Upload runtime_vs_latency.html
       uses: actions/upload-artifact@v4
       with:
         name: benchmark_graphs
         path: |
-          ./tlsn/benches/runtime_vs_latency.html
-          ./tlsn/benches/runtime_vs_bandwidth.html
+          ./crates/benches/runtime_vs_latency.html
+          ./crates/benches/runtime_vs_bandwidth.html

@@ -47,7 +47,7 @@ Bytes sent:
 
 ### 3. Redact Information
 
-Open `simple/src/examples/simple_prover.rs` and locate the line with:
+Open `simple_prover.rs` and locate the line with:
 
 ```rust
 let redact = false;
@@ -74,7 +74,7 @@ cargo run --release --example simple_verifier
 ...
 ```
 
-You can also use <https://explorer.tlsnotary.org/> to inspect your proofs. Simply drag and drop `simple_proof.json` from your file explorer into the drop zone. Redacted bytes are marked with X characters. [Notary public key](../../../notary/server/fixture/notary/notary.pub)
+You can also use <https://explorer.tlsnotary.org/> to inspect your proofs. Simply drag and drop `simple_proof.json` from your file explorer into the drop zone. Redacted bytes are marked with X characters. [Notary public key](../../notary/server/fixture/notary/notary.pub)
 
 ### (Optional) Extra Experiments
 
