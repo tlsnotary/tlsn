@@ -44,13 +44,13 @@ jobs:
             exit 1
           fi
 
-      - name: Wait for test workflow to succeed
+      - name: Wait for integration test workflow to succeed
         if: github.event_name == 'push'
         uses: lewagon/wait-on-check-action@v1.3.1
         with:
           ref: ${{ github.ref }}
-          # Have to specify '(notary)', as we are using matrix for build_and_test job in ci.yml, else it will fail, more details [here](https://github.com/lewagon/wait-on-check-action#check-name)
-          check-name: 'Build and test'
+          # More details [here](https://github.com/lewagon/wait-on-check-action#check-name)
+          check-name: 'Run tests release build'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           # How frequent (in seconds) this job will call GitHub API to check the status of the job specified at 'check-name'
           wait-interval: 60

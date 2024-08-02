@@ -1,7 +1,7 @@
 FROM rust AS builder
 WORKDIR /usr/src/tlsn
 COPY . .
-RUN cd tlsn/benches && cargo build --release
+RUN cd crates/benches && cargo build --release
 
 FROM ubuntu:latest
 
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder ["/usr/src/tlsn/tlsn/target/release/bench", "/usr/src/tlsn/tlsn/target/release/prover", "/usr/src/tlsn/tlsn/target/release/verifier", "/usr/src/tlsn/tlsn/target/release/plot", "/usr/local/bin/"]
+COPY --from=builder ["/usr/src/tlsn/target/release/bench", "/usr/src/tlsn/target/release/prover", "/usr/src/tlsn/target/release/verifier", "/usr/src/tlsn/target/release/plot", "/usr/local/bin/"]
 
 ENV PROVER_PATH="/usr/local/bin/prover"
 ENV VERIFIER_PATH="/usr/local/bin/verifier"
