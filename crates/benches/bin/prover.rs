@@ -120,7 +120,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
             .id("test")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store())
-            .max_sent_data_online(upload_size + 256)
+            .max_sent_data(upload_size + 256)
             .max_recv_data_online(download_size + 256)
             .build()
             .context("invalid prover config")?,

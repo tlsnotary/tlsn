@@ -137,8 +137,8 @@ impl MpcTlsLeader {
         futures::try_join!(
             self.encrypter
                 .preprocess(self.config.common().tx_config().max_online_size()),
-            // For now we just preprocess enough for the handshake
-            self.decrypter.preprocess(256),
+            self.decrypter
+                .preprocess(self.config.common().rx_config().max_online_size()),
         )?;
 
         self.prf

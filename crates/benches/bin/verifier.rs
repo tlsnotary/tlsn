@@ -67,7 +67,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         VerifierConfig::builder()
             .id("test")
             .cert_verifier(cert_verifier())
-            .max_sent_data_online(upload_size + 256)
+            .max_sent_data(upload_size + 256)
             .max_recv_data_online(download_size + 256)
             .build()?,
     );

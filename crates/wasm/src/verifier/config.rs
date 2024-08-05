@@ -14,7 +14,7 @@ impl From<VerifierConfig> for tlsn_verifier::tls::VerifierConfig {
         let mut builder = tlsn_verifier::tls::VerifierConfig::builder();
 
         if let Some(value) = value.max_sent_data {
-            builder = builder.max_sent_data_online(value);
+            builder = builder.max_sent_data(value);
         }
 
         if let Some(value) = value.max_received_data {

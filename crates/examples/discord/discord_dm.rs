@@ -69,7 +69,7 @@ async fn main() {
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
-        .max_sent_data_online(MAX_SENT_DATA)
+        .max_sent_data(MAX_SENT_DATA)
         .max_recv_data_online(MAX_RECV_DATA)
         .build()
         .unwrap();

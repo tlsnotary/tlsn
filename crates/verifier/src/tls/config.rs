@@ -15,9 +15,9 @@ use tlsn_core::proof::default_cert_verifier;
 pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
-    /// Maximum number of bytes that can be sent online.
+    /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
-    max_sent_data_online: usize,
+    max_sent_data: usize,
     /// Maximum number of bytes that can be received online.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data_online: usize,
@@ -36,7 +36,7 @@ impl Debug for VerifierConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("VerifierConfig")
             .field("id", &self.id)
-            .field("max_sent_data_online", &self.max_sent_data_online)
+            .field("max_sent_data_online", &self.max_sent_data)
             .field("max_recv_data_online", &self.max_recv_data_online)
             .field("max_deferred_size", &self.max_deferred_size)
             .field("cert_verifier", &"_")
@@ -57,7 +57,7 @@ impl VerifierConfig {
 
     /// Returns the maximum number of bytes that can be sent online.
     pub fn max_sent_data_online(&self) -> usize {
-        self.max_sent_data_online
+        self.max_sent_data
     }
 
     /// Returns the maximum number of bytes that can be received online.
@@ -106,7 +106,7 @@ impl VerifierConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_online_size(self.max_sent_data_online)
+                            .max_online_size(self.max_sent_data)
                             .build()
                             .unwrap(),
                     )
@@ -128,7 +128,7 @@ impl VerifierConfig {
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
         ot_send_estimate(
             Role::Verifier,
-            self.max_sent_data_online,
+            self.max_sent_data,
             self.max_recv_data_online + self.max_deferred_size,
         )
     }
@@ -136,7 +136,7 @@ impl VerifierConfig {
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
         ot_recv_estimate(
             Role::Verifier,
-            self.max_sent_data_online,
+            self.max_sent_data,
             self.max_recv_data_online + self.max_deferred_size,
         )
     }

@@ -18,9 +18,9 @@ pub struct ProverConfig {
     /// TLS root certificate store.
     #[builder(setter(strip_option), default = "default_root_store()")]
     pub(crate) root_cert_store: RootCertStore,
-    /// Maximum number of bytes that can be sent online.
+    /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
-    max_sent_data_online: usize,
+    max_sent_data: usize,
     /// Maximum number of bytes that can be received online.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data_online: usize,
@@ -42,7 +42,7 @@ impl ProverConfig {
 
     /// Returns the maximum number of bytes that can be sent online.
     pub fn max_sent_data_online(&self) -> usize {
-        self.max_sent_data_online
+        self.max_sent_data
     }
 
     /// Returns the maximum number of bytes that can be received online.
@@ -67,7 +67,7 @@ impl ProverConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_online_size(self.max_sent_data_online)
+                            .max_online_size(self.max_sent_data)
                             .build()
                             .unwrap(),
                     )
@@ -111,7 +111,7 @@ impl ProverConfig {
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
         ot_send_estimate(
             Role::Prover,
-            self.max_sent_data_online,
+            self.max_sent_data,
             self.max_recv_data_online + self.max_deferred_size,
         )
     }
@@ -119,7 +119,7 @@ impl ProverConfig {
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
         ot_recv_estimate(
             Role::Prover,
-            self.max_sent_data_online,
+            self.max_sent_data,
             self.max_recv_data_online + self.max_deferred_size,
         )
     }
