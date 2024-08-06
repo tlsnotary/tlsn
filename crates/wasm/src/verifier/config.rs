@@ -18,7 +18,7 @@ impl From<VerifierConfig> for tlsn_verifier::tls::VerifierConfig {
         }
 
         if let Some(value) = value.max_received_data {
-            builder = builder.max_recv_data(value);
+            builder = builder.max_recv_data_online(value);
         }
 
         builder.id(value.id).build().unwrap()

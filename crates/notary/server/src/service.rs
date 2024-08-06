@@ -186,7 +186,7 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     }
 
     if let Some(max_recv_data) = max_recv_data {
-        config_builder = config_builder.max_recv_data(max_recv_data);
+        config_builder = config_builder.max_recv_data_online(max_recv_data);
     }
 
     let config = config_builder.build()?;

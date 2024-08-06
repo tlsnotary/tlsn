@@ -14,8 +14,10 @@ pub struct TranscriptConfig {
     /// The "opaque" transcript id, used for parts of the transcript that are not
     /// part of the application data.
     opaque_id: String,
-    /// The maximum length of the transcript in bytes.
-    max_size: usize,
+    /// The maximum length of the transcript in bytes for en-/decryption during the MPC-TLS connection.
+    max_online_size: usize,
+    /// Maximum number of bytes that will be decrypted after the TLS connection is closed.
+    max_deferred_size: usize,
 }
 
 impl TranscriptConfig {
@@ -26,7 +28,8 @@ impl TranscriptConfig {
         builder
             .id(DEFAULT_TX_TRANSCRIPT_ID.to_string())
             .opaque_id(DEFAULT_OPAQUE_TX_TRANSCRIPT_ID.to_string())
-            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE);
+            .max_online_size(DEFAULT_TRANSCRIPT_MAX_SIZE)
+            .max_deferred_size(0);
 
         builder
     }
@@ -38,7 +41,8 @@ impl TranscriptConfig {
         builder
             .id(DEFAULT_RX_TRANSCRIPT_ID.to_string())
             .opaque_id(DEFAULT_OPAQUE_RX_TRANSCRIPT_ID.to_string())
-            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE);
+            .max_online_size(DEFAULT_TRANSCRIPT_MAX_SIZE)
+            .max_deferred_size(0);
 
         builder
     }
@@ -58,9 +62,14 @@ impl TranscriptConfig {
         &self.opaque_id
     }
 
-    /// Returns the maximum length of the transcript in bytes.
-    pub fn max_size(&self) -> usize {
-        self.max_size
+    /// Returns the maximum online length of the transcript in bytes.
+    pub fn max_online_size(&self) -> usize {
+        self.max_online_size
+    }
+
+    /// Returns the maximum number of bytes that will be decrypted after the TLS connection is closed.
+    pub fn max_deferred_size(&self) -> usize {
+        self.max_deferred_size
     }
 }
 

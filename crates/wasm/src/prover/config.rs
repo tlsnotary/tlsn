@@ -21,7 +21,7 @@ impl From<ProverConfig> for tlsn_prover::tls::ProverConfig {
         }
 
         if let Some(value) = value.max_recv_data {
-            builder.max_recv_data(value);
+            builder.max_recv_data_online(value);
         }
 
         builder.build().unwrap()
