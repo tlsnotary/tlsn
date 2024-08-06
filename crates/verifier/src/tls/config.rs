@@ -16,7 +16,7 @@ pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
     #[builder(default)]
-    pub protocol_config_validator: ProtocolConfigValidator,
+    protocol_config_validator: ProtocolConfigValidator,
     #[builder(
         pattern = "owned",
         setter(strip_option),
@@ -51,6 +51,11 @@ impl VerifierConfig {
     /// Returns the ID of the notarization session.
     pub fn id(&self) -> &str {
         &self.id
+    }
+
+    /// Returns the protocol configuration validator.
+    pub fn protocol_config_validator(&self) -> &ProtocolConfigValidator {
+        &self.protocol_config_validator
     }
 
     /// Returns the certificate verifier.

@@ -79,7 +79,7 @@ impl Verifier<state::Initialized> {
             .poll_with(async {
                 let peer_configuration: ProtocolConfig = io.expect_next().await?;
                 self.config
-                    .protocol_config_validator
+                    .protocol_config_validator()
                     .validate(&peer_configuration)?;
 
                 Ok::<_, VerifierError>(peer_configuration)

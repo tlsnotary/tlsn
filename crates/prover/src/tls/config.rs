@@ -20,7 +20,7 @@ pub struct ProverConfig {
     pub(crate) root_cert_store: RootCertStore,
     /// Protocol configuration to be checked with the verifier.
     #[builder(default)]
-    pub protocol_config: ProtocolConfig,
+    protocol_config: ProtocolConfig,
 }
 
 impl ProverConfig {
@@ -37,6 +37,11 @@ impl ProverConfig {
     /// Returns the server DNS name.
     pub fn server_dns(&self) -> &str {
         &self.server_dns
+    }
+
+    /// Returns the protocol configuration.
+    pub fn protocol_config(&self) -> &ProtocolConfig {
+        &self.protocol_config
     }
 
     pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsLeaderConfig {
