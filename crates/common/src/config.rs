@@ -35,8 +35,8 @@ pub struct ProtocolConfig {
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
     /// Version that is being run by prover/verifier.
-    #[builder(setter(skip), default = "VERSION.to_string()")]
-    version: String,
+    #[builder(setter(skip), default = "VERSION.clone()")]
+    version: Version,
 }
 
 impl Default for ProtocolConfig {
@@ -113,29 +113,29 @@ impl ProtocolConfigValidator {
         max_recv_data: usize,
     ) -> Result<(), ProtocolConfigError> {
         if max_sent_data > self.max_sent_data {
-            return Err(ProtocolConfigError::max_transcript_size(
-                "max_sent_data is greater than the configured limit",
-            ));
+            return Err(ProtocolConfigError::max_transcript_size(format!(
+                "max_sent_data {:?} is greater than the configured limit {:?}",
+                max_sent_data, self.max_sent_data,
+            )));
         }
 
         if max_recv_data > self.max_recv_data {
-            return Err(ProtocolConfigError::max_transcript_size(
-                "max_recv_data is greater than the configured limit",
-            ));
+            return Err(ProtocolConfigError::max_transcript_size(format!(
+                "max_recv_data {:?} is greater than the configured limit {:?}",
+                max_recv_data, self.max_recv_data,
+            )));
         }
 
         Ok(())
     }
 
     // Checks if both versions are the same (might support check for different but compatible versions in the future).
-    fn check_version(&self, version: &str) -> Result<(), ProtocolConfigError> {
-        let peer_version = Version::parse(version)
-            .map_err(|err| ProtocolConfigError::new(ErrorKind::Version, err))?;
-
-        if peer_version != self.version {
-            return Err(ProtocolConfigError::version(
-                "prover and verifier are running different versions",
-            ));
+    fn check_version(&self, peer_version: &Version) -> Result<(), ProtocolConfigError> {
+        if *peer_version != self.version {
+            return Err(ProtocolConfigError::version(format!(
+                "prover's version {:?} is different from verifier's version {:?}",
+                peer_version, self.version
+            )));
         }
 
         Ok(())

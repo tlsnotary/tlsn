@@ -21,7 +21,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 uid-mux = { workspace = true, features = ["serio"] }
 
-semver = { version = "1.0" }
+semver = { version = "1.0", features = ["serde"] }
 
 [dev-dependencies]
 rstest = { workspace = true }
