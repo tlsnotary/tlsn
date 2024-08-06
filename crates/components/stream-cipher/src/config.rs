@@ -47,10 +47,14 @@ impl std::fmt::Debug for InputText {
     }
 }
 
+/// The mode of execution.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ExecutionMode {
+    /// Computes either the plaintext or the ciphertext.
     Mpc,
+    /// Computes the ciphertext and proves its authenticity and correctness.
     Prove,
+    /// Computes the ciphertext and verifies its authenticity and correctness.
     Verify,
 }
 
