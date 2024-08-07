@@ -38,7 +38,7 @@ ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
 serde = { workspace = true, features = ["derive"] }
 serde-wasm-bindgen = { version = "0.6" }
 serde_json = { version = "1.0" }
-time = { version = "0.3", features = ["wasm-bindgen"] }
+time = { version = "0.3", features = ["wasm-bindgen", "serde"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["time"] }
 tracing-web = { version = "0.1" }

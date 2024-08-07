@@ -4,6 +4,7 @@ use http_body_util::Full;
 use hyper::body::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use time::OffsetDateTime;
 use tlsn_core::commitment::CommitmentKind;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
@@ -94,6 +95,10 @@ pub struct Reveal {
     pub recv: Vec<Range<usize>>,
 }
 
+#[derive(Debug, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub struct NotaryPublicKey(tlsn_core::NotaryPublicKey);
+
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
@@ -160,6 +165,47 @@ impl TlsProof {
     pub fn deserialize(bytes: Vec<u8>) -> Result<TlsProof, JsError> {
         Ok(bincode::deserialize(&bytes)?)
     }
+
+    pub fn verify(self, notary_key: NotaryPublicKey) -> Result<ProofData, JsError> {
+        // Verify tls proof.
+        let session = &self.0.session;
+        session.verify_with_default_cert_verifier(notary_key.0)?;
+
+        let (sent, recv) = self.0.substrings.verify(&self.0.session.header)?;
+
+        // Parse notarization time.
+        let notarization_time: i64 = session
+            .header
+            .time()
+            .try_into()
+            .expect("Timestamp should be convertible.");
+
+        let time = OffsetDateTime::from_unix_timestamp(notarization_time)
+            .expect("Shoud be able to create offset datetime");
+
+        // Compose proof data.
+        let data = ProofData {
+            time,
+            server_dns: session.session_info.server_name.as_str().to_string(),
+            sent: sent.data().to_vec(),
+            sent_auth_ranges: sent.authed().iter_ranges().collect(),
+            received: recv.data().to_vec(),
+            received_auth_ranges: recv.authed().iter_ranges().collect(),
+        };
+
+        Ok(data)
+    }
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct ProofData {
+    pub time: OffsetDateTime,
+    pub server_dns: String,
+    pub sent: Vec<u8>,
+    pub sent_auth_ranges: Vec<Range<usize>>,
+    pub received: Vec<u8>,
+    pub received_auth_ranges: Vec<Range<usize>>,
 }
 
 #[derive(Debug, Tsify, Serialize)]
