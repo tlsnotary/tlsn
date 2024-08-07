@@ -21,9 +21,12 @@ pub struct ProverConfig {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
+    /// Maximum number of bytes that can be decrypted online.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    max_recv_data_online: usize,
+    /// Maximum number of bytes that will be decrypted after the TLS connection is closed.
+    #[builder(default = "0")]
+    max_deferred_size: usize,
 }
 
 impl ProverConfig {
@@ -42,9 +45,14 @@ impl ProverConfig {
         self.max_sent_data
     }
 
-    /// Returns the maximum number of bytes that can be received.
-    pub fn max_recv_data(&self) -> usize {
-        self.max_recv_data
+    /// Returns the maximum number of bytes that can be decrypted online.
+    pub fn max_recv_data_online(&self) -> usize {
+        self.max_recv_data_online
+    }
+
+    /// Returns the maximum number of bytes that will be decrypted after the TLS connection is closed.
+    pub fn max_deferred_size(&self) -> usize {
+        self.max_deferred_size
     }
 
     /// Returns the server DNS name.
@@ -59,13 +67,14 @@ impl ProverConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.max_sent_data)
+                            .max_online_size(self.max_sent_data)
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.max_recv_data)
+                            .max_online_size(self.max_recv_data_online)
+                            .max_deferred_size(self.max_deferred_size)
                             .build()
                             .unwrap(),
                     )
@@ -100,11 +109,21 @@ impl ProverConfig {
     }
 
     pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
+        ot_send_estimate(
+            Role::Prover,
+            self.max_sent_data,
+            self.max_recv_data_online,
+            self.max_deferred_size,
+        )
     }
 
     pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
+        ot_recv_estimate(
+            Role::Prover,
+            self.max_sent_data,
+            self.max_recv_data_online,
+            self.max_deferred_size,
+        )
     }
 }
 

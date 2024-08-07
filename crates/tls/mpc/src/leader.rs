@@ -136,9 +136,9 @@ impl MpcTlsLeader {
 
         futures::try_join!(
             self.encrypter
-                .preprocess(self.config.common().tx_config().max_size()),
-            // For now we just preprocess enough for the handshake
-            self.decrypter.preprocess(256),
+                .preprocess(self.config.common().tx_config().max_online_size()),
+            self.decrypter
+                .preprocess(self.config.common().rx_config().max_online_size()),
         )?;
 
         self.prf
@@ -178,7 +178,7 @@ impl MpcTlsLeader {
         match direction {
             Direction::Sent => {
                 let new_len = self.encrypter.sent_bytes() + len;
-                let max_size = self.config.common().tx_config().max_size();
+                let max_size = self.config.common().tx_config().max_online_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,
@@ -191,7 +191,8 @@ impl MpcTlsLeader {
             }
             Direction::Recv => {
                 let new_len = self.decrypter.recv_bytes() + len;
-                let max_size = self.config.common().rx_config().max_size();
+                let max_size = self.config.common().rx_config().max_online_size()
+                    + self.config.common().rx_config().max_deferred_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,

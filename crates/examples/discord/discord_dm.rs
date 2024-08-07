@@ -70,7 +70,7 @@ async fn main() {
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
         .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .max_recv_data_online(MAX_RECV_DATA)
         .build()
         .unwrap();
 
