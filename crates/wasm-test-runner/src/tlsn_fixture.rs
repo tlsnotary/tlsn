@@ -3,6 +3,7 @@ use std::{env, net::IpAddr};
 use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, Future};
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::Direction;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
@@ -70,10 +71,15 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
         ))
         .unwrap();
 
-    let config = VerifierConfig::builder()
-        .id("test")
+    let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(1024)
         .max_recv_data(1024)
+        .build()
+        .unwrap();
+
+    let config = VerifierConfig::builder()
+        .id("test")
+        .protocol_config_validator(config_validator)
         .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();
@@ -87,10 +93,15 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
 
 #[instrument(level = "debug", skip_all, err)]
 async fn handle_notary(io: TcpStream) -> Result<()> {
-    let config = VerifierConfig::builder()
-        .id("test")
+    let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(1024)
         .max_recv_data(1024)
+        .build()
+        .unwrap();
+
+    let config = VerifierConfig::builder()
+        .id("test")
+        .protocol_config_validator(config_validator)
         .build()
         .unwrap();
 
@@ -111,12 +122,17 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(1024)
+        .max_recv_data(1024)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
-            .max_sent_data(1024)
-            .max_recv_data(1024)
+            .protocol_config(protocol_config)
             .root_cert_store(root_store)
             .build()
             .unwrap(),

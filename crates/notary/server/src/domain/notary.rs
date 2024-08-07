@@ -43,20 +43,13 @@ pub enum ClientType {
     Websocket,
 }
 
-/// Session configuration data to be stored in temporary storage
-#[derive(Clone, Debug)]
-pub struct SessionData {
-    pub max_sent_data: Option<usize>,
-    pub max_recv_data: Option<usize>,
-}
-
 /// Global data that needs to be shared with the axum handlers
 #[derive(Clone, Debug)]
 pub struct NotaryGlobals {
     pub notary_signing_key: SigningKey,
     pub notarization_config: NotarizationProperties,
-    /// A temporary storage to store configuration data, mainly used for WebSocket client
-    pub store: Arc<Mutex<HashMap<String, SessionData>>>,
+    /// A temporary storage to store session_id
+    pub store: Arc<Mutex<HashMap<String, ()>>>,
     /// Whitelist of API keys for authorization purpose
     pub authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
 }

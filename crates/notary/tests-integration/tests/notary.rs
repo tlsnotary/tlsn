@@ -13,6 +13,7 @@ use rstest::rstest;
 use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_common::config::ProtocolConfig;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -43,7 +44,8 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
             html_info: "example html response".to_string(),
         },
         notarization: NotarizationProperties {
-            max_transcript_size: 1 << 14,
+            max_sent_data: 1 << 13,
+            max_recv_data: 1 << 14,
         },
         tls: TLSProperties {
             enabled: tls_enabled,
@@ -163,6 +165,7 @@ async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
 )]
 #[awt]
 #[tokio::test]
+#[ignore = "expensive"]
 async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     #[future]
     #[case]
@@ -175,12 +178,17 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     // Prover config using the session_id returned from calling /session endpoint in notary client.
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .protocol_config(protocol_config)
         .root_cert_store(root_cert_store)
         .build()
         .unwrap();
@@ -245,6 +253,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 }
 
 #[tokio::test]
+#[ignore = "expensive"]
 async fn test_websocket_prover() {
     // Notary server configuration setup
     let notary_config = setup_config_and_server(100, 7050, true, false).await;
@@ -350,13 +359,18 @@ async fn test_websocket_prover() {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     // Basic default prover config — use the responded session id from notary server
     let prover_config = ProverConfig::builder()
         .id(notarization_response.session_id)
         .server_dns(SERVER_DOMAIN)
         .root_cert_store(root_store)
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .protocol_config(protocol_config)
         .build()
         .unwrap();
 

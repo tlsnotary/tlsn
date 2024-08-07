@@ -29,8 +29,10 @@ pub struct AuthorizationProperties {
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct NotarizationProperties {
-    /// Global limit for maximum transcript size in bytes
-    pub max_transcript_size: usize,
+    /// Global limit for maximum number of bytes that can be sent
+    pub max_sent_data: usize,
+    /// Global limit for maximum number of bytes that can be received
+    pub max_recv_data: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]

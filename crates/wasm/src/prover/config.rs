@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use tlsn_common::config::ProtocolConfig;
 use tsify_next::Tsify;
 
 #[derive(Debug, Tsify, Deserialize)]
@@ -12,9 +13,7 @@ pub struct ProverConfig {
 
 impl From<ProverConfig> for tlsn_prover::tls::ProverConfig {
     fn from(value: ProverConfig) -> Self {
-        let mut builder = tlsn_prover::tls::ProverConfig::builder();
-        builder.id(value.id);
-        builder.server_dns(value.server_dns);
+        let mut builder = ProtocolConfig::builder();
 
         if let Some(value) = value.max_sent_data {
             builder.max_sent_data(value);
@@ -24,6 +23,13 @@ impl From<ProverConfig> for tlsn_prover::tls::ProverConfig {
             builder.max_recv_data(value);
         }
 
-        builder.build().unwrap()
+        let protocol_config = builder.build().unwrap();
+
+        tlsn_prover::tls::ProverConfig::builder()
+            .id(value.id)
+            .server_dns(value.server_dns)
+            .protocol_config(protocol_config)
+            .build()
+            .unwrap()
     }
 }

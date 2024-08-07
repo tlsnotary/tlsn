@@ -19,6 +19,7 @@ test = []
 no-bundler = ["wasm-bindgen-rayon/no-bundler"]
 
 [dependencies]
+tlsn-common = { path = "../common" }
 tlsn-core = { path = "../core" }
 tlsn-prover = { path = "../prover" }
 tlsn-tls-client-async = { path = "../tls/client-async" }
