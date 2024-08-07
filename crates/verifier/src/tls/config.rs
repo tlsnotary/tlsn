@@ -2,10 +2,7 @@ use mpz_ot::{chou_orlandi, kos};
 use std::fmt::{Debug, Formatter, Result};
 use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
-use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, ProtocolConfig, ProtocolConfigValidator},
-    Role,
-};
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::proof::default_cert_verifier;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
@@ -113,21 +110,5 @@ impl VerifierConfig {
             )
             .build()
             .unwrap()
-    }
-
-    pub(crate) fn ot_sender_setup_count(&self, protocol_config: &ProtocolConfig) -> usize {
-        ot_send_estimate(
-            Role::Verifier,
-            protocol_config.max_sent_data(),
-            protocol_config.max_recv_data(),
-        )
-    }
-
-    pub(crate) fn ot_receiver_setup_count(&self, protocol_config: &ProtocolConfig) -> usize {
-        ot_recv_estimate(
-            Role::Verifier,
-            protocol_config.max_sent_data(),
-            protocol_config.max_recv_data(),
-        )
     }
 }

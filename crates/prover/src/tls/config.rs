@@ -1,10 +1,7 @@
 use mpz_ot::{chou_orlandi, kos};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
-use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, ProtocolConfig},
-    Role,
-};
+use tlsn_common::config::ProtocolConfig;
 
 /// Configuration for the prover
 #[derive(Debug, Clone, derive_builder::Builder)]
@@ -89,22 +86,6 @@ impl ProverConfig {
             .sender_commit()
             .build()
             .unwrap()
-    }
-
-    pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(
-            Role::Prover,
-            self.protocol_config.max_sent_data(),
-            self.protocol_config.max_recv_data(),
-        )
-    }
-
-    pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(
-            Role::Prover,
-            self.protocol_config.max_sent_data(),
-            self.protocol_config.max_recv_data(),
-        )
     }
 }
 

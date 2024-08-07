@@ -60,6 +60,16 @@ impl ProtocolConfig {
     pub fn max_recv_data(&self) -> usize {
         self.max_recv_data
     }
+
+    /// Returns OT sender setup count.
+    pub fn ot_sender_setup_count(&self, role: Role) -> usize {
+        ot_send_estimate(role, self.max_sent_data, self.max_recv_data)
+    }
+
+    /// Returns OT receiver setup count.
+    pub fn ot_receiver_setup_count(&self, role: Role) -> usize {
+        ot_recv_estimate(role, self.max_sent_data, self.max_recv_data)
+    }
 }
 
 /// Protocol configuration validator used by checker (i.e. verifier) to perform compatibility check

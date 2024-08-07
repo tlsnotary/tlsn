@@ -259,13 +259,13 @@ async fn setup_mpc_backend(
         config.build_ot_sender_config(),
         chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
     );
-    ot_sender.alloc(config.ot_sender_setup_count(&protocol_config));
+    ot_sender.alloc(protocol_config.ot_sender_setup_count(Role::Verifier));
 
     let mut ot_receiver = kos::Receiver::new(
         config.build_ot_receiver_config(),
         chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
     );
-    ot_receiver.alloc(config.ot_receiver_setup_count(&protocol_config));
+    ot_receiver.alloc(protocol_config.ot_receiver_setup_count(Role::Verifier));
 
     let ot_sender = OTSender::new(ot_sender);
     let ot_receiver = OTReceiver::new(ot_receiver);
