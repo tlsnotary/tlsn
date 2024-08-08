@@ -174,6 +174,7 @@ impl TlsProof {
         Ok(bincode::deserialize(&bytes)?)
     }
 
+    /// Verifies the proof using the provided notary public key.
     pub fn verify(self, notary_key: NotaryPublicKey) -> Result<ProofData, JsError> {
         let NotaryPublicKey { typ, key } = notary_key;
 
