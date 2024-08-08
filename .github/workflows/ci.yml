@@ -58,8 +58,8 @@ jobs:
 
       - name: Test
         run: cargo test
-  build-wasm:
-    name: Build and test wasm
+  test-wasm: # Browser/no-bundler
+    name: Test wasm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -93,6 +93,42 @@ jobs:
         run: |
           cd crates/wasm-test-runner
           RUST_LOG=debug ./run.sh
+  tlsn-wasm:
+    name: Build wasm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install stable rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          toolchain: stable
+
+      - name: Install nightly rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown,x86_64-unknown-linux-gnu
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.7.3
+
+      - name: Run build
+        run: |
+          cd crates/wasm
+          RUST_LOG=debug ./build.sh
+      - name: Save artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tlsn-wasm-pkg
+          path: ./crates/wasm/pkg
+          if-no-files-found: error
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
