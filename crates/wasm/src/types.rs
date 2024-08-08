@@ -4,7 +4,6 @@ use http_body_util::Full;
 use hyper::body::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use time::OffsetDateTime;
 use tlsn_core::commitment::CommitmentKind;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
@@ -193,19 +192,9 @@ impl TlsProof {
 
         let (sent, recv) = self.0.substrings.verify(&self.0.session.header)?;
 
-        // Parse notarization time.
-        let notarization_time: i64 = session
-            .header
-            .time()
-            .try_into()
-            .expect("Timestamp should be convertible.");
-
-        let time = OffsetDateTime::from_unix_timestamp(notarization_time)
-            .expect("Shoud be able to create offset datetime");
-
         // Compose proof data.
         let data = ProofData {
-            time,
+            time: session.header.time(),
             server_dns: session.session_info.server_name.as_str().to_string(),
             sent: sent.data().to_vec(),
             sent_auth_ranges: sent.authed().iter_ranges().collect(),
@@ -220,7 +209,7 @@ impl TlsProof {
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct ProofData {
-    pub time: OffsetDateTime,
+    pub time: u64,
     pub server_dns: String,
     pub sent: Vec<u8>,
     pub sent_auth_ranges: Vec<Range<usize>>,
