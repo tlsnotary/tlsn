@@ -105,7 +105,7 @@ pub enum KeyType {
 #[tsify(from_wasm_abi)]
 pub struct NotaryPublicKey {
     typ: KeyType,
-    key: Vec<u8>,
+    key: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -184,7 +184,7 @@ impl TlsProof {
         };
 
         let key = tlsn_core::NotaryPublicKey::P256(
-            p256::PublicKey::from_public_key_pem(&String::from_utf8(key).expect("Found invalid UTF-8"))
+            p256::PublicKey::from_public_key_pem(&key)
                 .map_err(|_| JsError::new("invalid public key"))?,
         );
 
