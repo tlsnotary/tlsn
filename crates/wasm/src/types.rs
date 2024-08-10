@@ -7,6 +7,7 @@ use serde_json::Value as JsonValue;
 use tlsn_core::commitment::CommitmentKind;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
+use p256::pkcs8::DecodePublicKey;
 
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
@@ -104,7 +105,7 @@ pub enum KeyType {
 #[tsify(from_wasm_abi)]
 pub struct NotaryPublicKey {
     typ: KeyType,
-    key: Vec<u8>,
+    key: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -183,7 +184,7 @@ impl TlsProof {
         };
 
         let key = tlsn_core::NotaryPublicKey::P256(
-            p256::PublicKey::from_sec1_bytes(&key)
+            p256::PublicKey::from_public_key_pem(&key)
                 .map_err(|_| JsError::new("invalid public key"))?,
         );
 
