@@ -2,12 +2,12 @@ use std::{collections::HashMap, ops::Range};
 
 use http_body_util::Full;
 use hyper::body::Bytes;
+use p256::pkcs8::DecodePublicKey;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tlsn_core::commitment::CommitmentKind;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
-use p256::pkcs8::DecodePublicKey;
 
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
