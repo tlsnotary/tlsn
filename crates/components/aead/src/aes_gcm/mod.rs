@@ -101,14 +101,16 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
 
     #[instrument(level = "debug", skip(self), err)]
     async fn preprocess(&mut self, len: usize) -> Result<(), AesGcmError> {
-        futures::try_join!(
-            // Preprocess the GHASH key block.
-            self.aes_block
-                .preprocess(block_cipher::Visibility::Public, 1)
-                .map_err(AesGcmError::from),
-            self.aes_ctr.preprocess(len).map_err(AesGcmError::from),
-            self.ghash.preprocess().map_err(AesGcmError::from),
-        )?;
+        // Preprocess the GHASH key block.
+        self.aes_block
+            .preprocess(block_cipher::Visibility::Public, 1)
+            .map_err(AesGcmError::from)
+            .await?;
+        self.aes_ctr
+            .preprocess(len)
+            .map_err(AesGcmError::from)
+            .await?;
+        self.ghash.preprocess().map_err(AesGcmError::from).await?;
 
         Ok(())
     }
@@ -637,7 +639,6 @@ mod tests {
             follower.decrypt_public(explicit_nonce.clone(), ciphertext, aad.clone(),)
         )
         .unwrap();
-        std::process::exit(42);
 
         assert_eq!(leader_plaintext, plaintext);
         assert_eq!(leader_plaintext, follower_plaintext);
