@@ -40,14 +40,14 @@ async fn compute_tag_share<C: StreamCipher<Aes128Ctr> + ?Sized, H: UniversalHash
     ciphertext: Vec<u8>,
     aad: Vec<u8>,
 ) -> Result<TagShare, AesGcmError> {
-    let (j0, hash) = futures::try_join!(
-        aes_ctr
-            .share_keystream_block(explicit_nonce, 1)
-            .map_err(AesGcmError::from),
-        hasher
-            .finalize(build_ghash_data(aad, ciphertext))
-            .map_err(AesGcmError::from)
-    )?;
+    let j0 = aes_ctr
+        .share_keystream_block(explicit_nonce, 1)
+        .map_err(AesGcmError::from)
+        .await?;
+    let hash = hasher
+        .finalize(build_ghash_data(aad, ciphertext))
+        .map_err(AesGcmError::from)
+        .await?;
 
     debug_assert!(j0.len() == TAG_LEN);
     debug_assert!(hash.len() == TAG_LEN);
