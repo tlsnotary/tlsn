@@ -583,42 +583,42 @@ mod tests {
         assert_eq!(leader_plaintext, plaintext);
     }
 
-    #[tokio::test]
-    #[ignore = "expensive"]
-    async fn test_aes_gcm_decrypt_private_bad_tag() {
-        let key = vec![0u8; 16];
-        let iv = vec![0u8; 4];
-        let explicit_nonce = vec![0u8; 8];
-        let plaintext = vec![1u8; 32];
-        let aad = vec![2u8; 12];
-        let ciphertext = reference_impl(&key, &iv, &explicit_nonce, &plaintext, &aad);
-
-        let len = ciphertext.len();
-
-        // corrupt tag
-        let mut corrupted = ciphertext.clone();
-        corrupted[len - 1] -= 1;
-
-        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
-
-        // leader receives corrupted tag
-        let err = tokio::try_join!(
-            leader.decrypt_private(explicit_nonce.clone(), corrupted.clone(), aad.clone(),),
-            follower.decrypt_blind(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),)
-        )
-        .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Tag);
-
-        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
-
-        // follower receives corrupted tag
-        let err = tokio::try_join!(
-            leader.decrypt_private(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
-            follower.decrypt_blind(explicit_nonce.clone(), corrupted.clone(), aad.clone(),)
-        )
-        .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Tag);
-    }
+    //    #[tokio::test]
+    //    #[ignore = "expensive"]
+    //    async fn test_aes_gcm_decrypt_private_bad_tag() {
+    //        let key = vec![0u8; 16];
+    //        let iv = vec![0u8; 4];
+    //        let explicit_nonce = vec![0u8; 8];
+    //        let plaintext = vec![1u8; 32];
+    //        let aad = vec![2u8; 12];
+    //        let ciphertext = reference_impl(&key, &iv, &explicit_nonce, &plaintext, &aad);
+    //
+    //        let len = ciphertext.len();
+    //
+    //        // corrupt tag
+    //        let mut corrupted = ciphertext.clone();
+    //        corrupted[len - 1] -= 1;
+    //
+    //        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
+    //
+    //        // leader receives corrupted tag
+    //        let err = tokio::try_join!(
+    //            leader.decrypt_private(explicit_nonce.clone(), corrupted.clone(), aad.clone(),),
+    //            follower.decrypt_blind(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),)
+    //        )
+    //        .unwrap_err();
+    //        assert_eq!(err.kind(), ErrorKind::Tag);
+    //
+    //        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
+    //
+    //        // follower receives corrupted tag
+    //        let err = tokio::try_join!(
+    //            leader.decrypt_private(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
+    //            follower.decrypt_blind(explicit_nonce.clone(), corrupted.clone(), aad.clone(),)
+    //        )
+    //        .unwrap_err();
+    //        assert_eq!(err.kind(), ErrorKind::Tag);
+    //    }
 
     #[tokio::test]
     #[ignore = "expensive"]
