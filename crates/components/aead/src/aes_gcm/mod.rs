@@ -620,27 +620,27 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Tag);
     }
 
-    //    #[tokio::test]
-    //    #[ignore = "expensive"]
-    //    async fn test_aes_gcm_decrypt_public() {
-    //        let key = vec![0u8; 16];
-    //        let iv = vec![0u8; 4];
-    //        let explicit_nonce = vec![0u8; 8];
-    //        let plaintext = vec![1u8; 32];
-    //        let aad = vec![2u8; 12];
-    //        let ciphertext = reference_impl(&key, &iv, &explicit_nonce, &plaintext, &aad);
-    //
-    //        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
-    //
-    //        let (leader_plaintext, follower_plaintext) = tokio::try_join!(
-    //            leader.decrypt_public(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
-    //            follower.decrypt_public(explicit_nonce.clone(), ciphertext, aad.clone(),)
-    //        )
-    //        .unwrap();
-    //
-    //        assert_eq!(leader_plaintext, plaintext);
-    //        assert_eq!(leader_plaintext, follower_plaintext);
-    //    }
+    #[tokio::test]
+    #[ignore = "expensive"]
+    async fn test_aes_gcm_decrypt_public() {
+        let key = vec![0u8; 16];
+        let iv = vec![0u8; 4];
+        let explicit_nonce = vec![0u8; 8];
+        let plaintext = vec![1u8; 32];
+        let aad = vec![2u8; 12];
+        let ciphertext = reference_impl(&key, &iv, &explicit_nonce, &plaintext, &aad);
+
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
+
+        let (leader_plaintext, follower_plaintext) = tokio::try_join!(
+            leader.decrypt_public(explicit_nonce.clone(), ciphertext.clone(), aad.clone(),),
+            follower.decrypt_public(explicit_nonce.clone(), ciphertext, aad.clone(),)
+        )
+        .unwrap();
+
+        assert_eq!(leader_plaintext, plaintext);
+        assert_eq!(leader_plaintext, follower_plaintext);
+    }
 
     #[tokio::test]
     #[ignore = "expensive"]
