@@ -234,6 +234,7 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
             .aes_ctr
             .decrypt_public(explicit_nonce, ciphertext)
             .await?;
+        std::process::exit(42);
 
         Ok(plaintext)
     }
@@ -267,7 +268,6 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
             .aes_ctr
             .decrypt_private(explicit_nonce, ciphertext)
             .await?;
-        std::process::exit(42);
 
         Ok(plaintext)
     }
