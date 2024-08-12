@@ -28,7 +28,7 @@ pub async fn create_mock_aes_gcm_pair(
     MpcAesGcm<STExecutor<MemoryDuplex>>,
 ) {
     let block_cipher_id = format!("{}/block_cipher", id);
-    let (ctx_leader, ctx_follower) = test_st_executor(128);
+    let (ctx_leader, ctx_follower) = test_st_executor(2048);
 
     let (leader_ot_send, follower_ot_recv) = ideal_ot();
     let (follower_ot_send, leader_ot_recv) = ideal_ot();
@@ -72,10 +72,10 @@ pub async fn create_mock_aes_gcm_pair(
         follower,
     );
 
-    let (ctx_a, ctx_b) = test_st_executor(128);
+    let (ctx_a, ctx_b) = test_st_executor(2048);
     let (leader_ghash, follower_ghash) = ideal_ghash(ctx_a, ctx_b);
 
-    let (ctx_a, ctx_b) = test_st_executor(128);
+    let (ctx_a, ctx_b) = test_st_executor(2048);
     let leader = MpcAesGcm::new(
         leader_config,
         ctx_a,
