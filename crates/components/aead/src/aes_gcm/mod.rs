@@ -262,12 +262,12 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
             purported_tag,
         )
         .await?;
-        std::process::exit(42);
 
         let plaintext = self
             .aes_ctr
             .decrypt_private(explicit_nonce, ciphertext)
             .await?;
+        std::process::exit(42);
 
         Ok(plaintext)
     }
