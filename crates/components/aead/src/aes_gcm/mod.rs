@@ -234,7 +234,6 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
             .aes_ctr
             .decrypt_public(explicit_nonce, ciphertext)
             .await?;
-        std::process::exit(42);
 
         Ok(plaintext)
     }
@@ -638,6 +637,7 @@ mod tests {
             follower.decrypt_public(explicit_nonce.clone(), ciphertext, aad.clone(),)
         )
         .unwrap();
+        std::process::exit(42);
 
         assert_eq!(leader_plaintext, plaintext);
         assert_eq!(leader_plaintext, follower_plaintext);
