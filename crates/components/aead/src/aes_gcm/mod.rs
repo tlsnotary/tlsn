@@ -230,8 +230,6 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
         )
         .await?;
 
-        std::process::exit(42);
-
         let plaintext = self
             .aes_ctr
             .decrypt_public(explicit_nonce, ciphertext)
@@ -253,8 +251,6 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
             .map_err(|_| AesGcmError::payload("payload is not long enough to contain tag"))?;
         let ciphertext = payload;
 
-        std::process::exit(42);
-
         verify_tag(
             &mut self.ctx,
             self.aes_ctr.as_mut(),
@@ -266,6 +262,7 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
             purported_tag,
         )
         .await?;
+        std::process::exit(42);
 
         let plaintext = self
             .aes_ctr
