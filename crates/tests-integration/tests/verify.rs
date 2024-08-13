@@ -1,11 +1,13 @@
-use http_body_util::{BodyExt as _, Empty};
-use hyper::{body::Bytes, Request, StatusCode};
-use hyper_util::rt::TokioIo;
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture;
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
+
+use http_body_util::{BodyExt as _, Empty};
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;

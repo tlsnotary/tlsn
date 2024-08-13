@@ -1,13 +1,14 @@
 use std::{env, net::IpAddr};
 
-use anyhow::Result;
-use futures::{AsyncReadExt, AsyncWriteExt, Future};
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::Direction;
 use tlsn_prover::tls::{Prover, ProverConfig};
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
+
+use anyhow::Result;
+use futures::{AsyncReadExt, AsyncWriteExt, Future};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{info, instrument};
@@ -66,9 +67,7 @@ pub async fn start() -> Result<impl Future<Output = Result<()>>> {
 async fn handle_verifier(io: TcpStream) -> Result<()> {
     let mut root_store = RootCertStore::empty();
     root_store
-        .add(&tls_core::key::Certificate(
-            tlsn_server_fixture::CA_CERT_DER.to_vec(),
-        ))
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
     let config_validator = ProtocolConfigValidator::builder()

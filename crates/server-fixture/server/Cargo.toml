@@ -14,6 +14,8 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat", "io"] }
 tower-service = { version = "0.3" }
 
+tlsn-server-fixture-certs = { workspace = true }
+
 [[bin]]
 name = "main"
 path = "src/main.rs"
