@@ -101,16 +101,14 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
 
     #[instrument(level = "debug", skip(self), err)]
     async fn preprocess(&mut self, len: usize) -> Result<(), AesGcmError> {
-        // Preprocess the GHASH key block.
-        self.aes_block
-            .preprocess(block_cipher::Visibility::Public, 1)
-            .map_err(AesGcmError::from)
-            .await?;
-        self.aes_ctr
-            .preprocess(len)
-            .map_err(AesGcmError::from)
-            .await?;
-        self.ghash.preprocess().map_err(AesGcmError::from).await?;
+        futures::try_join!(
+            // Preprocess the GHASH key block.
+            self.aes_block
+                .preprocess(block_cipher::Visibility::Public, 1)
+                .map_err(AesGcmError::from),
+            self.aes_ctr.preprocess(len).map_err(AesGcmError::from),
+            self.ghash.preprocess().map_err(AesGcmError::from),
+        )?;
 
         Ok(())
     }
@@ -516,7 +514,7 @@ mod tests {
         (leader, follower)
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     #[ignore = "expensive"]
     async fn test_aes_gcm_encrypt_private() {
         let key = vec![0u8; 16];
@@ -540,7 +538,7 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     #[ignore = "expensive"]
     async fn test_aes_gcm_encrypt_public() {
         let key = vec![0u8; 16];
@@ -564,7 +562,7 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_private() {
         let key = vec![0u8; 16];
@@ -585,7 +583,7 @@ mod tests {
         assert_eq!(leader_plaintext, plaintext);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_private_bad_tag() {
         let key = vec![0u8; 16];
@@ -622,7 +620,7 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Tag);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_public() {
         let key = vec![0u8; 16];
@@ -644,7 +642,7 @@ mod tests {
         assert_eq!(leader_plaintext, follower_plaintext);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     #[ignore = "expensive"]
     async fn test_aes_gcm_decrypt_public_bad_tag() {
         let key = vec![0u8; 16];
@@ -681,7 +679,7 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Tag);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     #[ignore = "expensive"]
     async fn test_aes_gcm_verify_tag() {
         let key = vec![0u8; 16];
