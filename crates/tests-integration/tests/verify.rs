@@ -1,7 +1,7 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
-use tlsn_server_fixture;
+use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 
@@ -36,7 +36,7 @@ async fn verify() {
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
 
-    let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
+    let server_task = tokio::spawn(bind(server_socket.compat()));
 
     let mut root_store = RootCertStore::empty();
     root_store

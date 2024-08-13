@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use tls_core::verify::WebPkiVerifier;
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use wasm_bindgen::prelude::*;
 
@@ -13,9 +14,6 @@ use crate::{
     types::{Commit, HttpRequest, Method, Reveal},
     verifier::JsVerifier,
 };
-
-static CA_CERT_DER: &[u8] = include_bytes!("../../server-fixture/src/tls/root_ca_cert.der");
-static SERVER_DOMAIN: &str = "test-server.io";
 
 #[wasm_bindgen]
 pub async fn test_prove() -> Result<(), JsValue> {
