@@ -1,5 +1,5 @@
 use std::error::Error;
-use tls_mpc::MpcTlsError;
+use tls_tee::TeeTlsError;
 
 /// An error that can occur during TLS verification.
 #[derive(Debug, thiserror::Error)]
@@ -30,8 +30,8 @@ impl From<mpz_common::ContextError> for VerifierError {
     }
 }
 
-impl From<MpcTlsError> for VerifierError {
-    fn from(e: MpcTlsError) -> Self {
+impl From<TeeTlsError> for VerifierError {
+    fn from(e: TeeTlsError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

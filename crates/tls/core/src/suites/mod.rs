@@ -10,6 +10,8 @@ use crate::{
     },
     versions::{SupportedProtocolVersion, TLS13},
 };
+use serde::{Deserialize, Serialize};
+use tls12::SerializableTls12CipherSuite;
 #[cfg(feature = "tls12")]
 pub use tls12::Tls12CipherSuite;
 #[cfg(feature = "tls12")]
@@ -22,6 +24,7 @@ pub use tls12::{
     TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
     TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 };
+use tls13::SerializableTls13CipherSuite;
 pub use tls13::{
     Tls13CipherSuite, TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384,
     TLS13_CHACHA20_POLY1305_SHA256,
@@ -29,7 +32,7 @@ pub use tls13::{
 
 /// AEAD Algorithm scheme used by a cipher suite.
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AEADAlgorithm {
     /// AES with 128-bit keys in Galois counter mode.
     AES_128_GCM,
@@ -42,7 +45,7 @@ pub enum AEADAlgorithm {
 }
 
 /// Hash algorithm used by a cipher suite.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum HashAlgorithm {
     SHA1,
     SHA256,
@@ -64,7 +67,7 @@ impl HashAlgorithm {
 }
 
 /// Hash-based Key Derivation Function algorithm used by a cipher suite.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum HKDFAlgorithm {
     SHA1,
     SHA256,
@@ -90,6 +93,13 @@ pub struct CipherSuiteCommon {
     pub aead_algorithm: &'static AEADAlgorithm,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct SerializableCipherSuiteCommon {
+    /// The TLS enumeration naming this cipher suite.
+    pub suite: CipherSuite,
+    pub aead_algorithm: AEADAlgorithm,
+}
+
 /// A cipher suite supported by rustls.
 ///
 /// All possible instances of this type are provided by the library in
@@ -101,6 +111,15 @@ pub enum SupportedCipherSuite {
     Tls12(&'static Tls12CipherSuite),
     /// A TLS 1.3 cipher suite
     Tls13(&'static Tls13CipherSuite),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SerializableSupportedCipherSuite {
+    /// A TLS 1.2 cipher suite
+    #[cfg(feature = "tls12")]
+    Tls12(SerializableTls12CipherSuite),
+    /// A TLS 1.3 cipher suite
+    Tls13(SerializableTls13CipherSuite),
 }
 
 impl SupportedCipherSuite {

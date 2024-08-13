@@ -19,15 +19,11 @@ pub use future::ProverFuture;
 use state::{Notarize, Prove};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpz_common::Allocate;
-use mpz_garble::config::Role as DEAPRole;
-use mpz_ot::{chou_orlandi, kos};
-use rand::Rng;
 use serio::StreamExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tls_mpc::{build_components, LeaderCtrl, MpcTlsLeader, TlsRole};
+use tls_tee::{TeeLeaderCtrl, TeeTlsLeader, TeeTlsRole};
 use tlsn_common::{
     mux::{attach_mux, MuxControl},
     DEAPThread, Executor, OTReceiver, OTSender, Role,
@@ -82,7 +78,7 @@ impl Prover<state::Initialized> {
         // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
-        let (mpc_tls, vm, ot_recv) = mux_fut
+        let (mpc_tls) = mux_fut
             .poll_with(setup_mpc_backend(&self.config, &mux_ctrl, &mut exec))
             .await?;
 
@@ -105,10 +101,8 @@ impl Prover<state::Initialized> {
                 io,
                 mux_ctrl,
                 mux_fut,
-                mpc_tls,
-                vm,
-                ot_recv,
                 ctx,
+                mpc_tls,
             },
         })
     }
@@ -133,8 +127,6 @@ impl Prover<state::Setup> {
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
-            vm,
-            ot_recv,
             ctx,
         } = self.state;
 
@@ -178,16 +170,8 @@ impl Prover<state::Setup> {
                         io,
                         mux_ctrl,
                         mux_fut,
-                        vm,
-                        ot_recv,
                         ctx,
                         start_time,
-                        handshake_decommitment: mpc_tls_data
-                            .handshake_decommitment
-                            .expect("handshake was committed"),
-                        server_public_key: mpc_tls_data.server_public_key,
-                        transcript_tx: Transcript::new(sent),
-                        transcript_rx: Transcript::new(recv),
                     },
                 })
             }
@@ -205,21 +189,11 @@ impl Prover<state::Setup> {
 }
 
 impl Prover<state::Closed> {
-    /// Returns the transcript of the sent requests
-    pub fn sent_transcript(&self) -> &Transcript {
-        &self.state.transcript_tx
-    }
-
-    /// Returns the transcript of the received responses
-    pub fn recv_transcript(&self) -> &Transcript {
-        &self.state.transcript_rx
-    }
-
     /// Creates an HTTP prover.
-    #[cfg(feature = "formats")]
-    pub fn to_http(self) -> Result<HttpProver<http_state::Closed>, HttpProverError> {
-        HttpProver::new(self)
-    }
+    // #[cfg(feature = "formats")]
+    // pub fn to_http(self) -> Result<HttpProver<http_state::Closed>, HttpProverError> {
+    //     HttpProver::new(self)
+    // }
 
     /// Starts notarization of the TLS session.
     ///
@@ -252,119 +226,25 @@ async fn setup_mpc_backend(
     config: &ProverConfig,
     mux: &MuxControl,
     exec: &mut Executor,
-) -> Result<(MpcTlsLeader, DEAPThread, OTReceiver), ProverError> {
+) -> Result<(TeeTlsLeader), ProverError> {
     debug!("starting MPC backend setup");
 
-    let mut ot_sender = kos::Sender::new(
-        config.build_ot_sender_config(),
-        chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
-    );
-    ot_sender.alloc(config.ot_sender_setup_count());
-
-    let mut ot_receiver = kos::Receiver::new(
-        config.build_ot_receiver_config(),
-        chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
-    );
-    ot_receiver.alloc(config.ot_receiver_setup_count());
-
-    let ot_sender = OTSender::new(ot_sender);
-    let ot_receiver = OTReceiver::new(ot_receiver);
-
-    let (
-        ctx_vm,
-        ctx_ke_0,
-        ctx_ke_1,
-        ctx_prf_0,
-        ctx_prf_1,
-        ctx_encrypter_block_cipher,
-        ctx_encrypter_stream_cipher,
-        ctx_encrypter_ghash,
-        ctx_encrypter,
-        ctx_decrypter_block_cipher,
-        ctx_decrypter_stream_cipher,
-        ctx_decrypter_ghash,
-        ctx_decrypter,
-    ) = futures::try_join!(
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-    )?;
-
-    let vm = DEAPThread::new(
-        DEAPRole::Leader,
-        rand::rngs::OsRng.gen(),
-        ctx_vm,
-        ot_sender.clone(),
-        ot_receiver.clone(),
-    );
-
     let mpc_tls_config = config.build_mpc_tls_config();
-    let (ke, prf, encrypter, decrypter) = build_components(
-        TlsRole::Leader,
-        mpc_tls_config.common(),
-        ctx_ke_0,
-        ctx_encrypter,
-        ctx_decrypter,
-        ctx_encrypter_ghash,
-        ctx_decrypter_ghash,
-        vm.new_thread(ctx_ke_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_0, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(
-            ctx_encrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_encrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        ot_sender.clone(),
-        ot_receiver.clone(),
-    );
 
     let channel = mux.open_framed(b"mpc_tls").await?;
-    let mut mpc_tls = MpcTlsLeader::new(
-        mpc_tls_config,
-        Box::new(StreamExt::compat_stream(channel)),
-        ke,
-        prf,
-        encrypter,
-        decrypter,
-    );
+    let mut mpc_tls = TeeTlsLeader::new(Box::new(StreamExt::compat_stream(channel)));
 
     mpc_tls.setup().await?;
 
     debug!("MPC backend setup complete");
 
-    Ok((mpc_tls, vm, ot_receiver))
+    Ok((mpc_tls))
 }
 
 /// A controller for the prover.
 #[derive(Clone)]
 pub struct ProverControl {
-    mpc_ctrl: LeaderCtrl,
+    mpc_ctrl: TeeLeaderCtrl,
 }
 
 impl ProverControl {

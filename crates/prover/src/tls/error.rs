@@ -1,5 +1,5 @@
 use std::error::Error;
-use tls_mpc::MpcTlsError;
+use tls_tee::TeeTlsError;
 use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
 /// An error that can occur during proving.
@@ -43,8 +43,8 @@ impl From<mpz_common::ContextError> for ProverError {
     }
 }
 
-impl From<MpcTlsError> for ProverError {
-    fn from(e: MpcTlsError) -> Self {
+impl From<TeeTlsError> for ProverError {
+    fn from(e: TeeTlsError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

@@ -151,11 +151,11 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let mut prover = prover_task.await??.start_prove();
 
-    prover.reveal(0..prover.sent_transcript().data().len(), Direction::Sent)?;
-    prover.reveal(
-        0..prover.recv_transcript().data().len(),
-        Direction::Received,
-    )?;
+    // prover.reveal(0..prover.sent_transcript().data().len(), Direction::Sent)?;
+    // prover.reveal(
+    //     0..prover.recv_transcript().data().len(),
+    //     Direction::Received,
+    // )?;
     prover.prove().await?;
     prover.finalize().await?;
 

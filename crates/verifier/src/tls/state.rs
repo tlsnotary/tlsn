@@ -2,7 +2,7 @@
 
 use mpz_core::hash::Hash;
 use tls_core::key::PublicKey;
-use tls_mpc::MpcTlsFollower;
+use tls_tee::TeeTlsFollower;
 use tlsn_common::{
     mux::{MuxControl, MuxFuture},
     Context, DEAPThread, Io, OTSender,
@@ -22,9 +22,7 @@ pub struct Setup {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
-    pub(crate) mpc_tls: MpcTlsFollower,
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
+    pub(crate) mpc_tls: TeeTlsFollower,
     pub(crate) ctx: Context,
 
     pub(crate) encoder_seed: [u8; 32],
@@ -36,16 +34,10 @@ pub struct Closed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
     pub(crate) ctx: Context,
 
     pub(crate) encoder_seed: [u8; 32],
     pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
 }
 
 opaque_debug::implement!(Closed);
@@ -56,16 +48,10 @@ pub struct Notarize {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
     pub(crate) ctx: Context,
 
     pub(crate) encoder_seed: [u8; 32],
     pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
 }
 
 opaque_debug::implement!(Notarize);
@@ -76,15 +62,9 @@ impl From<Closed> for Notarize {
             io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
-            vm: value.vm,
-            ot_send: value.ot_send,
             ctx: value.ctx,
             encoder_seed: value.encoder_seed,
             start_time: value.start_time,
-            server_ephemeral_key: value.server_ephemeral_key,
-            handshake_commitment: value.handshake_commitment,
-            sent_len: value.sent_len,
-            recv_len: value.recv_len,
         }
     }
 }
@@ -94,16 +74,9 @@ pub struct Verify {
     pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
     pub(crate) ctx: Context,
 
     pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
 }
 
 opaque_debug::implement!(Verify);
@@ -114,14 +87,8 @@ impl From<Closed> for Verify {
             io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
-            vm: value.vm,
-            ot_send: value.ot_send,
             ctx: value.ctx,
             start_time: value.start_time,
-            server_ephemeral_key: value.server_ephemeral_key,
-            handshake_commitment: value.handshake_commitment,
-            sent_len: value.sent_len,
-            recv_len: value.recv_len,
         }
     }
 }

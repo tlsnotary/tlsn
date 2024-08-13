@@ -103,33 +103,33 @@ impl JsProver {
     }
 
     /// Returns the transcript.
-    pub fn transcript(&self) -> Result<Transcript> {
-        let prover = self.state.try_as_closed()?;
+    // pub fn transcript(&self) -> Result<Transcript> {
+    //     let prover = self.state.try_as_closed()?;
 
-        let sent = prover.sent_transcript().data().clone();
-        let recv = prover.recv_transcript().data().clone();
+    //     let sent = prover.sent_transcript().data().clone();
+    //     let recv = prover.recv_transcript().data().clone();
 
-        Ok(Transcript {
-            sent: sent.to_vec(),
-            recv: recv.to_vec(),
-        })
-    }
+    //     Ok(Transcript {
+    //         sent: sent.to_vec(),
+    //         recv: recv.to_vec(),
+    //     })
+    // }
 
     /// Runs the notarization protocol.
-    pub async fn notarize(&mut self, commit: Commit) -> Result<NotarizedSession> {
+    pub async fn notarize(&mut self, commit: Commit) -> Result<()> {
         let mut prover = self.state.take().try_into_closed()?.start_notarize();
 
         info!("starting notarization");
 
-        let builder = prover.commitment_builder();
+        // let builder = prover.commitment_builder();
 
-        for range in commit.sent {
-            builder.commit_sent(&range)?;
-        }
+        // for range in commit.sent {
+        //     builder.commit_sent(&range)?;
+        // }
 
-        for range in commit.recv {
-            builder.commit_recv(&range)?;
-        }
+        // for range in commit.recv {
+        //     builder.commit_recv(&range)?;
+        // }
 
         let notarized_session = prover.finalize().await?;
 

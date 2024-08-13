@@ -66,20 +66,14 @@ impl JsVerifier {
     }
 
     /// Verifies the connection and finalizes the protocol.
-    pub async fn verify(&mut self) -> Result<VerifierData> {
+    pub async fn verify(&mut self) -> Result<()> {
         let (verifier, prover_conn) = self.state.take().try_into_connected()?;
 
-        let (sent, recv, info) = verifier.verify(prover_conn.into_io()).await?;
+        let () = verifier.verify(prover_conn.into_io()).await?;
 
         self.state = State::Complete;
 
-        Ok(VerifierData {
-            server_dns: info.server_name.as_str().to_string(),
-            sent: sent.data().to_vec(),
-            sent_auth_ranges: sent.authed().iter_ranges().collect(),
-            received: recv.data().to_vec(),
-            received_auth_ranges: recv.authed().iter_ranges().collect(),
-        })
+        Ok(())
     }
 }
 

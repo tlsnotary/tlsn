@@ -18,16 +18,7 @@ async fn verify() {
 
     let (socket_0, socket_1) = tokio::io::duplex(1 << 23);
 
-    let (_, (sent, received, _session_info)) = tokio::join!(prover(socket_0), verifier(socket_1));
-
-    assert_eq!(sent.authed(), &RangeSet::from(0..sent.data().len() - 1));
-    assert_eq!(
-        sent.redacted(),
-        &RangeSet::from(sent.data().len() - 1..sent.data().len())
-    );
-
-    assert_eq!(received.authed(), &RangeSet::from(2..received.data().len()));
-    assert_eq!(received.redacted(), &RangeSet::from(0..2));
+    let (_, ()) = tokio::join!(prover(socket_0), verifier(socket_1));
 }
 
 #[instrument(skip(notary_socket))]
@@ -83,12 +74,12 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let mut prover = prover_task.await.unwrap().unwrap().start_prove();
 
-    let sent_transcript_len = prover.sent_transcript().data().len();
-    let recv_transcript_len = prover.recv_transcript().data().len();
+    // let sent_transcript_len = prover.sent_transcript().data().len();
+    // let recv_transcript_len = prover.recv_transcript().data().len();
 
-    // Reveal parts of the transcript
-    _ = prover.reveal(0..sent_transcript_len - 1, Direction::Sent);
-    _ = prover.reveal(2..recv_transcript_len, Direction::Received);
+    // // Reveal parts of the transcript
+    // _ = prover.reveal(0..sent_transcript_len - 1, Direction::Sent);
+    // _ = prover.reveal(2..recv_transcript_len, Direction::Received);
     prover.prove().await.unwrap();
 
     prover.finalize().await.unwrap()
@@ -97,7 +88,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 #[instrument(skip(socket))]
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
-) -> (RedactedTranscript, RedactedTranscript, SessionInfo) {
+) -> () {
     let mut root_store = RootCertStore::empty();
     root_store
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
@@ -110,6 +101,6 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .unwrap();
     let verifier = Verifier::new(verifier_config);
 
-    let (sent, received, session_info) = verifier.verify(socket.compat()).await.unwrap();
-    (sent, received, session_info)
+    let () = verifier.verify(socket.compat()).await.unwrap();
+    ()
 }

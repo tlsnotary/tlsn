@@ -20,7 +20,7 @@ impl Verifier<Notarize> {
     ///
     /// * `signer` - The signer used to sign the notarization result.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<SessionHeader, VerifierError>
+    pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<(), VerifierError>
     where
         T: Into<Signature>,
     {
@@ -28,56 +28,16 @@ impl Verifier<Notarize> {
             mut io,
             mux_ctrl,
             mut mux_fut,
-            mut vm,
-            mut ot_send,
             mut ctx,
             encoder_seed,
             start_time,
-            server_ephemeral_key,
-            handshake_commitment,
-            sent_len,
-            recv_len,
         } = self.state;
 
         let session_header = mux_fut
             .poll_with(async {
-                let merkle_root: MerkleRoot = io.expect_next().await?;
 
                 // Finalize all MPC before signing the session header.
-                ot_send.reveal(&mut ctx).await?;
-
-                debug!("revealed OT secret");
-
-                vm.finalize()
-                    .await
-                    .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
-
-                info!("Finalized all MPC");
-
-                let handshake_summary =
-                    HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
-
-                let session_header = SessionHeader::new(
-                    encoder_seed,
-                    merkle_root,
-                    sent_len,
-                    recv_len,
-                    handshake_summary,
-                );
-
-                let signature = signer.sign(&session_header.to_bytes());
-
-                info!("Signed session header");
-
-                io.send(SignedSessionHeader {
-                    header: session_header.clone(),
-                    signature: signature.into(),
-                })
-                .await?;
-
-                info!("Sent session header");
-
-                Ok::<_, VerifierError>(session_header)
+                Ok::<_, VerifierError>(())
             })
             .await?;
 

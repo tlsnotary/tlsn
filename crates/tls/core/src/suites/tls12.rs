@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     msgs::{
         codec::{Codec, Reader},
@@ -7,6 +9,8 @@ use crate::{
     suites::{AEADAlgorithm, CipherSuiteCommon, HashAlgorithm, SupportedCipherSuite},
 };
 use std::fmt;
+
+use super::SerializableCipherSuiteCommon;
 
 pub const DOWNGRADE_SENTINEL: [u8; 8] = [0x44, 0x4f, 0x57, 0x4e, 0x47, 0x52, 0x44, 0x01];
 
@@ -123,7 +127,7 @@ static TLS12_RSA_SCHEMES: &[SignatureScheme] = &[
 pub struct Tls12CipherSuite {
     /// Common cipher suite fields.
     pub common: CipherSuiteCommon,
-    pub(crate) hmac_algorithm: &'static super::HashAlgorithm,
+    pub hmac_algorithm: &'static super::HashAlgorithm,
     /// How to exchange/agree keys.
     pub kx: KeyExchangeAlgorithm,
 
@@ -140,6 +144,17 @@ pub struct Tls12CipherSuite {
     /// key block to provide an initial explicit nonce offset,
     /// in a deterministic and safe way.  GCM needs this,
     /// chacha20poly1305 works this way by design.
+    pub explicit_nonce_len: usize,
+}
+
+#[cfg(feature = "tls12")]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SerializableTls12CipherSuite {
+    pub common: SerializableCipherSuiteCommon,
+    pub hmac_algorithm: super::HashAlgorithm,
+    pub kx: KeyExchangeAlgorithm,
+    pub sign: Vec<SignatureScheme>,
+    pub fixed_iv_len: usize,
     pub explicit_nonce_len: usize,
 }
 

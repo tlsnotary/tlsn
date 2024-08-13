@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     error::Error,
     msgs::{
@@ -64,7 +66,7 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpaqueMessage {
     pub typ: ContentType,
     pub version: ProtocolVersion,
@@ -171,7 +173,7 @@ impl From<Message> for PlainMessage {
 ///
 /// This type owns all memory for its interior parts. It can be decrypted from an OpaqueMessage
 /// or encrypted into an OpaqueMessage, and it is also used for joining and fragmenting.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PlainMessage {
     pub typ: ContentType,
     pub version: ProtocolVersion,

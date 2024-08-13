@@ -20,7 +20,7 @@ use mpz_ot::{chou_orlandi, kos};
 use rand::Rng;
 use signature::Signer;
 use state::{Notarize, Verify};
-use tls_mpc::{build_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
+use tls_tee::{TeeTlsFollower, TeeTlsRole};
 use tlsn_common::{
     mux::{attach_mux, MuxControl},
     DEAPThread, Executor, OTReceiver, OTSender, Role,
@@ -66,7 +66,7 @@ impl Verifier<state::Initialized> {
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
-        let (mpc_tls, vm, ot_send) = mux_fut
+        let (mpc_tls) = mux_fut
             .poll_with(setup_mpc_backend(
                 &self.config,
                 &mux_ctrl,
@@ -95,8 +95,6 @@ impl Verifier<state::Initialized> {
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
-                vm,
-                ot_send,
                 ctx,
                 encoder_seed,
             },
@@ -116,7 +114,7 @@ impl Verifier<state::Initialized> {
         self,
         socket: S,
         signer: &impl Signer<T>,
-    ) -> Result<SessionHeader, VerifierError>
+    ) -> Result<(), VerifierError>
     where
         T: Into<Signature>,
     {
@@ -140,12 +138,12 @@ impl Verifier<state::Initialized> {
     pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<(RedactedTranscript, RedactedTranscript, SessionInfo), VerifierError> {
+    ) -> Result<(()), VerifierError> {
         let mut verifier = self.setup(socket).await?.run().await?.start_verify();
-        let (redacted_sent, redacted_received) = verifier.receive().await?;
+        // let (redacted_sent, redacted_received) = verifier.receive().await?;
 
-        let session_info = verifier.finalize().await?;
-        Ok((redacted_sent, redacted_received, session_info))
+        // let session_info = verifier.finalize().await?;
+        Ok(())
     }
 }
 
@@ -158,8 +156,6 @@ impl Verifier<state::Setup> {
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
-            vm,
-            ot_send,
             ctx,
             encoder_seed,
         } = self.state;
@@ -169,19 +165,11 @@ impl Verifier<state::Setup> {
             .unwrap()
             .as_secs();
 
-        let MpcTlsFollowerData {
-            handshake_commitment,
-            server_key: server_ephemeral_key,
-            bytes_sent: sent_len,
-            bytes_recv: recv_len,
-        } = mux_fut
+        mux_fut
             .poll_with(mpc_tls.run().1.map_err(VerifierError::from))
             .await?;
 
         info!("Finished TLS session");
-
-        // TODO: We should be able to skip this commitment and verify the handshake directly.
-        let handshake_commitment = handshake_commitment.expect("handshake commitment is set");
 
         Ok(Verifier {
             config: self.config,
@@ -190,15 +178,9 @@ impl Verifier<state::Setup> {
                 io,
                 mux_ctrl,
                 mux_fut,
-                vm,
-                ot_send,
                 ctx,
                 encoder_seed,
                 start_time,
-                server_ephemeral_key,
-                handshake_commitment,
-                sent_len,
-                recv_len,
             },
         })
     }
@@ -237,111 +219,19 @@ async fn setup_mpc_backend(
     mux: &MuxControl,
     exec: &mut Executor,
     encoder_seed: [u8; 32],
-) -> Result<(MpcTlsFollower, DEAPThread, OTSender), VerifierError> {
+) -> Result<(TeeTlsFollower), VerifierError> {
     debug!("starting MPC backend setup");
 
-    let mut ot_sender = kos::Sender::new(
-        config.build_ot_sender_config(),
-        chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
-    );
-    ot_sender.alloc(config.ot_sender_setup_count());
-
-    let mut ot_receiver = kos::Receiver::new(
-        config.build_ot_receiver_config(),
-        chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
-    );
-    ot_receiver.alloc(config.ot_receiver_setup_count());
-
-    let ot_sender = OTSender::new(ot_sender);
-    let ot_receiver = OTReceiver::new(ot_receiver);
-
-    let (
-        ctx_vm,
-        ctx_ke_0,
-        ctx_ke_1,
-        ctx_prf_0,
-        ctx_prf_1,
-        ctx_encrypter_block_cipher,
-        ctx_encrypter_stream_cipher,
-        ctx_encrypter_ghash,
-        ctx_encrypter,
-        ctx_decrypter_block_cipher,
-        ctx_decrypter_stream_cipher,
-        ctx_decrypter_ghash,
-        ctx_decrypter,
-    ) = futures::try_join!(
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-    )?;
-
-    let vm = DEAPThread::new(
-        DEAPRole::Follower,
-        encoder_seed,
-        ctx_vm,
-        ot_sender.clone(),
-        ot_receiver.clone(),
-    );
-
     let mpc_tls_config = config.build_mpc_tls_config();
-    let (ke, prf, encrypter, decrypter) = build_components(
-        TlsRole::Follower,
-        mpc_tls_config.common(),
-        ctx_ke_0,
-        ctx_encrypter,
-        ctx_decrypter,
-        ctx_encrypter_ghash,
-        ctx_decrypter_ghash,
-        vm.new_thread(ctx_ke_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_0, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(
-            ctx_encrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_encrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        ot_sender.clone(),
-        ot_receiver.clone(),
-    );
 
     let channel = mux.open_framed(b"mpc_tls").await?;
-    let mut mpc_tls = MpcTlsFollower::new(
-        mpc_tls_config,
+    let mut mpc_tls = TeeTlsFollower::new(
         Box::new(StreamExt::compat_stream(channel)),
-        ke,
-        prf,
-        encrypter,
-        decrypter,
     );
 
     mpc_tls.setup().await?;
 
     debug!("MPC backend setup complete");
 
-    Ok((mpc_tls, vm, ot_sender))
+    Ok((mpc_tls))
 }

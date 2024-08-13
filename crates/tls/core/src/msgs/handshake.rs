@@ -14,6 +14,7 @@ use crate::{
     rand, Error,
 };
 
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "logging")]
 use tracing::warn;
 
@@ -1529,7 +1530,7 @@ impl CertificatePayloadTLS13 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum KeyExchangeAlgorithm {
     BulkOnly,
     DH,

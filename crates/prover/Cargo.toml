@@ -22,6 +22,7 @@ tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-tls-mpc = { workspace = true }
+tlsn-tls-tee = { workspace = true }
 tlsn-utils = { workspace = true }
 tlsn-utils-aio = { workspace = true }
 

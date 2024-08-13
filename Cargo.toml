@@ -22,6 +22,7 @@ members = [
     "crates/tls/client-async",
     "crates/tls/core",
     "crates/tls/mpc",
+    "crates/tls/tee",
     "crates/tls/server-fixture",
     "crates/wasm-test-runner",
     "crates/verifier",
@@ -53,6 +54,7 @@ tlsn-tls-client = { path = "crates/tls/client" }
 tlsn-tls-client-async = { path = "crates/tls/client-async" }
 tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-tls-mpc = { path = "crates/tls/mpc" }
+tlsn-tls-tee = { path = "crates/tls/tee" }
 tlsn-universal-hash = { path = "crates/components/universal-hash" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }

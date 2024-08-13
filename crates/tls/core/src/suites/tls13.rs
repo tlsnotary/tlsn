@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     msgs::enums::CipherSuite,
     suites::{
@@ -5,6 +7,8 @@ use crate::{
     },
 };
 use std::fmt;
+
+use super::SerializableCipherSuiteCommon;
 
 /// The TLS1.3 ciphersuite TLS_CHACHA20_POLY1305_SHA256
 pub static TLS13_CHACHA20_POLY1305_SHA256: SupportedCipherSuite =
@@ -44,6 +48,12 @@ pub(crate) static TLS13_AES_128_GCM_SHA256_INTERNAL: &Tls13CipherSuite = &Tls13C
 pub struct Tls13CipherSuite {
     /// Common cipher suite fields.
     pub common: CipherSuiteCommon,
+    pub hkdf_algorithm: HKDFAlgorithm,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializableTls13CipherSuite {
+    pub common: SerializableCipherSuiteCommon,
     pub hkdf_algorithm: HKDFAlgorithm,
 }
 
