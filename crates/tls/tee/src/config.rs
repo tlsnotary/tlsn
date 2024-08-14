@@ -124,7 +124,7 @@ pub struct TeeTlsLeaderConfig {
 }
 
 impl TeeTlsLeaderConfig {
-    /// Creates a new builder for `MpcTlsLeaderConfig`.
+    /// Creates a new builder for `TeeTlsLeaderConfig`.
     pub fn builder() -> TeeTlsLeaderConfigBuilder {
         TeeTlsLeaderConfigBuilder::default()
     }
@@ -143,7 +143,7 @@ pub struct TeeTlsFollowerConfig {
 }
 
 impl TeeTlsFollowerConfig {
-    /// Creates a new builder for `MpcTlsFollowerConfig`.
+    /// Creates a new builder for `TeeTlsFollowerConfig`.
     pub fn builder() -> TeeTlsFollowerConfigBuilder {
         TeeTlsFollowerConfigBuilder::default()
     }

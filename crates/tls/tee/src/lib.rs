@@ -1,7 +1,7 @@
-//! This crate provides tooling for instantiating MPC TLS machinery for leader and follower.
+//! This crate provides tooling for instantiating TEE TLS machinery for leader and follower.
 
-//! The main API objects are [MpcTlsLeader] and [MpcTlsFollower], which wrap the necessary
-//! cryptographic machinery and also an [MpcTlsChannel] for communication.
+//! The main API objects are [TeeTlsLeader] and [TeeTlsFollower], which wrap the necessary
+//! cryptographic machinery and also an [TeeTlsChannel] for communication.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -12,7 +12,6 @@ pub(crate) mod error;
 pub(crate) mod follower;
 pub(crate) mod leader;
 pub mod msg;
-pub(crate) mod record_layer;
 
 pub use config::{
     TeeTlsCommonConfig, TeeTlsCommonConfigBuilder, TeeTlsCommonConfigBuilderError,

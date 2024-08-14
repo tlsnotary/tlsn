@@ -3,14 +3,6 @@
 //! The TLS verifier is an application-specific verifier.
 
 use super::{state::Verify as VerifyState, Verifier, VerifierError};
-use mpz_circuits::types::Value;
-use mpz_garble::{Memory, Verify};
-use mpz_ot::CommittedOTSender;
-use serio::stream::IoStreamExt;
-use tlsn_core::{
-    msg::ProvingInfo, proof::SessionInfo, transcript::get_value_ids, Direction, HandshakeSummary,
-    RedactedTranscript, TranscriptSlice,
-};
 
 use tracing::{info, instrument};
 
@@ -36,18 +28,14 @@ impl Verifier<VerifyState> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn finalize(self) -> Result<(), VerifierError> {
         let VerifyState {
-            mut io,
             mux_ctrl,
             mut mux_fut,
-            mut ctx,
-            start_time,
             ..
         } = self.state;
 
-        let session_info = mux_fut
+        let _session_info = mux_fut
             .poll_with(async {
-
-                info!("Finalized all MPC");
+                info!("Finalized all TEE");
 
                 Ok::<_, VerifierError>(())
             })

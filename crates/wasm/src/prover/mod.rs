@@ -7,7 +7,6 @@ use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tls_client_async::TlsConnection;
-use tlsn_core::Direction;
 use tlsn_prover::tls::{state, Prover};
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
@@ -50,7 +49,7 @@ impl JsProver {
 
     /// Set up the prover.
     ///
-    /// This performs all MPC setup prior to establishing the connection to the
+    /// This performs all Tee setup prior to establishing the connection to the
     /// application server.
     pub async fn setup(&mut self, verifier_url: &str) -> Result<()> {
         let prover = self.state.take().try_into_initialized()?;
@@ -102,34 +101,11 @@ impl JsProver {
         Ok(response)
     }
 
-    /// Returns the transcript.
-    // pub fn transcript(&self) -> Result<Transcript> {
-    //     let prover = self.state.try_as_closed()?;
-
-    //     let sent = prover.sent_transcript().data().clone();
-    //     let recv = prover.recv_transcript().data().clone();
-
-    //     Ok(Transcript {
-    //         sent: sent.to_vec(),
-    //         recv: recv.to_vec(),
-    //     })
-    // }
-
     /// Runs the notarization protocol.
-    pub async fn notarize(&mut self, commit: Commit) -> Result<()> {
-        let mut prover = self.state.take().try_into_closed()?.start_notarize();
+    pub async fn notarize(&mut self, _commit: Commit) -> Result<()> {
+        let prover = self.state.take().try_into_closed()?.start_notarize();
 
         info!("starting notarization");
-
-        // let builder = prover.commitment_builder();
-
-        // for range in commit.sent {
-        //     builder.commit_sent(&range)?;
-        // }
-
-        // for range in commit.recv {
-        //     builder.commit_recv(&range)?;
-        // }
 
         let notarized_session = prover.finalize().await?;
 
@@ -139,18 +115,8 @@ impl JsProver {
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
-    pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
+    pub async fn reveal(&mut self, _reveal: Reveal) -> Result<()> {
         let mut prover = self.state.take().try_into_closed()?.start_prove();
-
-        info!("revealing data");
-
-        for range in reveal.sent {
-            prover.reveal(range, Direction::Sent)?;
-        }
-
-        for range in reveal.recv {
-            prover.reveal(range, Direction::Received)?;
-        }
 
         prover.prove().await?;
         prover.finalize().await?;

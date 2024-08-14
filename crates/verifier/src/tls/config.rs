@@ -1,11 +1,7 @@
-use mpz_ot::{chou_orlandi, kos};
 use std::fmt::{Debug, Formatter, Result};
 use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
-use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
-use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT},
-    Role,
-};
+use tls_tee::{TeeTlsCommonConfig, TeeTlsFollowerConfig};
+use tlsn_common::config::{DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT};
 use tlsn_core::proof::default_cert_verifier;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
@@ -68,58 +64,16 @@ impl VerifierConfig {
             .expect("Certificate verifier should be set")
     }
 
-    pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
-        chou_orlandi::SenderConfig::default()
-    }
-
-    pub(crate) fn build_base_ot_receiver_config(&self) -> chou_orlandi::ReceiverConfig {
-        chou_orlandi::ReceiverConfig::builder()
-            .receiver_commit()
-            .build()
-            .unwrap()
-    }
-
-    pub(crate) fn build_ot_sender_config(&self) -> kos::SenderConfig {
-        kos::SenderConfig::builder()
-            .sender_commit()
-            .build()
-            .unwrap()
-    }
-
-    pub(crate) fn build_ot_receiver_config(&self) -> kos::ReceiverConfig {
-        kos::ReceiverConfig::default()
-    }
-
-    pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsFollowerConfig {
-        MpcTlsFollowerConfig::builder()
+    pub(crate) fn build_tee_tls_config(&self) -> TeeTlsFollowerConfig {
+        TeeTlsFollowerConfig::builder()
             .common(
-                MpcTlsCommonConfig::builder()
-                    .id(format!("{}/mpc_tls", &self.id))
-                    .tx_config(
-                        TranscriptConfig::default_tx()
-                            .max_size(self.max_sent_data)
-                            .build()
-                            .unwrap(),
-                    )
-                    .rx_config(
-                        TranscriptConfig::default_rx()
-                            .max_size(self.max_recv_data)
-                            .build()
-                            .unwrap(),
-                    )
+                TeeTlsCommonConfig::builder()
+                    .id(format!("{}/tee_tls", &self.id))
                     .handshake_commit(true)
                     .build()
                     .unwrap(),
             )
             .build()
             .unwrap()
-    }
-
-    pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(Role::Verifier, self.max_sent_data, self.max_recv_data)
-    }
-
-    pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(Role::Verifier, self.max_sent_data, self.max_recv_data)
     }
 }

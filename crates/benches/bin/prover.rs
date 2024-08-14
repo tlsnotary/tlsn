@@ -15,7 +15,6 @@ use tlsn_benches::{
     set_interface, PROVER_INTERFACE,
 };
 
-use tlsn_core::Direction;
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::{

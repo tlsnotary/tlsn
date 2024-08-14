@@ -23,16 +23,13 @@ use serio::StreamExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tls_tee::{TeeLeaderCtrl, TeeTlsLeader, TeeTlsRole};
+use tls_tee::{TeeLeaderCtrl, TeeTlsLeader};
 use tlsn_common::{
-    mux::{attach_mux, MuxControl},
-    DEAPThread, Executor, OTReceiver, OTSender, Role,
+    mux::{attach_mux, MuxControl}, Executor, Role,
 };
-use tlsn_core::transcript::Transcript;
 use uid_mux::FramedUidMux as _;
 
 #[cfg(feature = "formats")]
-use crate::http::{state as http_state, HttpProver, HttpProverError};
 
 use tracing::{debug, info_span, instrument, Instrument, Span};
 
@@ -61,7 +58,7 @@ impl Prover<state::Initialized> {
 
     /// Sets up the prover.
     ///
-    /// This performs all MPC setup prior to establishing the connection to the
+    /// This performs all TEE setup prior to establishing the connection to the
     /// application server.
     ///
     /// # Arguments
@@ -78,11 +75,11 @@ impl Prover<state::Initialized> {
         // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
-        let (mpc_tls) = mux_fut
-            .poll_with(setup_mpc_backend(&self.config, &mux_ctrl, &mut exec))
+        let tee_tls = mux_fut
+            .poll_with(setup_tee_backend(&self.config, &mux_ctrl, &mut exec))
             .await?;
 
-        let io = mux_fut
+        let _io = mux_fut
             .poll_with(
                 mux_ctrl
                     .open_framed(b"tlsnotary")
@@ -90,7 +87,7 @@ impl Prover<state::Initialized> {
             )
             .await?;
 
-        let ctx = mux_fut
+        let _ctx = mux_fut
             .poll_with(exec.new_thread().map_err(ProverError::from))
             .await?;
 
@@ -98,11 +95,9 @@ impl Prover<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::Setup {
-                io,
                 mux_ctrl,
                 mux_fut,
-                ctx,
-                mpc_tls,
+                tee_tls,
             },
         })
     }
@@ -123,14 +118,13 @@ impl Prover<state::Setup> {
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture), ProverError> {
         let state::Setup {
-            io,
             mux_ctrl,
             mut mux_fut,
-            mpc_tls,
-            ctx,
+            tee_tls,
+            ..
         } = self.state;
 
-        let (mpc_ctrl, mpc_fut) = mpc_tls.run();
+        let (tee_ctrl, tee_fut) = tee_tls.run();
 
         let server_name = TlsServerName::try_from(self.config.server_dns())?;
         let config = tls_client::ClientConfig::builder()
@@ -138,40 +132,37 @@ impl Prover<state::Setup> {
             .with_root_certificates(self.config.root_cert_store.clone())
             .with_no_client_auth();
         let client =
-            ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)?;
+            ClientConnection::new(Arc::new(config), Box::new(tee_ctrl.clone()), server_name)?;
 
         let (conn, conn_fut) = bind_client(socket, client);
 
-        let start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+        let _start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
         let fut = Box::pin({
             let span = self.span.clone();
-            let mpc_ctrl = mpc_ctrl.clone();
+            let tee_ctrl = tee_ctrl.clone();
             async move {
                 let conn_fut = async {
                     let ClosedConnection { sent, recv, .. } = mux_fut
                         .poll_with(conn_fut.map_err(ProverError::from))
                         .await?;
 
-                    mpc_ctrl.close_connection().await?;
+                    tee_ctrl.close_connection().await?;
 
                     Ok::<_, ProverError>((sent, recv))
                 };
 
-                let ((sent, recv), mpc_tls_data) = futures::try_join!(
+                futures::try_join!(
                     conn_fut,
-                    mpc_fut.in_current_span().map_err(ProverError::from)
+                    tee_fut.in_current_span().map_err(ProverError::from)
                 )?;
 
                 Ok(Prover {
                     config: self.config,
                     span: self.span,
                     state: state::Closed {
-                        io,
                         mux_ctrl,
                         mux_fut,
-                        ctx,
-                        start_time,
                     },
                 })
             }
@@ -182,7 +173,7 @@ impl Prover<state::Setup> {
             conn,
             ProverFuture {
                 fut,
-                ctrl: ProverControl { mpc_ctrl },
+                ctrl: ProverControl { tee_ctrl },
             },
         ))
     }
@@ -220,31 +211,31 @@ impl Prover<state::Closed> {
     }
 }
 
-/// Performs a setup of the various MPC subprotocols.
+/// Performs a setup of the various Tee subprotocols.
 #[instrument(level = "debug", skip_all, err)]
-async fn setup_mpc_backend(
+async fn setup_tee_backend(
     config: &ProverConfig,
     mux: &MuxControl,
-    exec: &mut Executor,
-) -> Result<(TeeTlsLeader), ProverError> {
-    debug!("starting MPC backend setup");
+    _exec: &mut Executor,
+) -> Result<TeeTlsLeader, ProverError> {
+    debug!("starting TEE backend setup");
 
-    let mpc_tls_config = config.build_mpc_tls_config();
+    let _tee_tls_config = config.build_tee_tls_config();
 
-    let channel = mux.open_framed(b"mpc_tls").await?;
-    let mut mpc_tls = TeeTlsLeader::new(Box::new(StreamExt::compat_stream(channel)));
+    let channel = mux.open_framed(b"tee_tls").await?;
+    let mut tee_tls = TeeTlsLeader::new(Box::new(StreamExt::compat_stream(channel)));
 
-    mpc_tls.setup().await?;
+    tee_tls.setup().await?;
 
-    debug!("MPC backend setup complete");
+    debug!("TEE backend setup complete");
 
-    Ok((mpc_tls))
+    Ok(tee_tls)
 }
 
 /// A controller for the prover.
 #[derive(Clone)]
 pub struct ProverControl {
-    mpc_ctrl: TeeLeaderCtrl,
+    tee_ctrl: TeeLeaderCtrl,
 }
 
 impl ProverControl {
@@ -258,7 +249,7 @@ impl ProverControl {
     /// * The prover may need to close the connection to the server in order for it to close the connection
     ///   on its end. If neither the prover or server close the connection this will cause a deadlock.
     pub async fn defer_decryption(&self) -> Result<(), ProverError> {
-        self.mpc_ctrl
+        self.tee_ctrl
             .defer_decryption()
             .await
             .map_err(ProverError::from)

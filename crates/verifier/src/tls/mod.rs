@@ -8,24 +8,20 @@ mod verify;
 
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
-use mpz_common::Allocate;
 use serio::StreamExt;
 use uid_mux::FramedUidMux;
 
 use web_time::{SystemTime, UNIX_EPOCH};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpz_garble::config::Role as DEAPRole;
-use mpz_ot::{chou_orlandi, kos};
-use rand::Rng;
 use signature::Signer;
 use state::{Notarize, Verify};
-use tls_tee::{TeeTlsFollower, TeeTlsRole};
+use tls_tee::TeeTlsFollower;
 use tlsn_common::{
     mux::{attach_mux, MuxControl},
-    DEAPThread, Executor, OTReceiver, OTSender, Role,
+    Executor, Role,
 };
-use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
+use tlsn_core::Signature;
 
 use tracing::{debug, info, info_span, instrument, Span};
 
@@ -49,7 +45,7 @@ impl Verifier<state::Initialized> {
 
     /// Sets up the verifier.
     ///
-    /// This performs all MPC setup.
+    /// This performs all TEE setup.
     ///
     /// # Arguments
     ///
@@ -65,17 +61,11 @@ impl Verifier<state::Initialized> {
         // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
-        let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
-        let (mpc_tls) = mux_fut
-            .poll_with(setup_mpc_backend(
-                &self.config,
-                &mux_ctrl,
-                &mut exec,
-                encoder_seed,
-            ))
+        let tee_tls = mux_fut
+            .poll_with(setup_tee_backend(&self.config, &mux_ctrl, &mut exec))
             .await?;
 
-        let io = mux_fut
+        let _io = mux_fut
             .poll_with(
                 mux_ctrl
                     .open_framed(b"tlsnotary")
@@ -83,7 +73,7 @@ impl Verifier<state::Initialized> {
             )
             .await?;
 
-        let ctx = mux_fut
+        let _ctx = mux_fut
             .poll_with(exec.new_thread().map_err(VerifierError::from))
             .await?;
 
@@ -91,12 +81,9 @@ impl Verifier<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::Setup {
-                io,
                 mux_ctrl,
                 mux_fut,
-                mpc_tls,
-                ctx,
-                encoder_seed,
+                tee_tls,
             },
         })
     }
@@ -138,8 +125,8 @@ impl Verifier<state::Initialized> {
     pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<(()), VerifierError> {
-        let mut verifier = self.setup(socket).await?.run().await?.start_verify();
+    ) -> Result<(), VerifierError> {
+        let _verifier = self.setup(socket).await?.run().await?.start_verify();
         // let (redacted_sent, redacted_received) = verifier.receive().await?;
 
         // let session_info = verifier.finalize().await?;
@@ -152,21 +139,18 @@ impl Verifier<state::Setup> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
         let state::Setup {
-            io,
             mux_ctrl,
             mut mux_fut,
-            mpc_tls,
-            ctx,
-            encoder_seed,
+            tee_tls,
         } = self.state;
 
-        let start_time = SystemTime::now()
+        let _start_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
         mux_fut
-            .poll_with(mpc_tls.run().1.map_err(VerifierError::from))
+            .poll_with(tee_tls.run().1.map_err(VerifierError::from))
             .await?;
 
         info!("Finished TLS session");
@@ -175,12 +159,8 @@ impl Verifier<state::Setup> {
             config: self.config,
             span: self.span,
             state: state::Closed {
-                io,
                 mux_ctrl,
                 mux_fut,
-                ctx,
-                encoder_seed,
-                start_time,
             },
         })
     }
@@ -212,26 +192,23 @@ impl Verifier<state::Closed> {
     }
 }
 
-/// Performs a setup of the various MPC subprotocols.
+/// Performs a setup of the various TEE subprotocols.
 #[instrument(level = "debug", skip_all, err)]
-async fn setup_mpc_backend(
+async fn setup_tee_backend(
     config: &VerifierConfig,
     mux: &MuxControl,
-    exec: &mut Executor,
-    encoder_seed: [u8; 32],
-) -> Result<(TeeTlsFollower), VerifierError> {
-    debug!("starting MPC backend setup");
+    _exec: &mut Executor,
+) -> Result<TeeTlsFollower, VerifierError> {
+    debug!("starting TEE backend setup");
 
-    let mpc_tls_config = config.build_mpc_tls_config();
+    let _tee_tls_config = config.build_tee_tls_config();
 
-    let channel = mux.open_framed(b"mpc_tls").await?;
-    let mut mpc_tls = TeeTlsFollower::new(
-        Box::new(StreamExt::compat_stream(channel)),
-    );
+    let channel = mux.open_framed(b"tee_tls").await?;
+    let mut tee_tls = TeeTlsFollower::new(Box::new(StreamExt::compat_stream(channel)));
 
-    mpc_tls.setup().await?;
+    tee_tls.setup().await?;
 
-    debug!("MPC backend setup complete");
+    debug!("TEE backend setup complete");
 
-    Ok((mpc_tls))
+    Ok(tee_tls)
 }

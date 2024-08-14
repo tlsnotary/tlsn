@@ -11,8 +11,6 @@ use tracing::info;
 use wasm_bindgen::prelude::*;
 use ws_stream_wasm::{WsMeta, WsStream};
 
-use crate::types::VerifierData;
-
 type Result<T> = std::result::Result<T, JsError>;
 
 #[wasm_bindgen(js_name = Verifier)]

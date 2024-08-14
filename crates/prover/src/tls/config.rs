@@ -1,10 +1,6 @@
-use mpz_ot::{chou_orlandi, kos};
 use tls_client::RootCertStore;
-use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
-use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT},
-    Role,
-};
+use tls_tee::{TeeTlsCommonConfig, TeeTlsLeaderConfig};
+use tlsn_common::config::{ DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT};
 
 /// Configuration for the prover
 #[derive(Debug, Clone, derive_builder::Builder)]
@@ -52,59 +48,17 @@ impl ProverConfig {
         &self.server_dns
     }
 
-    pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsLeaderConfig {
-        MpcTlsLeaderConfig::builder()
+    pub(crate) fn build_tee_tls_config(&self) -> TeeTlsLeaderConfig {
+        TeeTlsLeaderConfig::builder()
             .common(
-                MpcTlsCommonConfig::builder()
-                    .id(format!("{}/mpc_tls", &self.id))
-                    .tx_config(
-                        TranscriptConfig::default_tx()
-                            .max_size(self.max_sent_data)
-                            .build()
-                            .unwrap(),
-                    )
-                    .rx_config(
-                        TranscriptConfig::default_rx()
-                            .max_size(self.max_recv_data)
-                            .build()
-                            .unwrap(),
-                    )
+                TeeTlsCommonConfig::builder()
+                    .id(format!("{}/tee_tls", &self.id))
                     .handshake_commit(true)
                     .build()
                     .unwrap(),
             )
             .build()
             .unwrap()
-    }
-
-    pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
-        chou_orlandi::SenderConfig::builder()
-            .receiver_commit()
-            .build()
-            .unwrap()
-    }
-
-    pub(crate) fn build_base_ot_receiver_config(&self) -> chou_orlandi::ReceiverConfig {
-        chou_orlandi::ReceiverConfig::default()
-    }
-
-    pub(crate) fn build_ot_sender_config(&self) -> kos::SenderConfig {
-        kos::SenderConfig::default()
-    }
-
-    pub(crate) fn build_ot_receiver_config(&self) -> kos::ReceiverConfig {
-        kos::ReceiverConfig::builder()
-            .sender_commit()
-            .build()
-            .unwrap()
-    }
-
-    pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
-    }
-
-    pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
     }
 }
 

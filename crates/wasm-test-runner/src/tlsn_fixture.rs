@@ -3,7 +3,6 @@ use std::{env, net::IpAddr};
 use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, Future};
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
-use tlsn_core::Direction;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};

@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Kind,
     follower::{
-        CommitMessage, ComputeClientKey, ComputeClientRandom, Decrypt, Encrypt, EncryptAlert,
-        GetClientFinishedVd, ServerFinishedVd, SetCipherSuite, SetProtocolVersion,
-        SetServerCertDetails, SetServerKeyShare, SetServerKxDetails, SetServerRandom,
+        ComputeClientKey, ComputeClientRandom, Decrypt, Encrypt, GetClientFinishedVd,
+        ServerFinishedVd, SetCipherSuite, SetProtocolVersion, SetServerCertDetails,
+        SetServerKeyShare, SetServerKxDetails, SetServerRandom,
     },
     leader::{
         BackendMsgBufferIncoming, BackendMsgBufferLen, BackendMsgDecrypt, BackendMsgEncrypt,
@@ -22,17 +22,12 @@ use crate::{
     TeeTlsError,
 };
 
-/// MPC-TLS protocol message.
+/// TEE-TLS protocol message.
 #[allow(missing_docs)]
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TeeTlsMessage {
-    EncryptAlert(EncryptAlert),
     ServerFinishedVd(ServerFinishedVd),
-    /// A leader commitment to a TLS message received from the server.
-    CommitMessage(CommitMessage),
     CloseConnection(CloseConnection),
-    Commit(Commit),
-
     ComputeClientKey(ComputeClientKey),
     ComputeClientRandom(ComputeClientRandom),
     SetProtocolVersion(SetProtocolVersion),
@@ -66,7 +61,6 @@ impl TryFrom<TeeTlsMessage> for TeeTlsFollowerMsg {
             TeeTlsMessage::ComputeClientKey(msg) => Ok(Self::ComputeClientKey(msg)),
 
             TeeTlsMessage::CloseConnection(msg) => Ok(Self::CloseConnection(msg)),
-            TeeTlsMessage::Commit(msg) => Ok(Self::Finalize(msg)),
             msg => Err(TeeTlsError::new(
                 Kind::PeerMisbehaved,
                 format!("peer sent unexpected message: {:?}", msg),
@@ -85,7 +79,6 @@ pub enum TeeTlsLeaderMsg {
     BackendMsgSetEncrypt(BackendMsgSetEncrypt),
     BackendMsgSetDecrypt(BackendMsgSetDecrypt),
     BackendMsgGetClientRandom(BackendMsgGetClientRandom),
-    // BackendMsgSetClientRandom(BackendMsgSetClientRandom),
     BackendMsgGetClientKeyShare(BackendMsgGetClientKeyShare),
     BackendMsgSetServerRandom(BackendMsgSetServerRandom),
     BackendMsgSetServerKeyShare(BackendMsgSetServerKeyShare),
@@ -125,8 +118,6 @@ pub enum TeeTlsFollowerMsg {
     ComputeClientRandom(ComputeClientRandom),
     ComputeClientKey(ComputeClientKey),
 
-    EncryptAlert(EncryptAlert),
-    CommitMessage(CommitMessage),
     CloseConnection(CloseConnection),
     Finalize(Commit),
 }
@@ -136,7 +127,7 @@ pub enum TeeTlsFollowerMsg {
 #[ludi(return_ty = "Result<(), TeeTlsError>")]
 pub struct CloseConnection;
 
-/// Message to finalize the MPC-TLS protocol
+/// Message to finalize the TEE-TLS protocol
 #[derive(Debug, ludi::Message, Serialize, Deserialize)]
 #[ludi(return_ty = "Result<(), TeeTlsError>")]
 pub struct Commit;

@@ -3,15 +3,10 @@
 //! The TLS verifier is only a notary.
 
 use super::{state::Notarize, Verifier, VerifierError};
-use mpz_core::serialize::CanonicalSerialize;
-use mpz_ot::CommittedOTSender;
-use serio::{stream::IoStreamExt, SinkExt as _};
 use signature::Signer;
-use tlsn_core::{
-    merkle::MerkleRoot, msg::SignedSessionHeader, HandshakeSummary, SessionHeader, Signature,
-};
+use tlsn_core::Signature;
 
-use tracing::{debug, info, instrument};
+use tracing::instrument;
 
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
@@ -20,23 +15,20 @@ impl Verifier<Notarize> {
     ///
     /// * `signer` - The signer used to sign the notarization result.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<(), VerifierError>
+    pub async fn finalize<T>(self, _signer: &impl Signer<T>) -> Result<(), VerifierError>
     where
         T: Into<Signature>,
     {
         let Notarize {
-            mut io,
             mux_ctrl,
             mut mux_fut,
-            mut ctx,
-            encoder_seed,
-            start_time,
+            ..
         } = self.state;
 
         let session_header = mux_fut
             .poll_with(async {
 
-                // Finalize all MPC before signing the session header.
+                // Finalize all TEE before signing the session header.
                 Ok::<_, VerifierError>(())
             })
             .await?;

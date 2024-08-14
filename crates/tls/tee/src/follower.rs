@@ -32,10 +32,10 @@ use crate::{
     TeeTlsChannel, TeeTlsError,
 };
 
-/// Controller for MPC-TLS follower.
+/// Controller for Tee-TLS follower.
 pub type TeeFollowerCtrl = TeeTlsFollowerCtrl<FuturesAddress<TeeTlsFollowerMsg>>;
 
-/// MPC-TLS follower.
+/// Tee-TLS follower.
 #[derive(ludi::Controller)]
 pub struct TeeTlsFollower {
     sink: SplitSink<TeeTlsChannel, TeeTlsMessage>,

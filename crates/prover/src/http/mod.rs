@@ -8,12 +8,9 @@
 
 pub mod state;
 
-use tlsn_formats::{
-    http::{DefaultHttpCommitter, HttpCommit, HttpCommitError, HttpTranscript},
-    ParseError,
-};
+use tlsn_formats::ParseError;
 
-use crate::tls::{state as prover_state, Prover, ProverError};
+use crate::tls::ProverError;
 
 pub use tlsn_formats::http::NotarizedHttpSession;
 
@@ -30,7 +27,7 @@ pub enum HttpProverError {
 
 /// An HTTP prover.
 pub struct HttpProver<S: state::State> {
-    state: S,
+    _state: S,
 }
 
 impl HttpProver<state::Closed> {

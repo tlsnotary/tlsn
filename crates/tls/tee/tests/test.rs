@@ -13,13 +13,13 @@ use uid_mux::{
     FramedUidMux,
 };
 
-async fn leader(config: TeeTlsCommonConfig, mux: TestFramedMux) {
+async fn leader(_config: TeeTlsCommonConfig, mux: TestFramedMux) {
     println!("leader");
 
     let mut exec = MTExecutor::new(mux.clone(), 8);
 
     let mut leader = TeeTlsLeader::new(Box::new(StreamExt::compat_stream(
-        mux.open_framed(b"mpc_tls").await.unwrap(),
+        mux.open_framed(b"tee_tls").await.unwrap(),
     )));
 
     leader.setup().await.unwrap();
@@ -96,16 +96,16 @@ async fn leader(config: TeeTlsCommonConfig, mux: TestFramedMux) {
 
     leader_ctrl.close_connection().await.unwrap();
     conn.close().await.unwrap();
-
-    let mut ctx = exec.new_thread().await.unwrap();
+    
+    exec.new_thread().await.unwrap();
 }
 
-async fn follower(config: TeeTlsCommonConfig, mux: TestFramedMux) {
+async fn follower(_config: TeeTlsCommonConfig, mux: TestFramedMux) {
     println!("follower");
     let mut exec = MTExecutor::new(mux.clone(), 8);
 
     let mut follower = TeeTlsFollower::new(Box::new(StreamExt::compat_stream(
-        mux.open_framed(b"mpc_tls").await.unwrap(),
+        mux.open_framed(b"tee_tls").await.unwrap(),
     )));
 
     follower.setup().await.unwrap();
@@ -113,7 +113,7 @@ async fn follower(config: TeeTlsCommonConfig, mux: TestFramedMux) {
     let (_, fut) = follower.run();
     fut.await.unwrap();
 
-    let mut ctx = exec.new_thread().await.unwrap();
+    exec.new_thread().await.unwrap();
 }
 
 #[tokio::test]

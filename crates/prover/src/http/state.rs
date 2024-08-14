@@ -9,14 +9,14 @@ pub trait State: sealed::Sealed {}
 
 /// Connection closed state.
 pub struct Closed {
-    pub(super) prover: Prover<prover_state::Closed>,
-    pub(super) transcript: HttpTranscript,
+    pub(super) _prover: Prover<prover_state::Closed>,
+    pub(super) _transcript: HttpTranscript,
 }
 
 /// Notarizing state.
 pub struct Notarize {
-    pub(super) prover: Prover<prover_state::Notarize>,
-    pub(super) transcript: HttpTranscript,
+    pub(super) _prover: Prover<prover_state::Notarize>,
+    pub(super) _transcript: HttpTranscript,
 }
 
 impl State for Closed {}

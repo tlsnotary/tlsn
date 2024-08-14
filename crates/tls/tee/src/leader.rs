@@ -37,10 +37,10 @@ use crate::{
     TeeTlsChannel, TeeTlsError,
 };
 
-/// Controller for MPC-TLS leader.
+/// Controller for Tee-TLS leader.
 pub type TeeLeaderCtrl = TeeTlsLeaderCtrl<ludi::FuturesAddress<TeeTlsLeaderMsg>>;
 
-/// MPC-TLS leader.
+/// Tee-TLS leader.
 #[derive(ludi::Controller)]
 pub struct TeeTlsLeader {
     sink: SplitSink<TeeTlsChannel, TeeTlsMessage>,
@@ -290,21 +290,13 @@ impl Backend for TeeTlsLeader {
     async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError> {
         println!("Leader setting the server key share...");
 
-        if key.group != NamedGroup::secp256r1 {
-            Err(TeeTlsError::new(
-                Kind::KeyExchange,
-                format!("unsupported key group: {:?}", key.group),
-            )
-            .into())
-        } else {
-            self.sink
-                .send(TeeTlsMessage::SetServerKeyShare(SetServerKeyShare {
-                    msg: key.clone(),
-                }))
-                .await
-                .map_err(TeeTlsError::from)?;
-            Ok(())
-        }
+        self.sink
+            .send(TeeTlsMessage::SetServerKeyShare(SetServerKeyShare {
+                msg: key.clone(),
+            }))
+            .await
+            .map_err(TeeTlsError::from)?;
+        Ok(())
     }
 
     async fn set_server_cert_details(
