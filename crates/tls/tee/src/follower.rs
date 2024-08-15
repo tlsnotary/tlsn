@@ -7,6 +7,7 @@ use futures::{
 
 use ludi::{Address, FuturesAddress};
 
+use mpz_core::serialize::CanonicalSerialize;
 use serde::{Deserialize, Serialize};
 use tls_client::{Backend, RustCryptoBackend, SignatureScheme, SupportedCipherSuite};
 use tls_core::{
@@ -31,7 +32,7 @@ use crate::{
     msg::{CloseConnection, Commit, TeeTlsFollowerMsg, TeeTlsMessage},
     TeeTlsChannel, TeeTlsError,
 };
-
+use tls_core::msgs::enums::ContentType as TlsMessageType;
 /// Controller for Tee-TLS follower.
 pub type TeeFollowerCtrl = TeeTlsFollowerCtrl<FuturesAddress<TeeTlsFollowerMsg>>;
 
@@ -403,6 +404,13 @@ impl TeeTlsFollower {
                 let msg = self.rcb.decrypt(opq, seq).await.map_err(|e| {
                     TeeTlsError::new(Kind::Other, format!("Failed to decrypt message: {:?}", e))
                 })?;
+
+                // Convert msg.payload to string
+                if (msg.typ == TlsMessageType::ApplicationData) {
+                    let payload_bytes = msg.payload.to_bytes();
+                    let payload_string = String::from_utf8_lossy(&payload_bytes).to_string();
+                    println!("Decrypted message as string: {}", payload_string);
+                }
 
                 self.sink
                     .send(TeeTlsMessage::Decrypt(Decrypt {
