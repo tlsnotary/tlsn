@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-server-fixture = { workspace = true }

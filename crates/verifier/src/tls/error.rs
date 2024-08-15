@@ -1,5 +1,6 @@
 use std::error::Error;
 use tls_mpc::MpcTlsError;
+use tlsn_common::config::ProtocolConfigError;
 
 /// An error that can occur during TLS verification.
 #[derive(Debug, thiserror::Error)]
@@ -13,6 +14,8 @@ pub enum VerifierError {
     MpcError(Box<dyn Error + Send + Sync + 'static>),
     #[error("Range exceeds transcript length")]
     InvalidRange,
+    #[error(transparent)]
+    ProtocolConfigError(#[from] ProtocolConfigError),
 }
 
 impl From<uid_mux::yamux::ConnectionError> for VerifierError {

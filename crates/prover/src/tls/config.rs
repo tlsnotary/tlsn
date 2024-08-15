@@ -1,10 +1,7 @@
 use mpz_ot::{chou_orlandi, kos};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
-use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT},
-    Role,
-};
+use tlsn_common::config::ProtocolConfig;
 
 /// Configuration for the prover
 #[derive(Debug, Clone, derive_builder::Builder)]
@@ -18,12 +15,9 @@ pub struct ProverConfig {
     /// TLS root certificate store.
     #[builder(setter(strip_option), default = "default_root_store()")]
     pub(crate) root_cert_store: RootCertStore,
-    /// Maximum number of bytes that can be sent.
-    #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
-    max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
-    #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    /// Protocol configuration to be checked with the verifier.
+    #[builder(default)]
+    protocol_config: ProtocolConfig,
 }
 
 impl ProverConfig {
@@ -37,19 +31,14 @@ impl ProverConfig {
         &self.id
     }
 
-    /// Returns the maximum number of bytes that can be sent.
-    pub fn max_sent_data(&self) -> usize {
-        self.max_sent_data
-    }
-
-    /// Returns the maximum number of bytes that can be received.
-    pub fn max_recv_data(&self) -> usize {
-        self.max_recv_data
-    }
-
     /// Returns the server DNS name.
     pub fn server_dns(&self) -> &str {
         &self.server_dns
+    }
+
+    /// Returns the protocol configuration.
+    pub fn protocol_config(&self) -> &ProtocolConfig {
+        &self.protocol_config
     }
 
     pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsLeaderConfig {
@@ -59,13 +48,13 @@ impl ProverConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.max_sent_data)
+                            .max_size(self.protocol_config.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.max_recv_data)
+                            .max_size(self.protocol_config.max_recv_data())
                             .build()
                             .unwrap(),
                     )
@@ -97,14 +86,6 @@ impl ProverConfig {
             .sender_commit()
             .build()
             .unwrap()
-    }
-
-    pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
-    }
-
-    pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(Role::Prover, self.max_sent_data, self.max_recv_data)
     }
 }
 

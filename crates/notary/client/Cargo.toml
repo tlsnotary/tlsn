@@ -4,6 +4,7 @@ version = "0.1.0-alpha.6"
 edition = "2021"
 
 [dependencies]
+notary-server = { workspace = true }
 tlsn-common = { workspace = true }
 
 derive_builder = { workspace = true }
@@ -11,7 +12,6 @@ futures = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
-notary-server = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [
