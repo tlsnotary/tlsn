@@ -112,25 +112,11 @@
 <a href="#112" id="112">112</a>
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>mpz_ot::{chou_orlandi, kos};
 <span class="kw">use </span>std::fmt::{Debug, Formatter, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
 <span class="kw">use </span>tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
-<span class="kw">use </span>tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT},
-    Role,
-};
+<span class="kw">use </span>tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 <span class="kw">use </span>tlsn_core::proof::default_cert_verifier;
 
 <span class="doccomment">/// Configuration for the [`Verifier`](crate::tls::Verifier).
@@ -140,12 +126,8 @@
 </span><span class="kw">pub struct </span>VerifierConfig {
     <span class="attr">#[builder(setter(into))]
     </span>id: String,
-    <span class="doccomment">/// Maximum number of bytes that can be sent.
-    </span><span class="attr">#[builder(default = <span class="string">"DEFAULT_MAX_SENT_LIMIT"</span>)]
-    </span>max_sent_data: usize,
-    <span class="doccomment">/// Maximum number of bytes that can be received.
-    </span><span class="attr">#[builder(default = <span class="string">"DEFAULT_MAX_RECV_LIMIT"</span>)]
-    </span>max_recv_data: usize,
+    <span class="attr">#[builder(default)]
+    </span>protocol_config_validator: ProtocolConfigValidator,
     <span class="attr">#[builder(
         pattern = <span class="string">"owned"</span>,
         setter(strip_option),
@@ -158,8 +140,14 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
         f.debug_struct(<span class="string">"VerifierConfig"</span>)
             .field(<span class="string">"id"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.id)
-            .field(<span class="string">"max_sent_data"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.max_sent_data)
-            .field(<span class="string">"max_recv_data"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.max_recv_data)
+            .field(
+                <span class="string">"max_sent_data"</span>,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.protocol_config_validator.max_sent_data(),
+            )
+            .field(
+                <span class="string">"max_recv_data"</span>,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.protocol_config_validator.max_recv_data(),
+            )
             .field(<span class="string">"cert_verifier"</span>, <span class="kw-2">&amp;</span><span class="string">"_"</span>)
             .finish()
     }
@@ -176,14 +164,9 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.id
     }
 
-    <span class="doccomment">/// Returns the maximum number of bytes that can be sent.
-    </span><span class="kw">pub fn </span>max_sent_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.max_sent_data
-    }
-
-    <span class="doccomment">/// Returns the maximum number of bytes that can be received.
-    </span><span class="kw">pub fn </span>max_recv_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.max_recv_data
+    <span class="doccomment">/// Returns the protocol configuration validator.
+    </span><span class="kw">pub fn </span>protocol_config_validator(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ProtocolConfigValidator {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.protocol_config_validator
     }
 
     <span class="doccomment">/// Returns the certificate verifier.
@@ -215,20 +198,23 @@
         kos::ReceiverConfig::default()
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_mpc_tls_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MpcTlsFollowerConfig {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_mpc_tls_config(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        protocol_config: <span class="kw-2">&amp;</span>ProtocolConfig,
+    ) -&gt; MpcTlsFollowerConfig {
         MpcTlsFollowerConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
                     .id(<span class="macro">format!</span>(<span class="string">"{}/mpc_tls"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(<span class="self">self</span>.max_sent_data)
+                            .max_size(protocol_config.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(<span class="self">self</span>.max_recv_data)
+                            .max_size(protocol_config.max_recv_data())
                             .build()
                             .unwrap(),
                     )
@@ -238,14 +224,6 @@
             )
             .build()
             .unwrap()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ot_sender_setup_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        ot_send_estimate(Role::Verifier, <span class="self">self</span>.max_sent_data, <span class="self">self</span>.max_recv_data)
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ot_receiver_setup_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        ot_recv_estimate(Role::Verifier, <span class="self">self</span>.max_sent_data, <span class="self">self</span>.max_recv_data)
     }
 }
 </code></pre></div></section></main></body></html>

@@ -83,8 +83,12 @@
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>tls_mpc::MpcTlsError;
+<span class="kw">use </span>tlsn_common::config::ProtocolConfigError;
 
 <span class="doccomment">/// An error that can occur during TLS verification.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -98,6 +102,8 @@
     </span>MpcError(Box&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">'static</span>&gt;),
     <span class="attr">#[error(<span class="string">"Range exceeds transcript length"</span>)]
     </span>InvalidRange,
+    <span class="attr">#[error(transparent)]
+    </span>ProtocolConfigError(<span class="attr">#[from] </span>ProtocolConfigError),
 }
 
 <span class="kw">impl </span>From&lt;uid_mux::yamux::ConnectionError&gt; <span class="kw">for </span>VerifierError {
