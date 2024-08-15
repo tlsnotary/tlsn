@@ -2,6 +2,7 @@ use std::{collections::HashMap, ops::Range};
 
 use http_body_util::Full;
 use hyper::body::Bytes;
+use p256::pkcs8::DecodePublicKey;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tlsn_core::commitment::CommitmentKind;
@@ -94,6 +95,19 @@ pub struct Reveal {
     pub recv: Vec<Range<usize>>,
 }
 
+#[derive(Debug, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub enum KeyType {
+    P256,
+}
+
+#[derive(Debug, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub struct NotaryPublicKey {
+    typ: KeyType,
+    key: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
@@ -160,6 +174,49 @@ impl TlsProof {
     pub fn deserialize(bytes: Vec<u8>) -> Result<TlsProof, JsError> {
         Ok(bincode::deserialize(&bytes)?)
     }
+
+    /// Verifies the proof using the provided notary public key.
+    pub fn verify(self, notary_key: NotaryPublicKey) -> Result<ProofData, JsError> {
+        let NotaryPublicKey { typ, key } = notary_key;
+
+        if !matches!(typ, KeyType::P256) {
+            return Err(JsError::new("only P256 keys are currently supported"));
+        };
+
+        let key = tlsn_core::NotaryPublicKey::P256(
+            p256::PublicKey::from_public_key_pem(&key)
+                .map_err(|_| JsError::new("invalid public key"))?,
+        );
+
+        // Verify tls proof.
+        let session = &self.0.session;
+        session.verify_with_default_cert_verifier(key)?;
+
+        let (sent, recv) = self.0.substrings.verify(&self.0.session.header)?;
+
+        // Compose proof data.
+        let data = ProofData {
+            time: session.header.time(),
+            server_dns: session.session_info.server_name.as_str().to_string(),
+            sent: sent.data().to_vec(),
+            sent_auth_ranges: sent.authed().iter_ranges().collect(),
+            received: recv.data().to_vec(),
+            received_auth_ranges: recv.authed().iter_ranges().collect(),
+        };
+
+        Ok(data)
+    }
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct ProofData {
+    pub time: u64,
+    pub server_dns: String,
+    pub sent: Vec<u8>,
+    pub sent_auth_ranges: Vec<Range<usize>>,
+    pub received: Vec<u8>,
+    pub received_auth_ranges: Vec<Range<usize>>,
 }
 
 #[derive(Debug, Tsify, Serialize)]
