@@ -50,6 +50,7 @@ impl TeeTlsError {
 #[non_exhaustive]
 /// The kind of Tee-TLS error that occurred
 pub(crate) enum Kind {
+    State,
     /// IO related error
     Io,
     /// Peer misbehaved somehow, perhaps maliciously.
@@ -61,6 +62,7 @@ pub(crate) enum Kind {
 impl Display for Kind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Kind::State => write!(f, "State"),
             Kind::Io => write!(f, "Io"),
             Kind::PeerMisbehaved => write!(f, "PeerMisbehaved"),
             Kind::Other => write!(f, "Other"),

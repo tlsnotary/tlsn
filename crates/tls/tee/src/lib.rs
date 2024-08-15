@@ -20,7 +20,7 @@ pub use config::{
     TeeTranscriptConfig, TeeTranscriptConfigBuilder, TeeTranscriptConfigBuilderError,
 };
 pub use error::TeeTlsError;
-pub use follower::{TeeFollowerCtrl, TeeTlsFollower};
+pub use follower::{TeeFollowerCtrl, TeeTlsFollower, TeeTlsFollowerData};
 pub use leader::{TeeLeaderCtrl, TeeTlsLeader};
 use utils_aio::duplex::Duplex;
 

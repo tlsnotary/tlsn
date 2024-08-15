@@ -16,7 +16,7 @@ use web_time::{SystemTime, UNIX_EPOCH};
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use signature::Signer;
 use state::{Notarize, Verify};
-use tls_tee::TeeTlsFollower;
+use tls_tee::{TeeTlsFollower, TeeTlsFollowerData};
 use tlsn_common::{
     mux::{attach_mux, MuxControl},
     Executor, Role,
@@ -149,19 +149,20 @@ impl Verifier<state::Setup> {
             .unwrap()
             .as_secs();
 
-        mux_fut
+        info!("Starting TLS session");
+
+        let TeeTlsFollowerData {
+            application_data
+        } = mux_fut
             .poll_with(tee_tls.run().1.map_err(VerifierError::from))
             .await?;
 
-        info!("Finished TLS session");
+        info!("Finished TLS session {}", application_data);
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::Closed {
-                mux_ctrl,
-                mux_fut,
-            },
+            state: state::Closed { mux_ctrl, mux_fut },
         })
     }
 }

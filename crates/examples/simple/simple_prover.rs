@@ -75,7 +75,7 @@ async fn main() {
         .body(Empty::<Bytes>::new())
         .unwrap();
 
-    println!("Starting an MPC TLS connection with the server");
+    println!("Starting an TEE TLS connection with the server");
 
     // Send the request to the Server and get a response via the MPC TLS connection
     let response = request_sender.send_request(request).await.unwrap();

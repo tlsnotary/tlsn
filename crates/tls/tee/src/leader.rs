@@ -25,13 +25,14 @@ use tls_core::{
         SerializableCipherSuiteCommon, SerializableSupportedCipherSuite, SupportedCipherSuite,
     },
 };
+use tracing::{debug, instrument, Instrument};
 
 use crate::{
     error::Kind,
     follower::{
         ComputeClientKey, ComputeClientRandom, Decrypt, Encrypt, GetClientFinishedVd,
         ServerFinishedVd, SetCipherSuite, SetProtocolVersion, SetServerCertDetails,
-        SetServerKeyShare, SetServerKxDetails, SetServerRandom,
+        SetServerKeyShare, SetServerKxDetails, SetServerRandom, ServerClosed
     },
     msg::{CloseConnection, Commit, TeeTlsLeaderMsg, TeeTlsMessage},
     TeeTlsChannel, TeeTlsError,
@@ -62,6 +63,8 @@ impl ludi::Actor for TeeTlsLeader {
     type Error = TeeTlsError;
 
     async fn stopped(&mut self) -> Result<(), Self::Error> {
+        debug!("Leader stopped...");
+
         Ok(())
     }
 }
@@ -69,7 +72,7 @@ impl ludi::Actor for TeeTlsLeader {
 impl TeeTlsLeader {
     /// Create a new leader instance
     pub fn new(channel: TeeTlsChannel) -> Self {
-        println!("Creating a new leader...");
+        debug!("Creating a new leader...");
 
         let (sink, stream) = channel.split();
 
@@ -84,12 +87,9 @@ impl TeeTlsLeader {
     }
 
     /// Performs any one-time setup operations.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     pub async fn setup(&mut self) -> Result<(), TeeTlsError> {
-        println!("Setting up the leader...");
+        debug!("Setting up the leader...");
         Ok(())
     }
 
@@ -101,13 +101,13 @@ impl TeeTlsLeader {
     ///
     /// The future must be polled continuously to make progress.
     pub fn run(mut self) -> (TeeLeaderCtrl, impl Future<Output = Result<(), TeeTlsError>>) {
-        println!("Running the leader...");
+        debug!("Running the leader...");
         let (mut mailbox, addr) = ludi::mailbox(100);
 
         let ctrl = TeeLeaderCtrl::from(addr);
         let fut = async move { ludi::run(&mut self, &mut mailbox).await };
 
-        (ctrl, fut)
+        (ctrl, fut.in_current_span())
     }
 
     /// Returns the number of bytes sent and received.
@@ -116,7 +116,7 @@ impl TeeTlsLeader {
     }
 
     async fn commit(&mut self) -> Result<(), TeeTlsError> {
-        println!("Leader Committing...");
+        debug!("Leader Committing...");
         Ok(())
     }
 }
@@ -124,12 +124,10 @@ impl TeeTlsLeader {
 #[ludi::implement(msg(name = "{name}"), ctrl(err))]
 impl TeeTlsLeader {
     /// Closes the connection.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(name = "close_connection", level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     #[msg(skip, name = "CloseConnection")]
     pub async fn close_connection(&mut self) -> Result<(), TeeTlsError> {
+        debug!("Leader closing the connection...");
         self.sink
             .send(TeeTlsMessage::CloseConnection(CloseConnection))
             .await?;
@@ -144,10 +142,7 @@ impl TeeTlsLeader {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(name = "finalize", level = "trace", skip_all, err)
-    )]
+   #[instrument(level = "trace", skip_all, err)]
     #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), TeeTlsError> {
         self.commit().await
@@ -160,7 +155,7 @@ impl TeeTlsLeader {
 #[async_trait]
 impl Backend for TeeTlsLeader {
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
-        println!("Leader setting the protocol version {:?}", version);
+        debug!("Leader setting the protocol version {:?}", version);
 
         self.sink
             .send(TeeTlsMessage::SetProtocolVersion(SetProtocolVersion {
@@ -173,7 +168,7 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn set_cipher_suite(&mut self, suite: SupportedCipherSuite) -> Result<(), BackendError> {
-        println!("Leader setting the cipher suite to {:?}", suite.suite());
+        debug!("Leader setting the cipher suite to {:?}", suite.suite());
         let sscs: SerializableSupportedCipherSuite = match suite {
             SupportedCipherSuite::Tls13(s) => {
                 SerializableSupportedCipherSuite::Tls13(SerializableTls13CipherSuite {
@@ -208,25 +203,25 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn get_suite(&mut self) -> Result<SupportedCipherSuite, BackendError> {
-        println!("Leader getting the cipher suite...");
+        debug!("Leader getting the cipher suite...");
 
         unimplemented!()
     }
 
     async fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), BackendError> {
-        println!("Leader setting the encryption mode...");
+        debug!("Leader setting the encryption mode...");
         unimplemented!()
     }
 
     async fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), BackendError> {
-        println!("Leader setting the decryption mode...");
+        debug!("Leader setting the decryption mode...");
         unimplemented!()
     }
 
     async fn get_client_random(&mut self) -> Result<Random, BackendError> {
         // fetch remote attestation from follower
         // verify remote attestation
-        println!("Leader getting the client random...");
+        debug!("Leader getting the client random...");
         self.sink
             .send(TeeTlsMessage::ComputeClientRandom(ComputeClientRandom {
                 msg: None,
@@ -251,7 +246,7 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn get_client_key_share(&mut self) -> Result<PublicKey, BackendError> {
-        println!("Leader getting the client key share...");
+        debug!("Leader getting the client key share...");
         self.sink
             .send(TeeTlsMessage::ComputeClientKey(ComputeClientKey {
                 msg: vec![0],
@@ -275,7 +270,7 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError> {
-        println!("Leader setting the server random {:?}", random);
+        debug!("Leader setting the server random {:?}", random);
 
         self.sink
             .send(TeeTlsMessage::SetServerRandom(SetServerRandom {
@@ -288,7 +283,7 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError> {
-        println!("Leader setting the server key share...");
+        debug!("Leader setting the server key share...");
 
         self.sink
             .send(TeeTlsMessage::SetServerKeyShare(SetServerKeyShare {
@@ -303,7 +298,7 @@ impl Backend for TeeTlsLeader {
         &mut self,
         cert_details: ServerCertDetails,
     ) -> Result<(), BackendError> {
-        println!("Leader setting the server cert details");
+        debug!("Leader setting the server cert details");
 
         self.sink
             .send(TeeTlsMessage::SetServerCertDetails(SetServerCertDetails {
@@ -319,7 +314,7 @@ impl Backend for TeeTlsLeader {
         &mut self,
         kx_details: ServerKxDetails,
     ) -> Result<(), BackendError> {
-        println!("Leader setting the server key exchange details...");
+        debug!("Leader setting the server key exchange details...");
 
         self.sink
             .send(TeeTlsMessage::SetServerKxDetails(SetServerKxDetails {
@@ -332,18 +327,18 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn set_hs_hash_client_key_exchange(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
-        println!("Leader setting the client key exchange hash...");
+        debug!("Leader setting the client key exchange hash...");
         Ok(())
     }
 
     async fn set_hs_hash_server_hello(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
-        println!("Leader setting the server hello hash...");
+        debug!("Leader setting the server hello hash...");
 
         Ok(())
     }
 
     async fn get_server_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
-        println!("Leader getting the server finished VD...");
+        debug!("Leader getting the server finished VD...");
         self.sink
             .send(TeeTlsMessage::ServerFinishedVd(ServerFinishedVd {
                 msg: hash,
@@ -368,7 +363,7 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
-        println!("Leader getting the client finished VD...");
+        debug!("Leader getting the client finished VD...");
         self.sink
             .send(TeeTlsMessage::GetClientFinishedVd(GetClientFinishedVd {
                 msg: hash,
@@ -393,16 +388,17 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn prepare_encryption(&mut self) -> Result<(), BackendError> {
-        println!("Leader preparing the encryption...");
+        debug!("Leader preparing the encryption...");
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all, err)]
     async fn encrypt(
         &mut self,
         msg: PlainMessage,
         seq: u64,
     ) -> Result<OpaqueMessage, BackendError> {
-        println!("Leader encrypting the message...");
+        debug!("Leader encrypting the message...");
         self.sink
             .send(TeeTlsMessage::Encrypt(Encrypt {
                 msg: Some(msg),
@@ -429,7 +425,7 @@ impl Backend for TeeTlsLeader {
         opq: OpaqueMessage,
         seq: u64,
     ) -> Result<PlainMessage, BackendError> {
-        println!("Leader decrypting the message...");
+        debug!("Leader decrypting the message...");
         self.sink
             .send(TeeTlsMessage::Decrypt(Decrypt {
                 opq: Some(opq),
@@ -452,7 +448,7 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
-        println!("Leader buffering the incoming message...");
+        debug!("Leader buffering the incoming message...");
         if self.committed {
             return Err(BackendError::InternalError(
                 "cannot buffer messages after committing to transcript".to_string(),
@@ -469,7 +465,7 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
-        println!("Leader getting the next incoming message...");
+        debug!("Leader getting the next incoming message...");
         if !self.is_decrypting {
             return Ok(None);
         }
@@ -490,6 +486,11 @@ impl Backend for TeeTlsLeader {
     }
 
     async fn server_closed(&mut self) -> Result<(), BackendError> {
+        debug!("Leader server closed...");
+        self.sink
+            .send(TeeTlsMessage::ServerClosed(ServerClosed))
+            .await
+            .map_err(|e| BackendError::InternalError(e.to_string()))?;
         Ok(())
     }
 }

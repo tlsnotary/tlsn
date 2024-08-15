@@ -1,4 +1,5 @@
-use std::future::Future;
+use std::{ future::Future, mem};
+
 
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -26,6 +27,7 @@ use tls_core::{
         Tls12CipherSuite, Tls13CipherSuite,
     },
 };
+use tracing::{debug, instrument, Instrument};
 
 use crate::{
     error::Kind,
@@ -39,6 +41,8 @@ pub type TeeFollowerCtrl = TeeTlsFollowerCtrl<FuturesAddress<TeeTlsFollowerMsg>>
 /// Tee-TLS follower.
 #[derive(ludi::Controller)]
 pub struct TeeTlsFollower {
+    state: State,
+
     sink: SplitSink<TeeTlsChannel, TeeTlsMessage>,
     stream: Option<SplitStream<TeeTlsChannel>>,
 
@@ -50,23 +54,39 @@ pub struct TeeTlsFollower {
     committed: bool,
 }
 
+/// Data collected by the TEE-TLS follower
+#[derive(Debug)]
+pub struct TeeTlsFollowerData {
+    /// The recorded application data.
+    pub application_data: String,
+}
+
 impl ludi::Actor for TeeTlsFollower {
-    type Stop = ();
+    type Stop = TeeTlsFollowerData;
     type Error = TeeTlsError;
 
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
-        println!("Follower stopped...");
-        Ok(())
+        debug!("Follower stopped...");
+        let Closed {
+            application_data,
+        } = self.state.take().try_into_closed()?;
+
+        Ok(TeeTlsFollowerData {
+            application_data,
+        })
     }
 }
 
 impl TeeTlsFollower {
     /// Create a new follower instance
     pub fn new(channel: TeeTlsChannel) -> Self {
-        println!("Creating a new follower...");
+        debug!("Creating a new follower...");
 
         let (sink, stream) = channel.split();
         Self {
+            state: State::Active(Active {
+                application_data: "".to_string(),
+            }),
             sink,
             rcb: RustCryptoBackend::new(),
             stream: Some(stream),
@@ -76,12 +96,9 @@ impl TeeTlsFollower {
     }
 
     /// Performs any one-time setup operations.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     pub async fn setup(&mut self) -> Result<(), TeeTlsError> {
-        println!("Setting up the follower...");
+        debug!("Setting up the follower...");
         Ok(())
     }
 
@@ -96,9 +113,9 @@ impl TeeTlsFollower {
         mut self,
     ) -> (
         TeeFollowerCtrl,
-        impl Future<Output = Result<(), TeeTlsError>>,
+        impl Future<Output = Result<TeeTlsFollowerData, TeeTlsError>>,
     ) {
-        println!("Running the follower...");
+        debug!("Running the follower...");
         let (mut mailbox, addr) = ludi::mailbox::<TeeTlsFollowerMsg>(100);
         let ctrl = TeeFollowerCtrl::from(addr.clone());
 
@@ -133,15 +150,12 @@ impl TeeTlsFollower {
             }
         };
 
-        (ctrl, fut)
+        (ctrl, fut.in_current_span())
     }
 
-    /// Returns an error if the follower is not accepting new messages.
-    ///
-    /// This can happen if the follower has received a CloseNotify alert or if the leader has
-    /// committed to the transcript.
+    #[instrument(level = "trace", skip_all, err)]
     fn is_accepting_messages(&self) -> Result<(), TeeTlsError> {
-        println!("Checking if the follower is accepting messages...");
+        debug!("Checking if the follower is accepting messages...");
         if self.close_notify {
             return Err(TeeTlsError::new(
                 Kind::PeerMisbehaved,
@@ -159,12 +173,9 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, TeeTlsError> {
-        println!("Follower getting the client finished VD...");
+        debug!("Follower getting the client finished VD...");
         let verify_data = self
             .rcb
             .get_client_finished_vd(hash)
@@ -184,12 +195,9 @@ impl TeeTlsFollower {
         Ok(verify_data.to_vec())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn set_server_key_share(&mut self, key_share: PublicKey) -> Result<(), TeeTlsError> {
-        println!("Follower setting the server key share");
+        debug!("Follower setting the server key share");
         self.rcb
             .set_server_key_share(key_share.clone())
             .await
@@ -203,15 +211,12 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn set_server_kx_details(
         &mut self,
         kx_details: ServerKxDetails,
     ) -> Result<(), TeeTlsError> {
-        println!("Follower setting the server key exchange details");
+        debug!("Follower setting the server key exchange details");
         self.rcb
             .set_server_kx_details(kx_details.clone())
             .await
@@ -225,15 +230,12 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn set_server_cert_details(
         &mut self,
         cert_details: ServerCertDetails,
     ) -> Result<(), TeeTlsError> {
-        println!("Follower setting the server cert details");
+        debug!("Follower setting the server cert details");
         self.rcb
             .set_server_cert_details(cert_details.clone())
             .await
@@ -247,12 +249,9 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn set_server_random(&mut self, random: Random) -> Result<(), TeeTlsError> {
-        println!("Follower setting the server random to {:?}", random);
+        debug!("Follower setting the server random to {:?}", random);
         self.rcb
             .set_server_random(random.clone())
             .await
@@ -262,10 +261,7 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn set_cipher_suite(
         &mut self,
         suite: SerializableSupportedCipherSuite,
@@ -300,7 +296,7 @@ impl TeeTlsFollower {
                 SupportedCipherSuite::Tls12(tls12)
             }
         };
-        println!("Follower setting the cipher suite to {:?}", scs);
+        debug!("Follower setting the cipher suite to {:?}", scs);
         self.rcb.set_cipher_suite(scs).await.map_err(|e| {
             TeeTlsError::new(Kind::Other, format!("Failed to set cipher suite: {:?}", e))
         })?;
@@ -308,12 +304,9 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), TeeTlsError> {
-        println!("Follower setting the protocol version to {:?}", version);
+        debug!("Follower setting the protocol version to {:?}", version);
 
         self.rcb.set_protocol_version(version).await.map_err(|e| {
             TeeTlsError::new(
@@ -324,12 +317,9 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn compute_client_random(&mut self, _msg: Option<Random>) -> Result<(), TeeTlsError> {
-        println!("Follower computing the client random...");
+        debug!("Follower computing the client random...");
         let rnd = self.rcb.get_client_random().await.map_err(|e| {
             TeeTlsError::new(Kind::Other, format!("Failed to get client random: {:?}", e))
         })?;
@@ -342,12 +332,9 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn compute_client_key(&mut self, _pk: Vec<u8>) -> Result<(), TeeTlsError> {
-        println!("Follower computing the client key share...");
+        debug!("Follower computing the client key share...");
         let pk = self.rcb.get_client_key_share().await.map_err(|e| {
             TeeTlsError::new(
                 Kind::Other,
@@ -364,12 +351,9 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn server_finished_vd(&mut self, hash: Vec<u8>) -> Result<(), TeeTlsError> {
-        println!("Follower setting the server finished VD...");
+        debug!("Follower setting the server finished VD...");
         let verify_data = self.rcb.get_server_finished_vd(hash).await.map_err(|e| {
             TeeTlsError::new(
                 Kind::Other,
@@ -382,22 +366,19 @@ impl TeeTlsFollower {
                 msg: verify_data.to_vec(),
             }))
             .await?;
-        // });
 
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn decrypt(
         &mut self,
         opq: Option<OpaqueMessage>,
         seq: Option<u64>,
         _msg: Option<PlainMessage>,
     ) -> Result<(), TeeTlsError> {
-        println!("Follower decrypting the message...");
+        debug!("Follower decrypting the message...");
+        let Active { application_data, .. } = self.state.try_as_active_mut()?;
 
         match (opq, seq) {
             (Some(opq), Some(seq)) => {
@@ -406,10 +387,12 @@ impl TeeTlsFollower {
                 })?;
 
                 // Convert msg.payload to string
-                if (msg.typ == TlsMessageType::ApplicationData) {
-                    let payload_bytes = msg.payload.to_bytes();
-                    let payload_string = String::from_utf8_lossy(&payload_bytes).to_string();
-                    println!("Decrypted message as string: {}", payload_string);
+                if msg.typ == TlsMessageType::ApplicationData {
+                    if msg.typ == TlsMessageType::ApplicationData {
+                        let payload_string = String::from_utf8_lossy(&msg.payload.to_bytes()).to_string();
+                        application_data.push_str(&payload_string);
+                        debug!("Decrypted message as string: {}", payload_string);
+                    }
                 }
 
                 self.sink
@@ -431,17 +414,14 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn encrypt(
         &mut self,
         msg: Option<PlainMessage>,
         seq: Option<u64>,
         _opq: Option<OpaqueMessage>,
     ) -> Result<(), TeeTlsError> {
-        println!("Follower encrypting the message...");
+        debug!("Follower encrypting the message...");
 
         match (msg, seq) {
             (Some(msg), Some(seq)) => {
@@ -468,12 +448,9 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn encrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), TeeTlsError> {
-        println!("Encrypting the alert...");
+        debug!("Encrypting the alert...");
         self.is_accepting_messages()?;
         if let Some(alert) = AlertMessagePayload::read_bytes(&msg) {
             // We only allow the leader to send a CloseNotify alert
@@ -493,40 +470,39 @@ impl TeeTlsFollower {
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     async fn encrypt_message(&mut self, _len: usize) -> Result<(), TeeTlsError> {
-        println!("Encrypting the message...");
+        debug!("Encrypting the message...");
         self.is_accepting_messages()?;
 
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     fn commit_message(&mut self, _payload: Vec<u8>) -> Result<(), TeeTlsError> {
-        println!("Follower committing the message...");
+        debug!("Follower committing the message...");
         self.is_accepting_messages()?;
 
         Ok(())
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip_all, err)
-    )]
+    #[instrument(level = "trace", skip_all, err)]
     fn close_connection(&mut self) -> Result<(), TeeTlsError> {
-        println!("Follower closing the connection...");
+        debug!("Follower closing the connection...");
+
+        let Active {
+            application_data,
+        } = self.state.take().try_into_active()?;
+
+        self.state = State::Closed(Closed {
+            application_data,
+        });
 
         Ok(())
     }
 
     async fn commit(&mut self) -> Result<(), TeeTlsError> {
-        println!("Follower committing the transcript...");
+        debug!("Follower committing the transcript...");
         Ok(())
     }
 }
@@ -605,6 +581,14 @@ impl TeeTlsFollower {
         Ok(())
     }
 
+    pub async fn server_closed(&mut self) -> Result<(), TeeTlsError> {
+        ctx.try_or_stop(|_| async { self.close_connection() }).await;
+
+        ctx.stop();
+
+        Ok(())
+    }
+
     #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), TeeTlsError> {
         ctx.try_or_stop(|_| self.commit()).await;
@@ -612,3 +596,40 @@ impl TeeTlsFollower {
         Ok(())
     }
 }
+
+mod state {
+    use super::*;
+    use enum_try_as_inner::EnumTryAsInner;
+
+    #[derive(Debug, EnumTryAsInner)]
+    #[derive_err(Debug)]
+    pub(super) enum State {
+        Active(Active),
+        Closed(Closed),
+        Error,
+    }
+
+    impl State {
+        pub(super) fn take(&mut self) -> Self {
+            mem::replace(self, State::Error)
+        }
+    }
+
+    impl From<StateError> for TeeTlsError {
+        fn from(err: StateError) -> Self {
+            TeeTlsError::new(Kind::State, err)
+        }
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Active {
+        pub(super) application_data: String,
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Closed {
+        pub(super) application_data: String,
+    }
+}
+
+use state::*;
