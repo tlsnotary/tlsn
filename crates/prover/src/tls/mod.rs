@@ -165,7 +165,7 @@ impl Prover<state::Setup> {
                     config: self.config,
                     span: self.span,
                     state: state::Closed {
-                        tls_data,
+                        application_data: tls_data.application_data,
                         io,
                         mux_ctrl,
                         mux_fut,
