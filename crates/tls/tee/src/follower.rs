@@ -18,7 +18,7 @@ use tls_core::{
     msgs::{
         alert::AlertMessagePayload,
         codec::Codec,
-        enums::{AlertDescription, ProtocolVersion},
+        enums::{AlertDescription, ProtocolVersion, ContentType,},
         handshake::Random,
         message::{OpaqueMessage, PlainMessage},
     },
@@ -34,7 +34,6 @@ use crate::{
     msg::{CloseConnection, Commit, TeeTlsFollowerMsg, TeeTlsMessage},
     TeeTlsChannel, TeeTlsError,
 };
-use tls_core::msgs::enums::ContentType as TlsMessageType;
 /// Controller for Tee-TLS follower.
 pub type TeeFollowerCtrl = TeeTlsFollowerCtrl<FuturesAddress<TeeTlsFollowerMsg>>;
 
@@ -387,12 +386,10 @@ impl TeeTlsFollower {
                 })?;
 
                 // Convert msg.payload to string
-                if msg.typ == TlsMessageType::ApplicationData {
-                    if msg.typ == TlsMessageType::ApplicationData {
-                        let payload_string = String::from_utf8_lossy(&msg.payload.to_bytes()).to_string();
-                        application_data.push_str(&payload_string);
-                        debug!("Decrypted message as string: {}", payload_string);
-                    }
+                if msg.typ == ContentType::ApplicationData {
+                    let payload_string = String::from_utf8_lossy(&msg.payload.to_bytes()).to_string();
+                    application_data.push_str(&payload_string);
+                    debug!("Decrypted message as string: {}", payload_string);
                 }
 
                 self.sink

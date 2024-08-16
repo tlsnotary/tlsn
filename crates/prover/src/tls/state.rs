@@ -1,5 +1,5 @@
 //! TLS prover states.
-use tls_tee::TeeTlsLeader;
+use tls_tee::{TeeTlsLeader, TeeTlsLeaderData};
 use tlsn_common::{
     mux::{MuxControl, MuxFuture},
     Io,
@@ -24,6 +24,7 @@ opaque_debug::implement!(Setup);
 /// State after the TLS connection has been closed.
 pub struct Closed {
     pub(crate) io: Io,
+    pub(crate) tls_data: TeeTlsLeaderData,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 }
@@ -33,6 +34,7 @@ opaque_debug::implement!(Closed);
 /// Notarizing state.
 pub struct Notarize {
     pub(crate) io: Io,
+    pub(crate) application_data: String,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 }
@@ -42,6 +44,7 @@ opaque_debug::implement!(Notarize);
 impl From<Closed> for Notarize {
     fn from(state: Closed) -> Self {
         Self {
+            application_data: state.tls_data.application_data,
             io: state.io,
             mux_ctrl: state.mux_ctrl,
             mux_fut: state.mux_fut,

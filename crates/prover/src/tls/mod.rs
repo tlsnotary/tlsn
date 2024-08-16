@@ -154,15 +154,18 @@ impl Prover<state::Setup> {
                     Ok::<_, ProverError>((sent, recv))
                 };
 
-                futures::try_join!(
+                let ((_, _), tls_data) = futures::try_join!(
                     conn_fut,
                     tee_fut.in_current_span().map_err(ProverError::from)
                 )?;
+
+                debug!("TLS connection closed {:?}", tls_data);
 
                 Ok(Prover {
                     config: self.config,
                     span: self.span,
                     state: state::Closed {
+                        tls_data,
                         io,
                         mux_ctrl,
                         mux_fut,

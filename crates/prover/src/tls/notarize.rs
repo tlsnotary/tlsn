@@ -15,13 +15,14 @@ impl Prover<Notarize> {
             mut io,
             mux_ctrl,
             mut mux_fut,
+            application_data,
             ..
         } = self.state;
 
+        debug!("starting finalization, {:?}", application_data);
+
         let signed_session = mux_fut
             .poll_with(async {
-                debug!("starting finalization");
-
                 let signed_session: SignedSession = io.expect_next().await?;
 
                 Ok::<_, ProverError>(signed_session)

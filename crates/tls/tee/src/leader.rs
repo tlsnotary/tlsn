@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, future::Future};
+use std::{collections::VecDeque, future::Future, mem};
 
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -16,7 +16,7 @@ use tls_core::{
     ke::ServerKxDetails,
     key::PublicKey,
     msgs::{
-        enums::{NamedGroup, ProtocolVersion},
+        enums::{ContentType, NamedGroup, ProtocolVersion},
         handshake::Random,
         message::{OpaqueMessage, PlainMessage},
     },
@@ -30,9 +30,9 @@ use tracing::{debug, instrument, Instrument};
 use crate::{
     error::Kind,
     follower::{
-        ComputeClientKey, ComputeClientRandom, Decrypt, Encrypt, GetClientFinishedVd,
+        ComputeClientKey, ComputeClientRandom, Decrypt, Encrypt, GetClientFinishedVd, ServerClosed,
         ServerFinishedVd, SetCipherSuite, SetProtocolVersion, SetServerCertDetails,
-        SetServerKeyShare, SetServerKxDetails, SetServerRandom, ServerClosed
+        SetServerKeyShare, SetServerKxDetails, SetServerRandom,
     },
     msg::{CloseConnection, Commit, TeeTlsLeaderMsg, TeeTlsMessage},
     TeeTlsChannel, TeeTlsError,
@@ -44,6 +44,8 @@ pub type TeeLeaderCtrl = TeeTlsLeaderCtrl<ludi::FuturesAddress<TeeTlsLeaderMsg>>
 /// Tee-TLS leader.
 #[derive(ludi::Controller)]
 pub struct TeeTlsLeader {
+    state: State,
+
     sink: SplitSink<TeeTlsChannel, TeeTlsMessage>,
     stream: Option<SplitStream<TeeTlsChannel>>,
 
@@ -59,13 +61,14 @@ pub struct TeeTlsLeader {
 }
 
 impl ludi::Actor for TeeTlsLeader {
-    type Stop = ();
+    type Stop = TeeTlsLeaderData;
     type Error = TeeTlsError;
 
-    async fn stopped(&mut self) -> Result<(), Self::Error> {
+    async fn stopped(&mut self) -> Result<TeeTlsLeaderData, Self::Error> {
         debug!("Leader stopped...");
+        let Closed { application_data } = self.state.take().try_into_closed()?;
 
-        Ok(())
+        Ok(TeeTlsLeaderData { application_data })
     }
 }
 
@@ -77,6 +80,9 @@ impl TeeTlsLeader {
         let (sink, stream) = channel.split();
 
         Self {
+            state: State::Active(Active {
+                application_data: String::new(),
+            }),
             sink,
             stream: Some(stream),
             notifier: BackendNotifier::new(),
@@ -100,7 +106,12 @@ impl TeeTlsLeader {
     /// # Note
     ///
     /// The future must be polled continuously to make progress.
-    pub fn run(mut self) -> (TeeLeaderCtrl, impl Future<Output = Result<(), TeeTlsError>>) {
+    pub fn run(
+        mut self,
+    ) -> (
+        TeeLeaderCtrl,
+        impl Future<Output = Result<TeeTlsLeaderData, TeeTlsError>>,
+    ) {
         debug!("Running the leader...");
         let (mut mailbox, addr) = ludi::mailbox(100);
 
@@ -142,7 +153,7 @@ impl TeeTlsLeader {
         Ok(())
     }
 
-   #[instrument(level = "trace", skip_all, err)]
+    #[instrument(level = "trace", skip_all, err)]
     #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), TeeTlsError> {
         self.commit().await
@@ -426,6 +437,13 @@ impl Backend for TeeTlsLeader {
         seq: u64,
     ) -> Result<PlainMessage, BackendError> {
         debug!("Leader decrypting the message...");
+        let Active {
+            application_data, ..
+        } = self
+            .state
+            .try_as_active_mut()
+            .map_err(|e| BackendError::InternalError(e.to_string()))?;
+
         self.sink
             .send(TeeTlsMessage::Decrypt(Decrypt {
                 opq: Some(opq),
@@ -441,7 +459,12 @@ impl Backend for TeeTlsLeader {
             let msg = msg.unwrap();
             let msg: TeeTlsMessage = TeeTlsMessage::try_from(msg).unwrap();
             if let TeeTlsMessage::Decrypt(msg) = msg {
-                return Ok(msg.msg.unwrap());
+                let msg = msg.msg.unwrap();
+                if msg.typ == ContentType::ApplicationData {
+                    let payload_string = String::from_utf8_lossy(&msg.payload.0);
+                    application_data.push_str(&payload_string)
+                }
+                return Ok(msg);
             }
         }
         Err(TeeTlsError::new(Kind::PeerMisbehaved, "Decrypted message not received").into())
@@ -491,6 +514,59 @@ impl Backend for TeeTlsLeader {
             .send(TeeTlsMessage::ServerClosed(ServerClosed))
             .await
             .map_err(|e| BackendError::InternalError(e.to_string()))?;
+
+        let Active { application_data } = self
+            .state
+            .take()
+            .try_into_active()
+            .map_err(|e| BackendError::InternalError(e.to_string()))?;
+
+        self.state = State::Closed(Closed { application_data });
+
         Ok(())
     }
 }
+
+/// Data returned when the leader is stopped.
+#[derive(Debug)]
+pub struct TeeTlsLeaderData {
+    /// The recorded application data.
+    pub application_data: String,
+}
+
+mod state {
+    use super::*;
+    use enum_try_as_inner::EnumTryAsInner;
+
+    #[derive(Debug, EnumTryAsInner)]
+    #[derive_err(Debug)]
+    pub(super) enum State {
+        Active(Active),
+        Closed(Closed),
+        Error,
+    }
+
+    impl State {
+        pub(super) fn take(&mut self) -> Self {
+            mem::replace(self, State::Error)
+        }
+    }
+
+    impl From<StateError> for TeeTlsError {
+        fn from(err: StateError) -> Self {
+            TeeTlsError::new(Kind::State, err)
+        }
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Active {
+        pub(super) application_data: String,
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Closed {
+        pub(super) application_data: String,
+    }
+}
+
+use state::*;

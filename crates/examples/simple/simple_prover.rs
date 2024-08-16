@@ -89,8 +89,7 @@ async fn main() {
     let prover = prover_task.await.unwrap().unwrap();
 
     // Prepare for notarization.
-    prover.start_notarize();
+    let signed_session = prover.start_notarize().finalize().await.unwrap();
 
-    println!("Notarization completed successfully!");
-    println!("The proof has been written to `simple_proof.json`");
+    println!("Notarization completed successfully! signature: {:?}", signed_session.signature);
 }

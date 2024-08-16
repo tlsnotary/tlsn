@@ -21,7 +21,7 @@ pub use config::{
 };
 pub use error::TeeTlsError;
 pub use follower::{TeeFollowerCtrl, TeeTlsFollower, TeeTlsFollowerData};
-pub use leader::{TeeLeaderCtrl, TeeTlsLeader};
+pub use leader::{TeeLeaderCtrl, TeeTlsLeader, TeeTlsLeaderData};
 use utils_aio::duplex::Duplex;
 
 /// A channel for sending and receiving messages between leader and follower
