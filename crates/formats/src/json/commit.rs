@@ -1,19 +1,24 @@
+#[cfg(feature = "mpz")]
 use std::error::Error;
 
+#[cfg(feature = "mpz")]
 use spansy::{json::KeyValue, Spanned};
+#[cfg(feature = "mpz")]
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
-
+#[cfg(feature = "mpz")]
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
 
 /// JSON commitment error.
 #[derive(Debug, thiserror::Error)]
 #[error("json commitment error: {msg}")]
+#[cfg(feature = "mpz")]
 pub struct JsonCommitError {
     msg: String,
     #[source]
     source: Option<Box<dyn Error + Send + Sync>>,
 }
 
+#[cfg(feature = "mpz")]
 impl JsonCommitError {
     /// Creates a new JSON commitment error.
     ///
@@ -50,6 +55,7 @@ impl JsonCommitError {
 }
 
 /// A JSON committer.
+#[cfg(feature = "mpz")]
 pub trait JsonCommit {
     /// Commits to a JSON value.
     ///
@@ -247,6 +253,8 @@ pub trait JsonCommit {
 
 /// Default committer for JSON values.
 #[derive(Debug, Default, Clone)]
+#[cfg(feature = "mpz")]
 pub struct DefaultJsonCommitter {}
 
+#[cfg(feature = "mpz")]
 impl JsonCommit for DefaultJsonCommitter {}

@@ -73,7 +73,6 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
         .id("test")
         .max_sent_data(1024)
         .max_recv_data(1024)
-        .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();
 
@@ -136,9 +135,6 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
     let (mut tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
     let prover_ctrl = prover_fut.control();
     let prover_task = tokio::spawn(prover_fut);
-
-    // Defer decryption until after the server closes the connection.
-    prover_ctrl.defer_decryption().await.unwrap();
 
     tls_connection
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")

@@ -6,22 +6,31 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "mpz")]
 pub mod commitment;
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
+#[cfg(feature = "mpz")]
 pub mod merkle;
 pub mod msg;
+#[cfg(feature = "mpz")]
 pub mod proof;
+#[cfg(feature = "mpz")]
 pub mod session;
 mod signature;
 pub mod transcript;
 
+#[cfg(feature = "mpz")]
 pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader};
 pub use signature::{NotaryPublicKey, Signature};
+#[cfg(feature = "tee")]
 pub use msg::SignedSession;
+#[cfg(feature = "tee")]
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 
+#[cfg(feature = "mpz")]
 use mpz_garble_core::{encoding_state, EncodedValue};
+#[cfg(feature = "mpz")]
 use serde::{Deserialize, Serialize};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.
@@ -29,9 +38,11 @@ use serde::{Deserialize, Serialize};
 /// commitment type is [crate::commitment::Blake3]).
 ///
 /// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 << 31) - 1 by default)
+#[cfg(feature = "mpz")]
 const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
 
 /// A provider of plaintext encodings.
+#[cfg(feature = "mpz")]
 pub(crate) type EncodingProvider =
     Box<dyn Fn(&[&str]) -> Option<Vec<EncodedValue<encoding_state::Active>>> + Send>;
 
@@ -39,8 +50,10 @@ pub(crate) type EncodingProvider =
 ///
 /// A 64 bit Blake3 hash which is used for the plaintext encodings
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[cfg(feature = "mpz")]
 pub(crate) struct EncodingId(u64);
 
+#[cfg(feature = "mpz")]
 impl EncodingId {
     /// Create a new encoding ID.
     pub(crate) fn new(id: &str) -> Self {
@@ -56,11 +69,13 @@ impl EncodingId {
 
 /// A Server's name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub enum ServerName {
     /// A DNS name.
     Dns(String),
 }
 
+#[cfg(feature = "mpz")]
 impl ServerName {
     /// Returns a reference to the server name as a string slice.
     pub fn as_str(&self) -> &str {
@@ -70,6 +85,7 @@ impl ServerName {
     }
 }
 
+#[cfg(feature = "mpz")]
 impl AsRef<str> for ServerName {
     fn as_ref(&self) -> &str {
         match self {

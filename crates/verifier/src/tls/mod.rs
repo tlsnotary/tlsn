@@ -19,7 +19,7 @@ use state::{Notarize, Verify};
 use tls_tee::{TeeTlsFollower, TeeTlsFollowerData};
 use tlsn_common::{
     mux::{attach_mux, MuxControl},
-    Executor, Role,
+    Role,
 };
 use tlsn_core::{msg::SignedSession, Signature};
 
@@ -57,12 +57,8 @@ impl Verifier<state::Initialized> {
     ) -> Result<Verifier<state::Setup>, VerifierError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
 
-        // Maximum thread forking concurrency of 8.
-        // TODO: Determine the optimal number of threads.
-        let mut exec = Executor::new(mux_ctrl.clone(), 8);
-
         let tee_tls = mux_fut
-            .poll_with(setup_tee_backend(&self.config, &mux_ctrl, &mut exec))
+            .poll_with(setup_tee_backend(&self.config, &mux_ctrl))
             .await?;
 
         let io = mux_fut
@@ -73,9 +69,9 @@ impl Verifier<state::Initialized> {
             )
             .await?;
 
-        let _ctx = mux_fut
-            .poll_with(exec.new_thread().map_err(VerifierError::from))
-            .await?;
+        // let _ctx = mux_fut
+        //     .poll_with(exec.new_thread().map_err(VerifierError::from))
+        //     .await?;
 
         Ok(Verifier {
             config: self.config,
@@ -153,9 +149,7 @@ impl Verifier<state::Setup> {
 
         info!("Starting TLS session");
 
-        let TeeTlsFollowerData {
-            application_data
-        } = mux_fut
+        let TeeTlsFollowerData { application_data } = mux_fut
             .poll_with(tee_tls.run().1.map_err(VerifierError::from))
             .await?;
 
@@ -164,7 +158,12 @@ impl Verifier<state::Setup> {
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::Closed { io, mux_ctrl, mux_fut, application_data },
+            state: state::Closed {
+                io,
+                mux_ctrl,
+                mux_fut,
+                application_data,
+            },
         })
     }
 }
@@ -200,7 +199,6 @@ impl Verifier<state::Closed> {
 async fn setup_tee_backend(
     config: &VerifierConfig,
     mux: &MuxControl,
-    _exec: &mut Executor,
 ) -> Result<TeeTlsFollower, VerifierError> {
     debug!("starting TEE backend setup");
 

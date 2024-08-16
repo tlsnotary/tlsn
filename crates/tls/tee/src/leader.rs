@@ -148,11 +148,6 @@ impl TeeTlsLeader {
         Ok(())
     }
 
-    /// Defers decryption of any incoming messages.
-    pub async fn defer_decryption(&mut self) -> Result<(), TeeTlsError> {
-        Ok(())
-    }
-
     #[instrument(level = "trace", skip_all, err)]
     #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), TeeTlsError> {

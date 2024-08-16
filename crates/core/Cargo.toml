@@ -11,14 +11,16 @@ edition = "2021"
 [features]
 default = []
 fixtures = ["dep:hex"]
+mpz = ["mpz-core", "mpz-circuits", "mpz-garble-core"]
+tee = []
 
 [dependencies]
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
 
-mpz-circuits = { workspace = true }
-mpz-core = { workspace = true }
-mpz-garble-core = { workspace = true }
+mpz-circuits = { workspace = true, optional = true}
+mpz-core = { workspace = true, optional = true}
+mpz-garble-core = { workspace = true, optional = true}
 
 bimap = { version = "0.6.3", features = ["serde"] }
 bytes = { workspace = true, features = ["serde"] }

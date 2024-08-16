@@ -4,12 +4,17 @@ mod data;
 mod handshake;
 mod header;
 
+#[cfg(feature = "mpz")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "mpz")]
 pub use data::SessionData;
+#[cfg(feature = "mpz")]
 pub use handshake::{HandshakeSummary, HandshakeVerifyError};
+#[cfg(feature = "mpz")]
 pub use header::{SessionHeader, SessionHeaderVerifyError};
 
+#[cfg(feature = "mpz")]
 use crate::{
     proof::{SessionInfo, SessionProof},
     signature::Signature,
@@ -17,14 +22,17 @@ use crate::{
 
 /// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub struct NotarizedSession {
     header: SessionHeader,
     signature: Option<Signature>,
     data: SessionData,
 }
 
+#[cfg(feature = "mpz")]
 opaque_debug::implement!(NotarizedSession);
 
+#[cfg(feature = "mpz")]
 impl NotarizedSession {
     /// Create a new notarized session.
     pub fn new(header: SessionHeader, signature: Option<Signature>, data: SessionData) -> Self {

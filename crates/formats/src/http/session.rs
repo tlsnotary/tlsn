@@ -1,14 +1,18 @@
+#[cfg(feature = "mpz")]
 use tlsn_core::{proof::SessionProof, NotarizedSession};
 
+#[cfg(feature = "mpz")]
 use crate::http::HttpTranscript;
 
 /// A notarized HTTP session.
 #[derive(Debug)]
+#[cfg(feature = "mpz")]
 pub struct NotarizedHttpSession {
     session: NotarizedSession,
     transcript: HttpTranscript,
 }
 
+#[cfg(feature = "mpz")]
 impl NotarizedHttpSession {
     /// Creates a new notarized HTTP session.
     #[doc(hidden)]

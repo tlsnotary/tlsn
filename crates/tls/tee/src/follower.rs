@@ -8,7 +8,6 @@ use futures::{
 
 use ludi::{Address, FuturesAddress};
 
-use mpz_core::serialize::CanonicalSerialize;
 use serde::{Deserialize, Serialize};
 use tls_client::{Backend, RustCryptoBackend, SignatureScheme, SupportedCipherSuite};
 use tls_core::{
@@ -387,7 +386,7 @@ impl TeeTlsFollower {
 
                 // Convert msg.payload to string
                 if msg.typ == ContentType::ApplicationData {
-                    let payload_string = String::from_utf8_lossy(&msg.payload.to_bytes()).to_string();
+                    let payload_string = String::from_utf8_lossy(&msg.payload.0).to_string();
                     application_data.push_str(&payload_string);
                     debug!("Decrypted message as string: {}", payload_string);
                 }

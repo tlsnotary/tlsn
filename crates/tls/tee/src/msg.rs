@@ -17,7 +17,7 @@ use crate::{
         BackendMsgSetCipherSuite, BackendMsgSetDecrypt, BackendMsgSetEncrypt,
         BackendMsgSetHsHashClientKeyExchange, BackendMsgSetHsHashServerHello,
         BackendMsgSetProtocolVersion, BackendMsgSetServerCertDetails, BackendMsgSetServerKeyShare,
-        BackendMsgSetServerKxDetails, BackendMsgSetServerRandom, DeferDecryption,
+        BackendMsgSetServerKxDetails, BackendMsgSetServerRandom,
     },
     TeeTlsError,
 };
@@ -98,7 +98,6 @@ pub enum TeeTlsLeaderMsg {
     BackendMsgGetNotify(BackendMsgGetNotify),
     BackendMsgBufferLen(BackendMsgBufferLen),
     BackendMsgServerClosed(BackendMsgServerClosed),
-    DeferDecryption(DeferDecryption),
     CloseConnection(CloseConnection),
     Finalize(Commit),
 }

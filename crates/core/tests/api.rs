@@ -17,8 +17,10 @@ use tls_core::{
     msgs::{enums::SignatureScheme, handshake::DigitallySignedStruct},
 };
 
+#[cfg(feature = "mpz")]
 use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize};
 
+#[cfg(feature = "mpz")]
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
     fixtures,
@@ -30,6 +32,8 @@ use tlsn_core::{
 
 #[test]
 /// Tests that the commitment creation protocol and verification work end-to-end
+
+#[cfg(feature = "mpz")]
 fn test_api() {
     let testdata = fixtures::cert::tlsnotary();
     // Prover's transcript

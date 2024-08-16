@@ -87,7 +87,6 @@ impl JsProver {
 
         let (response, prover) = futures::try_join!(
             async move {
-                prover_ctrl.defer_decryption().await?;
                 send_request(tls_conn, request).await
             },
             prover_fut.map_err(Into::into),

@@ -17,6 +17,7 @@ wasm-opt = true
 default = []
 test = []
 no-bundler = ["wasm-bindgen-rayon/no-bundler"]
+mpz = []
 
 [dependencies]
 tlsn-core = { path = "../core" }

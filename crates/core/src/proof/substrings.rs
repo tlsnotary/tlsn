@@ -1,5 +1,5 @@
 //! Substrings proofs based on commitments.
-
+#[cfg(feature = "mpz")]
 use crate::{
     commitment::{
         Commitment, CommitmentId, CommitmentInfo, CommitmentKind, CommitmentOpening,
@@ -10,15 +10,21 @@ use crate::{
     Direction, EncodingId, RedactedTranscript, SessionHeader, Transcript, TranscriptSlice,
     MAX_TOTAL_COMMITTED_DATA,
 };
+#[cfg(feature = "mpz")]
 use mpz_circuits::types::ValueType;
+#[cfg(feature = "mpz")]
 use mpz_garble_core::Encoder;
+#[cfg(feature = "mpz")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "mpz")]
 use std::collections::HashMap;
+#[cfg(feature = "mpz")]
 use utils::range::{RangeDisjoint, RangeSet, RangeUnion, ToRangeSet};
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
+#[cfg(feature = "mpz")]
 pub enum SubstringsProofBuilderError {
     /// Invalid commitment id.
     #[error("invalid commitment id: {0:?}")]
@@ -35,6 +41,7 @@ pub enum SubstringsProofBuilderError {
 }
 
 /// A builder for [`SubstringsProof`]
+#[cfg(feature = "mpz")]
 pub struct SubstringsProofBuilder<'a> {
     commitments: &'a TranscriptCommitments,
     transcript_tx: &'a Transcript,
@@ -42,8 +49,10 @@ pub struct SubstringsProofBuilder<'a> {
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
 }
 
+#[cfg(feature = "mpz")]
 opaque_debug::implement!(SubstringsProofBuilder<'_>);
 
+#[cfg(feature = "mpz")]
 impl<'a> SubstringsProofBuilder<'a> {
     /// Creates a new builder.
     pub fn new(
@@ -163,6 +172,7 @@ impl<'a> SubstringsProofBuilder<'a> {
 /// An error relating to [`SubstringsProof`]
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
+#[cfg(feature = "mpz")]
 pub enum SubstringsProofError {
     /// The proof contains more data than the maximum allowed.
     #[error(
@@ -189,13 +199,16 @@ pub enum SubstringsProofError {
 /// This substring proof contains the commitment openings and a proof
 /// that the corresponding commitments are present in the merkle tree.
 #[derive(Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub struct SubstringsProof {
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
     inclusion_proof: MerkleProof,
 }
 
+#[cfg(feature = "mpz")]
 opaque_debug::implement!(SubstringsProof);
 
+#[cfg(feature = "mpz")]
 impl SubstringsProof {
     /// Verifies this proof and, if successful, returns the redacted sent and received transcripts.
     ///

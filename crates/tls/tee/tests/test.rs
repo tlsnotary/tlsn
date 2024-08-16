@@ -1,7 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::{AsyncReadExt, AsyncWriteExt};
-use mpz_common::executor::MTExecutor;
 use serio::StreamExt;
 use tls_client::Certificate;
 use tls_client_async::bind_client;
@@ -15,8 +14,6 @@ use uid_mux::{
 
 async fn leader(_config: TeeTlsCommonConfig, mux: TestFramedMux) {
     println!("leader");
-
-    let mut exec = MTExecutor::new(mux.clone(), 8);
 
     let mut leader = TeeTlsLeader::new(Box::new(StreamExt::compat_stream(
         mux.open_framed(b"tee_tls").await.unwrap(),
@@ -70,8 +67,6 @@ async fn leader(_config: TeeTlsCommonConfig, mux: TestFramedMux) {
 
     println!("{}", String::from_utf8_lossy(&buf));
 
-    leader_ctrl.defer_decryption().await.unwrap();
-
     let msg = concat!(
         "POST /echo/reversed HTTP/1.1\r\n",
         "Host: test-server.io\r\n",
@@ -88,21 +83,16 @@ async fn leader(_config: TeeTlsCommonConfig, mux: TestFramedMux) {
     // Wait for the server to reply.
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // leader_ctrl.commit().await.unwrap();
-
     let mut buf = vec![0u8; 1024];
     conn.read_to_end(&mut buf).await.unwrap();
     println!("{}", String::from_utf8_lossy(&buf));
 
-    leader_ctrl.close_connection().await.unwrap();
     conn.close().await.unwrap();
     
-    exec.new_thread().await.unwrap();
 }
 
 async fn follower(_config: TeeTlsCommonConfig, mux: TestFramedMux) {
     println!("follower");
-    let mut exec = MTExecutor::new(mux.clone(), 8);
 
     let mut follower = TeeTlsFollower::new(Box::new(StreamExt::compat_stream(
         mux.open_framed(b"tee_tls").await.unwrap(),
@@ -110,10 +100,10 @@ async fn follower(_config: TeeTlsCommonConfig, mux: TestFramedMux) {
 
     follower.setup().await.unwrap();
 
-    let (_, fut) = follower.run();
-    fut.await.unwrap();
+    let (_follower_ctrl, follower_future) = follower.run();
+    tokio::spawn(async { follower_future.await.unwrap() });
 
-    exec.new_thread().await.unwrap();
+    // follower_ctrl
 }
 
 #[tokio::test]

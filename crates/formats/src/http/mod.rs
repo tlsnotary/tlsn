@@ -3,7 +3,9 @@
 mod commit;
 mod session;
 
+#[cfg(feature = "mpz")]
 pub use commit::{DefaultHttpCommitter, HttpCommit, HttpCommitError};
+#[cfg(feature = "mpz")]
 pub use session::NotarizedHttpSession;
 
 #[doc(hidden)]
@@ -47,6 +49,7 @@ impl HttpTranscript {
 }
 
 #[cfg(test)]
+#[cfg(feature = "mpz")]
 mod tests {
     use super::*;
 

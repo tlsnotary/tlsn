@@ -88,7 +88,6 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let verifier_config = VerifierConfig::builder()
         .id("test")
-        .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();
     let verifier = Verifier::new(verifier_config);

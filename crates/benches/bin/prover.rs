@@ -138,10 +138,6 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         String::from_utf8(vec![0x42u8; upload_size]).unwrap(),
     );
 
-    if defer_decryption {
-        prover_ctrl.defer_decryption().await?;
-    }
-
     mpc_tls_connection.write_all(request.as_bytes()).await?;
     mpc_tls_connection.close().await?;
 

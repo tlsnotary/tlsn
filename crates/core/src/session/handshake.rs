@@ -1,10 +1,14 @@
+#[cfg(feature = "mpz")]
 use mpz_core::{commit::Decommitment, hash::Hash};
+#[cfg(feature = "mpz")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "mpz")]
 use tls_core::{handshake::HandshakeData, key::PublicKey, msgs::handshake::ServerECDHParams};
 
 /// An error that can occur while verifying a handshake summary
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
+#[cfg(feature = "mpz")]
 pub enum HandshakeVerifyError {
     /// The handshake data does not match the commitment
     #[error("Handshake data does not match commitment")]
@@ -19,6 +23,7 @@ pub enum HandshakeVerifyError {
 
 /// Handshake summary is part of the session header signed by the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub struct HandshakeSummary {
     /// time when Notary signed the session header
     // TODO: we can change this to be the time when the Notary started the TLS handshake 2PC
@@ -29,6 +34,7 @@ pub struct HandshakeSummary {
     handshake_commitment: Hash,
 }
 
+#[cfg(feature = "mpz")]
 impl HandshakeSummary {
     /// Creates a new HandshakeSummary
     pub fn new(time: u64, ephemeral_ec_pubkey: PublicKey, handshake_commitment: Hash) -> Self {

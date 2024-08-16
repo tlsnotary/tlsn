@@ -6,11 +6,12 @@ edition = "2021"
 
 [features]
 default = []
+mpz = ["mpz-common", "mpz-garble", "mpz-ot"]
 
 [dependencies]
-mpz-common = { workspace = true }
-mpz-garble = { workspace = true }
-mpz-ot = { workspace = true }
+mpz-common = { workspace = true, optional = true}
+mpz-garble = { workspace = true, optional = true }
+mpz-ot = { workspace = true, optional = true }
 
 futures = { workspace = true }
 serio = { workspace = true, features = ["codec", "bincode"] }

@@ -31,6 +31,7 @@ impl Transcript {
     /// # Panics
     ///
     /// Panics if the range set is empty or is out of bounds.
+    #[cfg(feature = "mpz")]
     pub(crate) fn get_bytes_in_ranges(&self, ranges: &RangeSet<usize>) -> Vec<u8> {
         let max = ranges.max().expect("range set is not empty");
         assert!(max <= self.data.len(), "range set is out of bounds");
@@ -196,6 +197,7 @@ mod tests {
     }
 
     #[rstest]
+    #[cfg(feature = "mpz")]
     fn test_get_bytes_in_ranges(transcripts: (Transcript, Transcript)) {
         let (sent, recv) = transcripts;
 
@@ -227,6 +229,7 @@ mod tests {
 
     #[rstest]
     #[should_panic]
+    #[cfg(feature = "mpz")]
     fn test_get_bytes_in_ranges_empty(transcripts: (Transcript, Transcript)) {
         let (sent, _) = transcripts;
         sent.get_bytes_in_ranges(&RangeSet::default());
@@ -234,6 +237,7 @@ mod tests {
 
     #[rstest]
     #[should_panic]
+    #[cfg(feature = "mpz")]
     fn test_get_bytes_in_ranges_out_of_bounds(transcripts: (Transcript, Transcript)) {
         let (sent, _) = transcripts;
         let range = Range {

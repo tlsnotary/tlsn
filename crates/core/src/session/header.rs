@@ -1,14 +1,20 @@
+#[cfg(feature = "mpz")]
 use mpz_core::commit::Decommitment;
+#[cfg(feature = "mpz")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "mpz")]
 use mpz_garble_core::ChaChaEncoder;
+#[cfg(feature = "mpz")]
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 
+#[cfg(feature = "mpz")]
 use crate::{merkle::MerkleRoot, HandshakeSummary};
 
 /// An error that can occur while verifying a session header
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
+#[cfg(feature = "mpz")]
 pub enum SessionHeaderVerifyError {
     /// The session header is not consistent with the provided data
     #[error("session header is not consistent with the provided data")]
@@ -17,6 +23,7 @@ pub enum SessionHeaderVerifyError {
 
 /// An authentic session header from the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub struct SessionHeader {
     /// A PRG seeds used to generate encodings for the plaintext
     encoder_seed: [u8; 32],
@@ -37,6 +44,7 @@ pub struct SessionHeader {
     handshake_summary: HandshakeSummary,
 }
 
+#[cfg(feature = "mpz")]
 impl SessionHeader {
     /// Create a new instance of SessionHeader
     pub fn new(

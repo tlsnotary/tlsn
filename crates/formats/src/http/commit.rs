@@ -1,8 +1,12 @@
+#[cfg(feature = "mpz")]
 use std::error::Error;
 
+#[cfg(feature = "mpz")]
 use spansy::Spanned;
+#[cfg(feature = "mpz")]
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
 
+#[cfg(feature = "mpz")]
 use crate::{
     http::{Body, BodyContent, Header, HttpTranscript, MessageKind, Request, Response, Target},
     json::{DefaultJsonCommitter, JsonCommit},
@@ -11,6 +15,7 @@ use crate::{
 /// HTTP commitment error.
 #[derive(Debug, thiserror::Error)]
 #[error("http commit error: {msg}")]
+#[cfg(feature = "mpz")]
 pub struct HttpCommitError {
     idx: Option<usize>,
     record_kind: MessageKind,
@@ -19,6 +24,7 @@ pub struct HttpCommitError {
     source: Option<Box<dyn Error + Send + Sync>>,
 }
 
+#[cfg(feature = "mpz")]
 impl HttpCommitError {
     /// Creates a new HTTP commitment error.
     ///
@@ -77,6 +83,7 @@ impl HttpCommitError {
 
 /// An HTTP data committer.
 #[allow(unused_variables)]
+#[cfg(feature = "mpz")]
 pub trait HttpCommit {
     /// Commits to an HTTP transcript.
     ///
@@ -405,11 +412,14 @@ pub trait HttpCommit {
 
 /// The default HTTP committer.
 #[derive(Debug, Default, Clone)]
+#[cfg(feature = "mpz")]
 pub struct DefaultHttpCommitter {}
 
+#[cfg(feature = "mpz")]
 impl HttpCommit for DefaultHttpCommitter {}
 
 #[cfg(test)]
+#[cfg(feature = "mpz")]
 mod tests {
     use super::*;
     use rstest::*;

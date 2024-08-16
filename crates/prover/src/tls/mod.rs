@@ -23,10 +23,10 @@ use serio::StreamExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tls_tee::{TeeLeaderCtrl, TeeTlsLeader};
+use tls_tee::TeeTlsLeader;
 use tlsn_common::{
     mux::{attach_mux, MuxControl},
-    Executor, Role,
+    Role,
 };
 use uid_mux::FramedUidMux as _;
 
@@ -71,12 +71,8 @@ impl Prover<state::Initialized> {
     ) -> Result<Prover<state::Setup>, ProverError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
 
-        // Maximum thread forking concurrency of 8.
-        // TODO: Determine the optimal number of threads.
-        let mut exec = Executor::new(mux_ctrl.clone(), 8);
-
         let tee_tls = mux_fut
-            .poll_with(setup_tee_backend(&self.config, &mux_ctrl, &mut exec))
+            .poll_with(setup_tee_backend(&self.config, &mux_ctrl))
             .await?;
 
         let io = mux_fut
@@ -85,10 +81,6 @@ impl Prover<state::Initialized> {
                     .open_framed(b"tlsnotary")
                     .map_err(ProverError::from),
             )
-            .await?;
-
-        let _ctx = mux_fut
-            .poll_with(exec.new_thread().map_err(ProverError::from))
             .await?;
 
         Ok(Prover {
@@ -179,7 +171,7 @@ impl Prover<state::Setup> {
             conn,
             ProverFuture {
                 fut,
-                ctrl: ProverControl { tee_ctrl },
+                ctrl: ProverControl {},
             },
         ))
     }
@@ -222,7 +214,6 @@ impl Prover<state::Closed> {
 async fn setup_tee_backend(
     config: &ProverConfig,
     mux: &MuxControl,
-    _exec: &mut Executor,
 ) -> Result<TeeTlsLeader, ProverError> {
     debug!("starting TEE backend setup");
 
@@ -240,24 +231,6 @@ async fn setup_tee_backend(
 
 /// A controller for the prover.
 #[derive(Clone)]
-pub struct ProverControl {
-    tee_ctrl: TeeLeaderCtrl,
-}
+pub struct ProverControl {}
 
-impl ProverControl {
-    /// Defers decryption of data from the server until the server has closed the connection.
-    ///
-    /// This is a performance optimization which will significantly reduce the amount of upload bandwidth
-    /// used by the prover.
-    ///
-    /// # Notes
-    ///
-    /// * The prover may need to close the connection to the server in order for it to close the connection
-    ///   on its end. If neither the prover or server close the connection this will cause a deadlock.
-    pub async fn defer_decryption(&self) -> Result<(), ProverError> {
-        self.tee_ctrl
-            .defer_decryption()
-            .await
-            .map_err(ProverError::from)
-    }
-}
+impl ProverControl {}

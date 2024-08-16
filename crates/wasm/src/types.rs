@@ -4,7 +4,6 @@ use http_body_util::Full;
 use hyper::body::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use tlsn_core::commitment::CommitmentKind;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
@@ -98,58 +97,6 @@ pub struct Reveal {
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
-pub struct NotarizedSession(tlsn_core::NotarizedSession);
-
-#[wasm_bindgen]
-impl NotarizedSession {
-    /// Builds a new proof.
-    pub fn proof(&self, reveal: Reveal) -> Result<TlsProof, JsError> {
-        let mut builder = self.0.data().build_substrings_proof();
-
-        for range in reveal.sent.iter() {
-            builder.reveal_sent(range, CommitmentKind::Blake3)?;
-        }
-
-        for range in reveal.recv.iter() {
-            builder.reveal_recv(range, CommitmentKind::Blake3)?;
-        }
-
-        let substring_proof = builder.build()?;
-
-        Ok(TlsProof(tlsn_core::proof::TlsProof {
-            session: self.0.session_proof(),
-            substrings: substring_proof,
-        }))
-    }
-
-    /// Returns the transcript.
-    pub fn transcript(&self) -> Transcript {
-        Transcript {
-            sent: self.0.data().sent_transcript().data().to_vec(),
-            recv: self.0.data().recv_transcript().data().to_vec(),
-        }
-    }
-
-    /// Serializes to a byte array.
-    pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("NotarizedSession is serializable")
-    }
-
-    /// Deserializes from a byte array.
-    pub fn deserialize(bytes: Vec<u8>) -> Result<NotarizedSession, JsError> {
-        Ok(bincode::deserialize(&bytes)?)
-    }
-}
-
-impl From<tlsn_core::NotarizedSession> for NotarizedSession {
-    fn from(value: tlsn_core::NotarizedSession) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[wasm_bindgen]
-#[serde(transparent)]
 pub struct SignedSession(tlsn_core::msg::SignedSession);
 
 #[wasm_bindgen]
@@ -168,22 +115,6 @@ impl SignedSession {
 impl From<tlsn_core::msg::SignedSession> for SignedSession {
     fn from(value: tlsn_core::msg::SignedSession) -> Self {
         Self(value)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[wasm_bindgen]
-#[serde(transparent)]
-pub struct TlsProof(tlsn_core::proof::TlsProof);
-
-#[wasm_bindgen]
-impl TlsProof {
-    pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("TlsProof is serializable")
-    }
-
-    pub fn deserialize(bytes: Vec<u8>) -> Result<TlsProof, JsError> {
-        Ok(bincode::deserialize(&bytes)?)
     }
 }
 

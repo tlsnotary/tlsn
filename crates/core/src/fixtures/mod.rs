@@ -3,11 +3,15 @@
 /// Certificate fixtures
 pub mod cert;
 
+#[cfg(feature = "mpz")]
 use std::collections::HashMap;
 
 use hex::FromHex;
+#[cfg(feature = "mpz")]
 use mpz_circuits::types::ValueType;
+#[cfg(feature = "mpz")]
 use mpz_core::{commit::HashCommit, hash::Hash, utils::blake3};
+#[cfg(feature = "mpz")]
 use mpz_garble_core::{ChaChaEncoder, Encoder};
 use tls_core::{
     cert::ServerCertDetails,
@@ -23,12 +27,14 @@ use tls_core::{
 
 use p256::ecdsa::SigningKey;
 
+#[cfg(feature = "mpz")]
 use crate::{
     merkle::MerkleRoot,
     session::{HandshakeSummary, SessionHeader},
     EncodingProvider,
 };
 
+#[cfg(feature = "mpz")]
 fn value_id(id: &str) -> u64 {
     let hash = blake3(id.as_bytes());
     u64::from_be_bytes(hash[..8].try_into().unwrap())
@@ -41,6 +47,7 @@ fn value_id(id: &str) -> u64 {
 /// * `root` - The merkle root of the transcript commitments.
 /// * `sent_len` - The length of the sent transcript.
 /// * `recv_len` - The length of the received transcript.
+#[cfg(feature = "mpz")]
 pub fn session_header(root: MerkleRoot, sent_len: usize, recv_len: usize) -> SessionHeader {
     SessionHeader::new(
         encoder_seed(),
@@ -52,6 +59,7 @@ pub fn session_header(root: MerkleRoot, sent_len: usize, recv_len: usize) -> Ses
 }
 
 /// Returns an encoding provider fixture using the given transcripts.
+#[cfg(feature = "mpz")]
 pub fn encoding_provider(transcript_tx: &[u8], transcript_rx: &[u8]) -> EncodingProvider {
     let encoder = encoder();
     let mut active_encodings = HashMap::new();
@@ -74,11 +82,13 @@ pub fn encoding_provider(transcript_tx: &[u8], transcript_rx: &[u8]) -> Encoding
 }
 
 /// Returns a handshake summary fixture.
+#[cfg(feature = "mpz")]
 pub fn handshake_summary() -> HandshakeSummary {
     HandshakeSummary::new(1671637529, server_ephemeral_key(), handshake_commitment())
 }
 
 /// Returns a handshake commitment fixture.
+#[cfg(feature = "mpz")]
 pub fn handshake_commitment() -> Hash {
     let (_, hash) = handshake_data().hash_commit();
     hash
@@ -146,6 +156,7 @@ pub fn server_random() -> Random {
 }
 
 /// Returns an encoder fixture.
+#[cfg(feature = "mpz")]
 pub fn encoder() -> ChaChaEncoder {
     ChaChaEncoder::new(encoder_seed())
 }

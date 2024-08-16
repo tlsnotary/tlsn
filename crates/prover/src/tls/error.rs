@@ -1,6 +1,5 @@
 use std::error::Error;
 use tls_tee::TeeTlsError;
-use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
 /// An error that can occur during proving.
 #[derive(Debug, thiserror::Error)]
@@ -15,15 +14,11 @@ pub enum ProverError {
     #[error("notarization error: {0}")]
     NotarizationError(String),
     #[error(transparent)]
-    CommitmentBuilder(#[from] TranscriptCommitmentBuilderError),
-    #[error(transparent)]
     InvalidServerName(#[from] tls_core::dns::InvalidDnsNameError),
     #[error("error occurred in Tee protocol: {0}")]
     TeeError(Box<dyn Error + Send + Sync + 'static>),
     #[error("server did not send a close_notify")]
     ServerNoCloseNotify,
-    #[error(transparent)]
-    CommitmentError(#[from] CommitmentError),
     #[error("Range exceeds transcript length")]
     InvalidRange,
 }
@@ -37,75 +32,8 @@ impl From<uid_mux::yamux::ConnectionError> for ProverError {
     }
 }
 
-impl From<mpz_common::ContextError> for ProverError {
-    fn from(e: mpz_common::ContextError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
 impl From<TeeTlsError> for ProverError {
     fn from(e: TeeTlsError) -> Self {
         Self::TeeError(Box::new(e))
     }
-}
-
-impl From<mpz_ot::OTError> for ProverError {
-    fn from(e: mpz_ot::OTError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_ot::kos::SenderError> for ProverError {
-    fn from(e: mpz_ot::kos::SenderError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_ole::OLEError> for ProverError {
-    fn from(e: mpz_ole::OLEError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_ot::kos::ReceiverError> for ProverError {
-    fn from(e: mpz_ot::kos::ReceiverError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::VmError> for ProverError {
-    fn from(e: mpz_garble::VmError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::protocol::deap::DEAPError> for ProverError {
-    fn from(e: mpz_garble::protocol::deap::DEAPError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::MemoryError> for ProverError {
-    fn from(e: mpz_garble::MemoryError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::ProveError> for ProverError {
-    fn from(e: mpz_garble::ProveError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<tlsn_core::merkle::MerkleError> for ProverError {
-    fn from(e: tlsn_core::merkle::MerkleError) -> Self {
-        Self::CommitmentError(e.into())
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum CommitmentError {
-    #[error(transparent)]
-    MerkleError(#[from] tlsn_core::merkle::MerkleError),
 }

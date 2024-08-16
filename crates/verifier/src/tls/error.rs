@@ -7,8 +7,6 @@ use tls_tee::TeeTlsError;
 pub enum VerifierError {
     #[error(transparent)]
     IOError(#[from] std::io::Error),
-    #[error(transparent)]
-    MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("error occurred in Tee protocol: {0}")]
     TeeError(Box<dyn Error + Send + Sync + 'static>),
     #[error("Range exceeds transcript length")]
@@ -24,62 +22,8 @@ impl From<uid_mux::yamux::ConnectionError> for VerifierError {
     }
 }
 
-impl From<mpz_common::ContextError> for VerifierError {
-    fn from(e: mpz_common::ContextError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
 impl From<TeeTlsError> for VerifierError {
     fn from(e: TeeTlsError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_ot::OTError> for VerifierError {
-    fn from(e: mpz_ot::OTError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_ot::kos::SenderError> for VerifierError {
-    fn from(e: mpz_ot::kos::SenderError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_ot::kos::ReceiverError> for VerifierError {
-    fn from(e: mpz_ot::kos::ReceiverError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::protocol::deap::DEAPError> for VerifierError {
-    fn from(e: mpz_garble::protocol::deap::DEAPError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::VerifyError> for VerifierError {
-    fn from(e: mpz_garble::VerifyError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::MemoryError> for VerifierError {
-    fn from(e: mpz_garble::MemoryError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<tlsn_core::proof::SessionProofError> for VerifierError {
-    fn from(e: tlsn_core::proof::SessionProofError) -> Self {
-        Self::TeeError(Box::new(e))
-    }
-}
-
-impl From<mpz_garble::VmError> for VerifierError {
-    fn from(e: mpz_garble::VmError) -> Self {
         Self::TeeError(Box::new(e))
     }
 }

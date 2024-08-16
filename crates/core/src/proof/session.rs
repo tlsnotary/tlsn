@@ -1,8 +1,12 @@
+#[cfg(feature = "mpz")]
 use web_time::{Duration, UNIX_EPOCH};
 
+#[cfg(feature = "mpz")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "mpz")]
 use mpz_core::{commit::Decommitment, serialize::CanonicalSerialize};
+#[cfg(feature = "mpz")]
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
     dns::ServerName as TlsServerName,
@@ -10,6 +14,7 @@ use tls_core::{
     verify::{ServerCertVerifier, WebPkiVerifier},
 };
 
+#[cfg(feature = "mpz")]
 use crate::{
     session::SessionHeader,
     signature::{Signature, SignatureVerifyError},
@@ -19,6 +24,7 @@ use crate::{
 /// An error that can occur while verifying a [`SessionProof`].
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
+#[cfg(feature = "mpz")]
 pub enum SessionProofError {
     /// Session proof is missing Notary signature
     #[error("session proof is missing notary signature")]
@@ -41,6 +47,7 @@ pub enum SessionProofError {
 ///
 /// Proof of the TLS handshake, server identity, and commitments to the transcript.
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub struct SessionProof {
     /// The session header
     pub header: SessionHeader,
@@ -50,6 +57,7 @@ pub struct SessionProof {
     pub session_info: SessionInfo,
 }
 
+#[cfg(feature = "mpz")]
 impl SessionProof {
     /// Verify the session proof.
     ///
@@ -92,6 +100,7 @@ impl SessionProof {
 ///
 /// Includes the [ServerName] and the decommitment to the [HandshakeData].
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub struct SessionInfo {
     /// The server name.
     pub server_name: ServerName,
@@ -99,6 +108,7 @@ pub struct SessionInfo {
     pub handshake_decommitment: Decommitment<HandshakeData>,
 }
 
+#[cfg(feature = "mpz")]
 impl SessionInfo {
     /// Verify the session info.
     pub fn verify(
@@ -142,6 +152,7 @@ impl SessionInfo {
 }
 
 /// Create a new [`WebPkiVerifier`] with the default trust anchors from the `webpki-roots` crate.
+#[cfg(feature = "mpz")]
 pub fn default_cert_verifier() -> WebPkiVerifier {
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
@@ -156,6 +167,7 @@ pub fn default_cert_verifier() -> WebPkiVerifier {
 }
 
 #[cfg(test)]
+#[cfg(feature = "mpz")]
 mod tests {
     use super::*;
     use rstest::*;

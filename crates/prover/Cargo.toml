@@ -9,10 +9,8 @@ version = "0.1.0-alpha.6"
 edition = "2021"
 
 [features]
-default = ["formats", "rayon"]
+default = ["formats"]
 formats = ["dep:tlsn-formats"]
-rayon = ["mpz-common/rayon"]
-force-st = ["mpz-common/force-st"]
 
 [dependencies]
 tlsn-common = { workspace = true }
@@ -21,21 +19,10 @@ tlsn-formats = { workspace = true, optional = true }
 tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
-tlsn-tls-mpc = { workspace = true }
 tlsn-tls-tee = { workspace = true }
-tlsn-utils = { workspace = true }
-tlsn-utils-aio = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
-
-mpz-common = { workspace = true }
-mpz-core = { workspace = true }
-mpz-garble = { workspace = true }
-mpz-garble-core = { workspace = true }
-mpz-ole = { workspace = true }
-mpz-ot = { workspace = true }
-mpz-share-conversion = { workspace = true }
 
 bytes = { workspace = true }
 derive_builder = { workspace = true }

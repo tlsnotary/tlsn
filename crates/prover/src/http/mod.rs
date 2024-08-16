@@ -12,8 +12,6 @@ use tlsn_formats::ParseError;
 
 use crate::tls::ProverError;
 
-pub use tlsn_formats::http::NotarizedHttpSession;
-
 /// HTTP prover error.
 #[derive(Debug, thiserror::Error)]
 pub enum HttpProverError {

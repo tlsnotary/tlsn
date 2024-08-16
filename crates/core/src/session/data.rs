@@ -1,10 +1,14 @@
+#[cfg(feature = "mpz")]
 use crate::{
     commitment::TranscriptCommitments,
     proof::{SessionInfo, SubstringsProofBuilder},
     ServerName, Transcript,
 };
+#[cfg(feature = "mpz")]
 use mpz_core::commit::Decommitment;
+#[cfg(feature = "mpz")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "mpz")]
 use tls_core::handshake::HandshakeData;
 
 /// Session data used for notarization.
@@ -19,6 +23,7 @@ use tls_core::handshake::HandshakeData;
 ///
 /// See [`build_substrings_proof`](SessionData::build_substrings_proof).
 #[derive(Serialize, Deserialize)]
+#[cfg(feature = "mpz")]
 pub struct SessionData {
     session_info: SessionInfo,
     transcript_tx: Transcript,
@@ -26,6 +31,7 @@ pub struct SessionData {
     commitments: TranscriptCommitments,
 }
 
+#[cfg(feature = "mpz")]
 impl SessionData {
     /// Creates new session data.
     pub fn new(
@@ -74,4 +80,5 @@ impl SessionData {
     }
 }
 
+#[cfg(feature = "mpz")]
 opaque_debug::implement!(SessionData);
