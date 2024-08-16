@@ -21,7 +21,7 @@ use tlsn_common::{
     mux::{attach_mux, MuxControl},
     Executor, Role,
 };
-use tlsn_core::Signature;
+use tlsn_core::{msg::SignedSession, Signature};
 
 use tracing::{debug, info, info_span, instrument, Span};
 
@@ -65,7 +65,7 @@ impl Verifier<state::Initialized> {
             .poll_with(setup_tee_backend(&self.config, &mux_ctrl, &mut exec))
             .await?;
 
-        let _io = mux_fut
+        let io = mux_fut
             .poll_with(
                 mux_ctrl
                     .open_framed(b"tlsnotary")
@@ -81,6 +81,7 @@ impl Verifier<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::Setup {
+                io,
                 mux_ctrl,
                 mux_fut,
                 tee_tls,
@@ -101,7 +102,7 @@ impl Verifier<state::Initialized> {
         self,
         socket: S,
         signer: &impl Signer<T>,
-    ) -> Result<(), VerifierError>
+    ) -> Result<SignedSession, VerifierError>
     where
         T: Into<Signature>,
     {
@@ -139,6 +140,7 @@ impl Verifier<state::Setup> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
         let state::Setup {
+            io,
             mux_ctrl,
             mut mux_fut,
             tee_tls,
@@ -162,7 +164,7 @@ impl Verifier<state::Setup> {
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::Closed { mux_ctrl, mux_fut },
+            state: state::Closed { io, mux_ctrl, mux_fut, application_data },
         })
     }
 }

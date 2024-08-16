@@ -12,6 +12,8 @@ pub enum TlsnMessage {
     TranscriptCommitmentRoot(MerkleRoot),
     /// A session header signed by a notary.
     SignedSessionHeader(SignedSessionHeader),
+    /// A signature on application data
+    SignedSession(SignedSession),
     /// A session header.
     SessionHeader(SessionHeader),
     /// Information about the TLS session
@@ -27,6 +29,27 @@ pub struct SignedSessionHeader {
     pub header: SessionHeader,
     /// The notary's signature
     pub signature: Signature,
+}
+
+/// A signed session.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SignedSession {
+    /// The TLS application data
+    pub application_data: String,
+    /// The signature on application data
+    pub signature: Signature,
+}
+
+opaque_debug::implement!(SignedSession);
+
+impl SignedSession {
+    /// Create a new notarized session.
+    pub fn new(application_data: String, signature: Signature) -> Self {
+        Self {
+            application_data,
+            signature,
+        }
+    }
 }
 
 /// Information about the values the prover wants to prove

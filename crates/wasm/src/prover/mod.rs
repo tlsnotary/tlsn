@@ -28,7 +28,6 @@ enum State {
     Initialized(Prover<state::Initialized>),
     Setup(Prover<state::Setup>),
     Closed(Prover<state::Closed>),
-    Complete,
     Error,
 }
 
@@ -102,30 +101,16 @@ impl JsProver {
     }
 
     /// Runs the notarization protocol.
-    pub async fn notarize(&mut self, _commit: Commit) -> Result<()> {
-        let prover = self.state.take().try_into_closed()?.start_notarize();
-
+    pub async fn notarize(&mut self) -> Result<SignedSession> {
         info!("starting notarization");
+
+        let prover = self.state.take().try_into_closed()?.start_notarize();
 
         let notarized_session = prover.finalize().await?;
 
-        info!("notarization complete");
+        info!("notarization complete. Signature: {:?}", notarized_session.signature);
 
         Ok(notarized_session.into())
-    }
-
-    /// Reveals data to the verifier and finalizes the protocol.
-    pub async fn reveal(&mut self, _reveal: Reveal) -> Result<()> {
-        let mut prover = self.state.take().try_into_closed()?.start_prove();
-
-        prover.prove().await?;
-        prover.finalize().await?;
-
-        info!("Finalized");
-
-        self.state = State::Complete;
-
-        Ok(())
     }
 }
 
@@ -149,8 +134,7 @@ async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpR
 
     let (response, body) = response.into_parts();
 
-    // TODO: return the body
-    let _body = body.collect().await?;
+    let body = String::from_utf8(body.collect().await?.to_bytes().to_vec())?;
 
     let headers = response
         .headers
@@ -166,5 +150,6 @@ async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpR
     Ok(HttpResponse {
         status: response.status.as_u16(),
         headers,
+        body,
     })
 }

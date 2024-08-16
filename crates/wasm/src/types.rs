@@ -71,6 +71,7 @@ impl TryFrom<HttpRequest> for hyper::Request<Full<Bytes>> {
 pub struct HttpResponse {
     pub status: u16,
     pub headers: Vec<(String, Vec<u8>)>,
+    pub body: String,
 }
 
 #[derive(Debug, Tsify, Serialize)]
@@ -142,6 +143,30 @@ impl NotarizedSession {
 
 impl From<tlsn_core::NotarizedSession> for NotarizedSession {
     fn from(value: tlsn_core::NotarizedSession) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[wasm_bindgen]
+#[serde(transparent)]
+pub struct SignedSession(tlsn_core::msg::SignedSession);
+
+#[wasm_bindgen]
+impl SignedSession {
+    /// Serializes to a byte array.
+    pub fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(self).expect("NotarizedSession is serializable")
+    }
+
+    /// Deserializes from a byte array.
+    pub fn deserialize(bytes: Vec<u8>) -> Result<SignedSession, JsError> {
+        Ok(bincode::deserialize(&bytes)?)
+    }
+}
+
+impl From<tlsn_core::msg::SignedSession> for SignedSession {
+    fn from(value: tlsn_core::msg::SignedSession) -> Self {
         Self(value)
     }
 }

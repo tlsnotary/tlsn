@@ -25,12 +25,12 @@ use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_tee::{TeeLeaderCtrl, TeeTlsLeader};
 use tlsn_common::{
-    mux::{attach_mux, MuxControl}, Executor, Role,
+    mux::{attach_mux, MuxControl},
+    Executor, Role,
 };
 use uid_mux::FramedUidMux as _;
 
 #[cfg(feature = "formats")]
-
 use tracing::{debug, info_span, instrument, Instrument, Span};
 
 /// A prover instance.
@@ -79,7 +79,7 @@ impl Prover<state::Initialized> {
             .poll_with(setup_tee_backend(&self.config, &mux_ctrl, &mut exec))
             .await?;
 
-        let _io = mux_fut
+        let io = mux_fut
             .poll_with(
                 mux_ctrl
                     .open_framed(b"tlsnotary")
@@ -95,6 +95,7 @@ impl Prover<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::Setup {
+                io,
                 mux_ctrl,
                 mux_fut,
                 tee_tls,
@@ -118,6 +119,7 @@ impl Prover<state::Setup> {
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture), ProverError> {
         let state::Setup {
+            io,
             mux_ctrl,
             mut mux_fut,
             tee_tls,
@@ -161,6 +163,7 @@ impl Prover<state::Setup> {
                     config: self.config,
                     span: self.span,
                     state: state::Closed {
+                        io,
                         mux_ctrl,
                         mux_fut,
                     },
