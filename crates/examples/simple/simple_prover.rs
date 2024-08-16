@@ -5,6 +5,7 @@ use http_body_util::BodyExt;
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request};
 use hyper_util::rt::TokioIo;
+use tokio::io::AsyncWriteExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 use tlsn_examples::run_notary;
@@ -91,5 +92,13 @@ async fn main() {
     // Prepare for notarization.
     let signed_session = prover.start_notarize().finalize().await.unwrap();
 
-    println!("Notarization completed successfully! signature: {:?}", signed_session.signature);
+    let mut file = tokio::fs::File::create("simple_proof.json").await.unwrap();
+    file.write_all(serde_json::to_string_pretty(&signed_session).unwrap().as_bytes())
+        .await
+        .unwrap();
+
+    println!(
+        "Notarization completed successfully! signature: {:?}",
+        signed_session.signature
+    );
 }

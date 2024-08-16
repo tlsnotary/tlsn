@@ -1,5 +1,5 @@
 //! TLS prover states.
-use tls_tee::{TeeTlsLeader, TeeTlsLeaderData};
+use tls_tee::TeeTlsLeader;
 use tlsn_common::{
     mux::{MuxControl, MuxFuture},
     Io,
