@@ -18,6 +18,8 @@ Try to do one pull request per change.
 
 ## Style
 
+This repository includes a `rustfmt.toml` file with custom formatting settings that are automatically validated by CI before any Pull Requests (PRs) can be merged. To ensure your code adheres to these standards, format your code using this configuration before submitting a PR. We strongly recommend enabling *auto format on save* to streamline this process. In Visual Studio Code (VSCode), you can enable this feature by turning on [`editor.formatOnSave`](https://code.visualstudio.com/docs/editor/codebasics#_formatting) in the settings.
+
 ### Capitalization and punctuation
 
 Both line comments and doc comments must be capitalized. Each sentence must end with a period.
