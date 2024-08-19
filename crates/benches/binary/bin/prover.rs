@@ -13,13 +13,10 @@ use tlsn_benches::{
     set_interface, PROVER_INTERFACE,
 };
 use tlsn_benches_library::{AsyncIo, ProverTrait};
-use tlsn_core::Direction;
 use tlsn_server_fixture::bind;
-use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
 use anyhow::Context;
 use csv::WriterBuilder;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::{
     compat::TokioAsyncReadCompatExt,
     io::{InspectReader, InspectWriter},

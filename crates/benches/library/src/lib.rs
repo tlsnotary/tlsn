@@ -1,4 +1,5 @@
 use tls_core::anchors::RootCertStore;
+use tlsn_common::config::ProtocolConfig;
 use tlsn_core::Direction;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -36,13 +37,18 @@ pub async fn run_prover(
     io: Box<dyn AsyncIo>,
     client_conn: Box<dyn AsyncIo>,
 ) -> anyhow::Result<()> {
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(upload_size + 256)
+        .max_recv_data(download_size + 256)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
+            .id("bench")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store())
-            .max_sent_data(upload_size + 256)
-            .max_recv_data(download_size + 256)
+            .protocol_config(protocol_config)
             .build()
             .context("invalid prover config")?,
     )

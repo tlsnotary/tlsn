@@ -5,6 +5,7 @@ publish = false
 version = "0.1.0"
 
 [dependencies]
+tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
