@@ -86,7 +86,7 @@ impl Prover<state::Initialized> {
             )
             .await?;
 
-        // Sends protocol configuration to verifier for compatibility check
+        // Sends protocol configuration to verifier for compatibility check.
         mux_fut
             .poll_with(async {
                 io.send(self.config.protocol_config().clone()).await?;

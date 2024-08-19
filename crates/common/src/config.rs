@@ -7,9 +7,9 @@ use std::error::Error;
 
 use crate::Role;
 
-/// Default for the maximum number of bytes that can be sent (4Kb).
+/// Default for the maximum number of bytes that can be sent (4KB).
 pub const DEFAULT_MAX_SENT_LIMIT: usize = 1 << 12;
-/// Default for the maximum number of bytes that can be received (16Kb).
+/// Default for the maximum number of bytes that can be received (16KB).
 pub const DEFAULT_MAX_RECV_LIMIT: usize = 1 << 14;
 
 // Extra cushion room, eg. for sharing J0 blocks.
@@ -25,7 +25,7 @@ static VERSION: Lazy<Version> = Lazy::new(|| {
         .unwrap()
 });
 
-/// Protocol configuration to be setup initially by prover and verifier.
+/// Protocol configuration to be set up initially by prover and verifier.
 #[derive(derive_builder::Builder, Clone, Debug, Deserialize, Serialize)]
 pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
@@ -73,7 +73,7 @@ impl ProtocolConfig {
 }
 
 /// Protocol configuration validator used by checker (i.e. verifier) to perform compatibility check
-/// with the peer (i.e. prover)'s configuration.
+/// with the peer's (i.e. the prover's) configuration.
 #[derive(derive_builder::Builder, Clone, Debug)]
 pub struct ProtocolConfigValidator {
     /// Maximum number of bytes that can be sent.

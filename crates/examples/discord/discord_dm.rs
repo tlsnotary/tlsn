@@ -66,7 +66,7 @@ async fn main() {
         .await
         .unwrap();
 
-    // Setup protocol configuration for prover.
+    // Set up protocol configuration for prover.
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
