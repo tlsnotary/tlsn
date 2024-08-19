@@ -436,7 +436,7 @@
             )
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="comment">// Receives protocol configuration from prover to perform compatibility check
+        <span class="comment">// Receives protocol configuration from prover to perform compatibility check.
         </span><span class="kw">let </span>protocol_config = mux_fut
             .poll_with(<span class="kw">async </span>{
                 <span class="kw">let </span>peer_configuration: ProtocolConfig = io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;

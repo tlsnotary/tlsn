@@ -484,7 +484,7 @@
             )
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="comment">// Sends protocol configuration to verifier for compatibility check
+        <span class="comment">// Sends protocol configuration to verifier for compatibility check.
         </span>mux_fut
             .poll_with(<span class="kw">async </span>{
                 io.send(<span class="self">self</span>.config.protocol_config().clone()).<span class="kw">await</span><span class="question-mark">?</span>;
