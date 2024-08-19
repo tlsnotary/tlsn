@@ -74,7 +74,7 @@ impl Verifier<state::Initialized> {
             )
             .await?;
 
-        // Receives protocol configuration from prover to perform compatibility check
+        // Receives protocol configuration from prover to perform compatibility check.
         let protocol_config = mux_fut
             .poll_with(async {
                 let peer_configuration: ProtocolConfig = io.expect_next().await?;
