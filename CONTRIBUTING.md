@@ -16,6 +16,16 @@ keywords.
 
 Try to do one pull request per change.
 
+## Linting
+
+Before a Pull Request (PR) can be merged, the Continuous Integration (CI) pipeline automatically lints all code using [Clippy](https://doc.rust-lang.org/stable/clippy/usage.html). To ensure your code is free of linting issues before creating a PR, run the following command:
+
+```sh
+cargo clippy --all-features --all-targets -- -D warnings
+```
+
+This command will lint your code with all features and targets enabled, and treat any warnings as errors, ensuring that your code meets the required standards.
+
 ## Style
 
 This repository includes a `rustfmt.toml` file with custom formatting settings that are automatically validated by CI before any Pull Requests (PRs) can be merged. To ensure your code adheres to these standards, format your code using this configuration before submitting a PR. We strongly recommend enabling *auto format on save* to streamline this process. In Visual Studio Code (VSCode), you can enable this feature by turning on [`editor.formatOnSave`](https://code.visualstudio.com/docs/editor/codebasics#_formatting) in the settings.
