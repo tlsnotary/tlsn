@@ -9,7 +9,7 @@ tlsn-benches-browser-core = { workspace = true }
 tlsn-benches-library = { workspace = true }
 
 serio = { workspace = true }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "73a6be1" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6ef048c" }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }

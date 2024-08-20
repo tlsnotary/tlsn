@@ -24,7 +24,7 @@ use chromiumoxide::{
 use futures::{Future, FutureExt, StreamExt};
 use rust_embed::RustEmbed;
 use tokio::{io, io::AsyncWriteExt, net::TcpListener, task::JoinHandle};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use warp::Filter;
 
 /// The IP on which the wasm component is served.
@@ -112,6 +112,8 @@ impl ProverTrait for BrowserProver {
         relays.push(spawn_port_relay(wasm_to_native_port, Box::new(wasm_right)).await?);
         let mut wasm_io = FramedIo::new(Box::new(wasm_left));
 
+        info!("spawning browser");
+
         // Note that the browser must be spawned only when the WebSocket relay is running.
         let browser = spawn_browser(
             wasm_ip,
@@ -123,6 +125,8 @@ impl ProverTrait for BrowserProver {
             wasm_to_native_port,
         )
         .await?;
+
+        info!("sending config to the browser component");
 
         wasm_io
             .send(Config {
@@ -265,11 +269,7 @@ async fn spawn_browser(
                     window.worker.run("{}", {}, {}, {}, {});
                 }}
             "#,
-            ws_ip.to_string(),
-            ws_port,
-            wasm_to_server_port,
-            wasm_to_verifier_port,
-            wasm_to_native_port
+            ws_ip, ws_port, wasm_to_server_port, wasm_to_verifier_port, wasm_to_native_port
         ))
         .await?;
 

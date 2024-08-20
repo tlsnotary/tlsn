@@ -24,6 +24,7 @@ pub struct FramedIo {
 
 impl FramedIo {
     /// Creates a new `FramedIo` from the given async `io`.
+    #[allow(clippy::default_constructed_unit_structs)]
     pub fn new(io: Box<dyn AsyncIo>) -> Self {
         let io = LengthDelimitedCodec::builder().new_framed(io);
         Self {

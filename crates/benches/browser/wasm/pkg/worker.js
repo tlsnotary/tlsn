@@ -1,13 +1,17 @@
 import * as Comlink from "./comlink.mjs";
 
-import init, { wasm_main, initThreadPool, setup_tracing_web } from './tlsn_benches_browser_wasm.js';
+import init, { wasm_main, initThreadPool, init_logging } from './tlsn_benches_browser_wasm.js';
 
 class Worker {
   async init() {
     try {
       await init();
       // Tracing may interfere with the benchmark results. We should enable it only for debugging.
-      // setup_tracing_web("debug");
+      // init_logging({
+      //   level: 'Debug',
+      //   crate_filters: undefined,
+      //   span_events: undefined,
+      // });
       await initThreadPool(navigator.hardwareConcurrency);
     } catch (e) {
       console.error(e);

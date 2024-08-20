@@ -4,29 +4,35 @@ name = "tlsn-benches-browser-wasm"
 publish = false
 version = "0.1.0"
 
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 tlsn-benches-browser-core = { workspace = true }
 tlsn-benches-library = { workspace = true }
+tlsn-wasm = { path = "../../../wasm" }
 
 serio = { workspace = true }
 
 anyhow = { workspace = true }
 console_error_panic_hook = { version = "0.1.7" }
 parking_lot = { version = "0.12", features = ["nightly"] }
+serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["time","env-filter"] }
+tracing-subscriber = { workspace = true, features = ["time", "env-filter"] }
 tracing-web = "0.1.2"
+tsify-next = { version = "0.5", default-features = false, features = ["js"] }
 wasm-bindgen = "0.2.87"
 wasm-bindgen-futures = "0.4.37"
-wasm-bindgen-rayon = { version = "1", features = ["no-bundler"] }
 web-sys = { version = "0.3.4", features = ["console"] }
 web-time = { workspace = true }
 # Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
 ws_stream_wasm = { version = "0.7.4", git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51", features = ["tokio_io"]}
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-rayon = { version = "1", features = ["no-bundler"] }
+
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = false
+# Note: these wasm-pack options should match those in crates/wasm/Cargo.toml
+opt-level = "z" 
+wasm-opt = true

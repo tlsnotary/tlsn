@@ -11,7 +11,7 @@ pub mod tests;
 pub mod types;
 pub mod verifier;
 
-use log::LoggingConfig;
+pub use log::{LoggingConfig, LoggingLevel};
 use tracing::error;
 use tracing_subscriber::{
     filter::FilterFn,
