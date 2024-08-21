@@ -294,6 +294,7 @@ mod test {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
             .max_recv_data_online(max_recv_data)
+            .max_deferred_size(0)
             .build()
             .unwrap();
 
@@ -312,6 +313,7 @@ mod test {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
             .max_recv_data_online(max_recv_data)
+            .max_deferred_size(0)
             .build()
             .unwrap();
 
