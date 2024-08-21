@@ -77,9 +77,6 @@ async fn main() {
     let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
     let tls_connection = TokioIo::new(tls_connection.compat());
 
-    // Grab a control handle to the Prover
-    let prover_ctrl = prover_fut.control();
-
     // Spawn the Prover to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
@@ -114,10 +111,6 @@ async fn main() {
         .unwrap();
 
     debug!("Sending request");
-
-    // Because we don't need to decrypt the response right away, we can defer decryption
-    // until after the connection is closed. This will speed up the proving process!
-    prover_ctrl.defer_decryption().await.unwrap();
 
     let response = request_sender.send_request(request).await.unwrap();
 

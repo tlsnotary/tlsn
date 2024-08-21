@@ -69,7 +69,7 @@ async fn main() {
     // Set up protocol configuration for prover.
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .max_deferred_size(MAX_RECV_DATA)
         .build()
         .unwrap();
 

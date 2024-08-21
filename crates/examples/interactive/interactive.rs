@@ -69,9 +69,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let (mpc_tls_connection, prover_fut) =
         prover.connect(tls_client_socket.compat()).await.unwrap();
 
-    // Grab a controller for the Prover so we can enable deferred decryption.
-    let ctrl = prover_fut.control();
-
     // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
@@ -86,10 +83,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
-
-    // Enable deferred decryption. This speeds up the proving time, but doesn't
-    // let us see the decrypted data until after the connection is closed.
-    ctrl.defer_decryption().await.unwrap();
 
     // MPC-TLS: Send Request and wait for Response.
     let request = Request::builder()
