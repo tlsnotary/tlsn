@@ -84,7 +84,8 @@ pub async fn tcp_notarize(
     notary_globals: NotaryGlobals,
     session_id: String,
     max_sent_data: Option<usize>,
-    max_recv_data: Option<usize>,
+    max_recv_data_online: Option<usize>,
+    max_deferred_size: Option<usize>,
 ) {
     debug!(?session_id, "Upgraded to tcp connection");
     match notary_service(
@@ -92,7 +93,8 @@ pub async fn tcp_notarize(
         &notary_globals.notary_signing_key,
         &session_id,
         max_sent_data,
-        max_recv_data,
+        max_recv_data_online,
+        max_deferred_size,
     )
     .await
     {

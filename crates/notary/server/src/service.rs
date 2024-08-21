@@ -76,9 +76,13 @@ pub async fn upgrade_protocol(
     let session_id = params.session_id;
     // Fetch the configuration data from the store using the session_id
     // This also removes the configuration data from the store as each session_id can only be used once
-    let (max_sent_data, max_recv_data) =
+    let (max_sent_data, max_recv_data_online, max_deferred_size) =
         match notary_globals.store.lock().unwrap().remove(&session_id) {
-            Some(data) => (data.max_sent_data, data.max_recv_data),
+            Some(data) => (
+                data.max_sent_data,
+                data.max_recv_data_online,
+                data.max_deferred_size,
+            ),
             None => {
                 let err_msg = format!("Session id {} does not exist", session_id);
                 error!(err_msg);
@@ -93,7 +97,8 @@ pub async fn upgrade_protocol(
                 notary_globals,
                 session_id,
                 max_sent_data,
-                max_recv_data,
+                max_recv_data_online,
+                max_deferred_size,
             )
         }),
         ProtocolUpgrade::Tcp(tcp) => tcp.on_upgrade(move |stream| {
@@ -102,7 +107,8 @@ pub async fn upgrade_protocol(
                 notary_globals,
                 session_id,
                 max_sent_data,
-                max_recv_data,
+                max_recv_data_online,
+                max_deferred_size,
             )
         }),
     }
@@ -129,9 +135,13 @@ pub async fn initialize(
     };
 
     // Ensure that the max_transcript_size submitted is not larger than the global max limit configured in notary server
-    if payload.max_sent_data.is_some() || payload.max_recv_data.is_some() {
-        let requested_transcript_size =
-            payload.max_sent_data.unwrap_or_default() + payload.max_recv_data.unwrap_or_default();
+    if payload.max_sent_data.is_some()
+        || payload.max_recv_data_online.is_some()
+        || payload.max_deferred_size.is_some()
+    {
+        let requested_transcript_size = payload.max_sent_data.unwrap_or_default()
+            + payload.max_recv_data_online.unwrap_or_default()
+            + payload.max_deferred_size.unwrap_or_default();
         if requested_transcript_size > notary_globals.notarization_config.max_transcript_size {
             error!(
                 "Max transcript size requested {:?} exceeds the maximum threshold {:?}",
@@ -151,7 +161,8 @@ pub async fn initialize(
         prover_session_id.clone(),
         SessionData {
             max_sent_data: payload.max_sent_data,
-            max_recv_data: payload.max_recv_data,
+            max_recv_data_online: payload.max_recv_data_online,
+            max_deferred_size: payload.max_deferred_size,
         },
     );
 
@@ -173,7 +184,8 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     signing_key: &SigningKey,
     session_id: &str,
     max_sent_data: Option<usize>,
-    max_recv_data: Option<usize>,
+    max_recv_data_online: Option<usize>,
+    max_deferred_size: Option<usize>,
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
 
@@ -185,8 +197,12 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         config_builder = config_builder.max_sent_data(max_sent_data);
     }
 
-    if let Some(max_recv_data) = max_recv_data {
-        config_builder = config_builder.max_recv_data(max_recv_data);
+    if let Some(max_recv_data_online) = max_recv_data_online {
+        config_builder = config_builder.max_recv_data_online(max_recv_data_online);
+    }
+
+    if let Some(max_deferred_size) = max_deferred_size {
+        config_builder = config_builder.max_deferred_size(max_deferred_size);
     }
 
     let config = config_builder.build()?;

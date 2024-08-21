@@ -32,9 +32,12 @@ pub struct NotarizationRequest {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
+    /// Maximum number of bytes that can be decrypted online.
+    #[builder(default = "0")]
+    max_recv_data_online: usize,
+    /// Maximum number of bytes that will be decrypted after the TLS connection is closed.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    max_deferred_size: usize,
 }
 
 impl NotarizationRequest {
@@ -234,7 +237,8 @@ impl NotaryClient {
                 serde_json::to_string(&NotarizationSessionRequest {
                     client_type: ClientType::Tcp,
                     max_sent_data: Some(notarization_request.max_sent_data),
-                    max_recv_data: Some(notarization_request.max_recv_data),
+                    max_recv_data_online: Some(notarization_request.max_recv_data_online),
+                    max_deferred_size: Some(notarization_request.max_deferred_size),
                 })
                 .map_err(|err| {
                     error!("Failed to serialise http request for configuration");

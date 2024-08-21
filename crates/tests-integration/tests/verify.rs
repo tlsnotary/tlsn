@@ -2,6 +2,7 @@ use http_body_util::{BodyExt as _, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
+use tlsn_common::config::DEFAULT_MAX_RECV_LIMIT;
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
@@ -46,6 +47,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
             .id("test")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store)
+            .defer_decryption_from_start(false)
+            .max_recv_data_online(DEFAULT_MAX_RECV_LIMIT)
+            .max_deferred_size(0)
             .build()
             .unwrap(),
     )
@@ -105,6 +109,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let verifier_config = VerifierConfig::builder()
         .id("test")
+        .max_recv_data_online(DEFAULT_MAX_RECV_LIMIT)
+        .max_deferred_size(0)
         .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();

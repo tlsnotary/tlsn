@@ -29,7 +29,7 @@ pub async fn test_prove() -> Result<(), JsValue> {
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store)
             .max_sent_data(1024)
-            .max_recv_data(1024)
+            .max_deferred_size(1024)
             .build()
             .unwrap(),
     );
@@ -77,7 +77,7 @@ pub async fn test_notarize() -> Result<(), JsValue> {
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store)
             .max_sent_data(1024)
-            .max_recv_data(1024)
+            .max_deferred_size(1024)
             .build()
             .unwrap(),
     );
@@ -124,7 +124,7 @@ pub async fn test_verifier() -> Result<(), JsValue> {
     let config = VerifierConfig::builder()
         .id("test")
         .max_sent_data(1024)
-        .max_recv_data(1024)
+        .max_deferred_size(1024)
         .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();

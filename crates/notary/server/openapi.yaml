@@ -178,8 +178,11 @@ components:
         maxSentData:
           description: Maximum data that can be sent by the prover in bytes
           type: integer
-        maxRecvData:
-          description: Maximum data that can be received by the prover in bytes
+        maxRecvDataOnline:
+          description: Maximum data that can be received online by the prover in bytes
+          type: integer
+        maxDeferredSize:
+          description: Maximum data in bytes that will be decrypted locally after the session by the prover
           type: integer
       required:
         - "clientType"

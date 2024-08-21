@@ -6,7 +6,8 @@ use tsify_next::Tsify;
 pub struct VerifierConfig {
     pub id: String,
     pub max_sent_data: Option<usize>,
-    pub max_received_data: Option<usize>,
+    pub max_received_data_online: Option<usize>,
+    pub max_deferred_size: Option<usize>,
 }
 
 impl From<VerifierConfig> for tlsn_verifier::tls::VerifierConfig {
@@ -17,8 +18,12 @@ impl From<VerifierConfig> for tlsn_verifier::tls::VerifierConfig {
             builder = builder.max_sent_data(value);
         }
 
-        if let Some(value) = value.max_received_data {
-            builder = builder.max_recv_data(value);
+        if let Some(value) = value.max_received_data_online {
+            builder = builder.max_recv_data_online(value);
+        }
+
+        if let Some(value) = value.max_deferred_size {
+            builder = builder.max_deferred_size(value)
         }
 
         builder.id(value.id).build().unwrap()

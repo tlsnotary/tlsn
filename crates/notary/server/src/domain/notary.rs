@@ -22,8 +22,10 @@ pub struct NotarizationSessionRequest {
     pub client_type: ClientType,
     /// Maximum data that can be sent by the prover
     pub max_sent_data: Option<usize>,
-    /// Maximum data that can be received by the prover
-    pub max_recv_data: Option<usize>,
+    /// Maximum data in bytes that can be received online by the prover
+    pub max_recv_data_online: Option<usize>,
+    /// Maximum data in bytes that will be decrypted locally after the session by the prover
+    pub max_deferred_size: Option<usize>,
 }
 
 /// Request query of the /notarize API
@@ -47,7 +49,8 @@ pub enum ClientType {
 #[derive(Clone, Debug)]
 pub struct SessionData {
     pub max_sent_data: Option<usize>,
-    pub max_recv_data: Option<usize>,
+    pub max_recv_data_online: Option<usize>,
+    pub max_deferred_size: Option<usize>,
 }
 
 /// Global data that needs to be shared with the axum handlers

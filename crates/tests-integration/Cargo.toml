@@ -6,6 +6,7 @@ publish = false
 
 [dev-dependencies]
 tlsn-core = { workspace = true }
+tlsn-common = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-server-fixture = { workspace = true }
 tlsn-tls-core = { workspace = true }
