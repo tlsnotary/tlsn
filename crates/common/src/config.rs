@@ -14,9 +14,12 @@ pub const DEFAULT_MAX_RECV_LIMIT: usize = 1 << 14;
 
 // Extra cushion room, eg. for sharing J0 blocks.
 const EXTRA_OTS: usize = 16384;
+
 const OTS_PER_BYTE_SENT: usize = 8;
+
 // Without deferred decryption we use 16, with it we use 8.
-const OTS_PER_BYTE_RECV: usize = 16;
+const OTS_PER_BYTE_RECV_ONLINE: usize = 16;
+const OTS_PER_BYTE_RECV_DEFER: usize = 8;
 
 // Current version that is running.
 static VERSION: Lazy<Version> = Lazy::new(|| {
@@ -31,9 +34,12 @@ pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
+    /// Maximum number of bytes that can be decrypted online.
+    #[builder(default = "0")]
+    max_recv_data_online: usize,
+    /// Maximum number of bytes that will be decrypted after the TLS connection is closed.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    max_deferred_size: usize,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -56,19 +62,34 @@ impl ProtocolConfig {
         self.max_sent_data
     }
 
-    /// Returns the maximum number of bytes that can be received.
-    pub fn max_recv_data(&self) -> usize {
-        self.max_recv_data
+    /// Returns the maximum number of bytes that can be decrypted online.
+    pub fn max_recv_data_online(&self) -> usize {
+        self.max_recv_data_online
+    }
+
+    /// Returns the maximum number of bytes that will be decrypted after the TLS connection is closed.
+    pub fn max_deferred_size(&self) -> usize {
+        self.max_deferred_size
     }
 
     /// Returns OT sender setup count.
     pub fn ot_sender_setup_count(&self, role: Role) -> usize {
-        ot_send_estimate(role, self.max_sent_data, self.max_recv_data)
+        ot_send_estimate(
+            role,
+            self.max_sent_data,
+            self.max_recv_data_online,
+            self.max_deferred_size,
+        )
     }
 
     /// Returns OT receiver setup count.
     pub fn ot_receiver_setup_count(&self, role: Role) -> usize {
-        ot_recv_estimate(role, self.max_sent_data, self.max_recv_data)
+        ot_recv_estimate(
+            role,
+            self.max_sent_data,
+            self.max_recv_data_online,
+            self.max_deferred_size,
+        )
     }
 }
 
@@ -111,7 +132,11 @@ impl ProtocolConfigValidator {
 
     /// Performs compatibility check of the protocol configuration between prover and verifier.
     pub fn validate(&self, config: &ProtocolConfig) -> Result<(), ProtocolConfigError> {
-        self.check_max_transcript_size(config.max_sent_data, config.max_recv_data)?;
+        self.check_max_transcript_size(
+            config.max_sent_data,
+            config.max_recv_data_online,
+            config.max_deferred_size,
+        )?;
         self.check_version(&config.version)?;
         Ok(())
     }
@@ -120,7 +145,8 @@ impl ProtocolConfigValidator {
     fn check_max_transcript_size(
         &self,
         max_sent_data: usize,
-        max_recv_data: usize,
+        max_recv_data_online: usize,
+        max_deferred_size: usize,
     ) -> Result<(), ProtocolConfigError> {
         if max_sent_data > self.max_sent_data {
             return Err(ProtocolConfigError::max_transcript_size(format!(
@@ -129,10 +155,11 @@ impl ProtocolConfigValidator {
             )));
         }
 
-        if max_recv_data > self.max_recv_data {
+        if max_recv_data_online + max_deferred_size > self.max_recv_data {
             return Err(ProtocolConfigError::max_transcript_size(format!(
                 "max_recv_data {:?} is greater than the configured limit {:?}",
-                max_recv_data, self.max_recv_data,
+                max_recv_data_online + max_deferred_size,
+                self.max_recv_data,
             )));
         }
 
@@ -208,20 +235,36 @@ enum ErrorKind {
 }
 
 /// Returns an estimate of the number of OTs that will be sent.
-pub fn ot_send_estimate(role: Role, max_sent_data: usize, max_recv_data: usize) -> usize {
+pub fn ot_send_estimate(
+    role: Role,
+    max_sent_data: usize,
+    max_recv_data_online: usize,
+    max_deferred_size: usize,
+) -> usize {
     match role {
         Role::Prover => EXTRA_OTS,
         Role::Verifier => {
-            EXTRA_OTS + (max_sent_data * OTS_PER_BYTE_SENT) + (max_recv_data * OTS_PER_BYTE_RECV)
+            EXTRA_OTS
+                + (max_sent_data * OTS_PER_BYTE_SENT)
+                + (max_recv_data_online * OTS_PER_BYTE_RECV_ONLINE)
+                + (max_deferred_size * OTS_PER_BYTE_RECV_DEFER)
         }
     }
 }
 
 /// Returns an estimate of the number of OTs that will be received.
-pub fn ot_recv_estimate(role: Role, max_sent_data: usize, max_recv_data: usize) -> usize {
+pub fn ot_recv_estimate(
+    role: Role,
+    max_sent_data: usize,
+    max_recv_data_online: usize,
+    max_deferred_size: usize,
+) -> usize {
     match role {
         Role::Prover => {
-            EXTRA_OTS + (max_sent_data * OTS_PER_BYTE_SENT) + (max_recv_data * OTS_PER_BYTE_RECV)
+            EXTRA_OTS
+                + (max_sent_data * OTS_PER_BYTE_SENT)
+                + (max_recv_data_online * OTS_PER_BYTE_RECV_ONLINE)
+                + (max_deferred_size * OTS_PER_BYTE_RECV_DEFER)
         }
         Role::Verifier => EXTRA_OTS,
     }
@@ -250,7 +293,7 @@ mod test {
     ) {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
-            .max_recv_data(max_recv_data)
+            .max_recv_data_online(max_recv_data)
             .build()
             .unwrap();
 
@@ -268,7 +311,7 @@ mod test {
     ) {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
-            .max_recv_data(max_recv_data)
+            .max_recv_data_online(max_recv_data)
             .build()
             .unwrap();
 
