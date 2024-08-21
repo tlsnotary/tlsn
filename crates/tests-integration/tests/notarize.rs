@@ -1,3 +1,4 @@
+use tlsn_common::config::{ProtocolConfig, DEFAULT_MAX_RECV_LIMIT};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -31,11 +32,19 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_recv_data_online(DEFAULT_MAX_RECV_LIMIT)
+        .max_deferred_size(0)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store)
+            .defer_decryption_from_start(false)
+            .protocol_config(protocol_config)
             .build()
             .unwrap(),
     )
