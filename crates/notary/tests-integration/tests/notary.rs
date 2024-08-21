@@ -180,7 +180,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .max_deferred_size(MAX_RECV_DATA)
         .build()
         .unwrap();
 
@@ -361,7 +361,7 @@ async fn test_websocket_prover() {
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .max_deferred_size(MAX_RECV_DATA)
         .build()
         .unwrap();
 

@@ -24,7 +24,7 @@ pub async fn test_prove() -> Result<(), JsValue> {
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(1024)
-        .max_recv_data(1024)
+        .max_deferred_size(1024)
         .build()
         .unwrap();
 
@@ -77,7 +77,7 @@ pub async fn test_notarize() -> Result<(), JsValue> {
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(1024)
-        .max_recv_data(1024)
+        .max_deferred_size(1024)
         .build()
         .unwrap();
 

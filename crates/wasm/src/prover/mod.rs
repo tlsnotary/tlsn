@@ -83,16 +83,12 @@ impl JsProver {
         info!("connected to server");
 
         let (tls_conn, prover_fut) = prover.connect(server_conn.into_io()).await?;
-        let prover_ctrl = prover_fut.control();
 
         info!("sending request");
 
         let (response, prover) = futures::try_join!(
-            async move {
-                prover_ctrl.defer_decryption().await?;
-                send_request(tls_conn, request).await
-            },
-            prover_fut.map_err(Into::into),
+            send_request(tls_conn, request),
+            prover_fut.map_err(Into::into)
         )?;
 
         info!("response received");
