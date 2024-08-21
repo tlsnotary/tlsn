@@ -17,7 +17,8 @@ use tlsn_benches::{
 
 use tlsn_common::config::ProtocolConfig;
 use tlsn_core::Direction;
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture::bind;
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::{
     compat::TokioAsyncReadCompatExt,
@@ -112,7 +113,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     set_interface(PROVER_INTERFACE, upload, 1, upload_delay)?;
 
     let (client_conn, server_conn) = tokio::io::duplex(2 << 16);
-    tokio::spawn(tlsn_server_fixture::bind(server_conn.compat()));
+    tokio::spawn(bind(server_conn.compat()));
 
     let start_time = Instant::now();
 

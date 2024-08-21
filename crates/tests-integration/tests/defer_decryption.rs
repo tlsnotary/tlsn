@@ -1,7 +1,9 @@
-use futures::{AsyncReadExt, AsyncWriteExt};
 use tlsn_prover::tls::{Prover, ProverConfig};
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture::bind;
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
+
+use futures::{AsyncReadExt, AsyncWriteExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
@@ -20,7 +22,7 @@ async fn test_defer_decryption() {
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
-    let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
+    let server_task = tokio::spawn(bind(server_socket.compat()));
 
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store

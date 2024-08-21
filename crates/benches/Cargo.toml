@@ -14,6 +14,7 @@ tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-server-fixture = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-verifier = { workspace = true }
 tokio = { workspace = true, features = [
