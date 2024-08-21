@@ -117,11 +117,20 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let start_time = Instant::now();
 
-    let protocol_config = ProtocolConfig::builder()
-        .max_sent_data(upload_size + 256)
-        .max_recv_data(download_size + 256)
-        .build()
-        .unwrap();
+    let protocol_config = if defer_decryption {
+        ProtocolConfig::builder()
+            .max_sent_data(upload_size + 256)
+            .max_deferred_size(download_size + 256)
+            .build()
+            .unwrap()
+    } else {
+        ProtocolConfig::builder()
+            .max_sent_data(upload_size + 256)
+            .max_recv_data_online(download_size + 256)
+            .max_deferred_size(0)
+            .build()
+            .unwrap()
+    };
 
     let prover = Prover::new(
         ProverConfig::builder()
@@ -129,6 +138,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store())
             .protocol_config(protocol_config)
+            .defer_decryption_from_start(defer_decryption)
             .build()
             .context("invalid prover config")?,
     )
@@ -137,7 +147,6 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let (mut mpc_tls_connection, prover_fut) = prover.connect(client_conn.compat()).await.unwrap();
 
-    let prover_ctrl = prover_fut.control();
     let prover_task = tokio::spawn(prover_fut);
 
     let request = format!(
@@ -145,10 +154,6 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         download_size,
         String::from_utf8(vec![0x42u8; upload_size]).unwrap(),
     );
-
-    if defer_decryption {
-        prover_ctrl.defer_decryption().await?;
-    }
 
     mpc_tls_connection.write_all(request.as_bytes()).await?;
     mpc_tls_connection.close().await?;
