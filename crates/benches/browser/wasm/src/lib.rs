@@ -2,8 +2,6 @@
 //!
 //! Conceptually the browser prover consists of the native and the wasm components.
 
-use std::panic;
-
 use serio::{stream::IoStreamExt, SinkExt as _};
 use tlsn_benches_browser_core::{
     msg::{Config, Runtime},
@@ -13,14 +11,7 @@ use tlsn_benches_library::run_prover;
 pub use tlsn_wasm::init_logging;
 
 use anyhow::Result;
-use console_error_panic_hook::hook;
-use tracing::{debug, error, info};
-use tracing_subscriber::{
-    fmt::{format::Pretty, time::UtcTime},
-    prelude::*,
-    EnvFilter,
-};
-use tracing_web::{performance_layer, MakeWebConsoleWriter};
+use tracing::info;
 use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
 pub use wasm_bindgen_rayon::init_thread_pool;
