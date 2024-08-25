@@ -42,6 +42,9 @@ use crate::{
     service::{initialize, upgrade_protocol},
     util::parse_csv_file,
 };
+use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_process::Collector;
+use prometheus::{Counter, Encoder, Opts, Registry, TextEncoder};
 
 /// Start a TCP server (with or without TLS) to accept notarization request for both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
@@ -117,6 +120,18 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             .replace("{public_key}", &public_key),
     );
 
+    let counter_opts = Opts::new("connection_counter", "connection counter help");
+    let counter = Counter::with_opts(counter_opts).unwrap();
+    let r = Registry::new();
+    r.register(Box::new(counter.clone())).unwrap();
+
+    let builder = PrometheusBuilder::new();
+    let handle = builder
+        .install_recorder()
+        .expect("failed to install Prometheus recorder");
+    let collector = Collector::default();
+    collector.describe();
+
     let router = Router::new()
         .route(
             "/",
@@ -152,6 +167,23 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             NotaryGlobals,
         >(notary_globals.clone()))
         .route("/notarize", get(upgrade_protocol))
+        .route(
+            "/app-metrics",
+            get(|| async move {
+                let mut buffer = vec![];
+                let metric_families = r.gather();
+                let encoder = TextEncoder::new();
+                encoder.encode(&metric_families, &mut buffer).unwrap();
+                (StatusCode::OK, String::from_utf8(buffer).unwrap()).into_response()
+            }),
+        )
+        .route(
+            "/process-metrics",
+            get(move || {
+                collector.collect();
+                std::future::ready(handle.render())
+            }),
+        )
         .layer(CorsLayer::permissive())
         .with_state(notary_globals);
 
@@ -165,7 +197,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             }
         };
         debug!("Received a prover's TCP connection");
-
+        counter.inc();
         let tower_service = router.clone();
         let tls_acceptor = tls_acceptor.clone();
         let protocol = protocol.clone();
