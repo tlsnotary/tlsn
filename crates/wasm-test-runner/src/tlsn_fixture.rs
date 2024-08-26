@@ -2,7 +2,7 @@ use std::{env, net::IpAddr};
 
 use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, Future};
-use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
+use tls_core::anchors::RootCertStore;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -133,7 +133,7 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
     let client_socket = TcpStream::connect((addr, port)).await.unwrap();
 
     let (mut tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
-    let prover_ctrl = prover_fut.control();
+    let _prover_ctrl = prover_fut.control();
     let prover_task = tokio::spawn(prover_fut);
 
     tls_connection

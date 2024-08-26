@@ -12,7 +12,7 @@ edition = "2021"
 default = []
 
 [dependencies]
-tlsn-common = { workspace = true }
+tlsn-common = { workspace = true, features = ["tee"]}
 tlsn-core = { workspace = true, features = ["tee"] }
 tlsn-tls-core = { workspace = true }
 tlsn-tls-tee = { workspace = true }

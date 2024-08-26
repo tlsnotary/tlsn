@@ -13,8 +13,8 @@ default = ["formats"]
 formats = ["dep:tlsn-formats"]
 
 [dependencies]
-tlsn-common = { workspace = true }
-tlsn-core = { workspace = true }
+tlsn-common = { features = ["tee"], workspace = true }
+tlsn-core = { features = ["tee"], workspace = true }
 tlsn-formats = { workspace = true, optional = true }
 tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }

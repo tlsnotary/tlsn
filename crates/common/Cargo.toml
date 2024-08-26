@@ -7,6 +7,7 @@ edition = "2021"
 [features]
 default = []
 mpz = ["mpz-common", "mpz-garble", "mpz-ot"]
+tee = []
 
 [dependencies]
 mpz-common = { workspace = true, optional = true}

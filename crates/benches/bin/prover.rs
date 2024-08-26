@@ -129,7 +129,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let (mut mpc_tls_connection, prover_fut) = prover.connect(client_conn.compat()).await.unwrap();
 
-    let prover_ctrl = prover_fut.control();
+    let _prover_ctrl = prover_fut.control();
     let prover_task = tokio::spawn(prover_fut);
 
     let request = format!(

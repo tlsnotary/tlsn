@@ -81,7 +81,7 @@ impl JsProver {
         info!("connected to server");
 
         let (tls_conn, prover_fut) = prover.connect(server_conn.into_io()).await?;
-        let prover_ctrl = prover_fut.control();
+        let _prover_ctrl = prover_fut.control();
 
         info!("sending request");
 

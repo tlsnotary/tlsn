@@ -25,7 +25,7 @@ pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader
 pub use signature::{NotaryPublicKey, Signature};
 #[cfg(feature = "tee")]
 pub use msg::SignedSession;
-#[cfg(feature = "tee")]
+#[cfg(feature = "mpz")]
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 
 #[cfg(feature = "mpz")]
