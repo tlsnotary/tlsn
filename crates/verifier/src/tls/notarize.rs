@@ -2,14 +2,16 @@
 //!
 //! The TLS verifier is only a notary.
 
+use std::collections::HashMap;
+
 use super::{state::Notarize, Verifier, VerifierError};
-use httparse::{Request, Response};
+use httparse::{Request, Response, Status};
 use serio::SinkExt;
 use signature::Signer;
 use tlsn_core::{msg::SignedSession, Signature};
 
 use sha2::{Digest, Sha256};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, trace};
 use zeroize::Zeroize;
 
 impl Verifier<Notarize> {
@@ -33,32 +35,63 @@ impl Verifier<Notarize> {
             ..
         } = self.state;
 
-        let mut request_headers = [httparse::EMPTY_HEADER; 16];
+        let mut request_headers = [httparse::EMPTY_HEADER; 64];
         let mut request = Request::new(&mut request_headers);
         let request_data_mut = request_data.to_owned();
         let req_bytes = request_data_mut.as_bytes();
         let _req_result = request.parse(&req_bytes).unwrap();
 
-        let mut response_headers = [httparse::EMPTY_HEADER; 16];
+        let mut response_headers = [httparse::EMPTY_HEADER; 64];
         let mut response = Response::new(&mut response_headers);
         let response_data_mut = response_data.to_owned();
         let resp_bytes = response_data_mut.as_bytes();
-        let _resp_result = response.parse(resp_bytes).unwrap();
-        
-        
+        let resp_size = match response.parse(resp_bytes).unwrap() {
+            Status::Complete(size) => {
+                info!("response parsed");
+                size
+            }
+            Status::Partial => {
+                info!("response partial");
+                0
+            }
+        };
+        let body = String::from_utf8_lossy(&resp_bytes[resp_size..]).to_string();
+        let mut attestations: HashMap<String, Signature> = HashMap::new();
+
         match request.path {
             Some(path) => {
-                info!("request path: {:?}", path);
-                match path {
-                    "https://swapi.dev/api/people/1" => {
-                        info!("swapi path: {:?}", path);
+                trace!("request path: {:?}", path);
+                if path.starts_with("https://swapi.dev/api/people/1") {
+                } else if path.starts_with("https://api.x.com/1.1/account/settings.json") {
+                } else if path.starts_with(
+                    "https://x.com/i/api/graphql/Yka-W8dz7RaEuQNkroPkYw/UserByScreenName",
+                ) {
+                    let parsed: crate::tls::x::UserByScreenName =
+                        serde_json::from_str(&body).unwrap();
+                    let statuses_count = parsed.data.user.result.legacy.statuses_count;
+                    trace!("x.com statuses count: {:?}", statuses_count);
+                    if statuses_count > 100 {
+                        trace!("statuses count greater than 100");
+                        let attestation = "statuses>100";
+                        let signature = signer.sign(attestation.as_bytes());
+                        attestations.insert(attestation.to_string(), signature.into());
                     }
-                    "https://api.x.com/1.1/account/settings.json" => {
-                        info!("x.com settings path: {:?}", path);
+
+                    let screen_name = parsed.data.user.result.legacy.screen_name;
+                    let attestation = format!("screen_name={}", screen_name);
+                    let signature = signer.sign(attestation.as_bytes());
+                    attestations.insert(attestation.to_string(), signature.into());
+
+                    let followers_count = parsed.data.user.result.legacy.followers_count;
+                    trace!("x.com follower count: {:?}", followers_count);
+                    if followers_count > 100 {
+                        trace!("follower count greater than 100");
+                        let attestation = "followers>100";
+                        let signature = signer.sign(attestation.as_bytes());
+                        attestations.insert(attestation.to_string(), signature.into());
                     }
-                    _ => {
-                        info!("request path not found");
-                    }
+                } else {
+                    trace!("request path not found");
                 }
             }
             None => {
@@ -79,12 +112,13 @@ impl Verifier<Notarize> {
                 let signed_session = SignedSession {
                     application_data: hex::encode(hash),
                     signature: signature.into(),
+                    attestations,
                 };
                 info!("sending signed session");
                 io.send(signed_session.clone()).await?;
                 info!(
-                    "sent signed session. signature {:?}",
-                    signed_session.signature
+                    "sent signed session {:?}",
+                    signed_session.attestations.keys()
                 );
                 info!("signed session hash: {:?}", signed_session.application_data);
 

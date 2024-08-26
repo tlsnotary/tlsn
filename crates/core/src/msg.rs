@@ -1,12 +1,14 @@
 //! Protocol message types.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "mpz")]
 use utils::range::RangeSet;
 
 #[cfg(feature = "mpz")]
-use crate::{ proof::SessionInfo, SessionHeader};
+use crate::{proof::SessionInfo, SessionHeader};
 
 use crate::signature::Signature;
 
@@ -52,6 +54,8 @@ pub struct SignedSession {
     pub application_data: String,
     /// The signature on application data
     pub signature: Signature,
+    /// A vector of hashmap of strings to signatures
+    pub attestations: HashMap<String, Signature>,
 }
 
 #[cfg(feature = "tee")]
@@ -60,10 +64,15 @@ opaque_debug::implement!(SignedSession);
 #[cfg(feature = "tee")]
 impl SignedSession {
     /// Create a new notarized session.
-    pub fn new(application_data: String, signature: Signature) -> Self {
+    pub fn new(
+        application_data: String,
+        signature: Signature,
+        attestations: HashMap<String, Signature>,
+    ) -> Self {
         Self {
             application_data,
             signature,
+            attestations,
         }
     }
 }

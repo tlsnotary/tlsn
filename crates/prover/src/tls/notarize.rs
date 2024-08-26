@@ -35,6 +35,6 @@ impl Prover<Notarize> {
             mux_fut.await?;
         }
 
-        Ok(SignedSession::new(signed_session.application_data, signed_session.signature))
+        Ok(SignedSession::new(signed_session.application_data, signed_session.signature, signed_session.attestations))
     }
 }

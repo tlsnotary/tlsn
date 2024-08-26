@@ -86,9 +86,7 @@ impl JsProver {
         info!("sending request");
 
         let (response, prover) = futures::try_join!(
-            async move {
-                send_request(tls_conn, request).await
-            },
+            async move { send_request(tls_conn, request).await },
             prover_fut.map_err(Into::into),
         )?;
 
@@ -107,7 +105,12 @@ impl JsProver {
 
         let notarized_session = prover.finalize().await?;
 
-        info!("notarization complete. Signature: {:?}", notarized_session.signature);
+        info!(
+            "notarization complete. Signature: {:?}\r\n attributes: {:?} attestations {:?}",
+            notarized_session.signature,
+            notarized_session.attestations.keys(),
+            notarized_session.attestations.values()
+        );
 
         Ok(notarized_session.into())
     }

@@ -18,6 +18,7 @@ fn main() {
         // The substrings proof proves select portions of the transcript, while redacting
         // anything the Prover chose not to disclose.
         signature,
+        attestations,
     } = proof;
 
     // Verify the session proof against the Notary's public key

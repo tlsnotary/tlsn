@@ -5,6 +5,8 @@ mod error;
 mod notarize;
 pub mod state;
 mod verify;
+/// This module provides functionality for X.
+pub mod x;
 
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
