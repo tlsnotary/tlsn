@@ -32,3 +32,4 @@ web-time = { workspace = true }
 httparse = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+zeroize = {version = "1.8.1"}
