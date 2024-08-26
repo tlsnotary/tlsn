@@ -149,11 +149,17 @@ impl Verifier<state::Setup> {
 
         info!("Starting TLS session");
 
-        let TeeTlsFollowerData { application_data } = mux_fut
+        let TeeTlsFollowerData {
+            response_data,
+            request_data,
+        } = mux_fut
             .poll_with(tee_tls.run().1.map_err(VerifierError::from))
             .await?;
 
-        info!("Finished TLS session {}", application_data);
+        info!(
+            "Finished TLS session\r\nrequest:\r\n{}\r\nresponse:\r\n{}",
+            request_data, response_data
+        );
 
         Ok(Verifier {
             config: self.config,
@@ -162,7 +168,8 @@ impl Verifier<state::Setup> {
                 io,
                 mux_ctrl,
                 mux_fut,
-                application_data,
+                response_data,
+                request_data,
             },
         })
     }

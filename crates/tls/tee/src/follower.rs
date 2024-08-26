@@ -55,8 +55,10 @@ pub struct TeeTlsFollower {
 /// Data collected by the TEE-TLS follower
 #[derive(Debug)]
 pub struct TeeTlsFollowerData {
-    /// The recorded application data.
-    pub application_data: String,
+    /// The recorded response data.
+    pub response_data: String,
+    /// The recorded request data.
+    pub request_data: String,
 }
 
 impl ludi::Actor for TeeTlsFollower {
@@ -66,11 +68,13 @@ impl ludi::Actor for TeeTlsFollower {
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
         debug!("Follower stopped...");
         let Closed {
-            application_data,
+            response_data,
+            request_data,
         } = self.state.take().try_into_closed()?;
 
         Ok(TeeTlsFollowerData {
-            application_data,
+            response_data,
+            request_data,
         })
     }
 }
@@ -83,7 +87,8 @@ impl TeeTlsFollower {
         let (sink, stream) = channel.split();
         Self {
             state: State::Active(Active {
-                application_data: "".to_string(),
+                response_data: "".to_string(),
+                request_data: "".to_string(),
             }),
             sink,
             rcb: RustCryptoBackend::new(),
@@ -376,7 +381,7 @@ impl TeeTlsFollower {
         _msg: Option<PlainMessage>,
     ) -> Result<(), TeeTlsError> {
         debug!("Follower decrypting the message...");
-        let Active { application_data, .. } = self.state.try_as_active_mut()?;
+        let Active { response_data, .. } = self.state.try_as_active_mut()?;
 
         match (opq, seq) {
             (Some(opq), Some(seq)) => {
@@ -387,7 +392,7 @@ impl TeeTlsFollower {
                 // Convert msg.payload to string
                 if msg.typ == ContentType::ApplicationData {
                     let payload_string = String::from_utf8_lossy(&msg.payload.0).to_string();
-                    application_data.push_str(&payload_string);
+                    response_data.push_str(&payload_string);
                     debug!("Decrypted message as string: {}", payload_string);
                 }
 
@@ -418,9 +423,17 @@ impl TeeTlsFollower {
         _opq: Option<OpaqueMessage>,
     ) -> Result<(), TeeTlsError> {
         debug!("Follower encrypting the message...");
+        let Active { request_data, .. } = self.state.try_as_active_mut()?;
+
 
         match (msg, seq) {
             (Some(msg), Some(seq)) => {
+                if msg.typ == ContentType::ApplicationData {
+                    let payload_string = String::from_utf8_lossy(&msg.payload.0).to_string();
+                    request_data.push_str(&payload_string);
+                    debug!("Envrypting message as string: {}", payload_string);
+                }
+
                 let opq_msg = self.rcb.encrypt(msg, seq).await.map_err(|e| {
                     TeeTlsError::new(Kind::Other, format!("Failed to encrypt message: {:?}", e))
                 })?;
@@ -487,11 +500,13 @@ impl TeeTlsFollower {
         debug!("Follower closing the connection...");
 
         let Active {
-            application_data,
+            response_data,
+            request_data,
         } = self.state.take().try_into_active()?;
 
         self.state = State::Closed(Closed {
-            application_data,
+            response_data,
+            request_data,
         });
 
         Ok(())
@@ -619,12 +634,14 @@ mod state {
 
     #[derive(Debug)]
     pub(super) struct Active {
-        pub(super) application_data: String,
+        pub(super) response_data: String,
+        pub(super) request_data: String,
     }
 
     #[derive(Debug)]
     pub(super) struct Closed {
-        pub(super) application_data: String,
+        pub(super) response_data: String,
+        pub(super) request_data: String,
     }
 }
 

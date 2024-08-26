@@ -28,7 +28,8 @@ pub struct Closed {
     pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-    pub(crate) application_data: String,
+    pub(crate) response_data: String,
+    pub(crate) request_data: String,
 }
 
 opaque_debug::implement!(Closed);
@@ -38,7 +39,8 @@ pub struct Notarize {
     pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-    pub(crate) application_data: String,
+    pub(crate) response_data: String,
+    pub(crate) request_data: String,
 }
 
 opaque_debug::implement!(Notarize);
@@ -46,7 +48,8 @@ opaque_debug::implement!(Notarize);
 impl From<Closed> for Notarize {
     fn from(value: Closed) -> Self {
         Self {
-            application_data: value.application_data,
+            response_data: value.response_data,
+            request_data: value.request_data,
             io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,

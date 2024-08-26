@@ -3,10 +3,12 @@
 //! The TLS verifier is only a notary.
 
 use super::{state::Notarize, Verifier, VerifierError};
+use httparse::{Request, Response};
 use serio::SinkExt;
 use signature::Signer;
 use tlsn_core::{msg::SignedSession, Signature};
 
+use sha2::{Digest, Sha256};
 use tracing::{debug, info, instrument};
 
 impl Verifier<Notarize> {
@@ -25,21 +27,40 @@ impl Verifier<Notarize> {
             mut io,
             mux_ctrl,
             mut mux_fut,
-            application_data,
+            response_data,
+            request_data,
             ..
         } = self.state;
 
+        let mut request_headers = [httparse::EMPTY_HEADER; 16];
+        let mut request = Request::new(&mut request_headers);
+        let _req_result = request.parse(request_data.as_bytes()).unwrap();
+
+        let mut response_headers = [httparse::EMPTY_HEADER; 16];
+        let mut response = Response::new(&mut response_headers);
+        let _resp_result = response.parse(response_data.as_bytes()).unwrap();
+
         let session_header = mux_fut
             .poll_with(async {
-                let signature = signer.sign(application_data.as_bytes());
+                let mut data = Vec::new();
+                data.extend_from_slice(response_data.as_bytes());
+                data.extend_from_slice(request_data.as_bytes());
+                let mut hasher = Sha256::new();
+                hasher.update(&data);
+                let hash = hasher.finalize();
+                let signature = signer.sign(&hash);
                 info!("signing session");
                 let signed_session = SignedSession {
-                    application_data: application_data.clone(),
+                    application_data: hex::encode(hash),
                     signature: signature.into(),
                 };
                 info!("sending signed session");
                 io.send(signed_session.clone()).await?;
-                info!("sent signed session. signature {:?}", signed_session.signature);
+                info!(
+                    "sent signed session. signature {:?}",
+                    signed_session.signature
+                );
+                info!("signed session hash: {:?}", signed_session.application_data);
 
                 // Finalize all TEE before signing the session header.
                 Ok::<_, VerifierError>(signed_session)
