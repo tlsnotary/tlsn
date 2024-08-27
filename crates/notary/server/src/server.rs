@@ -59,6 +59,17 @@ lazy_static! {
         register_gauge!("active_connection_gauge", "Active connections").unwrap();
 }
 
+struct TaskGuard {
+    gauge: Arc<Gauge>,
+}
+
+impl Drop for TaskGuard {
+    fn drop(&mut self) {
+        // Decrement the gauge when the guard is dropped
+        self.gauge.dec();
+    }
+}
+
 /// Start a TCP server (with or without TLS) to accept notarization request for both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
@@ -217,6 +228,9 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         // Spawn a new async task to handle the new connection
         tokio::spawn(async move {
             ACTIVE_CONNECTION_COUNTER.inc();
+            let _guard = TaskGuard {
+                gauge: Arc::new(ACTIVE_CONNECTION_COUNTER.clone()),
+            };
             // When TLS is enabled
             if let Some(acceptor) = tls_acceptor {
                 match acceptor.accept(stream).await {
@@ -258,7 +272,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     .with_upgrades()
                     .await;
             }
-            ACTIVE_CONNECTION_COUNTER.dec();
         });
     }
 }
