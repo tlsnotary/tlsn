@@ -26,4 +26,3 @@ tshark -r out.pcap -Y "tcp.stream==$STREAM_ID and tcp.srcport == 443" -T fields 
 tshark -r out.pcap -Y "tcp.stream==$STREAM_ID" -T fields -e tls.handshake.server_point
 # signature (over the key exchange parameters)
 tshark -r out.pcap -Y "tcp.stream==$STREAM_ID" -T fields -e tls.handshake.sig
-
