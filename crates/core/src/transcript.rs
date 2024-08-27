@@ -34,7 +34,7 @@ mod proof;
 use std::{fmt, ops::Range};
 
 use serde::{Deserialize, Serialize};
-use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion};
+use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion, ToRangeSet};
 
 use crate::connection::TranscriptLength;
 
@@ -366,22 +366,23 @@ impl fmt::Display for Direction {
 }
 
 /// Transcript index.
-///
-/// An index can not be empty.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(try_from = "validation::IdxUnchecked")]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Idx(RangeSet<usize>);
 
 impl Idx {
-    /// Creates a new transcript index, returning an error if the index is empty.
-    pub fn new(ranges: impl Into<RangeSet<usize>>) -> Result<Self, InvalidIdx> {
-        let ranges: RangeSet<usize> = ranges.into();
+    /// Creates a new index builder.
+    pub fn builder() -> IdxBuilder {
+        IdxBuilder::default()
+    }
 
-        if ranges.is_empty() {
-            return Err(InvalidIdx {});
-        }
+    /// Creates an empty index.
+    pub fn empty() -> Self {
+        Self(RangeSet::default())
+    }
 
-        Ok(Self(ranges))
+    /// Creates a new transcript index.
+    pub fn new(ranges: impl Into<RangeSet<usize>>) -> Self {
+        Self(ranges.into())
     }
 
     /// Returns the start of the index.
@@ -405,21 +406,41 @@ impl Idx {
     }
 
     /// Returns the number of values in the index.
-    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Returns whether the index is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Returns the number of disjoint ranges in the index.
     pub fn count(&self) -> usize {
         self.0.len_ranges()
     }
+
+    /// Returns the union of this index with another.
+    pub fn union(&self, other: &Idx) -> Idx {
+        Idx(self.0.union(&other.0))
+    }
 }
 
-/// Invalid index error.
-#[derive(Debug, thiserror::Error)]
-#[error("invalid index, must not be empty")]
-pub struct InvalidIdx {}
+/// Builder for [`Idx`].
+#[derive(Debug, Default)]
+pub struct IdxBuilder(RangeSet<usize>);
+
+impl IdxBuilder {
+    /// Unions ranges.
+    pub fn union(self, ranges: &dyn ToRangeSet<usize>) -> Self {
+        IdxBuilder(self.0.union(&ranges.to_range_set()))
+    }
+
+    /// Builds the index.
+    pub fn build(self) -> Idx {
+        Idx(self.0)
+    }
+}
 
 /// Transcript subsequence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -438,12 +459,6 @@ impl Subsequence {
             return Err(InvalidSubsequence(
                 "index length does not match data length",
             ));
-        }
-
-        // This is redundant because an `Idx` can not be empty,
-        // but we're conservative.
-        if data.is_empty() {
-            return Err(InvalidSubsequence("subsequence can not be empty"));
         }
 
         Ok(Self { idx, data })
@@ -505,17 +520,6 @@ pub fn get_value_ids(
 
 mod validation {
     use super::*;
-
-    #[derive(Debug, Deserialize)]
-    pub(super) struct IdxUnchecked(RangeSet<usize>);
-
-    impl TryFrom<IdxUnchecked> for Idx {
-        type Error = InvalidIdx;
-
-        fn try_from(unchecked: IdxUnchecked) -> Result<Self, Self::Error> {
-            Self::new(unchecked.0)
-        }
-    }
 
     #[derive(Debug, Deserialize)]
     pub(super) struct SubsequenceUnchecked {

@@ -13,7 +13,7 @@ use crate::{
         commit::TranscriptCommitmentKind,
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{PlaintextHashProof, PlaintextHashProofError, PlaintextHashSecret},
-        Direction, Idx, InvalidIdx, PartialTranscript, Transcript,
+        Direction, Idx, PartialTranscript, Transcript,
     },
     CryptoProvider,
 };
@@ -184,7 +184,7 @@ impl<'a> TranscriptProofBuilder<'a> {
         direction: Direction,
         kind: TranscriptCommitmentKind,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
-        let idx = Idx::new(ranges.to_range_set())?;
+        let idx = Idx::new(ranges.to_range_set());
 
         if idx.end() > self.transcript.len_of_direction(direction) {
             return Err(TranscriptProofBuilderError::new(
@@ -326,12 +326,6 @@ impl fmt::Display for TranscriptProofBuilderError {
         }
 
         Ok(())
-    }
-}
-
-impl From<InvalidIdx> for TranscriptProofBuilderError {
-    fn from(value: InvalidIdx) -> Self {
-        TranscriptProofBuilderError::new(BuilderErrorKind::Index, value)
     }
 }
 
