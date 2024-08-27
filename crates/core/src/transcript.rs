@@ -387,12 +387,12 @@ impl Idx {
 
     /// Returns the start of the index.
     pub fn start(&self) -> usize {
-        self.0.min().expect("index can not be empty")
+        self.0.min().unwrap_or_default()
     }
 
     /// Returns the end of the index, non-inclusive.
     pub fn end(&self) -> usize {
-        self.0.end().expect("index can not be empty")
+        self.0.end().unwrap_or_default()
     }
 
     /// Returns an iterator over the values in the index.
