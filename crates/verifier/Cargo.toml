@@ -32,6 +32,8 @@ web-time = { workspace = true }
 httparse = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
-zeroize = { version = "1.8.1" }
+zeroize = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+lazy_static = { workspace = true}
+prometheus = { workspace = true }

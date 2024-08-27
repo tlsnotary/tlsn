@@ -14,6 +14,16 @@ use sha2::{Digest, Sha256};
 use tracing::{debug, info, instrument, trace};
 use zeroize::Zeroize;
 
+use lazy_static::lazy_static;
+use prometheus::{register_histogram, Histogram};
+
+lazy_static! {
+    static ref FINALIZATION_HISTOGRAM: Histogram = register_histogram!(
+        "finalization_duration_seconds",
+        "The duration of finalization in seconds"
+    ).unwrap();
+}
+
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
     ///
@@ -26,6 +36,7 @@ impl Verifier<Notarize> {
         T: Into<Signature>,
     {
         debug!("starting finalization");
+        let timer = FINALIZATION_HISTOGRAM.start_timer();
         let Notarize {
             mut io,
             mux_ctrl,
@@ -137,6 +148,7 @@ impl Verifier<Notarize> {
             mux_fut.await?;
         }
 
+        timer.stop_and_record();
         debug!("finalization complete");
 
         Ok(session_header)

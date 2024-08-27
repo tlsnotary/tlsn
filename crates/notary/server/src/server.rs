@@ -44,7 +44,20 @@ use crate::{
 };
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_process::Collector;
-use prometheus::{Counter, Encoder, Opts, Registry, TextEncoder};
+use prometheus::{register_counter, register_gauge, Counter, Encoder, Gauge, TextEncoder};
+use structopt::lazy_static::lazy_static;
+
+lazy_static! {
+    static ref TOTAL_CONNECTION_COUNTER: Counter =
+        register_counter!("total_connection_counter", "Total connections recorded").unwrap();
+    static ref TOTAL_CONNECTION_ERROR_COUNTER: Counter = register_counter!(
+        "total_connection_error_counter",
+        "Total connection error recorded"
+    )
+    .unwrap();
+    static ref ACTIVE_CONNECTION_COUNTER: Gauge =
+        register_gauge!("active_connection_gauge", "Active connections").unwrap();
+}
 
 /// Start a TCP server (with or without TLS) to accept notarization request for both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
@@ -120,11 +133,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             .replace("{public_key}", &public_key),
     );
 
-    let counter_opts = Opts::new("connection_counter", "connection counter help");
-    let counter = Counter::with_opts(counter_opts).unwrap();
-    let r = Registry::new();
-    r.register(Box::new(counter.clone())).unwrap();
-
     let builder = PrometheusBuilder::new();
     let handle = builder
         .install_recorder()
@@ -171,7 +179,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             "/app-metrics",
             get(|| async move {
                 let mut buffer = vec![];
-                let metric_families = r.gather();
+                let metric_families = prometheus::gather();
                 let encoder = TextEncoder::new();
                 encoder.encode(&metric_families, &mut buffer).unwrap();
                 (StatusCode::OK, String::from_utf8(buffer).unwrap()).into_response()
@@ -189,21 +197,26 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
 
     loop {
         // Poll and await for any incoming connection, ensure that all operations inside are infallible to prevent bringing down the server
-        let stream = match poll_fn(|cx| Pin::new(&mut listener).poll_accept(cx)).await {
-            Ok((stream, _)) => stream,
-            Err(err) => {
-                error!("{}", NotaryServerError::Connection(err.to_string()));
-                continue;
-            }
-        };
+        let stream =
+            match poll_fn(|cx: &mut std::task::Context| Pin::new(&mut listener).poll_accept(cx))
+                .await
+            {
+                Ok((stream, _)) => stream,
+                Err(err) => {
+                    error!("{}", NotaryServerError::Connection(err.to_string()));
+                    TOTAL_CONNECTION_ERROR_COUNTER.inc();
+                    continue;
+                }
+            };
         debug!("Received a prover's TCP connection");
-        counter.inc();
+        TOTAL_CONNECTION_COUNTER.inc();
         let tower_service = router.clone();
         let tls_acceptor = tls_acceptor.clone();
         let protocol = protocol.clone();
 
         // Spawn a new async task to handle the new connection
         tokio::spawn(async move {
+            ACTIVE_CONNECTION_COUNTER.inc();
             // When TLS is enabled
             if let Some(acceptor) = tls_acceptor {
                 match acceptor.accept(stream).await {
@@ -224,6 +237,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                             .await;
                     }
                     Err(err) => {
+                        TOTAL_CONNECTION_ERROR_COUNTER.inc();
                         error!("{}", NotaryServerError::Connection(err.to_string()));
                     }
                 }
@@ -244,6 +258,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     .with_upgrades()
                     .await;
             }
+            ACTIVE_CONNECTION_COUNTER.dec();
         });
     }
 }

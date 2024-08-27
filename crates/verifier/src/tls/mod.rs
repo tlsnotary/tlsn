@@ -10,10 +10,9 @@ pub mod x;
 
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
+use prometheus::{register_histogram, Histogram};
 use serio::StreamExt;
 use uid_mux::FramedUidMux;
-
-use web_time::{SystemTime, UNIX_EPOCH};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use signature::Signer;
@@ -25,8 +24,21 @@ use tlsn_common::{
 };
 use tlsn_core::{msg::SignedSession, Signature};
 
+use lazy_static::lazy_static;
 use tracing::{debug, info, info_span, instrument, Span};
 
+lazy_static! {
+    static ref TLS_SESSION_HISTOGRAM: Histogram = register_histogram!(
+        "tls_session_duration_seconds",
+        "The duration of tls session in seconds"
+    )
+    .unwrap();
+static ref VERIFIER_SETUP_HISTOGRAM: Histogram = register_histogram!(
+        "verifier_setup_duration_seconds",
+        "The duration of verifier setup in seconds"
+    )
+    .unwrap();
+}
 /// A Verifier instance.
 pub struct Verifier<T: state::VerifierState> {
     config: VerifierConfig,
@@ -57,6 +69,7 @@ impl Verifier<state::Initialized> {
         self,
         socket: S,
     ) -> Result<Verifier<state::Setup>, VerifierError> {
+        let timer = VERIFIER_SETUP_HISTOGRAM.start_timer();
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
 
         let tee_tls = mux_fut
@@ -71,9 +84,7 @@ impl Verifier<state::Initialized> {
             )
             .await?;
 
-        // let _ctx = mux_fut
-        //     .poll_with(exec.new_thread().map_err(VerifierError::from))
-        //     .await?;
+        timer.stop_and_record();
 
         Ok(Verifier {
             config: self.config,
@@ -144,12 +155,8 @@ impl Verifier<state::Setup> {
             tee_tls,
         } = self.state;
 
-        let _start_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
         info!("Starting TLS session");
+        let timer = TLS_SESSION_HISTOGRAM.start_timer();
 
         let TeeTlsFollowerData {
             response_data,
@@ -158,6 +165,7 @@ impl Verifier<state::Setup> {
             .poll_with(tee_tls.run().1.map_err(VerifierError::from))
             .await?;
 
+        timer.stop_and_record();
         info!(
             "Finished TLS session\r\nrequest:\r\n{}\r\nresponse:\r\n{}",
             request_data, response_data

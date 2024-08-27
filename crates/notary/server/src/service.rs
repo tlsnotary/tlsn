@@ -15,6 +15,8 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, trace};
 use uuid::Uuid;
+use prometheus::{register_histogram, Histogram};
+use structopt::lazy_static::lazy_static;
 
 use crate::{
     domain::notary::{
@@ -28,6 +30,22 @@ use crate::{
         websocket::websocket_notarize,
     },
 };
+
+lazy_static!{
+    static ref NOTARIZATION_HISTOGRAM: Histogram = register_histogram!(
+        "notarization_duration_seconds",
+        "The duration of notarization in seconds"
+    )
+    .unwrap();
+    static ref TLS_HANDSHAKE_HISTOGRAM: Histogram = register_histogram!(
+        "tls_handshake_duration_seconds",
+        "The duration of TLS handshake in seconds"
+    ).unwrap();
+    static ref INITIALIZATION_HISTOGRAM: Histogram = register_histogram!(
+        "initialization_duration_seconds",
+        "The duration of initialization in seconds"
+    ).unwrap();
+}
 
 /// A wrapper enum to facilitate extracting TCP connection for either WebSocket or TCP clients,
 /// so that we can use a single endpoint and handler for notarization for both types of clients
@@ -118,6 +136,7 @@ pub async fn initialize(
         ?payload,
         "Received request for initializing a notarization session"
     );
+    let timer = INITIALIZATION_HISTOGRAM.start_timer();
 
     // Parse the body payload
     let payload = match payload {
@@ -156,7 +175,7 @@ pub async fn initialize(
     );
 
     trace!("Latest store state: {:?}", notary_globals.store);
-
+    timer.stop_and_record();
     // Return the session id in the response to the client
     (
         StatusCode::OK,
@@ -176,6 +195,7 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     max_recv_data: Option<usize>,
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
+    let timer = NOTARIZATION_HISTOGRAM.start_timer();
 
     let mut config_builder = VerifierConfig::builder();
 
@@ -194,6 +214,6 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     Verifier::new(config)
         .notarize::<_, Signature>(socket.compat(), signing_key)
         .await?;
-
+    timer.stop_and_record();
     Ok(())
 }
