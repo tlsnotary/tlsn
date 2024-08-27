@@ -131,3 +131,6 @@ webpki = { version = "0.22" }
 webpki-roots = { version = "0.26" }
 ws_stream_tungstenite = { version = "0.13" }
 httparse = { version = "1.9.4" }
+prometheus = { version = "0.13.4" }
+zeroize = { version = "1.8.1" }
+lazy_static = { version = "1.5.0" }
