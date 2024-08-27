@@ -112,8 +112,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         direction: Direction,
         kind: TranscriptCommitmentKind,
     ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
-        let idx = Idx::new(ranges.to_range_set())
-            .map_err(|e| TranscriptCommitConfigBuilderError::new(ErrorKind::Index, e))?;
+        let idx = Idx::new(ranges.to_range_set());
 
         if idx.end() > self.transcript.len_of_direction(direction) {
             return Err(TranscriptCommitConfigBuilderError::new(

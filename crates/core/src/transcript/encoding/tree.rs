@@ -91,6 +91,11 @@ impl EncodingTree {
             let direction = dir_idx.0;
             let idx = &dir_idx.1;
 
+            // Ignore empty indices.
+            if idx.is_empty() {
+                continue;
+            }
+
             let len = match direction {
                 Direction::Sent => transcript_length.sent as usize,
                 Direction::Received => transcript_length.received as usize,
@@ -216,8 +221,8 @@ mod tests {
     fn test_encoding_tree() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()).unwrap());
-        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()).unwrap());
+        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()));
 
         let tree = new_tree(&transcript, [&idx_0, &idx_1].into_iter()).unwrap();
 
@@ -249,10 +254,10 @@ mod tests {
     fn test_encoding_tree_multiple_ranges() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..1).unwrap());
-        let idx_1 = (Direction::Sent, Idx::new(1..POST_JSON.len()).unwrap());
-        let idx_2 = (Direction::Received, Idx::new(0..1).unwrap());
-        let idx_3 = (Direction::Received, Idx::new(1..OK_JSON.len()).unwrap());
+        let idx_0 = (Direction::Sent, Idx::new(0..1));
+        let idx_1 = (Direction::Sent, Idx::new(1..POST_JSON.len()));
+        let idx_2 = (Direction::Received, Idx::new(0..1));
+        let idx_3 = (Direction::Received, Idx::new(1..OK_JSON.len()));
 
         let tree = new_tree(&transcript, [&idx_0, &idx_1, &idx_2, &idx_3].into_iter()).unwrap();
 
@@ -286,8 +291,8 @@ mod tests {
     fn test_encoding_tree_out_of_bounds() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len() + 1).unwrap());
-        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len() + 1).unwrap());
+        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len() + 1));
+        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len() + 1));
 
         let result = new_tree(&transcript, [&idx_0].into_iter()).unwrap_err();
         assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
@@ -306,7 +311,7 @@ mod tests {
 
         let result = EncodingTree::new(
             &Blake3::default(),
-            [(Direction::Sent, Idx::new(0..8).unwrap())].iter(),
+            [(Direction::Sent, Idx::new(0..8))].iter(),
             &provider,
             &transcript_length,
         )
@@ -315,7 +320,7 @@ mod tests {
 
         let result = EncodingTree::new(
             &Blake3::default(),
-            [(Direction::Sent, Idx::new(0..8).unwrap())].iter(),
+            [(Direction::Sent, Idx::new(0..8))].iter(),
             &provider,
             &transcript_length,
         )
