@@ -39,4 +39,3 @@ tracing = { workspace = true }
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 aes-gcm = { workspace = true }
-rayon = "1"
