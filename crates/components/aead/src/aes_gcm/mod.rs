@@ -433,14 +433,6 @@ mod tests {
     use mpz_common::executor::STExecutor;
     use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory};
     use serio::channel::MemoryDuplex;
-    use std::sync::Once;
-
-    // We need to configure the rayon global thread pool (which is used downstream in mpz-common)
-    // to increase the maximum number of rayon threads which are run in parallel in order to prevent a
-    // deadlock in these unit tests when running in our github ci.
-    //
-    // c.f. https://github.com/tlsnotary/tlsn/issues/548
-    static INIT_RAYON_THREADPOOL: Once = Once::new();
 
     fn reference_impl(
         key: &[u8],
@@ -468,13 +460,6 @@ mod tests {
         MpcAesGcm<STExecutor<MemoryDuplex>>,
         MpcAesGcm<STExecutor<MemoryDuplex>>,
     ) {
-        INIT_RAYON_THREADPOOL.call_once(|| {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(9)
-                .build_global()
-                .expect("Should be able to set rayon threadpool");
-        });
-
         let (leader_vm, follower_vm) = create_mock_deap_vm();
 
         let leader_key = leader_vm
