@@ -66,6 +66,7 @@ struct TaskGuard {
 impl Drop for TaskGuard {
     fn drop(&mut self) {
         // Decrement the gauge when the guard is dropped
+        info!("dropped prover's TCP connection",);
         self.gauge.dec();
     }
 }
@@ -248,7 +249,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                             // use with_upgrades to upgrade connection to websocket for websocket clients
                             // and to extract tcp connection for tcp clients
                             .with_upgrades()
-                            .await;
+                            .await.unwrap();
                     }
                     Err(err) => {
                         TOTAL_CONNECTION_ERROR_COUNTER.inc();
@@ -270,7 +271,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     // use with_upgrades to upgrade connection to websocket for websocket clients
                     // and to extract tcp connection for tcp clients
                     .with_upgrades()
-                    .await;
+                    .await.unwrap();
             }
         });
     }

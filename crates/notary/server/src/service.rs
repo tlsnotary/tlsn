@@ -37,10 +37,6 @@ lazy_static!{
         "The duration of notarization in seconds"
     )
     .unwrap();
-    static ref TLS_HANDSHAKE_HISTOGRAM: Histogram = register_histogram!(
-        "tls_handshake_duration_seconds",
-        "The duration of TLS handshake in seconds"
-    ).unwrap();
     static ref INITIALIZATION_HISTOGRAM: Histogram = register_histogram!(
         "initialization_duration_seconds",
         "The duration of initialization in seconds"
