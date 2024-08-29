@@ -131,11 +131,7 @@ impl Transcript {
     ///
     /// * `sent_idx` - The indices of the sent data to include.
     /// * `recv_idx` - The indices of the received data to include.
-    pub fn to_partial(
-        &self,
-        sent_idx: RangeSet<usize>,
-        recv_idx: RangeSet<usize>,
-    ) -> PartialTranscript {
+    pub fn to_partial(&self, sent_idx: Idx, recv_idx: Idx) -> PartialTranscript {
         let mut sent = vec![0; self.sent.len()];
         let mut received = vec![0; self.received.len()];
 
@@ -167,10 +163,10 @@ pub struct PartialTranscript {
     /// Data received by the Prover from the Server.
     received: Vec<u8>,
 
-    /// Ranges of `sent` which have been authenticated.
-    sent_authed: RangeSet<usize>,
-    /// Ranges of `received` which have been authenticated.
-    received_authed: RangeSet<usize>,
+    /// Index of `sent` which have been authenticated.
+    sent_authed: Idx,
+    /// Index of `received` which have been authenticated.
+    received_authed: Idx,
 }
 
 impl PartialTranscript {
@@ -184,8 +180,8 @@ impl PartialTranscript {
         Self {
             sent: vec![0; sent_len],
             received: vec![0; received_len],
-            sent_authed: RangeSet::default(),
-            received_authed: RangeSet::default(),
+            sent_authed: Idx::default(),
+            received_authed: Idx::default(),
         }
     }
 
@@ -233,24 +229,24 @@ impl PartialTranscript {
         &self.received
     }
 
-    /// Returns all the ranges of the sent data which have been authenticated.
-    pub fn sent_authed(&self) -> &RangeSet<usize> {
+    /// Returns the index of sent data which have been authenticated.
+    pub fn sent_authed(&self) -> &Idx {
         &self.sent_authed
     }
 
-    /// Returns all the ranges of the received data which have been authenticated.
-    pub fn received_authed(&self) -> &RangeSet<usize> {
+    /// Returns the index of received data which have been authenticated.
+    pub fn received_authed(&self) -> &Idx {
         &self.received_authed
     }
 
-    /// Returns all the ranges of the sent data which haven't been authenticated.
-    pub fn sent_unauthed(&self) -> RangeSet<usize> {
-        RangeSet::from(0..self.sent.len()).difference(&self.sent_authed)
+    /// Returns the index of sent data which haven't been authenticated.
+    pub fn sent_unauthed(&self) -> Idx {
+        Idx(RangeSet::from(0..self.sent.len()).difference(&self.sent_authed.0))
     }
 
-    /// Returns all the ranges of the received data which haven't been authenticated.
-    pub fn received_unauthed(&self) -> RangeSet<usize> {
-        RangeSet::from(0..self.received.len()).difference(&self.received_authed)
+    /// Returns the index of received data which haven't been authenticated.
+    pub fn received_unauthed(&self) -> Idx {
+        Idx(RangeSet::from(0..self.received.len()).difference(&self.received_authed.0))
     }
 
     /// Unions the authenticated data of this transcript with another.
@@ -272,7 +268,8 @@ impl PartialTranscript {
 
         for range in other
             .sent_authed
-            .difference(&self.sent_authed)
+            .0
+            .difference(&self.sent_authed.0)
             .iter_ranges()
         {
             self.sent[range.clone()].copy_from_slice(&other.sent[range]);
@@ -280,7 +277,8 @@ impl PartialTranscript {
 
         for range in other
             .received_authed
-            .difference(&self.received_authed)
+            .0
+            .difference(&self.received_authed.0)
             .iter_ranges()
         {
             self.received[range.clone()].copy_from_slice(&other.received[range]);
@@ -299,11 +297,11 @@ impl PartialTranscript {
         match direction {
             Direction::Sent => {
                 seq.copy_to(&mut self.sent);
-                self.sent_authed = self.sent_authed.union(&seq.idx.0);
+                self.sent_authed = self.sent_authed.union(&seq.idx);
             }
             Direction::Received => {
                 seq.copy_to(&mut self.received);
-                self.received_authed = self.received_authed.union(&seq.idx.0);
+                self.received_authed = self.received_authed.union(&seq.idx);
             }
         }
     }
@@ -331,12 +329,12 @@ impl PartialTranscript {
     pub fn set_unauthed_range(&mut self, value: u8, direction: Direction, range: Range<usize>) {
         match direction {
             Direction::Sent => {
-                for range in range.difference(&self.sent_authed).iter_ranges() {
+                for range in range.difference(&self.sent_authed.0).iter_ranges() {
                     self.sent[range].fill(value);
                 }
             }
             Direction::Received => {
-                for range in range.difference(&self.received_authed).iter_ranges() {
+                for range in range.difference(&self.received_authed.0).iter_ranges() {
                     self.received[range].fill(value);
                 }
             }
@@ -506,16 +504,13 @@ pub struct InvalidSubsequence(&'static str);
 
 /// Returns the value ID for each byte in the provided range set.
 #[doc(hidden)]
-pub fn get_value_ids(
-    ranges: &RangeSet<usize>,
-    direction: Direction,
-) -> impl Iterator<Item = String> + '_ {
+pub fn get_value_ids(direction: Direction, idx: &Idx) -> impl Iterator<Item = String> + '_ {
     let id = match direction {
         Direction::Sent => TX_TRANSCRIPT_ID,
         Direction::Received => RX_TRANSCRIPT_ID,
     };
 
-    ranges.iter().map(move |idx| format!("{}/{}", id, idx))
+    idx.iter().map(move |idx| format!("{}/{}", id, idx))
 }
 
 mod validation {
@@ -544,16 +539,16 @@ mod validation {
     pub(super) struct PartialTranscriptUnchecked {
         sent: Vec<u8>,
         received: Vec<u8>,
-        sent_authed: RangeSet<usize>,
-        received_authed: RangeSet<usize>,
+        sent_authed: Idx,
+        received_authed: Idx,
     }
 
     impl TryFrom<PartialTranscriptUnchecked> for PartialTranscript {
         type Error = InvalidPartialTranscript;
 
         fn try_from(unchecked: PartialTranscriptUnchecked) -> Result<Self, Self::Error> {
-            if unchecked.sent.len() > unchecked.sent_authed.end().unwrap_or_default()
-                || unchecked.received.len() > unchecked.received_authed.end().unwrap_or_default()
+            if unchecked.sent.len() > unchecked.sent_authed.end()
+                || unchecked.received.len() > unchecked.received_authed.end()
             {
                 return Err(InvalidPartialTranscript(
                     "authenticated ranges are not in bounds of the data",
