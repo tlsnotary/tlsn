@@ -101,7 +101,7 @@ impl VerifierConfig {
                     .rx_config(
                         TranscriptConfig::default_rx()
                             .max_online_size(protocol_config.max_recv_data_online())
-                            .max_deferred_size(protocol_config.max_deferred_size())
+                            .max_offline_size(protocol_config.max_deferred_size())
                             .build()
                             .unwrap(),
                     )

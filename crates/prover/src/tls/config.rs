@@ -18,15 +18,10 @@ pub struct ProverConfig {
     /// Protocol configuration to be checked with the verifier.
     #[builder(default)]
     protocol_config: ProtocolConfig,
-    /// Defers the decryption from the start of the connection until after the connection is closed.
+    /// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
+    /// connection.
     ///
-    /// Decryption of server responses will be deferred until after the TLS connection is closed.
-    /// This is useful if you either have only one request/response cycle of if you have several
-    /// such cycles but the content of the request never depends on the content of the previous
-    /// response.
-    ///
-    /// This allows to decrypt responses locally without MPC, so this option saves bandwidth
-    /// and performance.
+    /// See `defer_decryption_from_start` in [tls_mpc::MpcTlsLeaderConfig].
     #[builder(default = "true")]
     defer_decryption_from_start: bool,
 }
@@ -52,7 +47,8 @@ impl ProverConfig {
         &self.protocol_config
     }
 
-    /// Returns if deferred decryption is used from the start of the connection.
+    /// Returns whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
+    /// connection.
     pub fn defer_decryption_from_start(&self) -> bool {
         self.defer_decryption_from_start
     }
@@ -71,7 +67,7 @@ impl ProverConfig {
                     .rx_config(
                         TranscriptConfig::default_rx()
                             .max_online_size(self.protocol_config.max_recv_data_online())
-                            .max_deferred_size(self.protocol_config.max_deferred_size())
+                            .max_offline_size(self.protocol_config.max_deferred_size())
                             .build()
                             .unwrap(),
                     )

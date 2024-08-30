@@ -34,10 +34,12 @@ pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
-    /// Maximum number of bytes that can be decrypted online.
+    /// Maximum number of bytes that can be decrypted online, i.e. while the MPC-TLS connection is
+    /// active.
     #[builder(default = "0")]
     max_recv_data_online: usize,
-    /// Maximum number of bytes that will be decrypted after the TLS connection is closed.
+    /// Maximum number of bytes for which the decryption can be deferred until after the MPC-TLS
+    /// connection is closed.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_deferred_size: usize,
     /// Version that is being run by prover/verifier.
@@ -67,7 +69,8 @@ impl ProtocolConfig {
         self.max_recv_data_online
     }
 
-    /// Returns the maximum number of bytes that will be decrypted after the TLS connection is closed.
+    /// Returns the maximum number of bytes for which the decryption can be deferred until after
+    /// the MPC-TLS connection is closed.
     pub fn max_deferred_size(&self) -> usize {
         self.max_deferred_size
     }

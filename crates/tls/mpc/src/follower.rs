@@ -150,7 +150,7 @@ impl MpcTlsFollower {
 
         let preprocess_encrypt = self.config.common().tx_config().max_online_size();
         let preprocess_decrypt = self.config.common().rx_config().max_online_size()
-            + self.config.common().rx_config().max_deferred_size();
+            + self.config.common().rx_config().max_offline_size();
 
         futures::try_join!(
             self.encrypter.preprocess(preprocess_encrypt),
@@ -228,7 +228,7 @@ impl MpcTlsFollower {
             Direction::Recv => {
                 let new_len = self.decrypter.recv_bytes() + len;
                 let max_size = self.config.common().rx_config().max_online_size()
-                    + self.config.common().rx_config().max_deferred_size();
+                    + self.config.common().rx_config().max_offline_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,
