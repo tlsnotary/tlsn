@@ -25,6 +25,7 @@ tlsn-prover = { path = "../prover" }
 tlsn-tls-client-async = { path = "../tls/client-async" }
 tlsn-tls-core = { path = "../tls/core" }
 tlsn-verifier = { path = "../verifier" }
+#remoteattestation = { path = "../remoteattestation" }
 
 bincode = { workspace = true }
 console_error_panic_hook = { version = "0.1" }
@@ -48,6 +49,17 @@ wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
 # Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
 ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51" }
+
+serde_cbor = { version = "0.11" }
+rustls = { version = "0.20.4", features = ["dangerous_configuration"] }
+webpki = "0.22.0"
+byteorder = "1.3.4"
+serde_with = { version = "1.9.4", default_features = false }
+aws-nitro-enclaves-cose = "0.5.2"
+openssl = { version = "0.10", features = ["vendored"] }
+base64 = "0.22.1"
+rustls-pemfile = { version = "2.1.2", features = ["std"] }
+reqwest = { version = "0.10.10", features = ["blocking"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-rayon = { version = "1.0" }

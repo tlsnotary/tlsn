@@ -6,13 +6,14 @@
 pub(crate) mod io;
 mod log;
 pub mod prover;
+//pub mod remoteattestation;
 #[cfg(feature = "test")]
 pub mod tests;
 pub mod types;
 pub mod verifier;
 
 use log::LoggingConfig;
-use tracing::error;
+use tracing::{debug, error, info};
 use tracing_subscriber::{
     filter::FilterFn,
     fmt::{format::FmtSpan, time::UtcTime},
@@ -59,4 +60,11 @@ pub fn init_logging(config: Option<LoggingConfig>) {
         error!("panic occurred: {:?}", info);
         console_error_panic_hook::hook(info);
     }));
+}
+
+#[wasm_bindgen]
+pub fn new_method() -> JsValue {
+    // Implement your new method here
+    info!("connected to server");
+    JsValue::from_str("connected to server")
 }
