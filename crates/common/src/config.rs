@@ -30,7 +30,6 @@ static VERSION: Lazy<Version> = Lazy::new(|| {
 
 /// Protocol configuration to be set up initially by prover and verifier.
 #[derive(derive_builder::Builder, Clone, Debug, Deserialize, Serialize)]
-#[builder(build_fn(validate = "Self::validate"))]
 pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
@@ -49,26 +48,6 @@ pub struct ProtocolConfig {
 }
 
 impl ProtocolConfigBuilder {
-    fn validate(&self) -> Result<(), String> {
-        let is_max_recv_data_online_zero = self.max_recv_data_online.is_none()
-            || self
-                .max_recv_data_online
-                .expect("Should be able to unwrap max_recv_data_online due to short-circuit")
-                == 0;
-
-        let is_max_deferred_size_zero = self.max_deferred_size.is_none()
-            || self
-                .max_deferred_size
-                .expect("Should be able to unwrap max_deferred_size due to short-circuit")
-                == 0;
-
-        if is_max_recv_data_online_zero && is_max_deferred_size_zero {
-            return Err("Cannot create protocol config with both max_deferred_size and max_recv_data_online equal to zero".to_string());
-        }
-
-        Ok(())
-    }
-
     fn default_max_deferred_size(&self) -> usize {
         if self.max_recv_data_online.is_none() {
             return DEFAULT_MAX_RECV_LIMIT;
