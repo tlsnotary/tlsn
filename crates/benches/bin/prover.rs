@@ -127,7 +127,6 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         ProtocolConfig::builder()
             .max_sent_data(upload_size + 256)
             .max_recv_data_online(download_size + 256)
-            .max_deferred_size(0)
             .build()
             .unwrap()
     };

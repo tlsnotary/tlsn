@@ -30,6 +30,7 @@ static VERSION: Lazy<Version> = Lazy::new(|| {
 
 /// Protocol configuration to be set up initially by prover and verifier.
 #[derive(derive_builder::Builder, Clone, Debug, Deserialize, Serialize)]
+#[builder(build_fn(validate = "Self::validate"))]
 pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
@@ -40,11 +41,33 @@ pub struct ProtocolConfig {
     max_recv_data_online: usize,
     /// Maximum number of bytes for which the decryption can be deferred until after the MPC-TLS
     /// connection is closed.
-    #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
+    #[builder(default = "0")]
     max_deferred_size: usize,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
+}
+
+impl ProtocolConfigBuilder {
+    fn validate(&self) -> Result<(), String> {
+        let is_max_recv_data_online_zero = self.max_recv_data_online.is_none()
+            || self
+                .max_recv_data_online
+                .expect("Should be able to unwrap max_recv_data_online due to short-circuit")
+                == 0;
+
+        let is_max_deferred_size_zero = self.max_deferred_size.is_none()
+            || self
+                .max_deferred_size
+                .expect("Should be able to unwrap max_deferred_size due to short-circuit")
+                == 0;
+
+        if is_max_recv_data_online_zero && is_max_deferred_size_zero {
+            return Err("Cannot create protocol config with both max_deferred_size and max_recv_data_online equal to zero".to_string());
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for ProtocolConfig {
@@ -285,19 +308,21 @@ mod test {
     }
 
     #[rstest]
-    #[case::same_max_sent_recv_data(DEFAULT_MAX_SENT_LIMIT, DEFAULT_MAX_RECV_LIMIT)]
-    #[case::smaller_max_sent_data(1 << 11, DEFAULT_MAX_RECV_LIMIT)]
-    #[case::smaller_max_recv_data(DEFAULT_MAX_SENT_LIMIT, 1 << 13)]
-    #[case::smaller_max_sent_recv_data(1 << 7, 1 << 9)]
+    #[case::same_max_sent_recv_defer_data(DEFAULT_MAX_SENT_LIMIT, DEFAULT_MAX_RECV_LIMIT / 2, DEFAULT_MAX_RECV_LIMIT / 2)]
+    #[case::smaller_max_sent_data(1 << 11, DEFAULT_MAX_RECV_LIMIT, 0)]
+    #[case::smaller_max_recv_data(DEFAULT_MAX_SENT_LIMIT, 1 << 13, 0)]
+    #[case::smaller_max_defer_data(DEFAULT_MAX_SENT_LIMIT, 0, 1 << 13)]
+    #[case::smaller_max_sent_recv_defer_data(1 << 7, 1 << 9, 1 << 9)]
     fn test_check_success(
         config_validator: &ProtocolConfigValidator,
         #[case] max_sent_data: usize,
         #[case] max_recv_data: usize,
+        #[case] max_defer_data: usize,
     ) {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
             .max_recv_data_online(max_recv_data)
-            .max_deferred_size(0)
+            .max_deferred_size(max_defer_data)
             .build()
             .unwrap();
 
@@ -305,18 +330,21 @@ mod test {
     }
 
     #[rstest]
-    #[case::bigger_max_sent_data(1 << 13, DEFAULT_MAX_RECV_LIMIT)]
-    #[case::bigger_max_recv_data(1 << 10, 1 << 16)]
-    #[case::bigger_max_sent_recv_data(1 << 14, 1 << 21)]
+    #[case::bigger_max_sent_data(1 << 13, DEFAULT_MAX_RECV_LIMIT, 0)]
+    #[case::bigger_max_recv_data(1 << 10, 1 << 16, 0)]
+    #[case::bigger_max_defer_data(1 << 10, 0, 1 << 16 )]
+    #[case::bigger_max_sent_recv_data(1 << 14, 1 << 21, 0)]
+    #[case::bigger_max_sent_defer_data(1 << 14, 0, 1 << 21)]
     fn test_check_fail(
         config_validator: &ProtocolConfigValidator,
         #[case] max_sent_data: usize,
         #[case] max_recv_data: usize,
+        #[case] max_defer_data: usize,
     ) {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
             .max_recv_data_online(max_recv_data)
-            .max_deferred_size(0)
+            .max_deferred_size(max_defer_data)
             .build()
             .unwrap();
 
