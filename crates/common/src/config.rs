@@ -41,7 +41,7 @@ pub struct ProtocolConfig {
     max_recv_data_online: usize,
     /// Maximum number of bytes for which the decryption can be deferred until after the MPC-TLS
     /// connection is closed.
-    #[builder(default = "0")]
+    #[builder(default = "self.default_max_deferred_size()")]
     max_deferred_size: usize,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
@@ -67,6 +67,14 @@ impl ProtocolConfigBuilder {
         }
 
         Ok(())
+    }
+
+    fn default_max_deferred_size(&self) -> usize {
+        if self.max_recv_data_online.is_none() {
+            return DEFAULT_MAX_RECV_LIMIT;
+        }
+
+        0
     }
 }
 
