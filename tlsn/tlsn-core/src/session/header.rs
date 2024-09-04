@@ -1,10 +1,11 @@
+use mpz_circuits::types::ValueType;
 use mpz_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 
-use mpz_garble_core::ChaChaEncoder;
+use mpz_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 
-use crate::{merkle::MerkleRoot, HandshakeSummary};
+use crate::{merkle::MerkleRoot, EncodingId, HandshakeSummary};
 
 /// An error that can occur while verifying a session header
 #[derive(Debug, thiserror::Error)]
@@ -116,5 +117,11 @@ impl SessionHeader {
     /// Returns the number of bytes received by the server
     pub fn recv_len(&self) -> usize {
         self.recv_len
+    }
+
+    /// Encode id using the encoder
+    pub fn encode(&self, id: &str) -> EncodedValue<mpz_garble_core::encoding_state::Full> {
+        self.encoder()
+            .encode_by_type(EncodingId::new(&id).to_inner(), &ValueType::U8)
     }
 }

@@ -3,6 +3,7 @@
 mod session;
 mod substrings;
 
+use mpz_garble_core::{encoding_state::Full, EncodedValue};
 pub use session::{default_cert_verifier, SessionInfo, SessionProof, SessionProofError};
 pub use substrings::{
     SubstringsProof, SubstringsProofBuilder, SubstringsProofBuilderError, SubstringsProofError,
@@ -18,4 +19,6 @@ pub struct TlsProof {
     pub session: SessionProof,
     /// Proof regarding the contents of the transcript.
     pub substrings: SubstringsProof,
+    /// Full encodings of the private values received by the Prover.
+    pub encodings: Vec<EncodedValue<Full>>,
 }

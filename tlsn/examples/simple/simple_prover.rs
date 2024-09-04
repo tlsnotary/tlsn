@@ -5,7 +5,7 @@ use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::ops::Range;
-use tlsn_core::proof::TlsProof;
+use tlsn_core::{proof::TlsProof, transcript::get_value_ids};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
@@ -93,7 +93,7 @@ async fn main() {
     let prover = prover.start_notarize();
 
     // Build proof (with or without redactions)
-    let redact = false;
+    let redact = true;
     let proof = if !redact {
         build_proof_without_redactions(prover).await
     } else {
@@ -165,6 +165,8 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
+        //Ignoring because no redactions, thus no private ranges
+        encodings: Vec::new(),
     }
 }
 
@@ -179,7 +181,7 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     );
 
     // Identify the ranges in the inbound data which contain data which we want to disclose
-    let (recv_public_ranges, _) = find_ranges(
+    let (recv_public_ranges, recv_private_ranges) = find_ranges(
         prover.recv_transcript().data(),
         &[
             // Redact the value of the title. It will NOT be disclosed.
@@ -200,6 +202,15 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         .map(|range| builder.commit_recv(range).unwrap())
         .collect();
 
+    println!("Committing to private ranges");
+    let recv_private_commitments: Vec<_> = recv_private_ranges
+        .iter()
+        .map(|range| {
+            println!("Committing to private range {:?}", range);
+            builder.commit_recv(range).unwrap()
+        })
+        .collect();
+
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
 
@@ -214,10 +225,21 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         proof_builder.reveal_by_id(commitment_id).unwrap();
     }
 
+    for commitment_id in recv_private_commitments {
+        println!("Revealing private commitment {:?}", commitment_id);
+        proof_builder.reveal_private_by_id(commitment_id).unwrap();
+    }
+
     let substrings_proof = proof_builder.build().unwrap();
+    // Generate the encodings for the private ranges
+    let received_private_encodings =
+        get_value_ids(&recv_private_ranges.into(), tlsn_core::Direction::Received)
+            .map(|id| notarized_session.header().encode(&id))
+            .collect::<Vec<_>>();
 
     TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
+        encodings: received_private_encodings,
     }
 }
