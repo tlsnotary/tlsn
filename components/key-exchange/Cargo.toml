@@ -16,14 +16,14 @@ default = ["mock"]
 mock = []
 
 [dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+mpz-garble = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-common = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-fields = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-ot = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-share-conversion = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3", features = [
     "ideal",
 ] }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-circuits = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
 
 p256 = { version = "0.13", features = ["ecdh", "serde"] }
 async-trait = "0.1"
@@ -36,7 +36,7 @@ tracing = "0.1"
 rand = "0.8"
 
 [dev-dependencies]
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+mpz-share-conversion = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3", features = [
     "ideal",
 ] }
 
