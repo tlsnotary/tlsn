@@ -132,7 +132,7 @@ async fn main() {
     let proof = if !redact {
         build_proof_without_redactions(prover).await
     } else {
-        build_proof_with_redactions(prover, followers_count).await
+        build_proof_with_redactions(prover).await
     };
 
     // Write the proof to a file
@@ -156,6 +156,39 @@ fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Ran
         for (idx, w) in seq.windows(s.len()).enumerate() {
             if w == *s {
                 private_ranges.push(idx..(idx + w.len()));
+            }
+        }
+    }
+
+    let mut sorted_ranges = private_ranges.clone();
+    sorted_ranges.sort_by_key(|r| r.start);
+
+    let mut public_ranges = Vec::new();
+    let mut last_end = 0;
+    for r in sorted_ranges {
+        if r.start > last_end {
+            public_ranges.push(last_end..r.start);
+        }
+        last_end = r.end;
+    }
+
+    if last_end < seq.len() {
+        public_ranges.push(last_end..seq.len());
+    }
+
+    (public_ranges, private_ranges)
+}
+// Function to find ranges using regex
+fn find_ranges_regex(seq: &[u8], private_regexes: &[&str]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
+    use regex::bytes::Regex;
+
+    let mut private_ranges = Vec::new();
+
+    for private_regex in private_regexes {
+        let re = Regex::new(private_regex).unwrap();
+        for cap in re.captures_iter(seq) {
+            if let Some(private_part) = cap.get(1) {
+                private_ranges.push(private_part.range());
             }
         }
     }
@@ -207,7 +240,7 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     }
 }
 
-async fn build_proof_with_redactions(mut prover: Prover<Notarize>, follower_count: u32) -> TlsProof {
+async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     // Identify the ranges in the outbound data which contain data which we want to disclose
     let (sent_public_ranges, _) = find_ranges(
         prover.sent_transcript().data(),
@@ -218,13 +251,11 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>, follower_coun
     );
 
     // Identify the ranges in the inbound data which contain data which we want to disclose
-    let (recv_public_ranges, recv_private_ranges) = find_ranges(
+    let (recv_public_ranges, recv_private_ranges) = find_ranges_regex(
         prover.recv_transcript().data(),
-        &[
-            // Redact the value of the followers.
-            format!("followers={}", follower_count).as_bytes(),
-        ],
+        &[r"followers=(\d+)"],
     );
+    println!("Received private ranges: {:?}", recv_private_ranges);
 
     let builder = prover.commitment_builder();
 
