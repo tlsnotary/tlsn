@@ -198,6 +198,7 @@ async fn main() {
     let proof = TlsProof {
         session: session_proof,
         substrings: substrings_proof,
+        encodings: vec![],
     };
 
     // Dump the proof to a file.

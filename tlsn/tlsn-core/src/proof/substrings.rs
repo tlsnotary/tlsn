@@ -2,8 +2,8 @@
 
 use crate::{
     commitment::{
-        Commitment, CommitmentId, CommitmentInfo, CommitmentKind, CommitmentOpening,
-        TranscriptCommitments,
+        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, CommitmentKind,
+        CommitmentOpening, TranscriptCommitments,
     },
     merkle::MerkleProof,
     transcript::get_value_ids,
@@ -40,6 +40,7 @@ pub struct SubstringsProofBuilder<'a> {
     transcript_tx: &'a Transcript,
     transcript_rx: &'a Transcript,
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
+    private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
 }
 
 opaque_debug::implement!(SubstringsProofBuilder<'_>);
@@ -56,6 +57,7 @@ impl<'a> SubstringsProofBuilder<'a> {
             transcript_tx,
             transcript_rx,
             openings: HashMap::default(),
+            private_openings: HashMap::default(),
         }
     }
 
@@ -102,6 +104,31 @@ impl<'a> SubstringsProofBuilder<'a> {
         &mut self,
         id: CommitmentId,
     ) -> Result<&mut Self, SubstringsProofBuilderError> {
+        let (info, commitment, data) = self.get_commitment_info(id)?;
+
+        // add commitment to openings and return an error if it is already present
+        if self
+            .openings
+            .insert(id, (info.clone(), commitment.open(data).into()))
+            .is_some()
+        {
+            return Err(SubstringsProofBuilderError::DuplicateCommitmentId(id));
+        }
+
+        Ok(self)
+    }
+
+    fn get_commitment_info(
+        &self,
+        id: CommitmentId,
+    ) -> Result<
+        (
+            &CommitmentInfo,
+            &crate::commitment::blake3::Blake3Commitment,
+            Vec<u8>,
+        ),
+        SubstringsProofBuilderError,
+    > {
         let commitment = self
             .commitments()
             .get(&id)
@@ -124,11 +151,20 @@ impl<'a> SubstringsProofBuilder<'a> {
         };
 
         let data = transcript.get_bytes_in_ranges(info.ranges());
+        Ok((info, commitment, data))
+    }
+
+    /// Reveals data corresponding to the provided commitment id
+    pub fn reveal_private_by_id(
+        &mut self,
+        id: CommitmentId,
+    ) -> Result<&mut Self, SubstringsProofBuilderError> {
+        let (info, commitment, _) = self.get_commitment_info(id)?;
 
         // add commitment to openings and return an error if it is already present
         if self
-            .openings
-            .insert(id, (info.clone(), commitment.open(data).into()))
+            .private_openings
+            .insert(id, (info.clone(), *commitment))
             .is_some()
         {
             return Err(SubstringsProofBuilderError::DuplicateCommitmentId(id));
@@ -142,11 +178,13 @@ impl<'a> SubstringsProofBuilder<'a> {
         let Self {
             commitments,
             openings,
+            private_openings,
             ..
         } = self;
 
         let mut indices = openings
             .keys()
+            .chain(private_openings.keys())
             .map(|id| id.to_inner() as usize)
             .collect::<Vec<_>>();
         indices.sort();
@@ -155,6 +193,7 @@ impl<'a> SubstringsProofBuilder<'a> {
 
         Ok(SubstringsProof {
             openings,
+            private_openings,
             inclusion_proof,
         })
     }
@@ -191,6 +230,7 @@ pub enum SubstringsProofError {
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsProof {
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
+    private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
     inclusion_proof: MerkleProof,
 }
 
@@ -209,9 +249,10 @@ impl SubstringsProof {
         let Self {
             openings,
             inclusion_proof,
+            private_openings,
         } = self;
 
-        let mut indices = Vec::with_capacity(openings.len());
+        let mut indices = Vec::with_capacity(openings.len() + private_openings.len());
         let mut expected_hashes = Vec::with_capacity(openings.len());
         let mut sent = vec![0u8; header.sent_len()];
         let mut recv = vec![0u8; header.recv_len()];
@@ -297,6 +338,12 @@ impl SubstringsProof {
                 dest[range].copy_from_slice(&data[start..]);
                 data.truncate(start);
             }
+        }
+
+        for (commitment_id, (_, blake3_commitment)) in private_openings {
+            println!("Pushing private commitment id: {:?}", commitment_id);
+            indices.push(commitment_id.to_inner() as usize);
+            expected_hashes.push(*blake3_commitment.hash());
         }
 
         // Verify that the expected hashes are present in the merkle tree.
