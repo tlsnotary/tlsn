@@ -33,14 +33,14 @@ spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
 serio = "0.1"
 uid-mux = { version = "0.1", features = ["serio"] }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-core = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-common = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-circuits = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-garble-core = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-garble = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-ot = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-ole = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
+mpz-share-conversion = { git = "https://github.com/KimiWu123/mpz", rev = "af70e371d96170b7d1726d7ebcd13e41c27dc6e3" }
 
 futures = "0.3"
 tokio-util = "0.7"
