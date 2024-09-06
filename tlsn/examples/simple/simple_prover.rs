@@ -2,6 +2,7 @@
 // example.com. The Prover then generates a proof and writes it to disk.
 
 use http_body_util::Empty;
+use http_body_util::BodyExt;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::ops::Range;
@@ -13,14 +14,28 @@ use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 
 // Setting of the application server
-const SERVER_DOMAIN: &str = "example.com";
+const SERVER_DOMAIN: &str = "mhchia.github.io";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-use std::str;
+use std::{env, str};
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    // Get party index from command line argument
+    let party_index = match env::args().nth(1) {
+        Some(index) => match index.as_str() {
+            "0" | "1" | "2" => index,
+            _ => {
+                eprintln!("Error: Party index must be 0, 1, or 2");
+                std::process::exit(1);
+            }
+        },
+        None => {
+            eprintln!("Error: Party index not provided");
+            std::process::exit(1);
+        }
+    };
 
     let (prover_socket, notary_socket) = tokio::io::duplex(1 << 16);
 
@@ -66,7 +81,7 @@ async fn main() {
 
     // Build a simple HTTP request with common headers
     let request = Request::builder()
-        .uri("/")
+        .uri(format!("/followers-page/party_{}.html", party_index))
         .header("Host", SERVER_DOMAIN)
         .header("Accept", "*/*")
         // Using "identity" instructs the Server not to use compression for its HTTP response.
@@ -86,6 +101,26 @@ async fn main() {
 
     assert!(response.status() == StatusCode::OK);
 
+    // Read and print the response body
+    let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let body_str = String::from_utf8_lossy(&body_bytes);
+
+    println!("Response body:\n{}", body_str);
+
+    // Extract followers count
+    let followers_count = body_str
+        .lines()
+        .find(|line| line.starts_with("followers="))
+        .and_then(|line| line.split('=').nth(1))
+        .and_then(|count| count.parse::<u32>().ok())
+        .ok_or_else(|| {
+            eprintln!("Error: Followers count not found in the response");
+            std::process::exit(1);
+        })
+        .unwrap();
+
+    println!("Party {} has {} followers", party_index, followers_count);
+
     // The Prover task should be done now, so we can grab the Prover.
     let prover = prover_task.await.unwrap().unwrap();
 
@@ -101,7 +136,9 @@ async fn main() {
     };
 
     // Write the proof to a file
-    let mut file = tokio::fs::File::create("simple_proof.json").await.unwrap();
+    let args: Vec<String> = std::env::args().collect();
+    let file_dest = args.get(2).expect("Please provide a file destination as the second argument");
+    let mut file = tokio::fs::File::create(file_dest).await.unwrap();
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
         .unwrap();
@@ -119,6 +156,39 @@ fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Ran
         for (idx, w) in seq.windows(s.len()).enumerate() {
             if w == *s {
                 private_ranges.push(idx..(idx + w.len()));
+            }
+        }
+    }
+
+    let mut sorted_ranges = private_ranges.clone();
+    sorted_ranges.sort_by_key(|r| r.start);
+
+    let mut public_ranges = Vec::new();
+    let mut last_end = 0;
+    for r in sorted_ranges {
+        if r.start > last_end {
+            public_ranges.push(last_end..r.start);
+        }
+        last_end = r.end;
+    }
+
+    if last_end < seq.len() {
+        public_ranges.push(last_end..seq.len());
+    }
+
+    (public_ranges, private_ranges)
+}
+// Function to find ranges using regex
+fn find_ranges_regex(seq: &[u8], private_regexes: &[&str]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
+    use regex::bytes::Regex;
+
+    let mut private_ranges = Vec::new();
+
+    for private_regex in private_regexes {
+        let re = Regex::new(private_regex).unwrap();
+        for cap in re.captures_iter(seq) {
+            if let Some(private_part) = cap.get(1) {
+                private_ranges.push(private_part.range());
             }
         }
     }
@@ -181,13 +251,11 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     );
 
     // Identify the ranges in the inbound data which contain data which we want to disclose
-    let (recv_public_ranges, recv_private_ranges) = find_ranges(
+    let (recv_public_ranges, recv_private_ranges) = find_ranges_regex(
         prover.recv_transcript().data(),
-        &[
-            // Redact the value of the title. It will NOT be disclosed.
-            "Example Domain".as_bytes(),
-        ],
+        &[r"followers=(\d+)"],
     );
+    println!("Received private ranges: {:?}", recv_private_ranges);
 
     let builder = prover.commitment_builder();
 
@@ -231,7 +299,11 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     }
 
     let substrings_proof = proof_builder.build().unwrap();
+    // [712..724]
+    println!("Received private ranges: {:?}", recv_private_ranges);
     // Generate the encodings for the private ranges
+    // Value ids: ["rx/712", "rx/713", "rx/714", "rx/715", "rx/716", "rx/717", "rx/718", "rx/719", "rx/720", "rx/721", "rx/722", "rx/723"]
+    // received_private_encodings len: 12
     let received_private_encodings =
         get_value_ids(&recv_private_ranges.into(), tlsn_core::Direction::Received)
             .map(|id| notarized_session.header().encode(&id))

@@ -8,8 +8,14 @@ use tlsn_core::proof::{SessionProof, TlsProof};
 /// it and prints the verified data to the console.
 fn main() {
     // Deserialize the proof
-    let proof = std::fs::read_to_string("simple_proof.json").unwrap();
-    let proof: TlsProof = serde_json::from_str(proof.as_str()).unwrap();
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Usage: {} <proof_file>", args[0]);
+        std::process::exit(1);
+    }
+    let proof_file = &args[1];
+    let proof = std::fs::read_to_string(proof_file).unwrap();
+    let proof: TlsProof = serde_json::from_str(&proof).unwrap();
 
     let TlsProof {
         // The session proof establishes the identity of the server and the commitments
