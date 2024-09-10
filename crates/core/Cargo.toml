@@ -37,7 +37,6 @@ thiserror = { workspace = true }
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 web-time = { workspace = true }
 webpki-roots = { workspace = true }
-zeroize = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

@@ -7,7 +7,7 @@ use crate::{
     hash::HashAlgorithm,
     merkle::{MerkleProof, MerkleTree},
     serialize::CanonicalSerialize,
-    signing::{Signature, VerifyingKey},
+    signing::Signature,
     CryptoProvider,
 };
 
@@ -44,27 +44,23 @@ impl AttestationProof {
     ///
     /// * `provider` - Cryptography provider.
     /// * `verifying_key` - Verifying key for the Notary signature.
-    pub fn verify(
-        self,
-        provider: &CryptoProvider,
-        verifying_key: &VerifyingKey,
-    ) -> Result<Attestation, AttestationError> {
+    pub fn verify(self, provider: &CryptoProvider) -> Result<Attestation, AttestationError> {
         let signature_verifier = provider
             .signature
             .get(&self.signature.alg)
             .map_err(|e| AttestationError::new(ErrorKind::Provider, e))?;
 
+        // Verify body corresponding to the header.
+        let body = self.body.verify_with_provider(provider, &self.header)?;
+
         // Verify signature of the header.
         signature_verifier
             .verify(
-                verifying_key,
+                &body.verifying_key.data,
                 &CanonicalSerialize::serialize(&self.header),
                 &self.signature.data,
             )
             .map_err(|e| AttestationError::new(ErrorKind::Signature, e))?;
-
-        // Verify body corresponding to the header.
-        let body = self.body.verify_with_provider(provider, &self.header)?;
 
         Ok(Attestation {
             signature: self.signature,

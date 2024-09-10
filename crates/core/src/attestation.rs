@@ -22,7 +22,8 @@ use crate::{
     hash::{impl_domain_separator, Hash, HashAlgorithm, HashAlgorithmExt, TypedHash},
     index::Index,
     merkle::MerkleTree,
-    signing::Signature,
+    presentation::PresentationBuilder,
+    signing::{Signature, VerifyingKey},
     transcript::{encoding::EncodingCommitment, hash::PlaintextHash},
     CryptoProvider,
 };
@@ -127,6 +128,7 @@ impl_domain_separator!(Header);
 /// about the transcript.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
+    verifying_key: Field<VerifyingKey>,
     connection_info: Field<ConnectionInfo>,
     server_ephemeral_key: Field<ServerEphemKey>,
     cert_commitment: Field<ServerCertCommitment>,
@@ -135,6 +137,11 @@ pub struct Body {
 }
 
 impl Body {
+    /// Returns the attestation verifying key.
+    pub fn verifying_key(&self) -> &VerifyingKey {
+        &self.verifying_key.data
+    }
+
     /// Computes the Merkle root of the attestation fields.
     ///
     /// This is only used when building an attestation.
@@ -160,6 +167,7 @@ impl Body {
         // CRITICAL: ensure all fields are included! If a new field is added to the struct
         // without including it here it will not be verified to be included in the attestation.
         let Self {
+            verifying_key,
             connection_info: conn_info,
             server_ephemeral_key,
             cert_commitment,
@@ -168,6 +176,7 @@ impl Body {
         } = self;
 
         let mut fields: Vec<(FieldId, Hash)> = vec![
+            (verifying_key.id, hasher.hash_separated(&verifying_key.data)),
             (conn_info.id, hasher.hash_separated(&conn_info.data)),
             (
                 server_ephemeral_key.id,
@@ -197,6 +206,10 @@ impl Body {
     /// Returns the connection information.
     pub(crate) fn connection_info(&self) -> &ConnectionInfo {
         &self.connection_info.data
+    }
+
+    pub(crate) fn server_ephemeral_key(&self) -> &ServerEphemKey {
+        &self.server_ephemeral_key.data
     }
 
     pub(crate) fn cert_commitment(&self) -> &ServerCertCommitment {
@@ -231,8 +244,11 @@ impl Attestation {
         AttestationBuilder::new(config)
     }
 
-    /// Returns an attestation proof.
-    pub fn proof(&self, provider: &CryptoProvider) -> Result<AttestationProof, AttestationError> {
-        AttestationProof::new(provider, self)
+    /// Returns a presentation builder.
+    pub fn presentation_builder<'a>(
+        &'a self,
+        provider: &'a CryptoProvider,
+    ) -> PresentationBuilder<'a> {
+        PresentationBuilder::new(provider, self)
     }
 }

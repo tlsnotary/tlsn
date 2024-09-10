@@ -97,17 +97,14 @@ pub struct SignerProvider {
 }
 
 impl SignerProvider {
-    /// Sets a signer for the given algorithm.
-    pub fn set_signer(&mut self, alg: SignatureAlgId, signer: Box<dyn Signer + Send + Sync>) {
-        self.signers.insert(alg, signer);
+    /// Configures a signer.
+    pub fn set_signer(&mut self, signer: Box<dyn Signer + Send + Sync>) {
+        self.signers.insert(signer.alg_id(), signer);
     }
 
     /// Configures a secp256k1 signer with the provided signing key.
     pub fn set_secp256k1(&mut self, key: &[u8]) -> Result<&mut Self, SignerError> {
-        self.set_signer(
-            SignatureAlgId::SECP256K1,
-            Box::new(Secp256k1Signer::new(key)?),
-        );
+        self.set_signer(Box::new(Secp256k1Signer::new(key)?));
 
         Ok(self)
     }
@@ -131,8 +128,14 @@ pub struct SignerError(String);
 
 /// Cryptographic signer.
 pub trait Signer {
+    /// Returns the algorithm used by this signer.
+    fn alg_id(&self) -> SignatureAlgId;
+
     /// Signs the message.
     fn sign(&self, msg: &[u8]) -> Result<Signature, SignatureError>;
+
+    /// Returns the verifying key for this signer.
+    fn verifying_key(&self) -> VerifyingKey;
 }
 
 /// Provider of signature verifiers.
@@ -151,13 +154,9 @@ impl Default for SignatureVerifierProvider {
 }
 
 impl SignatureVerifierProvider {
-    /// Sets a verifier for the given algorithm.
-    pub fn set_verifier(
-        &mut self,
-        alg: SignatureAlgId,
-        verifier: Box<dyn SignatureVerifier + Send + Sync>,
-    ) {
-        self.verifiers.insert(alg, verifier);
+    /// Configures a signature verifier.
+    pub fn set_verifier(&mut self, verifier: Box<dyn SignatureVerifier + Send + Sync>) {
+        self.verifiers.insert(verifier.alg_id(), verifier);
     }
 
     /// Returns the verifier for the given algorithm.
@@ -174,6 +173,9 @@ impl SignatureVerifierProvider {
 
 /// Signature verifier.
 pub trait SignatureVerifier {
+    /// Returns the algorithm used by this verifier.
+    fn alg_id(&self) -> SignatureAlgId;
+
     /// Verifies the signature.
     fn verify(&self, key: &VerifyingKey, msg: &[u8], sig: &[u8]) -> Result<(), SignatureError>;
 }
@@ -186,6 +188,8 @@ pub struct VerifyingKey {
     /// The key data.
     pub data: Vec<u8>,
 }
+
+impl_domain_separator!(VerifyingKey);
 
 /// Error occurred while verifying a signature.
 #[derive(Debug, thiserror::Error)]
@@ -224,6 +228,10 @@ mod secp256k1 {
     }
 
     impl Signer for Secp256k1Signer {
+        fn alg_id(&self) -> SignatureAlgId {
+            SignatureAlgId::SECP256K1
+        }
+
         fn sign(&self, msg: &[u8]) -> Result<Signature, SignatureError> {
             let sig: Secp256K1Signature = self.0.lock().unwrap().sign(msg);
 
@@ -232,12 +240,25 @@ mod secp256k1 {
                 data: sig.to_vec(),
             })
         }
+
+        fn verifying_key(&self) -> VerifyingKey {
+            let key = self.0.lock().unwrap().verifying_key().to_sec1_bytes();
+
+            VerifyingKey {
+                alg: KeyAlgId::K256,
+                data: key.to_vec(),
+            }
+        }
     }
 
     /// secp256k1 verifier.
     pub struct Secp256k1Verifier;
 
     impl SignatureVerifier for Secp256k1Verifier {
+        fn alg_id(&self) -> SignatureAlgId {
+            SignatureAlgId::SECP256K1
+        }
+
         fn verify(&self, key: &VerifyingKey, msg: &[u8], sig: &[u8]) -> Result<(), SignatureError> {
             if key.alg != KeyAlgId::K256 {
                 return Err(SignatureError("key algorithm is not k256".to_string()));
@@ -259,3 +280,5 @@ mod secp256k1 {
 }
 
 pub use secp256k1::{Secp256k1Signer, Secp256k1Verifier};
+
+use crate::hash::impl_domain_separator;

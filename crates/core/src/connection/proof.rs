@@ -40,7 +40,7 @@ impl ServerIdentityProof {
     ) -> Result<ServerName, ServerIdentityProofError> {
         let hasher = provider.hash.get(&commitment.0.alg)?;
 
-        if commitment.0.value != hasher.hash_canonical(&self.opening) {
+        if commitment.0.value != hasher.hash_separated(&self.opening) {
             return Err(ServerIdentityProofError {
                 kind: ErrorKind::Commitment,
                 message: "certificate opening does not match commitment".to_string(),

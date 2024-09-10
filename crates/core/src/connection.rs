@@ -228,7 +228,7 @@ impl TryFrom<tls_core::key::PublicKey> for ServerEphemKey {
 }
 
 /// TLS session information.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConnectionInfo {
     /// UNIX time when the TLS connection started.
     pub time: u64,
@@ -291,7 +291,7 @@ impl ServerCertData {
     /// * `time` - The time of the connection.
     /// * `server_ephemeral_key` - The server's ephemeral key.
     /// * `server_name` - The server name.
-    pub(crate) fn verify_with_provider(
+    pub fn verify_with_provider(
         &self,
         provider: &CryptoProvider,
         time: u64,
@@ -361,7 +361,8 @@ impl ServerCertData {
 
 /// Errors that can occur when verifying a certificate chain or signature.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum CertificateVerificationError {
+#[allow(missing_docs)]
+pub enum CertificateVerificationError {
     #[error("invalid server identity: {0}")]
     InvalidIdentity(ServerName),
     #[error("missing server certificates")]
