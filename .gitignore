@@ -33,3 +33,9 @@ Cargo.lock
 
 # metrics
 *.csv
+
+# tee
+**/*.sgx
+**/*.sig
+**/*.manifest
+

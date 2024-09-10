@@ -1,0 +1,48 @@
+libos.entrypoint = "{{ self_exe }}"
+loader.log_level = "{{ log_level }}"
+
+loader.env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}"
+
+
+# See https://gramine.readthedocs.io/en/stable/performance.html#glibc-malloc-tuning
+loader.env.MALLOC_ARENA_MAX = "1"
+
+# For easier debugging — not strictly required to run this workload
+loader.env.RUST_BACKTRACE = "full"
+
+
+fs.mounts = [
+  { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
+  { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
+  { path = "/fixture/notary", uri = "file:../../fixture/notary" },
+  { path = "/fixture/tls", uri = "file:../../fixture/tls" },
+  { path = "/config", uri = "file:../../config" },
+  { type = "encrypted", path = "/vault", uri = "file:vault", key_name = "_sgx_mrenclave" },
+
+]
+
+sgx.trusted_files = [
+  "file:{{ self_exe }}",
+  "file:{{ gramine.runtimedir() }}/",
+  "file:{{ arch_libdir }}/",
+  "file:../../config/config.yaml",
+  "file:../../fixture/notary/notary.pub",
+  "file:../../fixture/notary/notary.key",
+  "file:../../fixture/tls/notary.crt",
+  "file:../../fixture/tls/notary.key",
+]
+sgx.debug = true
+sgx.edmm_enable = false
+sgx.remote_attestation = "dcap"
+sgx.max_threads = 64
+sgx.enclave_size = "2G"
+sys.disallow_subprocesses = true
+#### turn this off in prod, 
+sys.enable_sigterm_injection = true
+
+
+#### tlsn rev
+sgx.isvprodid = 7
+#### E
+sgx.isvsvn = 45
+
