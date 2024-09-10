@@ -159,6 +159,7 @@ impl AttestationBuilder<'_, Sign> {
         let mut field_id = FieldId::default();
 
         let body = Body {
+            verifying_key: field_id.next(signer.verifying_key()),
             connection_info: field_id.next(connection_info.ok_or_else(|| {
                 AttestationBuilderError::new(ErrorKind::Field, "connection info was not set")
             })?),

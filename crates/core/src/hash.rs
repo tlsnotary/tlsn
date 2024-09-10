@@ -5,6 +5,8 @@ use std::{collections::HashMap, fmt::Display};
 use rand::{distributions::Standard, prelude::Distribution};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::serialize::CanonicalSerialize;
+
 pub(crate) const DEFAULT_SUPPORTED_HASH_ALGS: &[HashAlgId] =
     &[HashAlgId::SHA256, HashAlgId::BLAKE3, HashAlgId::KECCAK256];
 
@@ -404,5 +406,3 @@ mod keccak {
 }
 
 pub use keccak::Keccak256;
-
-use crate::serialize::CanonicalSerialize;

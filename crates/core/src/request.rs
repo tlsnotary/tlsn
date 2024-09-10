@@ -58,11 +58,25 @@ impl Request {
 
         if attestation.body.cert_commitment() != &self.server_cert_commitment {
             return Err(InconsistentAttestation(
-                "server certificate commitment".to_string(),
+                "server certificate commitment does not match".to_string(),
             ));
         }
 
-        todo!()
+        if let Some(encoding_commitment_root) = &self.encoding_commitment_root {
+            let Some(encoding_commitment) = attestation.body.encoding_commitment() else {
+                return Err(InconsistentAttestation(
+                    "encoding commitment is missing".to_string(),
+                ));
+            };
+
+            if &encoding_commitment.root != encoding_commitment_root {
+                return Err(InconsistentAttestation(
+                    "encoding commitment root does not match".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
     }
 }
 

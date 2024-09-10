@@ -34,7 +34,7 @@ mod proof;
 use std::{fmt, ops::Range};
 
 use serde::{Deserialize, Serialize};
-use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion, ToRangeSet};
+use utils::range::{Difference, IndexRanges, RangeSet, ToRangeSet, Union};
 
 use crate::connection::TranscriptLength;
 
@@ -247,6 +247,16 @@ impl PartialTranscript {
     /// Returns the index of received data which haven't been authenticated.
     pub fn received_unauthed(&self) -> Idx {
         Idx(RangeSet::from(0..self.received.len()).difference(&self.received_authed.0))
+    }
+
+    /// Returns an iterator over the authenticated data in the transcript.
+    pub fn iter(&self, direction: Direction) -> impl Iterator<Item = u8> + '_ {
+        let (data, authed) = match direction {
+            Direction::Sent => (&self.sent, &self.sent_authed),
+            Direction::Received => (&self.received, &self.received_authed),
+        };
+
+        authed.0.iter().map(|i| data[i])
     }
 
     /// Unions the authenticated data of this transcript with another.
@@ -547,8 +557,8 @@ mod validation {
         type Error = InvalidPartialTranscript;
 
         fn try_from(unchecked: PartialTranscriptUnchecked) -> Result<Self, Self::Error> {
-            if unchecked.sent.len() > unchecked.sent_authed.end()
-                || unchecked.received.len() > unchecked.received_authed.end()
+            if unchecked.sent_authed.end() > unchecked.sent.len()
+                || unchecked.received_authed.end() > unchecked.received.len()
             {
                 return Err(InvalidPartialTranscript(
                     "authenticated ranges are not in bounds of the data",

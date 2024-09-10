@@ -3,6 +3,7 @@ use tlsn_core::{
     connection::{HandshakeData, HandshakeDataV1_2},
     fixtures::{self, encoder_seed, ConnectionFixture},
     hash::Blake3,
+    presentation::PresentationOutput,
     request::{Request, RequestConfig},
     signing::SignatureAlgId,
     transcript::{encoding::EncodingTree, Direction, Transcript, TranscriptCommitConfigBuilder},
@@ -10,8 +11,8 @@ use tlsn_core::{
 };
 use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
-#[test]
 /// Tests that the attestation protocol and verification work end-to-end
+#[test]
 fn test_api() {
     let mut provider = CryptoProvider::default();
 
@@ -61,7 +62,7 @@ fn test_api() {
     let mut request_builder = Request::builder(&request_config);
 
     request_builder
-        .server_name(server_name)
+        .server_name(server_name.clone())
         .server_cert_data(server_cert_data)
         .transcript(transcript)
         .encoding_tree(encoding_tree);
@@ -80,7 +81,7 @@ fn test_api() {
 
     attestation_builder
         // Notary's view of the connection
-        .connection_info(connection_info)
+        .connection_info(connection_info.clone())
         // Server key Notary received during handshake
         .server_ephemeral_key(server_ephemeral_key)
         .encoding_seed(encoder_seed().to_vec());
@@ -89,9 +90,6 @@ fn test_api() {
 
     // Prover validates the attestation is consistent with its request.
     request.validate(&attestation).unwrap();
-
-    let attestation_proof = attestation.proof(&provider).unwrap();
-    let server_identity_proof = secrets.identity_proof();
 
     let mut transcript_proof_builder = secrets.transcript_proof_builder();
 
@@ -104,7 +102,32 @@ fn test_api() {
 
     let transcript_proof = transcript_proof_builder.build().unwrap();
 
-    // Verifier verifies the proofs.
+    let mut builder = attestation.presentation_builder(&provider);
 
-    todo!()
+    builder.identity_proof(secrets.identity_proof());
+    builder.transcript_proof(transcript_proof);
+
+    let presentation = builder.build().unwrap();
+
+    // Verifier verifies the presentation.
+    let PresentationOutput {
+        server_name: presented_server_name,
+        connection_info: presented_connection_info,
+        transcript: presented_transcript,
+        ..
+    } = presentation.verify(&provider).unwrap();
+
+    assert_eq!(presented_server_name.unwrap(), server_name);
+    assert_eq!(presented_connection_info, connection_info);
+
+    let presented_transcript = presented_transcript.unwrap();
+
+    assert_eq!(
+        presented_transcript.sent_unsafe(),
+        secrets.transcript().sent()
+    );
+    assert_eq!(
+        presented_transcript.received_unsafe(),
+        secrets.transcript().received()
+    );
 }
