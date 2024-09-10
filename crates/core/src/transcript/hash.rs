@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     attestation::FieldId,
-    hash::{impl_domain_separator, Blinded, Blinder, HashAlgorithmExt, HashProvider, TypedHash},
+    hash::{
+        impl_domain_separator, Blinded, Blinder, HashAlgorithmExt, HashProvider, HashProviderError,
+        TypedHash,
+    },
     transcript::{Direction, Idx, InvalidSubsequence, Subsequence},
 };
 
@@ -57,7 +60,7 @@ impl PlaintextHashProof {
         provider: &HashProvider,
         commitment: &PlaintextHash,
     ) -> Result<(Direction, Subsequence), PlaintextHashProofError> {
-        let alg = provider.get(&commitment.hash.alg).unwrap();
+        let alg = provider.get(&commitment.hash.alg)?;
 
         if commitment.hash.value != alg.hash_canonical(&self.data) {
             return Err(PlaintextHashProofError::new(
@@ -80,6 +83,12 @@ pub(crate) struct PlaintextHashProofError(String);
 impl PlaintextHashProofError {
     fn new<T: Into<String>>(msg: T) -> Self {
         Self(msg.into())
+    }
+}
+
+impl From<HashProviderError> for PlaintextHashProofError {
+    fn from(err: HashProviderError) -> Self {
+        Self(err.to_string())
     }
 }
 
