@@ -206,6 +206,9 @@ components:
         gitCommitTimestamp:
           description: The git commit timestamp of source code that this notary server is running
           type: string
+        quote:
+            description: a measurement attesting to the hardware, if available
+          type: object
       required:
         - "version"
         - "publicKey"
