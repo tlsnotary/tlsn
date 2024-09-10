@@ -120,12 +120,13 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     let protocol_config = if defer_decryption {
         ProtocolConfig::builder()
             .max_sent_data(upload_size + 256)
-            .max_deferred_size(download_size + 256)
+            .max_recv_data(download_size + 256)
             .build()
             .unwrap()
     } else {
         ProtocolConfig::builder()
             .max_sent_data(upload_size + 256)
+            .max_recv_data(download_size + 256)
             .max_recv_data_online(download_size + 256)
             .build()
             .unwrap()

@@ -30,30 +30,29 @@ static VERSION: Lazy<Version> = Lazy::new(|| {
 
 /// Protocol configuration to be set up initially by prover and verifier.
 #[derive(derive_builder::Builder, Clone, Debug, Deserialize, Serialize)]
+#[builder(build_fn(validate = "Self::validate"))]
 pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
-    #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
     /// Maximum number of bytes that can be decrypted online, i.e. while the MPC-TLS connection is
     /// active.
     #[builder(default = "0")]
     max_recv_data_online: usize,
-    /// Maximum number of bytes for which the decryption can be deferred until after the MPC-TLS
-    /// connection is closed.
-    #[builder(default = "self.default_max_deferred_size()")]
-    max_deferred_size: usize,
+    /// Maximum number of bytes that can be received.
+    max_recv_data: usize,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
 }
 
 impl ProtocolConfigBuilder {
-    fn default_max_deferred_size(&self) -> usize {
-        if self.max_recv_data_online.is_none() {
-            return DEFAULT_MAX_RECV_LIMIT;
+    fn validate(&self) -> Result<(), String> {
+        if self.max_recv_data_online > self.max_recv_data {
+            return Err(
+                "max_recv_data_online must be smaller or equal to max_recv_data".to_string(),
+            );
         }
-
-        0
+        Ok(())
     }
 }
 
@@ -79,10 +78,9 @@ impl ProtocolConfig {
         self.max_recv_data_online
     }
 
-    /// Returns the maximum number of bytes for which the decryption can be deferred until after
-    /// the MPC-TLS connection is closed.
-    pub fn max_deferred_size(&self) -> usize {
-        self.max_deferred_size
+    /// Returns the maximum number of bytes that can be received.
+    pub fn max_recv_data(&self) -> usize {
+        self.max_recv_data
     }
 
     /// Returns OT sender setup count.
@@ -91,7 +89,7 @@ impl ProtocolConfig {
             role,
             self.max_sent_data,
             self.max_recv_data_online,
-            self.max_deferred_size,
+            self.max_recv_data,
         )
     }
 
@@ -101,7 +99,7 @@ impl ProtocolConfig {
             role,
             self.max_sent_data,
             self.max_recv_data_online,
-            self.max_deferred_size,
+            self.max_recv_data,
         )
     }
 }
@@ -145,11 +143,7 @@ impl ProtocolConfigValidator {
 
     /// Performs compatibility check of the protocol configuration between prover and verifier.
     pub fn validate(&self, config: &ProtocolConfig) -> Result<(), ProtocolConfigError> {
-        self.check_max_transcript_size(
-            config.max_sent_data,
-            config.max_recv_data_online,
-            config.max_deferred_size,
-        )?;
+        self.check_max_transcript_size(config.max_sent_data, config.max_recv_data)?;
         self.check_version(&config.version)?;
         Ok(())
     }
@@ -158,8 +152,7 @@ impl ProtocolConfigValidator {
     fn check_max_transcript_size(
         &self,
         max_sent_data: usize,
-        max_recv_data_online: usize,
-        max_deferred_size: usize,
+        max_recv_data: usize,
     ) -> Result<(), ProtocolConfigError> {
         if max_sent_data > self.max_sent_data {
             return Err(ProtocolConfigError::max_transcript_size(format!(
@@ -168,11 +161,10 @@ impl ProtocolConfigValidator {
             )));
         }
 
-        if max_recv_data_online + max_deferred_size > self.max_recv_data {
+        if max_recv_data > self.max_recv_data {
             return Err(ProtocolConfigError::max_transcript_size(format!(
                 "max_recv_data {:?} is greater than the configured limit {:?}",
-                max_recv_data_online + max_deferred_size,
-                self.max_recv_data,
+                max_recv_data, self.max_recv_data,
             )));
         }
 
@@ -252,7 +244,7 @@ pub fn ot_send_estimate(
     role: Role,
     max_sent_data: usize,
     max_recv_data_online: usize,
-    max_deferred_size: usize,
+    max_recv_data: usize,
 ) -> usize {
     match role {
         Role::Prover => EXTRA_OTS,
@@ -260,7 +252,7 @@ pub fn ot_send_estimate(
             EXTRA_OTS
                 + (max_sent_data * OTS_PER_BYTE_SENT)
                 + (max_recv_data_online * OTS_PER_BYTE_RECV_ONLINE)
-                + (max_deferred_size * OTS_PER_BYTE_RECV_DEFER)
+                + ((max_recv_data - max_recv_data_online) * OTS_PER_BYTE_RECV_DEFER)
         }
     }
 }
@@ -270,14 +262,14 @@ pub fn ot_recv_estimate(
     role: Role,
     max_sent_data: usize,
     max_recv_data_online: usize,
-    max_deferred_size: usize,
+    max_recv_data: usize,
 ) -> usize {
     match role {
         Role::Prover => {
             EXTRA_OTS
                 + (max_sent_data * OTS_PER_BYTE_SENT)
                 + (max_recv_data_online * OTS_PER_BYTE_RECV_ONLINE)
-                + (max_deferred_size * OTS_PER_BYTE_RECV_DEFER)
+                + ((max_recv_data - max_recv_data_online) * OTS_PER_BYTE_RECV_DEFER)
         }
         Role::Verifier => EXTRA_OTS,
     }
@@ -295,21 +287,18 @@ mod test {
     }
 
     #[rstest]
-    #[case::same_max_sent_recv_defer_data(DEFAULT_MAX_SENT_LIMIT, DEFAULT_MAX_RECV_LIMIT / 2, DEFAULT_MAX_RECV_LIMIT / 2)]
-    #[case::smaller_max_sent_data(1 << 11, DEFAULT_MAX_RECV_LIMIT, 0)]
-    #[case::smaller_max_recv_data(DEFAULT_MAX_SENT_LIMIT, 1 << 13, 0)]
-    #[case::smaller_max_defer_data(DEFAULT_MAX_SENT_LIMIT, 0, 1 << 13)]
-    #[case::smaller_max_sent_recv_defer_data(1 << 7, 1 << 9, 1 << 9)]
+    #[case::same_max_sent_recv_data(DEFAULT_MAX_SENT_LIMIT, DEFAULT_MAX_RECV_LIMIT)]
+    #[case::smaller_max_sent_data(1 << 11, DEFAULT_MAX_RECV_LIMIT)]
+    #[case::smaller_max_recv_data(DEFAULT_MAX_SENT_LIMIT, 1 << 13)]
+    #[case::smaller_max_sent_recv_data(1 << 7, 1 << 9)]
     fn test_check_success(
         config_validator: &ProtocolConfigValidator,
         #[case] max_sent_data: usize,
         #[case] max_recv_data: usize,
-        #[case] max_defer_data: usize,
     ) {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
-            .max_recv_data_online(max_recv_data)
-            .max_deferred_size(max_defer_data)
+            .max_recv_data(max_recv_data)
             .build()
             .unwrap();
 
@@ -317,21 +306,17 @@ mod test {
     }
 
     #[rstest]
-    #[case::bigger_max_sent_data(1 << 13, DEFAULT_MAX_RECV_LIMIT, 0)]
-    #[case::bigger_max_recv_data(1 << 10, 1 << 16, 0)]
-    #[case::bigger_max_defer_data(1 << 10, 0, 1 << 16 )]
-    #[case::bigger_max_sent_recv_data(1 << 14, 1 << 21, 0)]
-    #[case::bigger_max_sent_defer_data(1 << 14, 0, 1 << 21)]
+    #[case::bigger_max_sent_data(1 << 13, DEFAULT_MAX_RECV_LIMIT)]
+    #[case::bigger_max_recv_data(1 << 10, 1 << 16)]
+    #[case::bigger_max_sent_recv_data(1 << 14, 1 << 21)]
     fn test_check_fail(
         config_validator: &ProtocolConfigValidator,
         #[case] max_sent_data: usize,
         #[case] max_recv_data: usize,
-        #[case] max_defer_data: usize,
     ) {
         let peer_config = ProtocolConfig::builder()
             .max_sent_data(max_sent_data)
-            .max_recv_data_online(max_recv_data)
-            .max_deferred_size(max_defer_data)
+            .max_recv_data(max_recv_data)
             .build()
             .unwrap();
 

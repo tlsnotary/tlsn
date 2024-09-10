@@ -123,7 +123,7 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(1024)
-        .max_deferred_size(1024)
+        .max_recv_data(1024)
         .build()
         .unwrap();
 

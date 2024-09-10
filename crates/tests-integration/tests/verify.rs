@@ -1,5 +1,5 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
-use tlsn_common::config::{ProtocolConfig, DEFAULT_MAX_RECV_LIMIT};
+use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
@@ -13,6 +13,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 use utils::range::RangeSet;
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::test]
 #[ignore]
@@ -45,7 +50,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .unwrap();
 
     let protocol_config = ProtocolConfig::builder()
-        .max_recv_data_online(DEFAULT_MAX_RECV_LIMIT)
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .max_recv_data_online(MAX_RECV_DATA)
         .build()
         .unwrap();
 

@@ -1,3 +1,4 @@
+use tlsn_common::config::ProtocolConfig;
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -7,6 +8,11 @@ use futures::{AsyncReadExt, AsyncWriteExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::test]
 #[ignore]
@@ -33,6 +39,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(MAX_SENT_DATA)
+                    .max_recv_data(MAX_RECV_DATA)
+                    .build()
+                    .unwrap(),
+            )
             .root_cert_store(root_store)
             .build()
             .unwrap(),

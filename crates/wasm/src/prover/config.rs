@@ -7,9 +7,9 @@ use tsify_next::Tsify;
 pub struct ProverConfig {
     pub id: String,
     pub server_dns: String,
-    pub max_sent_data: Option<usize>,
+    pub max_sent_data: usize,
     pub max_recv_data_online: Option<usize>,
-    pub max_deferred_size: Option<usize>,
+    pub max_recv_data: usize,
     pub defer_decryption_from_start: Option<bool>,
 }
 
@@ -17,17 +17,13 @@ impl From<ProverConfig> for tlsn_prover::tls::ProverConfig {
     fn from(value: ProverConfig) -> Self {
         let mut builder = ProtocolConfig::builder();
 
-        if let Some(value) = value.max_sent_data {
-            builder.max_sent_data(value);
-        }
+        builder.max_sent_data(value.max_sent_data);
 
         if let Some(value) = value.max_recv_data_online {
             builder.max_recv_data_online(value);
         }
 
-        if let Some(value) = value.max_deferred_size {
-            builder.max_deferred_size(value);
-        }
+        builder.max_recv_data(value.max_recv_data);
 
         let protocol_config = builder.build().unwrap();
 

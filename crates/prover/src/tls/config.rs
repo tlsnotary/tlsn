@@ -67,7 +67,10 @@ impl ProverConfig {
                     .rx_config(
                         TranscriptConfig::default_rx()
                             .max_online_size(self.protocol_config.max_recv_data_online())
-                            .max_offline_size(self.protocol_config.max_deferred_size())
+                            .max_offline_size(
+                                self.protocol_config.max_recv_data()
+                                    - self.protocol_config.max_recv_data_online(),
+                            )
                             .build()
                             .unwrap(),
                     )
