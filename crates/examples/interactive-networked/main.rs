@@ -55,12 +55,10 @@ fn run(working_dir: &Path, cmd: &str, args: &[&str], prefix: &str) -> std::io::R
         F: Fn(String) + Send + 'static,
     {
         thread::spawn(move || {
-            let reader = BufReader::new(stream);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    print_fn(format!("[{}] {}", prefix, line));
-                }
-            }
+            BufReader::new(stream)
+                .lines()
+                .map_while(Result::ok)
+                .for_each(|line| print_fn(format!("[{}] {}", prefix, line)));
         });
     }
 
