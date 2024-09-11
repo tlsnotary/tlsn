@@ -3,6 +3,9 @@ name = "notary-server"
 version = "0.1.0-alpha.6"
 edition = "2021"
 
+[features]
+attestation = ["dep:sgx-dcap-ql-rs",]
+
 [dependencies]
 tlsn-common = { workspace = true }
 tlsn-verifier = { workspace = true }
@@ -44,3 +47,4 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 ws_stream_tungstenite = { workspace = true, features = ["tokio_io"] }
+sgx-dcap-ql-rs = { git = "https://github.com/intel/SGXDataCenterAttestationPrimitives", tag = "DCAP_1.21", optional = true }
