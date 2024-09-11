@@ -1,6 +1,7 @@
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{state::Prove, Prover, ProverConfig};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -10,6 +11,11 @@ use tracing::instrument;
 
 const SECRET: &str = "TLSNotary's private key 🤡";
 const SERVER_DOMAIN: &str = "example.com";
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
@@ -53,6 +59,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         ProverConfig::builder()
             .id(id)
             .server_dns(server_domain)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(MAX_SENT_DATA)
+                    .max_recv_data(MAX_RECV_DATA)
+                    .build()
+                    .unwrap(),
+            )
             .build()
             .unwrap(),
     )
@@ -69,9 +82,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let (mpc_tls_connection, prover_fut) =
         prover.connect(tls_client_socket.compat()).await.unwrap();
 
-    // Grab a controller for the Prover so we can enable deferred decryption.
-    let ctrl = prover_fut.control();
-
     // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
@@ -86,10 +96,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
-
-    // Enable deferred decryption. This speeds up the proving time, but doesn't
-    // let us see the decrypted data until after the connection is closed.
-    ctrl.defer_decryption().await.unwrap();
 
     // MPC-TLS: Send Request and wait for Response.
     let request = Request::builder()
@@ -120,7 +126,17 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     id: &str,
 ) -> (RedactedTranscript, RedactedTranscript, SessionInfo) {
     // Setup Verifier.
-    let verifier_config = VerifierConfig::builder().id(id).build().unwrap();
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let verifier_config = VerifierConfig::builder()
+        .id(id)
+        .protocol_config_validator(config_validator)
+        .build()
+        .unwrap();
     let verifier = Verifier::new(verifier_config);
 
     // Verify MPC-TLS and wait for (redacted) data.

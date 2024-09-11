@@ -18,6 +18,12 @@ pub struct ProverConfig {
     /// Protocol configuration to be checked with the verifier.
     #[builder(default)]
     protocol_config: ProtocolConfig,
+    /// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
+    /// connection.
+    ///
+    /// See `defer_decryption_from_start` in [tls_mpc::MpcTlsLeaderConfig].
+    #[builder(default = "true")]
+    defer_decryption_from_start: bool,
 }
 
 impl ProverConfig {
@@ -41,6 +47,12 @@ impl ProverConfig {
         &self.protocol_config
     }
 
+    /// Returns whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
+    /// connection.
+    pub fn defer_decryption_from_start(&self) -> bool {
+        self.defer_decryption_from_start
+    }
+
     pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsLeaderConfig {
         MpcTlsLeaderConfig::builder()
             .common(
@@ -48,13 +60,17 @@ impl ProverConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.protocol_config.max_sent_data())
+                            .max_online_size(self.protocol_config.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.protocol_config.max_recv_data())
+                            .max_online_size(self.protocol_config.max_recv_data_online())
+                            .max_offline_size(
+                                self.protocol_config.max_recv_data()
+                                    - self.protocol_config.max_recv_data_online(),
+                            )
                             .build()
                             .unwrap(),
                     )

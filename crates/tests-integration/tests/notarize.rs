@@ -1,3 +1,4 @@
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -9,6 +10,11 @@ use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::test]
 #[ignore]
@@ -31,11 +37,20 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .max_recv_data_online(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store)
+            .defer_decryption_from_start(false)
+            .protocol_config(protocol_config)
             .build()
             .unwrap(),
     )
@@ -86,7 +101,19 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
 #[instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
-    let verifier = Verifier::new(VerifierConfig::builder().id("test").build().unwrap());
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let verifier = Verifier::new(
+        VerifierConfig::builder()
+            .id("test")
+            .protocol_config_validator(config_validator)
+            .build()
+            .unwrap(),
+    );
     let signing_key = p256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap();
 
     _ = verifier

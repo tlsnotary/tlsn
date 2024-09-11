@@ -115,6 +115,7 @@ async fn leader(config: MpcTlsCommonConfig, mux: TestFramedMux) {
     let mut leader = MpcTlsLeader::new(
         MpcTlsLeaderConfig::builder()
             .common(config)
+            .defer_decryption_from_start(false)
             .build()
             .unwrap(),
         Box::new(StreamExt::compat_stream(

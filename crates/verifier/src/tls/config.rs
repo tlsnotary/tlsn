@@ -12,7 +12,6 @@ use tlsn_core::proof::default_cert_verifier;
 pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
-    #[builder(default)]
     protocol_config_validator: ProtocolConfigValidator,
     #[builder(
         pattern = "owned",
@@ -94,13 +93,17 @@ impl VerifierConfig {
                     .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(protocol_config.max_sent_data())
+                            .max_online_size(protocol_config.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(protocol_config.max_recv_data())
+                            .max_online_size(protocol_config.max_recv_data_online())
+                            .max_offline_size(
+                                protocol_config.max_recv_data()
+                                    - protocol_config.max_recv_data_online(),
+                            )
                             .build()
                             .unwrap(),
                     )

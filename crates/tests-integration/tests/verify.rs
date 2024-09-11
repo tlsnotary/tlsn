@@ -1,4 +1,5 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
@@ -12,6 +13,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 use utils::range::RangeSet;
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::test]
 #[ignore]
@@ -43,11 +49,20 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .max_recv_data_online(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store)
+            .defer_decryption_from_start(false)
+            .protocol_config(protocol_config)
             .build()
             .unwrap(),
     )
@@ -105,8 +120,15 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     let verifier_config = VerifierConfig::builder()
         .id("test")
+        .protocol_config_validator(config_validator)
         .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();
