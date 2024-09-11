@@ -5,7 +5,7 @@ description = "Implementation of the backend trait for 2PC"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2021"
 
 [lib]
@@ -33,7 +33,7 @@ tlsn-aead = { path = "../../aead" }
 tlsn-key-exchange = { path = "../../key-exchange" }
 tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "bb9769d" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "45370cc" }
 uid-mux = { version = "0.1", features = ["serio"] }
 
 p256.workspace = true
