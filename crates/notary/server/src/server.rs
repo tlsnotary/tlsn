@@ -51,7 +51,7 @@ use crate::{
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
     // Load the private key for notarized transcript signing
     let attestation_key = load_attestation_key(&config.notary_key).await?;
-    let crypto_provider = build_crypto_provider(attestation_key.clone());
+    let crypto_provider = build_crypto_provider(attestation_key);
 
     // Build TLS acceptor if it is turned on
     let tls_acceptor = if !config.tls.enabled {
@@ -223,7 +223,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
 
 fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
     let mut provider = CryptoProvider::default();
-    provider.signer.set_signer(Box::new(attestation_key));
+    provider.signer.set_signer(attestation_key.into_signer());
     provider
 }
 

@@ -1,16 +1,13 @@
 use core::fmt;
-use std::sync::{Arc, Mutex};
 
-use k256::ecdsa::signature::SignerMut;
 use pkcs8::{der::Encode, AssociatedOid, DecodePrivateKey, ObjectIdentifier, PrivateKeyInfo};
-use tlsn_core::signing::{Signature, SignatureAlgId, SignatureError, Signer, VerifyingKey};
+use tlsn_core::signing::{Secp256k1Signer, Secp256r1Signer, SignatureAlgId, Signer};
 use tracing::error;
 
 /// A cryptographic key used for signing attestations.
-#[derive(Clone)]
 pub struct AttestationKey {
     alg_id: SignatureAlgId,
-    key: Arc<Mutex<SigningKey>>,
+    key: SigningKey,
 }
 
 impl TryFrom<PrivateKeyInfo<'_>> for AttestationKey {
@@ -45,35 +42,21 @@ impl TryFrom<PrivateKeyInfo<'_>> for AttestationKey {
             }
         };
 
-        Ok(Self {
-            alg_id,
-            key: Arc::new(Mutex::new(key)),
-        })
+        Ok(Self { alg_id, key })
     }
 }
 
-impl Signer for AttestationKey {
-    fn alg_id(&self) -> SignatureAlgId {
-        self.alg_id
-    }
-
-    fn sign(&self, msg: &[u8]) -> Result<Signature, SignatureError> {
-        let mut key = self.key.lock().unwrap();
-        Ok(Signature {
-            alg: self.alg_id,
-            data: match &mut (*key) {
-                SigningKey::Secp256k1(key) => {
-                    SignerMut::<k256::ecdsa::Signature>::sign(key, msg).to_vec()
-                }
-                SigningKey::Secp256r1(key) => {
-                    SignerMut::<p256::ecdsa::Signature>::sign(key, msg).to_vec()
-                }
-            },
-        })
-    }
-
-    fn verifying_key(&self) -> VerifyingKey {
-        todo!()
+impl AttestationKey {
+    /// Creates a new signer using this key.
+    pub fn into_signer(self) -> Box<dyn Signer + Send + Sync> {
+        match self.key {
+            SigningKey::Secp256k1(key) => {
+                Box::new(Secp256k1Signer::new(&key.to_bytes()).expect("key should be valid"))
+            }
+            SigningKey::Secp256r1(key) => {
+                Box::new(Secp256r1Signer::new(&key.to_bytes()).expect("key should be valid"))
+            }
+        }
     }
 }
 
