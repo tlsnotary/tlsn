@@ -50,6 +50,12 @@ pub struct AttestationConfig {
     supported_fields: Vec<FieldKind>,
 }
 
+impl Default for AttestationConfig {
+    fn default() -> Self {
+        AttestationConfigBuilder::default().build().unwrap()
+    }
+}
+
 impl AttestationConfig {
     /// Creates a new builder.
     pub fn builder() -> AttestationConfigBuilder {

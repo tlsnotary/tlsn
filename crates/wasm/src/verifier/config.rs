@@ -6,18 +6,18 @@ use tsify_next::Tsify;
 pub struct VerifierConfig {
     pub id: String,
     pub max_sent_data: Option<usize>,
-    pub max_received_data: Option<usize>,
+    pub max_recv_data: Option<usize>,
 }
 
-impl From<VerifierConfig> for tlsn_verifier::tls::VerifierConfig {
+impl From<VerifierConfig> for tlsn_verifier::VerifierConfig {
     fn from(value: VerifierConfig) -> Self {
-        let mut builder = tlsn_verifier::tls::VerifierConfig::builder();
+        let mut builder = tlsn_verifier::VerifierConfig::builder();
 
         if let Some(value) = value.max_sent_data {
             builder = builder.max_sent_data(value);
         }
 
-        if let Some(value) = value.max_received_data {
+        if let Some(value) = value.max_recv_data {
             builder = builder.max_recv_data(value);
         }
 

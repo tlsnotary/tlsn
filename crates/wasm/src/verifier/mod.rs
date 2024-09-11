@@ -3,7 +3,7 @@ mod config;
 pub use config::VerifierConfig;
 
 use enum_try_as_inner::EnumTryAsInner;
-use tlsn_verifier::tls::{
+use tlsn_verifier::{
     state::{self, Initialized},
     Verifier,
 };
@@ -11,7 +11,7 @@ use tracing::info;
 use wasm_bindgen::prelude::*;
 use ws_stream_wasm::{WsMeta, WsStream};
 
-use crate::types::VerifierData;
+use crate::types::VerifierOutput;
 
 type Result<T> = std::result::Result<T, JsError>;
 
@@ -66,25 +66,23 @@ impl JsVerifier {
     }
 
     /// Verifies the connection and finalizes the protocol.
-    pub async fn verify(&mut self) -> Result<VerifierData> {
+    pub async fn verify(&mut self) -> Result<VerifierOutput> {
         let (verifier, prover_conn) = self.state.take().try_into_connected()?;
 
-        let (sent, recv, info) = verifier.verify(prover_conn.into_io()).await?;
+        let (transcript, info) = verifier.verify(prover_conn.into_io()).await?;
 
         self.state = State::Complete;
 
-        Ok(VerifierData {
-            server_dns: info.server_name.as_str().to_string(),
-            sent: sent.data().to_vec(),
-            sent_auth_ranges: sent.authed().iter_ranges().collect(),
-            received: recv.data().to_vec(),
-            received_auth_ranges: recv.authed().iter_ranges().collect(),
+        Ok(VerifierOutput {
+            server_name: info.server_name.as_str().to_string(),
+            connection_info: info.connection_info.into(),
+            transcript: transcript.into(),
         })
     }
 }
 
-impl From<tlsn_verifier::tls::Verifier<Initialized>> for JsVerifier {
-    fn from(value: tlsn_verifier::tls::Verifier<Initialized>) -> Self {
+impl From<tlsn_verifier::Verifier<Initialized>> for JsVerifier {
+    fn from(value: tlsn_verifier::Verifier<Initialized>) -> Self {
         Self {
             state: State::Initialized(value),
         }

@@ -8,7 +8,7 @@ use hyper_util::rt::TokioIo;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use std::{env, str};
 use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_prover::{Prover, ProverConfig};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
@@ -58,7 +58,7 @@ async fn main() {
     // Configure a new prover with the unique session id returned from notary client.
     let prover_config = ProverConfig::builder()
         .id(session_id)
-        .server_dns(SERVER_DOMAIN)
+        .server_name(SERVER_DOMAIN)
         .build()
         .unwrap();
 

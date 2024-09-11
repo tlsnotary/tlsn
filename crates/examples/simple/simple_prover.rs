@@ -10,7 +10,7 @@ use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 use tlsn_examples::run_notary;
-use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
+use tlsn_prover::{state::Notarize, Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "example.com";
@@ -30,7 +30,7 @@ async fn main() {
     // A Prover configuration
     let config = ProverConfig::builder()
         .id("example")
-        .server_dns(SERVER_DOMAIN)
+        .server_name(SERVER_DOMAIN)
         .build()
         .unwrap();
 
@@ -150,8 +150,8 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     let sent_commitment = builder.commit_sent(&(0..sent_len)).unwrap();
     let recv_commitment = builder.commit_recv(&(0..recv_len)).unwrap();
 
-    // Finalize, returning the notarized session
-    let notarized_session = prover.finalize().await.unwrap();
+    // Finalize, returning the attestation and secrets.
+    let (attestation, secrets) = prover.finalize().await.unwrap();
 
     // Create a proof for all committed data in this session
     let mut proof_builder = notarized_session.data().build_substrings_proof();
@@ -201,7 +201,7 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         .collect();
 
     // Finalize, returning the notarized session
-    let notarized_session = prover.finalize().await.unwrap();
+    let notarized_session = prover.finalize_with_provider().await.unwrap();
 
     // Create a proof for all committed data in this session
     let mut proof_builder = notarized_session.data().build_substrings_proof();

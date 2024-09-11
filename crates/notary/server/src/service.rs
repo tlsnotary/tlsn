@@ -2,6 +2,8 @@ pub mod axum_websocket;
 pub mod tcp;
 pub mod websocket;
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use axum::{
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
@@ -9,8 +11,8 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
-use p256::ecdsa::{Signature, SigningKey};
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_core::{attestation::AttestationConfig, CryptoProvider};
+use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, trace};
@@ -170,12 +172,17 @@ pub async fn initialize(
 /// Run the notarization
 pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     socket: T,
-    signing_key: &SigningKey,
+    crypto_provider: Arc<CryptoProvider>,
     session_id: &str,
     max_sent_data: Option<usize>,
     max_recv_data: Option<usize>,
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
+
+    let att_config = AttestationConfig::builder()
+        .supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()))
+        .build()
+        .map_err(|err| NotaryServerError::Notarization(Box::new(err)))?;
 
     let mut config_builder = VerifierConfig::builder();
 
@@ -189,10 +196,10 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         config_builder = config_builder.max_recv_data(max_recv_data);
     }
 
-    let config = config_builder.build()?;
+    let config = config_builder.crypto_provider(crypto_provider).build()?;
 
     Verifier::new(config)
-        .notarize::<_, Signature>(socket.compat(), signing_key)
+        .notarize(socket.compat(), &att_config)
         .await?;
 
     Ok(())

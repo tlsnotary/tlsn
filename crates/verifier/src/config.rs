@@ -1,12 +1,14 @@
 use mpz_ot::{chou_orlandi, kos};
-use std::fmt::{Debug, Formatter, Result};
-use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
+use std::{
+    fmt::{Debug, Formatter, Result},
+    sync::Arc,
+};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
 use tlsn_common::{
     config::{ot_recv_estimate, ot_send_estimate, DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT},
     Role,
 };
-use tlsn_core::proof::default_cert_verifier;
+use tlsn_core::CryptoProvider;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
 #[allow(missing_docs)]
@@ -21,12 +23,9 @@ pub struct VerifierConfig {
     /// Maximum number of bytes that can be received.
     #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
-    #[builder(
-        pattern = "owned",
-        setter(strip_option),
-        default = "Some(default_cert_verifier())"
-    )]
-    cert_verifier: Option<WebPkiVerifier>,
+    /// Cryptography provider.
+    #[builder(default, setter(into))]
+    crypto_provider: Arc<CryptoProvider>,
 }
 
 impl Debug for VerifierConfig {
@@ -61,11 +60,9 @@ impl VerifierConfig {
         self.max_recv_data
     }
 
-    /// Returns the certificate verifier.
-    pub fn cert_verifier(&self) -> &impl ServerCertVerifier {
-        self.cert_verifier
-            .as_ref()
-            .expect("Certificate verifier should be set")
+    /// Returns the cryptography provider.
+    pub fn crypto_provider(&self) -> &CryptoProvider {
+        &self.crypto_provider
     }
 
     pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {

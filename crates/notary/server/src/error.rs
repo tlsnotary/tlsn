@@ -3,7 +3,7 @@ use axum_core::response::{IntoResponse as AxumCoreIntoResponse, Response};
 use eyre::Report;
 use std::error::Error;
 
-use tlsn_verifier::tls::{VerifierConfigBuilderError, VerifierError};
+use tlsn_verifier::{VerifierConfigBuilderError, VerifierError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum NotaryServerError {

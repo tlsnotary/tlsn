@@ -38,6 +38,8 @@ pub struct CryptoProvider {
     pub signature: SignatureVerifierProvider,
 }
 
+opaque_debug::implement!(CryptoProvider);
+
 impl Default for CryptoProvider {
     fn default() -> Self {
         Self {

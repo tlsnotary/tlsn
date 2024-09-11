@@ -89,7 +89,7 @@ pub async fn tcp_notarize(
     debug!(?session_id, "Upgraded to tcp connection");
     match notary_service(
         stream,
-        &notary_globals.notary_signing_key,
+        notary_globals.crypto_provider.clone(),
         &session_id,
         max_sent_data,
         max_recv_data,

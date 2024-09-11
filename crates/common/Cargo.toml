@@ -8,6 +8,7 @@ edition = "2021"
 default = []
 
 [dependencies]
+tlsn-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-garble = { workspace = true }
 mpz-ot = { workspace = true }
@@ -16,3 +17,5 @@ futures = { workspace = true }
 serio = { workspace = true, features = ["codec", "bincode"] }
 tracing = { workspace = true }
 uid-mux = { workspace = true, features = ["serio"] }
+serde = { workspace = true, features = ["derive"] }
+tlsn-utils = { workspace = true }

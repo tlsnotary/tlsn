@@ -97,6 +97,11 @@ pub struct SignerProvider {
 }
 
 impl SignerProvider {
+    /// Returns the supported signature algorithms.
+    pub fn supported_algs(&self) -> impl Iterator<Item = SignatureAlgId> + '_ {
+        self.signers.keys().copied()
+    }
+
     /// Configures a signer.
     pub fn set_signer(&mut self, signer: Box<dyn Signer + Send + Sync>) {
         self.signers.insert(signer.alg_id(), signer);

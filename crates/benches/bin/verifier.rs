@@ -4,11 +4,12 @@ use tlsn_benches::{
     config::{BenchInstance, Config},
     set_interface, VERIFIER_INTERFACE,
 };
+use tlsn_core::CryptoProvider;
 use tlsn_server_fixture::CA_CERT_DER;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_verifier::{Verifier, VerifierConfig};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
@@ -63,12 +64,15 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     set_interface(VERIFIER_INTERFACE, download, 1, download_delay)?;
 
+    let mut provider = CryptoProvider::default();
+    provider.cert = cert_verifier();
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
             .id("test")
-            .cert_verifier(cert_verifier())
             .max_sent_data(upload_size + 256)
             .max_recv_data(download_size + 256)
+            .crypto_provider(provider)
             .build()?,
     );
 

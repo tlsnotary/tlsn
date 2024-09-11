@@ -3,7 +3,7 @@ use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
 use regex::Regex;
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
-use tlsn_prover::tls::{state::Prove, Prover, ProverConfig};
+use tlsn_prover::{state::Prove, Prover, ProverConfig};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -53,7 +53,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prover = Prover::new(
         ProverConfig::builder()
             .id(id)
-            .server_dns(server_domain)
+            .server_name(server_domain)
             .build()
             .unwrap(),
     )

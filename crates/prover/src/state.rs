@@ -1,16 +1,18 @@
 //! TLS prover states.
 
-use mpz_core::commit::Decommitment;
+use mpz_core::serialize::CanonicalSerialize;
 use mpz_garble::protocol::deap::PeerEncodings;
 use mpz_garble_core::{encoding_state, EncodedValue};
 use std::collections::HashMap;
-use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
 use tlsn_common::{
     mux::{MuxControl, MuxFuture},
     Context, DEAPThread, Io, OTReceiver,
 };
-use tlsn_core::{commitment::TranscriptCommitmentBuilder, msg::ProvingInfo, Transcript};
+use tlsn_core::{
+    connection::{ConnectionInfo, ServerCertData},
+    transcript::{encoding::EncodingProvider, Direction, Idx, Transcript, TranscriptCommitConfig},
+};
 
 /// Entry state
 pub struct Initialized;
@@ -41,12 +43,10 @@ pub struct Closed {
     pub(crate) ot_recv: OTReceiver,
     pub(crate) ctx: Context,
 
-    pub(crate) start_time: u64,
-    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
-    pub(crate) server_public_key: PublicKey,
+    pub(crate) connection_info: ConnectionInfo,
+    pub(crate) server_cert_data: ServerCertData,
 
-    pub(crate) transcript_tx: Transcript,
-    pub(crate) transcript_rx: Transcript,
+    pub(crate) transcript: Transcript,
 }
 
 opaque_debug::implement!(Closed);
@@ -61,31 +61,38 @@ pub struct Notarize {
     pub(crate) ot_recv: OTReceiver,
     pub(crate) ctx: Context,
 
-    pub(crate) start_time: u64,
-    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
-    pub(crate) server_public_key: PublicKey,
+    pub(crate) connection_info: ConnectionInfo,
+    pub(crate) server_cert_data: ServerCertData,
 
-    pub(crate) transcript_tx: Transcript,
-    pub(crate) transcript_rx: Transcript,
+    pub(crate) transcript: Transcript,
+    pub(crate) encoding_provider: Box<dyn EncodingProvider + Send + Sync>,
 
-    pub(crate) builder: TranscriptCommitmentBuilder,
+    pub(crate) transcript_commit_config: Option<TranscriptCommitConfig>,
 }
 
 opaque_debug::implement!(Notarize);
 
 impl From<Closed> for Notarize {
     fn from(state: Closed) -> Self {
-        let encodings = collect_encodings(&state.vm, &state.transcript_tx, &state.transcript_rx);
+        struct HashMapProvider(HashMap<String, EncodedValue<encoding_state::Active>>);
 
-        let encoding_provider = Box::new(move |ids: &[&str]| {
-            ids.iter().map(|id| encodings.get(*id).cloned()).collect()
-        });
+        impl EncodingProvider for HashMapProvider {
+            fn provide_encoding(&self, direction: Direction, idx: &Idx) -> Option<Vec<u8>> {
+                let mut encoding = Vec::new();
+                let prefix = match direction {
+                    Direction::Sent => "tx/",
+                    Direction::Received => "rx/",
+                };
+                for i in idx.iter() {
+                    encoding
+                        .extend_from_slice(&self.0.get(&format!("{}{}", prefix, i))?.to_bytes());
+                }
 
-        let builder = TranscriptCommitmentBuilder::new(
-            encoding_provider,
-            state.transcript_tx.data().len(),
-            state.transcript_rx.data().len(),
-        );
+                Some(encoding)
+            }
+        }
+
+        let encoding_provider = HashMapProvider(collect_encodings(&state.vm, &state.transcript));
 
         Self {
             io: state.io,
@@ -94,12 +101,11 @@ impl From<Closed> for Notarize {
             vm: state.vm,
             ot_recv: state.ot_recv,
             ctx: state.ctx,
-            start_time: state.start_time,
-            handshake_decommitment: state.handshake_decommitment,
-            server_public_key: state.server_public_key,
-            transcript_tx: state.transcript_tx,
-            transcript_rx: state.transcript_rx,
-            builder,
+            connection_info: state.connection_info,
+            server_cert_data: state.server_cert_data,
+            transcript: state.transcript,
+            encoding_provider: Box::new(encoding_provider),
+            transcript_commit_config: None,
         }
     }
 }
@@ -114,12 +120,9 @@ pub struct Prove {
     pub(crate) ot_recv: OTReceiver,
     pub(crate) ctx: Context,
 
-    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
+    pub(crate) server_cert_data: ServerCertData,
 
-    pub(crate) transcript_tx: Transcript,
-    pub(crate) transcript_rx: Transcript,
-
-    pub(crate) proving_info: ProvingInfo,
+    pub(crate) transcript: Transcript,
 }
 
 impl From<Closed> for Prove {
@@ -131,10 +134,8 @@ impl From<Closed> for Prove {
             vm: state.vm,
             ot_recv: state.ot_recv,
             ctx: state.ctx,
-            handshake_decommitment: state.handshake_decommitment,
-            transcript_tx: state.transcript_tx,
-            transcript_rx: state.transcript_rx,
-            proving_info: ProvingInfo::default(),
+            server_cert_data: state.server_cert_data,
+            transcript: state.transcript,
         }
     }
 }
@@ -159,11 +160,10 @@ mod sealed {
 
 fn collect_encodings(
     vm: &impl PeerEncodings,
-    transcript_tx: &Transcript,
-    transcript_rx: &Transcript,
+    transcript: &Transcript,
 ) -> HashMap<String, EncodedValue<encoding_state::Active>> {
-    let tx_ids = (0..transcript_tx.data().len()).map(|id| format!("tx/{id}"));
-    let rx_ids = (0..transcript_rx.data().len()).map(|id| format!("rx/{id}"));
+    let tx_ids = (0..transcript.sent().len()).map(|id| format!("tx/{id}"));
+    let rx_ids = (0..transcript.received().len()).map(|id| format!("rx/{id}"));
 
     let ids = tx_ids.chain(rx_ids).collect::<Vec<_>>();
     let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();

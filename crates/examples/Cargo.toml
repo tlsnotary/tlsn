@@ -17,7 +17,7 @@ futures = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
-p256 = { workspace = true, features = ["ecdsa"] }
+k256 = { workspace = true, features = ["ecdsa"] }
 regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

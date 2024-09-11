@@ -1,9 +1,9 @@
-use p256::ecdsa::SigningKey;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+use tlsn_core::CryptoProvider;
 
 use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
 
@@ -53,7 +53,7 @@ pub struct SessionData {
 /// Global data that needs to be shared with the axum handlers
 #[derive(Clone, Debug)]
 pub struct NotaryGlobals {
-    pub notary_signing_key: SigningKey,
+    pub crypto_provider: Arc<CryptoProvider>,
     pub notarization_config: NotarizationProperties,
     /// A temporary storage to store configuration data, mainly used for WebSocket client
     pub store: Arc<Mutex<HashMap<String, SessionData>>>,
@@ -63,12 +63,12 @@ pub struct NotaryGlobals {
 
 impl NotaryGlobals {
     pub fn new(
-        notary_signing_key: SigningKey,
+        crypto_provider: Arc<CryptoProvider>,
         notarization_config: NotarizationProperties,
         authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
     ) -> Self {
         Self {
-            notary_signing_key,
+            crypto_provider,
             notarization_config,
             store: Default::default(),
             authorization_whitelist,

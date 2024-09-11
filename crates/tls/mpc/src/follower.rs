@@ -7,7 +7,6 @@ use futures::{
 
 use key_exchange as ke;
 use ludi::{Address, FuturesAddress};
-use mpz_core::hash::Hash;
 
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 
@@ -60,8 +59,6 @@ pub struct MpcTlsFollower {
 /// Data collected by the MPC-TLS follower.
 #[derive(Debug)]
 pub struct MpcTlsFollowerData {
-    /// The prover's commitment to the handshake data
-    pub handshake_commitment: Option<Hash>,
     /// The server's public key
     pub server_key: PublicKey,
     /// The total number of bytes sent
@@ -77,16 +74,12 @@ impl ludi::Actor for MpcTlsFollower {
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
         debug!("follower actor stopped");
 
-        let Closed {
-            handshake_commitment,
-            server_key,
-        } = self.state.take().try_into_closed()?;
+        let Closed { server_key } = self.state.take().try_into_closed()?;
 
         let bytes_sent = self.encrypter.sent_bytes();
         let bytes_recv = self.decrypter.recv_bytes();
 
         Ok(MpcTlsFollowerData {
-            handshake_commitment,
             server_key,
             bytes_sent,
             bytes_recv,
@@ -264,19 +257,8 @@ impl MpcTlsFollower {
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    async fn compute_key_exchange(
-        &mut self,
-        handshake_commitment: Option<Hash>,
-        server_random: [u8; 32],
-    ) -> Result<(), MpcTlsError> {
+    async fn compute_key_exchange(&mut self, server_random: [u8; 32]) -> Result<(), MpcTlsError> {
         self.state.take().try_into_init()?;
-
-        if self.config.common().handshake_commit() && handshake_commitment.is_none() {
-            return Err(MpcTlsError::new(
-                Kind::PeerMisbehaved,
-                "handshake commitment missing",
-            ));
-        }
 
         // Key exchange
         self.ke.compute_pms().await?;
@@ -292,7 +274,6 @@ impl MpcTlsFollower {
         futures::try_join!(self.encrypter.start(), self.decrypter.start())?;
 
         self.state = State::Ke(Ke {
-            handshake_commitment,
             server_key: PublicKey::new(
                 NamedGroup::secp256r1,
                 server_key.to_encoded_point(false).as_bytes(),
@@ -304,15 +285,11 @@ impl MpcTlsFollower {
 
     #[instrument(level = "trace", skip_all, err)]
     async fn client_finished_vd(&mut self, handshake_hash: [u8; 32]) -> Result<(), MpcTlsError> {
-        let Ke {
-            handshake_commitment,
-            server_key,
-        } = self.state.take().try_into_ke()?;
+        let Ke { server_key } = self.state.take().try_into_ke()?;
 
         let client_finished = self.prf.compute_client_finished_vd(handshake_hash).await?;
 
         self.state = State::Cf(Cf {
-            handshake_commitment,
             server_key,
             client_finished,
         });
@@ -323,7 +300,6 @@ impl MpcTlsFollower {
     #[instrument(level = "trace", skip_all, err)]
     async fn server_finished_vd(&mut self, handshake_hash: [u8; 32]) -> Result<(), MpcTlsError> {
         let Sf {
-            handshake_commitment,
             server_key,
             server_finished,
         } = self.state.take().try_into_sf()?;
@@ -342,7 +318,6 @@ impl MpcTlsFollower {
         }
 
         self.state = State::Active(Active {
-            handshake_commitment,
             server_key,
             buffer: Default::default(),
         });
@@ -353,7 +328,6 @@ impl MpcTlsFollower {
     #[instrument(level = "trace", skip_all, err)]
     async fn encrypt_client_finished(&mut self) -> Result<(), MpcTlsError> {
         let Cf {
-            handshake_commitment,
             server_key,
             client_finished,
         } = self.state.take().try_into_cf()?;
@@ -374,7 +348,6 @@ impl MpcTlsFollower {
             .await?;
 
         self.state = State::Sf(Sf {
-            handshake_commitment,
             server_key,
             server_finished: None,
         });
@@ -523,11 +496,7 @@ impl MpcTlsFollower {
 
     #[instrument(level = "trace", skip_all, err)]
     fn close_connection(&mut self) -> Result<(), MpcTlsError> {
-        let Active {
-            handshake_commitment,
-            server_key,
-            buffer,
-        } = self.state.take().try_into_active()?;
+        let Active { server_key, buffer } = self.state.take().try_into_active()?;
 
         if !buffer.is_empty() {
             return Err(MpcTlsError::new(
@@ -536,10 +505,7 @@ impl MpcTlsFollower {
             ));
         }
 
-        self.state = State::Closed(Closed {
-            handshake_commitment,
-            server_key,
-        });
+        self.state = State::Closed(Closed { server_key });
 
         Ok(())
     }
@@ -564,12 +530,8 @@ impl MpcTlsFollower {
 #[msg(name = "{name}")]
 #[msg(attrs(derive(Debug, serde::Serialize, serde::Deserialize)))]
 impl MpcTlsFollower {
-    pub async fn compute_key_exchange(
-        &mut self,
-        handshake_commitment: Option<Hash>,
-        server_random: [u8; 32],
-    ) {
-        ctx.try_or_stop(|_| self.compute_key_exchange(handshake_commitment, server_random))
+    pub async fn compute_key_exchange(&mut self, server_random: [u8; 32]) {
+        ctx.try_or_stop(|_| self.compute_key_exchange(server_random))
             .await;
     }
 
@@ -660,27 +622,23 @@ mod state {
 
     #[derive(Debug)]
     pub(super) struct Ke {
-        pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
     }
 
     #[derive(Debug)]
     pub(super) struct Cf {
-        pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
         pub(super) client_finished: [u8; 12],
     }
 
     #[derive(Debug)]
     pub(super) struct Sf {
-        pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
         pub(super) server_finished: Option<[u8; 12]>,
     }
 
     #[derive(Debug)]
     pub(super) struct Active {
-        pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
         /// TLS messages purportedly received by the leader from the server.
         ///
@@ -691,7 +649,6 @@ mod state {
 
     #[derive(Debug)]
     pub(super) struct Closed {
-        pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
     }
 }

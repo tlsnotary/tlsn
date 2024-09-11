@@ -3,10 +3,12 @@ use std::{env, net::IpAddr};
 use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, Future};
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
-use tlsn_core::Direction;
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_core::{
+    attestation::AttestationConfig, signing::SignatureAlgId, transcript::Idx, CryptoProvider,
+};
+use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{info, instrument};
@@ -70,11 +72,14 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
         ))
         .unwrap();
 
+    let mut provider = CryptoProvider::default();
+    provider.cert = WebPkiVerifier::new(root_store, None);
+
     let config = VerifierConfig::builder()
         .id("test")
         .max_sent_data(1024)
         .max_recv_data(1024)
-        .cert_verifier(WebPkiVerifier::new(root_store, None))
+        .crypto_provider(provider)
         .build()
         .unwrap();
 
@@ -87,19 +92,26 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
 
 #[instrument(level = "debug", skip_all, err)]
 async fn handle_notary(io: TcpStream) -> Result<()> {
+    let mut provider = CryptoProvider::default();
+
+    provider.signer.set_secp256k1(&[1u8; 32]).unwrap();
+
     let config = VerifierConfig::builder()
         .id("test")
         .max_sent_data(1024)
         .max_recv_data(1024)
+        .crypto_provider(provider)
         .build()
         .unwrap();
 
     let verifier = Verifier::new(config);
-    let signing_key = p256::ecdsa::SigningKey::random(&mut rand::thread_rng());
 
-    verifier
-        .notarize::<_, p256::ecdsa::Signature>(io.compat(), &signing_key)
-        .await?;
+    let mut builder = AttestationConfig::builder();
+    builder.supported_signature_algs(vec![SignatureAlgId::SECP256K1]);
+
+    let attestation_config = builder.build().unwrap();
+
+    verifier.notarize(io.compat(), &attestation_config).await?;
 
     Ok(())
 }
@@ -111,13 +123,16 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let mut provider = CryptoProvider::default();
+    provider.cert = WebPkiVerifier::new(root_store, None);
+
     let prover = Prover::new(
         ProverConfig::builder()
             .id("test")
-            .server_dns(SERVER_DOMAIN)
+            .server_name(SERVER_DOMAIN)
             .max_sent_data(1024)
             .max_recv_data(1024)
-            .root_cert_store(root_store)
+            .crypto_provider(provider)
             .build()
             .unwrap(),
     )
@@ -152,13 +167,14 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
 
     let mut prover = prover_task.await.unwrap().unwrap().start_prove();
 
-    let sent_transcript_len = prover.sent_transcript().data().len();
-    let recv_transcript_len = prover.recv_transcript().data().len();
+    let sent_transcript_len = prover.transcript().sent().len();
+    let recv_transcript_len = prover.transcript().received().len();
+
+    let sent_idx = Idx::new(0..sent_transcript_len - 1);
+    let recv_idx = Idx::new(2..recv_transcript_len);
 
     // Reveal parts of the transcript
-    _ = prover.reveal(0..sent_transcript_len - 1, Direction::Sent);
-    _ = prover.reveal(2..recv_transcript_len, Direction::Received);
-    prover.prove().await.unwrap();
+    prover.prove_transcript(sent_idx, recv_idx).await.unwrap();
 
     prover.finalize().await.unwrap();
 
