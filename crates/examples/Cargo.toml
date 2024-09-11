@@ -54,5 +54,9 @@ name = "discord_dm_verifier"
 path = "discord/discord_dm_verifier.rs"
 
 [[example]]
-name = "interactive"
-path = "interactive/interactive.rs"
+name = "interactive_simple"
+path = "interactive-simple/interactive_simple.rs"
+
+[[example]]
+name = "interactive_networked"
+path = "interactive-networked/main.rs"

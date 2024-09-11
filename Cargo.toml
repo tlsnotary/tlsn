@@ -11,6 +11,8 @@ members = [
     "crates/components/universal-hash",
     "crates/core",
     "crates/examples",
+    "crates/examples/interactive-networked/verifier",
+    "crates/examples/interactive-networked/prover",
     "crates/formats",
     "crates/notary/client",
     "crates/notary/server",

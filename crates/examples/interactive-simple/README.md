@@ -2,4 +2,6 @@
 
 This example demonstrates how to use TLSNotary in a simple interactive session between a Prover and a Verifier. It involves the Verifier first verifying the MPC-TLS session and then confirming the correctness of the data.
 
+In this example the Prover connects to <https://example.com> and proves its content to the Verifier.
+
 Note: In this example, the Prover and the Verifier run on the same machine. In real-world scenarios, the Prover and Verifier would be separate entities.

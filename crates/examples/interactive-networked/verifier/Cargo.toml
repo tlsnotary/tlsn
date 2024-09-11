@@ -1,0 +1,36 @@
+[package]
+name = "interactive-networked-verifier"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.67"
+async-tungstenite = { version = "0.25", features = ["tokio-native-tls"] }
+axum = { version = "0.7", features = ["ws"] }
+axum-core = "0.4"
+base64 = "0.21.0"
+eyre = "0.6.12"
+futures-util = "0.3.28"
+http = { version = "1.1" }
+http-body-util = { version = "0.1" }
+hyper = { version = "1.1", features = ["client", "http1", "server"] }
+hyper-util = { version = "0.1", features = ["full"] }
+serde = { version = "1.0.147", features = ["derive"] }
+sha1 = "0.10"
+tokio = {version = "1", features = [
+  "rt",
+  "rt-multi-thread",
+  "macros",
+  "net",
+  "io-std",
+  "fs",
+]}
+tokio-util = { version = "0.7", features = ["compat"] }
+tower = { version = "0.4.12", features = ["make"] }
+tower-service = { version = "0.3" }
+tracing = "0.1.40"
+tracing-subscriber = { version ="0.3.18", features = ["env-filter"] }
+ws_stream_tungstenite = { version = "0.13", features = ["tokio_io"] }
+
+tlsn-core = { git = "https://github.com/tlsnotary/tlsn.git", tag = "v0.1.0-alpha.6", package = "tlsn-core" }
+tlsn-verifier = { git = "https://github.com/tlsnotary/tlsn.git", tag = "v0.1.0-alpha.6", package = "tlsn-verifier" }
