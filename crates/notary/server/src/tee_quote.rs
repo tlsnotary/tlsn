@@ -36,7 +36,7 @@ pub async fn sgx_quote(State(_notary_globals): State<NotaryGlobals>) -> Result<
 }
 
 #[debug_handler(state = NotaryGlobals)]
-pub async fn get_quote(State(notary_globals): State<NotaryGlobals>) -> Response {
+pub async fn collateral(State(notary_globals): State<NotaryGlobals>) -> Response {
 
     let mut target_info: sgx_target_info_t = Default::default();
     let _result = sgx_dcap_ql_rs::sgx_qe_get_target_info(&mut target_info);

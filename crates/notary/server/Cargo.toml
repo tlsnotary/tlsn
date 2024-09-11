@@ -4,7 +4,7 @@ version = "0.1.0-alpha.6"
 edition = "2021"
 
 [features]
-attestation = ["dep:sgx-dcap-ql-rs",]
+tee_quote = ["dep:sgx-dcap-ql-rs",]
 
 [dependencies]
 tlsn-common = { workspace = true }
