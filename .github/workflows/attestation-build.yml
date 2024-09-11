@@ -1,0 +1,33 @@
+name: attestation-build
+
+on:
+  push:
+    branches: [ "attest" ]
+  pull_request:
+    branches: [ "attest" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: azure-demo ${{ github.sha }}
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+         host: ${{ secrets.HOST }}
+         username: ${{ secrets.USERNAME }}
+         key: ${{ secrets.KEY }}
+         port: ${{ secrets.PORT }}
+         command_timeout: 120m
+         script: |
+            cd /tmp 
+            git clone https://github.com/tlsnotary/tlsn ${{ github.sha }}
+            cd ${{ github.sha }}
+            git checkout ${{ github.sha }}
+            cd crates/notary/server
+            timeout 120 sh -c 'until nc -z $0 $1; do sleep 1; done' localhost 7047 &
+            /home/ubuntu/.cargo/bin/cargo run --bin notary-server --features attestation
