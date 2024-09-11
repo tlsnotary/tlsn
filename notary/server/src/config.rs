@@ -50,8 +50,8 @@ pub struct ServerProperties {
 pub struct TLSProperties {
     /// Flag to turn on/off TLS between prover and notary (should always be turned on unless TLS is handled by external setup e.g. reverse proxy, cloud)
     pub enabled: bool,
-    pub private_key_pem_path: String,
-    pub certificate_pem_path: String,
+    pub private_key_pem_path: Option<String>,
+    pub certificate_pem_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]

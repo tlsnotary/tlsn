@@ -13,6 +13,13 @@ async fn main() -> Result<(), NotaryServerError> {
     let cli_fields: CliFields = CliFields::from_args();
     let config: NotaryServerProperties = parse_config_file(&cli_fields.config_file)?;
 
+    // Check TLS configuration
+    if config.tls.enabled {
+        if config.tls.private_key_pem_path.is_none() || config.tls.certificate_pem_path.is_none() {
+            return Err(NotaryServerError::ConfigurationError("TLS private key and certificate paths must be set when TLS is enabled.".into()));
+        }
+    }
+
     // Set up tracing for logging
     init_tracing(&config).map_err(|err| eyre!("Failed to set up tracing: {err}"))?;
 

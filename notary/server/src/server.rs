@@ -228,15 +228,18 @@ async fn load_notary_signing_key(config: &NotarySigningKeyProperties) -> Result<
 }
 
 /// Read a PEM-formatted file and return its buffer reader
-pub async fn read_pem_file(file_path: &str) -> Result<BufReader<StdFile>> {
+pub async fn read_pem_file(file_path: &Option<String>) -> Result<BufReader<StdFile>> {
+    let file_path = file_path.as_ref().ok_or_else(|| {
+        eyre!("Failed to read pem file as the file path is not provided in the config")
+    })?;
     let key_file = File::open(file_path).await?.into_std().await;
     Ok(BufReader::new(key_file))
 }
 
 /// Load notary tls private key and cert from static files
 async fn load_tls_key_and_cert(
-    private_key_pem_path: &str,
-    certificate_pem_path: &str,
+    private_key_pem_path: &Option<String>,
+    certificate_pem_path: &Option<String>,
 ) -> Result<(PrivateKey, Vec<Certificate>)> {
     debug!("Loading notary server's tls private key and certificate");
 
