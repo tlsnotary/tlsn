@@ -38,7 +38,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .unwrap();
 
     let protocol_config = ProtocolConfig::builder()
-        .max_recv_data(MAX_SENT_DATA)
+        .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
         .max_recv_data_online(MAX_RECV_DATA)
         .build()
