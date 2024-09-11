@@ -1,5 +1,5 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
-use tlsn_common::config::ProtocolConfig;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
@@ -120,8 +120,15 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     let verifier_config = VerifierConfig::builder()
         .id("test")
+        .protocol_config_validator(config_validator)
         .cert_verifier(WebPkiVerifier::new(root_store, None))
         .build()
         .unwrap();

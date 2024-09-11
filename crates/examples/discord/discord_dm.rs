@@ -21,10 +21,6 @@ const SERVER_DOMAIN: &str = "discord.com";
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
-// P/S: If the following limits are increased, please ensure max-transcript-size of
-// the notary server's config (../../notary/server) is increased too, where
-// max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
-//
 // Maximum number of bytes that can be sent from prover to server
 const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server

@@ -1,4 +1,4 @@
-use tlsn_common::config::ProtocolConfig;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -101,7 +101,19 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
 #[instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
-    let verifier = Verifier::new(VerifierConfig::builder().id("test").build().unwrap());
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let verifier = Verifier::new(
+        VerifierConfig::builder()
+            .id("test")
+            .protocol_config_validator(config_validator)
+            .build()
+            .unwrap(),
+    );
     let signing_key = p256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap();
 
     _ = verifier

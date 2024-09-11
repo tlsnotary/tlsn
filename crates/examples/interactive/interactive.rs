@@ -1,7 +1,7 @@
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
-use tlsn_common::config::ProtocolConfig;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{state::Prove, Prover, ProverConfig};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -12,10 +12,6 @@ use tracing::instrument;
 const SECRET: &str = "TLSNotary's private key 🤡";
 const SERVER_DOMAIN: &str = "example.com";
 
-// P/S: If the following limits are increased, please ensure max-transcript-size of
-// the notary server's config (../../notary/server) is increased too, where
-// max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
-//
 // Maximum number of bytes that can be sent from prover to server
 const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server
@@ -130,7 +126,17 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     id: &str,
 ) -> (RedactedTranscript, RedactedTranscript, SessionInfo) {
     // Setup Verifier.
-    let verifier_config = VerifierConfig::builder().id(id).build().unwrap();
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let verifier_config = VerifierConfig::builder()
+        .id(id)
+        .protocol_config_validator(config_validator)
+        .build()
+        .unwrap();
     let verifier = Verifier::new(verifier_config);
 
     // Verify MPC-TLS and wait for (redacted) data.
