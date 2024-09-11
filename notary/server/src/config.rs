@@ -23,7 +23,7 @@ pub struct AuthorizationProperties {
     /// Switch to turn on or off auth middleware
     pub enabled: bool,
     /// File path of the whitelist API key csv
-    pub whitelist_csv_path: String,
+    pub whitelist_csv_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]

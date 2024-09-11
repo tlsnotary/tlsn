@@ -16,7 +16,18 @@ async fn main() -> Result<(), NotaryServerError> {
     // Check TLS configuration
     if config.tls.enabled {
         if config.tls.private_key_pem_path.is_none() || config.tls.certificate_pem_path.is_none() {
-            return Err(NotaryServerError::ConfigurationError("TLS private key and certificate paths must be set when TLS is enabled.".into()));
+            return Err(NotaryServerError::ConfigurationError(
+                "TLS private key and certificate paths must be set when TLS is enabled.".into(),
+            ));
+        }
+    }
+
+    // Check Authorization configuration
+    if config.authorization.enabled {
+        if config.authorization.whitelist_csv_path.is_none() {
+            return Err(NotaryServerError::ConfigurationError(
+                "whitelist_csv_path must be set when authorization is enabled.".into(),
+            ));
         }
     }
 

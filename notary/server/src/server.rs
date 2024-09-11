@@ -269,11 +269,15 @@ fn load_authorization_whitelist(
         debug!("Skipping authorization as it is turned off.");
         None
     } else {
+        // Check if whitelist_csv_path is Some and convert to &str
+        let whitelist_csv_path = config
+            .authorization
+            .whitelist_csv_path
+            .as_deref()
+            .ok_or_else(|| eyre!("Whitelist CSV path is not provided in the config"))?;
         // Load the csv
-        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(
-            &config.authorization.whitelist_csv_path,
-        )
-        .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
+        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
+            .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
         // Convert the whitelist record into hashmap for faster lookup
         let whitelist_hashmap = authorization_whitelist_vec_into_hashmap(whitelist_csv);
         Some(whitelist_hashmap)
@@ -321,10 +325,17 @@ fn watch_and_reload_authorization_whitelist(
         )
         .map_err(|err| eyre!("Error occured when setting up watcher for hot reload: {err}"))?;
 
+        // Check if whitelist_csv_path is Some and convert to &str
+        let whitelist_csv_path = config
+            .authorization
+            .whitelist_csv_path
+            .as_deref()
+            .ok_or_else(|| eyre!("Whitelist CSV path is not provided in the config"))?;
+
         // Start watcher to listen to any changes on the whitelist file
         watcher
             .watch(
-                Path::new(&config.authorization.whitelist_csv_path),
+                Path::new(whitelist_csv_path),
                 RecursiveMode::Recursive,
             )
             .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
@@ -350,8 +361,8 @@ mod test {
 
     #[tokio::test]
     async fn test_load_notary_key_and_cert() {
-        let private_key_pem_path = "./fixture/tls/notary.key";
-        let certificate_pem_path = "./fixture/tls/notary.crt";
+        let private_key_pem_path = &Some("./fixture/tls/notary.key".to_string());
+        let certificate_pem_path = &Some("./fixture/tls/notary.crt".to_string());
         let result: Result<(PrivateKey, Vec<Certificate>)> =
             load_tls_key_and_cert(private_key_pem_path, certificate_pem_path).await;
         assert!(result.is_ok(), "Could not load tls private key and cert");
