@@ -12,7 +12,6 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tlsn_common::config::{DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT};
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
@@ -30,10 +29,8 @@ use crate::error::{ClientError, ErrorKind};
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct NotarizationRequest {
     /// Maximum number of bytes that can be sent.
-    #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
     /// Maximum number of bytes that can be received.
-    #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
 }
 

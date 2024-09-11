@@ -7,11 +7,6 @@ use std::error::Error;
 
 use crate::Role;
 
-/// Default for the maximum number of bytes that can be sent (4KB).
-pub const DEFAULT_MAX_SENT_LIMIT: usize = 1 << 12;
-/// Default for the maximum number of bytes that can be received (16KB).
-pub const DEFAULT_MAX_RECV_LIMIT: usize = 1 << 14;
-
 // Extra cushion room, eg. for sharing J0 blocks.
 const EXTRA_OTS: usize = 16384;
 
@@ -109,20 +104,12 @@ impl ProtocolConfig {
 #[derive(derive_builder::Builder, Clone, Debug)]
 pub struct ProtocolConfigValidator {
     /// Maximum number of bytes that can be sent.
-    #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
     /// Maximum number of bytes that can be received.
-    #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
     /// Version that is being run by checker.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
-}
-
-impl Default for ProtocolConfigValidator {
-    fn default() -> Self {
-        Self::builder().build().unwrap()
-    }
 }
 
 impl ProtocolConfigValidator {
@@ -280,16 +267,23 @@ mod test {
     use super::*;
     use rstest::{fixture, rstest};
 
+    const TEST_MAX_SENT_LIMIT: usize = 1 << 12;
+    const TEST_MAX_RECV_LIMIT: usize = 1 << 14;
+
     #[fixture]
     #[once]
     fn config_validator() -> ProtocolConfigValidator {
-        ProtocolConfigValidator::builder().build().unwrap()
+        ProtocolConfigValidator::builder()
+            .max_sent_data(TEST_MAX_SENT_LIMIT)
+            .max_recv_data(TEST_MAX_RECV_LIMIT)
+            .build()
+            .unwrap()
     }
 
     #[rstest]
-    #[case::same_max_sent_recv_data(DEFAULT_MAX_SENT_LIMIT, DEFAULT_MAX_RECV_LIMIT)]
-    #[case::smaller_max_sent_data(1 << 11, DEFAULT_MAX_RECV_LIMIT)]
-    #[case::smaller_max_recv_data(DEFAULT_MAX_SENT_LIMIT, 1 << 13)]
+    #[case::same_max_sent_recv_data(TEST_MAX_SENT_LIMIT, TEST_MAX_RECV_LIMIT)]
+    #[case::smaller_max_sent_data(1 << 11, TEST_MAX_RECV_LIMIT)]
+    #[case::smaller_max_recv_data(TEST_MAX_SENT_LIMIT, 1 << 13)]
     #[case::smaller_max_sent_recv_data(1 << 7, 1 << 9)]
     fn test_check_success(
         config_validator: &ProtocolConfigValidator,
@@ -306,7 +300,7 @@ mod test {
     }
 
     #[rstest]
-    #[case::bigger_max_sent_data(1 << 13, DEFAULT_MAX_RECV_LIMIT)]
+    #[case::bigger_max_sent_data(1 << 13, TEST_MAX_RECV_LIMIT)]
     #[case::bigger_max_recv_data(1 << 10, 1 << 16)]
     #[case::bigger_max_sent_recv_data(1 << 14, 1 << 21)]
     fn test_check_fail(

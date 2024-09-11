@@ -12,7 +12,6 @@ use tlsn_core::proof::default_cert_verifier;
 pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
-    #[builder(default)]
     protocol_config_validator: ProtocolConfigValidator,
     #[builder(
         pattern = "owned",

@@ -54,7 +54,11 @@ async fn main() {
         .unwrap();
 
     // Send requests for configuration and notarization to the notary server.
-    let notarization_request = NotarizationRequest::builder().build().unwrap();
+    let notarization_request = NotarizationRequest::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
 
     let Accepted {
         io: notary_connection,
