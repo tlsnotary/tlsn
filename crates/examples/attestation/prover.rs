@@ -5,6 +5,7 @@ use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::ops::Range;
+use tlsn_common::config::ProtocolConfig;
 use tlsn_core::proof::TlsProof;
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -27,10 +28,18 @@ async fn main() {
     // Start a local simple notary service
     tokio::spawn(run_notary(notary_socket.compat()));
 
-    // A Prover configuration
+    // Prover configuration.
     let config = ProverConfig::builder()
         .id("example")
         .server_dns(SERVER_DOMAIN)
+        .protocol_config(
+            ProtocolConfig::builder()
+                // Configure the limit of the data sent and received.
+                .max_sent_data(1024)
+                .max_recv_data(4096)
+                .build()
+                .unwrap(),
+        )
         .build()
         .unwrap();
 

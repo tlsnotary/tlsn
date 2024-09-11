@@ -16,7 +16,6 @@ pub struct ProverConfig {
     #[builder(setter(strip_option), default = "default_root_store()")]
     pub(crate) root_cert_store: RootCertStore,
     /// Protocol configuration to be checked with the verifier.
-    #[builder(default)]
     protocol_config: ProtocolConfig,
     /// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
     /// connection.

@@ -51,12 +51,6 @@ impl ProtocolConfigBuilder {
     }
 }
 
-impl Default for ProtocolConfig {
-    fn default() -> Self {
-        Self::builder().build().unwrap()
-    }
-}
-
 impl ProtocolConfig {
     /// Creates a new builder for `ProtocolConfig`.
     pub fn builder() -> ProtocolConfigBuilder {
