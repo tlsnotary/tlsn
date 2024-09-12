@@ -117,7 +117,6 @@
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
 <a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>mpz_ot::{chou_orlandi, kos};
 <span class="kw">use </span>tls_client::RootCertStore;
 <span class="kw">use </span>tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
@@ -136,7 +135,6 @@
     </span><span class="attr">#[builder(setter(strip_option), default = <span class="string">"default_root_store()"</span>)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) root_cert_store: RootCertStore,
     <span class="doccomment">/// Protocol configuration to be checked with the verifier.
-    </span><span class="attr">#[builder(default)]
     </span>protocol_config: ProtocolConfig,
     <span class="doccomment">/// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
     /// connection.
