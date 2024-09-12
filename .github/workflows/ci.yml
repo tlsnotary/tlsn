@@ -98,7 +98,7 @@ jobs:
       - name: Run tests
         run: |
           cd crates/wasm-test-runner
-          RUST_LOG=debug ./run.sh
+          ./run.sh
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
