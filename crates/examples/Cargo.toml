@@ -44,3 +44,11 @@ path = "attestation/verifier.rs"
 [[example]]
 name = "interactive"
 path = "interactive/interactive.rs"
+
+[[example]]
+name = "discord_dm"
+path = "discord/discord_dm.rs"
+
+[[example]]
+name = "discord_dm_verifier"
+path = "discord/discord_dm_verifier.rs"
