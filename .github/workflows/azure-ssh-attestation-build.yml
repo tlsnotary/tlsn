@@ -2,9 +2,9 @@ name: azure-ssh-attestation-build
 
 on:
   push:
-    branches: [ "attest" ]
+    branches: [ "quote-presentation" ]
   pull_request:
-    branches: [ "attest" ]
+    branches: [ "quote-presentation" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,10 +18,10 @@ jobs:
     - name: azure-demo ${{ github.sha }}
       uses: appleboy/ssh-action@v1.0.3
       with:
-         host: ${{ secrets.HOST }}
-         username: ${{ secrets.USERNAME }}
-         key: ${{ secrets.KEY }}
-         port: ${{ secrets.PORT }}
+         host: ${{ secrets.AZURE_TEE_BUILD_HOST }}
+         username: ${{ secrets.AZURE_BUILD_TEE_USERNAME }}
+         key: ${{ secrets.AZURE_BUILD_TEE_KEY }}
+         port: ${{ secrets.SSH_PORT }}
          command_timeout: 120m
          script: |
             cd /tmp 
@@ -30,4 +30,4 @@ jobs:
             git checkout ${{ github.sha }}
             cd crates/notary/server
             timeout 120 sh -c 'until nc -z $0 $1; do sleep 1; done' localhost 7047 &
-            /home/ubuntu/.cargo/bin/cargo run --bin notary-server --features attestation
+            /home/ubuntu/.cargo/bin/cargo run --bin notary-server --features tee_quote
