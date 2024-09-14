@@ -29,5 +29,6 @@ jobs:
             cd ${{ github.sha }}
             git checkout ${{ github.sha }}
             cd crates/notary/server
+            : # if nc cant dial 7047 within 120m: ❌; else ✅ 
             timeout 120 sh -c 'until nc -z $0 $1; do sleep 1; done' localhost 7047 &
             /home/ubuntu/.cargo/bin/cargo run --bin notary-server --features tee_quote
