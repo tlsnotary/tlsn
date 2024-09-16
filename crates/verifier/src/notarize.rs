@@ -32,7 +32,7 @@ impl Verifier<Notarize> {
             connection_info,
         } = self.state;
 
-        let session_header = mux_fut
+        let attestation = mux_fut
             .poll_with(async {
                 // Receive attestation request, which also contains commitments required before
                 // finalization.
@@ -73,6 +73,6 @@ impl Verifier<Notarize> {
             mux_fut.await?;
         }
 
-        Ok(session_header)
+        Ok(attestation)
     }
 }
