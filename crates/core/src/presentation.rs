@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     attestation::{Attestation, AttestationError, AttestationProof},
     connection::{ConnectionInfo, ServerIdentityProof, ServerIdentityProofError, ServerName},
@@ -10,7 +12,7 @@ use crate::{
 };
 
 /// A verifiable presentation.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Presentation {
     attestation: AttestationProof,
     identity: Option<ServerIdentityProof>,
@@ -57,6 +59,7 @@ impl Presentation {
         let connection_info = attestation.body.connection_info().clone();
 
         Ok(PresentationOutput {
+            attestation,
             server_name,
             connection_info,
             transcript,
@@ -68,6 +71,8 @@ impl Presentation {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct PresentationOutput {
+    /// Verified attestation.
+    pub attestation: Attestation,
     /// Authenticated server name.
     pub server_name: Option<ServerName>,
     /// Connection information.
