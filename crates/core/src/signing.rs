@@ -40,6 +40,7 @@ impl KeyAlgId {
 impl std::fmt::Display for KeyAlgId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
+            KeyAlgId::K256 => write!(f, "k256"),
             KeyAlgId::P256 => write!(f, "p256"),
             _ => write!(f, "custom({:02x})", self.0),
         }
