@@ -6,7 +6,7 @@ use futures::{
 };
 
 use key_exchange as ke;
-use ludi::{Address, FuturesAddress};
+use mpz_core::hash::Hash;
 
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 
@@ -37,7 +37,6 @@ use crate::{
 pub type FollowerCtrl = MpcTlsFollowerCtrl<FuturesAddress<MpcTlsFollowerMsg>>;
 
 /// MPC-TLS follower.
-#[derive(ludi::Controller)]
 pub struct MpcTlsFollower {
     state: State,
     config: MpcTlsFollowerConfig,
@@ -531,9 +530,6 @@ impl MpcTlsFollower {
     }
 }
 
-#[ludi::implement]
-#[msg(name = "{name}")]
-#[msg(attrs(derive(Debug, serde::Serialize, serde::Deserialize)))]
 impl MpcTlsFollower {
     pub async fn compute_key_exchange(&mut self, server_random: [u8; 32]) {
         ctx.try_or_stop(|_| self.compute_key_exchange(server_random))
