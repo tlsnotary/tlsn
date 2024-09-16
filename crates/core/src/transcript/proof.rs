@@ -66,7 +66,7 @@ impl TranscriptProof {
         for proof in self.hash_proofs {
             let commitment = attestation_body
                 .plaintext_hashes()
-                .get_by_id(proof.commitment_id())
+                .get_by_field_id(proof.commitment_id())
                 .map(|field| &field.data)
                 .ok_or_else(|| {
                     TranscriptProofError::new(
@@ -227,7 +227,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                     commitment,
                     blinder,
                     ..
-                }) = self.plaintext_hashes.get_by_idx(&idx)
+                }) = self.plaintext_hashes.get_by_transcript_idx(&idx)
                 else {
                     return Err(TranscriptProofBuilderError::new(
                         BuilderErrorKind::MissingCommitment,
