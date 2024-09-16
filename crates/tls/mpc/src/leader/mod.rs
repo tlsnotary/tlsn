@@ -1,14 +1,22 @@
-use std::{collections::VecDeque, future::Future};
-
+use crate::{
+    error::Kind,
+    follower::{
+        ClientFinishedVd, CommitMessage, ComputeKeyExchange, DecryptAlert, DecryptMessage,
+        DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
+        ServerFinishedVd,
+    },
+    msg::{CloseConnection, Commit, MpcTlsMessage},
+    record_layer::{Decrypter, Encrypter},
+    Direction, MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
+};
+use aead::{aes_gcm::AesGcmError, Aead};
 use async_trait::async_trait;
 use futures::SinkExt;
-
-use key_exchange as ke;
-
-use aead::{aes_gcm::AesGcmError, Aead};
 use hmac_sha256::Prf;
 use ke::KeyExchange;
-
+use key_exchange as ke;
+use mpz_core::commit::{Decommitment, HashCommit};
+use std::collections::VecDeque;
 use tls_backend::{
     Backend, BackendError, BackendNotifier, BackendNotify, DecryptMode, EncryptMode,
 };
@@ -26,25 +34,11 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
-use tracing::{debug, instrument, trace, Instrument};
+use tracing::{debug, instrument, trace};
 
-use crate::{
-    error::Kind,
-    follower::{
-        ClientFinishedVd, CommitMessage, ComputeKeyExchange, DecryptAlert, DecryptMessage,
-        DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
-        ServerFinishedVd,
-    },
-    msg::{CloseConnection, Commit, MpcTlsLeaderMsg, MpcTlsMessage},
-    record_layer::{Decrypter, Encrypter},
-    Direction, MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
-};
-
-/// Controller for MPC-TLS leader.
-pub type LeaderCtrl = MpcTlsLeaderCtrl<ludi::FuturesAddress<MpcTlsLeaderMsg>>;
+pub mod actor;
 
 /// MPC-TLS leader.
-#[derive(ludi::Controller)]
 pub struct MpcTlsLeader {
     config: MpcTlsLeaderConfig,
     channel: MpcTlsChannel,
@@ -66,19 +60,6 @@ pub struct MpcTlsLeader {
     buffer: VecDeque<OpaqueMessage>,
     /// Whether we have already committed to the transcript.
     committed: bool,
-}
-
-impl ludi::Actor for MpcTlsLeader {
-    type Stop = MpcTlsData;
-    type Error = MpcTlsError;
-
-    async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
-        debug!("leader actor stopped");
-
-        let state::Closed { data } = self.state.take().try_into_closed()?;
-
-        Ok(data)
-    }
 }
 
 impl MpcTlsLeader {
@@ -148,28 +129,6 @@ impl MpcTlsLeader {
             .await?;
 
         Ok(())
-    }
-
-    /// Runs the leader actor.
-    ///
-    /// Returns a control handle and a future that resolves when the actor is
-    /// stopped.
-    ///
-    /// # Note
-    ///
-    /// The future must be polled continuously to make progress.
-    pub fn run(
-        mut self,
-    ) -> (
-        LeaderCtrl,
-        impl Future<Output = Result<MpcTlsData, MpcTlsError>>,
-    ) {
-        let (mut mailbox, addr) = ludi::mailbox(100);
-
-        let ctrl = LeaderCtrl::from(addr);
-        let fut = async move { ludi::run(&mut self, &mut mailbox).await };
-
-        (ctrl, fut.in_current_span())
     }
 
     /// Returns the number of bytes sent and received.
@@ -358,11 +317,9 @@ impl MpcTlsLeader {
     }
 }
 
-#[ludi::implement(msg(name = "{name}"), ctrl(err))]
 impl MpcTlsLeader {
     /// Closes the connection.
     #[instrument(name = "close_connection", level = "debug", skip_all, err)]
-    #[msg(skip, name = "CloseConnection")]
     pub async fn close_connection(&mut self) -> Result<(), MpcTlsError> {
         debug!("closing connection");
 
@@ -396,15 +353,11 @@ impl MpcTlsLeader {
     /// This reveals the AEAD key to the leader and disables sending or
     /// receiving any further messages.
     #[instrument(name = "finalize", level = "debug", skip_all, err)]
-    #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
         self.commit().await
     }
 }
 
-#[ludi::implement]
-#[ctrl(err = "MpcTlsError::from")]
-#[msg(foreign, wrap, vis = "pub")]
 #[async_trait]
 impl Backend for MpcTlsLeader {
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
