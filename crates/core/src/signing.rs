@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::hash::impl_domain_separator;
+
 /// Key algorithm identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct KeyAlgId(u8);
@@ -97,6 +99,11 @@ pub struct SignerProvider {
 }
 
 impl SignerProvider {
+    /// Returns the supported signature algorithms.
+    pub fn supported_algs(&self) -> impl Iterator<Item = SignatureAlgId> + '_ {
+        self.signers.keys().copied()
+    }
+
     /// Configures a signer.
     pub fn set_signer(&mut self, signer: Box<dyn Signer + Send + Sync>) {
         self.signers.insert(signer.alg_id(), signer);
@@ -105,6 +112,13 @@ impl SignerProvider {
     /// Configures a secp256k1 signer with the provided signing key.
     pub fn set_secp256k1(&mut self, key: &[u8]) -> Result<&mut Self, SignerError> {
         self.set_signer(Box::new(Secp256k1Signer::new(key)?));
+
+        Ok(self)
+    }
+
+    /// Configures a secp256r1 signer with the provided signing key.
+    pub fn set_secp256r1(&mut self, key: &[u8]) -> Result<&mut Self, SignerError> {
+        self.set_signer(Box::new(Secp256r1Signer::new(key)?));
 
         Ok(self)
     }
@@ -148,6 +162,7 @@ impl Default for SignatureVerifierProvider {
         let mut verifiers = HashMap::new();
 
         verifiers.insert(SignatureAlgId::SECP256K1, Box::new(Secp256k1Verifier) as _);
+        verifiers.insert(SignatureAlgId::SECP256R1, Box::new(Secp256r1Verifier) as _);
 
         Self { verifiers }
     }
@@ -281,4 +296,78 @@ mod secp256k1 {
 
 pub use secp256k1::{Secp256k1Signer, Secp256k1Verifier};
 
-use crate::hash::impl_domain_separator;
+mod secp256r1 {
+    use std::sync::{Arc, Mutex};
+
+    use p256::ecdsa::{
+        signature::{SignerMut, Verifier},
+        Signature as Secp256R1Signature, SigningKey,
+    };
+
+    use super::*;
+
+    /// secp256r1 signer.
+    pub struct Secp256r1Signer(Arc<Mutex<SigningKey>>);
+
+    impl Secp256r1Signer {
+        /// Creates a new secp256r1 signer with the provided signing key.
+        pub fn new(key: &[u8]) -> Result<Self, SignerError> {
+            SigningKey::from_slice(key)
+                .map(|key| Self(Arc::new(Mutex::new(key))))
+                .map_err(|_| SignerError("invalid key".to_string()))
+        }
+    }
+
+    impl Signer for Secp256r1Signer {
+        fn alg_id(&self) -> SignatureAlgId {
+            SignatureAlgId::SECP256R1
+        }
+
+        fn sign(&self, msg: &[u8]) -> Result<Signature, SignatureError> {
+            let sig: Secp256R1Signature = self.0.lock().unwrap().sign(msg);
+
+            Ok(Signature {
+                alg: SignatureAlgId::SECP256R1,
+                data: sig.to_vec(),
+            })
+        }
+
+        fn verifying_key(&self) -> VerifyingKey {
+            let key = self.0.lock().unwrap().verifying_key().to_sec1_bytes();
+
+            VerifyingKey {
+                alg: KeyAlgId::P256,
+                data: key.to_vec(),
+            }
+        }
+    }
+
+    /// secp256r1 verifier.
+    pub struct Secp256r1Verifier;
+
+    impl SignatureVerifier for Secp256r1Verifier {
+        fn alg_id(&self) -> SignatureAlgId {
+            SignatureAlgId::SECP256R1
+        }
+
+        fn verify(&self, key: &VerifyingKey, msg: &[u8], sig: &[u8]) -> Result<(), SignatureError> {
+            if key.alg != KeyAlgId::P256 {
+                return Err(SignatureError("key algorithm is not p256".to_string()));
+            }
+
+            let key = p256::ecdsa::VerifyingKey::from_sec1_bytes(&key.data)
+                .map_err(|_| SignatureError("invalid p256 key".to_string()))?;
+
+            let sig = Secp256R1Signature::from_slice(sig)
+                .map_err(|_| SignatureError("invalid secp256r1 signature".to_string()))?;
+
+            key.verify(msg, &sig).map_err(|_| {
+                SignatureError("secp256r1 signature verification failed".to_string())
+            })?;
+
+            Ok(())
+        }
+    }
+}
+
+pub use secp256r1::{Secp256r1Signer, Secp256r1Verifier};
