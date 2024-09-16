@@ -162,7 +162,6 @@ pub struct PartialTranscript {
     sent: Vec<u8>,
     /// Data received by the Prover from the Server.
     received: Vec<u8>,
-
     /// Index of `sent` which have been authenticated.
     sent_authed: Idx,
     /// Index of `received` which have been authenticated.
