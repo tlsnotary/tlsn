@@ -10,22 +10,22 @@ use crate::{
     },
 };
 
-/// Index for items which can be looked up by subsequence or field id.
+/// Index for items which can be looked up by transcript index or field id.
 #[derive(Debug, Clone)]
 pub(crate) struct Index<T> {
     items: Vec<T>,
-    // Index to lookup by field id
-    ids: HashMap<FieldId, usize>,
-    // Index to lookup by transcript index
-    idxs: HashMap<Idx, usize>,
+    // Lookup by field id
+    field_ids: HashMap<FieldId, usize>,
+    // Lookup by transcript index
+    transcript_idxs: HashMap<Idx, usize>,
 }
 
 impl<T> Default for Index<T> {
     fn default() -> Self {
         Self {
             items: Default::default(),
-            ids: Default::default(),
-            idxs: Default::default(),
+            field_ids: Default::default(),
+            transcript_idxs: Default::default(),
         }
     }
 }
@@ -62,26 +62,30 @@ impl<T> Index<T> {
     where
         F: Fn(&T) -> (&FieldId, &Idx),
     {
-        let mut ids = HashMap::new();
-        let mut idxs = HashMap::new();
+        let mut field_ids = HashMap::new();
+        let mut transcript_idxs = HashMap::new();
         for (i, item) in items.iter().enumerate() {
             let (id, idx) = f(item);
-            ids.insert(id.clone(), i);
-            idxs.insert(idx.clone(), i);
+            field_ids.insert(id.clone(), i);
+            transcript_idxs.insert(idx.clone(), i);
         }
-        Self { items, ids, idxs }
+        Self {
+            items,
+            field_ids,
+            transcript_idxs,
+        }
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
         self.items.iter()
     }
 
-    pub(crate) fn get_by_id(&self, id: &FieldId) -> Option<&T> {
-        self.ids.get(id).map(|i| &self.items[*i])
+    pub(crate) fn get_by_field_id(&self, id: &FieldId) -> Option<&T> {
+        self.field_ids.get(id).map(|i| &self.items[*i])
     }
 
-    pub(crate) fn get_by_idx(&self, idx: &Idx) -> Option<&T> {
-        self.idxs.get(idx).map(|i| &self.items[*i])
+    pub(crate) fn get_by_transcript_idx(&self, idx: &Idx) -> Option<&T> {
+        self.transcript_idxs.get(idx).map(|i| &self.items[*i])
     }
 }
 
