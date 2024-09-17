@@ -231,21 +231,17 @@ impl MpcTlsLeaderCtrl {
     /// This reveals the AEAD key to the leader and disables sending or receiving
     /// any further messages.
     pub async fn commit(&self) -> Result<(), MpcTlsError> {
-        self.address.send(MpcTlsLeaderMsg::Finalize(Commit)).await?
+        self.address.send(Commit).await?
     }
 
     /// Closes the connection.
     pub async fn close_connection(&self) -> Result<(), MpcTlsError> {
-        self.address
-            .send(MpcTlsLeaderMsg::CloseConnection(CloseConnection))
-            .await?
+        self.address.send(CloseConnection).await?
     }
 
     /// Defers decryption of any incoming messages.
     pub async fn defer_decryption(&self) -> Result<(), MpcTlsError> {
-        self.address
-            .send(MpcTlsLeaderMsg::DeferDecryption(DeferDecryption))
-            .await?
+        self.address.send(DeferDecryption).await?
     }
 }
 
