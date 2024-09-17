@@ -1,5 +1,5 @@
 use crate::MpcTlsError;
-use ludi::Message;
+use ludi::{Error, Message, Wrap};
 use tls_backend::BackendError;
 
 #[derive(Debug)]
@@ -175,6 +175,21 @@ impl Message for DeferDecryption {
     type Return = Result<(), MpcTlsError>;
 }
 
+impl From<DeferDecryption> for MpcTlsLeaderMsg {
+    fn from(value: DeferDecryption) -> Self {
+        MpcTlsLeaderMsg::DeferDecryption(value)
+    }
+}
+
+impl Wrap<DeferDecryption> for MpcTlsLeaderMsg {
+    fn unwrap_return(ret: Self::Return) -> Result<<DeferDecryption as Message>::Return, Error> {
+        match ret {
+            Self::Return::DeferDecryption(value) => Ok(value),
+            _ => Err(Error::Wrapper),
+        }
+    }
+}
+
 /// Message to close the connection
 #[derive(Debug)]
 pub struct CloseConnection;
@@ -183,10 +198,40 @@ impl Message for CloseConnection {
     type Return = Result<(), MpcTlsError>;
 }
 
+impl From<CloseConnection> for MpcTlsLeaderMsg {
+    fn from(value: CloseConnection) -> Self {
+        MpcTlsLeaderMsg::CloseConnection(value)
+    }
+}
+
+impl Wrap<CloseConnection> for MpcTlsLeaderMsg {
+    fn unwrap_return(ret: Self::Return) -> Result<<CloseConnection as Message>::Return, Error> {
+        match ret {
+            Self::Return::CloseConnection(value) => Ok(value),
+            _ => Err(Error::Wrapper),
+        }
+    }
+}
+
 /// Message to finalize the MPC-TLS protocol
 #[derive(Debug)]
 pub struct Commit;
 
 impl Message for Commit {
     type Return = Result<(), MpcTlsError>;
+}
+
+impl From<Commit> for MpcTlsLeaderMsg {
+    fn from(value: Commit) -> Self {
+        MpcTlsLeaderMsg::Finalize(value)
+    }
+}
+
+impl Wrap<Commit> for MpcTlsLeaderMsg {
+    fn unwrap_return(ret: Self::Return) -> Result<<Commit as Message>::Return, Error> {
+        match ret {
+            Self::Return::Finalize(value) => Ok(value),
+            _ => Err(Error::Wrapper),
+        }
+    }
 }
