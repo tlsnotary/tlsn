@@ -1,7 +1,8 @@
 use crate::MpcTlsError;
 use ludi::Message;
+use tls_backend::BackendError;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum MpcTlsLeaderMsg {
     BackendMsgSetProtocolVersion(BackendMsgSetProtocolVersion),
     BackendMsgSetCipherSuite(BackendMsgSetCipherSuite),
@@ -32,104 +33,142 @@ pub enum MpcTlsLeaderMsg {
 }
 
 impl Message for MpcTlsLeaderMsg {
-    type Return = Result<(), MpcTlsError>;
+    type Return = MpcTlsLeaderMsgReturn;
+}
+
+#[derive(Debug)]
+pub enum MpcTlsLeaderMsgReturn {
+    BackendMsgSetProtocolVersion(<BackendMsgSetProtocolVersion as Message>::Return),
+    BackendMsgSetCipherSuite(<BackendMsgSetCipherSuite as Message>::Return),
+    BackendMsgGetSuite(<BackendMsgGetSuite as Message>::Return),
+    BackendMsgSetEncrypt(<BackendMsgSetEncrypt as Message>::Return),
+    BackendMsgSetDecrypt(<BackendMsgSetDecrypt as Message>::Return),
+    BackendMsgGetClientRandom(<BackendMsgGetClientRandom as Message>::Return),
+    BackendMsgGetClientKeyShare(<BackendMsgGetClientKeyShare as Message>::Return),
+    BackendMsgSetServerRandom(<BackendMsgSetServerRandom as Message>::Return),
+    BackendMsgSetServerKeyShare(<BackendMsgSetServerKeyShare as Message>::Return),
+    BackendMsgSetServerCertDetails(<BackendMsgSetServerCertDetails as Message>::Return),
+    BackendMsgSetServerKxDetails(<BackendMsgSetServerKxDetails as Message>::Return),
+    BackendMsgSetHsHashClientKeyExchange(<BackendMsgSetHsHashClientKeyExchange as Message>::Return),
+    BackendMsgSetHsHashServerHello(<BackendMsgSetHsHashServerHello as Message>::Return),
+    BackendMsgGetServerFinishedVd(<BackendMsgGetServerFinishedVd as Message>::Return),
+    BackendMsgGetClientFinishedVd(<BackendMsgGetClientFinishedVd as Message>::Return),
+    BackendMsgPrepareEncryption(<BackendMsgPrepareEncryption as Message>::Return),
+    BackendMsgEncrypt(<BackendMsgEncrypt as Message>::Return),
+    BackendMsgDecrypt(<BackendMsgDecrypt as Message>::Return),
+    BackendMsgNextIncoming(<BackendMsgNextIncoming as Message>::Return),
+    BackendMsgBufferIncoming(<BackendMsgBufferIncoming as Message>::Return),
+    BackendMsgGetNotify(<BackendMsgGetNotify as Message>::Return),
+    BackendMsgBufferLen(<BackendMsgBufferLen as Message>::Return),
+    BackendMsgServerClosed(<BackendMsgServerClosed as Message>::Return),
+    DeferDecryption(<DeferDecryption as Message>::Return),
+    CloseConnection(<CloseConnection as Message>::Return),
+    Finalize(<Commit as Message>::Return),
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetProtocolVersion;
 
-#[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetCipherSuite;
+impl Message for BackendMsgSetProtocolVersion {
+    type Return = Result<(), BackendError>;
+}
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
+pub struct BackendMsgSetCipherSuite;
+
+impl Message for BackendMsgSetCipherSuite {
+    type Return = Result<(), BackendError>;
+}
+
+#[allow(missing_docs)]
+#[derive(Debug)]
 pub struct BackendMsgGetSuite;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetEncrypt;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetDecrypt;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgGetClientRandom;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgGetClientKeyShare;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetServerRandom;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetServerKeyShare;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetServerCertDetails;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetServerKxDetails;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetHsHashClientKeyExchange;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgSetHsHashServerHello;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgGetServerFinishedVd;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgGetClientFinishedVd;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgPrepareEncryption;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgEncrypt;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgDecrypt;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgNextIncoming;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgBufferIncoming;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgGetNotify;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgBufferLen;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BackendMsgServerClosed;
 
 /// Message to start deferring the decryption
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct DeferDecryption;
 
 impl Message for DeferDecryption {
@@ -137,7 +176,7 @@ impl Message for DeferDecryption {
 }
 
 /// Message to close the connection
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct CloseConnection;
 
 impl Message for CloseConnection {
@@ -145,7 +184,7 @@ impl Message for CloseConnection {
 }
 
 /// Message to finalize the MPC-TLS protocol
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Commit;
 
 impl Message for Commit {
