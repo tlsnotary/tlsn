@@ -113,11 +113,11 @@ impl From<std::io::Error> for MpcTlsError {
     }
 }
 
-impl From<ludi::MessageError> for MpcTlsError {
-    fn from(err: ludi::MessageError) -> Self {
+impl From<ludi::Error> for MpcTlsError {
+    fn from(err: ludi::Error) -> Self {
         match err {
-            ludi::MessageError::Closed => Self::other("actor channel closed"),
-            ludi::MessageError::Interrupted => Self::other("actor interrupted during handling"),
+            ludi::Error::Disconnected => Self::other("actor channel disconnected"),
+            ludi::Error::Interrupted => Self::other("actor interrupted during handling"),
             _ => Self::other_with_source("unknown actor error", err),
         }
     }
