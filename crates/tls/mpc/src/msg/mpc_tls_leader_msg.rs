@@ -1,3 +1,4 @@
+use crate::MpcTlsError;
 use ludi::Message;
 
 #[derive(Debug, Clone, Copy)]
@@ -31,7 +32,7 @@ pub enum MpcTlsLeaderMsg {
 }
 
 impl Message for MpcTlsLeaderMsg {
-    type Return = ();
+    type Return = Result<(), MpcTlsError>;
 }
 
 #[allow(missing_docs)]
@@ -88,52 +89,65 @@ pub struct BackendMsgSetHsHashServerHello;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgGetServerFinishedVd;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgGetClientFinishedVd;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgPrepareEncryption;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgEncrypt;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgDecrypt;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgNextIncoming;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgBufferIncoming;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgGetNotify;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgBufferLen;
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct BackendMsgSetHsHashClientKeyExchange;
+pub struct BackendMsgServerClosed;
 
+/// Message to start deferring the decryption
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
 pub struct DeferDecryption;
+
+impl Message for DeferDecryption {
+    type Return = Result<(), MpcTlsError>;
+}
 
 /// Message to close the connection
 #[derive(Debug, Clone, Copy)]
 pub struct CloseConnection;
 
+impl Message for CloseConnection {
+    type Return = Result<(), MpcTlsError>;
+}
+
 /// Message to finalize the MPC-TLS protocol
 #[derive(Debug, Clone, Copy)]
 pub struct Commit;
+
+impl Message for Commit {
+    type Return = Result<(), MpcTlsError>;
+}

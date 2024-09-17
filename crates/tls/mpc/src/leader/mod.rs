@@ -1,11 +1,9 @@
 use crate::{
     error::Kind,
-    follower::{
-        ClientFinishedVd, CommitMessage, ComputeKeyExchange, DecryptAlert, DecryptMessage,
-        DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
-        ServerFinishedVd,
+    msg::{
+        CloseConnection, Commit, CommitMessage, DecryptAlert, DecryptMessage,
+        DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage, MpcTlsMessage,
     },
-    msg::{CloseConnection, Commit, MpcTlsMessage},
     record_layer::{Decrypter, Encrypter},
     Direction, MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
 };
@@ -15,6 +13,7 @@ use futures::SinkExt;
 use hmac_sha256::Prf;
 use ke::KeyExchange;
 use key_exchange as ke;
+use ludi::Context;
 use mpz_core::commit::{Decommitment, HashCommit};
 use std::collections::VecDeque;
 use tls_backend::{
@@ -315,12 +314,10 @@ impl MpcTlsLeader {
 
         Ok(())
     }
-}
 
-impl MpcTlsLeader {
     /// Closes the connection.
     #[instrument(name = "close_connection", level = "debug", skip_all, err)]
-    pub async fn close_connection(&mut self) -> Result<(), MpcTlsError> {
+    pub async fn close_connection(&mut self, ctx: &mut Context<Self>) -> Result<(), MpcTlsError> {
         debug!("closing connection");
 
         self.channel
@@ -330,7 +327,6 @@ impl MpcTlsLeader {
         let Active { data } = self.state.take().try_into_active()?;
 
         self.state = State::Closed(Closed { data });
-
         ctx.stop();
 
         Ok(())
@@ -346,15 +342,6 @@ impl MpcTlsLeader {
         self.notifier.clear();
 
         Ok(())
-    }
-
-    /// Commits the leader to the current transcript.
-    ///
-    /// This reveals the AEAD key to the leader and disables sending or
-    /// receiving any further messages.
-    #[instrument(name = "finalize", level = "debug", skip_all, err)]
-    pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
-        self.commit().await
     }
 }
 

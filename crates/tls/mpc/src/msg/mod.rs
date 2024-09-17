@@ -1,15 +1,12 @@
 //! Contains message types for communication between leader and follower
 use serde::{Deserialize, Serialize};
 
-mod mpc_tls_leader_msg;
-pub use mpc_tls_leader_msg::*;
-
-mod mpc_tls_follower_msg;
-pub use mpc_tls_follower_msg::*;
+pub mod mpc_tls_follower_msg;
+pub mod mpc_tls_leader_msg;
 
 /// MPC-TLS protocol message.
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpcTlsMessage {
     ComputeKeyExchange(ComputeKeyExchange),
     ClientFinishedVd(ClientFinishedVd),
@@ -27,49 +24,59 @@ pub enum MpcTlsMessage {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComputeKeyExchange;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientFinishedVd;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptClientFinished;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct EncryptAlert;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptAlert {
+    pub msg: Vec<u8>,
+}
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerFinishedVd;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct DecryptServerFinished;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecryptServerFinished {
+    pub ciphertext: Vec<u8>,
+}
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct DecryptAlert;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecryptAlert {
+    pub ciphertext: Vec<u8>,
+}
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct CommitMessage;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitMessage {
+    pub msg: Vec<u8>,
+}
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct EncryptMessage;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptMessage {
+    pub len: usize,
+}
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecryptMessage;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloseConnection;
 
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Commit;

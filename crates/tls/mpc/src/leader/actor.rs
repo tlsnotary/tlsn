@@ -1,7 +1,11 @@
 use std::future::Future;
 
 use super::{MpcTlsData, MpcTlsLeader};
-use crate::{leader::state, msg::MpcTlsLeaderMsg, MpcTlsError};
+use crate::{
+    leader::state,
+    msg::mpc_tls_leader_msg::{CloseConnection, Commit, DeferDecryption, MpcTlsLeaderMsg},
+    MpcTlsError,
+};
 use ludi::{mailbox, Actor, Address, Context, Dispatch, Handler, Message};
 use tracing::{debug, Instrument};
 
@@ -98,5 +102,59 @@ impl Handler<MpcTlsLeaderMsg> for MpcTlsLeader {
             MpcTlsLeaderMsg::CloseConnection(msg) => self.handle(msg, ctx),
             MpcTlsLeaderMsg::Finalize(msg) => self.handle(msg, ctx),
         }
+    }
+}
+
+impl MpcTlsLeaderCtrl {
+    /// Commits the leader to the current transcript.
+    ///
+    /// This reveals the AEAD key to the leader and disables sending or receiving
+    /// any further messages.
+    pub async fn commit(&self) -> Result<(), MpcTlsError> {
+        self.address.send(MpcTlsLeaderMsg::Finalize(Commit)).await?
+    }
+
+    /// Closes the connection.
+    pub async fn close_connection(&self) -> Result<(), MpcTlsError> {
+        self.address
+            .send(MpcTlsLeaderMsg::CloseConnection(CloseConnection))
+            .await?
+    }
+
+    /// Defers decryption of any incoming messages.
+    pub async fn defer_decryption(&self) -> Result<(), MpcTlsError> {
+        self.address
+            .send(MpcTlsLeaderMsg::DeferDecryption(DeferDecryption))
+            .await?
+    }
+}
+
+impl Handler<Commit> for MpcTlsLeader {
+    fn handle(
+        &mut self,
+        _msg: Commit,
+        _ctx: &mut Context<Self>,
+    ) -> impl Future<Output = <Commit as Message>::Return> + Send {
+        async { self.commit().await }
+    }
+}
+
+impl Handler<CloseConnection> for MpcTlsLeader {
+    fn handle(
+        &mut self,
+        _msg: CloseConnection,
+        ctx: &mut Context<Self>,
+    ) -> impl Future<Output = <CloseConnection as Message>::Return> + Send {
+        async { self.close_connection(ctx).await }
+    }
+}
+
+impl Handler<DeferDecryption> for MpcTlsLeader {
+    fn handle(
+        &mut self,
+        _msg: DeferDecryption,
+        _ctx: &mut Context<Self>,
+    ) -> impl Future<Output = <DeferDecryption as Message>::Return> + Send {
+        async { self.defer_decryption().await }
     }
 }
