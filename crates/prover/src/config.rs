@@ -1,20 +1,16 @@
+use std::sync::Arc;
+
 use mpz_ot::{chou_orlandi, kos};
-use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
 use tlsn_common::config::ProtocolConfig;
+use tlsn_core::{connection::ServerName, CryptoProvider};
 
 /// Configuration for the prover
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct ProverConfig {
-    /// Id of the notarization session.
-    #[builder(setter(into))]
-    id: String,
     /// The server DNS name.
     #[builder(setter(into))]
-    server_dns: String,
-    /// TLS root certificate store.
-    #[builder(setter(strip_option), default = "default_root_store()")]
-    pub(crate) root_cert_store: RootCertStore,
+    server_name: ServerName,
     /// Protocol configuration to be checked with the verifier.
     protocol_config: ProtocolConfig,
     /// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
@@ -23,6 +19,9 @@ pub struct ProverConfig {
     /// See `defer_decryption_from_start` in [tls_mpc::MpcTlsLeaderConfig].
     #[builder(default = "true")]
     defer_decryption_from_start: bool,
+    /// Cryptography provider.
+    #[builder(default, setter(into))]
+    crypto_provider: Arc<CryptoProvider>,
 }
 
 impl ProverConfig {
@@ -31,14 +30,14 @@ impl ProverConfig {
         ProverConfigBuilder::default()
     }
 
-    /// Returns the instance id.
-    pub fn id(&self) -> &str {
-        &self.id
+    /// Returns the server DNS name.
+    pub fn server_name(&self) -> &ServerName {
+        &self.server_name
     }
 
-    /// Returns the server DNS name.
-    pub fn server_dns(&self) -> &str {
-        &self.server_dns
+    /// Returns the crypto provider.
+    pub fn crypto_provider(&self) -> &CryptoProvider {
+        &self.crypto_provider
     }
 
     /// Returns the protocol configuration.
@@ -56,7 +55,6 @@ impl ProverConfig {
         MpcTlsLeaderConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
-                    .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
                             .max_online_size(self.protocol_config.max_sent_data())
@@ -102,18 +100,4 @@ impl ProverConfig {
             .build()
             .unwrap()
     }
-}
-
-/// Default root store using mozilla certs.
-fn default_root_store() -> RootCertStore {
-    let mut root_store = tls_client::RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-        tls_client::OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject.as_ref(),
-            ta.subject_public_key_info.as_ref(),
-            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
-        )
-    }));
-
-    root_store
 }

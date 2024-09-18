@@ -1,18 +1,21 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
-use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_core::{
+    transcript::{Idx, PartialTranscript},
+    CryptoProvider,
+};
+use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_verifier::{SessionInfo, Verifier, VerifierConfig};
 
 use http_body_util::{BodyExt as _, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
+
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
-use utils::range::RangeSet;
 
 // Maximum number of bytes that can be sent from prover to server
 const MAX_SENT_DATA: usize = 1 << 12;
@@ -26,16 +29,17 @@ async fn verify() {
 
     let (socket_0, socket_1) = tokio::io::duplex(1 << 23);
 
-    let (_, (sent, received, _session_info)) = tokio::join!(prover(socket_0), verifier(socket_1));
+    let (_, (partial_transcript, info)) = tokio::join!(prover(socket_0), verifier(socket_1));
 
-    assert_eq!(sent.authed(), &RangeSet::from(0..sent.data().len() - 1));
     assert_eq!(
-        sent.redacted(),
-        &RangeSet::from(sent.data().len() - 1..sent.data().len())
+        partial_transcript.sent_authed(),
+        &Idx::new(0..partial_transcript.len_sent() - 1)
     );
-
-    assert_eq!(received.authed(), &RangeSet::from(2..received.data().len()));
-    assert_eq!(received.redacted(), &RangeSet::from(0..2));
+    assert_eq!(
+        partial_transcript.received_authed(),
+        &Idx::new(2..partial_transcript.len_received())
+    );
+    assert_eq!(info.server_name.as_str(), SERVER_DOMAIN);
 }
 
 #[instrument(skip(notary_socket))]
@@ -49,20 +53,22 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let protocol_config = ProtocolConfig::builder()
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
-        .max_recv_data_online(MAX_RECV_DATA)
-        .build()
-        .unwrap();
+    let mut provider = CryptoProvider::default();
+    provider.cert = WebPkiVerifier::new(root_store, None);
 
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
-            .server_dns(SERVER_DOMAIN)
-            .root_cert_store(root_store)
+            .server_name(SERVER_DOMAIN)
             .defer_decryption_from_start(false)
-            .protocol_config(protocol_config)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(MAX_SENT_DATA)
+                    .max_recv_data(MAX_RECV_DATA)
+                    .max_recv_data_online(MAX_RECV_DATA)
+                    .build()
+                    .unwrap(),
+            )
+            .crypto_provider(provider)
             .build()
             .unwrap(),
     )
@@ -100,40 +106,41 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let mut prover = prover_task.await.unwrap().unwrap().start_prove();
 
-    let sent_transcript_len = prover.sent_transcript().data().len();
-    let recv_transcript_len = prover.recv_transcript().data().len();
+    let (sent_len, recv_len) = prover.transcript().len();
+
+    let idx_sent = Idx::new(0..sent_len - 1);
+    let idx_recv = Idx::new(2..recv_len);
 
     // Reveal parts of the transcript
-    _ = prover.reveal(0..sent_transcript_len - 1, Direction::Sent);
-    _ = prover.reveal(2..recv_transcript_len, Direction::Received);
-    prover.prove().await.unwrap();
-
-    prover.finalize().await.unwrap()
+    prover.prove_transcript(idx_sent, idx_recv).await.unwrap();
+    prover.finalize().await.unwrap();
 }
 
 #[instrument(skip(socket))]
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
-) -> (RedactedTranscript, RedactedTranscript, SessionInfo) {
+) -> (PartialTranscript, SessionInfo) {
     let mut root_store = RootCertStore::empty();
     root_store
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let config_validator = ProtocolConfigValidator::builder()
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+    let mut provider = CryptoProvider::default();
+    provider.cert = WebPkiVerifier::new(root_store, None);
+
+    let config = VerifierConfig::builder()
+        .protocol_config_validator(
+            ProtocolConfigValidator::builder()
+                .max_sent_data(MAX_SENT_DATA)
+                .max_recv_data(MAX_RECV_DATA)
+                .build()
+                .unwrap(),
+        )
+        .crypto_provider(provider)
         .build()
         .unwrap();
 
-    let verifier_config = VerifierConfig::builder()
-        .id("test")
-        .protocol_config_validator(config_validator)
-        .cert_verifier(WebPkiVerifier::new(root_store, None))
-        .build()
-        .unwrap();
-    let verifier = Verifier::new(verifier_config);
+    let verifier = Verifier::new(config);
 
-    let (sent, received, session_info) = verifier.verify(socket.compat()).await.unwrap();
-    (sent, received, session_info)
+    verifier.verify(socket.compat()).await.unwrap()
 }

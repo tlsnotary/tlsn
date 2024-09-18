@@ -10,6 +10,11 @@ pub mod request {
         "../data/http/request_get_empty"
     );
     define_fixture!(
+        GET_EMPTY_HEADER,
+        "A GET request with an empty header.",
+        "../data/http/request_get_empty_header"
+    );
+    define_fixture!(
         GET_WITH_HEADER,
         "A GET request with a header.",
         "../data/http/request_get_with_header"
@@ -28,6 +33,11 @@ pub mod response {
     define_fixture!(
         OK_EMPTY,
         "An OK response without a body.",
+        "../data/http/response_empty"
+    );
+    define_fixture!(
+        OK_EMPTY_HEADER,
+        "An OK response with an empty header.",
         "../data/http/response_empty"
     );
     define_fixture!(

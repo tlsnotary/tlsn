@@ -325,7 +325,7 @@ async fn test() {
 
     let (leader_mux, follower_mux) = test_framed_mux(8);
 
-    let common_config = MpcTlsCommonConfig::builder().id("test").build().unwrap();
+    let common_config = MpcTlsCommonConfig::builder().build().unwrap();
 
     tokio::join!(
         leader(common_config.clone(), leader_mux),

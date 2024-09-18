@@ -2,10 +2,9 @@ use std::{collections::HashMap, ops::Range};
 
 use http_body_util::Full;
 use hyper::body::Bytes;
-use p256::pkcs8::DecodePublicKey;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use tlsn_core::commitment::CommitmentKind;
+use tlsn_core::CryptoProvider;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
@@ -76,9 +75,88 @@ pub struct HttpResponse {
 
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
+pub enum TlsVersion {
+    V1_2,
+    V1_3,
+}
+
+impl From<tlsn_core::connection::TlsVersion> for TlsVersion {
+    fn from(value: tlsn_core::connection::TlsVersion) -> Self {
+        match value {
+            tlsn_core::connection::TlsVersion::V1_2 => Self::V1_2,
+            tlsn_core::connection::TlsVersion::V1_3 => Self::V1_3,
+        }
+    }
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct TranscriptLength {
+    pub sent: usize,
+    pub recv: usize,
+}
+
+impl From<tlsn_core::connection::TranscriptLength> for TranscriptLength {
+    fn from(value: tlsn_core::connection::TranscriptLength) -> Self {
+        Self {
+            sent: value.sent as usize,
+            recv: value.received as usize,
+        }
+    }
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct ConnectionInfo {
+    time: u64,
+    version: TlsVersion,
+    transcript_length: TranscriptLength,
+}
+
+impl From<tlsn_core::connection::ConnectionInfo> for ConnectionInfo {
+    fn from(value: tlsn_core::connection::ConnectionInfo) -> Self {
+        Self {
+            time: value.time,
+            version: value.version.into(),
+            transcript_length: value.transcript_length.into(),
+        }
+    }
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
 pub struct Transcript {
     pub sent: Vec<u8>,
     pub recv: Vec<u8>,
+}
+
+impl From<&tlsn_core::transcript::Transcript> for Transcript {
+    fn from(value: &tlsn_core::transcript::Transcript) -> Self {
+        Self {
+            sent: value.sent().to_vec(),
+            recv: value.received().to_vec(),
+        }
+    }
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct PartialTranscript {
+    pub sent: Vec<u8>,
+    pub sent_authed: Vec<Range<usize>>,
+    pub recv: Vec<u8>,
+    pub recv_authed: Vec<Range<usize>>,
+}
+
+impl From<tlsn_core::transcript::PartialTranscript> for PartialTranscript {
+    fn from(value: tlsn_core::transcript::PartialTranscript) -> Self {
+        Self {
+            sent: value.sent_unsafe().to_vec(),
+            sent_authed: value.sent_authed().iter_ranges().collect(),
+            recv: value.received_unsafe().to_vec(),
+            recv_authed: value.received_authed().iter_ranges().collect(),
+        }
+    }
 }
 
 #[derive(Debug, Tsify, Deserialize)]
@@ -101,61 +179,30 @@ pub enum KeyType {
     P256,
 }
 
-#[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
-pub struct NotaryPublicKey {
-    typ: KeyType,
-    key: String,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
-pub struct NotarizedSession(tlsn_core::NotarizedSession);
+pub struct Attestation(pub(crate) tlsn_core::attestation::Attestation);
 
 #[wasm_bindgen]
-impl NotarizedSession {
-    /// Builds a new proof.
-    pub fn proof(&self, reveal: Reveal) -> Result<TlsProof, JsError> {
-        let mut builder = self.0.data().build_substrings_proof();
-
-        for range in reveal.sent.iter() {
-            builder.reveal_sent(range, CommitmentKind::Blake3)?;
-        }
-
-        for range in reveal.recv.iter() {
-            builder.reveal_recv(range, CommitmentKind::Blake3)?;
-        }
-
-        let substring_proof = builder.build()?;
-
-        Ok(TlsProof(tlsn_core::proof::TlsProof {
-            session: self.0.session_proof(),
-            substrings: substring_proof,
-        }))
-    }
-
-    /// Returns the transcript.
-    pub fn transcript(&self) -> Transcript {
-        Transcript {
-            sent: self.0.data().sent_transcript().data().to_vec(),
-            recv: self.0.data().recv_transcript().data().to_vec(),
-        }
+impl Attestation {
+    pub fn verifying_key(&self) -> VerifyingKey {
+        self.0.body.verifying_key().into()
     }
 
     /// Serializes to a byte array.
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("NotarizedSession is serializable")
+        bincode::serialize(self).expect("Attestation should be serializable")
     }
 
     /// Deserializes from a byte array.
-    pub fn deserialize(bytes: Vec<u8>) -> Result<NotarizedSession, JsError> {
+    pub fn deserialize(bytes: Vec<u8>) -> Result<Secrets, JsError> {
         Ok(bincode::deserialize(&bytes)?)
     }
 }
 
-impl From<tlsn_core::NotarizedSession> for NotarizedSession {
-    fn from(value: tlsn_core::NotarizedSession) -> Self {
+impl From<tlsn_core::attestation::Attestation> for Attestation {
+    fn from(value: tlsn_core::attestation::Attestation) -> Self {
         Self(value)
     }
 }
@@ -163,68 +210,111 @@ impl From<tlsn_core::NotarizedSession> for NotarizedSession {
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
-pub struct TlsProof(tlsn_core::proof::TlsProof);
+pub struct Secrets(pub(crate) tlsn_core::Secrets);
 
 #[wasm_bindgen]
-impl TlsProof {
-    pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("TlsProof is serializable")
+impl Secrets {
+    /// Returns the transcript.
+    pub fn transcript(&self) -> Transcript {
+        self.0.transcript().into()
     }
 
-    pub fn deserialize(bytes: Vec<u8>) -> Result<TlsProof, JsError> {
+    /// Serializes to a byte array.
+    pub fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(self).expect("Secrets should be serializable")
+    }
+
+    /// Deserializes from a byte array.
+    pub fn deserialize(bytes: Vec<u8>) -> Result<Secrets, JsError> {
         Ok(bincode::deserialize(&bytes)?)
     }
+}
 
-    /// Verifies the proof using the provided notary public key.
-    pub fn verify(self, notary_key: NotaryPublicKey) -> Result<ProofData, JsError> {
-        let NotaryPublicKey { typ, key } = notary_key;
+impl From<tlsn_core::Secrets> for Secrets {
+    fn from(value: tlsn_core::Secrets) -> Self {
+        Self(value)
+    }
+}
 
-        if !matches!(typ, KeyType::P256) {
-            return Err(JsError::new("only P256 keys are currently supported"));
-        };
+#[derive(Debug, Serialize, Deserialize)]
+#[wasm_bindgen]
+#[serde(transparent)]
+pub struct Presentation(tlsn_core::presentation::Presentation);
 
-        let key = tlsn_core::NotaryPublicKey::P256(
-            p256::PublicKey::from_public_key_pem(&key)
-                .map_err(|_| JsError::new("invalid public key"))?,
-        );
+#[wasm_bindgen]
+impl Presentation {
+    /// Verifies the presentation.
+    pub fn verify(self) -> Result<PresentationOutput, JsError> {
+        let provider = CryptoProvider::default();
 
-        // Verify tls proof.
-        let session = &self.0.session;
-        session.verify_with_default_cert_verifier(key)?;
+        self.0
+            .verify(&provider)
+            .map(PresentationOutput::from)
+            .map_err(JsError::from)
+    }
 
-        let (sent, recv) = self.0.substrings.verify(&self.0.session.header)?;
+    pub fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(self).expect("Presentation should be serializable")
+    }
 
-        // Compose proof data.
-        let data = ProofData {
-            time: session.header.time(),
-            server_dns: session.session_info.server_name.as_str().to_string(),
-            sent: sent.data().to_vec(),
-            sent_auth_ranges: sent.authed().iter_ranges().collect(),
-            received: recv.data().to_vec(),
-            received_auth_ranges: recv.authed().iter_ranges().collect(),
-        };
+    pub fn deserialize(bytes: Vec<u8>) -> Result<Presentation, JsError> {
+        Ok(bincode::deserialize(&bytes)?)
+    }
+}
 
-        Ok(data)
+impl From<tlsn_core::presentation::Presentation> for Presentation {
+    fn from(value: tlsn_core::presentation::Presentation) -> Self {
+        Self(value)
     }
 }
 
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
-pub struct ProofData {
-    pub time: u64,
-    pub server_dns: String,
-    pub sent: Vec<u8>,
-    pub sent_auth_ranges: Vec<Range<usize>>,
-    pub received: Vec<u8>,
-    pub received_auth_ranges: Vec<Range<usize>>,
+pub struct PresentationOutput {
+    pub attestation: Attestation,
+    pub server_name: Option<String>,
+    pub connection_info: ConnectionInfo,
+    pub transcript: Option<PartialTranscript>,
+}
+
+impl From<tlsn_core::presentation::PresentationOutput> for PresentationOutput {
+    fn from(value: tlsn_core::presentation::PresentationOutput) -> Self {
+        Self {
+            attestation: value.attestation.into(),
+            server_name: value.server_name.map(|name| name.as_str().to_string()),
+            connection_info: value.connection_info.into(),
+            transcript: value.transcript.map(PartialTranscript::from),
+        }
+    }
 }
 
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
-pub struct VerifierData {
-    pub server_dns: String,
-    pub sent: Vec<u8>,
-    pub sent_auth_ranges: Vec<Range<usize>>,
-    pub received: Vec<u8>,
-    pub received_auth_ranges: Vec<Range<usize>>,
+pub struct NotarizationOutput {
+    pub attestation: Attestation,
+    pub secrets: Secrets,
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct VerifierOutput {
+    pub server_name: String,
+    pub connection_info: ConnectionInfo,
+    pub transcript: PartialTranscript,
+}
+
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct VerifyingKey {
+    pub alg: u8,
+    pub data: Vec<u8>,
+}
+
+impl From<&tlsn_core::signing::VerifyingKey> for VerifyingKey {
+    fn from(value: &tlsn_core::signing::VerifyingKey) -> Self {
+        Self {
+            alg: value.alg.as_u8(),
+            data: value.data.clone(),
+        }
+    }
 }

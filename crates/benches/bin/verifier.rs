@@ -9,8 +9,9 @@ use tlsn_benches::{
     set_interface, VERIFIER_INTERFACE,
 };
 use tlsn_common::config::ProtocolConfigValidator;
+use tlsn_core::CryptoProvider;
 use tlsn_server_fixture_certs::CA_CERT_DER;
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_verifier::{Verifier, VerifierConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -64,6 +65,9 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     set_interface(VERIFIER_INTERFACE, download, 1, download_delay)?;
 
+    let mut provider = CryptoProvider::default();
+    provider.cert = cert_verifier();
+
     let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(upload_size + 256)
         .max_recv_data(download_size + 256)
@@ -72,9 +76,8 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .id("test")
-            .cert_verifier(cert_verifier())
             .protocol_config_validator(config_validator)
+            .crypto_provider(provider)
             .build()?,
     );
 

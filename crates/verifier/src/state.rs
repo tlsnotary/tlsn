@@ -1,12 +1,11 @@
 //! TLS Verifier state.
 
-use mpz_core::hash::Hash;
-use tls_core::key::PublicKey;
 use tls_mpc::MpcTlsFollower;
 use tlsn_common::{
     mux::{MuxControl, MuxFuture},
     Context, DEAPThread, Io, OTSender,
 };
+use tlsn_core::connection::{ConnectionInfo, ServerEphemKey};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -41,11 +40,8 @@ pub struct Closed {
     pub(crate) ctx: Context,
 
     pub(crate) encoder_seed: [u8; 32],
-    pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
+    pub(crate) server_ephemeral_key: ServerEphemKey,
+    pub(crate) connection_info: ConnectionInfo,
 }
 
 opaque_debug::implement!(Closed);
@@ -61,11 +57,8 @@ pub struct Notarize {
     pub(crate) ctx: Context,
 
     pub(crate) encoder_seed: [u8; 32],
-    pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
+    pub(crate) server_ephemeral_key: ServerEphemKey,
+    pub(crate) connection_info: ConnectionInfo,
 }
 
 opaque_debug::implement!(Notarize);
@@ -80,11 +73,8 @@ impl From<Closed> for Notarize {
             ot_send: value.ot_send,
             ctx: value.ctx,
             encoder_seed: value.encoder_seed,
-            start_time: value.start_time,
             server_ephemeral_key: value.server_ephemeral_key,
-            handshake_commitment: value.handshake_commitment,
-            sent_len: value.sent_len,
-            recv_len: value.recv_len,
+            connection_info: value.connection_info,
         }
     }
 }
@@ -99,11 +89,8 @@ pub struct Verify {
     pub(crate) ot_send: OTSender,
     pub(crate) ctx: Context,
 
-    pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
+    pub(crate) server_ephemeral_key: ServerEphemKey,
+    pub(crate) connection_info: ConnectionInfo,
 }
 
 opaque_debug::implement!(Verify);
@@ -117,11 +104,8 @@ impl From<Closed> for Verify {
             vm: value.vm,
             ot_send: value.ot_send,
             ctx: value.ctx,
-            start_time: value.start_time,
             server_ephemeral_key: value.server_ephemeral_key,
-            handshake_commitment: value.handshake_commitment,
-            sent_len: value.sent_len,
-            recv_len: value.recv_len,
+            connection_info: value.connection_info,
         }
     }
 }

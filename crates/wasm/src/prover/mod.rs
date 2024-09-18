@@ -7,8 +7,12 @@ use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tls_client_async::TlsConnection;
-use tlsn_core::Direction;
-use tlsn_prover::tls::{state, Prover};
+use tlsn_core::{
+    request::RequestConfig,
+    transcript::{Idx, TranscriptCommitConfigBuilder},
+    CryptoProvider,
+};
+use tlsn_prover::{state, Prover};
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
 use wasm_bindgen_futures::spawn_local;
@@ -102,22 +106,16 @@ impl JsProver {
     pub fn transcript(&self) -> Result<Transcript> {
         let prover = self.state.try_as_closed()?;
 
-        let sent = prover.sent_transcript().data().clone();
-        let recv = prover.recv_transcript().data().clone();
-
-        Ok(Transcript {
-            sent: sent.to_vec(),
-            recv: recv.to_vec(),
-        })
+        Ok(Transcript::from(prover.transcript()))
     }
 
     /// Runs the notarization protocol.
-    pub async fn notarize(&mut self, commit: Commit) -> Result<NotarizedSession> {
+    pub async fn notarize(&mut self, commit: Commit) -> Result<NotarizationOutput> {
         let mut prover = self.state.take().try_into_closed()?.start_notarize();
 
         info!("starting notarization");
 
-        let builder = prover.commitment_builder();
+        let mut builder = TranscriptCommitConfigBuilder::new(prover.transcript());
 
         for range in commit.sent {
             builder.commit_sent(&range)?;
@@ -127,11 +125,22 @@ impl JsProver {
             builder.commit_recv(&range)?;
         }
 
-        let notarized_session = prover.finalize().await?;
+        let config = builder.build()?;
+
+        prover.transcript_commit(config);
+
+        let request_config = RequestConfig::default();
+        let provider = CryptoProvider::default();
+        let (attestation, secrets) = prover.finalize_with_provider(&request_config, &provider).await?;
 
         info!("notarization complete");
 
-        Ok(notarized_session.into())
+        self.state = State::Complete;
+
+        Ok(NotarizationOutput {
+            attestation: attestation.into(),
+            secrets: secrets.into(),
+        })
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
@@ -140,15 +149,10 @@ impl JsProver {
 
         info!("revealing data");
 
-        for range in reveal.sent {
-            prover.reveal(range, Direction::Sent)?;
-        }
+        let sent = Idx::new(reveal.sent);
+        let recv = Idx::new(reveal.recv);
 
-        for range in reveal.recv {
-            prover.reveal(range, Direction::Received)?;
-        }
-
-        prover.prove().await?;
+        prover.prove_transcript(sent, recv).await?;
         prover.finalize().await?;
 
         info!("Finalized");

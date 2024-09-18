@@ -1,40 +1,28 @@
 use mpz_ot::{chou_orlandi, kos};
-use std::fmt::{Debug, Formatter, Result};
-use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
+use std::{
+    fmt::{Debug, Formatter, Result},
+    sync::Arc,
+};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
-use tlsn_core::proof::default_cert_verifier;
+use tlsn_core::CryptoProvider;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
 #[allow(missing_docs)]
 #[derive(derive_builder::Builder)]
 #[builder(pattern = "owned")]
 pub struct VerifierConfig {
-    #[builder(setter(into))]
-    id: String,
     protocol_config_validator: ProtocolConfigValidator,
-    #[builder(
-        pattern = "owned",
-        setter(strip_option),
-        default = "Some(default_cert_verifier())"
-    )]
-    cert_verifier: Option<WebPkiVerifier>,
+    /// Cryptography provider.
+    #[builder(default, setter(into))]
+    crypto_provider: Arc<CryptoProvider>,
 }
 
 impl Debug for VerifierConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("VerifierConfig")
-            .field("id", &self.id)
-            .field(
-                "max_sent_data",
-                &self.protocol_config_validator.max_sent_data(),
-            )
-            .field(
-                "max_recv_data",
-                &self.protocol_config_validator.max_recv_data(),
-            )
-            .field("cert_verifier", &"_")
-            .finish()
+            .field("protocol_config_validator", &self.protocol_config_validator)
+            .finish_non_exhaustive()
     }
 }
 
@@ -44,21 +32,14 @@ impl VerifierConfig {
         VerifierConfigBuilder::default()
     }
 
-    /// Returns the ID of the notarization session.
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
     /// Returns the protocol configuration validator.
     pub fn protocol_config_validator(&self) -> &ProtocolConfigValidator {
         &self.protocol_config_validator
     }
 
-    /// Returns the certificate verifier.
-    pub fn cert_verifier(&self) -> &impl ServerCertVerifier {
-        self.cert_verifier
-            .as_ref()
-            .expect("Certificate verifier should be set")
+    /// Returns the cryptography provider.
+    pub fn crypto_provider(&self) -> &CryptoProvider {
+        &self.crypto_provider
     }
 
     pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
@@ -90,7 +71,6 @@ impl VerifierConfig {
         MpcTlsFollowerConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
-                    .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
                             .max_online_size(protocol_config.max_sent_data())

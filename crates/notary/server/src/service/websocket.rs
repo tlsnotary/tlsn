@@ -17,7 +17,7 @@ pub async fn websocket_notarize(
     let stream = WsStream::new(socket.into_inner());
     match notary_service(
         stream,
-        &notary_globals.notary_signing_key,
+        notary_globals.crypto_provider.clone(),
         &session_id,
         notary_globals.notarization_config.max_sent_data,
         notary_globals.notarization_config.max_recv_data,

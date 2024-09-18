@@ -1,8 +1,13 @@
+use tls_core::verify::WebPkiVerifier;
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_core::{
+    attestation::AttestationConfig, request::RequestConfig, signing::SignatureAlgId,
+    transcript::TranscriptCommitConfig, CryptoProvider,
+};
+use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_verifier::{Verifier, VerifierConfig};
 
 use http_body_util::{BodyExt as _, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
@@ -37,6 +42,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let mut provider = CryptoProvider::default();
+    provider.cert = WebPkiVerifier::new(root_store, None);
+
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
@@ -46,11 +54,10 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
-            .server_dns(SERVER_DOMAIN)
-            .root_cert_store(root_store)
+            .server_name(SERVER_DOMAIN)
             .defer_decryption_from_start(false)
             .protocol_config(protocol_config)
+            .crypto_provider(provider)
             .build()
             .unwrap(),
     )
@@ -87,20 +94,38 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let _ = server_task.await.unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
-    let sent_tx_len = prover.sent_transcript().data().len();
-    let recv_tx_len = prover.recv_transcript().data().len();
+    let sent_tx_len = prover.transcript().sent().len();
+    let recv_tx_len = prover.transcript().received().len();
 
-    let builder = prover.commitment_builder();
+    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
     // Commit to everything
     builder.commit_sent(&(0..sent_tx_len)).unwrap();
     builder.commit_recv(&(0..recv_tx_len)).unwrap();
 
-    prover.finalize().await.unwrap();
+    let config = builder.build().unwrap();
+
+    prover.transcript_commit(config);
+
+    let config = RequestConfig::default();
+
+    prover
+        .finalize_with_provider(&config, &CryptoProvider::default())
+        .await
+        .unwrap();
 }
 
 #[instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+
+    let mut provider = CryptoProvider::default();
+    provider.cert = WebPkiVerifier::new(root_store, None);
+    provider.signer.set_secp256k1(&[1u8; 32]).unwrap();
+
     let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
@@ -109,15 +134,16 @@ async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socke
 
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .id("test")
             .protocol_config_validator(config_validator)
+            .crypto_provider(provider)
             .build()
             .unwrap(),
     );
-    let signing_key = p256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap();
 
-    _ = verifier
-        .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)
-        .await
+    let config = AttestationConfig::builder()
+        .supported_signature_algs(vec![SignatureAlgId::SECP256K1])
+        .build()
         .unwrap();
+
+    _ = verifier.notarize(socket.compat(), &config).await.unwrap();
 }
