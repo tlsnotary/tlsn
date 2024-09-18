@@ -240,7 +240,7 @@ pub struct Attestation {
 
 impl Attestation {
     /// Returns an attestation builder.
-    pub fn builder<'a>(config: &'a AttestationConfig) -> AttestationBuilder<'a> {
+    pub fn builder(config: &AttestationConfig) -> AttestationBuilder<'_> {
         AttestationBuilder::new(config)
     }
 

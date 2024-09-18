@@ -66,7 +66,7 @@ impl<T> Index<T> {
         let mut transcript_idxs = HashMap::new();
         for (i, item) in items.iter().enumerate() {
             let (id, idx) = f(item);
-            field_ids.insert(id.clone(), i);
+            field_ids.insert(*id, i);
             transcript_idxs.insert(idx.clone(), i);
         }
         Self {

@@ -54,7 +54,7 @@ impl HashProvider {
         id: &HashAlgId,
     ) -> Result<&(dyn HashAlgorithm + Send + Sync), HashProviderError> {
         self.algs
-            .get(&id)
+            .get(id)
             .map(|alg| &**alg)
             .ok_or(HashProviderError(*id))
     }

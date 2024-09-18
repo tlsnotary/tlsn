@@ -90,7 +90,7 @@ impl EncodingProof {
                 Direction::Received => recv_len,
             };
 
-            if seq.index().end() > transcript_len as usize {
+            if seq.index().end() > transcript_len {
                 return Err(EncodingProofError::new(
                     ErrorKind::Proof,
                     format!(

@@ -157,7 +157,7 @@ impl EncodingTree {
 
             let leaf_idx = *self
                 .idxs
-                .get_by_right(&dir_idx)
+                .get_by_right(dir_idx)
                 .ok_or_else(|| EncodingTreeError::MissingLeaf { index: idx.clone() })?;
 
             let seq =

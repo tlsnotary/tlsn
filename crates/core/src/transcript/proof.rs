@@ -53,9 +53,7 @@ impl TranscriptProof {
             let commitment = attestation_body.encoding_commitment().ok_or_else(|| {
                 TranscriptProofError::new(
                     ErrorKind::Encoding,
-                    format!(
-                        "contains an encoding proof but attestation is missing encoding commitment"
-                    ),
+                    "contains an encoding proof but attestation is missing encoding commitment",
                 )
             })?;
             let seq = proof.verify_with_provider(provider, &info.transcript_length, commitment)?;
@@ -273,7 +271,7 @@ impl<'a> TranscriptProofBuilder<'a> {
         let encoding_proof = if !self.encoding_proof_idxs.is_empty() {
             let encoding_tree = self.encoding_tree.expect("encoding tree is present");
             let proof = encoding_tree
-                .proof(&self.transcript, self.encoding_proof_idxs.iter())
+                .proof(self.transcript, self.encoding_proof_idxs.iter())
                 .expect("subsequences were checked to be in tree");
             Some(proof)
         } else {

@@ -71,7 +71,7 @@ impl rs_merkle::Hasher for RsMerkleHasher<'_> {
     type Hash = Hash;
 
     fn hash(&self, data: &[u8]) -> Hash {
-        self.0.hash(data).into()
+        self.0.hash(data)
     }
 }
 
