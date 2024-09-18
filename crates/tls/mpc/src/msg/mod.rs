@@ -1,4 +1,5 @@
 //! Contains message types for communication between leader and follower
+use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 pub mod mpc_tls_follower_msg;

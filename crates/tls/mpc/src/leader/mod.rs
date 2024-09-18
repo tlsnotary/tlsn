@@ -37,6 +37,10 @@ use tls_core::{
 use tracing::{debug, instrument, trace};
 
 pub mod actor;
+use actor::MpcTlsLeaderCtrl;
+
+/// Controller for MPC-TLS leader.
+pub type LeaderCtrl = MpcTlsLeaderCtrl;
 
 /// MPC-TLS leader.
 pub struct MpcTlsLeader {
@@ -580,7 +584,7 @@ impl Backend for MpcTlsLeader {
     async fn encrypt(
         &mut self,
         msg: PlainMessage,
-        seq: u64,
+        _seq: u64,
     ) -> Result<OpaqueMessage, BackendError> {
         let msg = match msg.typ {
             ContentType::Handshake => self.encrypt_client_finished(msg).await,
@@ -600,7 +604,7 @@ impl Backend for MpcTlsLeader {
     async fn decrypt(
         &mut self,
         msg: OpaqueMessage,
-        seq: u64,
+        _seq: u64,
     ) -> Result<PlainMessage, BackendError> {
         let msg = match msg.typ {
             ContentType::Handshake => self.decrypt_server_finished(msg).await,
