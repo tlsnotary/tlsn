@@ -25,11 +25,16 @@ pub enum MpcTlsMessage {
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComputeKeyExchange;
+pub struct ComputeKeyExchange {
+    pub handshake_commitment: Option<Hash>,
+    pub server_random: [u8; 32],
+}
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClientFinishedVd;
+pub struct ClientFinishedVd {
+    pub handshake_hash: [u8; 32],
+}
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,7 +48,9 @@ pub struct EncryptAlert {
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerFinishedVd;
+pub struct ServerFinishedVd {
+    pub handshake_hash: [u8; 32],
+}
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
