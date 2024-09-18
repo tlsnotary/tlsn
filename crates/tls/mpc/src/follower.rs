@@ -1,18 +1,20 @@
-use std::{collections::VecDeque, future::Future, mem};
-
+use crate::{
+    error::Kind,
+    msg::{CloseConnection, Commit, MpcTlsFollowerMsg, MpcTlsMessage},
+    record_layer::{Decrypter, Encrypter},
+    Direction, MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
+};
+use aead::{aes_gcm::AesGcmError, Aead};
 use futures::{
     stream::{SplitSink, SplitStream},
     FutureExt, StreamExt,
 };
-
-use key_exchange as ke;
-use mpz_core::hash::Hash;
-
-use p256::elliptic_curve::sec1::ToEncodedPoint;
-
-use aead::{aes_gcm::AesGcmError, Aead};
 use hmac_sha256::Prf;
 use ke::KeyExchange;
+use key_exchange as ke;
+use mpz_core::hash::Hash;
+use p256::elliptic_curve::sec1::ToEncodedPoint;
+use std::{collections::VecDeque, future::Future, mem};
 use tls_core::{
     key::PublicKey,
     msgs::{
@@ -25,13 +27,6 @@ use tls_core::{
     },
 };
 use tracing::{debug, instrument, Instrument};
-
-use crate::{
-    error::Kind,
-    msg::{CloseConnection, Commit, MpcTlsFollowerMsg, MpcTlsMessage},
-    record_layer::{Decrypter, Encrypter},
-    Direction, MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
-};
 
 /// Controller for MPC-TLS follower.
 pub type FollowerCtrl = MpcTlsFollowerCtrl<FuturesAddress<MpcTlsFollowerMsg>>;
