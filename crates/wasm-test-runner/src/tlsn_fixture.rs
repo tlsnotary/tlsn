@@ -77,8 +77,10 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
         .build()
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let config = VerifierConfig::builder()
         .crypto_provider(provider)
@@ -130,8 +132,10 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(1024)

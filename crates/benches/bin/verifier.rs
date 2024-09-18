@@ -65,8 +65,10 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     set_interface(VERIFIER_INTERFACE, download, 1, download_delay)?;
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = cert_verifier();
+    let provider = CryptoProvider {
+        cert: cert_verifier(),
+        ..Default::default()
+    };
 
     let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(upload_size + 256)

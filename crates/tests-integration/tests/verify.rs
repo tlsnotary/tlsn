@@ -53,8 +53,10 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let prover = Prover::new(
         ProverConfig::builder()
@@ -125,8 +127,10 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let config = VerifierConfig::builder()
         .protocol_config_validator(

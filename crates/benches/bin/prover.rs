@@ -117,8 +117,10 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let start_time = Instant::now();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store(), None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store(), None),
+        ..Default::default()
+    };
 
     let protocol_config = if defer_decryption {
         ProtocolConfig::builder()

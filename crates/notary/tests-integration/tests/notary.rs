@@ -183,8 +183,10 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
@@ -375,8 +377,10 @@ async fn test_websocket_prover() {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)

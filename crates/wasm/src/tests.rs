@@ -23,8 +23,10 @@ pub async fn test_prove() -> Result<(), JsValue> {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let prover = Prover::new(
         ProverConfig::builder()
@@ -78,8 +80,10 @@ pub async fn test_notarize() -> Result<(), JsValue> {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let prover = Prover::new(
         ProverConfig::builder()
@@ -135,8 +139,10 @@ pub async fn test_verifier() -> Result<(), JsValue> {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let config = VerifierConfig::builder()
         .protocol_config_validator(

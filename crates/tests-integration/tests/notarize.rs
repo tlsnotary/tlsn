@@ -42,8 +42,10 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
@@ -119,8 +121,11 @@ async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let mut provider = CryptoProvider::default();
-    provider.cert = WebPkiVerifier::new(root_store, None);
+    let mut provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
+
     provider.signer.set_secp256k1(&[1u8; 32]).unwrap();
 
     let config_validator = ProtocolConfigValidator::builder()
