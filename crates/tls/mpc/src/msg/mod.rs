@@ -1,4 +1,5 @@
-//! Contains message types for communication between leader and follower
+//! Contains message types for communication between leader and follower and actor messages.
+
 use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
