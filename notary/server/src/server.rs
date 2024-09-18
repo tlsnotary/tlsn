@@ -334,11 +334,11 @@ fn watch_and_reload_authorization_whitelist(
 
         // Start watcher to listen to any changes on the whitelist file
         watcher
-            .watch(
-                Path::new(whitelist_csv_path),
-                RecursiveMode::Recursive,
-            )
-            .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
+        .watch(
+            Path::new(whitelist_csv_path),
+            RecursiveMode::Recursive,
+        )
+        .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
         Some(watcher)
     } else {
@@ -389,7 +389,7 @@ mod test {
         let config = NotaryServerProperties {
             authorization: AuthorizationProperties {
                 enabled: true,
-                whitelist_csv_path,
+                whitelist_csv_path: Some(whitelist_csv_path.clone()),
             },
             ..Default::default()
         };
@@ -413,16 +413,19 @@ mod test {
             api_key: "unit-test-api-key".to_string(),
             created_at: "unit-test-created-at".to_string(),
         };
-        let file = OpenOptions::new()
-            .append(true)
-            .open(&config.authorization.whitelist_csv_path)
-            .unwrap();
-        let mut wtr = WriterBuilder::new()
-            .has_headers(false) // Set to false to avoid writing header again
-            .from_writer(file);
-        wtr.serialize(new_record).unwrap();
-        wtr.flush().unwrap();
-
+        if let Some(ref path) = config.authorization.whitelist_csv_path {
+            let file = OpenOptions::new()
+                .append(true)
+                .open(path)
+                .unwrap();
+            let mut wtr = WriterBuilder::new()
+                .has_headers(false) // Set to false to avoid writing header again
+                .from_writer(file);
+            wtr.serialize(new_record).unwrap();
+            wtr.flush().unwrap();
+        } else {
+            panic!("Whitelist CSV path should be provided in the config");
+        }
         // Sleep to buy a bit of time for updated whitelist to be hot reloaded
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -433,6 +436,6 @@ mod test {
             .contains_key("unit-test-api-key"));
 
         // Delete the cloned whitelist
-        std::fs::remove_file(&config.authorization.whitelist_csv_path).unwrap();
+        std::fs::remove_file(&whitelist_csv_path).unwrap();
     }
 }
