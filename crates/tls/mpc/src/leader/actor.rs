@@ -80,168 +80,166 @@ impl Actor for MpcTlsLeader {
 }
 
 impl Dispatch<MpcTlsLeader> for MpcTlsLeaderMsg {
-    fn dispatch<R: FnOnce(Self::Return) + Send>(
+    async fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
         actor: &mut MpcTlsLeader,
         ctx: &mut Context<MpcTlsLeader>,
         ret: R,
-    ) -> impl Future<Output = ()> + Send {
-        async {
-            match self {
-                MpcTlsLeaderMsg::BackendMsgSetProtocolVersion(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetProtocolVersion(value))
-                    })
+    ) {
+        match self {
+            MpcTlsLeaderMsg::BackendMsgSetProtocolVersion(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetProtocolVersion(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetCipherSuite(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetCipherSuite(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgGetSuite(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgGetSuite(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetEncrypt(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetEncrypt(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetDecrypt(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetDecrypt(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgGetClientRandom(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgGetClientRandom(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgGetClientKeyShare(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgGetClientKeyShare(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetServerRandom(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetServerRandom(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetServerKeyShare(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetServerKeyShare(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetServerCertDetails(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetServerCertDetails(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetServerKxDetails(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetServerKxDetails(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetHsHashClientKeyExchange(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetHsHashClientKeyExchange(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgSetHsHashServerHello(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgSetHsHashServerHello(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgGetServerFinishedVd(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgGetServerFinishedVd(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgGetClientFinishedVd(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgGetClientFinishedVd(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgPrepareEncryption(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgPrepareEncryption(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgEncrypt(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgEncrypt(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgDecrypt(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgDecrypt(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgNextIncoming(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgNextIncoming(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgBufferIncoming(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgBufferIncoming(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgGetNotify(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgGetNotify(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgBufferLen(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgBufferLen(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::BackendMsgServerClosed(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgServerClosed(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::DeferDecryption(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::DeferDecryption(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::CloseConnection(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::CloseConnection(value))
+                })
+                .await;
+            }
+            MpcTlsLeaderMsg::Finalize(msg) => {
+                msg.dispatch(actor, ctx, |value| ret(Self::Return::Finalize(value)))
                     .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetCipherSuite(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetCipherSuite(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgGetSuite(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgGetSuite(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetEncrypt(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetEncrypt(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetDecrypt(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetDecrypt(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgGetClientRandom(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgGetClientRandom(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgGetClientKeyShare(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgGetClientKeyShare(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetServerRandom(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetServerRandom(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetServerKeyShare(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetServerKeyShare(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetServerCertDetails(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetServerCertDetails(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetServerKxDetails(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetServerKxDetails(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetHsHashClientKeyExchange(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetHsHashClientKeyExchange(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgSetHsHashServerHello(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgSetHsHashServerHello(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgGetServerFinishedVd(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgGetServerFinishedVd(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgGetClientFinishedVd(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgGetClientFinishedVd(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgPrepareEncryption(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgPrepareEncryption(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgEncrypt(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgEncrypt(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgDecrypt(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgDecrypt(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgNextIncoming(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgNextIncoming(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgBufferIncoming(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgBufferIncoming(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgGetNotify(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgGetNotify(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgBufferLen(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgBufferLen(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::BackendMsgServerClosed(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::BackendMsgServerClosed(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::DeferDecryption(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::DeferDecryption(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::CloseConnection(msg) => {
-                    msg.dispatch(actor, ctx, |value| {
-                        ret(Self::Return::CloseConnection(value))
-                    })
-                    .await;
-                }
-                MpcTlsLeaderMsg::Finalize(msg) => {
-                    msg.dispatch(actor, ctx, |value| ret(Self::Return::Finalize(value)))
-                        .await;
-                }
             }
         }
     }
@@ -457,12 +455,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetProtocolVersion {
 }
 
 impl Handler<BackendMsgSetProtocolVersion> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetProtocolVersion,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetProtocolVersion as Message>::Return> + Send {
-        async move { self.set_protocol_version(msg.version).await }
+    ) -> <BackendMsgSetProtocolVersion as Message>::Return {
+        self.set_protocol_version(msg.version).await
     }
 }
 
@@ -478,12 +476,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetCipherSuite {
 }
 
 impl Handler<BackendMsgSetCipherSuite> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetCipherSuite,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetCipherSuite as Message>::Return> + Send {
-        async move { self.set_cipher_suite(msg.suite).await }
+    ) -> <BackendMsgSetCipherSuite as Message>::Return {
+        self.set_cipher_suite(msg.suite).await
     }
 }
 
@@ -499,12 +497,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgGetSuite {
 }
 
 impl Handler<BackendMsgGetSuite> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgGetSuite,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgGetSuite as Message>::Return> + Send {
-        async move { self.get_suite().await }
+    ) -> <BackendMsgGetSuite as Message>::Return {
+        self.get_suite().await
     }
 }
 
@@ -520,12 +518,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetEncrypt {
 }
 
 impl Handler<BackendMsgSetEncrypt> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetEncrypt,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetEncrypt as Message>::Return> + Send {
-        async move { self.set_encrypt(msg.mode).await }
+    ) -> <BackendMsgSetEncrypt as Message>::Return {
+        self.set_encrypt(msg.mode).await
     }
 }
 
@@ -541,12 +539,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetDecrypt {
 }
 
 impl Handler<BackendMsgSetDecrypt> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetDecrypt,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetDecrypt as Message>::Return> + Send {
-        async move { self.set_decrypt(msg.mode).await }
+    ) -> <BackendMsgSetDecrypt as Message>::Return {
+        self.set_decrypt(msg.mode).await
     }
 }
 
@@ -562,12 +560,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgGetClientRandom {
 }
 
 impl Handler<BackendMsgGetClientRandom> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgGetClientRandom,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgGetClientRandom as Message>::Return> + Send {
-        async move { self.get_client_random().await }
+    ) -> <BackendMsgGetClientRandom as Message>::Return {
+        self.get_client_random().await
     }
 }
 
@@ -583,12 +581,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgGetClientKeyShare {
 }
 
 impl Handler<BackendMsgGetClientKeyShare> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgGetClientKeyShare,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgGetClientKeyShare as Message>::Return> + Send {
-        async move { self.get_client_key_share().await }
+    ) -> <BackendMsgGetClientKeyShare as Message>::Return {
+        self.get_client_key_share().await
     }
 }
 
@@ -604,12 +602,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetServerRandom {
 }
 
 impl Handler<BackendMsgSetServerRandom> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetServerRandom,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetServerRandom as Message>::Return> + Send {
-        async move { self.set_server_random(msg.random).await }
+    ) -> <BackendMsgSetServerRandom as Message>::Return {
+        self.set_server_random(msg.random).await
     }
 }
 
@@ -625,12 +623,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetServerKeyShare {
 }
 
 impl Handler<BackendMsgSetServerKeyShare> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetServerKeyShare,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetServerKeyShare as Message>::Return> + Send {
-        async move { self.set_server_key_share(msg.key).await }
+    ) -> <BackendMsgSetServerKeyShare as Message>::Return {
+        self.set_server_key_share(msg.key).await
     }
 }
 
@@ -646,12 +644,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetServerCertDetails {
 }
 
 impl Handler<BackendMsgSetServerCertDetails> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetServerCertDetails,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetServerCertDetails as Message>::Return> + Send {
-        async move { self.set_server_cert_details(msg.cert_details).await }
+    ) -> <BackendMsgSetServerCertDetails as Message>::Return {
+        self.set_server_cert_details(msg.cert_details).await
     }
 }
 
@@ -667,12 +665,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetServerKxDetails {
 }
 
 impl Handler<BackendMsgSetServerKxDetails> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetServerKxDetails,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetServerKxDetails as Message>::Return> + Send {
-        async move { self.set_server_kx_details(msg.kx_details).await }
+    ) -> <BackendMsgSetServerKxDetails as Message>::Return {
+        self.set_server_kx_details(msg.kx_details).await
     }
 }
 
@@ -688,13 +686,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetHsHashClientKeyExchange {
 }
 
 impl Handler<BackendMsgSetHsHashClientKeyExchange> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetHsHashClientKeyExchange,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetHsHashClientKeyExchange as Message>::Return> + Send
-    {
-        async move { self.set_hs_hash_client_key_exchange(msg.hash).await }
+    ) -> <BackendMsgSetHsHashClientKeyExchange as Message>::Return {
+        self.set_hs_hash_client_key_exchange(msg.hash).await
     }
 }
 
@@ -710,12 +707,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgSetHsHashServerHello {
 }
 
 impl Handler<BackendMsgSetHsHashServerHello> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgSetHsHashServerHello,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgSetHsHashServerHello as Message>::Return> + Send {
-        async move { self.set_hs_hash_server_hello(msg.hash).await }
+    ) -> <BackendMsgSetHsHashServerHello as Message>::Return {
+        self.set_hs_hash_server_hello(msg.hash).await
     }
 }
 
@@ -731,12 +728,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgGetServerFinishedVd {
 }
 
 impl Handler<BackendMsgGetServerFinishedVd> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgGetServerFinishedVd,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgGetServerFinishedVd as Message>::Return> + Send {
-        async move { self.get_server_finished_vd(msg.hash).await }
+    ) -> <BackendMsgGetServerFinishedVd as Message>::Return {
+        self.get_server_finished_vd(msg.hash).await
     }
 }
 
@@ -752,12 +749,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgGetClientFinishedVd {
 }
 
 impl Handler<BackendMsgGetClientFinishedVd> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgGetClientFinishedVd,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgGetClientFinishedVd as Message>::Return> + Send {
-        async move { self.get_client_finished_vd(msg.hash).await }
+    ) -> <BackendMsgGetClientFinishedVd as Message>::Return {
+        self.get_client_finished_vd(msg.hash).await
     }
 }
 
@@ -773,12 +770,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgPrepareEncryption {
 }
 
 impl Handler<BackendMsgPrepareEncryption> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgPrepareEncryption,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgPrepareEncryption as Message>::Return> + Send {
-        async move { self.prepare_encryption().await }
+    ) -> <BackendMsgPrepareEncryption as Message>::Return {
+        self.prepare_encryption().await
     }
 }
 
@@ -794,12 +791,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgEncrypt {
 }
 
 impl Handler<BackendMsgEncrypt> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgEncrypt,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgEncrypt as Message>::Return> + Send {
-        async move { self.encrypt(msg.msg, msg.seq).await }
+    ) -> <BackendMsgEncrypt as Message>::Return {
+        self.encrypt(msg.msg, msg.seq).await
     }
 }
 
@@ -815,12 +812,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgDecrypt {
 }
 
 impl Handler<BackendMsgDecrypt> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgDecrypt,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgDecrypt as Message>::Return> + Send {
-        async move { self.decrypt(msg.msg, msg.seq).await }
+    ) -> <BackendMsgDecrypt as Message>::Return {
+        self.decrypt(msg.msg, msg.seq).await
     }
 }
 
@@ -836,12 +833,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgBufferIncoming {
 }
 
 impl Handler<BackendMsgBufferIncoming> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: BackendMsgBufferIncoming,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgBufferIncoming as Message>::Return> + Send {
-        async move { self.buffer_incoming(msg.msg).await }
+    ) -> <BackendMsgBufferIncoming as Message>::Return {
+        self.buffer_incoming(msg.msg).await
     }
 }
 
@@ -857,12 +854,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgNextIncoming {
 }
 
 impl Handler<BackendMsgNextIncoming> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgNextIncoming,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgNextIncoming as Message>::Return> + Send {
-        async move { self.next_incoming().await }
+    ) -> <BackendMsgNextIncoming as Message>::Return {
+        self.next_incoming().await
     }
 }
 
@@ -878,12 +875,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgGetNotify {
 }
 
 impl Handler<BackendMsgGetNotify> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgGetNotify,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgGetNotify as Message>::Return> + Send {
-        async move { self.get_notify().await }
+    ) -> <BackendMsgGetNotify as Message>::Return {
+        self.get_notify().await
     }
 }
 
@@ -899,12 +896,12 @@ impl Dispatch<MpcTlsLeader> for BackendMsgBufferLen {
 }
 
 impl Handler<BackendMsgBufferLen> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgBufferLen,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgBufferLen as Message>::Return> + Send {
-        async move { self.buffer_len().await }
+    ) -> <BackendMsgBufferLen as Message>::Return {
+        self.buffer_len().await
     }
 }
 
@@ -920,15 +917,15 @@ impl Dispatch<MpcTlsLeader> for BackendMsgServerClosed {
 }
 
 impl Handler<BackendMsgServerClosed> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: BackendMsgServerClosed,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <BackendMsgServerClosed as Message>::Return> + Send {
-        async move { self.server_closed().await }
+    ) -> <BackendMsgServerClosed as Message>::Return {
+        self.server_closed().await
     }
 }
-//================================================================
+
 impl Dispatch<MpcTlsLeader> for DeferDecryption {
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
@@ -941,12 +938,12 @@ impl Dispatch<MpcTlsLeader> for DeferDecryption {
 }
 
 impl Handler<DeferDecryption> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: DeferDecryption,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <DeferDecryption as Message>::Return> + Send {
-        async { self.defer_decryption().await }
+    ) -> <DeferDecryption as Message>::Return {
+        self.defer_decryption().await
     }
 }
 
@@ -962,12 +959,12 @@ impl Dispatch<MpcTlsLeader> for CloseConnection {
 }
 
 impl Handler<CloseConnection> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: CloseConnection,
         ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <CloseConnection as Message>::Return> + Send {
-        async { self.close_connection(ctx).await }
+    ) -> <CloseConnection as Message>::Return {
+        self.close_connection(ctx).await
     }
 }
 
@@ -983,11 +980,11 @@ impl Dispatch<MpcTlsLeader> for Commit {
 }
 
 impl Handler<Commit> for MpcTlsLeader {
-    fn handle(
+    async fn handle(
         &mut self,
         _msg: Commit,
         _ctx: &mut Context<Self>,
-    ) -> impl Future<Output = <Commit as Message>::Return> + Send {
-        async { self.commit().await }
+    ) -> <Commit as Message>::Return {
+        self.commit().await
     }
 }

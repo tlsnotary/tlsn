@@ -1,20 +1,20 @@
 use crate::{
     error::Kind,
-    msg::{CloseConnection, Commit, MpcTlsFollowerMsg, MpcTlsMessage},
+    msg::MpcTlsMessage,
     record_layer::{Decrypter, Encrypter},
     Direction, MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
 };
 use aead::{aes_gcm::AesGcmError, Aead};
 use futures::{
     stream::{SplitSink, SplitStream},
-    FutureExt, StreamExt,
+    StreamExt,
 };
 use hmac_sha256::Prf;
 use ke::KeyExchange;
 use key_exchange as ke;
 use mpz_core::hash::Hash;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
-use std::{collections::VecDeque, future::Future, mem};
+use std::{collections::VecDeque, mem};
 use tls_core::{
     key::PublicKey,
     msgs::{
@@ -26,10 +26,13 @@ use tls_core::{
         message::{OpaqueMessage, PlainMessage},
     },
 };
-use tracing::{debug, instrument, Instrument};
+use tracing::{debug, instrument};
+
+mod actor;
+use actor::MpcTlsFollowerCtrl;
 
 /// Controller for MPC-TLS follower.
-pub type FollowerCtrl = MpcTlsFollowerCtrl<FuturesAddress<MpcTlsFollowerMsg>>;
+pub type FollowerCtrl = MpcTlsFollowerCtrl;
 
 /// MPC-TLS follower.
 pub struct MpcTlsFollower {
@@ -48,37 +51,6 @@ pub struct MpcTlsFollower {
     close_notify: bool,
     /// Whether the leader has committed to the transcript.
     committed: bool,
-}
-
-/// Data collected by the MPC-TLS follower.
-#[derive(Debug)]
-pub struct MpcTlsFollowerData {
-    /// The server's public key
-    pub server_key: PublicKey,
-    /// The total number of bytes sent
-    pub bytes_sent: usize,
-    /// The total number of bytes received
-    pub bytes_recv: usize,
-}
-
-impl ludi::Actor for MpcTlsFollower {
-    type Stop = MpcTlsFollowerData;
-    type Error = MpcTlsError;
-
-    async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
-        debug!("follower actor stopped");
-
-        let Closed { server_key } = self.state.take().try_into_closed()?;
-
-        let bytes_sent = self.encrypter.sent_bytes();
-        let bytes_recv = self.decrypter.recv_bytes();
-
-        Ok(MpcTlsFollowerData {
-            server_key,
-            bytes_sent,
-            bytes_recv,
-        })
-    }
 }
 
 impl MpcTlsFollower {
@@ -146,55 +118,6 @@ impl MpcTlsFollower {
         self.prf.set_client_random(None).await?;
 
         Ok(())
-    }
-
-    /// Runs the follower actor.
-    ///
-    /// Returns a control handle and a future that resolves when the actor is
-    /// stopped.
-    ///
-    /// # Note
-    ///
-    /// The future must be polled continuously to make progress.
-    pub fn run(
-        mut self,
-    ) -> (
-        FollowerCtrl,
-        impl Future<Output = Result<MpcTlsFollowerData, MpcTlsError>>,
-    ) {
-        let (mut mailbox, addr) = ludi::mailbox::<MpcTlsFollowerMsg>(100);
-        let ctrl = FollowerCtrl::from(addr.clone());
-
-        let mut stream = self
-            .stream
-            .take()
-            .expect("stream should be present from constructor");
-
-        let mut remote_fut = Box::pin(async move {
-            while let Some(msg) = stream.next().await {
-                let msg = MpcTlsFollowerMsg::try_from(msg?)?;
-                addr.send_await(msg).await?;
-            }
-
-            Ok::<_, MpcTlsError>(())
-        })
-        .fuse();
-
-        let mut actor_fut =
-            Box::pin(async move { ludi::run(&mut self, &mut mailbox).await }).fuse();
-
-        let fut = async move {
-            loop {
-                futures::select! {
-                    res = &mut remote_fut => {
-                        res?;
-                    },
-                    res = &mut actor_fut => return res,
-                }
-            }
-        };
-
-        (ctrl, fut.in_current_span())
     }
 
     fn check_transcript_length(&self, direction: Direction, len: usize) -> Result<(), MpcTlsError> {
@@ -525,67 +448,17 @@ impl MpcTlsFollower {
     }
 }
 
-impl MpcTlsFollower {
-    pub async fn compute_key_exchange(&mut self, server_random: [u8; 32]) {
-        ctx.try_or_stop(|_| self.compute_key_exchange(server_random))
-            .await;
-    }
-
-    pub async fn client_finished_vd(&mut self, handshake_hash: [u8; 32]) {
-        ctx.try_or_stop(|_| self.client_finished_vd(handshake_hash))
-            .await;
-    }
-
-    pub async fn server_finished_vd(&mut self, handshake_hash: [u8; 32]) {
-        ctx.try_or_stop(|_| self.server_finished_vd(handshake_hash))
-            .await;
-    }
-
-    pub async fn encrypt_client_finished(&mut self) {
-        ctx.try_or_stop(|_| self.encrypt_client_finished()).await;
-    }
-
-    pub async fn encrypt_alert(&mut self, msg: Vec<u8>) {
-        ctx.try_or_stop(|_| self.encrypt_alert(msg)).await;
-    }
-
-    pub async fn encrypt_message(&mut self, len: usize) {
-        ctx.try_or_stop(|_| self.encrypt_message(len)).await;
-    }
-
-    pub async fn decrypt_server_finished(&mut self, ciphertext: Vec<u8>) {
-        ctx.try_or_stop(|_| self.decrypt_server_finished(ciphertext))
-            .await;
-    }
-
-    pub async fn decrypt_alert(&mut self, ciphertext: Vec<u8>) {
-        ctx.try_or_stop(|_| self.decrypt_alert(ciphertext)).await;
-    }
-
-    pub async fn commit_message(&mut self, msg: Vec<u8>) {
-        ctx.try_or_stop(|_| async { self.commit_message(msg) })
-            .await;
-    }
-
-    pub async fn decrypt_message(&mut self) {
-        ctx.try_or_stop(|_| self.decrypt_message()).await;
-    }
-
-    #[msg(skip, name = "CloseConnection")]
-    pub async fn close_connection(&mut self) -> Result<(), MpcTlsError> {
-        ctx.try_or_stop(|_| async { self.close_connection() }).await;
-
-        ctx.stop();
-
-        Ok(())
-    }
-
-    #[msg(skip, name = "Commit")]
-    pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
-        ctx.try_or_stop(|_| self.commit()).await;
-
-        Ok(())
-    }
+/// Data collected by the MPC-TLS follower.
+#[derive(Debug)]
+pub struct MpcTlsFollowerData {
+    /// The prover's commitment to the handshake data
+    pub handshake_commitment: Option<Hash>,
+    /// The server's public key
+    pub server_key: PublicKey,
+    /// The total number of bytes sent
+    pub bytes_sent: usize,
+    /// The total number of bytes received
+    pub bytes_recv: usize,
 }
 
 mod state {

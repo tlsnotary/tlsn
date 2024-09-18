@@ -1,3 +1,5 @@
+//! Messages for the leader actor.
+
 use crate::MpcTlsError;
 use ludi::{Error, Message, Wrap};
 use tls_backend::{BackendError, BackendNotify, DecryptMode, EncryptMode};
@@ -13,6 +15,7 @@ use tls_core::{
     suites::SupportedCipherSuite,
 };
 
+#[allow(missing_docs)]
 pub enum MpcTlsLeaderMsg {
     BackendMsgSetProtocolVersion(BackendMsgSetProtocolVersion),
     BackendMsgSetCipherSuite(BackendMsgSetCipherSuite),
@@ -46,6 +49,7 @@ impl Message for MpcTlsLeaderMsg {
     type Return = MpcTlsLeaderMsgReturn;
 }
 
+#[allow(missing_docs)]
 pub enum MpcTlsLeaderMsgReturn {
     BackendMsgSetProtocolVersion(<BackendMsgSetProtocolVersion as Message>::Return),
     BackendMsgSetCipherSuite(<BackendMsgSetCipherSuite as Message>::Return),
