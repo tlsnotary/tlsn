@@ -36,7 +36,7 @@ use tls_core::{
 };
 use tracing::{debug, instrument, trace};
 
-pub mod actor;
+mod actor;
 use actor::MpcTlsLeaderCtrl;
 
 /// Controller for MPC-TLS leader.
