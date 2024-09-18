@@ -8,7 +8,7 @@ use crate::msg::{
 };
 use crate::MpcTlsError;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub enum MpcTlsFollowerMsg {
     ComputeKeyExchange(ComputeKeyExchange),
     ClientFinishedVd(ClientFinishedVd),

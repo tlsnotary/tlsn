@@ -1,8 +1,9 @@
 use crate::{
     error::Kind,
     msg::{
-        CloseConnection, Commit, CommitMessage, DecryptAlert, DecryptMessage,
-        DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage, MpcTlsMessage,
+        ClientFinishedVd, CloseConnection, Commit, CommitMessage, ComputeKeyExchange, DecryptAlert,
+        DecryptMessage, DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
+        MpcTlsMessage, ServerFinishedVd,
     },
     record_layer::{Decrypter, Encrypter},
     Direction, MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
@@ -373,11 +374,11 @@ impl Backend for MpcTlsLeader {
         unimplemented!()
     }
 
-    async fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), BackendError> {
+    async fn set_encrypt(&mut self, _mode: EncryptMode) -> Result<(), BackendError> {
         unimplemented!()
     }
 
-    async fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), BackendError> {
+    async fn set_decrypt(&mut self, _mode: DecryptMode) -> Result<(), BackendError> {
         unimplemented!()
     }
 
@@ -459,11 +460,14 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    async fn set_hs_hash_client_key_exchange(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
+    async fn set_hs_hash_client_key_exchange(
+        &mut self,
+        _hash: Vec<u8>,
+    ) -> Result<(), BackendError> {
         Ok(())
     }
 
-    async fn set_hs_hash_server_hello(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
+    async fn set_hs_hash_server_hello(&mut self, _hash: Vec<u8>) -> Result<(), BackendError> {
         Ok(())
     }
 
