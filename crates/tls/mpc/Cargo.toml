@@ -34,7 +34,7 @@ mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b
 mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 
 uid-mux = { version = "0.1", features = ["serio"] }
-ludi = { git = "https://github.com/sinui0/ludi", rev = "e511c3b" }
+ludi = { git = "https://github.com/sinui0/ludi", rev = "e511c3b", default-features = false }
 
 async-trait = { workspace = true }
 derive_builder = { workspace = true }
