@@ -4,10 +4,7 @@ use std::{
     sync::Arc,
 };
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
-use tlsn_common::{
-    config::{ot_recv_estimate, ot_send_estimate, DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT},
-    Role,
-};
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
@@ -15,14 +12,7 @@ use tlsn_core::CryptoProvider;
 #[derive(derive_builder::Builder)]
 #[builder(pattern = "owned")]
 pub struct VerifierConfig {
-    #[builder(setter(into))]
-    id: String,
-    /// Maximum number of bytes that can be sent.
-    #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
-    max_sent_data: usize,
-    /// Maximum number of bytes that can be received.
-    #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
-    max_recv_data: usize,
+    protocol_config_validator: ProtocolConfigValidator,
     /// Cryptography provider.
     #[builder(default, setter(into))]
     crypto_provider: Arc<CryptoProvider>,
@@ -31,11 +21,8 @@ pub struct VerifierConfig {
 impl Debug for VerifierConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("VerifierConfig")
-            .field("id", &self.id)
-            .field("max_sent_data", &self.max_sent_data)
-            .field("max_recv_data", &self.max_recv_data)
-            .field("cert_verifier", &"_")
-            .finish()
+            .field("protocol_config_validator", &self.protocol_config_validator)
+            .finish_non_exhaustive()
     }
 }
 
@@ -45,19 +32,9 @@ impl VerifierConfig {
         VerifierConfigBuilder::default()
     }
 
-    /// Returns the ID of the notarization session.
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    /// Returns the maximum number of bytes that can be sent.
-    pub fn max_sent_data(&self) -> usize {
-        self.max_sent_data
-    }
-
-    /// Returns the maximum number of bytes that can be received.
-    pub fn max_recv_data(&self) -> usize {
-        self.max_recv_data
+    /// Returns the protocol configuration validator.
+    pub fn protocol_config_validator(&self) -> &ProtocolConfigValidator {
+        &self.protocol_config_validator
     }
 
     /// Returns the cryptography provider.
@@ -87,20 +64,26 @@ impl VerifierConfig {
         kos::ReceiverConfig::default()
     }
 
-    pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsFollowerConfig {
+    pub(crate) fn build_mpc_tls_config(
+        &self,
+        protocol_config: &ProtocolConfig,
+    ) -> MpcTlsFollowerConfig {
         MpcTlsFollowerConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
-                    .id(format!("{}/mpc_tls", &self.id))
                     .tx_config(
                         TranscriptConfig::default_tx()
-                            .max_size(self.max_sent_data)
+                            .max_online_size(protocol_config.max_sent_data())
                             .build()
                             .unwrap(),
                     )
                     .rx_config(
                         TranscriptConfig::default_rx()
-                            .max_size(self.max_recv_data)
+                            .max_online_size(protocol_config.max_recv_data_online())
+                            .max_offline_size(
+                                protocol_config.max_recv_data()
+                                    - protocol_config.max_recv_data_online(),
+                            )
                             .build()
                             .unwrap(),
                     )
@@ -110,13 +93,5 @@ impl VerifierConfig {
             )
             .build()
             .unwrap()
-    }
-
-    pub(crate) fn ot_sender_setup_count(&self) -> usize {
-        ot_send_estimate(Role::Verifier, self.max_sent_data, self.max_recv_data)
-    }
-
-    pub(crate) fn ot_receiver_setup_count(&self) -> usize {
-        ot_recv_estimate(Role::Verifier, self.max_sent_data, self.max_recv_data)
     }
 }

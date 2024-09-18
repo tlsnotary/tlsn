@@ -1,15 +1,23 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tls_core::verify::WebPkiVerifier;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{
     attestation::AttestationConfig, request::RequestConfig, signing::SignatureAlgId,
     transcript::TranscriptCommitConfig, CryptoProvider,
 };
 use tlsn_prover::{Prover, ProverConfig};
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture::bind;
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::{Verifier, VerifierConfig};
+
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::test]
 #[ignore]
@@ -25,7 +33,7 @@ async fn test_defer_decryption() {
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
-    let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
+    let server_task = tokio::spawn(bind(server_socket.compat()));
 
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store
@@ -37,8 +45,14 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
             .server_name(SERVER_DOMAIN)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(MAX_SENT_DATA)
+                    .max_recv_data(MAX_RECV_DATA)
+                    .build()
+                    .unwrap(),
+            )
             .crypto_provider(provider)
             .build()
             .unwrap(),
@@ -48,11 +62,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     .unwrap();
 
     let (mut tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
-    let prover_ctrl = prover_fut.control();
     let prover_task = tokio::spawn(prover_fut);
-
-    // Defer decryption until after the server closes the connection.
-    prover_ctrl.defer_decryption().await.unwrap();
 
     tls_connection
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
@@ -98,9 +108,15 @@ async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socke
     provider.cert = WebPkiVerifier::new(root_store, None);
     provider.signer.set_secp256k1(&[1u8; 32]).unwrap();
 
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .id("test")
+            .protocol_config_validator(config_validator)
             .crypto_provider(provider)
             .build()
             .unwrap(),

@@ -19,7 +19,7 @@
 FROM rust:bookworm AS builder
 WORKDIR /usr/src/tlsn
 COPY . .
-RUN cargo install --path notary/server
+RUN cargo install --path crates/notary/server
 
 FROM ubuntu:latest
 WORKDIR /root/.notary-server
@@ -30,9 +30,9 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 # Copy default fixture folder for default usage
-COPY --from=builder /usr/src/tlsn/notary/server/fixture ./fixture
+COPY --from=builder /usr/src/tlsn/crates/notary/server/fixture ./fixture
 # Copy default config folder for default usage
-COPY --from=builder /usr/src/tlsn/notary/server/config ./config
+COPY --from=builder /usr/src/tlsn/crates/notary/server/config ./config
 COPY --from=builder /usr/local/cargo/bin/notary-server /usr/local/bin/notary-server
 # Label to link this image with the repository in Github Container Registry (https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line)
 LABEL org.opencontainers.image.source=https://github.com/tlsnotary/tlsn

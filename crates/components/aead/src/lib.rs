@@ -17,24 +17,6 @@ pub mod aes_gcm;
 use async_trait::async_trait;
 use mpz_garble::value::ValueRef;
 
-/// An error that can occur during AEAD operations.
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum AeadError {
-    #[error(transparent)]
-    BlockCipherError(#[from] block_cipher::BlockCipherError),
-    #[error(transparent)]
-    StreamCipherError(#[from] tlsn_stream_cipher::StreamCipherError),
-    #[error(transparent)]
-    UniversalHashError(#[from] tlsn_universal_hash::UniversalHashError),
-    #[error("Corrupted Tag")]
-    CorruptedTag,
-    #[error("Validation Error: {0}")]
-    ValidationError(String),
-    #[error(transparent)]
-    IoError(#[from] std::io::Error),
-}
-
 /// This trait defines the interface for AEADs.
 #[async_trait]
 pub trait Aead: Send {

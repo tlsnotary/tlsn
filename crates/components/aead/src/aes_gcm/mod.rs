@@ -424,7 +424,6 @@ impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::{
         aes_gcm::{mock::create_mock_aes_gcm_pair, AesGcmConfigBuilder, Role},
         Aead,

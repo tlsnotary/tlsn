@@ -15,9 +15,10 @@ use tlsn_benches::{
     metrics::Metrics,
     set_interface, PROVER_INTERFACE,
 };
-
+use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{transcript::Idx, CryptoProvider};
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture::bind;
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::{
     compat::TokioAsyncReadCompatExt,
@@ -112,19 +113,33 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     set_interface(PROVER_INTERFACE, upload, 1, upload_delay)?;
 
     let (client_conn, server_conn) = tokio::io::duplex(2 << 16);
-    tokio::spawn(tlsn_server_fixture::bind(server_conn.compat()));
+    tokio::spawn(bind(server_conn.compat()));
 
     let start_time = Instant::now();
 
     let mut provider = CryptoProvider::default();
     provider.cert = WebPkiVerifier::new(root_store(), None);
 
-    let prover = Prover::new(
-        ProverConfig::builder()
-            .id("test")
-            .server_name(SERVER_DOMAIN)
+    let protocol_config = if defer_decryption {
+        ProtocolConfig::builder()
             .max_sent_data(upload_size + 256)
             .max_recv_data(download_size + 256)
+            .build()
+            .unwrap()
+    } else {
+        ProtocolConfig::builder()
+            .max_sent_data(upload_size + 256)
+            .max_recv_data(download_size + 256)
+            .max_recv_data_online(download_size + 256)
+            .build()
+            .unwrap()
+    };
+
+    let prover = Prover::new(
+        ProverConfig::builder()
+            .server_name(SERVER_DOMAIN)
+            .protocol_config(protocol_config)
+            .defer_decryption_from_start(defer_decryption)
             .crypto_provider(provider)
             .build()
             .context("invalid prover config")?,
@@ -134,7 +149,6 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let (mut mpc_tls_connection, prover_fut) = prover.connect(client_conn.compat()).await.unwrap();
 
-    let prover_ctrl = prover_fut.control();
     let prover_task = tokio::spawn(prover_fut);
 
     let request = format!(
@@ -142,10 +156,6 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         download_size,
         String::from_utf8(vec![0x42u8; upload_size]).unwrap(),
     );
-
-    if defer_decryption {
-        prover_ctrl.defer_decryption().await?;
-    }
 
     mpc_tls_connection.write_all(request.as_bytes()).await?;
     mpc_tls_connection.close().await?;

@@ -37,6 +37,7 @@ impl VerifierError {
 #[derive(Debug)]
 enum ErrorKind {
     Io,
+    Config,
     Mpc,
     Attestation,
     Verify,
@@ -48,6 +49,7 @@ impl fmt::Display for VerifierError {
 
         match self.kind {
             ErrorKind::Io => f.write_str("io error")?,
+            ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Mpc => f.write_str("mpc error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
             ErrorKind::Verify => f.write_str("verification error")?,
@@ -64,6 +66,12 @@ impl fmt::Display for VerifierError {
 impl From<std::io::Error> for VerifierError {
     fn from(e: std::io::Error) -> Self {
         Self::new(ErrorKind::Io, e)
+    }
+}
+
+impl From<tlsn_common::config::ProtocolConfigError> for VerifierError {
+    fn from(e: tlsn_common::config::ProtocolConfigError) -> Self {
+        Self::new(ErrorKind::Config, e)
     }
 }
 

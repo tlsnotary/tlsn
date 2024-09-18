@@ -1,16 +1,17 @@
 use anyhow::Context;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
+
 use tls_core::verify::WebPkiVerifier;
 use tlsn_benches::{
     config::{BenchInstance, Config},
     set_interface, VERIFIER_INTERFACE,
 };
+use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::CryptoProvider;
-use tlsn_server_fixture::CA_CERT_DER;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::compat::TokioAsyncReadCompatExt;
-
+use tlsn_server_fixture_certs::CA_CERT_DER;
 use tlsn_verifier::{Verifier, VerifierConfig};
-use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -67,11 +68,15 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     let mut provider = CryptoProvider::default();
     provider.cert = cert_verifier();
 
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(upload_size + 256)
+        .max_recv_data(download_size + 256)
+        .build()
+        .unwrap();
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .id("test")
-            .max_sent_data(upload_size + 256)
-            .max_recv_data(download_size + 256)
+            .protocol_config_validator(config_validator)
             .crypto_provider(provider)
             .build()?,
     );

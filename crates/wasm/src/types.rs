@@ -173,6 +173,12 @@ pub struct Reveal {
     pub recv: Vec<Range<usize>>,
 }
 
+#[derive(Debug, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub enum KeyType {
+    P256,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]

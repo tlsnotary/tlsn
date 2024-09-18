@@ -100,6 +100,7 @@ impl MpcTlsLeader {
             config.common().rx_config().id().to_string(),
             config.common().rx_config().opaque_id().to_string(),
         );
+        let is_decrypting = !config.defer_decryption_from_start();
 
         Self {
             config,
@@ -110,7 +111,7 @@ impl MpcTlsLeader {
             encrypter,
             decrypter,
             notifier: BackendNotifier::new(),
-            is_decrypting: true,
+            is_decrypting,
             buffer: VecDeque::new(),
             committed: false,
         }
@@ -133,11 +134,12 @@ impl MpcTlsLeader {
         self.ke.preprocess().await?;
         self.prf.preprocess().await?;
 
+        let preprocess_encrypt = self.config.common().tx_config().max_online_size();
+        let preprocess_decrypt = self.config.common().rx_config().max_online_size();
+
         futures::try_join!(
-            self.encrypter
-                .preprocess(self.config.common().tx_config().max_size()),
-            // For now we just preprocess enough for the handshake
-            self.decrypter.preprocess(256),
+            self.encrypter.preprocess(preprocess_encrypt),
+            self.decrypter.preprocess(preprocess_decrypt),
         )?;
 
         self.prf
@@ -177,7 +179,7 @@ impl MpcTlsLeader {
         match direction {
             Direction::Sent => {
                 let new_len = self.encrypter.sent_bytes() + len;
-                let max_size = self.config.common().tx_config().max_size();
+                let max_size = self.config.common().tx_config().max_online_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,
@@ -190,7 +192,8 @@ impl MpcTlsLeader {
             }
             Direction::Recv => {
                 let new_len = self.decrypter.recv_bytes() + len;
-                let max_size = self.config.common().rx_config().max_size();
+                let max_size = self.config.common().rx_config().max_online_size()
+                    + self.config.common().rx_config().max_offline_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,
@@ -331,6 +334,9 @@ impl MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn commit(&mut self) -> Result<(), MpcTlsError> {
+        if self.committed {
+            return Ok(());
+        }
         self.state.try_as_active()?;
 
         debug!("committing to transcript");

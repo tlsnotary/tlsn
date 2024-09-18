@@ -7,7 +7,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Run the benchmark binary
-../target/release/bench
+../../target/release/bench
 
 # Plot the results
-../target/release/plot metrics.csv
+../../target/release/plot metrics.csv

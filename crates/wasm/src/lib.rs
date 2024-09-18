@@ -23,10 +23,13 @@ use tracing_subscriber::{
 use tracing_web::MakeWebConsoleWriter;
 use wasm_bindgen::prelude::*;
 
+use crate::types::{Attestation, Presentation, Reveal, Secrets};
+
 #[cfg(feature = "test")]
 pub use tests::*;
 
-use crate::types::{Attestation, Presentation, Reveal, Secrets};
+#[cfg(target_arch = "wasm32")]
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 /// Initializes logging.
 #[wasm_bindgen]

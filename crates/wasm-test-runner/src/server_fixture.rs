@@ -1,5 +1,7 @@
 use std::{env, net::IpAddr};
 
+use tlsn_server_fixture;
+
 use anyhow::Result;
 use futures::Future;
 use tokio::net::TcpListener;

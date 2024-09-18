@@ -3,8 +3,10 @@
 use std::collections::HashMap;
 
 use tls_core::verify::WebPkiVerifier;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 use tlsn_prover::{Prover, ProverConfig};
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::{Verifier, VerifierConfig};
 use wasm_bindgen::prelude::*;
 
@@ -13,12 +15,6 @@ use crate::{
     types::{Commit, HttpRequest, Method, Reveal},
     verifier::JsVerifier,
 };
-
-#[cfg(target_arch = "wasm32")]
-pub use wasm_bindgen_rayon::init_thread_pool;
-
-static CA_CERT_DER: &[u8] = include_bytes!("../../server-fixture/src/tls/root_ca_cert.der");
-static SERVER_DOMAIN: &str = "test-server.io";
 
 #[wasm_bindgen]
 pub async fn test_prove() -> Result<(), JsValue> {
@@ -32,10 +28,14 @@ pub async fn test_prove() -> Result<(), JsValue> {
 
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
             .server_name(SERVER_DOMAIN)
-            .max_sent_data(1024)
-            .max_recv_data(1024)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(1024)
+                    .max_recv_data(1024)
+                    .build()
+                    .unwrap(),
+            )
             .crypto_provider(provider)
             .build()
             .unwrap(),
@@ -83,10 +83,14 @@ pub async fn test_notarize() -> Result<(), JsValue> {
 
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
             .server_name(SERVER_DOMAIN)
-            .max_sent_data(1024)
-            .max_recv_data(1024)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(1024)
+                    .max_recv_data(1024)
+                    .build()
+                    .unwrap(),
+            )
             .crypto_provider(provider)
             .build()
             .unwrap(),
@@ -135,9 +139,13 @@ pub async fn test_verifier() -> Result<(), JsValue> {
     provider.cert = WebPkiVerifier::new(root_store, None);
 
     let config = VerifierConfig::builder()
-        .id("test")
-        .max_sent_data(1024)
-        .max_recv_data(1024)
+        .protocol_config_validator(
+            ProtocolConfigValidator::builder()
+                .max_sent_data(1024)
+                .max_recv_data(1024)
+                .build()
+                .unwrap(),
+        )
         .crypto_provider(provider)
         .build()
         .unwrap();

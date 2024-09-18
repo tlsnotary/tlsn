@@ -13,7 +13,7 @@ mod verify;
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
 use mpz_common::Allocate;
-use serio::StreamExt;
+use serio::{stream::IoStreamExt, StreamExt};
 use uid_mux::FramedUidMux;
 
 use web_time::{SystemTime, UNIX_EPOCH};
@@ -25,6 +25,7 @@ use rand::Rng;
 use state::{Notarize, Verify};
 use tls_mpc::{build_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
 use tlsn_common::{
+    config::ProtocolConfig,
     mux::{attach_mux, MuxControl},
     DEAPThread, Executor, OTReceiver, OTSender, Role,
 };
@@ -55,7 +56,7 @@ pub struct Verifier<T: state::VerifierState> {
 impl Verifier<state::Initialized> {
     /// Creates a new verifier.
     pub fn new(config: VerifierConfig) -> Self {
-        let span = info_span!("verifier", id = config.id());
+        let span = info_span!("verifier");
         Self {
             config,
             span,
@@ -81,18 +82,31 @@ impl Verifier<state::Initialized> {
         // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
 
+        let mut io = mux_fut
+            .poll_with(mux_ctrl.open_framed(b"tlsnotary"))
+            .await?;
+
+        // Receives protocol configuration from prover to perform compatibility check.
+        let protocol_config = mux_fut
+            .poll_with(async {
+                let peer_configuration: ProtocolConfig = io.expect_next().await?;
+                self.config
+                    .protocol_config_validator()
+                    .validate(&peer_configuration)?;
+
+                Ok::<_, VerifierError>(peer_configuration)
+            })
+            .await?;
+
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
         let (mpc_tls, vm, ot_send) = mux_fut
             .poll_with(setup_mpc_backend(
                 &self.config,
+                protocol_config,
                 &mux_ctrl,
                 &mut exec,
                 encoder_seed,
             ))
-            .await?;
-
-        let io = mux_fut
-            .poll_with(mux_ctrl.open_framed(b"tlsnotary"))
             .await?;
 
         let ctx = mux_fut.poll_with(exec.new_thread()).await?;
@@ -244,6 +258,7 @@ impl Verifier<state::Closed> {
 #[instrument(level = "debug", skip_all, err)]
 async fn setup_mpc_backend(
     config: &VerifierConfig,
+    protocol_config: ProtocolConfig,
     mux: &MuxControl,
     exec: &mut Executor,
     encoder_seed: [u8; 32],
@@ -254,13 +269,13 @@ async fn setup_mpc_backend(
         config.build_ot_sender_config(),
         chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
     );
-    ot_sender.alloc(config.ot_sender_setup_count());
+    ot_sender.alloc(protocol_config.ot_sender_setup_count(Role::Verifier));
 
     let mut ot_receiver = kos::Receiver::new(
         config.build_ot_receiver_config(),
         chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
     );
-    ot_receiver.alloc(config.ot_receiver_setup_count());
+    ot_receiver.alloc(protocol_config.ot_receiver_setup_count(Role::Verifier));
 
     let ot_sender = OTSender::new(ot_sender);
     let ot_receiver = OTReceiver::new(ot_receiver);
@@ -303,7 +318,7 @@ async fn setup_mpc_backend(
         ot_receiver.clone(),
     );
 
-    let mpc_tls_config = config.build_mpc_tls_config();
+    let mpc_tls_config = config.build_mpc_tls_config(&protocol_config);
     let (ke, prf, encrypter, decrypter) = build_components(
         TlsRole::Follower,
         mpc_tls_config.common(),

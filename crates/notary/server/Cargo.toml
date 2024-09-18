@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 tlsn-core = { workspace = true }
+tlsn-common = { workspace = true }
 tlsn-verifier = { workspace = true }
 
 async-trait = { workspace = true }

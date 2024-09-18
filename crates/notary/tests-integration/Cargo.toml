@@ -5,7 +5,11 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
+notary-client = { workspace = true }
+notary-server = { workspace = true }
 tls-server-fixture = { workspace = true }
+tlsn-common = { workspace = true }
+tlsn-prover = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-core = { workspace = true }
 
@@ -17,13 +21,10 @@ hyper-tls = { version = "0.6", features = [
     "vendored",
 ] } # specify vendored feature to use statically linked copy of OpenSSL
 hyper-util = { workspace = true, features = ["full"] }
-notary-client = { workspace = true }
-notary-server = { workspace = true }
 rstest = { workspace = true }
 rustls = { workspace = true }
 rustls-pemfile = { workspace = true }
 serde_json = { workspace = true }
-tlsn-prover = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-native-tls = { version = "0.3.1", features = ["vendored"] }
 tokio-util = { workspace = true, features = ["compat"] }

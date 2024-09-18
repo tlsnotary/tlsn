@@ -11,6 +11,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
+use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::{attestation::AttestationConfig, CryptoProvider};
 use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -21,7 +22,7 @@ use uuid::Uuid;
 use crate::{
     domain::notary::{
         NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
-        NotaryGlobals, SessionData,
+        NotaryGlobals,
     },
     error::NotaryServerError,
     service::{
@@ -76,37 +77,26 @@ pub async fn upgrade_protocol(
 ) -> Response {
     info!("Received upgrade protocol request");
     let session_id = params.session_id;
-    // Fetch the configuration data from the store using the session_id
-    // This also removes the configuration data from the store as each session_id can only be used once
-    let (max_sent_data, max_recv_data) =
-        match notary_globals.store.lock().unwrap().remove(&session_id) {
-            Some(data) => (data.max_sent_data, data.max_recv_data),
-            None => {
-                let err_msg = format!("Session id {} does not exist", session_id);
-                error!(err_msg);
-                return NotaryServerError::BadProverRequest(err_msg).into_response();
-            }
-        };
+    // Check if session_id exists in the store, this also removes session_id from the store as each session_id can only be used once
+    if notary_globals
+        .store
+        .lock()
+        .unwrap()
+        .remove(&session_id)
+        .is_none()
+    {
+        let err_msg = format!("Session id {} does not exist", session_id);
+        error!(err_msg);
+        return NotaryServerError::BadProverRequest(err_msg).into_response();
+    };
     // This completes the HTTP Upgrade request and returns a successful response to the client, meanwhile initiating the websocket or tcp connection
     match protocol_upgrade {
-        ProtocolUpgrade::Ws(ws) => ws.on_upgrade(move |socket| {
-            websocket_notarize(
-                socket,
-                notary_globals,
-                session_id,
-                max_sent_data,
-                max_recv_data,
-            )
-        }),
-        ProtocolUpgrade::Tcp(tcp) => tcp.on_upgrade(move |stream| {
-            tcp_notarize(
-                stream,
-                notary_globals,
-                session_id,
-                max_sent_data,
-                max_recv_data,
-            )
-        }),
+        ProtocolUpgrade::Ws(ws) => {
+            ws.on_upgrade(move |socket| websocket_notarize(socket, notary_globals, session_id))
+        }
+        ProtocolUpgrade::Tcp(tcp) => {
+            tcp.on_upgrade(move |stream| tcp_notarize(stream, notary_globals, session_id))
+        }
     }
 }
 
@@ -130,17 +120,31 @@ pub async fn initialize(
         }
     };
 
-    // Ensure that the max_transcript_size submitted is not larger than the global max limit configured in notary server
+    // Ensure that the max_sent_data, max_recv_data submitted is not larger than the global max limits configured in notary server
     if payload.max_sent_data.is_some() || payload.max_recv_data.is_some() {
-        let requested_transcript_size =
-            payload.max_sent_data.unwrap_or_default() + payload.max_recv_data.unwrap_or_default();
-        if requested_transcript_size > notary_globals.notarization_config.max_transcript_size {
+        if payload.max_sent_data.unwrap_or_default()
+            > notary_globals.notarization_config.max_sent_data
+        {
             error!(
-                "Max transcript size requested {:?} exceeds the maximum threshold {:?}",
-                requested_transcript_size, notary_globals.notarization_config.max_transcript_size
+                "Max sent data requested {:?} exceeds the global maximum threshold {:?}",
+                payload.max_sent_data.unwrap_or_default(),
+                notary_globals.notarization_config.max_sent_data
             );
             return NotaryServerError::BadProverRequest(
-                "Max transcript size requested exceeds the maximum threshold".to_string(),
+                "Max sent data requested exceeds the global maximum threshold".to_string(),
+            )
+            .into_response();
+        }
+        if payload.max_recv_data.unwrap_or_default()
+            > notary_globals.notarization_config.max_recv_data
+        {
+            error!(
+                "Max recv data requested {:?} exceeds the global maximum threshold {:?}",
+                payload.max_recv_data.unwrap_or_default(),
+                notary_globals.notarization_config.max_recv_data
+            );
+            return NotaryServerError::BadProverRequest(
+                "Max recv data requested exceeds the global maximum threshold".to_string(),
             )
             .into_response();
         }
@@ -149,13 +153,11 @@ pub async fn initialize(
     let prover_session_id = Uuid::new_v4().to_string();
 
     // Store the configuration data in a temporary store
-    notary_globals.store.lock().unwrap().insert(
-        prover_session_id.clone(),
-        SessionData {
-            max_sent_data: payload.max_sent_data,
-            max_recv_data: payload.max_recv_data,
-        },
-    );
+    notary_globals
+        .store
+        .lock()
+        .unwrap()
+        .insert(prover_session_id.clone(), ());
 
     trace!("Latest store state: {:?}", notary_globals.store);
 
@@ -174,8 +176,8 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     socket: T,
     crypto_provider: Arc<CryptoProvider>,
     session_id: &str,
-    max_sent_data: Option<usize>,
-    max_recv_data: Option<usize>,
+    max_sent_data: usize,
+    max_recv_data: usize,
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
 
@@ -184,19 +186,15 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .build()
         .map_err(|err| NotaryServerError::Notarization(Box::new(err)))?;
 
-    let mut config_builder = VerifierConfig::builder();
-
-    config_builder = config_builder.id(session_id);
-
-    if let Some(max_sent_data) = max_sent_data {
-        config_builder = config_builder.max_sent_data(max_sent_data);
-    }
-
-    if let Some(max_recv_data) = max_recv_data {
-        config_builder = config_builder.max_recv_data(max_recv_data);
-    }
-
-    let config = config_builder.crypto_provider(crypto_provider).build()?;
+    let config = VerifierConfig::builder()
+        .protocol_config_validator(
+            ProtocolConfigValidator::builder()
+                .max_sent_data(max_sent_data)
+                .max_recv_data(max_recv_data)
+                .build()?,
+        )
+        .crypto_provider(crypto_provider)
+        .build()?;
 
     Verifier::new(config)
         .notarize(socket.compat(), &att_config)

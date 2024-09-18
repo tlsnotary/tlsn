@@ -1,7 +1,7 @@
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
-use regex::Regex;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::{state::Prove, Prover, ProverConfig};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -10,13 +10,18 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 const SECRET: &str = "TLSNotary's private key 🤡";
-const SERVER_DOMAIN: &str = "notary.pse.dev";
+const SERVER_DOMAIN: &str = "example.com";
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let uri = "https://notary.pse.dev/info";
+    let uri = "https://example.com";
     let id = "interactive verifier demo";
 
     // Connect prover and verifier.
@@ -54,6 +59,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         ProverConfig::builder()
             .id(id)
             .server_name(server_domain)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(MAX_SENT_DATA)
+                    .max_recv_data(MAX_RECV_DATA)
+                    .build()
+                    .unwrap(),
+            )
             .build()
             .unwrap(),
     )
@@ -70,9 +82,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let (mpc_tls_connection, prover_fut) =
         prover.connect(tls_client_socket.compat()).await.unwrap();
 
-    // Grab a controller for the Prover so we can enable deferred decryption.
-    let ctrl = prover_fut.control();
-
     // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
@@ -87,10 +96,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
-
-    // Enable deferred decryption. This speeds up the proving time, but doesn't
-    // let us see the decrypted data until after the connection is closed.
-    ctrl.defer_decryption().await.unwrap();
 
     // MPC-TLS: Send Request and wait for Response.
     let request = Request::builder()
@@ -121,7 +126,17 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     id: &str,
 ) -> (RedactedTranscript, RedactedTranscript, SessionInfo) {
     // Setup Verifier.
-    let verifier_config = VerifierConfig::builder().id(id).build().unwrap();
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let verifier_config = VerifierConfig::builder()
+        .id(id)
+        .protocol_config_validator(config_validator)
+        .build()
+        .unwrap();
     let verifier = Verifier::new(verifier_config);
 
     // Verify MPC-TLS and wait for (redacted) data.
@@ -137,8 +152,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let response =
         String::from_utf8(received.data().to_vec()).expect("Verifier expected received data");
     response
-        .find("BEGIN PUBLIC KEY")
-        .expect("Expected valid public key in JSON response");
+        .find("Example Domain")
+        .expect("Expected valid data from example.com");
 
     // Check Session info: server name.
     assert_eq!(session_info.server_name.as_str(), SERVER_DOMAIN);
@@ -150,17 +165,17 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 fn redact_and_reveal_received_data(prover: &mut Prover<Prove>) {
     let recv_transcript_len = prover.recv_transcript().data().len();
 
-    // Get the commit hash from the received data.
+    // Get the received data as a string.
     let received_string = String::from_utf8(prover.recv_transcript().data().to_vec()).unwrap();
-    let re = Regex::new(r#""gitCommitHash"\s?:\s?"(.*?)""#).unwrap();
-    let commit_hash_match = re.captures(&received_string).unwrap().get(1).unwrap();
+    // Find the substring "illustrative".
+    let start = received_string
+        .find("illustrative")
+        .expect("Error: The substring 'illustrative' was not found in the received data.");
+    let end = start + "illustrative".len();
 
-    // Reveal everything except for the commit hash.
-    _ = prover.reveal(0..commit_hash_match.start(), Direction::Received);
-    _ = prover.reveal(
-        commit_hash_match.end()..recv_transcript_len,
-        Direction::Received,
-    );
+    // Reveal everything except for the substring "illustrative".
+    _ = prover.reveal(0..start, Direction::Received);
+    _ = prover.reveal(end..recv_transcript_len, Direction::Received);
 }
 
 /// Redacts and reveals sent data to the verifier.

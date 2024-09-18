@@ -83,16 +83,14 @@ pub async fn tcp_notarize(
     stream: TokioIo<Upgraded>,
     notary_globals: NotaryGlobals,
     session_id: String,
-    max_sent_data: Option<usize>,
-    max_recv_data: Option<usize>,
 ) {
     debug!(?session_id, "Upgraded to tcp connection");
     match notary_service(
         stream,
         notary_globals.crypto_provider.clone(),
         &session_id,
-        max_sent_data,
-        max_recv_data,
+        notary_globals.notarization_config.max_sent_data,
+        notary_globals.notarization_config.max_recv_data,
     )
     .await
     {

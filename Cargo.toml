@@ -17,7 +17,8 @@ members = [
     "crates/notary/server",
     "crates/notary/tests-integration",
     "crates/prover",
-    "crates/server-fixture",
+    "crates/server-fixture/certs",
+    "crates/server-fixture/server",
     "crates/tests-integration",
     "crates/tls/backend",
     "crates/tls/client",
@@ -49,7 +50,8 @@ tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-hmac-sha256-circuits = { path = "crates/components/hmac-sha256-circuits" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-prover = { path = "crates/prover" }
-tlsn-server-fixture = { path = "crates/server-fixture" }
+tlsn-server-fixture = { path = "crates/server-fixture/server" }
+tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-stream-cipher = { path = "crates/components/stream-cipher" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
 tlsn-tls-client = { path = "crates/tls/client" }

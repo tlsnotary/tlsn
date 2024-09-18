@@ -56,7 +56,7 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The configuration for the prover.
     pub fn new(config: ProverConfig) -> Self {
-        let span = info_span!("prover", id = config.id());
+        let span = info_span!("prover");
         Self {
             config,
             span,
@@ -292,13 +292,17 @@ async fn setup_mpc_backend(
         config.build_ot_sender_config(),
         chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
     );
-    ot_sender.alloc(config.ot_sender_setup_count());
+    ot_sender.alloc(config.protocol_config().ot_sender_setup_count(Role::Prover));
 
     let mut ot_receiver = kos::Receiver::new(
         config.build_ot_receiver_config(),
         chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
     );
-    ot_receiver.alloc(config.ot_receiver_setup_count());
+    ot_receiver.alloc(
+        config
+            .protocol_config()
+            .ot_receiver_setup_count(Role::Prover),
+    );
 
     let ot_sender = OTSender::new(ot_sender);
     let ot_receiver = OTReceiver::new(ot_receiver);

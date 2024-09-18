@@ -3,11 +3,12 @@ use std::{env, net::IpAddr};
 use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, Future};
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{
     attestation::AttestationConfig, signing::SignatureAlgId, transcript::Idx, CryptoProvider,
 };
 use tlsn_prover::{Prover, ProverConfig};
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -67,19 +68,21 @@ pub async fn start() -> Result<impl Future<Output = Result<()>>> {
 async fn handle_verifier(io: TcpStream) -> Result<()> {
     let mut root_store = RootCertStore::empty();
     root_store
-        .add(&tls_core::key::Certificate(
-            tlsn_server_fixture::CA_CERT_DER.to_vec(),
-        ))
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(1024)
+        .max_recv_data(1024)
+        .build()
         .unwrap();
 
     let mut provider = CryptoProvider::default();
     provider.cert = WebPkiVerifier::new(root_store, None);
 
     let config = VerifierConfig::builder()
-        .id("test")
-        .max_sent_data(1024)
-        .max_recv_data(1024)
         .crypto_provider(provider)
+        .protocol_config_validator(config_validator)
         .build()
         .unwrap();
 
@@ -96,10 +99,14 @@ async fn handle_notary(io: TcpStream) -> Result<()> {
 
     provider.signer.set_secp256k1(&[1u8; 32]).unwrap();
 
-    let config = VerifierConfig::builder()
-        .id("test")
+    let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(1024)
         .max_recv_data(1024)
+        .build()
+        .unwrap();
+
+    let config = VerifierConfig::builder()
+        .protocol_config_validator(config_validator)
         .crypto_provider(provider)
         .build()
         .unwrap();
@@ -126,12 +133,16 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
     let mut provider = CryptoProvider::default();
     provider.cert = WebPkiVerifier::new(root_store, None);
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(1024)
+        .max_recv_data(1024)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
             .server_name(SERVER_DOMAIN)
-            .max_sent_data(1024)
-            .max_recv_data(1024)
+            .protocol_config(protocol_config)
             .crypto_provider(provider)
             .build()
             .unwrap(),
@@ -150,11 +161,7 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
     let client_socket = TcpStream::connect((addr, port)).await.unwrap();
 
     let (mut tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
-    let prover_ctrl = prover_fut.control();
     let prover_task = tokio::spawn(prover_fut);
-
-    // Defer decryption until after the server closes the connection.
-    prover_ctrl.defer_decryption().await.unwrap();
 
     tls_connection
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")

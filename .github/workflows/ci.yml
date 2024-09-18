@@ -13,6 +13,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  # We need a higher number of parallel rayon tasks than the default (which is 4)
+  # in order to prevent a deadlock, c.f.
+  #   - https://github.com/tlsnotary/tlsn/issues/548
+  #   - https://github.com/privacy-scaling-explorations/mpz/issues/178
+  # 32 seems to be big enough for the foreseeable future
+  RAYON_NUM_THREADS: 32
 
 jobs:
   fmt:
@@ -63,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -87,14 +93,12 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Use caching
-        uses: Swatinem/rust-cache@v2.5.0
-        with:
-          workspaces: crates/wasm-test-runner -> ../target
+        uses: Swatinem/rust-cache@v2.7.3
 
       - name: Run tests
         run: |
           cd crates/wasm-test-runner
-          RUST_LOG=debug ./run.sh
+          ./run.sh
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest

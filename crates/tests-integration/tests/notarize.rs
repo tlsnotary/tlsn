@@ -1,17 +1,25 @@
-use http_body_util::{BodyExt as _, Empty};
-use hyper::{body::Bytes, Request, StatusCode};
-use hyper_util::rt::TokioIo;
 use tls_core::verify::WebPkiVerifier;
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{
     attestation::AttestationConfig, request::RequestConfig, signing::SignatureAlgId,
     transcript::TranscriptCommitConfig, CryptoProvider,
 };
 use tlsn_prover::{Prover, ProverConfig};
-use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_server_fixture::bind;
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::{Verifier, VerifierConfig};
+
+use http_body_util::{BodyExt as _, Empty};
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::test]
 #[ignore]
@@ -27,7 +35,7 @@ async fn notarize() {
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
-    let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
+    let server_task = tokio::spawn(bind(server_socket.compat()));
 
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store
@@ -37,10 +45,18 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let mut provider = CryptoProvider::default();
     provider.cert = WebPkiVerifier::new(root_store, None);
 
+    let protocol_config = ProtocolConfig::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .max_recv_data_online(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
             .server_name(SERVER_DOMAIN)
+            .defer_decryption_from_start(false)
+            .protocol_config(protocol_config)
             .crypto_provider(provider)
             .build()
             .unwrap(),
@@ -108,12 +124,17 @@ async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socke
 
     let mut provider = CryptoProvider::default();
     provider.cert = WebPkiVerifier::new(root_store, None);
-
     provider.signer.set_secp256k1(&[1u8; 32]).unwrap();
+
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
 
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .id("test")
+            .protocol_config_validator(config_validator)
             .crypto_provider(provider)
             .build()
             .unwrap(),

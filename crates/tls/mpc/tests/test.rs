@@ -115,6 +115,7 @@ async fn leader(config: MpcTlsCommonConfig, mux: TestFramedMux) {
     let mut leader = MpcTlsLeader::new(
         MpcTlsLeaderConfig::builder()
             .common(config)
+            .defer_decryption_from_start(false)
             .build()
             .unwrap(),
         Box::new(StreamExt::compat_stream(
@@ -324,7 +325,7 @@ async fn test() {
 
     let (leader_mux, follower_mux) = test_framed_mux(8);
 
-    let common_config = MpcTlsCommonConfig::builder().id("test").build().unwrap();
+    let common_config = MpcTlsCommonConfig::builder().build().unwrap();
 
     tokio::join!(
         leader(common_config.clone(), leader_mux),
