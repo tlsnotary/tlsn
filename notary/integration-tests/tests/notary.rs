@@ -47,8 +47,8 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
         },
         tls: TLSProperties {
             enabled: tls_enabled,
-            private_key_pem_path: "../server/fixture/tls/notary.key".to_string(),
-            certificate_pem_path: "../server/fixture/tls/notary.crt".to_string(),
+            private_key_pem_path: Some("../server/fixture/tls/notary.key".to_string()),
+            certificate_pem_path: Some("../server/fixture/tls/notary.crt".to_string()),
         },
         notary_key: NotarySigningKeyProperties {
             private_key_pem_path: "../server/fixture/notary/notary.key".to_string(),
@@ -60,7 +60,7 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
         },
         authorization: AuthorizationProperties {
             enabled: auth_enabled,
-            whitelist_csv_path: "../server/fixture/auth/whitelist.csv".to_string(),
+            whitelist_csv_path: Some("../server/fixture/auth/whitelist.csv".to_string()),
         },
     }
 }
@@ -117,7 +117,9 @@ async fn tcp_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
 }
 
 async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection, String) {
-    let mut certificate_file_reader = read_pem_file(NOTARY_CA_CERT_PATH).await.unwrap();
+    let mut certificate_file_reader = read_pem_file(&Some(NOTARY_CA_CERT_PATH.to_string()))
+        .await
+        .unwrap();
     let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut certificate_file_reader)
         .unwrap()
         .into_iter()
