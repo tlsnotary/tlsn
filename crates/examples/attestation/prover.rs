@@ -210,7 +210,7 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         .collect();
 
     // Finalize, returning the notarized session
-    let notarized_session = prover.finalize_with_provider().await.unwrap();
+    let notarized_session = prover.finalize().await.unwrap();
 
     // Create a proof for all committed data in this session
     let mut proof_builder = notarized_session.data().build_substrings_proof();

@@ -10,7 +10,6 @@ use tls_client_async::TlsConnection;
 use tlsn_core::{
     request::RequestConfig,
     transcript::{Idx, TranscriptCommitConfigBuilder},
-    CryptoProvider,
 };
 use tlsn_prover::{state, Prover};
 use tracing::info;
@@ -130,8 +129,7 @@ impl JsProver {
         prover.transcript_commit(config);
 
         let request_config = RequestConfig::default();
-        let provider = CryptoProvider::default();
-        let (attestation, secrets) = prover.finalize_with_provider(&request_config, &provider).await?;
+        let (attestation, secrets) = prover.finalize(&request_config).await?;
 
         info!("notarization complete");
 

@@ -91,10 +91,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let config = RequestConfig::default();
 
-    prover
-        .finalize_with_provider(&config, &CryptoProvider::default())
-        .await
-        .unwrap();
+    prover.finalize(&config).await.unwrap();
 }
 
 #[instrument(skip(socket))]

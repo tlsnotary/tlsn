@@ -262,12 +262,8 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     request_builder.signature_alg(SignatureAlgId::SECP256R1);
 
     let request = request_builder.build().unwrap();
-    let provider = CryptoProvider::default();
 
-    _ = prover
-        .finalize_with_provider(&request, &provider)
-        .await
-        .unwrap();
+    _ = prover.finalize(&request).await.unwrap();
 
     debug!("Done notarization!");
 }
@@ -453,12 +449,8 @@ async fn test_websocket_prover() {
     request_builder.signature_alg(SignatureAlgId::SECP256R1);
 
     let request = request_builder.build().unwrap();
-    let provider = CryptoProvider::default();
 
-    _ = prover
-        .finalize_with_provider(&request, &provider)
-        .await
-        .unwrap();
+    _ = prover.finalize(&request).await.unwrap();
 
     debug!("Done notarization!");
 }

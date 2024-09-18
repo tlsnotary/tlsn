@@ -9,7 +9,7 @@ use tlsn_core::{
     attestation::Attestation,
     request::{Request, RequestConfig},
     transcript::{encoding::EncodingTree, Transcript, TranscriptCommitConfig},
-    CryptoProvider, Secrets,
+    Secrets,
 };
 use tracing::{debug, instrument};
 
@@ -30,17 +30,6 @@ impl Prover<Notarize> {
         self,
         config: &RequestConfig,
     ) -> Result<(Attestation, Secrets), ProverError> {
-        let provider = CryptoProvider::default();
-        self.finalize_with_provider(config, &provider).await
-    }
-
-    /// Finalizes the notarization.
-    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn finalize_with_provider(
-        self,
-        config: &RequestConfig,
-        provider: &CryptoProvider,
-    ) -> Result<(Attestation, Secrets), ProverError> {
         let Notarize {
             mut io,
             mux_ctrl,
@@ -54,6 +43,8 @@ impl Prover<Notarize> {
             encoding_provider,
             transcript_commit_config,
         } = self.state;
+
+        let provider = self.config.crypto_provider();
 
         let hasher = provider.hash.get(config.hash_alg()).unwrap();
 
