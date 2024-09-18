@@ -21,7 +21,7 @@ use mpz_common::Allocate;
 use mpz_garble::config::Role as DEAPRole;
 use mpz_ot::{chou_orlandi, kos};
 use rand::Rng;
-use serio::StreamExt;
+use serio::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
@@ -79,6 +79,15 @@ impl Prover<state::Initialized> {
     ) -> Result<Prover<state::Setup>, ProverError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
 
+        let mut io = mux_fut
+            .poll_with(mux_ctrl.open_framed(b"tlsnotary"))
+            .await?;
+
+        // Sends protocol configuration to verifier for compatibility check.
+        mux_fut
+            .poll_with(io.send(self.config.protocol_config().clone()))
+            .await?;
+
         // Maximum thread forking concurrency of 8.
         // TODO: Determine the optimal number of threads.
         let mut exec = Executor::new(mux_ctrl.clone(), 8);
@@ -87,17 +96,7 @@ impl Prover<state::Initialized> {
             .poll_with(setup_mpc_backend(&self.config, &mux_ctrl, &mut exec))
             .await?;
 
-        let io = mux_fut
-            .poll_with(
-                mux_ctrl
-                    .open_framed(b"tlsnotary")
-                    .map_err(ProverError::from),
-            )
-            .await?;
-
-        let ctx = mux_fut
-            .poll_with(exec.new_thread().map_err(ProverError::from))
-            .await?;
+        let ctx = mux_fut.poll_with(exec.new_thread()).await?;
 
         Ok(Prover {
             config: self.config,
