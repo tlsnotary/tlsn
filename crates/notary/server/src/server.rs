@@ -13,7 +13,7 @@ use hyper_util::rt::TokioIo;
 use notify::{
     event::ModifyKind, Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
-use p256::{ecdsa::SigningKey, pkcs8::DecodePrivateKey};
+use pkcs8::DecodePrivateKey;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use std::{
     collections::HashMap,
@@ -24,11 +24,13 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
 };
-use tokio::{fs::File, net::TcpListener};
+use tlsn_core::CryptoProvider;
+use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use tracing::{debug, error, info};
+use zeroize::Zeroize;
 
 use crate::{
     config::{NotaryServerProperties, NotarySigningKeyProperties},
@@ -40,6 +42,7 @@ use crate::{
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
+    signing::AttestationKey,
     util::parse_csv_file,
 };
 
@@ -47,7 +50,9 @@ use crate::{
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
     // Load the private key for notarized transcript signing
-    let notary_signing_key = load_notary_signing_key(&config.notary_key).await?;
+    let attestation_key = load_attestation_key(&config.notary_key).await?;
+    let crypto_provider = build_crypto_provider(attestation_key);
+
     // Build TLS acceptor if it is turned on
     let tls_acceptor = if !config.tls.enabled {
         debug!("Skipping TLS setup as it is turned off.");
@@ -95,7 +100,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
 
     let protocol = Arc::new(http1::Builder::new());
     let notary_globals = NotaryGlobals::new(
-        notary_signing_key,
+        Arc::new(crypto_provider),
         config.notarization.clone(),
         authorization_whitelist,
     );
@@ -216,15 +221,30 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     }
 }
 
-/// Load notary signing key from static file
-async fn load_notary_signing_key(config: &NotarySigningKeyProperties) -> Result<SigningKey> {
+fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
+    let mut provider = CryptoProvider::default();
+    provider.signer.set_signer(attestation_key.into_signer());
+    provider
+}
+
+/// Load notary signing key for attestations from static file
+async fn load_attestation_key(config: &NotarySigningKeyProperties) -> Result<AttestationKey> {
     debug!("Loading notary server's signing key");
 
-    let notary_signing_key = SigningKey::read_pkcs8_pem_file(&config.private_key_pem_path)
+    let mut file = File::open(&config.private_key_pem_path).await?;
+    let mut pem = String::new();
+    file.read_to_string(&mut pem)
+        .await
+        .map_err(|_| eyre!("pem file does not contain valid UTF-8"))?;
+
+    let key = AttestationKey::from_pkcs8_pem(&pem)
         .map_err(|err| eyre!("Failed to load notary signing key for notarization: {err}"))?;
 
+    pem.zeroize();
+
     debug!("Successfully loaded notary server's signing key!");
-    Ok(notary_signing_key)
+
+    Ok(key)
 }
 
 /// Read a PEM-formatted file and return its buffer reader
@@ -355,13 +375,12 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_load_notary_signing_key() {
+    async fn test_load_attestation_key() {
         let config = NotarySigningKeyProperties {
             private_key_pem_path: "./fixture/notary/notary.key".to_string(),
             public_key_pem_path: "./fixture/notary/notary.pub".to_string(),
         };
-        let result: Result<SigningKey> = load_notary_signing_key(&config).await;
-        assert!(result.is_ok(), "Could not load notary private key");
+        load_attestation_key(&config).await.unwrap();
     }
 
     #[tokio::test]
