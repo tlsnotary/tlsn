@@ -63,7 +63,8 @@ impl MpcTlsFollower {
         impl Future<Output = Result<MpcTlsFollowerData, MpcTlsError>>,
     ) {
         let (mut mailbox, addr) = ludi::mailbox::<MpcTlsFollowerMsg>(100);
-        let ctrl = MpcTlsFollowerCtrl::new(addr.clone());
+        let ctrl = MpcTlsFollowerCtrl::new(addr);
+        let ctrl_fut = ctrl.clone();
 
         let mut stream = self
             .stream
@@ -73,7 +74,7 @@ impl MpcTlsFollower {
         let mut remote_fut = Box::pin(async move {
             while let Some(msg) = stream.next().await {
                 let msg = MpcTlsFollowerMsg::try_from(msg?)?;
-                addr.send(msg).await?;
+                ctrl_fut.address.send(msg).await?;
             }
 
             Ok::<_, MpcTlsError>(())
