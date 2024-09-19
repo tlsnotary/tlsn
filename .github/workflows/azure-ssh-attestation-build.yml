@@ -19,8 +19,8 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
          host: ${{ secrets.AZURE_TEE_BUILD_HOST }}
-         username: ${{ secrets.AZURE_BUILD_TEE_USERNAME }}
-         key: ${{ secrets.AZURE_BUILD_TEE_KEY }}
+         username: ${{ secrets.AZURE_TEE_BUILD_USERNAME }}
+         key: ${{ secrets.AZURE_TEE_BUILD_KEY }}
          port: ${{ secrets.SSH_PORT }}
          command_timeout: 120m
          script: |
@@ -29,6 +29,7 @@ jobs:
             cd ${{ github.sha }}
             git checkout ${{ github.sha }}
             cd crates/notary/server
+            SGX=1 make
             : # if nc cant dial 7047 within 120m: ❌; else ✅ 
             timeout 120 sh -c 'until nc -z $0 $1; do sleep 1; done' localhost 7047 &
-            /home/ubuntu/.cargo/bin/cargo run --bin notary-server --features tee_quote
+            SGX=1 make start-gramine-server
