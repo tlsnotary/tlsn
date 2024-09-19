@@ -28,7 +28,7 @@ jobs:
             git clone https://github.com/tlsnotary/tlsn ${{ github.sha }}
             cd ${{ github.sha }}
             git checkout ${{ github.sha }}
-            cd crates/notary/server
+            cd crates/notary/server/config/gramine
             SGX=1 make
             : # if nc cant dial 7047 within 120m: ❌; else ✅ 
             timeout 120 sh -c 'until nc -z $0 $1; do sleep 1; done' localhost 7047 &
