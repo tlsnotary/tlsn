@@ -3,13 +3,15 @@
 use ::ludi::{Context, Message};
 use ludi::Dispatch;
 
-use crate::error::Kind;
-use crate::msg::{
-    ClientFinishedVd, CloseConnection, Commit, CommitMessage, ComputeKeyExchange, DecryptAlert,
-    DecryptMessage, DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
-    MpcTlsMessage, ServerFinishedVd,
+use crate::{
+    error::Kind,
+    msg::{
+        ClientFinishedVd, CloseConnection, Commit, CommitMessage, ComputeKeyExchange, DecryptAlert,
+        DecryptMessage, DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
+        MpcTlsMessage, ServerFinishedVd,
+    },
+    MpcTlsError, MpcTlsFollower,
 };
-use crate::{MpcTlsError, MpcTlsFollower};
 
 #[allow(missing_docs)]
 #[derive(Debug)]
