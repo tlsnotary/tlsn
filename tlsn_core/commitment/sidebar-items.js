@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Commitment","CommitmentKind","CommitmentOpening","TranscriptCommitmentBuilderError"],"mod":["blake3"],"struct":["CommitmentId","CommitmentInfo","TranscriptCommitmentBuilder","TranscriptCommitments"]};

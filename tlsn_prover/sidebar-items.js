@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["http","tls"]};
+window.SIDEBAR_ITEMS = {"enum":["ProverConfigBuilderError"],"mod":["state"],"struct":["Prover","ProverConfig","ProverConfigBuilder","ProverControl","ProverError","ProverFuture"]};

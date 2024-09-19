@@ -1,6 +1,6 @@
 var srcIndex = new Map(JSON.parse('[\
-["tlsn_core",["",[["commitment",[],["blake3.rs","builder.rs","mod.rs"]],["fixtures",[],["cert.rs","mod.rs"]],["proof",[],["mod.rs","session.rs","substrings.rs"]],["session",[],["data.rs","handshake.rs","header.rs","mod.rs"]]],["lib.rs","merkle.rs","msg.rs","signature.rs","transcript.rs"]]],\
-["tlsn_prover",["",[["http",[],["mod.rs","state.rs"]],["tls",[],["config.rs","error.rs","future.rs","mod.rs","notarize.rs","prove.rs","state.rs"]]],["lib.rs"]]],\
-["tlsn_verifier",["",[["tls",[],["config.rs","error.rs","mod.rs","notarize.rs","state.rs","verify.rs"]]],["lib.rs"]]]\
+["tlsn_core",["",[["attestation",[],["builder.rs","config.rs","proof.rs"]],["connection",[],["commit.rs","proof.rs"]],["fixtures",[],["provider.rs"]],["request",[],["builder.rs","config.rs"]],["transcript",[["encoding",[],["encoder.rs","proof.rs","provider.rs","tree.rs"]]],["commit.rs","encoding.rs","hash.rs","proof.rs"]]],["attestation.rs","connection.rs","fixtures.rs","hash.rs","index.rs","lib.rs","merkle.rs","presentation.rs","provider.rs","request.rs","secrets.rs","serialize.rs","signing.rs","transcript.rs"]]],\
+["tlsn_prover",["",[],["config.rs","error.rs","future.rs","lib.rs","notarize.rs","prove.rs","state.rs"]]],\
+["tlsn_verifier",["",[],["config.rs","error.rs","lib.rs","notarize.rs","state.rs","verify.rs"]]]\
 ]'));
 createSrcSidebar();

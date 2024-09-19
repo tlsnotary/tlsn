@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["VERSION"],"enum":["FieldKind"],"struct":["Attestation","AttestationBuilder","AttestationBuilderError","AttestationConfig","AttestationError","AttestationProof","Body","Field","FieldId","Header","Uid","Version"]};

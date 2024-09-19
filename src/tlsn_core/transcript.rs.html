@@ -243,162 +243,735 @@
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Transcript data types.
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Transcript types.
+//!
+//! All application data communicated over a TLS connection is referred to as a [`Transcript`]. A transcript is essentially
+//! just two vectors of bytes, each corresponding to a [`Direction`].
+//!
+//! TLS operates over a bidirectional byte stream, and thus there are no application layer semantics present in the transcript.
+//! For example, HTTPS is an application layer protocol that runs *over TLS* so there is no concept of "requests" or "responses"
+//! in the transcript itself. These semantics must be recovered by parsing the application data and relating it to the bytes
+//! in the transcript.
+//!
+//! ## Commitments
+//!
+//! During the attestation process a Prover can generate multiple commitments to various parts of the transcript.
+//! These commitments are inserted into the attestation body and can be used by the Verifier to verify transcript proofs
+//! later.
+//!
+//! To configure the transcript commitments, use the [`TranscriptCommitConfigBuilder`].
+//!
+//! ## Selective Disclosure
+//!
+//! Using a [`TranscriptProof`] a Prover can selectively disclose parts of a transcript to a Verifier
+//! in the form of a [`PartialTranscript`]. A Verifier always learns the length of the transcript, but sensitive
+//! data can be withheld.
+//!
+//! To create a proof, use the [`TranscriptProofBuilder`] which is returned by
+//! [`Secrets::transcript_proof_builder`](crate::Secrets::transcript_proof_builder).
 
-</span><span class="kw">use </span>std::ops::Range;
+</span><span class="kw">mod </span>commit;
+<span class="attr">#[doc(hidden)]
+</span><span class="kw">pub mod </span>encoding;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>hash;
+<span class="kw">mod </span>proof;
 
-<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>std::{fmt, ops::Range};
+
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>utils::range::{RangeDifference, RangeSet, RangeUnion};
+<span class="kw">use </span>utils::range::{Difference, IndexRanges, RangeSet, ToRangeSet, Union};
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static </span>TX_TRANSCRIPT_ID: <span class="kw-2">&amp;</span>str = <span class="string">"tx"</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static </span>RX_TRANSCRIPT_ID: <span class="kw-2">&amp;</span>str = <span class="string">"rx"</span>;
+<span class="kw">use </span><span class="kw">crate</span>::connection::TranscriptLength;
 
-<span class="doccomment">/// A transcript contains a subset of bytes from a TLS session
-</span><span class="attr">#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+<span class="kw">pub use </span>commit::{
+    TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitConfigBuilderError,
+    TranscriptCommitmentKind,
+};
+<span class="kw">pub use </span>proof::{
+    TranscriptProof, TranscriptProofBuilder, TranscriptProofBuilderError, TranscriptProofError,
+};
+
+<span class="doccomment">/// Sent data transcript ID.
+</span><span class="kw">pub static </span>TX_TRANSCRIPT_ID: <span class="kw-2">&amp;</span>str = <span class="string">"tx"</span>;
+<span class="doccomment">/// Received data transcript ID.
+</span><span class="kw">pub static </span>RX_TRANSCRIPT_ID: <span class="kw-2">&amp;</span>str = <span class="string">"rx"</span>;
+
+<span class="doccomment">/// A transcript contains all the data communicated over a TLS connection.
+</span><span class="attr">#[derive(Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Transcript {
-    data: Bytes,
+    <span class="doccomment">/// Data sent from the Prover to the Server.
+    </span>sent: Vec&lt;u8&gt;,
+    <span class="doccomment">/// Data received by the Prover from the Server.
+    </span>received: Vec&lt;u8&gt;,
 }
 
+<span class="macro">opaque_debug::implement!</span>(Transcript);
+
 <span class="kw">impl </span>Transcript {
-    <span class="doccomment">/// Creates a new transcript with the given ID and data
-    </span><span class="kw">pub fn </span>new(data: <span class="kw">impl </span>Into&lt;Bytes&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ data: data.into() }
+    <span class="doccomment">/// Creates a new transcript.
+    </span><span class="kw">pub fn </span>new(sent: <span class="kw">impl </span>Into&lt;Vec&lt;u8&gt;&gt;, received: <span class="kw">impl </span>Into&lt;Vec&lt;u8&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            sent: sent.into(),
+            received: received.into(),
+        }
     }
 
-    <span class="doccomment">/// Returns the actual traffic data of this transcript
-    </span><span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Bytes {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.data
+    <span class="doccomment">/// Returns a reference to the sent data.
+    </span><span class="kw">pub fn </span>sent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.sent
     }
 
-    <span class="doccomment">/// Returns a concatenated bytestring located in the given ranges of the transcript.
+    <span class="doccomment">/// Returns a reference to the received data.
+    </span><span class="kw">pub fn </span>received(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.received
+    }
+
+    <span class="doccomment">/// Returns the length of the sent and received data, respectively.
+    </span><span class="attr">#[allow(clippy::len_without_is_empty)]
+    </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, usize) {
+        (<span class="self">self</span>.sent.len(), <span class="self">self</span>.received.len())
+    }
+
+    <span class="doccomment">/// Returns the length of the transcript in the given direction.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>len_of_direction(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction) -&gt; usize {
+        <span class="kw">match </span>direction {
+            Direction::Sent =&gt; <span class="self">self</span>.sent.len(),
+            Direction::Received =&gt; <span class="self">self</span>.received.len(),
+        }
+    }
+
+    <span class="doccomment">/// Returns the transcript length.
+    </span><span class="kw">pub fn </span>length(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TranscriptLength {
+        TranscriptLength {
+            sent: <span class="self">self</span>.sent.len() <span class="kw">as </span>u32,
+            received: <span class="self">self</span>.received.len() <span class="kw">as </span>u32,
+        }
+    }
+
+    <span class="doccomment">/// Returns the subsequence of the transcript with the provided index, returning `None`
+    /// if the index is out of bounds.
+    </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction, idx: <span class="kw-2">&amp;</span>Idx) -&gt; <span class="prelude-ty">Option</span>&lt;Subsequence&gt; {
+        <span class="kw">let </span>data = <span class="kw">match </span>direction {
+            Direction::Sent =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sent,
+            Direction::Received =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.received,
+        };
+
+        <span class="kw">if </span>idx.end() &gt; data.len() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="prelude-val">Some</span>(
+            Subsequence::new(idx.clone(), data.index_ranges(<span class="kw-2">&amp;</span>idx.<span class="number">0</span>))
+                .expect(<span class="string">"data is same length as index"</span>),
+        )
+    }
+
+    <span class="doccomment">/// Returns a partial transcript containing the provided indices.
     ///
     /// # Panics
     ///
-    /// Panics if the range set is empty or is out of bounds.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_bytes_in_ranges(<span class="kw-2">&amp;</span><span class="self">self</span>, ranges: <span class="kw-2">&amp;</span>RangeSet&lt;usize&gt;) -&gt; Vec&lt;u8&gt; {
-        <span class="kw">let </span>max = ranges.max().expect(<span class="string">"range set is not empty"</span>);
-        <span class="macro">assert!</span>(max &lt;= <span class="self">self</span>.data.len(), <span class="string">"range set is out of bounds"</span>);
-
-        ranges
-            .iter_ranges()
-            .flat_map(|range| <span class="kw-2">&amp;</span><span class="self">self</span>.data[range])
-            .copied()
-            .collect()
-    }
-}
-
-<span class="doccomment">/// A transcript which may have some data redacted.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>RedactedTranscript {
-    data: Vec&lt;u8&gt;,
-    <span class="doccomment">/// Ranges of `data` which have been authenticated
-    </span>auth: RangeSet&lt;usize&gt;,
-    <span class="doccomment">/// Ranges of `data` which have been redacted
-    </span>redacted: RangeSet&lt;usize&gt;,
-}
-
-<span class="kw">impl </span>RedactedTranscript {
-    <span class="doccomment">/// Creates a new redacted transcript with the given length.
-    ///
-    /// All bytes in the transcript are initialized to 0.
+    /// Panics if the indices are out of bounds.
     ///
     /// # Arguments
     ///
-    /// * `len` - The length of the transcript
-    /// * `slices` - A list of slices of data which have been authenticated
-    </span><span class="kw">pub fn </span>new(len: usize, slices: Vec&lt;TranscriptSlice&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="macro">vec!</span>[<span class="number">0u8</span>; len];
-        <span class="kw">let </span><span class="kw-2">mut </span>auth = RangeSet::default();
-        <span class="kw">for </span>slice <span class="kw">in </span>slices {
-            data[slice.range()].copy_from_slice(slice.data());
-            auth = auth.union(<span class="kw-2">&amp;</span>slice.range());
-        }
-        <span class="kw">let </span>redacted = RangeSet::from(<span class="number">0</span>..len).difference(<span class="kw-2">&amp;</span>auth);
+    /// * `sent_idx` - The indices of the sent data to include.
+    /// * `recv_idx` - The indices of the received data to include.
+    </span><span class="kw">pub fn </span>to_partial(<span class="kw-2">&amp;</span><span class="self">self</span>, sent_idx: Idx, recv_idx: Idx) -&gt; PartialTranscript {
+        <span class="kw">let </span><span class="kw-2">mut </span>sent = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="self">self</span>.sent.len()];
+        <span class="kw">let </span><span class="kw-2">mut </span>received = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="self">self</span>.received.len()];
 
+        <span class="kw">for </span>range <span class="kw">in </span>sent_idx.iter_ranges() {
+            sent[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.sent[range]);
+        }
+
+        <span class="kw">for </span>range <span class="kw">in </span>recv_idx.iter_ranges() {
+            received[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.received[range]);
+        }
+
+        PartialTranscript {
+            sent,
+            received,
+            sent_authed: sent_idx,
+            received_authed: recv_idx,
+        }
+    }
+}
+
+<span class="doccomment">/// A partial transcript.
+///
+/// A partial transcript is a transcript which may not have all the data authenticated.
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = <span class="string">"validation::PartialTranscriptUnchecked"</span>)]
+</span><span class="kw">pub struct </span>PartialTranscript {
+    <span class="doccomment">/// Data sent from the Prover to the Server.
+    </span>sent: Vec&lt;u8&gt;,
+    <span class="doccomment">/// Data received by the Prover from the Server.
+    </span>received: Vec&lt;u8&gt;,
+    <span class="doccomment">/// Index of `sent` which have been authenticated.
+    </span>sent_authed: Idx,
+    <span class="doccomment">/// Index of `received` which have been authenticated.
+    </span>received_authed: Idx,
+}
+
+<span class="kw">impl </span>PartialTranscript {
+    <span class="doccomment">/// Creates a new partial transcript initalized to all 0s.
+    ///
+    /// # Arguments
+    ///
+    /// * `sent_len` - The length of the sent data.
+    /// * `received_len` - The length of the received data.
+    </span><span class="kw">pub fn </span>new(sent_len: usize, received_len: usize) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            data,
-            auth,
-            redacted,
+            sent: <span class="macro">vec!</span>[<span class="number">0</span>; sent_len],
+            received: <span class="macro">vec!</span>[<span class="number">0</span>; received_len],
+            sent_authed: Idx::default(),
+            received_authed: Idx::default(),
         }
     }
 
-    <span class="doccomment">/// Returns a reference to the data.
+    <span class="doccomment">/// Returns the length of the sent transcript.
+    </span><span class="kw">pub fn </span>len_sent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.sent.len()
+    }
+
+    <span class="doccomment">/// Returns the length of the received transcript.
+    </span><span class="kw">pub fn </span>len_received(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.received.len()
+    }
+
+    <span class="doccomment">/// Returns whether the transcript is complete.
+    </span><span class="kw">pub fn </span>is_complete(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.sent_authed.len() == <span class="self">self</span>.sent.len()
+            &amp;&amp; <span class="self">self</span>.received_authed.len() == <span class="self">self</span>.received.len()
+    }
+
+    <span class="doccomment">/// Returns whether the index is in bounds of the transcript.
+    </span><span class="kw">pub fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction, idx: <span class="kw-2">&amp;</span>Idx) -&gt; bool {
+        <span class="kw">match </span>direction {
+            Direction::Sent =&gt; idx.end() &lt;= <span class="self">self</span>.sent.len(),
+            Direction::Received =&gt; idx.end() &lt;= <span class="self">self</span>.received.len(),
+        }
+    }
+
+    <span class="doccomment">/// Returns a reference to the sent data.
     ///
     /// # Warning
     ///
     /// Not all of the data in the transcript may have been authenticated. See
-    /// [authed](RedactedTranscript::authed) for a set of ranges which have been.
-    </span><span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.data
+    /// [sent_authed](PartialTranscript::sent_authed) for a set of ranges which have been.
+    </span><span class="kw">pub fn </span>sent_unsafe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.sent
     }
 
-    <span class="doccomment">/// Returns all the ranges of data which have been authenticated.
-    </span><span class="kw">pub fn </span>authed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RangeSet&lt;usize&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.auth
+    <span class="doccomment">/// Returns a reference to the received data.
+    ///
+    /// # Warning
+    ///
+    /// Not all of the data in the transcript may have been authenticated. See
+    /// [received_authed](PartialTranscript::received_authed) for a set of ranges which have been.
+    </span><span class="kw">pub fn </span>received_unsafe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.received
     }
 
-    <span class="doccomment">/// Returns all the ranges of data which have been redacted.
-    </span><span class="kw">pub fn </span>redacted(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RangeSet&lt;usize&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.redacted
+    <span class="doccomment">/// Returns the index of sent data which have been authenticated.
+    </span><span class="kw">pub fn </span>sent_authed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Idx {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed
     }
 
-    <span class="doccomment">/// Sets all bytes in the transcript which were redacted.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The value to set the redacted bytes to
-    </span><span class="kw">pub fn </span>set_redacted(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: u8) {
-        <span class="kw">for </span>range <span class="kw">in </span><span class="self">self</span>.redacted().clone().iter_ranges() {
-            <span class="self">self</span>.data[range].fill(value);
-        }
+    <span class="doccomment">/// Returns the index of received data which have been authenticated.
+    </span><span class="kw">pub fn </span>received_authed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Idx {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.received_authed
     }
 
-    <span class="doccomment">/// Sets all bytes in the transcript which were redacted in the given range.
+    <span class="doccomment">/// Returns the index of sent data which haven't been authenticated.
+    </span><span class="kw">pub fn </span>sent_unauthed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Idx {
+        Idx(RangeSet::from(<span class="number">0</span>..<span class="self">self</span>.sent.len()).difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed.<span class="number">0</span>))
+    }
+
+    <span class="doccomment">/// Returns the index of received data which haven't been authenticated.
+    </span><span class="kw">pub fn </span>received_unauthed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Idx {
+        Idx(RangeSet::from(<span class="number">0</span>..<span class="self">self</span>.received.len()).difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed.<span class="number">0</span>))
+    }
+
+    <span class="doccomment">/// Returns an iterator over the authenticated data in the transcript.
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction) -&gt; <span class="kw">impl </span>Iterator&lt;Item = u8&gt; + <span class="lifetime">'_ </span>{
+        <span class="kw">let </span>(data, authed) = <span class="kw">match </span>direction {
+            Direction::Sent =&gt; (<span class="kw-2">&amp;</span><span class="self">self</span>.sent, <span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed),
+            Direction::Received =&gt; (<span class="kw-2">&amp;</span><span class="self">self</span>.received, <span class="kw-2">&amp;</span><span class="self">self</span>.received_authed),
+        };
+
+        authed.<span class="number">0</span>.iter().map(|i| data[i])
+    }
+
+    <span class="doccomment">/// Unions the authenticated data of this transcript with another.
     ///
-    /// # Arguments
+    /// # Panics
     ///
-    /// * `value` - The value to set the redacted bytes to
-    /// * `range` - The range of redacted bytes to set
-    </span><span class="kw">pub fn </span>set_redacted_range(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: u8, range: Range&lt;usize&gt;) {
-        <span class="kw">for </span>range <span class="kw">in </span><span class="self">self
-            </span>.redacted
-            .difference(<span class="kw-2">&amp;</span>(<span class="number">0</span>..<span class="self">self</span>.data.len()).difference(<span class="kw-2">&amp;</span>range))
+    /// Panics if the other transcript is not the same length.
+    </span><span class="kw">pub fn </span>union_transcript(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>PartialTranscript) {
+        <span class="macro">assert_eq!</span>(
+            <span class="self">self</span>.sent.len(),
+            other.sent.len(),
+            <span class="string">"sent data are not the same length"
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            <span class="self">self</span>.received.len(),
+            other.received.len(),
+            <span class="string">"received data are not the same length"
+        </span>);
+
+        <span class="kw">for </span>range <span class="kw">in </span>other
+            .sent_authed
+            .<span class="number">0
+            </span>.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed.<span class="number">0</span>)
             .iter_ranges()
         {
-            <span class="self">self</span>.data[range].fill(value);
+            <span class="self">self</span>.sent[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>other.sent[range]);
+        }
+
+        <span class="kw">for </span>range <span class="kw">in </span>other
+            .received_authed
+            .<span class="number">0
+            </span>.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed.<span class="number">0</span>)
+            .iter_ranges()
+        {
+            <span class="self">self</span>.received[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>other.received[range]);
+        }
+
+        <span class="self">self</span>.sent_authed = <span class="self">self</span>.sent_authed.union(<span class="kw-2">&amp;</span>other.sent_authed);
+        <span class="self">self</span>.received_authed = <span class="self">self</span>.received_authed.union(<span class="kw-2">&amp;</span>other.received_authed);
+    }
+
+    <span class="doccomment">/// Unions an authenticated subsequence into this transcript.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the subsequence is outside the bounds of the transcript.
+    </span><span class="kw">pub fn </span>union_subsequence(<span class="kw-2">&amp;mut </span><span class="self">self</span>, direction: Direction, seq: <span class="kw-2">&amp;</span>Subsequence) {
+        <span class="kw">match </span>direction {
+            Direction::Sent =&gt; {
+                seq.copy_to(<span class="kw-2">&amp;mut </span><span class="self">self</span>.sent);
+                <span class="self">self</span>.sent_authed = <span class="self">self</span>.sent_authed.union(<span class="kw-2">&amp;</span>seq.idx);
+            }
+            Direction::Received =&gt; {
+                seq.copy_to(<span class="kw-2">&amp;mut </span><span class="self">self</span>.received);
+                <span class="self">self</span>.received_authed = <span class="self">self</span>.received_authed.union(<span class="kw-2">&amp;</span>seq.idx);
+            }
         }
     }
-}
 
-<span class="doccomment">/// Slice of a transcript.
-</span><span class="attr">#[derive(PartialEq, Debug, Clone, Default)]
-</span><span class="kw">pub struct </span>TranscriptSlice {
-    <span class="doccomment">/// A byte range of this slice
-    </span>range: Range&lt;usize&gt;,
-    <span class="doccomment">/// The actual byte content of the slice
-    </span>data: Vec&lt;u8&gt;,
-}
-
-<span class="kw">impl </span>TranscriptSlice {
-    <span class="doccomment">/// Creates a new transcript slice.
-    </span><span class="kw">pub fn </span>new(range: Range&lt;usize&gt;, data: Vec&lt;u8&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ range, data }
+    <span class="doccomment">/// Sets all bytes in the transcript which haven't been authenticated.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to set the unauthenticated bytes to
+    </span><span class="kw">pub fn </span>set_unauthed(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: u8) {
+        <span class="kw">for </span>range <span class="kw">in </span><span class="self">self</span>.sent_unauthed().iter_ranges() {
+            <span class="self">self</span>.sent[range].fill(value);
+        }
+        <span class="kw">for </span>range <span class="kw">in </span><span class="self">self</span>.received_unauthed().iter_ranges() {
+            <span class="self">self</span>.received[range].fill(value);
+        }
     }
 
-    <span class="doccomment">/// Returns the range of bytes this slice refers to in the transcript
-    </span><span class="kw">pub fn </span>range(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Range&lt;usize&gt; {
-        <span class="self">self</span>.range.clone()
-    }
-
-    <span class="doccomment">/// Returns the bytes of this slice
-    </span><span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.data
-    }
-
-    <span class="doccomment">/// Returns the bytes of this slice
-    </span><span class="kw">pub fn </span>into_bytes(<span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.data
+    <span class="doccomment">/// Sets all bytes in the transcript which haven't been authenticated within the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to set the unauthenticated bytes to
+    /// * `range` - The range of bytes to set
+    </span><span class="kw">pub fn </span>set_unauthed_range(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: u8, direction: Direction, range: Range&lt;usize&gt;) {
+        <span class="kw">match </span>direction {
+            Direction::Sent =&gt; {
+                <span class="kw">for </span>range <span class="kw">in </span>range.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed.<span class="number">0</span>).iter_ranges() {
+                    <span class="self">self</span>.sent[range].fill(value);
+                }
+            }
+            Direction::Received =&gt; {
+                <span class="kw">for </span>range <span class="kw">in </span>range.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed.<span class="number">0</span>).iter_ranges() {
+                    <span class="self">self</span>.received[range].fill(value);
+                }
+            }
+        }
     }
 }
 
@@ -409,22 +982,232 @@
 </span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 </span><span class="kw">pub enum </span>Direction {
     <span class="doccomment">/// Sent from the Prover to the TLS peer.
-    </span>Sent,
+    </span>Sent = <span class="number">0x00</span>,
     <span class="doccomment">/// Received by the prover from the TLS peer.
-    </span>Received,
+    </span>Received = <span class="number">0x01</span>,
 }
 
-<span class="doccomment">/// Returns the value ID for each byte in the provided range set
-</span><span class="kw">pub fn </span>get_value_ids(
-    ranges: <span class="kw-2">&amp;</span>RangeSet&lt;usize&gt;,
-    direction: Direction,
-) -&gt; <span class="kw">impl </span>Iterator&lt;Item = String&gt; + <span class="lifetime">'_ </span>{
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Direction {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            Direction::Sent =&gt; <span class="macro">write!</span>(f, <span class="string">"sent"</span>),
+            Direction::Received =&gt; <span class="macro">write!</span>(f, <span class="string">"received"</span>),
+        }
+    }
+}
+
+<span class="doccomment">/// Transcript index.
+</span><span class="attr">#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>Idx(RangeSet&lt;usize&gt;);
+
+<span class="kw">impl </span>Idx {
+    <span class="doccomment">/// Creates a new index builder.
+    </span><span class="kw">pub fn </span>builder() -&gt; IdxBuilder {
+        IdxBuilder::default()
+    }
+
+    <span class="doccomment">/// Creates an empty index.
+    </span><span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(RangeSet::default())
+    }
+
+    <span class="doccomment">/// Creates a new transcript index.
+    </span><span class="kw">pub fn </span>new(ranges: <span class="kw">impl </span>Into&lt;RangeSet&lt;usize&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(ranges.into())
+    }
+
+    <span class="doccomment">/// Returns the start of the index.
+    </span><span class="kw">pub fn </span>start(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.<span class="number">0</span>.min().unwrap_or_default()
+    }
+
+    <span class="doccomment">/// Returns the end of the index, non-inclusive.
+    </span><span class="kw">pub fn </span>end(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.<span class="number">0</span>.end().unwrap_or_default()
+    }
+
+    <span class="doccomment">/// Returns an iterator over the values in the index.
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = usize&gt; + <span class="lifetime">'_ </span>{
+        <span class="self">self</span>.<span class="number">0</span>.iter()
+    }
+
+    <span class="doccomment">/// Returns an iterator over the ranges of the index.
+    </span><span class="kw">pub fn </span>iter_ranges(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = Range&lt;usize&gt;&gt; + <span class="lifetime">'_ </span>{
+        <span class="self">self</span>.<span class="number">0</span>.iter_ranges()
+    }
+
+    <span class="doccomment">/// Returns the number of values in the index.
+    </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.<span class="number">0</span>.len()
+    }
+
+    <span class="doccomment">/// Returns whether the index is empty.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.is_empty()
+    }
+
+    <span class="doccomment">/// Returns the number of disjoint ranges in the index.
+    </span><span class="kw">pub fn </span>count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.<span class="number">0</span>.len_ranges()
+    }
+
+    <span class="doccomment">/// Returns the union of this index with another.
+    </span><span class="kw">pub fn </span>union(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Idx) -&gt; Idx {
+        Idx(<span class="self">self</span>.<span class="number">0</span>.union(<span class="kw-2">&amp;</span>other.<span class="number">0</span>))
+    }
+}
+
+<span class="doccomment">/// Builder for [`Idx`].
+</span><span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">pub struct </span>IdxBuilder(RangeSet&lt;usize&gt;);
+
+<span class="kw">impl </span>IdxBuilder {
+    <span class="doccomment">/// Unions ranges.
+    </span><span class="kw">pub fn </span>union(<span class="self">self</span>, ranges: <span class="kw-2">&amp;</span><span class="kw">dyn </span>ToRangeSet&lt;usize&gt;) -&gt; <span class="self">Self </span>{
+        IdxBuilder(<span class="self">self</span>.<span class="number">0</span>.union(<span class="kw-2">&amp;</span>ranges.to_range_set()))
+    }
+
+    <span class="doccomment">/// Builds the index.
+    </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; Idx {
+        Idx(<span class="self">self</span>.<span class="number">0</span>)
+    }
+}
+
+<span class="doccomment">/// Transcript subsequence.
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = <span class="string">"validation::SubsequenceUnchecked"</span>)]
+</span><span class="kw">pub struct </span>Subsequence {
+    <span class="doccomment">/// Index of the subsequence.
+    </span>idx: Idx,
+    <span class="doccomment">/// Data of the subsequence.
+    </span>data: Vec&lt;u8&gt;,
+}
+
+<span class="kw">impl </span>Subsequence {
+    <span class="doccomment">/// Creates a new subsequence.
+    </span><span class="kw">pub fn </span>new(idx: Idx, data: Vec&lt;u8&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, InvalidSubsequence&gt; {
+        <span class="kw">if </span>idx.len() != data.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidSubsequence(
+                <span class="string">"index length does not match data length"</span>,
+            ));
+        }
+
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ idx, data })
+    }
+
+    <span class="doccomment">/// Returns the index of the subsequence.
+    </span><span class="kw">pub fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Idx {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.idx
+    }
+
+    <span class="doccomment">/// Returns the data of the subsequence.
+    </span><span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.data
+    }
+
+    <span class="doccomment">/// Returns the length of the subsequence.
+    </span><span class="attr">#[allow(clippy::len_without_is_empty)]
+    </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.data.len()
+    }
+
+    <span class="doccomment">/// Returns the inner parts of the subsequence.
+    </span><span class="kw">pub fn </span>into_parts(<span class="self">self</span>) -&gt; (Idx, Vec&lt;u8&gt;) {
+        (<span class="self">self</span>.idx, <span class="self">self</span>.data)
+    }
+
+    <span class="doccomment">/// Copies the subsequence data into the given destination.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the subsequence ranges are out of bounds.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>copy_to(<span class="kw-2">&amp;</span><span class="self">self</span>, dest: <span class="kw-2">&amp;mut </span>[u8]) {
+        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
+        <span class="kw">for </span>range <span class="kw">in </span><span class="self">self</span>.idx.iter_ranges() {
+            dest[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.data[offset..offset + range.len()]);
+            offset += range.len();
+        }
+    }
+}
+
+<span class="doccomment">/// Invalid subsequence error.
+</span><span class="attr">#[derive(Debug, thiserror::Error)]
+#[error(<span class="string">"invalid subsequence: {0}"</span>)]
+</span><span class="kw">pub struct </span>InvalidSubsequence(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str);
+
+<span class="doccomment">/// Returns the value ID for each byte in the provided range set.
+</span><span class="attr">#[doc(hidden)]
+</span><span class="kw">pub fn </span>get_value_ids(direction: Direction, idx: <span class="kw-2">&amp;</span>Idx) -&gt; <span class="kw">impl </span>Iterator&lt;Item = String&gt; + <span class="lifetime">'_ </span>{
     <span class="kw">let </span>id = <span class="kw">match </span>direction {
         Direction::Sent =&gt; TX_TRANSCRIPT_ID,
         Direction::Received =&gt; RX_TRANSCRIPT_ID,
     };
 
-    ranges.iter().map(<span class="kw">move </span>|idx| <span class="macro">format!</span>(<span class="string">"{}/{}"</span>, id, idx))
+    idx.iter().map(<span class="kw">move </span>|idx| <span class="macro">format!</span>(<span class="string">"{}/{}"</span>, id, idx))
+}
+
+<span class="kw">mod </span>validation {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="attr">#[derive(Debug, Deserialize)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>SubsequenceUnchecked {
+        idx: Idx,
+        data: Vec&lt;u8&gt;,
+    }
+
+    <span class="kw">impl </span>TryFrom&lt;SubsequenceUnchecked&gt; <span class="kw">for </span>Subsequence {
+        <span class="kw">type </span>Error = InvalidSubsequence;
+
+        <span class="kw">fn </span>try_from(unchecked: SubsequenceUnchecked) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+            <span class="self">Self</span>::new(unchecked.idx, unchecked.data)
+        }
+    }
+
+    <span class="doccomment">/// Invalid partial transcript error.
+    </span><span class="attr">#[derive(Debug, thiserror::Error)]
+    #[error(<span class="string">"invalid partial transcript: {0}"</span>)]
+    </span><span class="kw">pub struct </span>InvalidPartialTranscript(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str);
+
+    <span class="attr">#[derive(Debug, Deserialize)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>PartialTranscriptUnchecked {
+        sent: Vec&lt;u8&gt;,
+        received: Vec&lt;u8&gt;,
+        sent_authed: Idx,
+        received_authed: Idx,
+    }
+
+    <span class="kw">impl </span>TryFrom&lt;PartialTranscriptUnchecked&gt; <span class="kw">for </span>PartialTranscript {
+        <span class="kw">type </span>Error = InvalidPartialTranscript;
+
+        <span class="kw">fn </span>try_from(unchecked: PartialTranscriptUnchecked) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+            <span class="kw">if </span>unchecked.sent_authed.end() &gt; unchecked.sent.len()
+                || unchecked.received_authed.end() &gt; unchecked.received.len()
+            {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidPartialTranscript(
+                    <span class="string">"authenticated ranges are not in bounds of the data"</span>,
+                ));
+            }
+
+            <span class="comment">// Rewrite the data to ensure that unauthenticated data is zeroed out.
+            </span><span class="kw">let </span><span class="kw-2">mut </span>sent = <span class="macro">vec!</span>[<span class="number">0</span>; unchecked.sent.len()];
+            <span class="kw">let </span><span class="kw-2">mut </span>received = <span class="macro">vec!</span>[<span class="number">0</span>; unchecked.received.len()];
+
+            <span class="kw">for </span>range <span class="kw">in </span>unchecked.sent_authed.iter_ranges() {
+                sent[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>unchecked.sent[range]);
+            }
+
+            <span class="kw">for </span>range <span class="kw">in </span>unchecked.received_authed.iter_ranges() {
+                received[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>unchecked.received[range]);
+            }
+
+            <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+                sent,
+                received,
+                sent_authed: unchecked.sent_authed,
+                received_authed: unchecked.received_authed,
+            })
+        }
+    }
 }
 
 <span class="attr">#[cfg(test)]
@@ -434,58 +1217,33 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[fixture]
-    </span><span class="kw">fn </span>transcripts() -&gt; (Transcript, Transcript) {
-        <span class="kw">let </span>sent = <span class="string">"data sent 123456789"</span>.as_bytes().to_vec();
-        <span class="kw">let </span>recv = <span class="string">"data received 987654321"</span>.as_bytes().to_vec();
-        (Transcript::new(sent), Transcript::new(recv))
+    </span><span class="kw">fn </span>transcript() -&gt; Transcript {
+        Transcript::new(
+            [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>],
+            [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>],
+        )
     }
 
     <span class="attr">#[rstest]
-    </span><span class="kw">fn </span>test_get_bytes_in_ranges(transcripts: (Transcript, Transcript)) {
-        <span class="kw">let </span>(sent, recv) = transcripts;
+    </span><span class="kw">fn </span>test_get_subsequence(transcript: Transcript) {
+        <span class="kw">let </span>subseq = transcript
+            .get(Direction::Received, <span class="kw-2">&amp;</span>Idx(RangeSet::from([<span class="number">0</span>..<span class="number">4</span>, <span class="number">7</span>..<span class="number">10</span>])))
+            .unwrap();
+        <span class="macro">assert_eq!</span>(subseq.data, <span class="macro">vec!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>]);
 
-        <span class="kw">let </span>range1 = Range { start: <span class="number">2</span>, end: <span class="number">4 </span>};
-        <span class="kw">let </span>range2 = Range { start: <span class="number">10</span>, end: <span class="number">15 </span>};
-        <span class="comment">// a full range spanning the entirety of the data
-        </span><span class="kw">let </span>range3 = Range {
-            start: <span class="number">0</span>,
-            end: sent.data().len(),
-        };
+        <span class="kw">let </span>subseq = transcript
+            .get(Direction::Sent, <span class="kw-2">&amp;</span>Idx(RangeSet::from([<span class="number">0</span>..<span class="number">4</span>, <span class="number">9</span>..<span class="number">12</span>])))
+            .unwrap();
+        <span class="macro">assert_eq!</span>(subseq.data, <span class="macro">vec!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>]);
 
-        <span class="kw">let </span>expected = <span class="string">"ta12345"</span>.as_bytes().to_vec();
-        <span class="macro">assert_eq!</span>(
-            expected,
-            sent.get_bytes_in_ranges(<span class="kw-2">&amp;</span>RangeSet::from([range1.clone(), range2.clone()]))
+        <span class="kw">let </span>subseq = transcript.get(
+            Direction::Received,
+            <span class="kw-2">&amp;</span>Idx(RangeSet::from([<span class="number">0</span>..<span class="number">4</span>, <span class="number">7</span>..<span class="number">10</span>, <span class="number">11</span>..<span class="number">13</span>])),
         );
+        <span class="macro">assert_eq!</span>(subseq, <span class="prelude-val">None</span>);
 
-        <span class="kw">let </span>expected = <span class="string">"taved 9"</span>.as_bytes().to_vec();
-        <span class="macro">assert_eq!</span>(
-            expected,
-            recv.get_bytes_in_ranges(<span class="kw-2">&amp;</span>RangeSet::from([range1, range2]))
-        );
-
-        <span class="macro">assert_eq!</span>(
-            sent.data().as_ref(),
-            sent.get_bytes_in_ranges(<span class="kw-2">&amp;</span>RangeSet::from([range3]))
-        );
-    }
-
-    <span class="attr">#[rstest]
-    #[should_panic]
-    </span><span class="kw">fn </span>test_get_bytes_in_ranges_empty(transcripts: (Transcript, Transcript)) {
-        <span class="kw">let </span>(sent, <span class="kw">_</span>) = transcripts;
-        sent.get_bytes_in_ranges(<span class="kw-2">&amp;</span>RangeSet::default());
-    }
-
-    <span class="attr">#[rstest]
-    #[should_panic]
-    </span><span class="kw">fn </span>test_get_bytes_in_ranges_out_of_bounds(transcripts: (Transcript, Transcript)) {
-        <span class="kw">let </span>(sent, <span class="kw">_</span>) = transcripts;
-        <span class="kw">let </span>range = Range {
-            start: <span class="number">0</span>,
-            end: sent.data().len() + <span class="number">1</span>,
-        };
-        sent.get_bytes_in_ranges(<span class="kw-2">&amp;</span>RangeSet::from([range]));
+        <span class="kw">let </span>subseq = transcript.get(Direction::Sent, <span class="kw-2">&amp;</span>Idx(RangeSet::from([<span class="number">0</span>..<span class="number">4</span>, <span class="number">7</span>..<span class="number">10</span>, <span class="number">11</span>..<span class="number">13</span>])));
+        <span class="macro">assert_eq!</span>(subseq, <span class="prelude-val">None</span>);
     }
 }
 </code></pre></div></section></main></body></html>

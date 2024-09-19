@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["MerkleError"],"struct":["MerkleProof","MerkleRoot","MerkleTree"]};

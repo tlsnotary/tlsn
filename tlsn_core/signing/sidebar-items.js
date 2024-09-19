@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["KeyAlgId","Secp256k1Signer","Secp256k1Verifier","Secp256r1Signer","Secp256r1Verifier","Signature","SignatureAlgId","SignatureError","SignatureVerifierProvider","SignerError","SignerProvider","UnknownSignatureAlgId","VerifyingKey"],"trait":["SignatureVerifier","Signer"]};

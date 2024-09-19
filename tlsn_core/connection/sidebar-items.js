@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CertificateVerificationError","HandshakeData","KeyType","SignatureScheme","TlsVersion"],"struct":["Certificate","ConnectionInfo","HandshakeDataV1_2","ServerCertCommitment","ServerCertData","ServerCertOpening","ServerEphemKey","ServerIdentityProof","ServerIdentityProofError","ServerName","ServerSignature","TranscriptLength"]};

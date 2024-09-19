@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Direction"],"fn":["get_value_ids"],"struct":["RedactedTranscript","Transcript","TranscriptSlice"]};
+window.SIDEBAR_ITEMS = {"enum":["Direction","TranscriptCommitmentKind"],"static":["RX_TRANSCRIPT_ID","TX_TRANSCRIPT_ID"],"struct":["Idx","IdxBuilder","InvalidSubsequence","PartialTranscript","Subsequence","Transcript","TranscriptCommitConfig","TranscriptCommitConfigBuilder","TranscriptCommitConfigBuilderError","TranscriptProof","TranscriptProofBuilder","TranscriptProofBuilderError","TranscriptProofError"]};

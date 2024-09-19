@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["TlsnMessage"],"struct":["ProvingInfo","SignedSessionHeader"]};
