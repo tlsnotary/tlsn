@@ -45,7 +45,7 @@ enum ErrorKind {
 
 impl fmt::Display for VerifierError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("prover error: ")?;
+        f.write_str("verifier error: ")?;
 
         match self.kind {
             ErrorKind::Io => f.write_str("io error")?,
