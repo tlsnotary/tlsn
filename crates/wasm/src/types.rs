@@ -196,7 +196,7 @@ impl Attestation {
     }
 
     /// Deserializes from a byte array.
-    pub fn deserialize(bytes: Vec<u8>) -> Result<Secrets, JsError> {
+    pub fn deserialize(bytes: Vec<u8>) -> Result<Attestation, JsError> {
         Ok(bincode::deserialize(&bytes)?)
     }
 }
