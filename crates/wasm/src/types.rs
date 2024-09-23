@@ -179,7 +179,7 @@ pub enum KeyType {
     P256,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
 pub struct Attestation(pub(crate) tlsn_core::attestation::Attestation);
@@ -207,7 +207,7 @@ impl From<tlsn_core::attestation::Attestation> for Attestation {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
 pub struct Secrets(pub(crate) tlsn_core::Secrets);
@@ -288,8 +288,8 @@ impl From<tlsn_core::presentation::PresentationOutput> for PresentationOutput {
     }
 }
 
-#[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
+#[derive(Debug, Serialize)]
+#[wasm_bindgen(getter_with_clone)]
 pub struct NotarizationOutput {
     pub attestation: Attestation,
     pub secrets: Secrets,
