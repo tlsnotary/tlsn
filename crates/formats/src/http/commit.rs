@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use spansy::Spanned;
-use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
+use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
 use crate::{
     http::{Body, BodyContent, Header, HttpTranscript, MessageKind, Request, Response, Target},
@@ -88,7 +88,7 @@ pub trait HttpCommit {
     /// * `transcript` - The transcript to commit.
     fn commit_transcript(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         transcript: &HttpTranscript,
     ) -> Result<(), HttpCommitError> {
         for request in &transcript.requests {
@@ -114,7 +114,7 @@ pub trait HttpCommit {
     /// * `request` - The request to commit to.
     fn commit_request(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         direction: Direction,
         request: &Request,
     ) -> Result<(), HttpCommitError> {
@@ -163,7 +163,7 @@ pub trait HttpCommit {
     /// * `target` - The target to commit to.
     fn commit_target(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         direction: Direction,
         request: &Request,
         target: &Target,
@@ -191,7 +191,7 @@ pub trait HttpCommit {
     /// * `header` - The header to commit to.
     fn commit_request_header(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         direction: Direction,
         parent: &Request,
         header: &Header,
@@ -236,7 +236,7 @@ pub trait HttpCommit {
     /// * `body` - The body to commit to.
     fn commit_request_body(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         direction: Direction,
         parent: &Request,
         body: &Body,
@@ -279,7 +279,7 @@ pub trait HttpCommit {
     /// * `response` - The response to commit to.
     fn commit_response(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         direction: Direction,
         response: &Response,
     ) -> Result<(), HttpCommitError> {
@@ -326,7 +326,7 @@ pub trait HttpCommit {
     /// * `header` - The header to commit to.
     fn commit_response_header(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         direction: Direction,
         parent: &Response,
         header: &Header,
@@ -371,7 +371,7 @@ pub trait HttpCommit {
     /// * `body` - The body to commit to.
     fn commit_response_body(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         direction: Direction,
         parent: &Response,
         body: &Body,
@@ -414,18 +414,19 @@ mod tests {
     use super::*;
     use rstest::*;
     use spansy::http::{parse_request, parse_response};
-    use tlsn_core::fixtures;
+    use tlsn_core::transcript::Transcript;
+    use tlsn_data_fixtures::http as fixtures;
 
     #[rstest]
-    #[case::get_empty(include_bytes!("../../tests/fixtures/http/request_get_empty"))]
-    #[case::get_empty_header(include_bytes!("../../tests/fixtures/http/request_get_empty_header"))]
-    #[case::get_with_header(include_bytes!("../../tests/fixtures/http/request_get_with_header"))]
-    #[case::post_json(include_bytes!("../../tests/fixtures/http/request_post_json"))]
+    #[case::get_empty(fixtures::request::GET_EMPTY)]
+    #[case::get_empty_header(fixtures::request::GET_EMPTY_HEADER)]
+    #[case::get_with_header(fixtures::request::GET_WITH_HEADER)]
+    #[case::post_json(fixtures::request::POST_JSON)]
     fn test_http_default_commit_request(#[case] src: &'static [u8]) {
+        let transcript = Transcript::new(src, []);
         let request = parse_request(src).unwrap();
         let mut committer = DefaultHttpCommitter::default();
-        let mut builder =
-            TranscriptCommitmentBuilder::new(fixtures::encoding_provider(src, &[]), src.len(), 0);
+        let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
 
         committer
             .commit_request(&mut builder, Direction::Sent, &request)
@@ -435,15 +436,15 @@ mod tests {
     }
 
     #[rstest]
-    #[case::empty(include_bytes!("../../tests/fixtures/http/response_empty"))]
-    #[case::empty_header(include_bytes!("../../tests/fixtures/http/response_empty_header"))]
-    #[case::json(include_bytes!("../../tests/fixtures/http/response_json"))]
-    #[case::text(include_bytes!("../../tests/fixtures/http/response_text"))]
+    #[case::empty(fixtures::response::OK_EMPTY)]
+    #[case::empty_header(fixtures::response::OK_EMPTY_HEADER)]
+    #[case::json(fixtures::response::OK_JSON)]
+    #[case::text(fixtures::response::OK_TEXT)]
     fn test_http_default_commit_response(#[case] src: &'static [u8]) {
+        let transcript = Transcript::new([], src);
         let response = parse_response(src).unwrap();
         let mut committer = DefaultHttpCommitter::default();
-        let mut builder =
-            TranscriptCommitmentBuilder::new(fixtures::encoding_provider(&[], src), 0, src.len());
+        let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
 
         committer
             .commit_response(&mut builder, Direction::Received, &response)

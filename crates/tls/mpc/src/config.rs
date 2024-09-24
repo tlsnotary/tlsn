@@ -80,9 +80,6 @@ impl TranscriptConfig {
 /// Configuration options which are common to both the leader and the follower
 #[derive(Debug, Clone, Builder)]
 pub struct MpcTlsCommonConfig {
-    /// The id of the tls session.
-    #[builder(setter(into))]
-    id: String,
     /// The number of threads to use
     #[builder(default = "8")]
     num_threads: usize,
@@ -101,11 +98,6 @@ impl MpcTlsCommonConfig {
     /// Creates a new builder for `MpcTlsCommonConfig`.
     pub fn builder() -> MpcTlsCommonConfigBuilder {
         MpcTlsCommonConfigBuilder::default()
-    }
-
-    /// Returns the id of the tls session.
-    pub fn id(&self) -> &str {
-        &self.id
     }
 
     /// Returns the number of threads to use.

@@ -9,14 +9,14 @@ use std::{
 
 use anyhow::Context;
 use futures::{AsyncReadExt, AsyncWriteExt};
+use tls_core::verify::WebPkiVerifier;
 use tlsn_benches::{
     config::{BenchInstance, Config},
     metrics::Metrics,
     set_interface, PROVER_INTERFACE,
 };
-
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::Direction;
+use tlsn_core::{transcript::Idx, CryptoProvider};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -25,7 +25,7 @@ use tokio_util::{
     io::{InspectReader, InspectWriter},
 };
 
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_prover::{Prover, ProverConfig};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
@@ -117,6 +117,11 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let start_time = Instant::now();
 
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store(), None),
+        ..Default::default()
+    };
+
     let protocol_config = if defer_decryption {
         ProtocolConfig::builder()
             .max_sent_data(upload_size + 256)
@@ -134,11 +139,10 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let prover = Prover::new(
         ProverConfig::builder()
-            .id("test")
-            .server_dns(SERVER_DOMAIN)
-            .root_cert_store(root_store())
+            .server_name(SERVER_DOMAIN)
             .protocol_config(protocol_config)
             .defer_decryption_from_start(defer_decryption)
+            .crypto_provider(provider)
             .build()
             .context("invalid prover config")?,
     )
@@ -163,12 +167,10 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let mut prover = prover_task.await??.start_prove();
 
-    prover.reveal(0..prover.sent_transcript().data().len(), Direction::Sent)?;
-    prover.reveal(
-        0..prover.recv_transcript().data().len(),
-        Direction::Received,
-    )?;
-    prover.prove().await?;
+    let (sent_len, recv_len) = prover.transcript().len();
+    prover
+        .prove_transcript(Idx::new(0..sent_len), Idx::new(0..recv_len))
+        .await?;
     prover.finalize().await?;
 
     Ok(Metrics {

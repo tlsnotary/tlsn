@@ -339,6 +339,11 @@ impl WebPkiVerifier {
         Self { roots, ct_policy }
     }
 
+    /// Returns the root store.
+    pub fn root_store(&self) -> &RootCertStore {
+        &self.roots
+    }
+
     /// Returns the signature verification methods supported by
     /// webpki.
     pub fn verification_schemes() -> Vec<SignatureScheme> {

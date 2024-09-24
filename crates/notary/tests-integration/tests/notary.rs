@@ -12,9 +12,14 @@ use notary_client::{NotarizationRequest, NotaryClient, NotaryConnection};
 use rstest::rstest;
 use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
+use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfig;
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_core::{
+    request::RequestConfig, signing::SignatureAlgId, transcript::TranscriptCommitConfig,
+    CryptoProvider,
+};
+use tlsn_prover::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
@@ -171,12 +176,17 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     #[case]
     requested_notarization: (S, String),
 ) {
-    let (notary_socket, session_id) = requested_notarization;
+    let (notary_socket, _) = requested_notarization;
 
-    let mut root_cert_store = tls_core::anchors::RootCertStore::empty();
-    root_cert_store
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
+
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
@@ -186,10 +196,9 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Prover config using the session_id returned from calling /session endpoint in notary client.
     let prover_config = ProverConfig::builder()
-        .id(session_id)
-        .server_dns(SERVER_DOMAIN)
+        .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
-        .root_cert_store(root_cert_store)
+        .crypto_provider(provider)
         .build()
         .unwrap();
 
@@ -239,15 +248,24 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
 
-    let sent_len = prover.sent_transcript().data().len();
-    let recv_len = prover.recv_transcript().data().len();
+    let (sent_len, recv_len) = prover.transcript().len();
 
-    let builder = prover.commitment_builder();
+    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
     builder.commit_sent(&(0..sent_len)).unwrap();
     builder.commit_recv(&(0..recv_len)).unwrap();
 
-    _ = prover.finalize().await.unwrap();
+    let commit_config = builder.build().unwrap();
+
+    prover.transcript_commit(commit_config);
+
+    let mut request_builder = RequestConfig::builder();
+
+    request_builder.signature_alg(SignatureAlgId::SECP256R1);
+
+    let request = request_builder.build().unwrap();
+
+    _ = prover.finalize(&request).await.unwrap();
 
     debug!("Done notarization!");
 }
@@ -359,6 +377,11 @@ async fn test_websocket_prover() {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
+
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
@@ -367,10 +390,9 @@ async fn test_websocket_prover() {
 
     // Basic default prover config — use the responded session id from notary server
     let prover_config = ProverConfig::builder()
-        .id(notarization_response.session_id)
-        .server_dns(SERVER_DOMAIN)
-        .root_cert_store(root_store)
+        .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
+        .crypto_provider(provider)
         .build()
         .unwrap();
 
@@ -415,15 +437,24 @@ async fn test_websocket_prover() {
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
 
-    let sent_len = prover.sent_transcript().data().len();
-    let recv_len = prover.recv_transcript().data().len();
+    let (sent_len, recv_len) = prover.transcript().len();
 
-    let builder = prover.commitment_builder();
+    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
     builder.commit_sent(&(0..sent_len)).unwrap();
     builder.commit_recv(&(0..recv_len)).unwrap();
 
-    _ = prover.finalize().await.unwrap();
+    let commit_config = builder.build().unwrap();
+
+    prover.transcript_commit(commit_config);
+
+    let mut request_builder = RequestConfig::builder();
+
+    request_builder.signature_alg(SignatureAlgId::SECP256R1);
+
+    let request = request_builder.build().unwrap();
+
+    _ = prover.finalize(&request).await.unwrap();
 
     debug!("Done notarization!");
 }

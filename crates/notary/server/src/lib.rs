@@ -5,6 +5,7 @@ mod middleware;
 mod server;
 mod server_tracing;
 mod service;
+mod signing;
 mod util;
 
 pub use config::{

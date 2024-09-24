@@ -9,8 +9,7 @@ version = "0.1.0-alpha.6"
 edition = "2021"
 
 [features]
-default = ["formats", "rayon"]
-formats = ["dep:tlsn-formats"]
+default = ["rayon"]
 rayon = ["mpz-common/rayon"]
 force-st = ["mpz-common/force-st"]
 
