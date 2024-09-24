@@ -29,9 +29,6 @@ jobs:
     runs-on: [self-hosted, linux]
     environment: tee
     steps:
-    - name: check-hardware
-      id: issgx
-      shell: bash
     - name: azure-tee-build-${{ github.sha }}
       uses: appleboy/ssh-action@v1.0.3
       env:
