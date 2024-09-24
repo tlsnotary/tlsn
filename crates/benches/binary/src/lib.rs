@@ -1,6 +1,9 @@
 pub mod config;
 pub mod metrics;
+mod preprocess;
 pub mod prover;
+pub mod prover_main;
+pub mod verifier_main;
 
 use std::{
     io,
