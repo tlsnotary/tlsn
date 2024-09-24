@@ -28,6 +28,9 @@ use tokio_util::{
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config_path = std::env::var("CFG").unwrap_or_else(|_| "bench.toml".to_string());
@@ -108,7 +111,15 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         upload_size,
         download_size,
         defer_decryption,
+        memory_profile
     } = instance.clone();
+
+    let _profiler = if memory_profile {
+        // Build a testing profiler as it won't output to stderr
+        Some(dhat::Profiler::builder().testing().build())
+    } else {
+        None
+    };
 
     set_interface(PROVER_INTERFACE, upload, 1, upload_delay)?;
 
@@ -183,6 +194,11 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         runtime: Instant::now().duration_since(start_time).as_secs(),
         uploaded: uploaded.load(Ordering::SeqCst),
         downloaded: downloaded.load(Ordering::SeqCst),
+        heap_max_bytes: if memory_profile {
+            Some(dhat::HeapStats::get().max_bytes)
+        } else {
+            None
+        },
     })
 }
 
