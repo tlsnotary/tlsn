@@ -22,8 +22,10 @@ jobs:
       shell: bash
       run: |
         HW="$(is-sgx-available)"
+        echo 'step<<EOF' >> $GITHUB_OUTPUT
         echo "gramine=$HW" >> "$GITHUB_OUTPUT"
-        echo "$HW" >> $GITHUB_STEP_SUMMARY
+        echo 'EOF' >> $GITHUB_OUTPUT
+        echo -e "### is-sgx-available 🔒\n$HW" >> $GITHUB_STEP_SUMMARY
   build:
     # todo: add sgx tag to runner config
     runs-on: [self-hosted, linux]
