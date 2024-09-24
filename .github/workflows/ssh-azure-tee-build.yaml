@@ -12,10 +12,26 @@ permissions:
   attestations: write
 
 jobs:
+  check-runner:
+    runs-on: [self-hosted, linux]
+    outputs:
+      handle: ${{ steps.checkhw.outputs.gramine }}
+    steps:
+    - name: check hardware for sgx
+      id: checkhw
+      shell: bash
+      run: |
+        HW="$(is-sgx-available)"
+        echo "gramine=$HW" >> "$GITHUB_OUTPUT"
+        echo "$HW" >> $GITHUB_STEP_SUMMARY
   build:
-    runs-on: ubuntu-latest
+    # todo: add sgx tag to runner config
+    runs-on: [self-hosted, linux]
     environment: tee
     steps:
+    - name: check-hardware
+      id: issgx
+      shell: bash
     - name: azure-tee-build-${{ github.sha }}
       uses: appleboy/ssh-action@v1.0.3
       env:
