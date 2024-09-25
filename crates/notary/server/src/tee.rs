@@ -1,5 +1,7 @@
 use mc_sgx_dcap_types::QlError;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
+use std::fs;
 
 use crate::signing::AttestationKey;
 use p256::{ecdsa::SigningKey, PublicKey};
@@ -9,11 +11,12 @@ use rand_chacha::{
     ChaCha20Rng,
 };
 use std::{
-    fs::{File, OpenOptions},
-    io::{self, Read, Write},
+    fs::File,
+    io::{self, Read},
     path::Path,
 };
 use tracing::{debug, error, instrument};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Quote {
@@ -62,12 +65,13 @@ impl From<QlError> for QuoteError {
     }
 }
 
+static PUBLIC_KEY: OnceCell<PublicKey> = OnceCell::new();
+
 #[instrument(level = "debug", skip_all)]
 async fn gramine_quote() -> Result<Quote, QuoteError> {
     //// Check if the the gramine pseudo-hardware exists
     if !Path::new("/dev/attestation/quote").exists() {
-        error!("Failed to retrieve quote hardware");
-        return Err(QuoteError::IntelQuoteLibrary(QlError::InterfaceUnavailable));
+        Quote::default();
     }
 
     // Reading attestation type
@@ -76,11 +80,17 @@ async fn gramine_quote() -> Result<Quote, QuoteError> {
     attestation_file.read_to_string(&mut attestation_type)?;
     debug!("Detected attestation type: {}", attestation_type);
 
-    //// Writing 64 zero bytes to the gramine report pseudo-hardware `/dev/attestation/user_report_data`
-    let mut report_data_file = OpenOptions::new()
-        .write(true)
-        .open("/dev/attestation/user_report_data")?;
-    report_data_file.write_all(&[0u8; 64])?;
+    // Read `/dev/attestation/my_target_info`
+    let my_target_info = fs::read("/dev/attestation/my_target_info")?;
+
+    // Write to `/dev/attestation/target_info`
+    fs::write("/dev/attestation/target_info", my_target_info)?;
+
+    //// Writing the pubkey to bind the instance to the hw (note: this is not mrsigner)
+    fs::write(
+        "/dev/attestation/user_report_data",
+        PUBLIC_KEY.get().expect("pub_key_get").to_string(),
+    )?;
 
     //// Reading from the gramine quote pseudo-hardware `/dev/attestation/quote`
     let mut quote_file = File::open("/dev/attestation/quote")?;
@@ -117,7 +127,9 @@ pub fn ephemeral_keypair() -> (AttestationKey, String) {
         .to_pkcs8_pem(LineEnding::default())
         .expect("to pem");
     let attkey = AttestationKey::from_pkcs8_pem(&pem_string).expect("from pem");
-
+    let _ = PUBLIC_KEY
+        .set(PublicKey::from(*signing_key.verifying_key()))
+        .map_err(|_| "Public key has already been set");
     return (
         attkey,
         PublicKey::from(*signing_key.verifying_key()).to_string(),
