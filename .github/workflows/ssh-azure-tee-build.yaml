@@ -27,7 +27,7 @@ jobs:
         echo 'step<<EOF' >> $GITHUB_OUTPUT
         echo "gramine=$HW" >> "$GITHUB_OUTPUT"
         echo 'EOF' >> $GITHUB_OUTPUT
-        echo -e "### is-sgx-available 🔒\n$HW" >> $GITHUB_STEP_SUMMAR
+        echo -e "### is-sgx-available 🔒\n$HW" >> $GITHUB_STEP_SUMMARY
         exit $ret
   build:
     runs-on: [self-hosted, linux]
