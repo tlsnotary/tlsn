@@ -22,29 +22,19 @@ jobs:
       shell: bash
       run: |
         HW="$(is-sgx-available)"
+        echo $HW | grep -q  "CPU: true"
+        ret=$?
         echo 'step<<EOF' >> $GITHUB_OUTPUT
         echo "gramine=$HW" >> "$GITHUB_OUTPUT"
         echo 'EOF' >> $GITHUB_OUTPUT
-        echo -e "### is-sgx-available 🔒\n$HW" >> $GITHUB_STEP_SUMMARY
+        echo -e "### is-sgx-available 🔒\n$HW" >> $GITHUB_STEP_SUMMAR
+        exit $ret
   build:
-    # todo: add sgx tag to runner config
     runs-on: [self-hosted, linux]
-    environment: tee
     steps:
-    - name: azure-tee-build-${{ github.sha }}
-      uses: appleboy/ssh-action@v1.0.3
-      env:
-         # using personal access token until devops links acct
-         PAT_TOKEN: ${{ secrets.PAT_SET_ENV }}
-      with:
-         host: ${{ secrets.AZURE_TEE_BUILD_HOST }}
-         username: ${{ secrets.AZURE_BUILD_TEE_USERNAME }}
-         key: ${{ secrets.AZURE_TEE_BUILD_KEY }}
-         port: ${{ secrets.SSH_PORT }}
-         command_timeout: 10m
-         allenvs: true
-         envs: PAT_TOKEN
-         script: |
+    - name: "build notary server and check for liveliness"
+      shell: bash 
+      run: |
             cd /tmp 
             source $HOME/.cargo/env
             rm -rf ${{ github.sha }}
