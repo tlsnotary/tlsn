@@ -104,3 +104,39 @@ impl From<Vec<PlaintextHashSecret>> for Index<PlaintextHashSecret> {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use utils::range::RangeSet;
+
+    use super::*;
+
+    #[derive(PartialEq, Debug, Clone)]
+    struct Stub {
+        field_index: FieldId,
+        index: Idx,
+    }
+
+    impl From<Vec<Stub>> for Index<Stub> {
+        fn from(items: Vec<Stub>) -> Self {
+            Self::new(items, |item: &Stub| {
+                (&item.field_index, &item.index)
+            })
+        }
+    }
+
+    #[test]
+    fn test() {
+        let stub_a_index = Idx::new(RangeSet::from([0..4, 7..10]));
+        let stub_b_field_index = FieldId(8);
+
+        let stubs = vec![
+            Stub { field_index: FieldId(1), index: stub_a_index.clone() },
+            Stub { field_index: stub_b_field_index, index: Idx::new(RangeSet::from([1..5, 8..11])) },
+        ];
+        let stubs_index: Index<Stub> = stubs.clone().into();
+
+        assert_eq!(stubs_index.get_by_field_id(&stub_b_field_index), Some(&stubs[1]));
+        assert_eq!(stubs_index.get_by_transcript_idx(&stub_a_index), Some(&stubs[0]));
+    }
+}

@@ -29,6 +29,7 @@ k256 = { workspace = true }
 opaque-debug = { workspace = true }
 p256 = { workspace = true, features = ["serde"] }
 rand = { workspace = true }
+rand_core = { workspace = true }
 rs_merkle = { workspace = true, features = ["serde"] }
 rstest = { workspace = true, optional = true }
 serde = { workspace = true }
@@ -41,7 +42,6 @@ webpki-roots = { workspace = true }
 [dev-dependencies]
 rstest = { workspace = true }
 hex = { workspace = true }
-rand_core = { workspace = true }
 rand_chacha = { workspace = true }
 bincode = { workspace = true }
 tlsn-data-fixtures = { workspace = true }

@@ -372,3 +372,41 @@ mod secp256r1 {
 }
 
 pub use secp256r1::{Secp256r1Signer, Secp256r1Verifier};
+
+#[cfg(test)]
+mod test {
+    use rand_core::OsRng;
+    use super::*;
+
+    #[test]
+    fn test_secp256k1() {
+        let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let signer = Secp256k1Signer::new(&signing_key.to_bytes()).unwrap();
+        assert_eq!(signer.alg_id(), SignatureAlgId::SECP256K1);
+
+        let msg = "test payload";
+        let signature = signer.sign(msg.as_bytes()).unwrap();
+        let verifying_key = signer.verifying_key();
+
+        let verifier = Secp256k1Verifier {};
+        assert_eq!(verifier.alg_id(), SignatureAlgId::SECP256K1);
+        let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_secp256r1() {
+        let signing_key = p256::ecdsa::SigningKey::random(&mut OsRng);
+        let signer = Secp256r1Signer::new(&signing_key.to_bytes()).unwrap();
+        assert_eq!(signer.alg_id(), SignatureAlgId::SECP256R1);
+
+        let msg = "test payload";
+        let signature = signer.sign(msg.as_bytes()).unwrap();
+        let verifying_key = signer.verifying_key();
+
+        let verifier = Secp256r1Verifier {};
+        assert_eq!(verifier.alg_id(), SignatureAlgId::SECP256R1);
+        let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
+        assert!(result.is_ok());
+    }
+}
