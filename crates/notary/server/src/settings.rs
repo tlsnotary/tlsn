@@ -1,6 +1,6 @@
 use config::{Config, ConfigError, Environment, File};
 use std::path::Path;
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 use crate::{CliFields, NotaryServerProperties};
 use serde::Deserialize;
 
@@ -14,31 +14,14 @@ impl Settings {
     pub fn new(cli_fields: &CliFields) -> Result<Self, ConfigError> {
         let mut builder = Config::builder();
 
-        // Add default values
-        builder = builder
-            .set_default("server.name", "notary-server")?
-            .set_default("server.host", "0.0.0.0")?
-            .set_default("server.port", 7047)?
-            .set_default("server.html-info", "<h1>Notary Server</h1>")?
-            .set_default("notarization.max-sent-data", 4096)?
-            .set_default("notarization.max-recv-data", 16384)?
-            .set_default("tls.enabled", true)?
-            .set_default("tls.private-key-pem-path", "../fixture/tls/notary.key")?
-            .set_default("tls.certificate-pem-path", "../fixture/tls/notary.crt")?
-            .set_default("notary-key.private-key-pem-path", "../fixture/notary/notary.key")?
-            .set_default("notary-key.public-key-pem-path", "../fixture/notary/notary.pub")?
-            .set_default("logging.level", "DEBUG")?
-            .set_default("logging.filter", Option::<String>::None)?
-            .set_default("authorization.enabled", false)?
-            .set_default("authorization.whitelist-csv-path", "../fixture/auth/whitelist.csv")?;
-
         // Add the config file if it exists
         let config_path = Path::new(&cli_fields.config_file);
+
         if config_path.exists() {
-            info!("Loading configuration from: {}", cli_fields.config_file);
+            info!("Loading configuration from: {}", config_path.display());
             builder = builder.add_source(File::from(config_path));
         } else {
-            warn!("Config file not found: {}. Using defaults and overrides.", cli_fields.config_file);
+            warn!("Config file not found: {}. Using defaults and overrides.", cli_fields.config_file.clone());
         }
 
         // Add environment variables
@@ -56,22 +39,12 @@ impl Settings {
         }
 
         let config = builder.build()?;
+
+        // Log the entire configuration for debugging
+        debug!("Loaded configuration: {:#?}", config);
+
         let settings: Settings = config.try_deserialize()?;
 
-        // Validate file existence
-        Self::validate_file_exists(&settings.config.tls.private_key_pem_path, "TLS private key")?;
-        Self::validate_file_exists(&settings.config.tls.certificate_pem_path, "TLS certificate")?;
-        Self::validate_file_exists(&settings.config.notary_key.private_key_pem_path, "Notary private key")?;
-        Self::validate_file_exists(&settings.config.notary_key.public_key_pem_path, "Notary public key")?;
-
         Ok(settings)
-    }
-
-    fn validate_file_exists(path: &str, file_type: &str) -> Result<(), ConfigError> {
-        if !Path::new(path).exists() {
-            Err(ConfigError::NotFound(format!("{} file not found: {}", file_type, path)))
-        } else {
-            Ok(())
-        }
     }
 }
