@@ -18,6 +18,11 @@ tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-verifier = { workspace = true }
+tlsn-hmac-sha256 = { workspace = true }
+mpz-garble = { workspace = true }
+mpz-common = { workspace = true }
+mpz-core = { workspace = true }
+mpz-ot = { workspace = true, features = ["ideal"] }
 tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
