@@ -14,7 +14,7 @@ loader.env.RUST_BACKTRACE = "full"
 fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
-  { path = "/config", uri = "file:config" },
+  { path = "/config/config.yaml", uri = "file:/root/tlsn/crates/notary/server/config/gramine/config.yaml" },
   { type = "encrypted", path = "/vault", uri = "file:vault", key_name = "_sgx_mrenclave" },
 
 ]
@@ -23,7 +23,8 @@ sgx.trusted_files = [
   "file:{{ self_exe }}",
   "file:{{ gramine.runtimedir() }}/",
   "file:{{ arch_libdir }}/",
-  "file:config/config.yaml",
+  "file:/root/tlsn/crates/notary/server/fixture/",
+  "file:/root/tlsn/crates/notary/server/config/",
 ]
 sgx.debug = true
 sgx.edmm_enable = false
