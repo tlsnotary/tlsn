@@ -136,7 +136,15 @@ mod test {
         ];
         let stubs_index: Index<Stub> = stubs.clone().into();
 
+        // success
         assert_eq!(stubs_index.get_by_field_id(&stub_b_field_index), Some(&stubs[1]));
         assert_eq!(stubs_index.get_by_transcript_idx(&stub_a_index), Some(&stubs[0]));
+
+        // failure
+        let wrong_index = Idx::new(RangeSet::from([0..3, 4..5]));
+        let wrong_field_index = FieldId(200);
+
+        assert_eq!(stubs_index.get_by_field_id(&wrong_field_index), None);
+        assert_eq!(stubs_index.get_by_transcript_idx(&wrong_index), None);
     }
 }
