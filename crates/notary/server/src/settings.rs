@@ -18,10 +18,10 @@ impl Settings {
         let config_path = Path::new(&cli_fields.config_file);
 
         if config_path.exists() {
-            info!("Loading configuration from: {}", config_path.display());
+            info!("Loading configuration from: {}", cli_fields.config_file);
             builder = builder.add_source(File::from(config_path));
         } else {
-            warn!("Config file not found: {}. Using defaults and overrides.", cli_fields.config_file.clone());
+            warn!("Config file not found: {}. Using defaults and overrides.", cli_fields.config_file);
         }
 
         // Add environment variables
