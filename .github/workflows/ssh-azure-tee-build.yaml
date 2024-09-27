@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   build-on-sgx:
+    environment: tee
     runs-on: [self-hosted, linux]
     env:
       EVENTTAG: ${{ github.event.pull_request.head.sha || github.sha }}
