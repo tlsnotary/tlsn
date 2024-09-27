@@ -2,7 +2,7 @@ server:
   name: "notary-server"
   host: "0.0.0.0"
   port: 7047
-  html_info: |
+  html-info: |
     <h1>Notary Server {version}!</h1>
     <ul>
     <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{git_commit_hash}">{git_commit_hash}</a></li>
@@ -12,21 +12,21 @@ server:
     <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
 
 notarization:
-  max_sent_data: 4096
-  max_recv_data: 16384
+  max-sent-data: 4096
+  max-recv-data: 16384
 
 tls:
   enabled: true
-  private_key_pem_path: "../fixture/tls/notary.key"
-  certificate_pem_path: "../fixture/tls/notary.crt"
+  private-key-pem-path: "../fixture/tls/notary.key"
+  certificate-pem-path: "../fixture/tls/notary.crt"
 
-notary_key:
-  private_key_pem_path: "../fixture/notary/notary.key"
-  public_key_pem_path: "../fixture/notary/notary.pub"
+notary-key:
+  private-key-pem-path: "../fixture/notary/notary.key"
+  public-key-pem-path: "../fixture/notary/notary.pub"
 
 logging:
   level: "DEBUG"
 
 authorization:
   enabled: false
-  whitelist_csv_path: "../fixture/auth/whitelist.csv"
+  whitelist-csv-path: "../fixture/auth/whitelist.csv"
