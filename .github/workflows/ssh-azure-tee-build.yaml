@@ -52,14 +52,13 @@ jobs:
                 public-key-pem-path:  "pub.pem"
 
               logging:
-                level: INFO
+                level: DEBUG
 
               authorization:
                 enabled: false
                 whitelist-csv-path: "_.csv"
               EOF
        - uses: actions/checkout@v3
-       - uses: Swatinem/rust-cache@v2.7.3
        - uses: actions-rs/toolchain@v1
          with:
             profile: minimal
@@ -71,7 +70,6 @@ jobs:
        - name: run ns
          id: notary
          run: ./target/release/notary-server --config-file /config.yml 2>&1 >> $GITHUB_STEP_SUMMARY &
-
        - uses: iFaxity/wait-on-action@v1
          with:
            resource: http://172.18.0.1:7047/info
