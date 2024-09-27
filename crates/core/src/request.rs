@@ -99,7 +99,6 @@ mod test {
         CryptoProvider,
     };
 
-    use rstest::rstest;
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     fn attestation(payload: (Request, ConnectionFixture)) -> Attestation {
@@ -183,7 +182,7 @@ mod test {
         (request, ConnectionFixture::tlsnotary(transcript.length()))
     }
 
-    #[rstest]
+    #[test]
     fn test_success() {
         let (request, connection) = request_and_connection();
 
@@ -192,48 +191,62 @@ mod test {
         assert!(request.validate(&attestation).is_ok())
     }
 
-    #[rstest]
-    #[case::wrong_signature_alg(true, false, false, false)]
-    #[case::wrong_hash_alg(false, true, false, false)]
-    #[case::wrong_server_commitment(false, false, true, false)]
-    #[case::wrong_encoding_commitment(false, false, false, true)]
-    fn test_failures(
-        #[case] wrong_signature_alg: bool,
-        #[case] wrong_hash_alg: bool,
-        #[case] wrong_server_cert_commitment: bool,
-        #[case] wrong_encoding_commitment_root: bool,
-    ) {
+    #[test]
+    fn test_wrong_signature_alg() {
         let (mut request, connection) = request_and_connection();
 
         let attestation = attestation((request.clone(), connection));
 
-        if wrong_signature_alg {
-            request.signature_alg = SignatureAlgId::SECP256R1;
-        }
+        request.signature_alg = SignatureAlgId::SECP256R1;
 
-        if wrong_hash_alg {
-            request.hash_alg = HashAlgId::SHA256;
-        }
+        let res = request.validate(&attestation);
+        assert!(res.is_err());
+    }
 
-        if wrong_server_cert_commitment {
-            let ConnectionFixture {
-                server_cert_data, ..
-            } = ConnectionFixture::appliedzkp(TranscriptLength {
-                sent: 100,
-                received: 100,
-            });
-            let opening = ServerCertOpening::new(server_cert_data);
-            let crypto_provider = CryptoProvider::default();
-            request.server_cert_commitment =
-                opening.commit(crypto_provider.hash.get(&HashAlgId::BLAKE3).unwrap());
-        }
+    #[test]
+    fn test_wrong_hash_alg() {
+        let (mut request, connection) = request_and_connection();
 
-        if wrong_encoding_commitment_root {
-            request.encoding_commitment_root = Some(TypedHash {
-                alg: HashAlgId::BLAKE3,
-                value: Hash::default(),
-            });
-        }
+        let attestation = attestation((request.clone(), connection));
+
+        request.hash_alg = HashAlgId::SHA256;
+
+        let res = request.validate(&attestation);
+        assert!(res.is_err())
+    }
+
+    #[test]
+    fn test_wrong_server_commitment() {
+        let (mut request, connection) = request_and_connection();
+
+        let attestation = attestation((request.clone(), connection));
+
+        let ConnectionFixture {
+            server_cert_data, ..
+        } = ConnectionFixture::appliedzkp(TranscriptLength {
+            sent: 100,
+            received: 100,
+        });
+        let opening = ServerCertOpening::new(server_cert_data);
+
+        let crypto_provider = CryptoProvider::default();
+        request.server_cert_commitment =
+            opening.commit(crypto_provider.hash.get(&HashAlgId::BLAKE3).unwrap());
+
+        let res = request.validate(&attestation);
+        assert!(res.is_err())
+    }
+
+    #[test]
+    fn test_wrong_encoding_commitment_root() {
+        let (mut request, connection) = request_and_connection();
+
+        let attestation = attestation((request.clone(), connection));
+
+        request.encoding_commitment_root = Some(TypedHash {
+            alg: HashAlgId::BLAKE3,
+            value: Hash::default(),
+        });
 
         let res = request.validate(&attestation);
         assert!(res.is_err())
