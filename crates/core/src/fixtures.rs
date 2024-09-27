@@ -110,7 +110,7 @@ impl ConnectionFixture {
         }
     }
 
-    /// Returns the server_ephemeral_key.
+    /// Returns the server_ephemeral_key fixture.
     pub fn server_ephemeral_key(&self) -> &ServerEphemKey {
         let HandshakeData::V1_2(HandshakeDataV1_2 {
             server_ephemeral_key,

@@ -375,9 +375,9 @@ pub use secp256r1::{Secp256r1Signer, Secp256r1Verifier};
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use rand_core::OsRng;
     use rstest::{fixture, rstest};
-    use super::*;
 
     #[fixture]
     #[once]
@@ -394,9 +394,7 @@ mod test {
     }
 
     #[rstest]
-    fn test_secp256k1_success(
-        secp256k1_signer: &Secp256k1Signer,
-    ) {
+    fn test_secp256k1_success(secp256k1_signer: &Secp256k1Signer) {
         assert_eq!(secp256k1_signer.alg_id(), SignatureAlgId::SECP256K1);
 
         let msg = "test payload";
@@ -407,12 +405,10 @@ mod test {
         assert_eq!(verifier.alg_id(), SignatureAlgId::SECP256K1);
         let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
         assert!(result.is_ok());
-    }  
+    }
 
     #[rstest]
-    fn test_secp256r1_success(
-        secp256r1_signer: &Secp256r1Signer,
-    ) {
+    fn test_secp256r1_success(secp256r1_signer: &Secp256r1Signer) {
         assert_eq!(secp256r1_signer.alg_id(), SignatureAlgId::SECP256R1);
 
         let msg = "test payload";

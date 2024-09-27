@@ -398,15 +398,19 @@ mod tests {
         ConnectionFixture::appliedzkp(Transcript::new(GET_WITH_HEADER, OK_JSON).length())
     }
 
-    /// Expect chain verification to succeed
+    /// Expect chain verification to succeed.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_cert_chain_sucess_ca_implicit(crypto_provider: &CryptoProvider, #[case] mut data: ConnectionFixture) {
+    fn test_verify_cert_chain_sucess_ca_implicit(
+        crypto_provider: &CryptoProvider,
+        #[case] mut data: ConnectionFixture,
+    ) {
         // Remove the CA cert
         data.server_cert_data.certs.pop();
 
-        assert!(data.server_cert_data
+        assert!(data
+            .server_cert_data
             .verify_with_provider(
                 crypto_provider,
                 data.connection_info.time,
@@ -421,8 +425,12 @@ mod tests {
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_cert_chain_success_ca_explicit(crypto_provider: &CryptoProvider, #[case] data: ConnectionFixture) {
-        assert!(data.server_cert_data
+    fn test_verify_cert_chain_success_ca_explicit(
+        crypto_provider: &CryptoProvider,
+        #[case] data: ConnectionFixture,
+    ) {
+        assert!(data
+            .server_cert_data
             .verify_with_provider(
                 crypto_provider,
                 data.connection_info.time,
@@ -432,20 +440,22 @@ mod tests {
             .is_ok());
     }
 
-    /// Expect to fail since the end entity cert was not valid at the time
+    /// Expect to fail since the end entity cert was not valid at the time.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_cert_chain_fail_bad_time(crypto_provider: &CryptoProvider, #[case] data: ConnectionFixture) {
+    fn test_verify_cert_chain_fail_bad_time(
+        crypto_provider: &CryptoProvider,
+        #[case] data: ConnectionFixture,
+    ) {
         // unix time when the cert chain was NOT valid
         let bad_time: u64 = 1571465711;
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                bad_time,
-                data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            bad_time,
+            data.server_ephemeral_key(),
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
@@ -454,22 +464,24 @@ mod tests {
         ));
     }
 
-    /// Expect to fail when no intermediate cert provided
+    /// Expect to fail when no intermediate cert provided.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_cert_chain_fail_no_interm_cert(crypto_provider: &CryptoProvider, #[case] mut data: ConnectionFixture) {
+    fn test_verify_cert_chain_fail_no_interm_cert(
+        crypto_provider: &CryptoProvider,
+        #[case] mut data: ConnectionFixture,
+    ) {
         // Remove the CA cert
         data.server_cert_data.certs.pop();
         // Remove the intermediate cert
         data.server_cert_data.certs.pop();
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            data.server_ephemeral_key(),
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
@@ -478,20 +490,22 @@ mod tests {
         ));
     }
 
-    /// Expect to fail when no intermediate cert provided even if a trusted CA cert is provided
+    /// Expect to fail when no intermediate cert provided even if a trusted CA cert is provided.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(crypto_provider: &CryptoProvider, #[case] mut data: ConnectionFixture) {
+    fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
+        crypto_provider: &CryptoProvider,
+        #[case] mut data: ConnectionFixture,
+    ) {
         // Remove the intermediate cert
         data.server_cert_data.certs.remove(1);
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            data.server_ephemeral_key(),
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
@@ -500,22 +514,24 @@ mod tests {
         ));
     }
 
-    /// Expect to fail because end-entity cert is wrong
+    /// Expect to fail because end-entity cert is wrong.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_cert_chain_fail_bad_ee_cert(crypto_provider: &CryptoProvider, #[case] mut data: ConnectionFixture) {
+    fn test_verify_cert_chain_fail_bad_ee_cert(
+        crypto_provider: &CryptoProvider,
+        #[case] mut data: ConnectionFixture,
+    ) {
         let ee: &[u8] = include_bytes!("./fixtures/data/unknown/ee.der");
 
         // Change the end entity cert
         data.server_cert_data.certs[0] = Certificate(ee.to_vec());
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            data.server_ephemeral_key(),
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
@@ -524,23 +540,23 @@ mod tests {
         ));
     }
 
-    /// Expect sig verification to fail because client_random is wrong
+    /// Expect sig verification to fail because client_random is wrong.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_sig_ke_params_fail_bad_client_random(crypto_provider: &CryptoProvider, #[case] mut data: ConnectionFixture) {
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
-            client_random,
-            ..
-        }) = &mut data.server_cert_data.handshake;
+    fn test_verify_sig_ke_params_fail_bad_client_random(
+        crypto_provider: &CryptoProvider,
+        #[case] mut data: ConnectionFixture,
+    ) {
+        let HandshakeData::V1_2(HandshakeDataV1_2 { client_random, .. }) =
+            &mut data.server_cert_data.handshake;
         client_random[31] = client_random[31].wrapping_add(1);
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            data.server_ephemeral_key(),
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
@@ -549,19 +565,21 @@ mod tests {
         ));
     }
 
-    /// Expect sig verification to fail because the sig is wrong
+    /// Expect sig verification to fail because the sig is wrong.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_sig_ke_params_fail_bad_sig(crypto_provider: &CryptoProvider, #[case] mut data: ConnectionFixture) {
+    fn test_verify_sig_ke_params_fail_bad_sig(
+        crypto_provider: &CryptoProvider,
+        #[case] mut data: ConnectionFixture,
+    ) {
         data.server_cert_data.sig.sig[31] = data.server_cert_data.sig.sig[31].wrapping_add(1);
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            data.server_ephemeral_key(),
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
@@ -570,19 +588,21 @@ mod tests {
         ));
     }
 
-    /// Expect to fail because the dns name is not in the cert
+    /// Expect to fail because the dns name is not in the cert.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_check_dns_name_present_in_cert_fail_bad_host(crypto_provider: &CryptoProvider, #[case] data: ConnectionFixture) {
+    fn test_check_dns_name_present_in_cert_fail_bad_host(
+        crypto_provider: &CryptoProvider,
+        #[case] data: ConnectionFixture,
+    ) {
         let bad_name = ServerName::try_from("badhost.com").unwrap();
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &bad_name,
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            data.server_ephemeral_key(),
+            &bad_name,
         );
 
         assert!(matches!(
@@ -591,25 +611,24 @@ mod tests {
         ));
     }
 
-    /// Expect to fail because the ephemeral key provided is wrong
+    /// Expect to fail because the ephemeral key provided is wrong.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_invalid_ephemeral_key(crypto_provider: &CryptoProvider, #[case] data: ConnectionFixture) {
+    fn test_invalid_ephemeral_key(
+        crypto_provider: &CryptoProvider,
+        #[case] data: ConnectionFixture,
+    ) {
         let wrong_ephemeral_key = ServerEphemKey {
             typ: KeyType::SECP256R1,
-            key: Vec::<u8>::from_hex(include_bytes!(
-                "./fixtures/data/unknown/pubkey"
-            ))
-            .unwrap()
+            key: Vec::<u8>::from_hex(include_bytes!("./fixtures/data/unknown/pubkey")).unwrap(),
         };
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                &wrong_ephemeral_key,
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            &wrong_ephemeral_key,
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
@@ -618,20 +637,22 @@ mod tests {
         ));
     }
 
-    /// Expect to fail when no cert provided
+    /// Expect to fail when no cert provided.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_verify_cert_chain_fail_no_cert(crypto_provider: &CryptoProvider, #[case] mut data: ConnectionFixture) {
+    fn test_verify_cert_chain_fail_no_cert(
+        crypto_provider: &CryptoProvider,
+        #[case] mut data: ConnectionFixture,
+    ) {
         // Empty certs
         data.server_cert_data.certs = Vec::new();
 
-        let err = data.server_cert_data
-            .verify_with_provider(
-                crypto_provider,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+        let err = data.server_cert_data.verify_with_provider(
+            crypto_provider,
+            data.connection_info.time,
+            data.server_ephemeral_key(),
+            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
         );
 
         assert!(matches!(
