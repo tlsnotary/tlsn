@@ -1,4 +1,4 @@
-name: sgx-build-azure-ssh
+name: build-on-sgx
 
 on:
   push:
@@ -6,73 +6,33 @@ on:
   pull_request:
     branches: [ "quote-presentation" ]
     
-# perms needed for attestation workflow
-permissions:
-  id-token: write
-  attestations: write
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  check-runner:
+  build-on-sgx:
     runs-on: [self-hosted, linux]
-    outputs:
-      handle: ${{ steps.checkhw.outputs.gramine }}
+    env:
+      EVENTTAG: ${{ github.event.pull_request.head.sha || github.sha }}
+    container:
+      image: notaryserverbuilds.azurecr.io/builder/gramine
+      credentials:
+        username: notaryserverbuilds
+        password: ${{ secrets.AZURE_CR_BUILDS_PW }}
+      ports: 
+        - "7047:7047"
+      env:
+        TAG: $EVENTTAG
+      options: "--device /dev/sgx_enclave"
     steps:
-    - name: check hardware for sgx
-      id: checkhw
-      shell: bash
-      run: |
-        HW="$(is-sgx-available)"
-        echo $HW | grep -q  "CPU: true"
-        ret=$?
-        echo 'step<<EOF' >> $GITHUB_OUTPUT
-        echo "gramine=$HW" >> "$GITHUB_OUTPUT"
-        echo 'EOF' >> $GITHUB_OUTPUT
-        echo -e "### is-sgx-available 🔒\n$HW" >> $GITHUB_STEP_SUMMARY
-        exit $ret
-  build:
-    runs-on: [self-hosted, linux]
-    steps:
-    - name: "build notary server and check for liveliness"
-      shell: bash 
-      run: |
-            cd /tmp 
-            source $HOME/.cargo/env
-            rm -rf ${{ github.sha }}
-            git clone https://github.com/tlsnotary/tlsn ${{ github.sha }}
-            cd ${{ github.sha }}
-            git checkout ${{ github.sha }}
-            cd crates/notary/server/config/gramine
-            : # listen on random_port port, set it in config
-            random_port=$(shuf -i 1024-65535 -n 1)
-            sed -i '/port*: *7047/s/7047/'$random_port'/' ../config.yaml
-            : # the makefile compiles the gramine manigest and notary-server
-            make clean
-            SGX=1 make start-gramine-server &
-            : # this next bofh bash script is just to check if the server comes up
-            notarypid=$!
-            win=0
-            SECONDS=0; set -o pipefail; while [ $SECONDS -lt 300 ]; do echo -e "GET /info HTTP/1.1\r\nHost: localhost\r\nConnection: Close\r\n\r\n" | openssl s_client -quiet localhost:$random_port 2>&1 | tee s.log; if [ $? -eq 0 ]; then win=1; break; fi; sleep 2; done
-            if [ $win -eq 0 ]; then echo "Build Failed"; kill -SIGTERM $notarypid; exit 1; fi
-            cat s.log | grep '^{' |  jq '. | tostring' > quotejson
-            : # end ugly bash
-            mapfile quote < quotejson
-            : # using http api because we dont have write access to env here
-            curl -L -X PATCH -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $PAT_TOKEN" -H "Connection: close" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/$GITHUB_REPOSITORY/environments/TEE/variables/AZURE_TEE_BUILD_ATTESTATION -d "{\"name\":\"AZURE_TEE_BUILD_ATTESTATION\",\"value\":$quote}"
-            : # gramine will keep the sgx process running, we use the gramine setting
-            : # sys.enable_sigterm_injection, which is insecure and for convenience 
-            kill -SIGTERM $notarypid
-            : # sleep originated because the next step wouldnt have the updated env
-            sleep 5
-            exit 0
-    - name: ✨ fet quotech from gh, write it to runner
-      #we use http api due to the ssh runner and access to gh envs
-      run:  |
-        curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.PAT_SET_ENV }}" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/$GITHUB_REPOSITORY/environments/TEE/variables/AZURE_TEE_BUILD_ATTESTATION > /home/runner/work/_temp/sgx-build-quote.txt
-    - name: get github to sign our measurement
-      uses: actions/attest-build-provenance@v1
-      with:
-        subject-path: /home/runner/work/_temp/sgx-build-quote.txt
-    - name: upload it
-      uses: actions/upload-artifact@v4
-      with:
-        path: /home/runner/work/_temp/sgx-build-quote.txt
+       - uses: actions/checkout@v3
+       - uses: actions-rs/toolchain@v1
+       - uses: actions-rs/cargo@v1
+         with:
+            command: run
+            args: --release --features tee_quote --bin notary-server
+       - uses: actions-rs/audit-check@v1
+         with:
+            token: ${{ secrets.PAT_SET_ENV }}
+
