@@ -426,13 +426,13 @@ mod test {
     }
 
     #[rstest]
-    #[case::wrong_signer_type(&secp256r1_signer(), false, false)]
+    #[case::wrong_signer(&secp256r1_signer(), false, false)]
     #[case::corrupted_signature(&secp256k1_signer(), true, false)]
-    #[case::mismatched_signature(&secp256k1_signer(), false, true)]
+    #[case::wrong_signature(&secp256k1_signer(), false, true)]
     fn test_failure(
         #[case] signer: &dyn Signer,
         #[case] corrupted_signature: bool,
-        #[case] mismatched_signature: bool,
+        #[case] wrong_signature: bool,
     ) {
         let msg = "test payload";
         let mut signature = signer.sign(msg.as_bytes()).unwrap();
@@ -442,7 +442,7 @@ mod test {
             signature.data.push(0);
         }
 
-        if mismatched_signature {
+        if wrong_signature {
             signature = signer.sign("different payload".as_bytes()).unwrap();
         }
 

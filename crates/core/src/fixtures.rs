@@ -6,6 +6,7 @@ pub use provider::ChaChaProvider;
 
 use hex::FromHex;
 use p256::ecdsa::SigningKey;
+use tls_core::msgs::handshake::DigitallySignedStruct;
 
 use crate::{
     connection::{
@@ -21,6 +22,12 @@ pub struct ConnectionFixture {
     pub server_name: ServerName,
     pub connection_info: ConnectionInfo,
     pub server_cert_data: ServerCertData,
+}
+
+impl From<crate::connection::Certificate> for tls_core::key::Certificate {
+    fn from(cert: crate::connection::Certificate) -> Self {
+        Self(cert.0)
+    }
 }
 
 impl ConnectionFixture {
@@ -83,7 +90,7 @@ impl ConnectionFixture {
                     Certificate(include_bytes!("fixtures/data/appliedzkp.org/ca.der").to_vec()),
                 ],
                 sig: ServerSignature {
-                    scheme: SignatureScheme::RSA_PKCS1_SHA256,
+                    scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
                     sig: Vec::<u8>::from_hex(include_bytes!(
                         "fixtures/data/appliedzkp.org/signature"
                     ))
@@ -108,6 +115,41 @@ impl ConnectionFixture {
                 }),
             },
         }
+    }
+
+    /// Returns the end entity cert.
+    pub fn end_entity(&self) -> tls_core::key::Certificate {
+        self.server_cert_data.certs[0].clone().into()
+    }
+
+    /// Returns the intermediate cert.
+    pub fn intermediate_cert(&self) -> tls_core::key::Certificate {
+        self.server_cert_data.certs[1].clone().into()
+    }
+
+    /// Returns the CA cert.
+    pub fn ca_cert(&self) -> tls_core::key::Certificate {
+        self.server_cert_data.certs[2].clone().into()
+    }
+
+    /// Returns the [DigitallySignedStruct].
+    pub fn dss(&self) -> DigitallySignedStruct {
+        DigitallySignedStruct::new(self.server_cert_data.sig.scheme.into(), self.server_cert_data.sig.sig.clone())
+    }
+
+    /// Returns the client random + server random + kx params in encoded form.
+    pub fn signature_msg(&self) -> Vec<u8> {
+        let HandshakeData::V1_2(HandshakeDataV1_2 {
+            client_random,
+            server_random,
+            server_ephemeral_key,
+        }) = &self.server_cert_data.handshake;
+
+        let mut msg = Vec::new();
+        msg.extend_from_slice(client_random);
+        msg.extend_from_slice(server_random);
+        msg.extend_from_slice(&server_ephemeral_key.kx_params());
+        msg
     }
 }
 
