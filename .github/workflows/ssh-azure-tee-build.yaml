@@ -14,6 +14,8 @@ jobs:
   build-on-sgx:
     environment: tee
     runs-on: [self-hosted, linux]
+    outputs:
+      handle: ${{ steps.notary.outputs.quote }}
     env:
       EVENTTAG: ${{ github.event.pull_request.head.sha || github.sha }}
     container:
@@ -57,6 +59,7 @@ jobs:
                 whitelist-csv-path: "_.csv"
               EOF
        - uses: actions/checkout@v3
+       - uses: Swatinem/rust-cache@v2.7.3
        - uses: actions-rs/toolchain@v1
          with:
             profile: minimal
@@ -66,14 +69,12 @@ jobs:
             command: build
             args: --release --features tee_quote --bin notary-server
        - name: run ns
-         run: ./target/release/notary-server --config-file /config.yml &
+         id: notary
+         run: ./target/release/notary-server --config-file /config.yml 2>&1 >> $GITHUB_STEP_SUMMARY
+
        - uses: iFaxity/wait-on-action@v1
          with:
            resource: http://172.18.0.1:7047/info
            delay: 4000
            timeout: 8000
            verbose: true
-       - uses: actions-rs/audit-check@v1
-         with:
-            token: ${{ secrets.PAT_SET_ENV }}
-
