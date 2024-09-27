@@ -36,7 +36,7 @@ jobs:
          with:
             command: run
             # : default: notary-server config file needs to be in `pwd`/config/config.yaml  X_X
-            args: --release --features tee_quote --bin notary-server  --manifest-path crates/notary/server/Cargo.toml --target-dir crates/notary/server/Cargo.toml 
+            args: --release --features tee_quote --bin notary-server  --manifest-path crates/notary/server/Cargo.toml --target-dir crates/notary/server/ 
        - uses: actions-rs/audit-check@v1
          with:
             token: ${{ secrets.PAT_SET_ENV }}
