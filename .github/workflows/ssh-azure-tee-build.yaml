@@ -72,7 +72,7 @@ jobs:
          run: ./target/release/notary-server --config-file /config.yml 2>&1 >> $GITHUB_STEP_SUMMARY &
        - uses: iFaxity/wait-on-action@v1
          with:
-           resource: http://172.18.0.1:7047/info
+           resource: http-get://172.18.0.1:7047/info
            delay: 4000
            timeout: 8000
            verbose: true
