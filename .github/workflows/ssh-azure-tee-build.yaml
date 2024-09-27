@@ -24,7 +24,8 @@ jobs:
       ports: 
         - "7047:7047"
       env:
-        TAG: $EVENTTAG
+        GIT_COMMIT_HASH: $EVENTTAG
+        GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
       options: "--device /dev/sgx_enclave"
     steps:
        - uses: actions/checkout@v3
