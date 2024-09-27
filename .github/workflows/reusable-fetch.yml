@@ -1,0 +1,27 @@
+name: fetch
+
+on:
+  workflow_call:
+    inputs:
+      url:
+        required: true
+        type: string
+    outputs:
+       http:
+        description: "http ret"
+        value: ${{ jobs.fetching.ret }}
+
+    secrets:
+      token:
+        required: false
+
+jobs:
+  fetching:
+    runs-on: [self-hosted, linux]
+    outputs:
+      output1: ${{ steps.step1.outputs.ret }}
+    steps:
+      - id: step1
+        run: httpret=$(wget  ${{ inputs.url }} -nc 2>&1)
+      - id: step2
+        run: echo "ret=$httpret" >> $GITHUB_OUTPUT
