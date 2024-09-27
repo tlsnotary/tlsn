@@ -116,7 +116,7 @@ impl ConnectionFixture {
             server_ephemeral_key,
             ..
         }) = &self.server_cert_data.handshake;
-        &server_ephemeral_key
+        server_ephemeral_key
     }
 }
 
