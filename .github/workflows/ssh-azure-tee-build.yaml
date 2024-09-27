@@ -30,7 +30,7 @@ jobs:
     steps:
        - name: write conf
          run: |
-              cat <<EOF > /config.yaml
+              cat <<EOF > /config.yml
               server:
                 name: "tlsn:slim"
                 host: "0.0.0.0"
@@ -63,20 +63,17 @@ jobs:
             toolchain: nightly
        - uses: actions-rs/cargo@v1
          with:
-            command: run
-            args: --release --features tee_quote --bin notary-server -- --config-file /config.yaml
+            command: build
+            args: --release --features tee_quote --bin notary-server
+       - name: run ns
+         run: ./target/release/notary-server --config-file /config.yml &
+       - uses: iFaxity/wait-on-action@v1
+         with:
+           resource: http://localhost:7047/info
+           delay: 4000
+           timeout: 2000
+           verbose: true
        - uses: actions-rs/audit-check@v1
          with:
             token: ${{ secrets.PAT_SET_ENV }}
-  get-notary-http:
-    environment: tee
-    runs-on: [self-hosted, linux]
-    steps:
-       - uses: ./.github/workflows/reusable-fetch.yml
-         with:
-             uri: http://172.18.0.1:7047/         
-  check-http-ret:
-    runs-on: [self-hosted, linux]
-    needs: get-notary-http
-    steps:
-      - run: echo ${{ needs.get-notary-http.outputs.http }}
+
