@@ -415,7 +415,7 @@ mod tests {
                 crypto_provider,
                 data.connection_info.time,
                 data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+                &ServerName::from(data.server_name.as_ref()),
             )
             .is_ok());
     }
@@ -435,7 +435,7 @@ mod tests {
                 crypto_provider,
                 data.connection_info.time,
                 data.server_ephemeral_key(),
-                &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+                &ServerName::from(data.server_name.as_ref()),
             )
             .is_ok());
     }
@@ -455,7 +455,7 @@ mod tests {
             crypto_provider,
             bad_time,
             data.server_ephemeral_key(),
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
@@ -481,7 +481,7 @@ mod tests {
             crypto_provider,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
@@ -505,7 +505,7 @@ mod tests {
             crypto_provider,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
@@ -531,7 +531,7 @@ mod tests {
             crypto_provider,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
@@ -556,7 +556,7 @@ mod tests {
             crypto_provider,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
@@ -579,7 +579,7 @@ mod tests {
             crypto_provider,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
@@ -596,7 +596,7 @@ mod tests {
         crypto_provider: &CryptoProvider,
         #[case] data: ConnectionFixture,
     ) {
-        let bad_name = ServerName::try_from("badhost.com").unwrap();
+        let bad_name = ServerName::from("badhost.com");
 
         let err = data.server_cert_data.verify_with_provider(
             crypto_provider,
@@ -628,7 +628,7 @@ mod tests {
             crypto_provider,
             data.connection_info.time,
             &wrong_ephemeral_key,
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
@@ -652,7 +652,7 @@ mod tests {
             crypto_provider,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::try_from(data.server_name.as_ref()).unwrap(),
+            &ServerName::from(data.server_name.as_ref()),
         );
 
         assert!(matches!(
