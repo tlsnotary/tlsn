@@ -28,6 +28,34 @@ jobs:
         GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
       options: "--device /dev/sgx_enclave"
     steps:
+       - name: write conf
+         run: |
+              cat <<EOF > /config.yaml
+              server:
+                name: "tlsn:slim"
+                host: "0.0.0.0"
+                port: 7047
+                html-info: |
+                  <blink>{public_key}</blink>
+              notarization:
+                max-sent-data: 16384
+                max-recv-data: 16384
+              tls:
+                enabled: false
+                private-key-pem-path: "sk.pem"
+                certificate-pem-path: "self.crt"
+
+              notary-key:
+                private-key-pem-path: "sk.pem"
+                public-key-pem-path:  "pub.pem"
+
+              logging:
+                level: ERROR
+
+              authorization:
+                enabled: false
+                whitelist-csv-path: "_.csv"
+              EOF
        - uses: actions/checkout@v3
        - uses: actions-rs/toolchain@v1
          with:
@@ -36,8 +64,7 @@ jobs:
        - uses: actions-rs/cargo@v1
          with:
             command: run
-            # : default: notary-server config file needs to be in `pwd`/config/config.yaml  X_X
-            args: --release --features tee_quote --bin notary-server  --manifest-path crates/notary/server/Cargo.toml --target-dir crates/notary/server/ 
+            args: --release --features tee_quote --bin notary-server -- --config-file /config.yaml
        - uses: actions-rs/audit-check@v1
          with:
             token: ${{ secrets.PAT_SET_ENV }}
