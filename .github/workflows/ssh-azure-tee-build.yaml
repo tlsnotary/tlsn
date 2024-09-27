@@ -50,7 +50,7 @@ jobs:
                 public-key-pem-path:  "pub.pem"
 
               logging:
-                level: ERROR
+                level: INFO
 
               authorization:
                 enabled: false
@@ -69,9 +69,9 @@ jobs:
          run: ./target/release/notary-server --config-file /config.yml &
        - uses: iFaxity/wait-on-action@v1
          with:
-           resource: http://localhost:7047/info
+           resource: http://172.18.0.1:7047/info
            delay: 4000
-           timeout: 2000
+           timeout: 8000
            verbose: true
        - uses: actions-rs/audit-check@v1
          with:
