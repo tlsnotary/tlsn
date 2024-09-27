@@ -1,7 +1,6 @@
 use config::{Config, ConfigError, Environment, File};
-use std::path::Path;
-use tracing::{info, warn, debug};
-use crate::{CliFields, NotaryServerProperties};
+use std::env;
+use crate::{ CliFields, NotaryServerProperties };
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -12,22 +11,17 @@ pub struct Settings {
 
 impl Settings {
     pub fn new(cli_fields: &CliFields) -> Result<Self, ConfigError> {
-        let mut builder = Config::builder();
+        let mut base_path = env::current_dir().expect("Failed to determine the current directory");
+        base_path.pop();
+        let configuration_path = base_path.join("config").join("config.yaml");
 
-        // Add the config file if it exists
-        let config_path = Path::new(&cli_fields.config_file);
+        let mut builder = Config::builder()
+            // Load base configuration
+            .add_source(File::from(configuration_path))
+            // Add in settings from environment variables (with a prefix of NOTARY_SERVER and '__' as separator)
+            .add_source(Environment::with_prefix("NOTARY_SERVER").separator("__"));
 
-        if config_path.exists() {
-            info!("Loading configuration from: {}", cli_fields.config_file);
-            builder = builder.add_source(File::from(config_path));
-        } else {
-            warn!("Config file not found: {}. Using defaults and overrides.", cli_fields.config_file);
-        }
-
-        // Add environment variables
-        builder = builder.add_source(Environment::with_prefix("NOTARY_SERVER").separator("__"));
-
-        // Add CLI overrides
+        // Apply CLI argument overrides
         if let Some(port) = cli_fields.port {
             builder = builder.set_override("server.port", port)?;
         }
@@ -39,9 +33,6 @@ impl Settings {
         }
 
         let config = builder.build()?;
-
-        // Log the entire configuration for debugging
-        debug!("Loaded configuration: {:#?}", config);
 
         let settings: Settings = config.try_deserialize()?;
 
