@@ -52,7 +52,7 @@ use crate::tee::{ephemeral_keypair, quote};
 /// Start a TCP server (with or without TLS) to accept notarization request for both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
-    //tee uses ephemeral key
+    // tee uses ephemeral key
     #[cfg(feature = "tee_quote")]
     let (attestation_key, public_key) = ephemeral_keypair();
 
