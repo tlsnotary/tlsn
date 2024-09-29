@@ -17,7 +17,7 @@ pub struct InfoResponse {
     pub git_commit_hash: String,
     /// Current git commit timestamp of notary-server
     pub git_commit_timestamp: String,
-    /// hardware attestation
+    /// Hardware attestation
     #[cfg(feature = "tee_quote")]
     pub quote: Quote,
 }
