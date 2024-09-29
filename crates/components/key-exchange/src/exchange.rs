@@ -200,7 +200,6 @@ where
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<Ctx, C0, C1, E> KeyExchange for MpcKeyExchange<Ctx, C0, C1, E>
 where
     Ctx: Context,
