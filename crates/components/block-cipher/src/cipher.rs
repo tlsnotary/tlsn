@@ -118,7 +118,6 @@ where
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<C, E> BlockCipher<C> for MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
