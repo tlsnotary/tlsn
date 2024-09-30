@@ -7,7 +7,7 @@ use crate::{
     hash::HashAlgorithm,
     merkle::{MerkleProof, MerkleTree},
     serialize::CanonicalSerialize,
-    signing::Signature,
+    signing::{Signature, VerifyingKey},
     CryptoProvider,
 };
 
@@ -36,6 +36,11 @@ impl AttestationProof {
             header: attestation.header.clone(),
             body,
         })
+    }
+
+    /// Returns the verifying key.
+    pub fn verifying_key(&self) -> &VerifyingKey {
+        self.body.verifying_key()
     }
 
     /// Verifies the attestation proof.
@@ -96,6 +101,10 @@ impl BodyProof {
         let proof = tree.proof(&indices);
 
         Ok(BodyProof { body, proof })
+    }
+
+    pub(crate) fn verifying_key(&self) -> &VerifyingKey {
+        &self.body.verifying_key.data
     }
 
     /// Verifies the proof against the attestation header.

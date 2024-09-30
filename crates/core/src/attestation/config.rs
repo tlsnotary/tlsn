@@ -25,6 +25,7 @@ impl std::fmt::Display for ErrorKind {
     }
 }
 
+/// Error for [`AttestationConfig`].
 #[derive(Debug, thiserror::Error)]
 #[error("attestation config error: kind: {kind}, reason: {reason}")]
 pub struct AttestationConfigError {
