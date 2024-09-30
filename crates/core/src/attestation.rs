@@ -1,12 +1,13 @@
 //! Attestation types.
 //!
-//! An attestation is a cryptographically signed document from a Notary who witnessed a TLS
-//! connection. It contains various fields which can be used to verify statements about the
-//! connection and the associated application data.
+//! An attestation is a cryptographically signed document from a Notary who
+//! witnessed a TLS connection. It contains various fields which can be used to
+//! verify statements about the connection and the associated application data.
 //!
-//! Attestations contain a header and a body. The header is signed by a Notary and it contains
-//! a merkle root of the body fields. This allows a Prover to disclose only necessary fields
-//! to a Verifier depending on the statements being made.
+//! Attestations contain a header and a body. The header is signed by a Notary
+//! and it contains a merkle root of the body fields. This allows a Prover to
+//! disclose only necessary fields to a Verifier depending on the statements
+//! being made.
 
 mod builder;
 mod config;
@@ -122,10 +123,10 @@ impl_domain_separator!(Header);
 
 /// Attestation body.
 ///
-/// An attestation contains a set of fields which are cryptographically signed by
-/// a Notary via a [`Header`]. These fields include data which can be
-/// used to verify aspects of a TLS connection, such as the server's identity, and facts
-/// about the transcript.
+/// An attestation contains a set of fields which are cryptographically signed
+/// by a Notary via a [`Header`]. These fields include data which can be
+/// used to verify aspects of a TLS connection, such as the server's identity,
+/// and facts about the transcript.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
     verifying_key: Field<VerifyingKey>,
@@ -158,14 +159,16 @@ impl Body {
 
     /// Returns the fields of the body hashed and sorted by id.
     ///
-    /// Each field is hashed with a domain separator to mitigate type confusion attacks.
+    /// Each field is hashed with a domain separator to mitigate type confusion
+    /// attacks.
     ///
     /// # Note
     ///
     /// The order of fields is not stable across versions.
     pub(crate) fn hash_fields(&self, hasher: &dyn HashAlgorithm) -> Vec<(FieldId, Hash)> {
-        // CRITICAL: ensure all fields are included! If a new field is added to the struct
-        // without including it here it will not be verified to be included in the attestation.
+        // CRITICAL: ensure all fields are included! If a new field is added to the
+        // struct without including it here it will not be verified to be
+        // included in the attestation.
         let Self {
             verifying_key,
             connection_info: conn_info,

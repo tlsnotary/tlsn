@@ -2,7 +2,8 @@
 //! where we swapped out tokio_tungstenite (https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/)
 //! with async_tungstenite (https://docs.rs/async-tungstenite/latest/async_tungstenite/) so that we can use
 //! ws_stream_tungstenite (https://docs.rs/ws_stream_tungstenite/latest/ws_stream_tungstenite/index.html)
-//! to get AsyncRead and AsyncWrite implemented for the WebSocket. Any other modification is commented with the prefix "NOTARY_MODIFICATION:"
+//! to get AsyncRead and AsyncWrite implemented for the WebSocket. Any other
+//! modification is commented with the prefix "NOTARY_MODIFICATION:"
 //!
 //! The code is under the following license:
 //!
@@ -160,14 +161,15 @@ use tracing::error;
 /// Extractor for establishing WebSocket connections.
 ///
 /// Note: This extractor requires the request method to be `GET` so it should
-/// always be used with [`get`](crate::routing::get). Requests with other methods will be
-/// rejected.
+/// always be used with [`get`](crate::routing::get). Requests with other
+/// methods will be rejected.
 ///
 /// See the [module docs](self) for an example.
 #[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
 pub struct WebSocketUpgrade<F = DefaultOnFailedUpgrade> {
     config: WebSocketConfig,
-    /// The chosen protocol sent in the `Sec-WebSocket-Protocol` header of the response.
+    /// The chosen protocol sent in the `Sec-WebSocket-Protocol` header of the
+    /// response.
     protocol: Option<HeaderValue>,
     sec_websocket_key: HeaderValue,
     on_upgrade: hyper::upgrade::OnUpgrade,
@@ -187,31 +189,36 @@ impl<F> std::fmt::Debug for WebSocketUpgrade<F> {
 }
 
 impl<F> WebSocketUpgrade<F> {
-    /// The target minimum size of the write buffer to reach before writing the data
-    /// to the underlying stream.
+    /// The target minimum size of the write buffer to reach before writing the
+    /// data to the underlying stream.
     ///
     /// The default value is 128 KiB.
     ///
-    /// If set to `0` each message will be eagerly written to the underlying stream.
-    /// It is often more optimal to allow them to buffer a little, hence the default value.
+    /// If set to `0` each message will be eagerly written to the underlying
+    /// stream. It is often more optimal to allow them to buffer a little,
+    /// hence the default value.
     ///
-    /// Note: [`flush`](SinkExt::flush) will always fully write the buffer regardless.
+    /// Note: [`flush`](SinkExt::flush) will always fully write the buffer
+    /// regardless.
     pub fn write_buffer_size(mut self, size: usize) -> Self {
         self.config.write_buffer_size = size;
         self
     }
 
-    /// The max size of the write buffer in bytes. Setting this can provide backpressure
-    /// in the case the write buffer is filling up due to write errors.
+    /// The max size of the write buffer in bytes. Setting this can provide
+    /// backpressure in the case the write buffer is filling up due to write
+    /// errors.
     ///
     /// The default value is unlimited.
     ///
-    /// Note: The write buffer only builds up past [`write_buffer_size`](Self::write_buffer_size)
-    /// when writes to the underlying stream are failing. So the **write buffer can not
-    /// fill up if you are not observing write errors even if not flushing**.
+    /// Note: The write buffer only builds up past
+    /// [`write_buffer_size`](Self::write_buffer_size) when writes to the
+    /// underlying stream are failing. So the **write buffer can not fill up
+    /// if you are not observing write errors even if not flushing**.
     ///
-    /// Note: Should always be at least [`write_buffer_size + 1 message`](Self::write_buffer_size)
-    /// and probably a little more depending on error handling strategy.
+    /// Note: Should always be at least [`write_buffer_size + 1
+    /// message`](Self::write_buffer_size) and probably a little more
+    /// depending on error handling strategy.
     pub fn max_write_buffer_size(mut self, max: usize) -> Self {
         self.config.max_write_buffer_size = max;
         self
@@ -238,12 +245,12 @@ impl<F> WebSocketUpgrade<F> {
     /// Set the known protocols.
     ///
     /// If the protocol name specified by `Sec-WebSocket-Protocol` header
-    /// to match any of them, the upgrade response will include `Sec-WebSocket-Protocol` header and
-    /// return the protocol name.
+    /// to match any of them, the upgrade response will include
+    /// `Sec-WebSocket-Protocol` header and return the protocol name.
     ///
-    /// The protocols should be listed in decreasing order of preference: if the client offers
-    /// multiple protocols that the server could support, the server will pick the first one in
-    /// this list.
+    /// The protocols should be listed in decreasing order of preference: if the
+    /// client offers multiple protocols that the server could support, the
+    /// server will pick the first one in this list.
     ///
     /// # Examples
     ///
@@ -296,8 +303,8 @@ impl<F> WebSocketUpgrade<F> {
 
     /// Provide a callback to call if upgrading the connection fails.
     ///
-    /// The connection upgrade is performed in a background task. If that fails this callback
-    /// will be called.
+    /// The connection upgrade is performed in a background task. If that fails
+    /// this callback will be called.
     ///
     /// By default any errors will be silently ignored.
     ///
@@ -359,7 +366,8 @@ impl<F> WebSocketUpgrade<F> {
             let upgraded = TokioIo::new(upgraded);
 
             let socket = WebSocketStream::from_raw_socket(
-                // NOTARY_MODIFICATION: Need to use TokioAdapter to wrap Upgraded which doesn't implement futures crate's AsyncRead and AsyncWrite
+                // NOTARY_MODIFICATION: Need to use TokioAdapter to wrap Upgraded which doesn't
+                // implement futures crate's AsyncRead and AsyncWrite
                 TokioAdapter::new(upgraded),
                 protocol::Role::Server,
                 Some(config),
@@ -504,7 +512,8 @@ pub struct WebSocket {
 }
 
 impl WebSocket {
-    /// NOTARY_MODIFICATION: Consume `self` and get the inner [`async_tungstenite::WebSocketStream`].
+    /// NOTARY_MODIFICATION: Consume `self` and get the inner
+    /// [`async_tungstenite::WebSocketStream`].
     pub fn into_inner(self) -> WebSocketStream<TokioAdapter<TokioIo<hyper::upgrade::Upgraded>>> {
         self.inner
     }
@@ -575,7 +584,8 @@ impl Sink<Message> for WebSocket {
     }
 }
 
-/// Status code used to indicate why an endpoint is closing the WebSocket connection.
+/// Status code used to indicate why an endpoint is closing the WebSocket
+/// connection.
 pub type CloseCode = u16;
 
 /// A struct representing the close command.
@@ -620,16 +630,16 @@ pub enum Message {
     ///
     /// The payload here must have a length less than 125 bytes.
     ///
-    /// Ping messages will be automatically responded to by the server, so you do not have to worry
-    /// about dealing with them yourself.
+    /// Ping messages will be automatically responded to by the server, so you
+    /// do not have to worry about dealing with them yourself.
     Ping(Vec<u8>),
     /// A pong message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes.
     ///
-    /// Pong messages will be automatically sent to the client if a ping message is received, so
-    /// you do not have to worry about constructing them yourself unless you want to implement a
-    /// [unidirectional heartbeat](https://tools.ietf.org/html/rfc6455#section-5.5.3).
+    /// Pong messages will be automatically sent to the client if a ping message
+    /// is received, so you do not have to worry about constructing them
+    /// yourself unless you want to implement a [unidirectional heartbeat](https://tools.ietf.org/html/rfc6455#section-5.5.3).
     Pong(Vec<u8>),
     /// A close message with the optional close frame.
     Close(Option<CloseFrame<'static>>),
@@ -820,20 +830,22 @@ pub mod close_code {
     //!
     //! [`CloseCode`]: super::CloseCode
 
-    /// Indicates a normal closure, meaning that the purpose for which the connection was
-    /// established has been fulfilled.
+    /// Indicates a normal closure, meaning that the purpose for which the
+    /// connection was established has been fulfilled.
     pub const NORMAL: u16 = 1000;
 
-    /// Indicates that an endpoint is "going away", such as a server going down or a browser having
-    /// navigated away from a page.
+    /// Indicates that an endpoint is "going away", such as a server going down
+    /// or a browser having navigated away from a page.
     pub const AWAY: u16 = 1001;
 
-    /// Indicates that an endpoint is terminating the connection due to a protocol error.
+    /// Indicates that an endpoint is terminating the connection due to a
+    /// protocol error.
     pub const PROTOCOL: u16 = 1002;
 
-    /// Indicates that an endpoint is terminating the connection because it has received a type of
-    /// data it cannot accept (e.g., an endpoint that understands only text data MAY send this if
-    /// it receives a binary message).
+    /// Indicates that an endpoint is terminating the connection because it has
+    /// received a type of data it cannot accept (e.g., an endpoint that
+    /// understands only text data MAY send this if it receives a binary
+    /// message).
     pub const UNSUPPORTED: u16 = 1003;
 
     /// Indicates that no status code was included in a closing frame.
@@ -842,38 +854,42 @@ pub mod close_code {
     /// Indicates an abnormal closure.
     pub const ABNORMAL: u16 = 1006;
 
-    /// Indicates that an endpoint is terminating the connection because it has received data
-    /// within a message that was not consistent with the type of the message (e.g., non-UTF-8
-    /// RFC3629 data within a text message).
+    /// Indicates that an endpoint is terminating the connection because it has
+    /// received data within a message that was not consistent with the type
+    /// of the message (e.g., non-UTF-8 RFC3629 data within a text message).
     pub const INVALID: u16 = 1007;
 
-    /// Indicates that an endpoint is terminating the connection because it has received a message
-    /// that violates its policy. This is a generic status code that can be returned when there is
-    /// no other more suitable status code (e.g., `UNSUPPORTED` or `SIZE`) or if there is a need to
-    /// hide specific details about the policy.
+    /// Indicates that an endpoint is terminating the connection because it has
+    /// received a message that violates its policy. This is a generic
+    /// status code that can be returned when there is no other more
+    /// suitable status code (e.g., `UNSUPPORTED` or `SIZE`) or if there is a
+    /// need to hide specific details about the policy.
     pub const POLICY: u16 = 1008;
 
-    /// Indicates that an endpoint is terminating the connection because it has received a message
-    /// that is too big for it to process.
+    /// Indicates that an endpoint is terminating the connection because it has
+    /// received a message that is too big for it to process.
     pub const SIZE: u16 = 1009;
 
-    /// Indicates that an endpoint (client) is terminating the connection because it has expected
-    /// the server to negotiate one or more extension, but the server didn't return them in the
-    /// response message of the WebSocket handshake. The list of extensions that are needed should
-    /// be given as the reason for closing. Note that this status code is not used by the server,
-    /// because it can fail the WebSocket handshake instead.
+    /// Indicates that an endpoint (client) is terminating the connection
+    /// because it has expected the server to negotiate one or more
+    /// extension, but the server didn't return them in the response message
+    /// of the WebSocket handshake. The list of extensions that are needed
+    /// should be given as the reason for closing. Note that this status
+    /// code is not used by the server, because it can fail the WebSocket
+    /// handshake instead.
     pub const EXTENSION: u16 = 1010;
 
-    /// Indicates that a server is terminating the connection because it encountered an unexpected
-    /// condition that prevented it from fulfilling the request.
+    /// Indicates that a server is terminating the connection because it
+    /// encountered an unexpected condition that prevented it from
+    /// fulfilling the request.
     pub const ERROR: u16 = 1011;
 
     /// Indicates that the server is restarting.
     pub const RESTART: u16 = 1012;
 
-    /// Indicates that the server is overloaded and the client should either connect to a different
-    /// IP (when multiple targets exist), or reconnect to the same IP when a user has performed an
-    /// action.
+    /// Indicates that the server is overloaded and the client should either
+    /// connect to a different IP (when multiple targets exist), or
+    /// reconnect to the same IP when a user has performed an action.
     pub const AGAIN: u16 = 1013;
 }
 

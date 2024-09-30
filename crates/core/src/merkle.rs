@@ -27,7 +27,8 @@ pub(crate) struct MerkleProof {
 opaque_debug::implement!(MerkleProof);
 
 impl MerkleProof {
-    /// Checks if indices, hashes and leaves count are valid for the provided root
+    /// Checks if indices, hashes and leaves count are valid for the provided
+    /// root
     ///
     /// # Panics
     ///
@@ -104,7 +105,8 @@ impl MerkleTree {
     ///
     /// # Panics
     ///
-    /// - If the provided hasher is not the same as the one used to create the tree.
+    /// - If the provided hasher is not the same as the one used to create the
+    ///   tree.
     pub(crate) fn insert(&mut self, hasher: &dyn HashAlgorithm, mut leaves: Vec<Hash>) {
         assert_eq!(self.alg, hasher.id(), "hash algorithm mismatch");
 

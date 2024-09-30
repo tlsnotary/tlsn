@@ -80,7 +80,8 @@ impl HttpCommitError {
 pub trait HttpCommit {
     /// Commits to an HTTP transcript.
     ///
-    /// The default implementation commits to each request and response in the transcript separately.
+    /// The default implementation commits to each request and response in the
+    /// transcript separately.
     ///
     /// # Arguments
     ///
@@ -104,8 +105,9 @@ pub trait HttpCommit {
 
     /// Commits to a request.
     ///
-    /// The default implementation commits to the request excluding the target, headers and body. Additionally,
-    /// it commits to the target, headers and body separately.
+    /// The default implementation commits to the request excluding the target,
+    /// headers and body. Additionally, it commits to the target, headers
+    /// and body separately.
     ///
     /// # Arguments
     ///
@@ -181,7 +183,8 @@ pub trait HttpCommit {
 
     /// Commits to a request header.
     ///
-    /// The default implementation commits to the entire header, and the header excluding the value.
+    /// The default implementation commits to the entire header, and the header
+    /// excluding the value.
     ///
     /// # Arguments
     ///
@@ -224,9 +227,9 @@ pub trait HttpCommit {
 
     /// Commits to a request body.
     ///
-    /// The default implementation commits using the default implementation for the
-    /// format type of the body. If the format of the body is unknown, it commits to the
-    /// body as a whole.
+    /// The default implementation commits using the default implementation for
+    /// the format type of the body. If the format of the body is unknown,
+    /// it commits to the body as a whole.
     ///
     /// # Arguments
     ///
@@ -269,8 +272,9 @@ pub trait HttpCommit {
 
     /// Commits to a response.
     ///
-    /// The default implementation commits to the response excluding the headers and body. Additionally,
-    /// it commits to the headers and body separately.
+    /// The default implementation commits to the response excluding the headers
+    /// and body. Additionally, it commits to the headers and body
+    /// separately.
     ///
     /// # Arguments
     ///
@@ -316,7 +320,8 @@ pub trait HttpCommit {
 
     /// Commits to a response header.
     ///
-    /// The default implementation commits to the entire header, and the header excluding the value.
+    /// The default implementation commits to the entire header, and the header
+    /// excluding the value.
     ///
     /// # Arguments
     ///
@@ -359,9 +364,9 @@ pub trait HttpCommit {
 
     /// Commits to a response body.
     ///
-    /// The default implementation commits using the default implementation for the
-    /// format type of the body. If the format of the body is unknown, it commits to the
-    /// body as a whole.
+    /// The default implementation commits using the default implementation for
+    /// the format type of the body. If the format of the body is unknown,
+    /// it commits to the body as a whole.
     ///
     /// # Arguments
     ///

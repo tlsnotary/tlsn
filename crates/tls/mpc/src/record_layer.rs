@@ -352,8 +352,9 @@ impl Decrypter {
 
     /// Proves the plaintext of the message to the other party
     ///
-    /// This verifies the tag of the message and locally decrypts it. Then, this party
-    /// commits to the plaintext and proves it encrypts back to the ciphertext.
+    /// This verifies the tag of the message and locally decrypts it. Then, this
+    /// party commits to the plaintext and proves it encrypts back to the
+    /// ciphertext.
     pub(crate) async fn prove_plaintext(
         &mut self,
         msg: OpaqueMessage,
@@ -388,8 +389,9 @@ impl Decrypter {
 
     /// Verifies the plaintext of the message
     ///
-    /// This verifies the tag of the message then has the other party decrypt it. Then,
-    /// the other party commits to the plaintext and proves it encrypts back to the ciphertext.
+    /// This verifies the tag of the message then has the other party decrypt
+    /// it. Then, the other party commits to the plaintext and proves it
+    /// encrypts back to the ciphertext.
     pub(crate) async fn verify_plaintext(&mut self, msg: OpaqueMessage) -> Result<(), MpcTlsError> {
         let OpaqueMessage {
             typ,

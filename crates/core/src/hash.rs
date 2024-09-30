@@ -47,8 +47,8 @@ impl HashProvider {
         self.algs.insert(id, algorithm);
     }
 
-    /// Returns the hash algorithm with the given identifier, or an error if the hash algorithm
-    /// does not exist.
+    /// Returns the hash algorithm with the given identifier, or an error if the
+    /// hash algorithm does not exist.
     pub fn get(
         &self,
         id: &HashAlgId,
@@ -293,7 +293,8 @@ impl<T> Blinded<T> {
     }
 }
 
-/// A type with a domain separator which is used during hashing to mitigate type confusion attacks.
+/// A type with a domain separator which is used during hashing to mitigate type
+/// confusion attacks.
 pub(crate) trait DomainSeparator {
     /// Returns the domain separator for the type.
     fn domain(&self) -> &[u8];

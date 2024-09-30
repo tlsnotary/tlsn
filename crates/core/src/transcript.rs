@@ -1,26 +1,32 @@
 //! Transcript types.
 //!
-//! All application data communicated over a TLS connection is referred to as a [`Transcript`]. A transcript is essentially
-//! just two vectors of bytes, each corresponding to a [`Direction`].
+//! All application data communicated over a TLS connection is referred to as a
+//! [`Transcript`]. A transcript is essentially just two vectors of bytes, each
+//! corresponding to a [`Direction`].
 //!
-//! TLS operates over a bidirectional byte stream, and thus there are no application layer semantics present in the transcript.
-//! For example, HTTPS is an application layer protocol that runs *over TLS* so there is no concept of "requests" or "responses"
-//! in the transcript itself. These semantics must be recovered by parsing the application data and relating it to the bytes
+//! TLS operates over a bidirectional byte stream, and thus there are no
+//! application layer semantics present in the transcript. For example, HTTPS is
+//! an application layer protocol that runs *over TLS* so there is no concept of
+//! "requests" or "responses" in the transcript itself. These semantics must be
+//! recovered by parsing the application data and relating it to the bytes
 //! in the transcript.
 //!
 //! ## Commitments
 //!
-//! During the attestation process a Prover can generate multiple commitments to various parts of the transcript.
-//! These commitments are inserted into the attestation body and can be used by the Verifier to verify transcript proofs
+//! During the attestation process a Prover can generate multiple commitments to
+//! various parts of the transcript. These commitments are inserted into the
+//! attestation body and can be used by the Verifier to verify transcript proofs
 //! later.
 //!
-//! To configure the transcript commitments, use the [`TranscriptCommitConfigBuilder`].
+//! To configure the transcript commitments, use the
+//! [`TranscriptCommitConfigBuilder`].
 //!
 //! ## Selective Disclosure
 //!
-//! Using a [`TranscriptProof`] a Prover can selectively disclose parts of a transcript to a Verifier
-//! in the form of a [`PartialTranscript`]. A Verifier always learns the length of the transcript, but sensitive
-//! data can be withheld.
+//! Using a [`TranscriptProof`] a Prover can selectively disclose parts of a
+//! transcript to a Verifier in the form of a [`PartialTranscript`]. A Verifier
+//! always learns the length of the transcript, but sensitive data can be
+//! withheld.
 //!
 //! To create a proof, use the [`TranscriptProofBuilder`] which is returned by
 //! [`Secrets::transcript_proof_builder`](crate::Secrets::transcript_proof_builder).
@@ -103,8 +109,8 @@ impl Transcript {
         }
     }
 
-    /// Returns the subsequence of the transcript with the provided index, returning `None`
-    /// if the index is out of bounds.
+    /// Returns the subsequence of the transcript with the provided index,
+    /// returning `None` if the index is out of bounds.
     pub fn get(&self, direction: Direction, idx: &Idx) -> Option<Subsequence> {
         let data = match direction {
             Direction::Sent => &self.sent,
@@ -154,7 +160,8 @@ impl Transcript {
 
 /// A partial transcript.
 ///
-/// A partial transcript is a transcript which may not have all the data authenticated.
+/// A partial transcript is a transcript which may not have all the data
+/// authenticated.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "validation::PartialTranscriptUnchecked")]
 pub struct PartialTranscript {
@@ -213,7 +220,8 @@ impl PartialTranscript {
     /// # Warning
     ///
     /// Not all of the data in the transcript may have been authenticated. See
-    /// [sent_authed](PartialTranscript::sent_authed) for a set of ranges which have been.
+    /// [sent_authed](PartialTranscript::sent_authed) for a set of ranges which
+    /// have been.
     pub fn sent_unsafe(&self) -> &[u8] {
         &self.sent
     }
@@ -223,7 +231,8 @@ impl PartialTranscript {
     /// # Warning
     ///
     /// Not all of the data in the transcript may have been authenticated. See
-    /// [received_authed](PartialTranscript::received_authed) for a set of ranges which have been.
+    /// [received_authed](PartialTranscript::received_authed) for a set of
+    /// ranges which have been.
     pub fn received_unsafe(&self) -> &[u8] {
         &self.received
     }
@@ -329,7 +338,8 @@ impl PartialTranscript {
         }
     }
 
-    /// Sets all bytes in the transcript which haven't been authenticated within the given range.
+    /// Sets all bytes in the transcript which haven't been authenticated within
+    /// the given range.
     ///
     /// # Arguments
     ///
@@ -353,8 +363,8 @@ impl PartialTranscript {
 
 /// The direction of data communicated over a TLS connection.
 ///
-/// This is used to differentiate between data sent from the Prover to the TLS peer,
-/// and data received by the Prover from the TLS peer (client or server).
+/// This is used to differentiate between data sent from the Prover to the TLS
+/// peer, and data received by the Prover from the TLS peer (client or server).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Direction {
     /// Sent from the Prover to the TLS peer.
