@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// A verifiable presentation.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Presentation {
     attestation: AttestationProof,
     identity: Option<ServerIdentityProof>,

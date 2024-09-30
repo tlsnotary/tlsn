@@ -16,7 +16,7 @@ impl MerkleError {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct MerkleProof {
     alg: HashAlgId,
     tree_len: usize,

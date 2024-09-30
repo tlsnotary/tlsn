@@ -117,7 +117,7 @@ rand_chacha = { version = "0.3" }
 rand_core = { version = "0.6" }
 regex = { version = "1.10" }
 ring = { version = "0.17" }
-rs_merkle = { git = "https://github.com/tlsnotary/rs-merkle.git", rev = "7fb354c" }
+rs_merkle = { git = "https://github.com/tlsnotary/rs-merkle.git", rev = "85f3e82" }
 rstest = { version = "0.17" }
 rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0" }

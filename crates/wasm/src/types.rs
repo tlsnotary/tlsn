@@ -244,10 +244,11 @@ pub struct Presentation(tlsn_core::presentation::Presentation);
 #[wasm_bindgen]
 impl Presentation {
     /// Verifies the presentation.
-    pub fn verify(self) -> Result<PresentationOutput, JsError> {
+    pub fn verify(&self) -> Result<PresentationOutput, JsError> {
         let provider = CryptoProvider::default();
 
         self.0
+            .clone()
             .verify(&provider)
             .map(PresentationOutput::from)
             .map_err(JsError::from)
