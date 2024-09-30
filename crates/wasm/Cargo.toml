@@ -14,7 +14,7 @@ opt-level = "z"
 wasm-opt = true
 
 [features]
-default = ["test"]
+default = []
 test = []
 no-bundler = ["wasm-bindgen-rayon/no-bundler"]
 
