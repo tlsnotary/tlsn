@@ -16,7 +16,7 @@ use crate::{
 };
 
 /// An opening of a leaf in the encoding tree.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(super) struct Opening {
     pub(super) direction: Direction,
     pub(super) seq: Subsequence,
@@ -26,7 +26,7 @@ pub(super) struct Opening {
 opaque_debug::implement!(Opening);
 
 /// An encoding proof.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncodingProof {
     pub(super) inclusion_proof: MerkleProof,
     pub(super) openings: HashMap<usize, Opening>,

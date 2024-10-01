@@ -44,8 +44,9 @@ pub struct ServerProperties {
     pub host: String,
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
-    /// Static html response returned from API root endpoint "/". Default html response contains
-    /// placeholder strings that will be replaced with actual values in server.rs, e.g. {version}, {public_key}
+    /// Static html response returned from API root endpoint "/". Default html
+    /// response contains placeholder strings that will be replaced with
+    /// actual values in server.rs, e.g. {version}, {public_key}
     pub html_info: String,
 }
 
@@ -69,8 +70,8 @@ pub struct NotarySigningKeyProperties {
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LoggingProperties {
-    /// Log verbosity level of the default filtering logic, which is notary_server=<level>,tlsn_verifier=<level>,tls_mpc=<level>
-    /// Must be either of <https://docs.rs/tracing/latest/tracing/struct.Level.html#implementations>
+    /// Log verbosity level of the default filtering logic, which is
+    /// notary_server=<level>,tlsn_verifier=<level>,tls_mpc=<level> Must be either of <https://docs.rs/tracing/latest/tracing/struct.Level.html#implementations>
     pub level: String,
     /// Custom filtering logic, refer to the syntax here https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax
     /// This will override the default filtering logic above

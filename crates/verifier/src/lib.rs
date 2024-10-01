@@ -129,7 +129,8 @@ impl Verifier<state::Initialized> {
 
     /// Runs the TLS verifier to completion, notarizing the TLS session.
     ///
-    /// This is a convenience method which runs all the steps needed for notarization.
+    /// This is a convenience method which runs all the steps needed for
+    /// notarization.
     ///
     /// # Arguments
     ///
@@ -152,7 +153,8 @@ impl Verifier<state::Initialized> {
 
     /// Runs the TLS verifier to completion, verifying the TLS session.
     ///
-    /// This is a convenience method which runs all the steps needed for verification.
+    /// This is a convenience method which runs all the steps needed for
+    /// verification.
     ///
     /// # Arguments
     ///
@@ -231,8 +233,9 @@ impl Verifier<state::Setup> {
 impl Verifier<state::Closed> {
     /// Starts notarization of the TLS session.
     ///
-    /// If the verifier is a Notary, this function will transition the verifier to the next state
-    /// where it can sign the prover's commitments to the transcript.
+    /// If the verifier is a Notary, this function will transition the verifier
+    /// to the next state where it can sign the prover's commitments to the
+    /// transcript.
     pub fn start_notarize(self) -> Verifier<Notarize> {
         Verifier {
             config: self.config,
@@ -243,8 +246,8 @@ impl Verifier<state::Closed> {
 
     /// Starts verification of the TLS session.
     ///
-    /// This function transitions the verifier into a state where it can verify content of the
-    /// transcript.
+    /// This function transitions the verifier into a state where it can verify
+    /// content of the transcript.
     pub fn start_verify(self) -> Verifier<Verify> {
         Verifier {
             config: self.config,

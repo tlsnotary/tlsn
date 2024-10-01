@@ -10,7 +10,8 @@ use crate::prf::{prf, prf_trace};
 /// Computes verify_data as specified in RFC 5246, Section 7.4.9.
 ///
 /// verify_data
-///   PRF(master_secret, finished_label, Hash(handshake_messages))[0..verify_data_length-1];
+///   PRF(master_secret, finished_label,
+/// Hash(handshake_messages))[0..verify_data_length-1];
 ///
 /// # Arguments
 ///
@@ -31,7 +32,8 @@ pub fn verify_data_trace<'a>(
     vd.try_into().expect("vd is 12 bytes")
 }
 
-/// Reference implementation of verify_data as specified in RFC 5246, Section 7.4.9.
+/// Reference implementation of verify_data as specified in RFC 5246, Section
+/// 7.4.9.
 ///
 /// # Arguments
 ///

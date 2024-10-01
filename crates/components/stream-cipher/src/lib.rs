@@ -1,16 +1,19 @@
-//! This crate provides a 2PC stream cipher implementation using a block cipher in counter mode.
+//! This crate provides a 2PC stream cipher implementation using a block cipher
+//! in counter mode.
 //!
-//! Each party plays a specific role, either the `StreamCipherLeader` or the `StreamCipherFollower`.
-//! Both parties work together to encrypt and decrypt messages using a shared key.
+//! Each party plays a specific role, either the `StreamCipherLeader` or the
+//! `StreamCipherFollower`. Both parties work together to encrypt and decrypt
+//! messages using a shared key.
 //!
 //! # Transcript
 //!
-//! Using the `record` flag, the `StreamCipherFollower` can optionally use a dedicated stream when
-//! encoding the plaintext labels, which allows the `StreamCipherLeader` to build a transcript of
-//! active labels which are pushed to the provided `TranscriptSink`.
+//! Using the `record` flag, the `StreamCipherFollower` can optionally use a
+//! dedicated stream when encoding the plaintext labels, which allows the
+//! `StreamCipherLeader` to build a transcript of active labels which are pushed
+//! to the provided `TranscriptSink`.
 //!
-//! Afterwards, the `StreamCipherLeader` can create commitments to the transcript which can be used in
-//! a selective disclosure protocol.
+//! Afterwards, the `StreamCipherLeader` can create commitments to the
+//! transcript which can be used in a selective disclosure protocol.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -43,7 +46,8 @@ where
     /// Decodes the key for the stream cipher, revealing it to this party.
     async fn decode_key_private(&mut self) -> Result<(), StreamCipherError>;
 
-    /// Decodes the key for the stream cipher, revealing it to the other party(s).
+    /// Decodes the key for the stream cipher, revealing it to the other
+    /// party(s).
     async fn decode_key_blind(&mut self) -> Result<(), StreamCipherError>;
 
     /// Sets the transcript id
@@ -51,14 +55,15 @@ where
     /// The stream cipher assigns unique identifiers to each byte of plaintext
     /// during encryption and decryption.
     ///
-    /// For example, if the transcript id is set to `foo`, then the first byte will
-    /// be assigned the id `foo/0`, the second byte `foo/1`, and so on.
+    /// For example, if the transcript id is set to `foo`, then the first byte
+    /// will be assigned the id `foo/0`, the second byte `foo/1`, and so on.
     ///
     /// Each transcript id has an independent counter.
     ///
     /// # Note
     ///
-    /// The state of a transcript counter is preserved between calls to `set_transcript_id`.
+    /// The state of a transcript counter is preserved between calls to
+    /// `set_transcript_id`.
     fn set_transcript_id(&mut self, id: &str);
 
     /// Preprocesses the keystream for the given number of bytes.
@@ -141,13 +146,13 @@ where
         ciphertext: Vec<u8>,
     ) -> Result<(), StreamCipherError>;
 
-    /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
-    /// plaintext is correct.
+    /// Locally decrypts the provided ciphertext and then proves in ZK to the
+    /// other party(s) that the plaintext is correct.
     ///
     /// Returns the plaintext.
     ///
-    /// This method requires this party to know the encryption key, which can be achieved by calling
-    /// the `decode_key_private` method.
+    /// This method requires this party to know the encryption key, which can be
+    /// achieved by calling the `decode_key_private` method.
     ///
     /// # Arguments
     ///
@@ -159,7 +164,8 @@ where
         ciphertext: Vec<u8>,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
+    /// Verifies the other party(s) can prove they know a plaintext which
+    /// encrypts to the given ciphertext.
     ///
     /// # Arguments
     ///
@@ -171,7 +177,8 @@ where
         ciphertext: Vec<u8>,
     ) -> Result<(), StreamCipherError>;
 
-    /// Returns an additive share of the keystream block for the given explicit nonce and counter.
+    /// Returns an additive share of the keystream block for the given explicit
+    /// nonce and counter.
     ///
     /// # Arguments
     ///

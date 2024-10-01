@@ -29,8 +29,8 @@ static VERSION: Lazy<Version> = Lazy::new(|| {
 pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     max_sent_data: usize,
-    /// Maximum number of bytes that can be decrypted online, i.e. while the MPC-TLS connection is
-    /// active.
+    /// Maximum number of bytes that can be decrypted online, i.e. while the
+    /// MPC-TLS connection is active.
     #[builder(default = "0")]
     max_recv_data_online: usize,
     /// Maximum number of bytes that can be received.
@@ -93,8 +93,8 @@ impl ProtocolConfig {
     }
 }
 
-/// Protocol configuration validator used by checker (i.e. verifier) to perform compatibility check
-/// with the peer's (i.e. the prover's) configuration.
+/// Protocol configuration validator used by checker (i.e. verifier) to perform
+/// compatibility check with the peer's (i.e. the prover's) configuration.
 #[derive(derive_builder::Builder, Clone, Debug)]
 pub struct ProtocolConfigValidator {
     /// Maximum number of bytes that can be sent.
@@ -122,7 +122,8 @@ impl ProtocolConfigValidator {
         self.max_recv_data
     }
 
-    /// Performs compatibility check of the protocol configuration between prover and verifier.
+    /// Performs compatibility check of the protocol configuration between
+    /// prover and verifier.
     pub fn validate(&self, config: &ProtocolConfig) -> Result<(), ProtocolConfigError> {
         self.check_max_transcript_size(config.max_sent_data, config.max_recv_data)?;
         self.check_version(&config.version)?;
@@ -152,7 +153,8 @@ impl ProtocolConfigValidator {
         Ok(())
     }
 
-    // Checks if both versions are the same (might support check for different but compatible versions in the future).
+    // Checks if both versions are the same (might support check for different but
+    // compatible versions in the future).
     fn check_version(&self, peer_version: &Version) -> Result<(), ProtocolConfigError> {
         if *peer_version != self.version {
             return Err(ProtocolConfigError::version(format!(

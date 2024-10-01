@@ -19,7 +19,8 @@ impl Verifier<VerifyState> {
     ///
     /// # Warning
     ///
-    /// The content of the received transcripts can not be considered authentic until after finalization.
+    /// The content of the received transcripts can not be considered authentic
+    /// until after finalization.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn receive(&mut self) -> Result<PartialTranscript, VerifierError> {
         self.state

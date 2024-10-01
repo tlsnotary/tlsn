@@ -117,8 +117,8 @@ impl Prover<state::Initialized> {
 impl Prover<state::Setup> {
     /// Connects to the server using the provided socket.
     ///
-    /// Returns a handle to the TLS connection, a future which returns the prover once the connection is
-    /// closed.
+    /// Returns a handle to the TLS connection, a future which returns the
+    /// prover once the connection is closed.
     ///
     /// # Arguments
     ///
@@ -255,8 +255,9 @@ impl Prover<state::Closed> {
 
     /// Starts notarization of the TLS session.
     ///
-    /// Used when the TLS verifier is a Notary to transition the prover to the next state
-    /// where it can generate commitments to the transcript prior to finalization.
+    /// Used when the TLS verifier is a Notary to transition the prover to the
+    /// next state where it can generate commitments to the transcript prior
+    /// to finalization.
     pub fn start_notarize(self) -> Prover<Notarize> {
         Prover {
             config: self.config,
@@ -267,8 +268,8 @@ impl Prover<state::Closed> {
 
     /// Starts proving the TLS session.
     ///
-    /// This function transitions the prover into a state where it can prove content of the
-    /// transcript.
+    /// This function transitions the prover into a state where it can prove
+    /// content of the transcript.
     pub fn start_prove(self) -> Prover<Prove> {
         Prover {
             config: self.config,
@@ -404,15 +405,17 @@ pub struct ProverControl {
 }
 
 impl ProverControl {
-    /// Defers decryption of data from the server until the server has closed the connection.
+    /// Defers decryption of data from the server until the server has closed
+    /// the connection.
     ///
-    /// This is a performance optimization which will significantly reduce the amount of upload bandwidth
-    /// used by the prover.
+    /// This is a performance optimization which will significantly reduce the
+    /// amount of upload bandwidth used by the prover.
     ///
     /// # Notes
     ///
-    /// * The prover may need to close the connection to the server in order for it to close the connection
-    ///   on its end. If neither the prover or server close the connection this will cause a deadlock.
+    /// * The prover may need to close the connection to the server in order for
+    ///   it to close the connection on its end. If neither the prover or server
+    ///   close the connection this will cause a deadlock.
     pub async fn defer_decryption(&self) -> Result<(), ProverError> {
         self.mpc_ctrl
             .defer_decryption()

@@ -1,9 +1,10 @@
 //! Provides a TLS client which exposes an async socket.
 //!
-//! This library provides the [bind_client] function which attaches a TLS client to a socket
-//! connection and then exposes a [TlsConnection] object, which provides an async socket API for
-//! reading and writing cleartext. The TLS client will then automatically encrypt and decrypt
-//! traffic and forward that to the provided socket.
+//! This library provides the [bind_client] function which attaches a TLS client
+//! to a socket connection and then exposes a [TlsConnection] object, which
+//! provides an async socket API for reading and writing cleartext. The TLS
+//! client will then automatically encrypt and decrypt traffic and forward that
+//! to the provided socket.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -71,11 +72,13 @@ impl Future for ConnectionFuture {
 
 /// Binds a client connection to the provided socket.
 ///
-/// Returns a connection handle and a future which runs the connection to completion.
+/// Returns a connection handle and a future which runs the connection to
+/// completion.
 ///
 /// # Errors
 ///
-/// Any connection errors that occur will be returned from the future, not [`TlsConnection`].
+/// Any connection errors that occur will be returned from the future, not
+/// [`TlsConnection`].
 pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
     mut client: ClientConnection,
@@ -138,7 +141,8 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 #[cfg(feature = "tracing")]
                 debug!("handshake complete");
                 handshake_done = true;
-                // Start reading application data that needs to be transmitted from the `TlsConnection`.
+                // Start reading application data that needs to be transmitted from the
+                // `TlsConnection`.
                 tx_recv_fut = tx_receiver.next().fuse();
             }
 

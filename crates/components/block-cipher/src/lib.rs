@@ -1,6 +1,7 @@
 //! This crate provides a 2PC block cipher implementation.
 //!
-//! Both parties work together to encrypt or share an encrypted block using a shared key.
+//! Both parties work together to encrypt or share an encrypted block using a
+//! shared key.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]

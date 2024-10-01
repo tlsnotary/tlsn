@@ -1,7 +1,7 @@
 //! This module handles the proving phase of the prover.
 //!
-//! Here the prover deals with a verifier directly, so there is no notary involved. Instead
-//! the verifier directly verifies parts of the transcript.
+//! Here the prover deals with a verifier directly, so there is no notary
+//! involved. Instead the verifier directly verifies parts of the transcript.
 
 use super::{state::Prove as ProveState, Prover, ProverError};
 use mpz_garble::{Memory, Prove};

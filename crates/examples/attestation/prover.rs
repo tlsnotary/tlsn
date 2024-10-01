@@ -1,5 +1,6 @@
-// Runs a simple Prover which connects to the Notary and notarizes a request/response from
-// example.com. The Prover then generates a proof and writes it to disk.
+// Runs a simple Prover which connects to the Notary and notarizes a
+// request/response from example.com. The Prover then generates a proof and
+// writes it to disk.
 
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
@@ -56,8 +57,9 @@ async fn main() {
         .unwrap();
 
     // Bind the Prover to the server connection.
-    // The returned `mpc_tls_connection` is an MPC TLS connection to the Server: all data written
-    // to/read from it will be encrypted/decrypted using MPC with the Notary.
+    // The returned `mpc_tls_connection` is an MPC TLS connection to the Server: all
+    // data written to/read from it will be encrypted/decrypted using MPC with
+    // the Notary.
     let (mpc_tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
@@ -178,7 +180,8 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
 }
 
 async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
-    // Identify the ranges in the outbound data which contain data which we want to disclose
+    // Identify the ranges in the outbound data which contain data which we want to
+    // disclose
     let (sent_public_ranges, _) = find_ranges(
         prover.sent_transcript().data(),
         &[
@@ -187,7 +190,8 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         ],
     );
 
-    // Identify the ranges in the inbound data which contain data which we want to disclose
+    // Identify the ranges in the inbound data which contain data which we want to
+    // disclose
     let (recv_public_ranges, _) = find_ranges(
         prover.recv_transcript().data(),
         &[

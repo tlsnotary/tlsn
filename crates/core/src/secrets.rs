@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Secret data of an [`Attestation`](crate::attestation::Attestation).
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Secrets {
     pub(crate) server_name: ServerName,
     pub(crate) server_cert_opening: ServerCertOpening,
