@@ -180,7 +180,7 @@
 };
 
 <span class="doccomment">/// Proof of an attestation.
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>AttestationProof {
     signature: Signature,
     header: Header,
@@ -239,7 +239,7 @@
 }
 
 <span class="doccomment">/// Proof of an attestation body.
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>BodyProof {
     body: Body,
     proof: MerkleProof,

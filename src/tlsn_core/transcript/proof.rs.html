@@ -365,7 +365,7 @@
 };
 
 <span class="doccomment">/// Proof of the contents of a transcript.
-</span><span class="attr">#[derive(Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>TranscriptProof {
     encoding_proof: <span class="prelude-ty">Option</span>&lt;EncodingProof&gt;,
     hash_proofs: Vec&lt;PlaintextHashProof&gt;,

@@ -322,7 +322,7 @@
     }
 }
 
-<span class="attr">#[derive(Serialize, Deserialize)]
+<span class="attr">#[derive(Clone, Serialize, Deserialize)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MerkleProof {
     alg: HashAlgId,
     tree_len: usize,
@@ -380,7 +380,7 @@
     }
 }
 
-<span class="attr">#[derive(Serialize, Deserialize)]
+<span class="attr">#[derive(Clone, Serialize, Deserialize)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MerkleTree {
     alg: HashAlgId,
     tree: rs_merkle::MerkleTree&lt;Hash&gt;,

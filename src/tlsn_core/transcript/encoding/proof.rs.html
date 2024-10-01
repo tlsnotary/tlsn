@@ -198,7 +198,7 @@
 };
 
 <span class="doccomment">/// An opening of a leaf in the encoding tree.
-</span><span class="attr">#[derive(Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Serialize, Deserialize)]
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>Opening {
     <span class="kw">pub</span>(<span class="kw">super</span>) direction: Direction,
     <span class="kw">pub</span>(<span class="kw">super</span>) seq: Subsequence,
@@ -208,7 +208,7 @@
 <span class="macro">opaque_debug::implement!</span>(Opening);
 
 <span class="doccomment">/// An encoding proof.
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EncodingProof {
     <span class="kw">pub</span>(<span class="kw">super</span>) inclusion_proof: MerkleProof,
     <span class="kw">pub</span>(<span class="kw">super</span>) openings: HashMap&lt;usize, Opening&gt;,

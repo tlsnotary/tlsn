@@ -115,7 +115,7 @@
 };
 
 <span class="doccomment">/// TLS server identity proof.
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ServerIdentityProof {
     name: ServerName,
     opening: ServerCertOpening,
