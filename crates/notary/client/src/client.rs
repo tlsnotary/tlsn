@@ -113,7 +113,7 @@ pub struct NotaryClient {
     /// Port of the notary server endpoint.
     #[builder(default = "self.default_port()")]
     port: u16,
-    /// URL path of the notary server endpoint, e.g. version.
+    /// URL path prefix of the notary server endpoint, e.g. "https://<host>:<port>/<path_prefix>/...".
     #[builder(setter(into), default = "String::from(\"\")")]
     path: String,
     /// Flag to turn on/off using TLS with notary server.
