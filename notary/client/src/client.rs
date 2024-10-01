@@ -116,7 +116,7 @@ pub struct NotaryClient {
     /// Port of the notary server endpoint.
     #[builder(default = "self.default_port()")]
     port: u16,
-    /// Path of the notary server endpoint.
+    /// URL path of the notary server endpoint, e.g. version.
     #[builder(setter(into), default = "String::from(\"\")")]
     path: String,
     /// Flag to turn on/off using TLS with notary server.
@@ -207,8 +207,8 @@ impl NotaryClient {
         notarization_request: NotarizationRequest,
     ) -> Result<(S, String), ClientError> {
         let http_scheme = if self.tls { "https" } else { "http" };
-        let path = if self.path.is_empty() {
-            String::from("")
+        let path = if self.path.is_empty() || self.path.starts_with('/') {
+            self.path.clone()
         } else {
             format!("/{}", self.path)
         };
