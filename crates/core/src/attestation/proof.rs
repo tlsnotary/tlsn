@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Proof of an attestation.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationProof {
     signature: Signature,
     header: Header,
@@ -76,7 +76,7 @@ impl AttestationProof {
 }
 
 /// Proof of an attestation body.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BodyProof {
     body: Body,
     proof: MerkleProof,

@@ -156,7 +156,8 @@ impl MpcTlsFollower {
 
     /// Runs the follower actor.
     ///
-    /// Returns a control handle and a future that resolves when the actor is stopped.
+    /// Returns a control handle and a future that resolves when the actor is
+    /// stopped.
     ///
     /// # Note
     ///
@@ -238,8 +239,8 @@ impl MpcTlsFollower {
 
     /// Returns an error if the follower is not accepting new messages.
     ///
-    /// This can happen if the follower has received a CloseNotify alert or if the leader has
-    /// committed to the transcript.
+    /// This can happen if the follower has received a CloseNotify alert or if
+    /// the leader has committed to the transcript.
     fn is_accepting_messages(&self) -> Result<(), MpcTlsError> {
         if self.close_notify {
             return Err(MpcTlsError::new(
@@ -485,9 +486,10 @@ impl MpcTlsFollower {
         debug!("decrypting message");
 
         if self.committed {
-            // At this point the AEAD key was revealed to the leader and the leader locally decrypted
-            // the TLS message and now is proving to us that they know the plaintext which encrypts
-            // to the ciphertext of this TLS message.
+            // At this point the AEAD key was revealed to the leader and the leader locally
+            // decrypted the TLS message and now is proving to us that they know
+            // the plaintext which encrypts to the ciphertext of this TLS
+            // message.
             self.decrypter.verify_plaintext(msg).await?;
         } else {
             self.decrypter.decrypt_blind(msg).await?;
@@ -519,7 +521,8 @@ impl MpcTlsFollower {
 
         self.committed = true;
 
-        // Reveal the AEAD key to the leader only if there are TLS messages which need to be decrypted.
+        // Reveal the AEAD key to the leader only if there are TLS messages which need
+        // to be decrypted.
         if !buffer.is_empty() {
             self.decrypter.decode_key_blind().await?;
         }
@@ -644,8 +647,9 @@ mod state {
         pub(super) server_key: PublicKey,
         /// TLS messages purportedly received by the leader from the server.
         ///
-        /// The follower must verify the authenticity of these messages with AEAD verification
-        /// (i.e. by verifying the authentication tag).
+        /// The follower must verify the authenticity of these messages with
+        /// AEAD verification (i.e. by verifying the authentication
+        /// tag).
         pub(super) buffer: VecDeque<OpaqueMessage>,
     }
 

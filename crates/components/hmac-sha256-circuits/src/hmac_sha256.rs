@@ -80,7 +80,8 @@ pub fn hmac_sha256_partial(key: &[u8]) -> ([u32; 8], [u32; 8]) {
 
 /// HMAC-SHA256 finalization function.
 ///
-/// Returns the HMAC-SHA256 digest of the provided message using existing outer and inner states.
+/// Returns the HMAC-SHA256 digest of the provided message using existing outer
+/// and inner states.
 ///
 /// # Arguments
 ///
@@ -103,7 +104,8 @@ pub fn hmac_sha256_finalize_trace<'a>(
 
 /// Reference implementation of the HMAC-SHA256 finalization function.
 ///
-/// Returns the HMAC-SHA256 digest of the provided message using existing outer and inner states.
+/// Returns the HMAC-SHA256 digest of the provided message using existing outer
+/// and inner states.
 ///
 /// # Arguments
 ///

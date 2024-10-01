@@ -12,9 +12,10 @@ use tracing::{debug, error, info};
 
 use crate::{domain::notary::NotaryGlobals, service::notary_service, NotaryServerError};
 
-/// Custom extractor used to extract underlying TCP connection for TCP client — using the same upgrade primitives used by
-/// the WebSocket implementation where the underlying TCP connection (wrapped in an Upgraded object) only gets polled as an OnUpgrade future
-/// after the ongoing HTTP request is finished (ref: https://github.com/tokio-rs/axum/blob/a6a849bb5b96a2f641fa077fe76f70ad4d20341c/axum/src/extract/ws.rs#L122)
+/// Custom extractor used to extract underlying TCP connection for TCP client —
+/// using the same upgrade primitives used by the WebSocket implementation where
+/// the underlying TCP connection (wrapped in an Upgraded object) only gets
+/// polled as an OnUpgrade future after the ongoing HTTP request is finished (ref: https://github.com/tokio-rs/axum/blob/a6a849bb5b96a2f641fa077fe76f70ad4d20341c/axum/src/extract/ws.rs#L122)
 ///
 /// More info on the upgrade primitives: https://docs.rs/hyper/latest/hyper/upgrade/index.html
 pub struct TcpUpgrade {
@@ -43,8 +44,9 @@ where
 
 impl TcpUpgrade {
     /// Utility function to complete the http upgrade protocol by
-    /// (1) Return 101 switching protocol response to client to indicate the switching to TCP
-    /// (2) Spawn a new thread to await on the OnUpgrade object to claim the underlying TCP connection
+    /// (1) Return 101 switching protocol response to client to indicate the
+    /// switching to TCP (2) Spawn a new thread to await on the OnUpgrade
+    /// object to claim the underlying TCP connection
     pub fn on_upgrade<C, Fut>(self, callback: C) -> Response
     where
         C: FnOnce(TokioIo<Upgraded>) -> Fut + Send + 'static,

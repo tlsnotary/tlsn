@@ -39,7 +39,8 @@ pub struct NotarizationRequestQuery {
 pub enum ClientType {
     /// Client that has access to the transport layer
     Tcp,
-    /// Client that cannot directly access transport layer, e.g. browser extension
+    /// Client that cannot directly access transport layer, e.g. browser
+    /// extension
     Websocket,
 }
 

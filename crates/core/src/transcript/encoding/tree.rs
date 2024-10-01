@@ -52,7 +52,7 @@ impl EncodingLeaf {
 }
 
 /// A merkle tree of transcript encodings.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct EncodingTree {
     /// Merkle tree of the commitments.
     tree: MerkleTree,

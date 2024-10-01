@@ -13,8 +13,8 @@ pub struct ProverConfig {
     server_name: ServerName,
     /// Protocol configuration to be checked with the verifier.
     protocol_config: ProtocolConfig,
-    /// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
-    /// connection.
+    /// Whether the `deferred decryption` feature is toggled on from the start
+    /// of the MPC-TLS connection.
     ///
     /// See `defer_decryption_from_start` in [tls_mpc::MpcTlsLeaderConfig].
     #[builder(default = "true")]
@@ -45,8 +45,8 @@ impl ProverConfig {
         &self.protocol_config
     }
 
-    /// Returns whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
-    /// connection.
+    /// Returns whether the `deferred decryption` feature is toggled on from the
+    /// start of the MPC-TLS connection.
     pub fn defer_decryption_from_start(&self) -> bool {
         self.defer_decryption_from_start
     }

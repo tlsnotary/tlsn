@@ -1,12 +1,14 @@
-//! This crate provides implementations of 2PC AEADs for authenticated encryption with
-//! a shared key.
+//! This crate provides implementations of 2PC AEADs for authenticated
+//! encryption with a shared key.
 //!
-//! Both parties can work together to encrypt and decrypt messages with different visibility
-//! configurations. See [`Aead`] for more information on the interface.
+//! Both parties can work together to encrypt and decrypt messages with
+//! different visibility configurations. See [`Aead`] for more information on
+//! the interface.
 //!
-//! For example, one party can privately provide the plaintext to encrypt, while both parties
-//! can see the ciphertext and the tag. Or, both parties can cooperate to decrypt a ciphertext
-//! and verify the tag, while only one party can see the plaintext.
+//! For example, one party can privately provide the plaintext to encrypt, while
+//! both parties can see the ciphertext and the tag. Or, both parties can
+//! cooperate to decrypt a ciphertext and verify the tag, while only one party
+//! can see the plaintext.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -37,14 +39,15 @@ pub trait Aead: Send {
     /// The AEAD assigns unique identifiers to each byte of plaintext
     /// during encryption and decryption.
     ///
-    /// For example, if the transcript id is set to `foo`, then the first byte will
-    /// be assigned the id `foo/0`, the second byte `foo/1`, and so on.
+    /// For example, if the transcript id is set to `foo`, then the first byte
+    /// will be assigned the id `foo/0`, the second byte `foo/1`, and so on.
     ///
     /// Each transcript id has an independent counter.
     ///
     /// # Note
     ///
-    /// The state of a transcript counter is preserved between calls to `set_transcript_id`.
+    /// The state of a transcript counter is preserved between calls to
+    /// `set_transcript_id`.
     fn set_transcript_id(&mut self, id: &str);
 
     /// Performs any necessary one-time setup for the AEAD.
@@ -74,7 +77,8 @@ pub trait Aead: Send {
         aad: Vec<u8>,
     ) -> Result<Vec<u8>, Self::Error>;
 
-    /// Encrypts a plaintext message, hiding it from the other party, returning the ciphertext and tag.
+    /// Encrypts a plaintext message, hiding it from the other party, returning
+    /// the ciphertext and tag.
     ///
     /// # Arguments
     ///
@@ -105,7 +109,8 @@ pub trait Aead: Send {
 
     /// Decrypts a ciphertext message, returning the plaintext to both parties.
     ///
-    /// This method checks the authenticity of the ciphertext, tag and additional data.
+    /// This method checks the authenticity of the ciphertext, tag and
+    /// additional data.
     ///
     /// # Arguments
     ///
@@ -119,9 +124,11 @@ pub trait Aead: Send {
         aad: Vec<u8>,
     ) -> Result<Vec<u8>, Self::Error>;
 
-    /// Decrypts a ciphertext message, returning the plaintext only to this party.
+    /// Decrypts a ciphertext message, returning the plaintext only to this
+    /// party.
     ///
-    /// This method checks the authenticity of the ciphertext, tag and additional data.
+    /// This method checks the authenticity of the ciphertext, tag and
+    /// additional data.
     ///
     /// # Arguments
     ///
@@ -135,9 +142,11 @@ pub trait Aead: Send {
         aad: Vec<u8>,
     ) -> Result<Vec<u8>, Self::Error>;
 
-    /// Decrypts a ciphertext message, returning the plaintext only to the other party.
+    /// Decrypts a ciphertext message, returning the plaintext only to the other
+    /// party.
     ///
-    /// This method checks the authenticity of the ciphertext, tag and additional data.
+    /// This method checks the authenticity of the ciphertext, tag and
+    /// additional data.
     ///
     /// # Arguments
     ///
@@ -153,7 +162,8 @@ pub trait Aead: Send {
 
     /// Verifies the tag of a ciphertext message.
     ///
-    /// This method checks the authenticity of the ciphertext, tag and additional data.
+    /// This method checks the authenticity of the ciphertext, tag and
+    /// additional data.
     ///
     /// # Arguments
     ///
@@ -167,13 +177,13 @@ pub trait Aead: Send {
         aad: Vec<u8>,
     ) -> Result<(), Self::Error>;
 
-    /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
-    /// plaintext is correct.
+    /// Locally decrypts the provided ciphertext and then proves in ZK to the
+    /// other party(s) that the plaintext is correct.
     ///
     /// Returns the plaintext.
     ///
-    /// This method requires this party to know the encryption key, which can be achieved by calling
-    /// the `decode_key_private` method.
+    /// This method requires this party to know the encryption key, which can be
+    /// achieved by calling the `decode_key_private` method.
     ///
     /// # Arguments
     ///
@@ -187,17 +197,18 @@ pub trait Aead: Send {
         aad: Vec<u8>,
     ) -> Result<Vec<u8>, Self::Error>;
 
-    /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
-    /// plaintext is correct.
+    /// Locally decrypts the provided ciphertext and then proves in ZK to the
+    /// other party(s) that the plaintext is correct.
     ///
     /// Returns the plaintext.
     ///
-    /// This method requires this party to know the encryption key, which can be achieved by calling
-    /// the `decode_key_private` method.
+    /// This method requires this party to know the encryption key, which can be
+    /// achieved by calling the `decode_key_private` method.
     ///
     /// # WARNING
     ///
-    /// This method does not verify the tag of the ciphertext. Only use this if you know what you're doing.
+    /// This method does not verify the tag of the ciphertext. Only use this if
+    /// you know what you're doing.
     ///
     /// # Arguments
     ///
@@ -209,7 +220,8 @@ pub trait Aead: Send {
         ciphertext: Vec<u8>,
     ) -> Result<Vec<u8>, Self::Error>;
 
-    /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
+    /// Verifies the other party(s) can prove they know a plaintext which
+    /// encrypts to the given ciphertext.
     ///
     /// # Arguments
     ///
@@ -223,11 +235,13 @@ pub trait Aead: Send {
         aad: Vec<u8>,
     ) -> Result<(), Self::Error>;
 
-    /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
+    /// Verifies the other party(s) can prove they know a plaintext which
+    /// encrypts to the given ciphertext.
     ///
     /// # WARNING
     ///
-    /// This method does not verify the tag of the ciphertext. Only use this if you know what you're doing.
+    /// This method does not verify the tag of the ciphertext. Only use this if
+    /// you know what you're doing.
     ///
     /// # Arguments
     ///

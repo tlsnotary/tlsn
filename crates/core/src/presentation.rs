@@ -38,7 +38,7 @@ use crate::{
 ///
 /// See the [module level documentation](crate::presentation) for more
 /// information.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Presentation {
     attestation: AttestationProof,
     identity: Option<ServerIdentityProof>,

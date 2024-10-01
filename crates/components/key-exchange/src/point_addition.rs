@@ -1,6 +1,6 @@
-//! This module implements a secure two-party computation protocol for adding two private EC points
-//! and secret-sharing the resulting x coordinate (the shares are field elements of the field
-//! underlying the elliptic curve).
+//! This module implements a secure two-party computation protocol for adding
+//! two private EC points and secret-sharing the resulting x coordinate (the
+//! shares are field elements of the field underlying the elliptic curve).
 //! This protocol has semi-honest security.
 //!
 //! The protocol is described in <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>

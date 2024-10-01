@@ -17,7 +17,8 @@ use tracing::debug;
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
 
-// Setting of the notary server — make sure these are the same with the config in ../../notary/server
+// Setting of the notary server — make sure these are the same with the config
+// in ../../notary/server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
@@ -69,7 +70,8 @@ async fn main() {
         .build()
         .unwrap();
 
-    // Configure a new prover with the unique session id returned from notary client.
+    // Configure a new prover with the unique session id returned from notary
+    // client.
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_name(SERVER_DOMAIN)
@@ -155,7 +157,8 @@ async fn main() {
         .map(|range| builder.commit_sent(range).unwrap())
         .collect::<Vec<_>>();
 
-    // Commit to the full received transcript in one shot, as we don't need to redact anything
+    // Commit to the full received transcript in one shot, as we don't need to
+    // redact anything
     commitment_ids.push(builder.commit_recv(&(0..recv_len)).unwrap());
 
     // Finalize, returning the notarized session

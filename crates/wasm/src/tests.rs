@@ -11,8 +11,11 @@ use tlsn_verifier::{Verifier, VerifierConfig};
 use wasm_bindgen::prelude::*;
 
 use crate::{
+    build_presentation,
     prover::JsProver,
-    types::{Commit, HttpRequest, Method, Reveal},
+    types::{
+        Attestation, Commit, HttpRequest, Method, NotarizationOutput, Presentation, Reveal, Secrets,
+    },
     verifier::JsVerifier,
 };
 
@@ -122,12 +125,31 @@ pub async fn test_notarize() -> Result<(), JsValue> {
 
     let _ = prover.transcript()?;
 
-    prover
+    let NotarizationOutput {
+        attestation,
+        secrets,
+    } = prover
         .notarize(Commit {
             sent: vec![0..10],
             recv: vec![0..10],
         })
         .await?;
+
+    let attestation = Attestation::deserialize(attestation.serialize())?;
+    let secrets = Secrets::deserialize(secrets.serialize())?;
+
+    let presentation = build_presentation(
+        &attestation,
+        &secrets,
+        Reveal {
+            sent: vec![(0..10)],
+            recv: vec![(0..10)],
+        },
+    )?;
+
+    let presentation = Presentation::deserialize(presentation.serialize())?;
+
+    let _ = presentation.verify()?;
 
     Ok(())
 }

@@ -12,13 +12,16 @@ use crate::{
 ///
 /// ## Custom Algorithms
 ///
-/// This is the primary interface for extending cryptographic functionality. The various
-/// providers can be configured with custom algorithms and implementations.
+/// This is the primary interface for extending cryptographic functionality. The
+/// various providers can be configured with custom algorithms and
+/// implementations.
 ///
-/// Algorithms are uniquely identified using an 8-bit ID, eg. [`HashAlgId`](crate::hash::HashAlgId),
-/// half of which is reserved for the officially supported algorithms. If you think that a new
-/// algorithm should be added to the official set, please open an issue. Beware that other parties
-/// may assign different algorithms to the same ID as you, and we make no effort to mitigate this.
+/// Algorithms are uniquely identified using an 8-bit ID, eg.
+/// [`HashAlgId`](crate::hash::HashAlgId), half of which is reserved for the
+/// officially supported algorithms. If you think that a new algorithm should be
+/// added to the official set, please open an issue. Beware that other parties
+/// may assign different algorithms to the same ID as you, and we make no effort
+/// to mitigate this.
 pub struct CryptoProvider {
     /// Hash provider.
     pub hash: HashProvider,

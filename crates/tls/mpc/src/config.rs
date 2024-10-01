@@ -11,14 +11,14 @@ const DEFAULT_TRANSCRIPT_MAX_SIZE: usize = 1 << 14;
 pub struct TranscriptConfig {
     /// The transcript id.
     id: String,
-    /// The "opaque" transcript id, used for parts of the transcript that are not
-    /// part of the application data.
+    /// The "opaque" transcript id, used for parts of the transcript that are
+    /// not part of the application data.
     opaque_id: String,
-    /// The maximum number of bytes that can be written to the transcript during the **online**
-    /// phase, i.e. while the MPC-TLS connection is active.
+    /// The maximum number of bytes that can be written to the transcript during
+    /// the **online** phase, i.e. while the MPC-TLS connection is active.
     max_online_size: usize,
-    /// The maximum number of bytes that can be written to the transcript during the **offline**
-    /// phase, i.e. after the MPC-TLS connection was closed.
+    /// The maximum number of bytes that can be written to the transcript during
+    /// the **offline** phase, i.e. after the MPC-TLS connection was closed.
     max_offline_size: usize,
 }
 
@@ -64,14 +64,16 @@ impl TranscriptConfig {
         &self.opaque_id
     }
 
-    /// Returns the maximum number of bytes that can be written to the transcript during the **online**
-    /// phase, i.e. while the MPC-TLS connection is active.
+    /// Returns the maximum number of bytes that can be written to the
+    /// transcript during the **online** phase, i.e. while the MPC-TLS
+    /// connection is active.
     pub fn max_online_size(&self) -> usize {
         self.max_online_size
     }
 
-    /// Returns the maximum number of bytes that can be written to the transcript during the **offline**
-    /// phase, i.e. after the MPC-TLS connection was closed.
+    /// Returns the maximum number of bytes that can be written to the
+    /// transcript during the **offline** phase, i.e. after the MPC-TLS
+    /// connection was closed.
     pub fn max_offline_size(&self) -> usize {
         self.max_offline_size
     }
@@ -126,16 +128,17 @@ impl MpcTlsCommonConfig {
 #[derive(Debug, Clone, Builder)]
 pub struct MpcTlsLeaderConfig {
     common: MpcTlsCommonConfig,
-    /// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
-    /// connection.
+    /// Whether the `deferred decryption` feature is toggled on from the start
+    /// of the MPC-TLS connection.
     ///
     /// The received data will be decrypted locally without MPC, thus improving
     /// bandwidth usage and performance.
     ///
-    /// Decryption of the data received while `deferred decryption` is toggled on will be deferred
-    /// until after the MPC-TLS connection is closed.
-    /// If you need to decrypt some subset of data received from the TLS peer while the MPC-TLS
-    /// connection is active, you must toggle `deferred decryption` **off** for that subset of data.
+    /// Decryption of the data received while `deferred decryption` is toggled
+    /// on will be deferred until after the MPC-TLS connection is closed.
+    /// If you need to decrypt some subset of data received from the TLS peer
+    /// while the MPC-TLS connection is active, you must toggle `deferred
+    /// decryption` **off** for that subset of data.
     #[builder(default = "true")]
     defer_decryption_from_start: bool,
 }
@@ -151,8 +154,8 @@ impl MpcTlsLeaderConfig {
         &self.common
     }
 
-    /// Returns whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
-    /// connection.
+    /// Returns whether the `deferred decryption` feature is toggled on from the
+    /// start of the MPC-TLS connection.
     pub fn defer_decryption_from_start(&self) -> bool {
         self.defer_decryption_from_start
     }
