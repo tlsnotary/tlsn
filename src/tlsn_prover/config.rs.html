@@ -116,8 +116,8 @@
     </span>server_name: ServerName,
     <span class="doccomment">/// Protocol configuration to be checked with the verifier.
     </span>protocol_config: ProtocolConfig,
-    <span class="doccomment">/// Whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
-    /// connection.
+    <span class="doccomment">/// Whether the `deferred decryption` feature is toggled on from the start
+    /// of the MPC-TLS connection.
     ///
     /// See `defer_decryption_from_start` in [tls_mpc::MpcTlsLeaderConfig].
     </span><span class="attr">#[builder(default = <span class="string">"true"</span>)]
@@ -148,8 +148,8 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.protocol_config
     }
 
-    <span class="doccomment">/// Returns whether the `deferred decryption` feature is toggled on from the start of the MPC-TLS
-    /// connection.
+    <span class="doccomment">/// Returns whether the `deferred decryption` feature is toggled on from the
+    /// start of the MPC-TLS connection.
     </span><span class="kw">pub fn </span>defer_decryption_from_start(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.defer_decryption_from_start
     }

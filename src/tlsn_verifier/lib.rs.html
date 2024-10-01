@@ -370,6 +370,9 @@
 <a href="#370" id="370">370</a>
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLSNotary verifier library.
 
 </span><span class="attr">#![deny(missing_docs, unreachable_pub, unused_must_use)]
@@ -501,7 +504,8 @@
 
     <span class="doccomment">/// Runs the TLS verifier to completion, notarizing the TLS session.
     ///
-    /// This is a convenience method which runs all the steps needed for notarization.
+    /// This is a convenience method which runs all the steps needed for
+    /// notarization.
     ///
     /// # Arguments
     ///
@@ -524,7 +528,8 @@
 
     <span class="doccomment">/// Runs the TLS verifier to completion, verifying the TLS session.
     ///
-    /// This is a convenience method which runs all the steps needed for verification.
+    /// This is a convenience method which runs all the steps needed for
+    /// verification.
     ///
     /// # Arguments
     ///
@@ -603,8 +608,9 @@
 <span class="kw">impl </span>Verifier&lt;state::Closed&gt; {
     <span class="doccomment">/// Starts notarization of the TLS session.
     ///
-    /// If the verifier is a Notary, this function will transition the verifier to the next state
-    /// where it can sign the prover's commitments to the transcript.
+    /// If the verifier is a Notary, this function will transition the verifier
+    /// to the next state where it can sign the prover's commitments to the
+    /// transcript.
     </span><span class="kw">pub fn </span>start_notarize(<span class="self">self</span>) -&gt; Verifier&lt;Notarize&gt; {
         Verifier {
             config: <span class="self">self</span>.config,
@@ -615,8 +621,8 @@
 
     <span class="doccomment">/// Starts verification of the TLS session.
     ///
-    /// This function transitions the verifier into a state where it can verify content of the
-    /// transcript.
+    /// This function transitions the verifier into a state where it can verify
+    /// content of the transcript.
     </span><span class="kw">pub fn </span>start_verify(<span class="self">self</span>) -&gt; Verifier&lt;Verify&gt; {
         Verifier {
             config: <span class="self">self</span>.config,

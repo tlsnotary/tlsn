@@ -304,6 +304,8 @@
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Merkle tree types.
 
 </span><span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -332,7 +334,8 @@
 <span class="macro">opaque_debug::implement!</span>(MerkleProof);
 
 <span class="kw">impl </span>MerkleProof {
-    <span class="doccomment">/// Checks if indices, hashes and leaves count are valid for the provided root
+    <span class="doccomment">/// Checks if indices, hashes and leaves count are valid for the provided
+    /// root
     ///
     /// # Panics
     ///
@@ -409,7 +412,8 @@
     ///
     /// # Panics
     ///
-    /// - If the provided hasher is not the same as the one used to create the tree.
+    /// - If the provided hasher is not the same as the one used to create the
+    ///   tree.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, hasher: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HashAlgorithm, <span class="kw-2">mut </span>leaves: Vec&lt;Hash&gt;) {
         <span class="macro">assert_eq!</span>(<span class="self">self</span>.alg, hasher.id(), <span class="string">"hash algorithm mismatch"</span>);
 

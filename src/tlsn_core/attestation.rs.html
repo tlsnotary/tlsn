@@ -252,15 +252,19 @@
 <a href="#252" id="252">252</a>
 <a href="#253" id="253">253</a>
 <a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Attestation types.
 //!
-//! An attestation is a cryptographically signed document from a Notary who witnessed a TLS
-//! connection. It contains various fields which can be used to verify statements about the
-//! connection and the associated application data.
+//! An attestation is a cryptographically signed document from a Notary who
+//! witnessed a TLS connection. It contains various fields which can be used to
+//! verify statements about the connection and the associated application data.
 //!
-//! Attestations contain a header and a body. The header is signed by a Notary and it contains
-//! a merkle root of the body fields. This allows a Prover to disclose only necessary fields
-//! to a Verifier depending on the statements being made.
+//! Attestations contain a header and a body. The header is signed by a Notary
+//! and it contains a merkle root of the body fields. This allows a Prover to
+//! disclose only necessary fields to a Verifier depending on the statements
+//! being made.
 
 </span><span class="kw">mod </span>builder;
 <span class="kw">mod </span>config;
@@ -376,10 +380,10 @@
 
 <span class="doccomment">/// Attestation body.
 ///
-/// An attestation contains a set of fields which are cryptographically signed by
-/// a Notary via a [`Header`]. These fields include data which can be
-/// used to verify aspects of a TLS connection, such as the server's identity, and facts
-/// about the transcript.
+/// An attestation contains a set of fields which are cryptographically signed
+/// by a Notary via a [`Header`]. These fields include data which can be
+/// used to verify aspects of a TLS connection, such as the server's identity,
+/// and facts about the transcript.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Body {
     verifying_key: Field&lt;VerifyingKey&gt;,
@@ -412,14 +416,16 @@
 
     <span class="doccomment">/// Returns the fields of the body hashed and sorted by id.
     ///
-    /// Each field is hashed with a domain separator to mitigate type confusion attacks.
+    /// Each field is hashed with a domain separator to mitigate type confusion
+    /// attacks.
     ///
     /// # Note
     ///
     /// The order of fields is not stable across versions.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hash_fields(<span class="kw-2">&amp;</span><span class="self">self</span>, hasher: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HashAlgorithm) -&gt; Vec&lt;(FieldId, Hash)&gt; {
-        <span class="comment">// CRITICAL: ensure all fields are included! If a new field is added to the struct
-        // without including it here it will not be verified to be included in the attestation.
+        <span class="comment">// CRITICAL: ensure all fields are included! If a new field is added to the
+        // struct without including it here it will not be verified to be
+        // included in the attestation.
         </span><span class="kw">let </span><span class="self">Self </span>{
             verifying_key,
             connection_info: conn_info,

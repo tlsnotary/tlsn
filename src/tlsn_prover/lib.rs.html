@@ -420,6 +420,9 @@
 <a href="#420" id="420">420</a>
 <a href="#421" id="421">421</a>
 <a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLSNotary prover library.
 
 </span><span class="attr">#![deny(missing_docs, unreachable_pub, unused_must_use)]
@@ -539,8 +542,8 @@
 <span class="kw">impl </span>Prover&lt;state::Setup&gt; {
     <span class="doccomment">/// Connects to the server using the provided socket.
     ///
-    /// Returns a handle to the TLS connection, a future which returns the prover once the connection is
-    /// closed.
+    /// Returns a handle to the TLS connection, a future which returns the
+    /// prover once the connection is closed.
     ///
     /// # Arguments
     ///
@@ -677,8 +680,9 @@
 
     <span class="doccomment">/// Starts notarization of the TLS session.
     ///
-    /// Used when the TLS verifier is a Notary to transition the prover to the next state
-    /// where it can generate commitments to the transcript prior to finalization.
+    /// Used when the TLS verifier is a Notary to transition the prover to the
+    /// next state where it can generate commitments to the transcript prior
+    /// to finalization.
     </span><span class="kw">pub fn </span>start_notarize(<span class="self">self</span>) -&gt; Prover&lt;Notarize&gt; {
         Prover {
             config: <span class="self">self</span>.config,
@@ -689,8 +693,8 @@
 
     <span class="doccomment">/// Starts proving the TLS session.
     ///
-    /// This function transitions the prover into a state where it can prove content of the
-    /// transcript.
+    /// This function transitions the prover into a state where it can prove
+    /// content of the transcript.
     </span><span class="kw">pub fn </span>start_prove(<span class="self">self</span>) -&gt; Prover&lt;Prove&gt; {
         Prover {
             config: <span class="self">self</span>.config,
@@ -826,15 +830,17 @@
 }
 
 <span class="kw">impl </span>ProverControl {
-    <span class="doccomment">/// Defers decryption of data from the server until the server has closed the connection.
+    <span class="doccomment">/// Defers decryption of data from the server until the server has closed
+    /// the connection.
     ///
-    /// This is a performance optimization which will significantly reduce the amount of upload bandwidth
-    /// used by the prover.
+    /// This is a performance optimization which will significantly reduce the
+    /// amount of upload bandwidth used by the prover.
     ///
     /// # Notes
     ///
-    /// * The prover may need to close the connection to the server in order for it to close the connection
-    ///   on its end. If neither the prover or server close the connection this will cause a deadlock.
+    /// * The prover may need to close the connection to the server in order for
+    ///   it to close the connection on its end. If neither the prover or server
+    ///   close the connection this will cause a deadlock.
     </span><span class="kw">pub async fn </span>defer_decryption(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
         <span class="self">self</span>.mpc_ctrl
             .defer_decryption()

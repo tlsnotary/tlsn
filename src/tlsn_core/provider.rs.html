@@ -62,6 +62,9 @@
 <a href="#62" id="62">62</a>
 <a href="#63" id="63">63</a>
 <a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
     verify::WebPkiVerifier,
@@ -76,13 +79,16 @@
 ///
 /// ## Custom Algorithms
 ///
-/// This is the primary interface for extending cryptographic functionality. The various
-/// providers can be configured with custom algorithms and implementations.
+/// This is the primary interface for extending cryptographic functionality. The
+/// various providers can be configured with custom algorithms and
+/// implementations.
 ///
-/// Algorithms are uniquely identified using an 8-bit ID, eg. [`HashAlgId`](crate::hash::HashAlgId),
-/// half of which is reserved for the officially supported algorithms. If you think that a new
-/// algorithm should be added to the official set, please open an issue. Beware that other parties
-/// may assign different algorithms to the same ID as you, and we make no effort to mitigate this.
+/// Algorithms are uniquely identified using an 8-bit ID, eg.
+/// [`HashAlgId`](crate::hash::HashAlgId), half of which is reserved for the
+/// officially supported algorithms. If you think that a new algorithm should be
+/// added to the official set, please open an issue. Beware that other parties
+/// may assign different algorithms to the same ID as you, and we make no effort
+/// to mitigate this.
 </span><span class="kw">pub struct </span>CryptoProvider {
     <span class="doccomment">/// Hash provider.
     </span><span class="kw">pub </span>hash: HashProvider,

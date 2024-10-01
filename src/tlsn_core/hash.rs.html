@@ -406,6 +406,7 @@
 <a href="#406" id="406">406</a>
 <a href="#407" id="407">407</a>
 <a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Hash types.
 
 </span><span class="kw">use </span>std::{collections::HashMap, fmt::Display};
@@ -455,8 +456,8 @@
         <span class="self">self</span>.algs.insert(id, algorithm);
     }
 
-    <span class="doccomment">/// Returns the hash algorithm with the given identifier, or an error if the hash algorithm
-    /// does not exist.
+    <span class="doccomment">/// Returns the hash algorithm with the given identifier, or an error if the
+    /// hash algorithm does not exist.
     </span><span class="kw">pub fn </span>get(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         id: <span class="kw-2">&amp;</span>HashAlgId,
@@ -701,7 +702,8 @@
     }
 }
 
-<span class="doccomment">/// A type with a domain separator which is used during hashing to mitigate type confusion attacks.
+<span class="doccomment">/// A type with a domain separator which is used during hashing to mitigate type
+/// confusion attacks.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>DomainSeparator {
     <span class="doccomment">/// Returns the domain separator for the type.
     </span><span class="kw">fn </span>domain(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8];

@@ -128,6 +128,7 @@
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
 <a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the verification phase of the verifier.
 //!
 //! The TLS verifier is an application-specific verifier.
@@ -149,7 +150,8 @@
     ///
     /// # Warning
     ///
-    /// The content of the received transcripts can not be considered authentic until after finalization.
+    /// The content of the received transcripts can not be considered authentic
+    /// until after finalization.
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"info"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>receive(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;PartialTranscript, VerifierError&gt; {
         <span class="self">self</span>.state
