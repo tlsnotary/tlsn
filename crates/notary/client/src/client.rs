@@ -204,8 +204,8 @@ impl NotaryClient {
         notarization_request: NotarizationRequest,
     ) -> Result<(S, String), ClientError> {
         let http_scheme = if self.tls { "https" } else { "http" };
-        let path_prefix = if self.path_prefix.is_empty() || self.path_prefix.starts_with('/') {
-            self.path_prefix.clone()
+        let path_prefix = if self.path_prefix.is_empty() {
+            String::new()
         } else {
             format!("/{}", self.path_prefix)
         };
