@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// Proof of the contents of a transcript.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TranscriptProof {
     encoding_proof: Option<EncodingProof>,
     hash_proofs: Vec<PlaintextHashProof>,

@@ -16,7 +16,7 @@ impl MerkleError {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct MerkleProof {
     alg: HashAlgId,
     tree_len: usize,
@@ -74,7 +74,7 @@ impl rs_merkle::Hasher for RsMerkleHasher<'_> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct MerkleTree {
     alg: HashAlgId,
     tree: rs_merkle::MerkleTree<Hash>,
