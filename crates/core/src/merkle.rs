@@ -20,7 +20,6 @@ impl MerkleError {
 pub(crate) struct MerkleProof {
     alg: HashAlgId,
     tree_len: usize,
-    #[serde(flatten)]
     proof: rs_merkle::MerkleProof<Hash>,
 }
 
