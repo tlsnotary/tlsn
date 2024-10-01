@@ -255,16 +255,23 @@
 <a href="#255" id="255">255</a>
 <a href="#256" id="256">256</a>
 <a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Attestation types.
 //!
-//! An attestation is a cryptographically signed document from a Notary who
+//! An attestation is a cryptographically signed document issued by a Notary who
 //! witnessed a TLS connection. It contains various fields which can be used to
 //! verify statements about the connection and the associated application data.
 //!
-//! Attestations contain a header and a body. The header is signed by a Notary
-//! and it contains a merkle root of the body fields. This allows a Prover to
-//! disclose only necessary fields to a Verifier depending on the statements
-//! being made.
+//! Attestations are comprised of two parts: a [`Header`] and a [`Body`].
+//!
+//! The header is the data structure which is signed by a Notary. It
+//! contains a unique identifier, the protocol version, and a Merkle root
+//! of the body fields.
+//!
+//! The body contains the fields of the attestation. These fields include data
+//! which can be used to verify aspects of a TLS connection, such as the
+//! server's identity, and facts about the transcript.
 
 </span><span class="kw">mod </span>builder;
 <span class="kw">mod </span>config;
@@ -287,7 +294,7 @@
 };
 
 <span class="kw">pub use </span>builder::{AttestationBuilder, AttestationBuilderError};
-<span class="kw">pub use </span>config::AttestationConfig;
+<span class="kw">pub use </span>config::{AttestationConfig, AttestationConfigBuilder, AttestationConfigError};
 <span class="kw">pub use </span>proof::{AttestationError, AttestationProof};
 
 <span class="doccomment">/// Current version of attestations.
@@ -363,9 +370,7 @@
 
 <span class="doccomment">/// Attestation header.
 ///
-/// A header is the data structure which is signed by the Notary. It contains
-/// a unique identifier, the protocol version, and a Merkle root of the
-/// attestation fields.
+/// See [module level documentation](crate::attestation) for more information.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Header {
     <span class="doccomment">/// An identifier for the attestation.
@@ -380,10 +385,7 @@
 
 <span class="doccomment">/// Attestation body.
 ///
-/// An attestation contains a set of fields which are cryptographically signed
-/// by a Notary via a [`Header`]. These fields include data which can be
-/// used to verify aspects of a TLS connection, such as the server's identity,
-/// and facts about the transcript.
+/// See [module level documentation](crate::attestation) for more information.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Body {
     verifying_key: Field&lt;VerifyingKey&gt;,
@@ -488,6 +490,8 @@
 }
 
 <span class="doccomment">/// An attestation.
+///
+/// See [module level documentation](crate::attestation) for more information.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Attestation {
     <span class="doccomment">/// The signature of the attestation.

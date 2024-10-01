@@ -571,7 +571,7 @@
 }
 
 <span class="doccomment">/// Verifying key.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>VerifyingKey {
     <span class="doccomment">/// The key algorithm.
     </span><span class="kw">pub </span>alg: KeyAlgId,

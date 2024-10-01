@@ -1,2 +1,121 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="TLSNotary core library."><title>tlsn_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="tlsn_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../tlsn_core/index.html">tlsn_core</a><span class="version">0.1.0-alpha.6</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">tlsn_core</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/tlsn_core/lib.rs.html#1-23">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>TLSNotary core library.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="TLSNotary core library."><title>tlsn_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="tlsn_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../tlsn_core/index.html">tlsn_core</a><span class="version">0.1.0-alpha.6</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">tlsn_core</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/tlsn_core/lib.rs.html#1-192">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>TLSNotary core library.</p>
+<h2 id="introduction"><a class="doc-anchor" href="#introduction">§</a>Introduction</h2>
+<p>This library provides core functionality for the TLSNotary <strong>attestation</strong>
+protocol, including some more general types which are useful outside
+of attestations.</p>
+<p>Once the MPC-TLS protocol has been completed the Prover holds a collection
+of commitments pertaining to the TLS connection. Most importantly, the
+Prover is committed to the <a href="connection/struct.ServerName.html" title="struct tlsn_core::connection::ServerName"><code>ServerName</code></a>,
+and the <a href="transcript/struct.Transcript.html" title="struct tlsn_core::transcript::Transcript"><code>Transcript</code></a> of application data.
+Subsequently, the Prover can request an
+<a href="attestation/struct.Attestation.html" title="struct tlsn_core::attestation::Attestation"><code>Attestation</code></a> from the Notary who will
+include the commitments as well as any additional information which may be
+useful to an attestation Verifier.</p>
+<p>Holding an attestation, the Prover can construct a
+<a href="presentation/struct.Presentation.html" title="struct tlsn_core::presentation::Presentation"><code>Presentation</code></a> which facilitates
+selectively disclosing various aspects of the TLS connection to a Verifier.
+If the Verifier trusts the Notary, or more specifically the verifying key of
+the attestation, then the Verifier can trust the authenticity of the
+information disclosed in the presentation.</p>
+<p><strong>Be sure to check out the various submodules for more information.</strong></p>
+<h2 id="committing-to-the-transcript"><a class="doc-anchor" href="#committing-to-the-transcript">§</a>Committing to the transcript</h2>
+<p>The MPC-TLS protocol produces commitments to the entire transcript of
+application data. However, we may want to disclose only a subset of the data
+in a presentation. Prior to attestation, the Prover has the opportunity to
+slice and dice the commitments into smaller sections which can be
+selectively disclosed. Additionally, the Prover may want to use different
+commitment schemes depending on the context they expect to disclose.</p>
+<p>The primary API for this process is the
+<a href="transcript/struct.TranscriptCommitConfigBuilder.html" title="struct tlsn_core::transcript::TranscriptCommitConfigBuilder"><code>TranscriptCommitConfigBuilder</code></a>
+which is used to build up a configuration.</p>
+<p>Currently, only the
+<a href="transcript/enum.TranscriptCommitmentKind.html#variant.Encoding" title="variant tlsn_core::transcript::TranscriptCommitmentKind::Encoding"><code>Encoding</code></a>
+commitment kind is supported. In the future you will be able to acquire hash
+commitments directly to the transcript data.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>(sent_len, recv_len) = transcript.len();
+
+<span class="comment">// Create a new configuration builder.
+</span><span class="kw">let </span><span class="kw-2">mut </span>builder = TranscriptCommitConfigBuilder::new(<span class="kw-2">&amp;</span>transcript);
+
+<span class="comment">// Specify all the transcript commitments we want to make.
+</span>builder
+    <span class="comment">// Use BLAKE3 for encoding commitments.
+    </span>.encoding_hash_alg(HashAlgId::BLAKE3)
+    <span class="comment">// Commit to all sent data.
+    </span>.commit_sent(<span class="kw-2">&amp;</span>(<span class="number">0</span>..sent_len))<span class="question-mark">?
+    </span><span class="comment">// Commit to the first 10 bytes of sent data.
+    </span>.commit_sent(<span class="kw-2">&amp;</span>(<span class="number">0</span>..<span class="number">10</span>))<span class="question-mark">?
+    </span><span class="comment">// Skip some bytes so it can be omitted in the presentation.
+    </span>.commit_sent(<span class="kw-2">&amp;</span>(<span class="number">20</span>..sent_len))<span class="question-mark">?
+    </span><span class="comment">// Commit to all received data.
+    </span>.commit_recv(<span class="kw-2">&amp;</span>(<span class="number">0</span>..recv_len))<span class="question-mark">?</span>;
+
+<span class="kw">let </span>config = builder.build()<span class="question-mark">?</span>;</code></pre></div>
+<h2 id="requesting-an-attestation"><a class="doc-anchor" href="#requesting-an-attestation">§</a>Requesting an attestation</h2>
+<p>The first step in the attestation protocol is for the Prover to make a
+<a href="request/struct.Request.html" title="struct tlsn_core::request::Request"><code>Request</code></a>, which can be configured using the
+associated <a href="request/struct.RequestConfigBuilder.html" title="struct tlsn_core::request::RequestConfigBuilder">builder</a>. With it the
+Prover can configure some of the details of the attestation, such as which
+cryptographic algorithms are used (if the Notary supports them).</p>
+<p>Upon being issued an attestation, the Prover will also hold a corresponding
+<a href="struct.Secrets.html" title="struct tlsn_core::Secrets"><code>Secrets</code></a> which contains all private information. This pair can be stored
+and used later to construct a
+<a href="presentation/struct.Presentation.html" title="struct tlsn_core::presentation::Presentation"><code>Presentation</code></a>, <a href="#constructing-a-presentation">see
+below</a>.</p>
+<h2 id="issuing-an-attestation"><a class="doc-anchor" href="#issuing-an-attestation">§</a>Issuing an attestation</h2>
+<p>Upon receiving a request, the Notary can issue an
+<a href="attestation/struct.Attestation.html" title="struct tlsn_core::attestation::Attestation"><code>Attestation</code></a> which can be configured
+using the associated
+<a href="attestation/struct.AttestationConfigBuilder.html" title="struct tlsn_core::attestation::AttestationConfigBuilder">builder</a>.</p>
+<p>The Notary’s <a href="struct.CryptoProvider.html" title="struct tlsn_core::CryptoProvider"><code>CryptoProvider</code></a> must be configured with an appropriate
+signing key for attestations. See
+<a href="signing/struct.SignerProvider.html" title="struct tlsn_core::signing::SignerProvider"><code>SignerProvider</code></a> for more information.</p>
+<h2 id="constructing-a-presentation"><a class="doc-anchor" href="#constructing-a-presentation">§</a>Constructing a presentation</h2>
+<p>A Prover can use an <a href="attestation/struct.Attestation.html" title="struct tlsn_core::attestation::Attestation"><code>Attestation</code></a> and the
+corresponding <a href="struct.Secrets.html" title="struct tlsn_core::Secrets"><code>Secrets</code></a> to construct a verifiable
+<a href="presentation/struct.Presentation.html" title="struct tlsn_core::presentation::Presentation"><code>Presentation</code></a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>(_sent_len, recv_len) = secrets.transcript().len();
+
+<span class="comment">// First, we decide which application data we would like to disclose.
+</span><span class="kw">let </span><span class="kw-2">mut </span>builder = secrets.transcript_proof_builder();
+
+builder
+    <span class="comment">// Use transcript encoding commitments.
+    </span>.default_kind(TranscriptCommitmentKind::Encoding)
+    <span class="comment">// Disclose the first 10 bytes of the sent data.
+    </span>.reveal(<span class="kw-2">&amp;</span>(<span class="number">0</span>..<span class="number">10</span>), Direction::Sent)<span class="question-mark">?
+    </span><span class="comment">// Disclose all of the received data.
+    </span>.reveal(<span class="kw-2">&amp;</span>(<span class="number">0</span>..recv_len), Direction::Received)<span class="question-mark">?</span>;
+
+<span class="kw">let </span>transcript_proof = builder.build()<span class="question-mark">?</span>;
+
+<span class="comment">// Most cases we will also disclose the server identity.
+</span><span class="kw">let </span>identity_proof = secrets.identity_proof();
+
+<span class="comment">// Now we can construct the presentation.
+</span><span class="kw">let </span><span class="kw-2">mut </span>builder = attestation.presentation_builder(<span class="kw-2">&amp;</span>crypto_provider);
+
+builder
+    .identity_proof(identity_proof)
+    .transcript_proof(transcript_proof);
+
+<span class="comment">// Finally, we build the presentation. Send it to a verifier!
+</span><span class="kw">let </span>presentation: Presentation = builder.build()<span class="question-mark">?</span>;</code></pre></div>
+<h2 id="verifying-a-presentation"><a class="doc-anchor" href="#verifying-a-presentation">§</a>Verifying a presentation</h2>
+<p>Verifying a presentation is as simple as checking the verifier trusts the
+verifying key then calling
+<a href="presentation/struct.Presentation.html#method.verify" title="method tlsn_core::presentation::Presentation::verify"><code>Presentation::verify</code></a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Assert that we trust the verifying key.
+</span><span class="macro">assert_eq!</span>(presentation.verifying_key(), <span class="kw-2">&amp;</span>trusted_key);
+
+<span class="kw">let </span>PresentationOutput {
+    attestation,
+    server_name,
+    connection_info,
+    transcript,
+    ..
+} = presentation.verify(<span class="kw-2">&amp;</span>crypto_provider)<span class="question-mark">?</span>;</code></pre></div>
 </div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="attestation/index.html" title="mod tlsn_core::attestation">attestation</a></div><div class="desc docblock-short">Attestation types.</div></li><li><div class="item-name"><a class="mod" href="connection/index.html" title="mod tlsn_core::connection">connection</a></div><div class="desc docblock-short">TLS connection types.</div></li><li><div class="item-name"><a class="mod" href="fixtures/index.html" title="mod tlsn_core::fixtures">fixtures</a></div><div class="desc docblock-short">Fixtures for testing</div></li><li><div class="item-name"><a class="mod" href="hash/index.html" title="mod tlsn_core::hash">hash</a></div><div class="desc docblock-short">Hash types.</div></li><li><div class="item-name"><a class="mod" href="presentation/index.html" title="mod tlsn_core::presentation">presentation</a></div><div class="desc docblock-short">Verifiable presentation.</div></li><li><div class="item-name"><a class="mod" href="request/index.html" title="mod tlsn_core::request">request</a></div><div class="desc docblock-short">Attestation requests.</div></li><li><div class="item-name"><a class="mod" href="signing/index.html" title="mod tlsn_core::signing">signing</a></div><div class="desc docblock-short">Cryptographic signatures.</div></li><li><div class="item-name"><a class="mod" href="transcript/index.html" title="mod tlsn_core::transcript">transcript</a></div><div class="desc docblock-short">Transcript types.</div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.CryptoProvider.html" title="struct tlsn_core::CryptoProvider">CryptoProvider</a></div><div class="desc docblock-short">Cryptography provider.</div></li><li><div class="item-name"><a class="struct" href="struct.Secrets.html" title="struct tlsn_core::Secrets">Secrets</a></div><div class="desc docblock-short">Secret data of an <a href="attestation/struct.Attestation.html" title="struct tlsn_core::attestation::Attestation"><code>Attestation</code></a>.</div></li></ul></section></div></main></body></html>
