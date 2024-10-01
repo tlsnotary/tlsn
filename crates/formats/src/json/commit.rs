@@ -76,8 +76,8 @@ pub trait JsonCommit {
 
     /// Commits to a JSON object.
     ///
-    /// The default implementation commits the object without any of the key-value pairs, then
-    /// commits each key-value pair individually.
+    /// The default implementation commits the object without any of the
+    /// key-value pairs, then commits each key-value pair individually.
     ///
     /// # Arguments
     ///
@@ -103,8 +103,8 @@ pub trait JsonCommit {
 
     /// Commits to a JSON key-value pair.
     ///
-    /// The default implementation commits the pair without the value, and then commits the value
-    /// separately.
+    /// The default implementation commits the pair without the value, and then
+    /// commits the value separately.
     ///
     /// # Arguments
     ///
@@ -131,8 +131,8 @@ pub trait JsonCommit {
 
     /// Commits to a JSON array.
     ///
-    /// The default implementation commits to the entire array, then commits the array
-    /// excluding all values and separators.
+    /// The default implementation commits to the entire array, then commits the
+    /// array excluding all values and separators.
     ///
     /// # Arguments
     ///

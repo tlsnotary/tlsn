@@ -169,7 +169,8 @@ impl<'a> TranscriptProofBuilder<'a> {
         self
     }
 
-    /// Reveals the given ranges in the transcript using the provided kind of commitment.
+    /// Reveals the given ranges in the transcript using the provided kind of
+    /// commitment.
     ///
     /// # Arguments
     ///
@@ -252,7 +253,8 @@ impl<'a> TranscriptProofBuilder<'a> {
         Ok(self)
     }
 
-    /// Reveals the given ranges in the transcript using the default kind of commitment.
+    /// Reveals the given ranges in the transcript using the default kind of
+    /// commitment.
     ///
     /// # Arguments
     ///

@@ -56,7 +56,8 @@ pub struct MpcTlsLeader {
     encrypter: Encrypter,
     decrypter: Decrypter,
 
-    /// When set, notifies the backend that there are TLS messages which need to be decrypted.
+    /// When set, notifies the backend that there are TLS messages which need to
+    /// be decrypted.
     notifier: BackendNotifier,
 
     /// Whether the backend is ready to decrypt messages.
@@ -151,7 +152,8 @@ impl MpcTlsLeader {
 
     /// Runs the leader actor.
     ///
-    /// Returns a control handle and a future that resolves when the actor is stopped.
+    /// Returns a control handle and a future that resolves when the actor is
+    /// stopped.
     ///
     /// # Note
     ///
@@ -322,8 +324,9 @@ impl MpcTlsLeader {
             .await?;
 
         let msg = if self.committed {
-            // At this point the AEAD key was revealed to us. We will locally decrypt the TLS message
-            // and will prove the knowledge of the plaintext to the follower.
+            // At this point the AEAD key was revealed to us. We will locally decrypt the
+            // TLS message and will prove the knowledge of the plaintext to the
+            // follower.
             self.decrypter.prove_plaintext(msg).await?
         } else {
             self.decrypter.decrypt_private(msg).await?
@@ -390,8 +393,8 @@ impl MpcTlsLeader {
 
     /// Commits the leader to the current transcript.
     ///
-    /// This reveals the AEAD key to the leader and disables sending or receiving
-    /// any further messages.
+    /// This reveals the AEAD key to the leader and disables sending or
+    /// receiving any further messages.
     #[instrument(name = "finalize", level = "debug", skip_all, err)]
     #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), MpcTlsError> {

@@ -93,8 +93,8 @@ pub async fn bind_test_server<
         let mut read_buf = vec![0u8; APP_RECORD_LENGTH];
         if conn.read_exact(&mut read_buf).await.is_err() {
             // EOF reached because client closed its tx part of the socket.
-            // The client's rx part of the socket is still open and waiting for a clean server
-            // shutdown.
+            // The client's rx part of the socket is still open and waiting for a clean
+            // server shutdown.
             if must_delay_when_closing {
                 // delay closing the socket
                 tokio::time::sleep(std::time::Duration::from_millis(CLOSE_DELAY)).await;
@@ -179,8 +179,8 @@ pub async fn bind_test_server<
                 break;
             }
             "send_record_with_bad_mac" => {
-                // send a record which a bad MAC which will trigger the `bad_record_mac` alert on
-                // the client side
+                // send a record which a bad MAC which will trigger the `bad_record_mac` alert
+                // on the client side
 
                 let (socket, _tls) = conn.into_inner();
 

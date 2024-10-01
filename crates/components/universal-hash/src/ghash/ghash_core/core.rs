@@ -24,8 +24,8 @@ impl GhashCore {
     ///
     /// # Arguments
     ///
-    /// * `max_block_count` - Determines the maximum number of 128-bit message blocks we want to
-    ///                       authenticate. Panics if `max_block_count` is 0.
+    /// * `max_block_count` - Determines the maximum number of 128-bit message
+    ///   blocks we want to authenticate. Panics if `max_block_count` is 0.
     pub(crate) fn new(max_block_count: usize) -> Self {
         assert!(max_block_count > 0);
 
@@ -35,10 +35,11 @@ impl GhashCore {
         }
     }
 
-    /// Transforms `self` into a `GhashCore<Intermediate>`, holding multiplicative shares of
-    /// powers of `H`.
+    /// Transforms `self` into a `GhashCore<Intermediate>`, holding
+    /// multiplicative shares of powers of `H`.
     ///
-    /// Converts `H` into `H`, `H^3`, `H^5`, ... depending on `self.max_block_count`.
+    /// Converts `H` into `H`, `H^3`, `H^5`, ... depending on
+    /// `self.max_block_count`.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn compute_odd_mul_powers(self, mul_share: Gf2_128) -> GhashCore<Intermediate> {
         let mut hashkey_powers = vec![mul_share];
@@ -63,17 +64,17 @@ impl GhashCore<Intermediate> {
     /// exists, are not returned.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn odd_mul_shares(&self) -> Vec<Gf2_128> {
-        // If we already have some cached additive sharings, we do not need to compute new powers.
-        // So we compute an offset to ignore them. We divide by 2 because
-        // `self.state.cached_add_shares` contain even and odd powers, while
-        // `self.state.odd_mul_shares` only have odd powers.
+        // If we already have some cached additive sharings, we do not need to compute
+        // new powers. So we compute an offset to ignore them. We divide by 2
+        // because `self.state.cached_add_shares` contain even and odd powers,
+        // while `self.state.odd_mul_shares` only have odd powers.
         let offset = self.state.cached_add_shares.len() / 2;
 
         self.state.odd_mul_shares[offset..].to_vec()
     }
 
-    /// Adds new additive shares of hashkey powers by also computing the even ones
-    /// and transforms `self` into a `GhashCore<Finalized>`.
+    /// Adds new additive shares of hashkey powers by also computing the even
+    /// ones and transforms `self` into a `GhashCore<Finalized>`.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn add_new_add_shares(
         mut self,
@@ -120,8 +121,9 @@ impl GhashCore<Finalized> {
 
     /// Changes the maximum hashkey power.
     ///
-    /// If we want to create a GHASH output for a new message, which is longer than the old one, we need
-    /// to compute the missing shares of the powers of `H`.
+    /// If we want to create a GHASH output for a new message, which is longer
+    /// than the old one, we need to compute the missing shares of the
+    /// powers of `H`.
     #[instrument(level = "debug", skip(self))]
     pub(crate) fn change_max_hashkey(
         self,

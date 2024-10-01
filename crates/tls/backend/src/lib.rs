@@ -1,5 +1,5 @@
-//! This library provides the [Backend] trait to encapsulate the cryptography backend of the TLS
-//! client.
+//! This library provides the [Backend] trait to encapsulate the cryptography
+//! backend of the TLS client.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -66,8 +66,8 @@ pub enum DecryptMode {
     Application,
 }
 
-/// Core trait which manages crypto operations for the TLS connection such as key exchange, encryption
-/// and decryption.
+/// Core trait which manages crypto operations for the TLS connection such as
+/// key exchange, encryption and decryption.
 #[async_trait]
 pub trait Backend: Send {
     /// Signals selected protocol version to implementor.
@@ -120,8 +120,8 @@ pub trait Backend: Send {
     async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError>;
     /// Returns next incoming message ready for decryption.
     async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError>;
-    /// Returns a notification future which resolves when the backend is ready to process
-    /// the next message.
+    /// Returns a notification future which resolves when the backend is ready
+    /// to process the next message.
     async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
         Ok(BackendNotify::dummy())
     }

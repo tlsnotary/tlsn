@@ -66,8 +66,8 @@ async fn set_up_tls() -> TlsFixture {
     }
 }
 
-// Expect the async tls client wrapped in `hyper::client` to make a successful request and receive
-// the expected response
+// Expect the async tls client wrapped in `hyper::client` to make a successful
+// request and receive the expected response
 #[tokio::test]
 async fn test_hyper_ok() {
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
@@ -120,8 +120,8 @@ async fn test_hyper_ok() {
     assert!(closed_conn.client.received_close_notify());
 }
 
-// Expect a clean TLS connection closure when server responds to the client's close_notify but
-// doesn't close the socket
+// Expect a clean TLS connection closure when server responds to the client's
+// close_notify but doesn't close the socket
 #[rstest]
 #[tokio::test]
 async fn test_ok_server_no_socket_close(set_up_tls: impl Future<Output = TlsFixture>) {
@@ -145,8 +145,8 @@ async fn test_ok_server_no_socket_close(set_up_tls: impl Future<Output = TlsFixt
     assert!(closed_conn.client.received_close_notify());
 }
 
-// Expect a clean TLS connection closure when server responds to the client's close_notify AND
-// also closes the socket
+// Expect a clean TLS connection closure when server responds to the client's
+// close_notify AND also closes the socket
 #[rstest]
 #[tokio::test]
 async fn test_ok_server_socket_close(set_up_tls: impl Future<Output = TlsFixture>) {
@@ -155,7 +155,8 @@ async fn test_ok_server_socket_close(set_up_tls: impl Future<Output = TlsFixture
         closed_tls_task,
     } = set_up_tls.await;
 
-    // instruct the server to send close_notify back to us AND close the socket after 10 ms
+    // instruct the server to send close_notify back to us AND close the socket
+    // after 10 ms
     client_tls_conn
         .write_all(&pad("send_close_notify_and_close_socket".to_string()))
         .await
@@ -170,8 +171,8 @@ async fn test_ok_server_socket_close(set_up_tls: impl Future<Output = TlsFixture
     assert!(closed_conn.client.received_close_notify());
 }
 
-// Expect a clean TLS connection closure when server sends close_notify first but doesn't close
-// the socket
+// Expect a clean TLS connection closure when server sends close_notify first
+// but doesn't close the socket
 #[rstest]
 #[tokio::test]
 async fn test_ok_server_close_notify(set_up_tls: impl Future<Output = TlsFixture>) {
@@ -197,8 +198,8 @@ async fn test_ok_server_close_notify(set_up_tls: impl Future<Output = TlsFixture
     assert!(closed_conn.client.received_close_notify());
 }
 
-// Expect a clean TLS connection closure when server sends close_notify first AND also closes
-// the socket
+// Expect a clean TLS connection closure when server sends close_notify first
+// AND also closes the socket
 #[rstest]
 #[tokio::test]
 async fn test_ok_server_close_notify_and_socket_close(
@@ -259,7 +260,8 @@ async fn test_ok_read_after_close(set_up_tls: impl Future<Output = TlsFixture>) 
     assert_eq!(std::str::from_utf8(&buf[0..n]).unwrap(), "hello");
 }
 
-// Expect there to be no error when server DOES NOT send close_notify but just closes the socket
+// Expect there to be no error when server DOES NOT send close_notify but just
+// closes the socket
 #[rstest]
 #[tokio::test]
 async fn test_ok_server_no_close_notify(set_up_tls: impl Future<Output = TlsFixture>) {
@@ -391,7 +393,8 @@ async fn test_err_alert(set_up_tls: impl Future<Output = TlsFixture>) {
     );
 }
 
-// Expect an error when trying to write data to a connection which server closed abruptly
+// Expect an error when trying to write data to a connection which server closed
+// abruptly
 #[rstest]
 #[tokio::test]
 async fn test_err_write_after_close(set_up_tls: impl Future<Output = TlsFixture>) {
