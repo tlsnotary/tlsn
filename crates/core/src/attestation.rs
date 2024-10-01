@@ -1,13 +1,18 @@
 //! Attestation types.
 //!
-//! An attestation is a cryptographically signed document from a Notary who
+//! An attestation is a cryptographically signed document issued by a Notary who
 //! witnessed a TLS connection. It contains various fields which can be used to
 //! verify statements about the connection and the associated application data.
 //!
-//! Attestations contain a header and a body. The header is signed by a Notary
-//! and it contains a merkle root of the body fields. This allows a Prover to
-//! disclose only necessary fields to a Verifier depending on the statements
-//! being made.
+//! Attestations are comprised of two parts: a [`Header`] and a [`Body`].
+//!
+//! The header is the data structure which is signed by a Notary. It
+//! contains a unique identifier, the protocol version, and a Merkle root
+//! of the body fields.
+//!
+//! The body contains the fields of the attestation. These fields include data
+//! which can be used to verify aspects of a TLS connection, such as the
+//! server's identity, and facts about the transcript.
 
 mod builder;
 mod config;
@@ -30,7 +35,7 @@ use crate::{
 };
 
 pub use builder::{AttestationBuilder, AttestationBuilderError};
-pub use config::AttestationConfig;
+pub use config::{AttestationConfig, AttestationConfigBuilder, AttestationConfigError};
 pub use proof::{AttestationError, AttestationProof};
 
 /// Current version of attestations.
@@ -106,9 +111,7 @@ pub enum FieldKind {
 
 /// Attestation header.
 ///
-/// A header is the data structure which is signed by the Notary. It contains
-/// a unique identifier, the protocol version, and a Merkle root of the
-/// attestation fields.
+/// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Header {
     /// An identifier for the attestation.
@@ -123,10 +126,7 @@ impl_domain_separator!(Header);
 
 /// Attestation body.
 ///
-/// An attestation contains a set of fields which are cryptographically signed
-/// by a Notary via a [`Header`]. These fields include data which can be
-/// used to verify aspects of a TLS connection, such as the server's identity,
-/// and facts about the transcript.
+/// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
     verifying_key: Field<VerifyingKey>,
@@ -231,6 +231,8 @@ impl Body {
 }
 
 /// An attestation.
+///
+/// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attestation {
     /// The signature of the attestation.

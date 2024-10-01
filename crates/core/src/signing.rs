@@ -197,7 +197,7 @@ pub trait SignatureVerifier {
 }
 
 /// Verifying key.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VerifyingKey {
     /// The key algorithm.
     pub alg: KeyAlgId,
