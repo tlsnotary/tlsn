@@ -304,7 +304,6 @@
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Merkle tree types.
 
 </span><span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -327,8 +326,7 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MerkleProof {
     alg: HashAlgId,
     tree_len: usize,
-    <span class="attr">#[serde(flatten)]
-    </span>proof: rs_merkle::MerkleProof&lt;Hash&gt;,
+    proof: rs_merkle::MerkleProof&lt;Hash&gt;,
 }
 
 <span class="macro">opaque_debug::implement!</span>(MerkleProof);
