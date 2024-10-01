@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use serde_aux::field_attributes::{ deserialize_number_from_string, deserialize_bool_from_anything };
 
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -41,6 +42,7 @@ pub struct ServerProperties {
     /// Used for testing purpose
     pub name: String,
     pub host: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     /// Static html response returned from API root endpoint "/". Default html response contains
     /// placeholder strings that will be replaced with actual values in server.rs, e.g. {version}, {public_key}
@@ -51,6 +53,7 @@ pub struct ServerProperties {
 #[serde(rename_all = "kebab-case")]
 pub struct TLSProperties {
     /// Flag to turn on/off TLS between prover and notary (should always be turned on unless TLS is handled by external setup e.g. reverse proxy, cloud)
+    #[serde(deserialize_with = "deserialize_bool_from_anything")]
     pub enabled: bool,
     pub private_key_pem_path: String,
     pub certificate_pem_path: String,

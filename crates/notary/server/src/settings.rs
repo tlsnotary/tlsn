@@ -1,5 +1,5 @@
 use config::{Config, ConfigError, Environment, File};
-use std::env;
+use std::path::Path;
 use crate::{ CliFields, NotaryServerProperties };
 use serde::Deserialize;
 
@@ -11,15 +11,13 @@ pub struct Settings {
 
 impl Settings {
     pub fn new(cli_fields: &CliFields) -> Result<Self, ConfigError> {
-        let mut base_path = env::current_dir().expect("Failed to determine the current directory");
-        base_path.pop();
-        let configuration_path = base_path.join("config").join("config.yaml");
+        let config_path = Path::new(&cli_fields.config_file);
 
         let mut builder = Config::builder()
             // Load base configuration
-            .add_source(File::from(configuration_path))
+            .add_source(File::from(config_path))
             // Add in settings from environment variables (with a prefix of NOTARY_SERVER and '__' as separator)
-            .add_source(Environment::with_prefix("NOTARY_SERVER").separator("__"));
+            .add_source(Environment::with_prefix("NOTARY_SERVER").prefix_separator("_").separator("__"));
 
         // Apply CLI argument overrides
         if let Some(port) = cli_fields.port {
