@@ -16,8 +16,6 @@ default = ["mock"]
 mock = ["mpz-common/test-utils", "dep:mpz-ot"]
 
 [dependencies]
-tlsn-block-cipher = { workspace = true }
-tlsn-stream-cipher = { workspace = true }
 tlsn-universal-hash = { workspace = true }
 
 mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }

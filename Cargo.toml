@@ -7,11 +7,9 @@ members = [
     "crates/benches/library",
     "crates/common",
     "crates/components/aead",
-    "crates/components/block-cipher",
     "crates/components/hmac-sha256",
     "crates/components/hmac-sha256-circuits",
     "crates/components/key-exchange",
-    "crates/components/stream-cipher",
     "crates/components/universal-hash",
     "crates/core",
     "crates/data-fixtures",
@@ -48,7 +46,6 @@ tlsn-aead = { path = "crates/components/aead" }
 tlsn-benches-browser-core = { path = "crates/benches/browser/core" }
 tlsn-benches-browser-native = { path = "crates/benches/browser/native" }
 tlsn-benches-library = { path = "crates/benches/library" }
-tlsn-block-cipher = { path = "crates/components/block-cipher" }
 tlsn-common = { path = "crates/common" }
 tlsn-core = { path = "crates/core" }
 tlsn-data-fixtures = { path = "crates/data-fixtures" }
@@ -59,7 +56,6 @@ tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-prover = { path = "crates/prover" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
-tlsn-stream-cipher = { path = "crates/components/stream-cipher" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
 tlsn-tls-client = { path = "crates/tls/client" }
 tlsn-tls-client-async = { path = "crates/tls/client-async" }
