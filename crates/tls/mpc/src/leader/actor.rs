@@ -46,7 +46,8 @@ impl MpcTlsLeaderCtrl {
 impl MpcTlsLeader {
     /// Runs the leader actor.
     ///
-    /// Returns a control handle and a future that resolves when the actor is stopped.
+    /// Returns a control handle and a future that resolves when the actor is
+    /// stopped.
     ///
     /// # Note
     ///
@@ -436,8 +437,8 @@ impl MpcTlsLeaderCtrl {
 
     /// Commits the leader to the current transcript.
     ///
-    /// This reveals the AEAD key to the leader and disables sending or receiving
-    /// any further messages.
+    /// This reveals the AEAD key to the leader and disables sending or
+    /// receiving any further messages.
     pub async fn commit(&self) -> Result<(), MpcTlsError> {
         self.address.send(Commit).await?
     }
