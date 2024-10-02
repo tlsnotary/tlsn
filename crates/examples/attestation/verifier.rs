@@ -10,8 +10,10 @@ use tlsn_core::{presentation::Presentation, CryptoProvider};
 
 fn main() {
     // Deserialize the proof
-    let json = std::fs::read_to_string("simple_attestation.json").unwrap();
-    let presentation: Presentation = serde_json::from_str(json.as_str()).unwrap();
+    let json = std::fs::read_to_string("simple_attestation.json")
+        .expect("Could not read `simple_attestation.json`");
+    let presentation: Presentation =
+        serde_json::from_str(json.as_str()).expect("Could not parse `simple_attestation.json`");
 
     let provider = CryptoProvider::default();
 

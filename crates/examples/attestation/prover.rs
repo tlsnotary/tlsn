@@ -1,5 +1,5 @@
 // Runs a simple Prover which connects to the Notary and notarizes a
-// request/response from example.com. The Prover then generates a proof and
+// request/response from example.com. The Prover then generates an attestation and
 // writes it to disk.
 
 use http_body_util::Empty;
@@ -107,7 +107,7 @@ async fn main() {
     // Prepare for notarization.
     let prover = prover.start_notarize();
 
-    // Build presentation (with or without redactions)
+    // Build presentation (with or without redaction)
     let redact = false;
     let presentation = build_presentation(redact, prover).await;
 
