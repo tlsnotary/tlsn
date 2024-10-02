@@ -1,4 +1,5 @@
-//! Contains message types for communication between leader and follower and actor messages.
+//! Contains message types for communication between leader and follower and
+//! actor messages.
 
 use serde::{Deserialize, Serialize};
 
