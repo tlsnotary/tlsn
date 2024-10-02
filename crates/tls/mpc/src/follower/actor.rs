@@ -47,7 +47,8 @@ impl ludi::Actor for MpcTlsFollower {
 impl MpcTlsFollower {
     /// Runs the follower actor.
     ///
-    /// Returns a control handle and a future that resolves when the actor is stopped.
+    /// Returns a control handle and a future that resolves when the actor is
+    /// stopped.
     ///
     /// # Note
     ///
