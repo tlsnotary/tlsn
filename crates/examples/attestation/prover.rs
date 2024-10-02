@@ -1,6 +1,6 @@
 // Runs a simple Prover which connects to the Notary and notarizes a
-// request/response from example.com. The Prover then generates an attestation and
-// writes it to disk.
+// request/response from example.com. The Prover then generates an attestation
+// and writes it to disk.
 
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
