@@ -16,6 +16,7 @@ use crate::{TestResult, DEFAULT_SERVER_IP, DEFAULT_WASM_PORT};
 pub async fn run() -> Result<Vec<TestResult>> {
     let config = BrowserConfig::builder()
         .request_timeout(Duration::from_secs(60))
+        .incognito()
         .build()
         .map_err(|s| anyhow!(s))?;
 

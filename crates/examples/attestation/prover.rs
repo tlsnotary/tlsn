@@ -5,14 +5,19 @@
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
-use std::ops::Range;
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::proof::TlsProof;
+use tlsn_core::{
+    presentation::Presentation,
+    request::RequestConfig,
+    transcript::{Direction, TranscriptCommitConfig},
+    CryptoProvider,
+};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 use tlsn_examples::run_notary;
 use tlsn_prover::{state::Notarize, Prover, ProverConfig};
+use utils::range::RangeSet;
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "example.com";
@@ -31,7 +36,6 @@ async fn main() {
 
     // Prover configuration.
     let config = ProverConfig::builder()
-        .id("example")
         .server_name(SERVER_DOMAIN)
         .protocol_config(
             ProtocolConfig::builder()
@@ -103,28 +107,30 @@ async fn main() {
     // Prepare for notarization.
     let prover = prover.start_notarize();
 
-    // Build proof (with or without redactions)
+    // Build presentation (with or without redactions)
     let redact = false;
-    let proof = if !redact {
-        build_proof_without_redactions(prover).await
-    } else {
-        build_proof_with_redactions(prover).await
-    };
+    let presentation = build_presentation(redact, prover).await;
 
-    // Write the proof to a file
-    let mut file = tokio::fs::File::create("simple_proof.json").await.unwrap();
-    file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
+    // Write the presentation to a file
+    let mut file = tokio::fs::File::create("simple_attestation.json")
         .await
         .unwrap();
+    file.write_all(
+        serde_json::to_string_pretty(&presentation)
+            .unwrap()
+            .as_bytes(),
+    )
+    .await
+    .unwrap();
 
     println!("Notarization completed successfully!");
-    println!("The proof has been written to `simple_proof.json`");
+    println!("The attestation has been written to `simple_attestation.json`");
 }
 
 /// Find the ranges of the public and private parts of a sequence.
 ///
 /// Returns a tuple of `(public, private)` ranges.
-fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
+fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (RangeSet<usize>, RangeSet<usize>) {
     let mut private_ranges = Vec::new();
     for s in private_seq {
         for (idx, w) in seq.windows(s.len()).enumerate() {
@@ -150,87 +156,75 @@ fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Ran
         public_ranges.push(last_end..seq.len());
     }
 
-    (public_ranges, private_ranges)
+    (
+        RangeSet::from(public_ranges),
+        RangeSet::from(private_ranges),
+    )
 }
 
-async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProof {
-    let sent_len = prover.sent_transcript().data().len();
-    let recv_len = prover.recv_transcript().data().len();
+async fn build_presentation(redact: bool, mut prover: Prover<Notarize>) -> Presentation {
+    let sent_transcript = prover.transcript().sent();
+    let recv_transcript = prover.transcript().received();
 
-    let builder = prover.commitment_builder();
-    let sent_commitment = builder.commit_sent(&(0..sent_len)).unwrap();
-    let recv_commitment = builder.commit_recv(&(0..recv_len)).unwrap();
+    let (sent_public_ranges, recv_public_ranges) = if !redact {
+        (
+            // Commit to everything
+            RangeSet::from(0..sent_transcript.len()),
+            RangeSet::from(0..recv_transcript.len()),
+        )
+    } else {
+        (
+            // Identify the ranges in the outbound data which contain data which we want to
+            // disclose
+            find_ranges(
+                sent_transcript,
+                &[
+                    // Redact the value of the "User-Agent" header. It will NOT be disclosed.
+                    USER_AGENT.as_bytes(),
+                ],
+            )
+            .0,
+            // Identify the ranges in the inbound data which contain data which we want to disclose
+            find_ranges(
+                recv_transcript,
+                &[
+                    // Redact the value of the title. It will NOT be disclosed.
+                    "Example Domain".as_bytes(),
+                ],
+            )
+            .0,
+        )
+    };
 
-    // Finalize, returning the attestation and secrets.
-    let (attestation, secrets) = prover.finalize().await.unwrap();
+    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
+    let _ = builder.commit_sent(&sent_public_ranges).unwrap();
+    let _ = builder.commit_recv(&recv_public_ranges).unwrap();
 
-    // Create a proof for all committed data in this session
-    let mut proof_builder = notarized_session.data().build_substrings_proof();
+    let config = builder.build().unwrap();
 
-    // Reveal all the public ranges
-    proof_builder.reveal_by_id(sent_commitment).unwrap();
-    proof_builder.reveal_by_id(recv_commitment).unwrap();
-
-    let substrings_proof = proof_builder.build().unwrap();
-
-    TlsProof {
-        session: notarized_session.session_proof(),
-        substrings: substrings_proof,
-    }
-}
-
-async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
-    // Identify the ranges in the outbound data which contain data which we want to
-    // disclose
-    let (sent_public_ranges, _) = find_ranges(
-        prover.sent_transcript().data(),
-        &[
-            // Redact the value of the "User-Agent" header. It will NOT be disclosed.
-            USER_AGENT.as_bytes(),
-        ],
-    );
-
-    // Identify the ranges in the inbound data which contain data which we want to
-    // disclose
-    let (recv_public_ranges, _) = find_ranges(
-        prover.recv_transcript().data(),
-        &[
-            // Redact the value of the title. It will NOT be disclosed.
-            "Example Domain".as_bytes(),
-        ],
-    );
-
-    let builder = prover.commitment_builder();
-
-    // Commit to each range of the public outbound data which we want to disclose
-    let sent_commitments: Vec<_> = sent_public_ranges
-        .iter()
-        .map(|range| builder.commit_sent(range).unwrap())
-        .collect();
-    // Commit to each range of the public inbound data which we want to disclose
-    let recv_commitments: Vec<_> = recv_public_ranges
-        .iter()
-        .map(|range| builder.commit_recv(range).unwrap())
-        .collect();
+    prover.transcript_commit(config);
 
     // Finalize, returning the notarized session
-    let notarized_session = prover.finalize().await.unwrap();
+    let request_config = RequestConfig::default();
+    let (attestation, secrets) = prover.finalize(&request_config).await.unwrap();
+
+    println!("notarization complete");
 
     // Create a proof for all committed data in this session
-    let mut proof_builder = notarized_session.data().build_substrings_proof();
+    let provider = CryptoProvider::default();
+    let mut builder = attestation.presentation_builder(&provider);
+
+    attestation.presentation_builder(&provider);
+
+    builder.identity_proof(secrets.identity_proof());
+
+    let mut transcript_proof_builder = secrets.transcript_proof_builder();
 
     // Reveal all the public ranges
-    for commitment_id in sent_commitments {
-        proof_builder.reveal_by_id(commitment_id).unwrap();
-    }
-    for commitment_id in recv_commitments {
-        proof_builder.reveal_by_id(commitment_id).unwrap();
-    }
+    let _ = transcript_proof_builder.reveal(&sent_public_ranges, Direction::Sent);
+    let _ = transcript_proof_builder.reveal(&recv_public_ranges, Direction::Received);
 
-    let substrings_proof = proof_builder.build().unwrap();
+    builder.transcript_proof(transcript_proof_builder.build().unwrap());
 
-    TlsProof {
-        session: notarized_session.session_proof(),
-        substrings: substrings_proof,
-    }
+    builder.build().map(Presentation::from).unwrap()
 }
