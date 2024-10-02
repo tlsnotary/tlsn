@@ -18,12 +18,11 @@ mock = ["mpz-common/test-utils", "dep:mpz-ot"]
 [dependencies]
 tlsn-universal-hash = { workspace = true }
 
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", optional = true, features = [
-    "ideal",
-] }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble", optional = true, features = ["ideal"] }
 
 serio = { workspace = true }
 
