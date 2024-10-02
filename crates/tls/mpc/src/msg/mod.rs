@@ -1,6 +1,5 @@
 //! Contains message types for communication between leader and follower and actor messages.
 
-use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 pub mod mpc_tls_follower_msg;
@@ -28,7 +27,6 @@ pub enum MpcTlsMessage {
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComputeKeyExchange {
-    pub handshake_commitment: Option<Hash>,
     pub server_random: [u8; 32],
 }
 
