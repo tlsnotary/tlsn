@@ -15,7 +15,6 @@ use hmac_sha256::Prf;
 use ke::KeyExchange;
 use key_exchange as ke;
 use ludi::Context;
-use mpz_core::commit::{Decommitment, HashCommit};
 use std::collections::VecDeque;
 use tls_backend::{
     Backend, BackendError, BackendNotifier, BackendNotify, DecryptMode, EncryptMode,
