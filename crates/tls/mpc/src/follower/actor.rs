@@ -31,16 +31,12 @@ impl ludi::Actor for MpcTlsFollower {
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
         debug!("follower actor stopped");
 
-        let Closed {
-            handshake_commitment,
-            server_key,
-        } = self.state.take().try_into_closed()?;
+        let Closed { server_key } = self.state.take().try_into_closed()?;
 
         let bytes_sent = self.encrypter.sent_bytes();
         let bytes_recv = self.decrypter.recv_bytes();
 
         Ok(MpcTlsFollowerData {
-            handshake_commitment,
             server_key,
             bytes_sent,
             bytes_recv,
@@ -116,13 +112,10 @@ impl Handler<ComputeKeyExchange> for MpcTlsFollower {
         msg: ComputeKeyExchange,
         ctx: &mut ludi::Context<Self>,
     ) -> impl std::future::Future<Output = <ComputeKeyExchange as Message>::Return> + Send {
-        let ComputeKeyExchange {
-            handshake_commitment,
-            server_random,
-        } = msg;
+        let ComputeKeyExchange { server_random } = msg;
 
         async move {
-            ctx.try_or_stop(|_| self.compute_key_exchange(handshake_commitment, server_random))
+            ctx.try_or_stop(|_| self.compute_key_exchange(server_random))
                 .await
         }
     }

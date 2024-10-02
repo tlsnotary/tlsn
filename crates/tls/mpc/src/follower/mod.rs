@@ -12,7 +12,6 @@ use futures::{
 use hmac_sha256::Prf;
 use ke::KeyExchange;
 use key_exchange as ke;
-use mpz_core::hash::Hash;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use std::{collections::VecDeque, mem};
 use tls_core::{
@@ -451,8 +450,6 @@ impl MpcTlsFollower {
 /// Data collected by the MPC-TLS follower.
 #[derive(Debug)]
 pub struct MpcTlsFollowerData {
-    /// The prover's commitment to the handshake data
-    pub handshake_commitment: Option<Hash>,
     /// The server's public key
     pub server_key: PublicKey,
     /// The total number of bytes sent
