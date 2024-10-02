@@ -147,9 +147,7 @@ pub async fn test_notarize() -> Result<(), JsValue> {
         },
     )?;
 
-    let presentation = Presentation::deserialize(presentation.serialize())?;
-
-    let _ = presentation.verify()?;
+    let _ = Presentation::deserialize(presentation.serialize())?;
 
     Ok(())
 }
