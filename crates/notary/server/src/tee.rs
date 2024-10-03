@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 
 use crate::signing::AttestationKey;
-use p256::{ecdsa::SigningKey, PublicKey};
+use p256::{ecdsa::SigningKey, PublicKey, elliptic_curve::sec1::ToEncodedPoint};
 use pkcs8::{DecodePrivateKey, EncodePrivateKey, LineEnding};
 use rand_chacha::{
     rand_core::{OsRng, SeedableRng},
@@ -16,7 +16,6 @@ use std::{
     path::Path,
 };
 use tracing::{debug, error, instrument};
-use k256::elliptic_curve::sec1::ToEncodedPoint;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
