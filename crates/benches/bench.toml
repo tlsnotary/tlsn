@@ -18,7 +18,7 @@ download-delay = 25
 upload-size = 1024
 download-size = 4096
 defer-decryption = true
-memory-profile = true
+memory-profile = false
 
 [[benches]]
 name = "upload_bandwidth"
@@ -40,4 +40,4 @@ download-delay = 25
 upload-size = 1024
 download-size = [1024, 4096, 16384, 65536]
 defer-decryption = true
-memory-profile = false
+memory-profile = true
