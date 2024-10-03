@@ -15,10 +15,7 @@ use std::{string::String, time::Duration};
 use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{
-    request::RequestConfig, signing::SignatureAlgId, transcript::TranscriptCommitConfig,
-    CryptoProvider,
-};
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_prover::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -260,11 +257,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     prover.transcript_commit(commit_config);
 
-    let mut request_builder = RequestConfig::builder();
-
-    request_builder.signature_alg(SignatureAlgId::SECP256R1);
-
-    let request = request_builder.build().unwrap();
+    let request = RequestConfig::builder().build().unwrap();
 
     _ = prover.finalize(&request).await.unwrap();
 
@@ -453,11 +446,7 @@ async fn test_websocket_prover() {
 
     prover.transcript_commit(commit_config);
 
-    let mut request_builder = RequestConfig::builder();
-
-    request_builder.signature_alg(SignatureAlgId::SECP256R1);
-
-    let request = request_builder.build().unwrap();
+    let request = RequestConfig::builder().build().unwrap();
 
     _ = prover.finalize(&request).await.unwrap();
 

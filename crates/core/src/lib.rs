@@ -45,7 +45,7 @@
 //! ```no_run
 //! # use tlsn_core::transcript::{TranscriptCommitConfigBuilder, Transcript, Direction};
 //! # use tlsn_core::hash::HashAlgId;
-//! # fn main() -> Result<(), Box<dyn std::error::Error> {
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let transcript: Transcript = unimplemented!();
 //! let (sent_len, recv_len) = transcript.len();
 //!
