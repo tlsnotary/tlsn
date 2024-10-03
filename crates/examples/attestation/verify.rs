@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "Verifying presentation with {alg} key: {}\n\n**Ask yourself, do you trust this key?**\n",
-        hex::encode(&key_data)
+        hex::encode(key_data)
     );
 
     // Verify the presentation.
