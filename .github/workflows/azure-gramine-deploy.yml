@@ -22,7 +22,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          DOMAIN=notary.proof.codes
+          DOMAIN=notary.covert.codes
           CADDYFILE_PATH='cd-scripts/tee/azure/Caddyfile'
           PORT_FILE='cd-scripts/tee/azure/tags.txt'
           START_PORT=6061
