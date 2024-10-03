@@ -1,6 +1,7 @@
 //! Transcript encoding commitments and proofs.
 //!
-//! This is an internal module that is not intended to be used directly by users.
+//! This is an internal module that is not intended to be used directly by
+//! users.
 
 mod encoder;
 mod proof;
@@ -16,11 +17,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::hash::{impl_domain_separator, TypedHash};
 
-/// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.
-/// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of plaintext encodings if the
-/// commitment type is [crate::commitment::Blake3]).
+/// The maximum allowed total bytelength of all committed data. Used to prevent
+/// DoS during verification. (this will cause the verifier to hash up to a max
+/// of 1GB * 128 = 128GB of plaintext encodings if the commitment type is
+/// [crate::commitment::Blake3]).
 ///
-/// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 << 31) - 1 by default)
+/// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 <<
+/// 31) - 1 by default)
 const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
 
 /// Transcript encoding commitment.

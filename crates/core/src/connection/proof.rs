@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// TLS server identity proof.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerIdentityProof {
     name: ServerName,
     opening: ServerCertOpening,

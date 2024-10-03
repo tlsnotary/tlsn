@@ -1,9 +1,10 @@
 //! # The Key Exchange Protocol
 //!
-//! This crate implements a key exchange protocol with 3 parties, namely server, leader and
-//! follower. The goal is to end up with a shared secret (ECDH) between the server and the client.
-//! The client in this context is leader and follower combined, which means that each of them will
-//! end up with a share of the shared secret. The leader will do all the necessary communication
+//! This crate implements a key exchange protocol with 3 parties, namely server,
+//! leader and follower. The goal is to end up with a shared secret (ECDH)
+//! between the server and the client. The client in this context is leader and
+//! follower combined, which means that each of them will end up with a share of
+//! the shared secret. The leader will do all the necessary communication
 //! with the server alone and forward all messages from and to the follower.
 //!
 //! A detailed description of this protocol can be found in our documentation
@@ -58,8 +59,9 @@ pub trait KeyExchange {
 
     /// Computes the client's public key.
     ///
-    /// The client's public key in this context is the combined public key (EC point addition) of
-    /// the leader's public key and the follower's public key.
+    /// The client's public key in this context is the combined public key (EC
+    /// point addition) of the leader's public key and the follower's public
+    /// key.
     async fn client_key(&mut self) -> Result<PublicKey, KeyExchangeError>;
 
     /// Performs any necessary one-time setup, returning a reference to the PMS.

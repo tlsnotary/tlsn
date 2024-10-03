@@ -1,5 +1,5 @@
-//! This module provides mock types for key exchange leader and follower and a function to create
-//! such a pair.
+//! This module provides mock types for key exchange leader and follower and a
+//! function to create such a pair.
 
 use crate::{KeyExchangeConfig, MpcKeyExchange, Role};
 

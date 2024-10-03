@@ -16,7 +16,7 @@ impl MerkleError {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct MerkleProof {
     alg: HashAlgId,
     tree_len: usize,
@@ -26,7 +26,8 @@ pub(crate) struct MerkleProof {
 opaque_debug::implement!(MerkleProof);
 
 impl MerkleProof {
-    /// Checks if indices, hashes and leaves count are valid for the provided root
+    /// Checks if indices, hashes and leaves count are valid for the provided
+    /// root
     ///
     /// # Panics
     ///
@@ -74,7 +75,7 @@ impl rs_merkle::Hasher for RsMerkleHasher<'_> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct MerkleTree {
     alg: HashAlgId,
     tree: rs_merkle::MerkleTree<Hash>,
@@ -103,7 +104,8 @@ impl MerkleTree {
     ///
     /// # Panics
     ///
-    /// - If the provided hasher is not the same as the one used to create the tree.
+    /// - If the provided hasher is not the same as the one used to create the
+    ///   tree.
     pub(crate) fn insert(&mut self, hasher: &dyn HashAlgorithm, mut leaves: Vec<Hash>) {
         assert_eq!(self.alg, hasher.id(), "hash algorithm mismatch");
 
