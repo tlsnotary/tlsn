@@ -7,18 +7,13 @@ use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use std::{env, str};
-use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{
-    presentation::Presentation,
-    request::RequestConfig,
-    transcript::{Direction, TranscriptCommitConfig},
-    CryptoProvider,
-};
-use tlsn_prover::{Prover, ProverConfig};
-use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 use utils::range::RangeSet;
+
+use tlsn_common::config::ProtocolConfig;
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig};
+use tlsn_prover::{Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
@@ -157,8 +152,8 @@ async fn main() {
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
     // Commit to public ranges
-    let _sent_commitments = builder.commit_sent(&sent_public_ranges).unwrap();
-    let _recv_commitments = builder.commit_recv(&recv_public_ranges).unwrap();
+    builder.commit_sent(&sent_public_ranges).unwrap();
+    builder.commit_recv(&recv_public_ranges).unwrap();
 
     let config = builder.build().unwrap();
 
@@ -170,30 +165,16 @@ async fn main() {
 
     debug!("Notarization complete!");
 
-    // Create a proof for all committed data in this session
-    let provider = CryptoProvider::default();
-    let mut builder = attestation.presentation_builder(&provider);
+    tokio::fs::write(
+        "discord.attestation.tlsn",
+        bincode::serialize(&attestation).unwrap(),
+    )
+    .await
+    .unwrap();
 
-    builder.identity_proof(secrets.identity_proof());
-
-    let mut proof_builder = secrets.transcript_proof_builder();
-
-    // Reveal all the public ranges
-    let _ = proof_builder.reveal(&sent_public_ranges, Direction::Sent);
-    let _ = proof_builder.reveal(&recv_public_ranges, Direction::Received);
-
-    builder.transcript_proof(proof_builder.build().unwrap());
-
-    let presentation = builder.build().map(Presentation::from).unwrap();
-
-    // Dump the presentation into a file.
-    let mut file = tokio::fs::File::create("discord_dm_presentation.json")
-        .await
-        .unwrap();
-    file.write_all(
-        serde_json::to_string_pretty(&presentation)
-            .unwrap()
-            .as_bytes(),
+    tokio::fs::write(
+        "discord.secrets.tlsn",
+        bincode::serialize(&secrets).unwrap(),
     )
     .await
     .unwrap();
