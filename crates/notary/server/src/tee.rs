@@ -16,6 +16,7 @@ use std::{
     path::Path,
 };
 use tracing::{debug, error, instrument};
+use k256::elliptic_curve::sec1::ToEncodedPoint;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -89,7 +90,7 @@ async fn gramine_quote() -> Result<Quote, QuoteError> {
     //// Writing the pubkey to bind the instance to the hw (note: this is not mrsigner)
     fs::write(
         "/dev/attestation/user_report_data",
-        PUBLIC_KEY.get().expect("pub_key_get").to_string(),
+        PUBLIC_KEY.get().expect("pub_key_get").to_encoded_point(true).as_bytes()
     )?;
 
     //// Reading from the gramine quote pseudo-hardware `/dev/attestation/quote`
