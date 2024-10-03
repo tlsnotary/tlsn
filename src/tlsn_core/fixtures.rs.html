@@ -125,6 +125,15 @@
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Fixtures for testing
 
 </span><span class="kw">mod </span>provider;
@@ -210,7 +219,7 @@
                     Certificate(<span class="macro">include_bytes!</span>(<span class="string">"fixtures/data/appliedzkp.org/ca.der"</span>).to_vec()),
                 ],
                 sig: ServerSignature {
-                    scheme: SignatureScheme::RSA_PKCS1_SHA256,
+                    scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
                     sig: Vec::&lt;u8&gt;::from_hex(<span class="macro">include_bytes!</span>(
                         <span class="string">"fixtures/data/appliedzkp.org/signature"
                     </span>))
@@ -235,6 +244,15 @@
                 }),
             },
         }
+    }
+
+    <span class="doccomment">/// Returns the server_ephemeral_key fixture.
+    </span><span class="kw">pub fn </span>server_ephemeral_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ServerEphemKey {
+        <span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 {
+            server_ephemeral_key,
+            ..
+        }) = <span class="kw-2">&amp;</span><span class="self">self</span>.server_cert_data.handshake;
+        server_ephemeral_key
     }
 }
 
