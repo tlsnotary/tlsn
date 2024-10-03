@@ -1,6 +1,6 @@
 # Notarize Discord DMs
 
-The `discord_dm.rs` example sets up a TLS connection with Discord and notarizes the requested DMs. The notarized session and the proof are written to local JSON files (`discord_dm_notarized_session.json` and `discord_dm_proof.json`) for easier inspection.
+The `discord_dm.rs` example sets up a TLS connection with Discord and notarizes the requested DMs. The attestation and secrets are saved to disk.
 
 This involves 3 steps:
 1. Configure the inputs
@@ -84,16 +84,6 @@ If the transcript was too long, you may encounter the following error. This occu
 thread 'tokio-runtime-worker' panicked at 'called `Result::unwrap()` on an `Err` value: IOError(Custom { kind: InvalidData, error: BackendError(DecryptionError("Other: KOSReceiverActor is not setup")) })', /Users/heeckhau/tlsnotary/tlsn/tlsn/tlsn-prover/src/lib.rs:173:50
 ```
 
-# Verifier
+# Verify
 
-The `discord_dm` example also generated a proof of the transcript with the `Authorization` header redacted from the request, saved in `discord_dm_proof.json`.
-
-We can verify this proof using the `discord_dm_verifier` by running:
-
-```
-cargo run --release --example discord_dm_verifier
-```
-
-This will verify the proof and print out the redacted transcript!
-
-> **_NOTE:_** ℹ️ <https://explorer.tlsnotary.org/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof. [Notary public key](../../notary/server/fixture/notary/notary.pub)
+See the [`present`](../attestation/present.rs) and [`verify`](../attestation/verify.rs) examples for a demonstration of how to construct a presentation and verify it.
