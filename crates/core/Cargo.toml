@@ -10,10 +10,10 @@ edition = "2021"
 
 [features]
 default = []
-fixtures = ["dep:hex"]
+fixtures = ["dep:hex", "dep:tlsn-data-fixtures"]
 
 [dependencies]
-tlsn-data-fixtures = { workspace = true }
+tlsn-data-fixtures = { workspace = true, optional = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
 
