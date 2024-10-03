@@ -376,7 +376,7 @@ mod test {
     ) {
         let (request, _) = request_and_connection();
 
-        let attestation_builder = Attestation::builder(&default_attestation_config)
+        let attestation_builder = Attestation::builder(default_attestation_config)
             .accept_request(request.clone())
             .unwrap();
 
@@ -394,7 +394,7 @@ mod test {
     ) {
         let (request, connection) = request_and_connection();
 
-        let mut attestation_builder = Attestation::builder(&default_attestation_config)
+        let mut attestation_builder = Attestation::builder(default_attestation_config)
             .accept_request(request.clone())
             .unwrap();
 
@@ -424,7 +424,7 @@ mod test {
     ) {
         let (request, connection) = request_and_connection();
 
-        let mut attestation_builder = Attestation::builder(&default_attestation_config)
+        let mut attestation_builder = Attestation::builder(default_attestation_config)
             .accept_request(request.clone())
             .unwrap();
 
@@ -447,7 +447,7 @@ mod test {
     ) {
         let (request, connection) = request_and_connection();
 
-        let mut attestation_builder = Attestation::builder(&default_attestation_config)
+        let mut attestation_builder = Attestation::builder(default_attestation_config)
             .accept_request(request.clone())
             .unwrap();
 
