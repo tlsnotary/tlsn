@@ -372,3 +372,78 @@ mod secp256r1 {
 }
 
 pub use secp256r1::{Secp256r1Signer, Secp256r1Verifier};
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rand_core::OsRng;
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    #[once]
+    fn secp256k1_signer() -> Secp256k1Signer {
+        let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        Secp256k1Signer::new(&signing_key.to_bytes()).unwrap()
+    }
+
+    #[fixture]
+    #[once]
+    fn secp256r1_signer() -> Secp256r1Signer {
+        let signing_key = p256::ecdsa::SigningKey::random(&mut OsRng);
+        Secp256r1Signer::new(&signing_key.to_bytes()).unwrap()
+    }
+
+    #[rstest]
+    fn test_secp256k1_success(secp256k1_signer: &Secp256k1Signer) {
+        assert_eq!(secp256k1_signer.alg_id(), SignatureAlgId::SECP256K1);
+
+        let msg = "test payload";
+        let signature = secp256k1_signer.sign(msg.as_bytes()).unwrap();
+        let verifying_key = secp256k1_signer.verifying_key();
+
+        let verifier = Secp256k1Verifier {};
+        assert_eq!(verifier.alg_id(), SignatureAlgId::SECP256K1);
+        let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
+        assert!(result.is_ok());
+    }
+
+    #[rstest]
+    fn test_secp256r1_success(secp256r1_signer: &Secp256r1Signer) {
+        assert_eq!(secp256r1_signer.alg_id(), SignatureAlgId::SECP256R1);
+
+        let msg = "test payload";
+        let signature = secp256r1_signer.sign(msg.as_bytes()).unwrap();
+        let verifying_key = secp256r1_signer.verifying_key();
+
+        let verifier = Secp256r1Verifier {};
+        assert_eq!(verifier.alg_id(), SignatureAlgId::SECP256R1);
+        let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
+        assert!(result.is_ok());
+    }
+
+    #[rstest]
+    #[case::wrong_signer(&secp256r1_signer(), false, false)]
+    #[case::corrupted_signature(&secp256k1_signer(), true, false)]
+    #[case::wrong_signature(&secp256k1_signer(), false, true)]
+    fn test_failure(
+        #[case] signer: &dyn Signer,
+        #[case] corrupted_signature: bool,
+        #[case] wrong_signature: bool,
+    ) {
+        let msg = "test payload";
+        let mut signature = signer.sign(msg.as_bytes()).unwrap();
+        let verifying_key = signer.verifying_key();
+
+        if corrupted_signature {
+            signature.data.push(0);
+        }
+
+        if wrong_signature {
+            signature = signer.sign("different payload".as_bytes()).unwrap();
+        }
+
+        let verifier = Secp256k1Verifier {};
+        let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
+        assert!(result.is_err());
+    }
+}
