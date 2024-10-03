@@ -268,6 +268,32 @@ impl<'a> TranscriptProofBuilder<'a> {
         self.reveal_with_kind(ranges, direction, self.default_kind)
     }
 
+    /// Reveals the given ranges in the sent transcript using the default kind
+    /// of commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - The ranges to reveal.
+    pub fn reveal_sent(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+    ) -> Result<&mut Self, TranscriptProofBuilderError> {
+        self.reveal(ranges, Direction::Sent)
+    }
+
+    /// Reveals the given ranges in the received transcript using the default
+    /// kind of commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - The ranges to reveal.
+    pub fn reveal_recv(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+    ) -> Result<&mut Self, TranscriptProofBuilderError> {
+        self.reveal(ranges, Direction::Received)
+    }
+
     /// Builds the transcript proof.
     pub fn build(self) -> Result<TranscriptProof, TranscriptProofBuilderError> {
         let encoding_proof = if !self.encoding_proof_idxs.is_empty() {
