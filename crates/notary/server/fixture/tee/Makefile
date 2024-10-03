@@ -2,7 +2,7 @@
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
-SELF_EXE = target/release/notary-server
+SELF_EXE = ./notary-server
 
 .PHONY: all
 all: $(SELF_EXE) notary-server.manifest
@@ -22,9 +22,10 @@ endif
 # of the DEBUG setting is to control Gramine's loglevel.
 -include $(SELF_EXE).d # See also: .cargo/config.toml
 $(SELF_EXE): $(ROOT_DIR)../../Cargo.toml
-	cargo build --bin notary-server  --release --features tee_quote && ln -s ../../../../../target target
+	cargo build --bin notary-server  --release --features tee_quote
 
 notary-server.manifest: notary-server.manifest.template
+	cp ../../../../../target/release/notary-server . && \
 	gramine-manifest \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \
