@@ -9,6 +9,8 @@ jobs:
   update-reverse-proxy:
     environment: tee
     runs-on: ubuntu-latest
+    outputs:
+      teeport: ${{ steps.portbump.outputs.newport}}
     steps:
       - name: checkout repository
         uses: actions/checkout@v4
@@ -19,6 +21,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
       - name: update caddyfile
+        id: portbump
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -39,6 +42,7 @@ jobs:
           else
             NEXT_PORT=$ASSIGNED_PORT
           fi
+          echo "newport=$NEXT_PORT" >> $GITHUB_OUTPUT
           # check if the tee.notary.dev block already exists in the Caddyfile
           if ! grep -q "$DOMAIN {" $CADDYFILE_PATH; then
             # Add the main block to the Caddyfile if it doesn't exist
@@ -76,6 +80,7 @@ jobs:
   build-measure-deploy:
       environment: tee
       runs-on: [self-hosted, linux]
+      needs: [ update-reverse-proxy ]
       container:
         image: notaryserverbuilds.azurecr.io/builder/gramine
         credentials:
@@ -111,5 +116,5 @@ jobs:
             tags: notaryserverbuilds.azurecr.io/prod/gramine:$GIT_COMMIT_HASH
         - name: run
           run: |
-           docker run --privileged -v /dev/sgx_enclave -v /dev/sgx_ate -p $NEWPORT:7047 notaryserverbuilds.azurecr.io/prod/gramine:$GIT_COMMIT_HASH
+           docker run --device /dev/sgx_enclave --device /dev/sgx_provision -p  ${{needs.update-reverse-proxy.outputs.teeport}}:7047 notaryserverbuilds.azurecr.io/prod/gramine:$GIT_COMMIT_HASH
       
