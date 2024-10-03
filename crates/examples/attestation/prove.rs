@@ -107,14 +107,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (attestation, secrets) = prover.finalize(&config).await?;
 
     // Write the attestation to disk.
-    let mut file = tokio::fs::File::create("example.attestation.tlsn").await?;
-    file.write_all(&bincode::serialize(&attestation)?).await?;
+    tokio::fs::write(
+        "example.attestation.tlsn",
+        bincode::serialize(&attestation)?,
+    )
+    .await?;
 
     // Write the secrets to disk.
-    let mut file = tokio::fs::File::create("example.secrets.tlsn")
-        .await
-        .unwrap();
-    file.write_all(&bincode::serialize(&secrets)?).await?;
+    tokio::fs::write("example.secrets.tlsn", bincode::serialize(&secrets)?).await?;
 
     println!("Notarization completed successfully!");
     println!(
