@@ -422,8 +422,8 @@ mod tests {
             .is_ok());
     }
 
-    /// Expect chain verification to succeed even when a trusted CA is provided among the intermediate
-    /// certs. webpki handles such cases properly.
+    /// Expect chain verification to succeed even when a trusted CA is provided
+    /// among the intermediate certs. webpki handles such cases properly.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
@@ -492,7 +492,8 @@ mod tests {
         ));
     }
 
-    /// Expect to fail when no intermediate cert provided even if a trusted CA cert is provided.
+    /// Expect to fail when no intermediate cert provided even if a trusted CA
+    /// cert is provided.
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
