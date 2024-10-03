@@ -11,12 +11,15 @@ tlsn-core = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-utils = { workspace = true }
 tlsn-verifier = { workspace = true }
+tlsn-formats = { workspace = true }
 
+bincode = { workspace = true }
 chrono = { workspace = true }
 dotenv = { version = "0.15.0" }
 elliptic-curve = { workspace = true, features = ["pkcs8"] }
 futures = { workspace = true }
 http-body-util = { workspace = true }
+hex = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
 k256 = { workspace = true, features = ["ecdsa"] }
@@ -36,12 +39,16 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [[example]]
-name = "attestation_prover"
-path = "attestation/prover.rs"
+name = "attestation_prove"
+path = "attestation/prove.rs"
 
 [[example]]
-name = "attestation_verifier"
-path = "attestation/verifier.rs"
+name = "attestation_present"
+path = "attestation/present.rs"
+
+[[example]]
+name = "attestation_verify"
+path = "attestation/verify.rs"
 
 [[example]]
 name = "interactive"
