@@ -1,6 +1,7 @@
 //! Notary client errors.
 //!
-//! This module handles errors that might occur during connection setup and notarization requests.
+//! This module handles errors that might occur during connection setup and
+//! notarization requests.
 
 use derive_builder::UninitializedFieldError;
 use std::{error::Error, fmt};

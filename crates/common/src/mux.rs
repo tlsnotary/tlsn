@@ -61,7 +61,8 @@ impl Future for MuxFuture {
 
 /// Attaches a multiplexer to the provided socket.
 ///
-/// Returns the multiplexer and a controller for creating streams with a codec attached.
+/// Returns the multiplexer and a controller for creating streams with a codec
+/// attached.
 ///
 /// # Arguments
 ///

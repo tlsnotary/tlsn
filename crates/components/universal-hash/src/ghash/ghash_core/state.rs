@@ -24,8 +24,8 @@ opaque_debug::implement!(Init);
 
 /// Intermediate state for Ghash protocol.
 ///
-/// This is when the additive share has been converted into a multiplicative share and all the
-/// needed powers have been computed.
+/// This is when the additive share has been converted into a multiplicative
+/// share and all the needed powers have been computed.
 #[derive(Clone)]
 pub(crate) struct Intermediate {
     pub(super) odd_mul_shares: Vec<Gf2_128>,
@@ -41,8 +41,8 @@ opaque_debug::implement!(Intermediate);
 
 /// Final state for Ghash protocol.
 ///
-/// This is when each party can compute a final share of the ghash output, because both now have
-/// additive shares of all the powers of `H`.
+/// This is when each party can compute a final share of the ghash output,
+/// because both now have additive shares of all the powers of `H`.
 #[derive(Clone)]
 pub(crate) struct Finalized {
     pub(super) odd_mul_shares: Vec<Gf2_128>,

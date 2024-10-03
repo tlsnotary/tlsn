@@ -1,14 +1,17 @@
 //! Attestation requests.
 //!
-//! After the TLS connection, a Prover can request an attestation from the Notary which contains
-//! various information about the connection. During this process the Prover has the opportunity
-//! to configure certain aspects of the attestation, such as which signature algorithm the Notary
-//! should use to sign the attestation. Or which hash algorithm the Notary should use to merkelize
+//! After the TLS connection, a Prover can request an attestation from the
+//! Notary which contains various information about the connection. During this
+//! process the Prover has the opportunity to configure certain aspects of the
+//! attestation, such as which signature algorithm the Notary should use to sign
+//! the attestation. Or which hash algorithm the Notary should use to merkelize
 //! the fields.
 //!
-//! A [`Request`] can be created using a [`RequestBuilder`]. The builder will take both configuration
-//! via a [`RequestConfig`] as well as the Prover's secret data. The [`Secrets`](crate::Secrets) are of
-//! course not shared with the Notary but are used to create commitments which are included in the attestation.
+//! A [`Request`] can be created using a [`RequestBuilder`]. The builder will
+//! take both configuration via a [`RequestConfig`] as well as the Prover's
+//! secret data. The [`Secrets`](crate::Secrets) are of course not shared with
+//! the Notary but are used to create commitments which are included in the
+//! attestation.
 
 mod builder;
 mod config;

@@ -42,15 +42,18 @@ pub struct ServerProperties {
     pub name: String,
     pub host: String,
     pub port: u16,
-    /// Static html response returned from API root endpoint "/". Default html response contains
-    /// placeholder strings that will be replaced with actual values in server.rs, e.g. {version}, {public_key}
+    /// Static html response returned from API root endpoint "/". Default html
+    /// response contains placeholder strings that will be replaced with
+    /// actual values in server.rs, e.g. {version}, {public_key}
     pub html_info: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct TLSProperties {
-    /// Flag to turn on/off TLS between prover and notary (should always be turned on unless TLS is handled by external setup e.g. reverse proxy, cloud)
+    /// Flag to turn on/off TLS between prover and notary (should always be
+    /// turned on unless TLS is handled by external setup e.g. reverse proxy,
+    /// cloud)
     pub enabled: bool,
     pub private_key_pem_path: String,
     pub certificate_pem_path: String,
@@ -66,8 +69,8 @@ pub struct NotarySigningKeyProperties {
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LoggingProperties {
-    /// Log verbosity level of the default filtering logic, which is notary_server=<level>,tlsn_verifier=<level>,tls_mpc=<level>
-    /// Must be either of <https://docs.rs/tracing/latest/tracing/struct.Level.html#implementations>
+    /// Log verbosity level of the default filtering logic, which is
+    /// notary_server=<level>,tlsn_verifier=<level>,tls_mpc=<level> Must be either of <https://docs.rs/tracing/latest/tracing/struct.Level.html#implementations>
     pub level: String,
     /// Custom filtering logic, refer to the syntax here https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax
     /// This will override the default filtering logic above

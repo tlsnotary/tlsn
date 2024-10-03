@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// Proof of the contents of a transcript.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TranscriptProof {
     encoding_proof: Option<EncodingProof>,
     hash_proofs: Vec<PlaintextHashProof>,
@@ -169,7 +169,8 @@ impl<'a> TranscriptProofBuilder<'a> {
         self
     }
 
-    /// Reveals the given ranges in the transcript using the provided kind of commitment.
+    /// Reveals the given ranges in the transcript using the provided kind of
+    /// commitment.
     ///
     /// # Arguments
     ///
@@ -252,7 +253,8 @@ impl<'a> TranscriptProofBuilder<'a> {
         Ok(self)
     }
 
-    /// Reveals the given ranges in the transcript using the default kind of commitment.
+    /// Reveals the given ranges in the transcript using the default kind of
+    /// commitment.
     ///
     /// # Arguments
     ///
@@ -264,6 +266,32 @@ impl<'a> TranscriptProofBuilder<'a> {
         direction: Direction,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
         self.reveal_with_kind(ranges, direction, self.default_kind)
+    }
+
+    /// Reveals the given ranges in the sent transcript using the default kind
+    /// of commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - The ranges to reveal.
+    pub fn reveal_sent(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+    ) -> Result<&mut Self, TranscriptProofBuilderError> {
+        self.reveal(ranges, Direction::Sent)
+    }
+
+    /// Reveals the given ranges in the received transcript using the default
+    /// kind of commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - The ranges to reveal.
+    pub fn reveal_recv(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+    ) -> Result<&mut Self, TranscriptProofBuilderError> {
+        self.reveal(ranges, Direction::Received)
     }
 
     /// Builds the transcript proof.

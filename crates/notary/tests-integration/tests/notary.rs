@@ -15,10 +15,7 @@ use std::{string::String, time::Duration};
 use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{
-    request::RequestConfig, signing::SignatureAlgId, transcript::TranscriptCommitConfig,
-    CryptoProvider,
-};
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_prover::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -157,8 +154,8 @@ async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
 }
 
 #[rstest]
-// For `tls_without_auth` test to pass, one needs to add "<NOTARY_HOST> <NOTARY_DNS>" in /etc/hosts so that
-// this test programme can resolve the self-named NOTARY_DNS to NOTARY_HOST IP successfully.
+// For `tls_without_auth` test to pass, one needs to add "<NOTARY_HOST> <NOTARY_DNS>" in /etc/hosts
+// so that this test programme can resolve the self-named NOTARY_DNS to NOTARY_HOST IP successfully.
 #[case::tls_without_auth(
     tls_prover(setup_config_and_server(100, 7047, true, false).await)
 )]
@@ -194,7 +191,8 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .build()
         .unwrap();
 
-    // Prover config using the session_id returned from calling /session endpoint in notary client.
+    // Prover config using the session_id returned from calling /session endpoint in
+    // notary client.
     let prover_config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
@@ -259,11 +257,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     prover.transcript_commit(commit_config);
 
-    let mut request_builder = RequestConfig::builder();
-
-    request_builder.signature_alg(SignatureAlgId::SECP256R1);
-
-    let request = request_builder.build().unwrap();
+    let request = RequestConfig::builder().build().unwrap();
 
     _ = prover.finalize(&request).await.unwrap();
 
@@ -279,7 +273,8 @@ async fn test_websocket_prover() {
     let notary_port = notary_config.server.port;
 
     // Connect to the notary server via TLS-WebSocket
-    // Try to avoid dealing with transport layer directly to mimic the limitation of a browser extension that uses websocket
+    // Try to avoid dealing with transport layer directly to mimic the limitation of
+    // a browser extension that uses websocket
     //
     // Establish TLS setup for connections later
     let certificate =
@@ -336,10 +331,12 @@ async fn test_websocket_prover() {
 
     // Connect to the Notary via TLS-Websocket
     //
-    // Note: This will establish a new TLS-TCP connection instead of reusing the previous TCP connection
-    // used in the previous HTTP POST request because we cannot claim back the tcp connection used in hyper
-    // client while using its high level request function — there does not seem to have a crate that can let you
-    // make a request without establishing TCP connection where you can claim the TCP connection later after making the request
+    // Note: This will establish a new TLS-TCP connection instead of reusing the
+    // previous TCP connection used in the previous HTTP POST request because we
+    // cannot claim back the tcp connection used in hyper client while using its
+    // high level request function — there does not seem to have a crate that can
+    // let you make a request without establishing TCP connection where you can
+    // claim the TCP connection later after making the request
     let request = http::Request::builder()
         // Need to specify the session_id so that notary server knows the right configuration to use
         // as the configuration is set in the previous HTTP call
@@ -365,7 +362,8 @@ async fn test_websocket_prover() {
     .await
     .unwrap();
 
-    // Wrap the socket with the adapter so that we get AsyncRead and AsyncWrite implemented
+    // Wrap the socket with the adapter so that we get AsyncRead and AsyncWrite
+    // implemented
     let notary_ws_socket = WsStream::new(notary_ws_stream);
 
     // Connect to the Server
@@ -448,11 +446,7 @@ async fn test_websocket_prover() {
 
     prover.transcript_commit(commit_config);
 
-    let mut request_builder = RequestConfig::builder();
-
-    request_builder.signature_alg(SignatureAlgId::SECP256R1);
-
-    let request = request_builder.build().unwrap();
+    let request = RequestConfig::builder().build().unwrap();
 
     _ = prover.finalize(&request).await.unwrap();
 

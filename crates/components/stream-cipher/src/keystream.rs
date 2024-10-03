@@ -191,10 +191,11 @@ impl<C: CtrCircuit> KeyStream<C> {
                 }
             }
             ExecutionMode::Prove => {
-                // Note that after the circuit execution, the value of `block` can be considered as
-                // implicitly authenticated since `key` and `iv` have already been authenticated earlier
-                // and `nonce_ref` and `ctr_ref` are public.
-                // [Prove::prove] will **not** be called on `block` at any later point.
+                // Note that after the circuit execution, the value of `block` can be considered
+                // as implicitly authenticated since `key` and `iv` have already
+                // been authenticated earlier and `nonce_ref` and `ctr_ref` are
+                // public. [Prove::prove] will **not** be called on `block` at
+                // any later point.
                 thread.commit_prove(&inputs).await?;
                 for (circ, inputs, outputs) in calls {
                     thread.execute_prove(circ, &inputs, &outputs).await?;
