@@ -222,7 +222,6 @@ where
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<E> Prf for MpcPrf<E>
 where
     E: Memory + Load + Execute + Decode + Send,

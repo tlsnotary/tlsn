@@ -60,7 +60,6 @@ impl<Ctx: Context> MpcAesGcm<Ctx> {
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<Ctx: Context> Aead for MpcAesGcm<Ctx> {
     type Error = AesGcmError;
 

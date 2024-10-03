@@ -260,7 +260,6 @@ where
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<C, E> StreamCipher<C> for MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
