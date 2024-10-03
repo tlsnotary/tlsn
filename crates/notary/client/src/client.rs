@@ -336,7 +336,10 @@ impl NotaryClient {
                 // HTTP call.
                 .uri(format!(
                     "{http_scheme}://{}:{}{}/notarize?sessionId={}",
-                    self.host, self.port, path_prefix, &configuration_response_payload_parsed.session_id
+                    self.host,
+                    self.port,
+                    path_prefix,
+                    &configuration_response_payload_parsed.session_id
                 ))
                 .method("GET")
                 .header("Host", &self.host)
