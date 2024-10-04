@@ -17,7 +17,7 @@ impl Settings {
             // Load base configuration
             .add_source(File::from(config_path))
             // Add in settings from environment variables (with a prefix of NOTARY_SERVER and '__' as separator)
-            .add_source(Environment::with_prefix("NOTARY_SERVER").prefix_separator("_").separator("__"));
+            .add_source(Environment::with_prefix("NOTARY_SERVER").try_parsing(true).prefix_separator("__").separator("_"));
 
         // Apply CLI argument overrides
         if let Some(port) = cli_fields.port {

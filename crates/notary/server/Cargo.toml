@@ -35,7 +35,6 @@ rustls-pemfile = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { version = "0.9" }
-serde-aux = "4.5.0"
 sha1 = { version = "0.10" }
 structopt = { version = "0.3" }
 thiserror = { workspace = true }

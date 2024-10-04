@@ -2,7 +2,7 @@ use structopt::StructOpt;
 
 /// Fields loaded from the command line when launching this server.
 #[derive(Clone, Debug, StructOpt)]
-#[structopt(name = "notary-server")]
+#[structopt(name = "Notary Server")]
 pub struct CliFields {
     /// Configuration file location
     #[structopt(long, default_value = "./config/config.yaml")]
