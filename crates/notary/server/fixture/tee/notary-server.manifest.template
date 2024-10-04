@@ -14,7 +14,7 @@ loader.env.RUST_BACKTRACE = "full"
 fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
-  { path = "/config/config.yaml", uri = "file:config.yaml" },
+  { path = "/config/config.yaml", uri = "file:/tee/config.yaml" },
   { type = "encrypted", path = "/vault", uri = "file:vault", key_name = "_sgx_mrenclave" },
 
 ]
@@ -31,12 +31,10 @@ sgx.remote_attestation = "dcap"
 sgx.max_threads = 64
 sgx.enclave_size = "2G"
 sys.disallow_subprocesses = true
-#### turn this off in prod, 
-sys.enable_sigterm_injection = true
 
 
 #### tlsn rev
 sgx.isvprodid = 7
-#### E
-sgx.isvsvn = 45
+#### F
+sgx.isvsvn = 46
 
