@@ -35,9 +35,6 @@ jobs:
           toolchain: nightly
           components: rustfmt
 
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
-
       - name: Check formatting
         run: cargo +nightly fmt --check --all
   build-and-test:
@@ -52,9 +49,6 @@ jobs:
         with:
           toolchain: stable
           components: clippy
-
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
 
       - name: Clippy
         run: cargo clippy --all-features --all-targets -- -D warnings
@@ -92,9 +86,6 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
-
       - name: Run tests
         run: |
           cd crates/wasm-test-runner
@@ -110,9 +101,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
 
       - name: Add custom DNS entry to /etc/hosts for notary TLS test
         run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
