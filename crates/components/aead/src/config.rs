@@ -8,9 +8,9 @@ pub enum Role {
     Follower,
 }
 
-/// Configuration for AES-GCM.
+/// Configuration for MPC-AEAD.
 #[derive(Debug, Clone, Builder)]
-pub struct AesGcmConfig {
+pub struct MpcAeadConfig {
     /// The id of this instance.
     #[builder(setter(into))]
     id: String,
@@ -18,10 +18,10 @@ pub struct AesGcmConfig {
     role: Role,
 }
 
-impl AesGcmConfig {
-    /// Creates a new builder for the AES-GCM configuration.
-    pub fn builder() -> AesGcmConfigBuilder {
-        AesGcmConfigBuilder::default()
+impl MpcAeadConfig {
+    /// Creates a new builder for the MPC-AEAD configuration.
+    pub fn builder() -> MpcAeadConfigBuilder {
+        MpcAeadConfigBuilder::default()
     }
 
     /// Returns the id of this instance.

@@ -5,17 +5,18 @@ use mpz_circuits::{
     once_cell::sync::Lazy,
     Circuit, CircuitBuilder,
 };
-use mpz_memory_core::{Array, StaticSize};
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Array, Repr,
+};
 use std::sync::Arc;
-
-use crate::mock::U8;
 
 /// A cipher circuit.
 pub trait Cipher: Default {
     /// The key type.
-    type Key: StaticSize;
+    type Key: Repr<Binary>;
     /// The block type.
-    type Block: StaticSize;
+    type Block: Repr<Binary>;
 
     /// Returns the circuit of the cipher.
     fn circuit() -> Arc<Circuit>;

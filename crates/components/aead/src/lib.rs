@@ -14,32 +14,16 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-// pub mod aes_gcm;
+pub mod aes_gcm;
 pub mod cipher;
-pub use cipher::{Aes128, Cipher};
+pub mod config;
 
-pub struct StreamCipher<C: Cipher> {
-    key: C::Key,
-    cipher: C,
-}
+use mpz_common::Context;
+use mpz_memory_core::{Array, Vector};
+use mpz_vm_core::VmExt;
+use tlsn_universal_hash::UniversalHash;
 
-impl<C: Cipher> StreamCipher<C> {
-    pub fn new(key: C::Key) -> Self {
-        Self {
-            key,
-            cipher: C::default(),
-        }
-    }
-}
-
-impl StreamCipher<Aes128> {}
-
-mod mock {
-    use mpz_memory_core::StaticSize;
-
-    pub struct U8;
-
-    impl StaticSize for U8 {
-        const SIZE: usize = 1;
-    }
+pub trait AeadCipher<Ctx: Context, Vm: VmExt> {
+    /// The error type for the AEAD.
+    type Error: std::error::Error + Send + Sync + 'static;
 }
