@@ -20,5 +20,6 @@ RUN             git clone --depth 1 -b $TLSN_TAG https://github.com/tlsnotary/tl
 RUN             cd tlsn/crates/notary/server/fixture/tee && gramine-sgx-gen-private-key && SGX=1 make
 
 FROM            notaryserverbuilds.azurecr.io/prod/gramine AS teetime
-COPY            --from=teesdk tlsn/crates/notary/server/fixture/tee tee
-ENTRYPOINT      ["gramine-sgx", "/tee/notary-server"]
+WORKDIR /tee
+COPY            --from=teesdk tlsn/crates/notary/server/fixture/tee .
+ENTRYPOINT      ["gramine-sgx", "notary-server"]
