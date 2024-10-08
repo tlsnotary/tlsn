@@ -9,7 +9,6 @@
 pub mod ghash;
 
 use async_trait::async_trait;
-use mpz_common::Context;
 
 /// Errors for [UniversalHash].
 #[allow(missing_docs)]
@@ -27,7 +26,7 @@ pub enum UniversalHashError {
 
 #[async_trait]
 /// A trait supporting different kinds of hash functions.
-pub trait UniversalHash<Ctx: Context> {
+pub trait UniversalHash<Ctx> {
     /// Sets the key for the hash function
     ///
     /// # Arguments

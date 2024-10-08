@@ -49,8 +49,6 @@ impl AesGcmError {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ErrorKind {
     Io,
-    BlockCipher,
-    StreamCipher,
     Ghash,
     Tag,
     PeerMisbehaved,
@@ -61,8 +59,6 @@ impl Display for AesGcmError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             ErrorKind::Io => write!(f, "io error")?,
-            ErrorKind::BlockCipher => write!(f, "block cipher error")?,
-            ErrorKind::StreamCipher => write!(f, "stream cipher error")?,
             ErrorKind::Ghash => write!(f, "ghash error")?,
             ErrorKind::Tag => write!(f, "payload has corrupted tag")?,
             ErrorKind::PeerMisbehaved => write!(f, "peer misbehaved")?,
@@ -80,18 +76,6 @@ impl Display for AesGcmError {
 impl From<std::io::Error> for AesGcmError {
     fn from(err: std::io::Error) -> Self {
         Self::new(ErrorKind::Io, err)
-    }
-}
-
-impl From<block_cipher::BlockCipherError> for AesGcmError {
-    fn from(err: block_cipher::BlockCipherError) -> Self {
-        Self::new(ErrorKind::BlockCipher, err)
-    }
-}
-
-impl From<tlsn_stream_cipher::StreamCipherError> for AesGcmError {
-    fn from(err: tlsn_stream_cipher::StreamCipherError) -> Self {
-        Self::new(ErrorKind::StreamCipher, err)
     }
 }
 

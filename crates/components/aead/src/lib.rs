@@ -18,6 +18,7 @@ pub mod aes_gcm;
 pub mod cipher;
 pub mod config;
 
+use async_trait::async_trait;
 use cipher::Cipher;
 use mpz_common::Context;
 use mpz_memory_core::{
@@ -26,36 +27,32 @@ use mpz_memory_core::{
 };
 use mpz_vm_core::VmExt;
 
+#[async_trait]
 pub trait AeadCipher<Ctx: Context, Vm: VmExt<Binary>> {
     /// The error type for the AEAD.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    fn set_key<C: Cipher>(key: C::Key) {
-        todo!()
-    }
+    fn set_key<C: Cipher>(&mut self, key: C::Key) -> Result<(), Self::Error>;
 
-    fn setup() {
-        todo!()
-    }
+    async fn setup(&mut self) -> Result<(), Self::Error>;
 
-    fn preprocess() {
-        todo!()
-    }
+    async fn preprocess(&mut self) -> Result<(), Self::Error>;
 
-    fn encrypt(
+    async fn encrypt(
+        &mut self,
         vm: &mut Vm,
         ctx: &mut Ctx,
         ciphertext: Vector<U8>,
         aad: Vector<U8>,
-    ) -> Result<Vector<U8>, Self::Error> {
-        todo!()
-    }
+    ) -> Result<Vector<U8>, Self::Error>;
 
-    fn decrypt() {
-        todo!()
-    }
+    async fn decrypt(
+        &mut self,
+        vm: &mut Vm,
+        ctx: &mut Ctx,
+        plaintext: Vector<U8>,
+        aad: Vector<U8>,
+    ) -> Result<Vector<U8>, Self::Error>;
 
-    fn decode_key() {
-        todo!()
-    }
+    async fn decode_key(&mut self) -> Result<(), Self::Error>;
 }
