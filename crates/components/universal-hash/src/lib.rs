@@ -9,6 +9,7 @@
 pub mod ghash;
 
 use async_trait::async_trait;
+use mpz_common::Context;
 
 /// Errors for [UniversalHash].
 #[allow(missing_docs)]
@@ -26,19 +27,24 @@ pub enum UniversalHashError {
 
 #[async_trait]
 /// A trait supporting different kinds of hash functions.
-pub trait UniversalHash: Send {
+pub trait UniversalHash<Ctx: Context> {
     /// Sets the key for the hash function
     ///
     /// # Arguments
     ///
     /// * `key` - Key to use for the hash function.
-    async fn set_key(&mut self, key: Vec<u8>) -> Result<(), UniversalHashError>;
+    /// * `ctx` - The context for IO.
+    async fn set_key(&mut self, key: Vec<u8>, ctx: &mut Ctx) -> Result<(), UniversalHashError>;
 
     /// Performs any necessary one-time setup.
     async fn setup(&mut self) -> Result<(), UniversalHashError>;
 
     /// Preprocesses the hash function.
-    async fn preprocess(&mut self) -> Result<(), UniversalHashError>;
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context for IO.
+    async fn preprocess(&mut self, ctx: &mut Ctx) -> Result<(), UniversalHashError>;
 
     /// Computes hash of the input, padding the input to the block size
     /// if needed.
@@ -46,5 +52,10 @@ pub trait UniversalHash: Send {
     /// # Arguments
     ///
     /// * `input` - Input to hash.
-    async fn finalize(&mut self, input: Vec<u8>) -> Result<Vec<u8>, UniversalHashError>;
+    /// * `ctx` - The context for IO.
+    async fn finalize(
+        &mut self,
+        input: Vec<u8>,
+        ctx: &mut Ctx,
+    ) -> Result<Vec<u8>, UniversalHashError>;
 }
