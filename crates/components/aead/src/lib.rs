@@ -18,12 +18,44 @@ pub mod aes_gcm;
 pub mod cipher;
 pub mod config;
 
+use cipher::Cipher;
 use mpz_common::Context;
-use mpz_memory_core::{Array, Vector};
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Vector,
+};
 use mpz_vm_core::VmExt;
-use tlsn_universal_hash::UniversalHash;
 
-pub trait AeadCipher<Ctx: Context, Vm: VmExt> {
+pub trait AeadCipher<Ctx: Context, Vm: VmExt<Binary>> {
     /// The error type for the AEAD.
     type Error: std::error::Error + Send + Sync + 'static;
+
+    fn set_key<C: Cipher>(key: C::Key) {
+        todo!()
+    }
+
+    fn setup() {
+        todo!()
+    }
+
+    fn preprocess() {
+        todo!()
+    }
+
+    fn encrypt(
+        vm: &mut Vm,
+        ctx: &mut Ctx,
+        ciphertext: Vector<U8>,
+        aad: Vector<U8>,
+    ) -> Result<Vector<U8>, Self::Error> {
+        todo!()
+    }
+
+    fn decrypt() {
+        todo!()
+    }
+
+    fn decode_key() {
+        todo!()
+    }
 }

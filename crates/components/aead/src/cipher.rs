@@ -18,11 +18,11 @@ pub trait Cipher: Default {
     /// The block type.
     type Block: Repr<Binary>;
 
-    /// Returns the circuit of the cipher.
-    fn circuit() -> Arc<Circuit>;
+    /// Returns the circuit of the cipher in ECB mode.
+    fn ecb() -> Arc<Circuit>;
 
     /// Returns the circuit of the cipher in counter mode.
-    fn ctr_circuit() -> Arc<Circuit>;
+    fn ctr() -> Arc<Circuit>;
 }
 
 /// A circuit for AES-128.
@@ -34,12 +34,12 @@ impl Cipher for Aes128 {
     type Block = Array<U8, 16>;
 
     /// `fn(key: [u8; 16], msg: [u8; 16]) -> [u8; 16]`
-    fn circuit() -> Arc<Circuit> {
+    fn ecb() -> Arc<Circuit> {
         AES128.clone()
     }
 
     /// `fn(key: [u8; 16], block: [u8; 16], message: [u8; 16]) -> [u8; 16]`
-    fn ctr_circuit() -> Arc<Circuit> {
+    fn ctr() -> Arc<Circuit> {
         AES128_CTR.clone()
     }
 }

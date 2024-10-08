@@ -1,43 +1,22 @@
+use mpz_common::Context;
+use mpz_memory_core::{binary::U8, Array};
+use tlsn_universal_hash::ghash::Ghash;
+
+use crate::cipher::{Aes128, Cipher};
+
 mod error;
 
-pub struct MpcAesGcm<C, U> {
-    key: C::Key,
-    iv: Array<U8>,
-    cipher: C,
-    mac: U,
+pub struct MpcAesGcm<S> {
+    key: <Aes128 as Cipher>::Key,
+    iv: Array<U8, 4>,
+    cipher: Aes128
+    mac: Ghash<S>,
 }
 
 impl<C: Cipher, U: UniversalHash, Ctx: Context> MpcAesGcm<C, U> {
     pub fn new() -> Self {
         todo!()
     }
-
-    pub fn set_key(key: C::Key) {
-        todo!()
-    }
-
-    pub fn setup() {
-        todo!()
-    }
-
-    pub fn preprocess() {
-        todo!()
-    }
-
-    pub fn encrypt(
-        vm: &mut VmExt,
-        ctx: &mut Ctx,
-        ciphertext: Vector<U8>,
-        aad: Vector<U8>,
-    ) -> Result<Vector<U8>, MpcAeadError> {
-        todo!()
-    }
-
-    pub fn decrypt() {
-        todo!()
-    }
-
-    pub fn decode_key() {
-        todo!()
-    }
 }
+
+impl<Ctx: Context, Vm: VmExt> AeadCipher<Ctx, Vm> for MpcAesGcm {}
