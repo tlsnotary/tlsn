@@ -30,7 +30,7 @@ impl MpcAeadConfig {
     }
 
     /// Returns the protocol role.
-    pub fn role(&self) -> &Role {
-        &self.role
+    pub fn role(&self) -> Role {
+        self.role
     }
 }

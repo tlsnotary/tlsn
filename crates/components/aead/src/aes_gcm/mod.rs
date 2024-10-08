@@ -13,6 +13,8 @@ use mpz_vm_core::VmExt;
 use tlsn_universal_hash::UniversalHash;
 
 mod error;
+mod tag;
+
 use error::AesGcmError;
 
 pub struct MpcAesGcm<U> {
