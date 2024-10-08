@@ -1,4 +1,5 @@
 use futures::{AsyncRead, AsyncWrite};
+use k256::{pkcs8::DecodePrivateKey, SecretKey};
 use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::{attestation::AttestationConfig, signing::SignatureAlgId, CryptoProvider};
 use tlsn_verifier::{Verifier, VerifierConfig};
@@ -13,8 +14,11 @@ const MAX_RECV_DATA: usize = 1 << 14;
 
 /// Runs a simple Notary with the provided connection to the Prover.
 pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn: T) {
+    let pem_data = include_str!("../../notary/server/fixture/notary/notary.key");
+    let secret_key = SecretKey::from_pkcs8_pem(pem_data).unwrap().to_bytes();
+
     let mut provider = CryptoProvider::default();
-    provider.signer.set_secp256k1(NOTARY_PRIVATE_KEY).unwrap();
+    provider.signer.set_secp256k1(&secret_key).unwrap();
 
     // Setup the config. Normally a different ID would be generated
     // for each notarization.

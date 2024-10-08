@@ -115,6 +115,9 @@ pub struct NotaryClient {
     /// Port of the notary server endpoint.
     #[builder(default = "self.default_port()")]
     port: u16,
+    /// URL path prefix of the notary server endpoint, e.g. "https://<host>:<port>/<path_prefix>/...".
+    #[builder(setter(into), default = "String::from(\"\")")]
+    path_prefix: String,
     /// Flag to turn on/off using TLS with notary server.
     #[builder(setter(name = "enable_tls"), default = "true")]
     tls: bool,
@@ -207,6 +210,11 @@ impl NotaryClient {
         notarization_request: NotarizationRequest,
     ) -> Result<(S, String), ClientError> {
         let http_scheme = if self.tls { "https" } else { "http" };
+        let path_prefix = if self.path_prefix.is_empty() {
+            String::new()
+        } else {
+            format!("/{}", self.path_prefix)
+        };
 
         // Attach the hyper HTTP client to the notary connection to send request to the
         // /session endpoint to configure notarization and obtain session id.
@@ -249,8 +257,8 @@ impl NotaryClient {
 
             let mut configuration_request_builder = Request::builder()
                 .uri(format!(
-                    "{http_scheme}://{}:{}/session",
-                    self.host, self.port
+                    "{http_scheme}://{}:{}{}/session",
+                    self.host, self.port, path_prefix
                 ))
                 .method("POST")
                 .header("Host", &self.host)
@@ -327,8 +335,11 @@ impl NotaryClient {
                 // configuration to use as the configuration is set in the previous
                 // HTTP call.
                 .uri(format!(
-                    "{http_scheme}://{}:{}/notarize?sessionId={}",
-                    self.host, self.port, &configuration_response_payload_parsed.session_id
+                    "{http_scheme}://{}:{}{}/notarize?sessionId={}",
+                    self.host,
+                    self.port,
+                    path_prefix,
+                    &configuration_response_payload_parsed.session_id
                 ))
                 .method("GET")
                 .header("Host", &self.host)
