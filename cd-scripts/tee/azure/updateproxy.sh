@@ -22,7 +22,7 @@ get_last_port() {
     grep -Po "reverse_proxy :([0-9]+)" "$CADDYFILE" | awk -F: '{print $2}' | sort -n | tail -1
 }
 
-# Function to add a new handle_path block with incremented port inside tee.notary.codes block
+# Function to add a new handle_path block with incremented port inside notary.codes block
 add_new_handle_path() {
     local new_port=$1
     local commit_hash=$2
@@ -30,7 +30,7 @@ add_new_handle_path() {
     # Use a temporary file for inserting the handle_path block
     tmp_file=$(mktemp)
 
-    # Add the new handle_path in the tee.notary.codes block
+    # Add the new handle_path in the notary.codes block
     awk -v port="$new_port" -v hash="$commit_hash" '
         /tee\.notary\.codes \{/ {
             print; 
@@ -51,7 +51,7 @@ add_new_handle_path() {
     # Overwrite the original Caddyfile with the updated content
     mv "$tmp_file" "$CADDYFILE"
 
-    echo "Added new handle_path for $commit_hash with port :$new_port inside tee.notary.codes"
+    echo "Added new handle_path for $commit_hash with port :$new_port inside notary.codes"
 }
 
 # Check if the commit hash already exists in a handle_path
@@ -68,6 +68,6 @@ else
     fi
     new_port=$((last_port + 1))
 
-    # Add the new handle_path block inside tee.notary.codes block
+    # Add the new handle_path block inside notary.codes block
     add_new_handle_path "$new_port" "$GIT_COMMIT_HASH"
 fi
