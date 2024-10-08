@@ -21,11 +21,11 @@ endif
 # performance that makes testing by running a benchmark with ab painful. The primary goal
 # of the DEBUG setting is to control Gramine's loglevel.
 -include $(SELF_EXE).d # See also: .cargo/config.toml
-$(SELF_EXE): $(ROOT_DIR)../../Cargo.toml
+$(SELF_EXE): $(ROOT_DIR)../Cargo.toml
 	cargo build --bin notary-server  --release --features tee_quote
 
 notary-server.manifest: notary-server.manifest.template
-	cp ../../../../../target/release/notary-server . && \
+	cp ../../../../target/release/notary-server . && \
 	gramine-manifest \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \

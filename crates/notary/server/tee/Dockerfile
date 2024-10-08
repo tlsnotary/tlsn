@@ -17,9 +17,9 @@ ARG             TLSN_TAG=quote-presentation
 ARG             TLSN_FT=tee_quote
 RUN             git clone --depth 1 -b $TLSN_TAG https://github.com/tlsnotary/tlsn /tlsn  && \
                 cargo build --release --bin notary-server --features $TLSN_FT --color always --manifest-path /tlsn/Cargo.toml
-RUN             cd tlsn/crates/notary/server/fixture/tee && gramine-sgx-gen-private-key && SGX=1 make
+RUN             cd tlsn/crates/notary/server/tee && gramine-sgx-gen-private-key && SGX=1 make
 
 FROM            notaryserverbuilds.azurecr.io/prod/gramine AS teetime
 WORKDIR /tee
-COPY            --from=teesdk tlsn/crates/notary/server/fixture/tee .
+COPY            --from=teesdk tlsn/crates/notary/server/tee .
 ENTRYPOINT      ["gramine-sgx", "notary-server"]
