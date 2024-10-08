@@ -1,1 +1,61 @@
+  key_type p256
+  email mac@pse.dev # for acme
+  servers {
+    metrics
+  }
+  log {
+    output stdout
+    format console {
+      time_format common_log
+      time_local
+    }
+    level DEBUG
+  }
+}
 
+tee.notary.codes {
+
+    handle_path /dev* {
+     reverse_proxy :7048 :3333 tlsnotary.org:443 {
+      lb_try_duration 4s
+      fail_duration 10s
+      lb_policy header X-Upstream {
+                                fallback first
+                        }
+                }
+    }
+
+    handle_path /v0.1.0-alpha.6* {
+     reverse_proxy :6061 :3333 tlsnotary.org:443 {
+     lb_try_duration 4s
+     fail_duration 10s
+     lb_policy header X-Upstream {
+       fallback first
+      }
+     }
+    }
+
+    handle_path /v0.1.0-alpha.7* {
+     reverse_proxy :6062 :3333 tlsnotary.org:443 {
+     lb_try_duration 4s
+     fail_duration 10s
+     lb_policy header X-Upstream {
+       fallback first
+      }
+     }
+    }
+
+
+    handle  {
+     root * /srv
+     file_server
+    }
+
+    handle_errors {
+        @404 {
+            expression {http.error.status_code} == 404
+        }
+        rewrite @404 /index.html
+        file_server
+    }
+}
