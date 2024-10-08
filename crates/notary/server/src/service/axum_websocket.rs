@@ -898,7 +898,7 @@ mod tests {
     use super::*;
     use axum::{body::Body, routing::get, Router};
     use http::{Request, Version};
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
 
     #[tokio::test]
     async fn rejects_http_1_0_requests() {

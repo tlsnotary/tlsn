@@ -66,6 +66,35 @@ docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-ser
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture/notary notary-server:local
 ```
+
+## Configuration
+
+- The Notary Server can be configured using three methods: a configuration file, command-line interface (CLI) arguments, and environment variables. These methods provide flexibility in how you set up and run the server.
+
+1. Configuration File - By default, the server looks for a config.yaml file in the `notary/server/config/` directory. This file contains all the configurable settings for the server. 
+   - Example:
+   ```yaml
+   server:
+     name: "notary-server"
+     host: "0.0.0.0"
+     port: 7047
+
+   notarization:
+     max_sent_data: 4096
+     max_recv_data: 16384
+    ```
+   
+2. Command-Line Interface (CLI) Arguments    - You can override configuration file settings using CLI arguments when starting the server. CLI arguments take precedence over the config file.
+   - Example:
+   ```shell
+   cargo run -- --port 8080 --tls-enabled false --log-level INFO --max-sent-data 2048
+   ```
+
+3. Environment Variables can also be used to configure the server. They take precedence over both the config file and CLI arguments. The environment variables use the prefix `NOTARY_SERVER__` followed by the configuration path in uppercase, with double underscores as separators.
+   - Example: 
+   ```shell
+   NOTARY_SERVER__SERVER__PORT=8080 NOTARY_SERVER__NOTARIZATION__MAX_SENT_DATA=2048 NOTARY_SERVER__TLS__ENABLED=false cargo run
+   ```
 ---
 ## API
 All APIs are TLS-protected, hence please use `https://` or `wss://`.
