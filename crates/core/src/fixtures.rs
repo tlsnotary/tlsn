@@ -83,7 +83,7 @@ impl ConnectionFixture {
                     Certificate(include_bytes!("fixtures/data/appliedzkp.org/ca.der").to_vec()),
                 ],
                 sig: ServerSignature {
-                    scheme: SignatureScheme::RSA_PKCS1_SHA256,
+                    scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
                     sig: Vec::<u8>::from_hex(include_bytes!(
                         "fixtures/data/appliedzkp.org/signature"
                     ))
@@ -108,6 +108,15 @@ impl ConnectionFixture {
                 }),
             },
         }
+    }
+
+    /// Returns the server_ephemeral_key fixture.
+    pub fn server_ephemeral_key(&self) -> &ServerEphemKey {
+        let HandshakeData::V1_2(HandshakeDataV1_2 {
+            server_ephemeral_key,
+            ..
+        }) = &self.server_cert_data.handshake;
+        server_ephemeral_key
     }
 }
 

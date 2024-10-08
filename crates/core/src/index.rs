@@ -104,3 +104,74 @@ impl From<Vec<PlaintextHashSecret>> for Index<PlaintextHashSecret> {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use utils::range::RangeSet;
+
+    use super::*;
+
+    #[derive(PartialEq, Debug, Clone)]
+    struct Stub {
+        field_index: FieldId,
+        index: Idx,
+    }
+
+    impl From<Vec<Stub>> for Index<Stub> {
+        fn from(items: Vec<Stub>) -> Self {
+            Self::new(items, |item: &Stub| (&item.field_index, &item.index))
+        }
+    }
+
+    fn stubs() -> Vec<Stub> {
+        vec![
+            Stub {
+                field_index: FieldId(1),
+                index: Idx::new(RangeSet::from([0..1, 18..21])),
+            },
+            Stub {
+                field_index: FieldId(2),
+                index: Idx::new(RangeSet::from([1..5, 8..11])),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_successful_retrieval() {
+        let stub_a_index = Idx::new(RangeSet::from([0..4, 7..10]));
+        let stub_b_field_index = FieldId(8);
+
+        let stubs = vec![
+            Stub {
+                field_index: FieldId(1),
+                index: stub_a_index.clone(),
+            },
+            Stub {
+                field_index: stub_b_field_index,
+                index: Idx::new(RangeSet::from([1..5, 8..11])),
+            },
+        ];
+        let stubs_index: Index<Stub> = stubs.clone().into();
+
+        assert_eq!(
+            stubs_index.get_by_field_id(&stub_b_field_index),
+            Some(&stubs[1])
+        );
+        assert_eq!(
+            stubs_index.get_by_transcript_idx(&stub_a_index),
+            Some(&stubs[0])
+        );
+    }
+
+    #[test]
+    fn test_failed_retrieval() {
+        let stubs = stubs();
+        let stubs_index: Index<Stub> = stubs.clone().into();
+
+        let wrong_index = Idx::new(RangeSet::from([0..3, 4..5]));
+        let wrong_field_index = FieldId(200);
+
+        assert_eq!(stubs_index.get_by_field_id(&wrong_field_index), None);
+        assert_eq!(stubs_index.get_by_transcript_idx(&wrong_index), None);
+    }
+}

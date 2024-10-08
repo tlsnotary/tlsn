@@ -1,6 +1,6 @@
 [package]
 name = "notary-server"
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 edition = "2021"
 
 [dependencies]
@@ -41,9 +41,10 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-rustls = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
-tower = { version = "0.4", features = ["make", "util"] }
+tower = { version = "0.4", features = ["make"] }
 tower-http = { version = "0.5", features = ["cors"] }
 tower-service = { version = "0.3" }
+tower-util = { version = "0.3.1" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }

@@ -243,6 +243,11 @@ pub struct Presentation(tlsn_core::presentation::Presentation);
 
 #[wasm_bindgen]
 impl Presentation {
+    /// Returns the verifying key.
+    pub fn verifying_key(&self) -> VerifyingKey {
+        self.0.verifying_key().into()
+    }
+
     /// Verifies the presentation.
     pub fn verify(&self) -> Result<PresentationOutput, JsError> {
         let provider = CryptoProvider::default();
