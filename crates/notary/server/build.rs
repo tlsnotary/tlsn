@@ -2,7 +2,6 @@ use std::{env, process::Command};
 
 fn main() {
     if env::var("GIT_COMMIT_HASH").is_ok() && env::var("GIT_COMMIT_TIMESTAMP").is_ok() {
-        return;
     } else {
         // Used to extract latest HEAD commit hash and timestamp for the /info endpoint
         let output = Command::new("git")

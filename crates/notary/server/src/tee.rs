@@ -1,10 +1,11 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use mc_sgx_dcap_types::QlError;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
 use crate::signing::AttestationKey;
-use p256::{ecdsa::SigningKey, PublicKey, elliptic_curve::sec1::ToEncodedPoint};
+use k256::ecdsa::{SigningKey, VerifyingKey as PublicKey};
 use pkcs8::{DecodePrivateKey, EncodePrivateKey, LineEnding};
 use rand_chacha::{
     rand_core::{OsRng, SeedableRng},
@@ -86,10 +87,15 @@ async fn gramine_quote() -> Result<Quote, QuoteError> {
     // Write to `/dev/attestation/target_info`
     fs::write("/dev/attestation/target_info", my_target_info)?;
 
-    //// Writing the pubkey to bind the instance to the hw (note: this is not mrsigner)
+    //// Writing the pubkey to bind the instance to the hw (note: this is not
+    //// mrsigner)
     fs::write(
         "/dev/attestation/user_report_data",
-        PUBLIC_KEY.get().expect("pub_key_get").to_encoded_point(true).as_bytes()
+        PUBLIC_KEY
+            .get()
+            .expect("pub_key_get")
+            .to_encoded_point(true)
+            .as_bytes(),
     )?;
 
     //// Reading from the gramine quote pseudo-hardware `/dev/attestation/quote`
@@ -102,8 +108,8 @@ async fn gramine_quote() -> Result<Quote, QuoteError> {
         return Err(QuoteError::IntelQuoteLibrary(QlError::InvalidReport));
     }
 
-    //// Extract mrenclave: enclave image,  and mrsigner: identity key bound to enclave
-    //// https://github.com/intel/linux-sgx/blob/main/common/inc/sgx_quote.h
+    //// Extract mrenclave: enclave image,  and mrsigner: identity key bound to
+    //// enclave https://github.com/intel/linux-sgx/blob/main/common/inc/sgx_quote.h
     let mrenclave = hex::encode(&quote[112..144]);
     let mrsigner = hex::encode(&quote[176..208]);
 
@@ -124,16 +130,23 @@ pub fn ephemeral_keypair() -> (AttestationKey, String) {
     let signing_key = SigningKey::random(&mut rng);
     let pem_string = signing_key
         .clone()
-        .to_pkcs8_pem(LineEnding::default())
+        .to_pkcs8_pem(LineEnding::LF)
         .expect("to pem");
     let attkey = AttestationKey::from_pkcs8_pem(&pem_string).expect("from pem");
-    let _ = PUBLIC_KEY
-        .set(PublicKey::from(*signing_key.verifying_key()))
-        .map_err(|_| "Public key has already been set");
-    return (
-        attkey,
-        PublicKey::from(*signing_key.verifying_key()).to_string(),
+    let derk = signing_key
+        .verifying_key()
+        .to_encoded_point(true)
+        .to_bytes();
+    let b64k = STANDARD.encode(derk.as_ref());
+    let pem = format!(
+        "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----\n",
+        b64k
     );
+
+    let _ = PUBLIC_KEY
+        .set(*signing_key.verifying_key())
+        .map_err(|_| "Public key has already been set");
+    return (attkey, pem);
 }
 
 pub async fn quote() -> Quote {
