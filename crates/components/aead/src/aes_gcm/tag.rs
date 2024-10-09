@@ -61,7 +61,7 @@ impl<U> MpcAesGcm<U> {
         let ctr = self.start_ctr()?;
         let zero = self.zero()?;
 
-        let j0 = match self.preprocessed_ctr.pop_front() {
+        let j0 = match self.keystream.pop_front() {
             Some(j0) => j0,
             None => CallBuilder::new(<Aes128 as Cipher>::ctr())
                 .arg(key)
@@ -72,7 +72,7 @@ impl<U> MpcAesGcm<U> {
                 .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?,
         };
 
-        let h = match self.preprocessed_ecb.clone() {
+        let h = match self.h.clone() {
             Some(h) => h,
             None => CallBuilder::new(<Aes128 as Cipher>::ecb())
                 .arg(key)
@@ -80,6 +80,8 @@ impl<U> MpcAesGcm<U> {
                 .build()
                 .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?,
         };
+
+        todo!()
     }
 
     /// Computes the tag for a ciphertext and additional data.

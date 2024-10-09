@@ -36,7 +36,7 @@ pub trait UniversalHash<Ctx> {
     async fn set_key(&mut self, key: Vec<u8>, ctx: &mut Ctx) -> Result<(), UniversalHashError>;
 
     /// Performs any necessary one-time setup.
-    async fn setup(&mut self) -> Result<(), UniversalHashError>;
+    fn setup(&mut self) -> Result<(), UniversalHashError>;
 
     /// Preprocesses the hash function.
     ///

@@ -15,6 +15,8 @@ use std::sync::Arc;
 pub trait Cipher: Default {
     /// The key type.
     type Key: Repr<Binary>;
+    /// The initialization vector type.
+    type Iv: Repr<Binary>;
     /// The block type.
     type Block: Repr<Binary>;
 
@@ -31,6 +33,7 @@ pub struct Aes128;
 
 impl Cipher for Aes128 {
     type Key = Array<U8, 16>;
+    type Iv = Array<U8, 4>;
     type Block = Array<U8, 16>;
 
     /// `fn(key: [u8; 16], msg: [u8; 16]) -> [u8; 16]`

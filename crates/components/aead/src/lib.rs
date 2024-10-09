@@ -18,6 +18,8 @@ pub mod aes_gcm;
 pub mod cipher;
 pub mod config;
 
+use std::ops::Range;
+
 use async_trait::async_trait;
 use cipher::Cipher;
 use mpz_common::Context;
@@ -28,15 +30,24 @@ use mpz_memory_core::{
 use mpz_vm_core::VmExt;
 
 #[async_trait]
-pub trait AeadCipher<Ctx: Context, Vm: VmExt<Binary>> {
+pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
     /// The error type for the AEAD.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    fn set_key<C: Cipher>(&mut self, key: C::Key) -> Result<(), Self::Error>;
+    async fn setup(&mut self) -> Result<(), Self::Error>;
 
-    async fn setup(&mut self, vm: &mut Vm) -> Result<(), Self::Error>;
+    async fn preprocess(
+        &mut self,
+        ctx: &mut Ctx,
+        vm: &mut Vm,
+        counters: Range<u32>,
+    ) -> Result<(), Self::Error>;
 
-    async fn preprocess(&mut self) -> Result<(), Self::Error>;
+    fn set_key(&mut self, key: C::Key) -> Result<(), Self::Error>;
+
+    fn set_iv(&mut self, key: C::Iv) -> Result<(), Self::Error>;
+
+    async fn start(&mut self) -> Result<(), Self::Error>;
 
     async fn encrypt(
         &mut self,
