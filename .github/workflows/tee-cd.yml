@@ -29,37 +29,8 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          DOMAIN=tee.notary.codes
-          CADDYFILE_PATH='cd-scripts/tee/azure/Caddyfile'
-          PORT_FILE='cd-scripts/tee/azure/tags.txt'
-          START_PORT=6061
-          handler=$RELEASE_TAG
-           if [ -z "${RELEASE_TAG}" ]; then
-            handler=dev
-          fi
-          # create ports.txt if it doesn't exist
-          if [ ! -f "$PORT_FILE" ]; then
-            echo "health $START_PORT" > $PORT_FILE
-          fi
-          # check if the release tag already has a port assigned
-          ASSIGNED_PORT=$(grep "${handler}" $PORT_FILE | awk '{print $2}')
-          if [ -z "$ASSIGNED_PORT" ]; then
-            # find the next available port if this release tag doesn't have one
-            NEXT_PORT=$(($(tail -n 1 $PORT_FILE | awk '{print $2}') + 1))
-            echo "${handler} ${NEXT_PORT}" >> $PORT_FILE
-          else
-            NEXT_PORT=$ASSIGNED_PORT
-          fi
+          cd-scripts/azure/tee/updateproxy.sh 'cd-scripts/tee/azure/Caddyfile' $RELEASE_TAG
           echo "newport=$NEXT_PORT" >> $GITHUB_OUTPUT
-          # check if the tee.notary.dev block already exists in the Caddyfile
-          if ! grep -q "$DOMAIN {" $CADDYFILE_PATH; then
-            # Add the main block to the Caddyfile if it doesn't exist
-            echo -e "$DOMAIN {\n}" >> $CADDYFILE_PATH
-          fi
-          # insert the reverse proxy entry for the new release tag
-          sed -i "/$DOMAIN {/a \ \ \ \ reverse_proxy /${handler}* localhost:${NEXT_PORT}" $CADDYFILE_PATH
-          echo "proxying /${handler} to 127.0.0.1/${NEXT_PORT}" | tee >> $GITHUB_STEP_SUMMARY
-
       - name: Commit and push updated Caddyfile
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}

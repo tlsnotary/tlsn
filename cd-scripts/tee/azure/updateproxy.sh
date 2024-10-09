@@ -14,7 +14,7 @@ handle_path_exists() {
 # Function to extract the port for a given commit hash
 extract_port_for_commit() {
     local commit_hash=$1
-    grep -Pzo "handle_path /${commit_hash}\* \{\n\s*reverse_proxy :(.*) " "$CADDYFILE" | grep -Po "reverse_proxy :(.*) " | awk '{print $2}'
+    grep -Pzo "handle_path /${commit_hash}\* \{\n\s*reverse_proxy :(.*) " "$CADDYFILE" | grep -Poa "reverse_proxy :(.*) " | awk '{print $2}'
 }
 
 # Function to get the last port in the Caddyfile
@@ -33,7 +33,7 @@ add_new_handle_path() {
     # Add the new handle_path in the notary.codes block
     awk -v port="$new_port" -v hash="$commit_hash" '
         /tee\.notary\.codes \{/ {
-            print; 
+            print;
             print "    handle_path /" hash "* {";
             print "        reverse_proxy :" port " :3333 tlsnotary.org:443 {";
             print "            lb_try_duration 4s";
@@ -51,16 +51,14 @@ add_new_handle_path() {
     # Overwrite the original Caddyfile with the updated content
     mv "$tmp_file" "$CADDYFILE"
 
-    echo "Added new handle_path for $commit_hash with port :$new_port inside notary.codes"
 }
 
 # Check if the commit hash already exists in a handle_path
 if handle_path_exists "$GIT_COMMIT_HASH"; then
     existing_port=$(extract_port_for_commit "$GIT_COMMIT_HASH")
-    echo "Commit hash $GIT_COMMIT_HASH already exists with port :$existing_port"
+    echo "${existing_port:1}"
     exit 0
 else
-    echo "Commit hash $GIT_COMMIT_HASH does not exist, adding a new handle_path..."
     # Get the last port used and increment it
     last_port=$(get_last_port)
     if [[ -z "$last_port" ]]; then
@@ -70,4 +68,6 @@ else
 
     # Add the new handle_path block inside notary.codes block
     add_new_handle_path "$new_port" "$GIT_COMMIT_HASH"
+    echo $new_port
+    exit 0
 fi
