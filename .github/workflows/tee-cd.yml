@@ -76,9 +76,6 @@ jobs:
       steps:
         - name: get code
           uses: actions/checkout@v4
-          with:
-            repository: tlsnotary/tlsn
-            ref: quote-presentation
         - name: sccache
           if: github.event_name != 'release'
           # && github.event_name != 'workflow_dispatch'
@@ -111,9 +108,6 @@ jobs:
             password: ${{ secrets.AZURE_CR_BUILDS_PW }}
         - name: get code
           uses: actions/checkout@v4
-          with:
-            repository: tlsnotary/tlsn
-            ref: quote-presentation
         - name: sccache
           if: github.event_name != 'release'
           # && github.event_name != 'workflow_dispatch'
@@ -152,9 +146,6 @@ jobs:
             password: ${{ secrets.AZURE_CR_BUILDS_PW }}
         - name: get code
           uses: actions/checkout@v4
-          with:
-            repository: tlsnotary/tlsn
-            ref: quote-presentation
         - name: sccache
           if: github.event_name != 'release'
           # && github.event_name != 'workflow_dispatch'
