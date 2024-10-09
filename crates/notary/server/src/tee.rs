@@ -72,7 +72,7 @@ static PUBLIC_KEY: OnceCell<PublicKey> = OnceCell::new();
 async fn gramine_quote() -> Result<Quote, QuoteError> {
     //// Check if the the gramine pseudo-hardware exists
     if !Path::new("/dev/attestation/quote").exists() {
-        Quote::default();
+        return Ok(Quote::default());
     }
 
     // Reading attestation type
