@@ -34,7 +34,7 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
     /// The error type for the AEAD.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    async fn setup(&mut self) -> Result<(), Self::Error>;
+    fn setup(&mut self) -> Result<(), Self::Error>;
 
     async fn preprocess(
         &mut self,
@@ -53,7 +53,7 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
         &mut self,
         vm: &mut Vm,
         ctx: &mut Ctx,
-        ciphertext: Vector<U8>,
+        plaintext: Vector<U8>,
         aad: Vector<U8>,
     ) -> Result<Vector<U8>, Self::Error>;
 
@@ -61,7 +61,7 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
         &mut self,
         vm: &mut Vm,
         ctx: &mut Ctx,
-        plaintext: Vector<U8>,
+        ciphertext: Vector<U8>,
         aad: Vector<U8>,
     ) -> Result<Vector<U8>, Self::Error>;
 

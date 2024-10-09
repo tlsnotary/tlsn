@@ -58,28 +58,6 @@ impl<U> MpcAesGcm<U> {
     {
         let key = self.key()?;
         let iv = self.iv()?;
-        let ctr = self.start_ctr()?;
-        let zero = self.zero()?;
-
-        let j0 = match self.keystream.pop_front() {
-            Some(j0) => j0,
-            None => CallBuilder::new(<Aes128 as Cipher>::ctr())
-                .arg(key)
-                .arg(iv)
-                .arg(explicit_nonce)
-                .arg(ctr)
-                .build()
-                .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?,
-        };
-
-        let h = match self.h.clone() {
-            Some(h) => h,
-            None => CallBuilder::new(<Aes128 as Cipher>::ecb())
-                .arg(key)
-                .arg(zero)
-                .build()
-                .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?,
-        };
 
         todo!()
     }

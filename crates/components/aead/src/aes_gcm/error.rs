@@ -1,6 +1,4 @@
-use std::{error::Error, fmt::Display};
-
-use mpz_memory_core::binary::Binary;
+use std::fmt::Display;
 
 /// AES-GCM error.
 #[derive(Debug, thiserror::Error)]
@@ -54,9 +52,8 @@ pub(crate) enum ErrorKind {
     Ghash,
     Key,
     Iv,
-    StartCtr,
-    Zero,
     Vm,
+    Context,
     Tag,
     PeerMisbehaved,
     Payload,
@@ -69,9 +66,8 @@ impl Display for AesGcmError {
             ErrorKind::Ghash => write!(f, "ghash error")?,
             ErrorKind::Key => write!(f, "key error")?,
             ErrorKind::Iv => write!(f, "iv error")?,
-            ErrorKind::StartCtr => write!(f, "start ctr error")?,
-            ErrorKind::Zero => write!(f, "zero block error")?,
             ErrorKind::Vm => write!(f, "vm error")?,
+            ErrorKind::Context => write!(f, "context error")?,
             ErrorKind::Tag => write!(f, "payload has corrupted tag")?,
             ErrorKind::PeerMisbehaved => write!(f, "peer misbehaved")?,
             ErrorKind::Payload => write!(f, "payload error")?,
@@ -88,6 +84,12 @@ impl Display for AesGcmError {
 impl From<std::io::Error> for AesGcmError {
     fn from(err: std::io::Error) -> Self {
         Self::new(ErrorKind::Io, err)
+    }
+}
+
+impl From<mpz_common::ContextError> for AesGcmError {
+    fn from(err: mpz_common::ContextError) -> Self {
+        Self::new(ErrorKind::Context, err)
     }
 }
 

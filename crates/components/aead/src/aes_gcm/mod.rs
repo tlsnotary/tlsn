@@ -6,12 +6,12 @@ use crate::{
     AeadCipher,
 };
 use async_trait::async_trait;
-use mpz_common::Context;
+use mpz_common::{try_join, Context};
 use mpz_memory_core::{
     binary::{Binary, U8},
     Array, MemoryExt, Repr, Vector, ViewExt,
 };
-use mpz_vm_core::{CallBuilder, VmExt};
+use mpz_vm_core::{CallBuilder, Execute, VmExt};
 use std::fmt::Debug;
 use tlsn_universal_hash::UniversalHash;
 
@@ -123,7 +123,7 @@ impl<U> MpcAesGcm<U> {
     {
         let explicit_nonce: Array<U8, 8> = Self::alloc(vm, Visibility::Public)?;
         let counter: Array<U8, 4> = Self::alloc(vm, Visibility::Public)?;
-        Self::asssign(vm, counter, ctr_number.to_be_bytes());
+        Self::asssign(vm, counter, ctr_number.to_be_bytes())?;
 
         let aes_ctr = CallBuilder::new(<Aes128 as Cipher>::ctr())
             .arg(key)
@@ -174,8 +174,8 @@ impl<Ctx, Vm, U> AeadCipher<Aes128, Ctx, Vm> for MpcAesGcm<U>
 where
     Ctx: Context,
     Self: Send,
-    Vm: VmExt<Binary> + ViewExt + Send,
-    U: UniversalHash<Ctx>,
+    Vm: VmExt<Binary> + ViewExt + Execute<Ctx> + Send,
+    U: UniversalHash<Ctx> + Send,
 {
     type Error = AesGcmError;
 
@@ -210,7 +210,21 @@ where
         let mac = Mac { key: mac_key, j0 };
         self.mac = Some(mac);
 
-        self.ghash.preprocess(ctx).await?;
+        _ = try_join!(
+            ctx,
+            async {
+                self.ghash
+                    .preprocess(ctx)
+                    .await
+                    .map_err(|err| AesGcmError::new(ErrorKind::Ghash, err))
+            },
+            async {
+                vm.preprocess(ctx)
+                    .await
+                    .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))
+            }
+        )?;
+
         Ok(())
     }
 
@@ -232,7 +246,7 @@ where
         &mut self,
         vm: &mut Vm,
         ctx: &mut Ctx,
-        ciphertext: Vector<U8>,
+        plaintext: Vector<U8>,
         aad: Vector<U8>,
     ) -> Result<Vector<U8>, Self::Error> {
         todo!()
@@ -242,7 +256,7 @@ where
         &mut self,
         vm: &mut Vm,
         ctx: &mut Ctx,
-        plaintext: Vector<U8>,
+        ciphertext: Vector<U8>,
         aad: Vector<U8>,
     ) -> Result<Vector<U8>, Self::Error> {
         todo!()
