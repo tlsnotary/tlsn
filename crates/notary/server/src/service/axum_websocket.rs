@@ -898,6 +898,7 @@ mod tests {
     use super::*;
     use axum::{body::Body, routing::get, Router};
     use http::{Request, Version};
+    // NOTARY_MODIFICATION: use tower_util instead of tower to make clippy happy
     use tower_util::ServiceExt;
 
     #[tokio::test]

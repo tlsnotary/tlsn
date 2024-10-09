@@ -67,12 +67,11 @@ docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-ser
 docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture/notary notary-server:local
 ```
 
-## Configuration
+### Configuration
 
-- The Notary Server can be configured using three methods: a configuration file, command-line interface (CLI) arguments, and environment variables. These methods provide flexibility in how you set up and run the server.
+The notary server can be configured using three methods: a configuration file, command-line interface (CLI) arguments, and environment variables. These methods provide flexibility in how you set up and run the server.
 
-1. Configuration File - By default, the server looks for a config.yaml file in the `notary/server/config/` directory. This file contains all the configurable settings for the server. 
-   - Example:
+1. Configuration File - By default, the server looks for a config.yaml file in the `notary/server/config/` directory. This file contains all the configurable settings for the server, e.g.
    ```yaml
    server:
      name: "notary-server"
@@ -82,16 +81,16 @@ docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-ser
    notarization:
      max_sent_data: 4096
      max_recv_data: 16384
+   
+   ...
     ```
    
-2. Command-Line Interface (CLI) Arguments    - You can override configuration file settings using CLI arguments when starting the server. CLI arguments take precedence over the config file.
-   - Example:
+2. Command-Line Interface (CLI) Arguments - You can override configuration file settings using CLI arguments when starting the server. They take precedence over both the config file and Environment Variables arguments, e.g.
    ```shell
-   cargo run -- --port 8080 --tls-enabled false --log-level INFO --max-sent-data 2048
+   cargo run -- --port 8080 --tls-enabled false --log-level INFO
    ```
 
-3. Environment Variables can also be used to configure the server. They take precedence over both the config file and CLI arguments. The environment variables use the prefix `NOTARY_SERVER__` followed by the configuration path in uppercase, with double underscores as separators.
-   - Example: 
+3. Environment Variables can also be used to configure the server and take precedence over the config file. The environment variables use the prefix `NOTARY_SERVER__` followed by the configuration path in uppercase, with double underscores used for nested configuration such that `tls.enabled` in the config file, which will be `TLS__ENABLED` on CLI, e.g.
    ```shell
    NOTARY_SERVER__SERVER__PORT=8080 NOTARY_SERVER__NOTARIZATION__MAX_SENT_DATA=2048 NOTARY_SERVER__TLS__ENABLED=false cargo run
    ```
