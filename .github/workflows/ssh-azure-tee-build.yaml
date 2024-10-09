@@ -1,0 +1,76 @@
+name: build-on-sgx
+
+on:
+  push:
+    branches: [ "quote-presentation" ]
+  pull_request:
+    branches: [ "quote-presentation" ]
+    
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-on-sgx:
+    environment: tee
+    runs-on: [self-hosted, linux]
+    outputs:
+      handle: ${{ steps.notary.outputs.quote }}
+    env:
+      EVENTTAG: ${{ github.event.pull_request.head.sha || github.sha }}
+    container:
+      image: notaryserverbuilds.azurecr.io/builder/gramine
+      credentials:
+        username: notaryserverbuilds
+        password: ${{ secrets.AZURE_CR_BUILDS_PW }}
+      env:
+        GIT_COMMIT_HASH: $EVENTTAG
+        GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
+      options: "--device /dev/sgx_enclave"
+    steps:
+       - name: write conf
+         run: |
+              cat <<EOF > /config.yml
+              server:
+                name: "tlsn:slim"
+                host: "0.0.0.0"
+                port: 7047
+                html-info: |
+                  <blink>{public_key}</blink>
+              notarization:
+                max-sent-data: 16384
+                max-recv-data: 16384
+              tls:
+                enabled: false
+                private-key-pem-path: "sk.pem"
+                certificate-pem-path: "self.crt"
+
+              notary-key:
+                private-key-pem-path: "sk.pem"
+                public-key-pem-path:  "pub.pem"
+
+              logging:
+                level: DEBUG
+
+              authorization:
+                enabled: false
+                whitelist-csv-path: "_.csv"
+              EOF
+       - uses: actions/checkout@v3
+       - uses: actions-rs/toolchain@v1
+         with:
+            profile: minimal
+            toolchain: nightly
+       - uses: actions-rs/cargo@v1
+         with:
+            command: build
+            args: --release --features tee_quote --bin notary-server
+       - name: run ns
+         id: notary
+         run: ./target/release/notary-server --config-file /config.yml &
+       - uses: iFaxity/wait-on-action@v1
+         with:
+           resource: http-get://localhost:7047/info
+           delay: 4000
+           timeout: 8000
+           verbose: true
