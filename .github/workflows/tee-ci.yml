@@ -1,76 +1,41 @@
-name: build-on-sgx
+name: tee-build
 
 on:
   push:
-    branches: [ "quote-presentation" ]
+    branches: [ "dev" ]
   pull_request:
-    branches: [ "quote-presentation" ]
+    branches: [ "dev" ]
     
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  build-on-sgx:
-    environment: tee
-    runs-on: [self-hosted, linux]
-    outputs:
-      handle: ${{ steps.notary.outputs.quote }}
-    env:
-      EVENTTAG: ${{ github.event.pull_request.head.sha || github.sha }}
-    container:
-      image: notaryserverbuilds.azurecr.io/builder/gramine
-      credentials:
-        username: notaryserverbuilds
-        password: ${{ secrets.AZURE_CR_BUILDS_PW }}
-      env:
-        GIT_COMMIT_HASH: $EVENTTAG
-        GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
-      options: "--device /dev/sgx_enclave"
-    steps:
-       - name: write conf
-         run: |
-              cat <<EOF > /config.yml
-              server:
-                name: "tlsn:slim"
-                host: "0.0.0.0"
-                port: 7047
-                html-info: |
-                  <blink>{public_key}</blink>
-              notarization:
-                max-sent-data: 16384
-                max-recv-data: 16384
-              tls:
-                enabled: false
-                private-key-pem-path: "sk.pem"
-                certificate-pem-path: "self.crt"
-
-              notary-key:
-                private-key-pem-path: "sk.pem"
-                public-key-pem-path:  "pub.pem"
-
-              logging:
-                level: DEBUG
-
-              authorization:
-                enabled: false
-                whitelist-csv-path: "_.csv"
-              EOF
-       - uses: actions/checkout@v3
-       - uses: actions-rs/toolchain@v1
-         with:
-            profile: minimal
-            toolchain: nightly
-       - uses: actions-rs/cargo@v1
-         with:
-            command: build
-            args: --release --features tee_quote --bin notary-server
-       - name: run ns
-         id: notary
-         run: ./target/release/notary-server --config-file /config.yml &
-       - uses: iFaxity/wait-on-action@v1
-         with:
-           resource: http-get://localhost:7047/info
-           delay: 4000
-           timeout: 8000
-           verbose: true
+   build-measure-emulated:
+      environment: tee
+      runs-on: [self-hosted, linux]
+      container:
+        image: notaryserverbuilds.azurecr.io/prod/gramine
+        credentials:
+          username: notaryserverbuilds
+          password: ${{ secrets.AZURE_CR_BUILDS_PW }}
+        env:
+          GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
+      steps:
+        - name: get code
+          uses: actions/checkout@v4
+        - name: sccache
+          if: github.event_name != 'release'
+          # && github.event_name != 'workflow_dispatch'
+          uses: mozilla-actions/sccache-action@v0.0.6
+        - name: set rust env for scc
+          if: github.event_name != 'release'
+          # && github.event_name != 'workflow_dispatch'
+          run: |
+            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+    
+        - name: get emulated measurement (call gramine.sh without the sgx arg)
+          working-directory: ${{ github.workspace }}/crates/notary/server/tee
+          run: |
+             bash .github/scripts/gramine.sh
