@@ -1,16 +1,26 @@
-use crate::{aes_gcm::error::AesGcmError, config::Role};
+use crate::{
+    aes_gcm::{
+        error::{AesGcmError, ErrorKind},
+        MpcAesGcm,
+    },
+    cipher::{Aes128, Cipher},
+    config::Role,
+};
 use mpz_common::Context;
 use mpz_core::{
     commit::{Decommitment, HashCommit},
     hash::Hash,
 };
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Array, Vector, ViewExt,
+};
+use mpz_vm_core::{CallBuilder, VmExt};
 use serde::{Deserialize, Serialize};
 use serio::{stream::IoStreamExt, SinkExt};
 use std::ops::Add;
 use tlsn_universal_hash::UniversalHash;
 use tracing::instrument;
-
-use super::MpcAesGcm;
 
 pub(crate) const TAG_LEN: usize = 16;
 
@@ -33,17 +43,43 @@ impl Add for Tag {
 
 impl<U> MpcAesGcm<U> {
     #[instrument(level = "trace", skip_all, err)]
-    async fn compute_tag_share<Ctx>(
-        explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
-        aad: Vec<u8>,
+    async fn compute_tag_share<Ctx, Vm>(
+        &mut self,
+        vm: &mut Vm,
+        explicit_nonce: Array<U8, 8>,
+        ciphertext: Vector<U8>,
+        aad: Vec<U8>,
         ctx: &mut Ctx,
     ) -> Result<Tag, AesGcmError>
     where
         Ctx: Context,
         U: UniversalHash<Ctx>,
+        Vm: VmExt<Binary> + ViewExt,
     {
-        todo!()
+        let key = self.key()?;
+        let iv = self.iv()?;
+        let ctr = self.start_ctr()?;
+        let zero = self.zero()?;
+
+        let j0 = match self.preprocessed_ctr.pop_front() {
+            Some(j0) => j0,
+            None => CallBuilder::new(<Aes128 as Cipher>::ctr())
+                .arg(key)
+                .arg(iv)
+                .arg(explicit_nonce)
+                .arg(ctr)
+                .build()
+                .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?,
+        };
+
+        let h = match self.preprocessed_ecb.clone() {
+            Some(h) => h,
+            None => CallBuilder::new(<Aes128 as Cipher>::ecb())
+                .arg(key)
+                .arg(zero)
+                .build()
+                .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?,
+        };
     }
 
     /// Computes the tag for a ciphertext and additional data.
@@ -52,6 +88,7 @@ impl<U> MpcAesGcm<U> {
     /// Server, as it will be able to detect if the tag is incorrect.
     #[instrument(level = "debug", skip_all, err)]
     pub(crate) async fn add_tag_shares<Ctx: Context>(
+        &self,
         ctx: &mut Ctx,
         share: Tag,
     ) -> Result<Tag, AesGcmError> {

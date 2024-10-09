@@ -34,7 +34,7 @@ pub trait AeadCipher<Ctx: Context, Vm: VmExt<Binary>> {
 
     fn set_key<C: Cipher>(&mut self, key: C::Key) -> Result<(), Self::Error>;
 
-    async fn setup(&mut self) -> Result<(), Self::Error>;
+    async fn setup(&mut self, vm: &mut Vm) -> Result<(), Self::Error>;
 
     async fn preprocess(&mut self) -> Result<(), Self::Error>;
 
