@@ -1,7 +1,8 @@
 pub mod auth;
 pub mod cli;
 pub mod notary;
-
+#[cfg(feature = "tee_quote")]
+use crate::tee::Quote;
 use serde::{Deserialize, Serialize};
 
 /// Response object of the /info API
@@ -16,4 +17,7 @@ pub struct InfoResponse {
     pub git_commit_hash: String,
     /// Current git commit timestamp of notary-server
     pub git_commit_timestamp: String,
+    /// Hardware attestation
+    #[cfg(feature = "tee_quote")]
+    pub quote: Quote,
 }
