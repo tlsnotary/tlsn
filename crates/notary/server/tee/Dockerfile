@@ -13,7 +13,7 @@ RUN             set -eux \
 
 
 RUN             apt update && apt install -y libssl-dev libclang-dev
-ARG             TLSN_TAG=quote-presentation
+ARG             TLSN_TAG=dev
 ARG             TLSN_FT=tee_quote
 RUN             git clone --depth 1 -b $TLSN_TAG https://github.com/tlsnotary/tlsn /tlsn  && \
                 cargo build --release --bin notary-server --features $TLSN_FT --color always --manifest-path /tlsn/Cargo.toml
