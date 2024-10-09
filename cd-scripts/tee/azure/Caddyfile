@@ -1,3 +1,4 @@
+{
   key_type p256
   email mac@pse.dev # for acme
   servers {
