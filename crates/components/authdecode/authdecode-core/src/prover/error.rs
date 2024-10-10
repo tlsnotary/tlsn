@@ -6,4 +6,8 @@ pub enum ProverError {
     ProvingBackendError(String),
     #[error(transparent)]
     EncodingProviderError(#[from] crate::encodings::EncodingProviderError),
+    #[error("A mismatched count of salts for the commitment data set")]
+    MismatchedSaltCommitmentDataCount,
+    #[error("A mismatched count of salts for the chunk count")]
+    MismatchedSaltChunkCount,
 }

@@ -2,16 +2,13 @@ use crate::{
     backend::{
         halo2::{
             circuit::{AuthDecodeCircuit, FIELD_ELEMENTS, SALT_SIZE, USABLE_BYTES},
-            poseidon::{poseidon_1, poseidon_15, poseidon_2},
+            onetimesetup::proving_key,
             utils::bytes_be_to_f,
             Bn256F, CHUNK_SIZE, PARAMS,
         },
         traits::{Field, ProverBackend as Backend},
     },
-    prover::{
-        error::ProverError,
-        prover::{PrivateInput, ProverInput},
-    },
+    prover::{PrivateInput, ProverError, ProverInput},
     Proof,
 };
 
@@ -22,6 +19,8 @@ use halo2_proofs::{
     poly::kzg::{commitment::KZGCommitmentScheme, multiopen::ProverGWC},
     transcript::{Blake2bWrite, Challenge255, TranscriptWriterBuffer},
 };
+
+use poseidon_halo2::hash;
 
 use rand::{thread_rng, Rng};
 
@@ -43,7 +42,22 @@ pub struct Prover {
 impl Backend<Bn256F> for Prover {
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
     fn commit_plaintext(&self, plaintext: Vec<u8>) -> (Bn256F, Bn256F) {
-        debug_assert!(plaintext.len() <= self.chunk_size());
+        // Generate a random salt and add it to the plaintext.
+        let mut rng = thread_rng();
+        let salt = core::iter::repeat_with(|| rng.gen::<u8>())
+            .take(SALT_SIZE)
+            .collect::<Vec<_>>();
+        let salt = Bn256F::from_bytes_be(salt);
+
+        (
+            self.commit_plaintext_with_salt(plaintext, salt.clone()),
+            salt,
+        )
+    }
+
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
+    fn commit_plaintext_with_salt(&self, plaintext: Vec<u8>, salt: Bn256F) -> Bn256F {
+        assert!(plaintext.len() <= self.chunk_size());
 
         // Split up the plaintext bytes into field elements.
         let mut plaintext: Vec<Bn256F> = plaintext
@@ -53,28 +67,22 @@ impl Backend<Bn256F> for Prover {
         // Zero-pad the total count of field elements if needed.
         plaintext.extend(vec![Bn256F::zero(); FIELD_ELEMENTS - plaintext.len()]);
 
-        // Generate random salt and add it to the plaintext.
-        let mut rng = thread_rng();
-        let salt = core::iter::repeat_with(|| rng.gen::<u8>())
-            .take(SALT_SIZE)
-            .collect::<Vec<_>>();
-        let salt = Bn256F::from_bytes_be(salt);
-        plaintext.push(salt.clone());
+        plaintext.push(salt);
 
-        (hash_internal(&plaintext), salt)
+        hash_internal(&plaintext)
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
     fn commit_encoding_sum(&self, encoding_sum: Bn256F) -> (Bn256F, Bn256F) {
-        // Generate random salt.
+        // Generate a random salt.
         let mut rng = thread_rng();
         let salt = core::iter::repeat_with(|| rng.gen::<u8>())
             .take(SALT_SIZE)
             .collect::<Vec<_>>();
         let salt = Bn256F::from_bytes_be(salt);
 
-        // XXX: we could pack sum and salt into a single field element at the cost of performing
-        // a range check but the gains seem negligible.
+        // XXX: we could pack the sum and the salt into a single field element at the cost of performing
+        // an additional range check in the circuit, but the gains would be negligible.
         (hash_internal(&[encoding_sum, salt.clone()]), salt)
     }
 
@@ -82,7 +90,6 @@ impl Backend<Bn256F> for Prover {
     fn prove(&self, input: Vec<ProverInput<Bn256F>>) -> Result<Vec<Proof>, ProverError> {
         // XXX: using the default strategy of proving one chunk of plaintext with one proof.
         // There are considerable gains to be had when proving multiple chunks with one proof.
-        let mut rng = thread_rng();
 
         let proofs = input
             .into_iter()
@@ -107,7 +114,7 @@ impl Backend<Bn256F> for Prover {
                         .iter()
                         .map(|col| col.as_slice())
                         .collect::<Vec<_>>()],
-                    &mut rng,
+                    &mut thread_rng(),
                     &mut transcript,
                 )
                 .map_err(|e| ProverError::ProvingBackendError(e.to_string()))?;
@@ -129,9 +136,25 @@ impl Backend<Bn256F> for Prover {
     }
 }
 
+impl Default for Prover {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Prover {
-    /// Creates a new prover.
-    pub fn new(proving_key: ProvingKey<G1Affine>) -> Self {
+    /// Generates a proving key and creates a new prover.
+    //
+    // To prevent the latency caused by the generation of a proving key, consider caching
+    // the proving key and use `new_with_key` instead.
+    pub fn new() -> Self {
+        Self {
+            proving_key: proving_key(),
+        }
+    }
+
+    /// Creates a new prover with the provided proving key.
+    pub fn new_with_key(proving_key: ProvingKey<G1Affine>) -> Self {
         Self { proving_key }
     }
 
@@ -160,20 +183,15 @@ fn prepare_circuit(input: &PrivateInput<Bn256F>, usable_bytes: usize) -> AuthDec
     )
 }
 
+/// Hashes `inputs` with Poseidon and returns the digest.
+fn hash_internal(inputs: &[Bn256F]) -> Bn256F {
+    hash(&inputs.iter().map(|f| f.into()).collect::<Vec<_>>()).into()
+}
+
 #[cfg(any(test, feature = "fixtures"))]
 /// Wraps `prepare_circuit` to expose it for fixtures.
 pub fn _prepare_circuit(input: &PrivateInput<Bn256F>, usable_bytes: usize) -> AuthDecodeCircuit {
     prepare_circuit(input, usable_bytes)
-}
-
-/// Hashes `inputs` with Poseidon and returns the digest.
-fn hash_internal(inputs: &[Bn256F]) -> Bn256F {
-    match inputs.len() {
-        15 => poseidon_15(inputs.try_into().unwrap()),
-        2 => poseidon_2(inputs.try_into().unwrap()),
-        1 => poseidon_1(inputs.try_into().unwrap()),
-        _ => unreachable!(),
-    }
 }
 
 #[cfg(test)]
@@ -183,7 +201,7 @@ pub static mut TEST_BINARY_CHECK_FAIL_IS_RUNNING: bool = false;
 #[cfg(test)]
 mod tests {
     use crate::{
-        backend::halo2::{onetimesetup, verifier::Verifier, BITS_PER_LIMB},
+        backend::halo2::{verifier::Verifier, BITS_PER_LIMB},
         tests::proof_inputs_for_backend,
     };
 
@@ -197,8 +215,8 @@ mod tests {
     #[fixture]
     #[once]
     fn proof_input() -> (Vec<Vec<F>>, AuthDecodeCircuit) {
-        let p = Prover::new(onetimesetup::proving_key());
-        let v = Verifier::new(onetimesetup::verification_key());
+        let p = Prover::new();
+        let v = Verifier::new();
         let input = proof_inputs_for_backend(p.clone(), v)[0].clone();
         (
             prepare_instance(input.public(), p.usable_bytes()),

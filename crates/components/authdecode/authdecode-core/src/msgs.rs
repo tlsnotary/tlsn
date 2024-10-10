@@ -3,8 +3,8 @@
 use crate::{
     backend::traits::Field,
     id::IdCollection,
-    prover::commitment::CommitmentDetails,
-    verifier::commitment::{UnverifiedChunkCommitment, UnverifiedCommitment},
+    prover::CommitmentDetails,
+    verifier::{UnverifiedChunkCommitment, UnverifiedCommitment},
     Proof,
 };
 
@@ -41,6 +41,25 @@ where
     /// A non-empty collection of commitments. Each element is a commitment to plaintext of an
     /// arbitrary length.
     commitments: Vec<Commitment<I, F>>,
+}
+
+impl<I, F> Commit<I, F>
+where
+    I: IdCollection,
+    F: Field,
+{
+    /// Returns the total number of chunks across all commitments in the collection.
+    pub fn chunk_count(&self) -> usize {
+        self.commitments
+            .iter()
+            .map(|inner| inner.chunk_commitments.len())
+            .sum()
+    }
+
+    /// Returns the total number of commitments in the collection.
+    pub fn commitment_count(&self) -> usize {
+        self.commitments.len()
+    }
 }
 
 /// A message with proofs sent by the prover.

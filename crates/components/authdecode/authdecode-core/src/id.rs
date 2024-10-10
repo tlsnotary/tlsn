@@ -10,6 +10,10 @@ pub trait IdCollection: PartialEq + Default + Clone {
     /// Drains and returns `count` ids from the front of the collection, modifying the collection.
     /// If the length of the collection is less than `count`, drains the entire collection.
     ///
+    /// # Panics
+    ///
+    /// Panics if the `count` is invalid.
+    ///
     /// # Arguments
     ///
     /// * `count` - The amount of ids to drain.
@@ -25,9 +29,6 @@ pub trait IdCollection: PartialEq + Default + Clone {
     ///
     /// Panics if there is no id with the given index in the collection.
     fn id(&self, index: usize) -> Id;
-
-    /// Returns all ids in the collection.
-    fn ids(&self) -> Vec<Id>;
 
     /// Returns the amount of ids in the collection.
     fn len(&self) -> usize;

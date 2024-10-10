@@ -10,7 +10,7 @@ use getset::Getters;
 use itybity::ToBits;
 
 /// The plaintext and the encodings which the prover commits to.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CommitmentData<I>
 where
     I: IdCollection,
@@ -40,11 +40,39 @@ where
         Ok(CommitmentDetails { chunk_commitments })
     }
 
+    /// Creates a commitment to this commitment data with the provided plaintext salt.
+    ///
+    /// Returns an error if the amount of salts is not equal to the amount of chunks.
+    #[allow(clippy::borrowed_box)]
+    pub fn commit_with_salt<F>(
+        self,
+        backend: &Box<dyn Backend<F>>,
+        salts: Vec<F>,
+    ) -> Result<CommitmentDetails<I, F>, ProverError>
+    where
+        F: Field + Clone + std::ops::Add<Output = F>,
+    {
+        // Chunk up the data.
+        let chunks = self.into_chunks(backend.chunk_size()).collect::<Vec<_>>();
+
+        if chunks.len() < salts.len() {
+            return Err(ProverError::MismatchedSaltChunkCount);
+        }
+
+        let chunk_commitments = chunks
+            .into_iter()
+            .zip(salts)
+            .map(|(chunk, salt)| chunk.commit_with_salt(backend, salt))
+            .collect::<Vec<ChunkCommitmentDetails<I, F>>>();
+
+        Ok(CommitmentDetails { chunk_commitments })
+    }
+
     /// Creates new commitment data.
     ///
     /// # Arguments
     /// * `plaintext` - The plaintext being committed to.
-    /// * `encodings` - Uniformly random encodings of every bit of the `plaintext`.
+    /// * `encodings` - Uniformly random encodings of every bit of the `plaintext` in MSB0 bit order.
     ///                 Note that correlated encodings like those used in garbled circuits must  
     ///                 not be used since they are not uniformly random.
     /// * `bit_ids` - The id of each bit of the `plaintext`.
@@ -54,7 +82,7 @@ where
     /// Panics if `plaintext`, `encodings` and `bit_ids` are not all of the same length.
     pub fn new(plaintext: &[u8], encodings: &[[u8; SSP / 8]], bit_ids: I) -> CommitmentData<I> {
         assert!(plaintext.len() * 8 == encodings.len());
-        assert!(plaintext.len() * 8 == bit_ids.len());
+        assert!(encodings.len() == bit_ids.len());
 
         let encodings = plaintext
             .to_msb0_vec()
@@ -127,6 +155,33 @@ where
         ChunkCommitmentDetails {
             plaintext_hash,
             plaintext_salt,
+            encodings: self.encodings.clone(),
+            encoding_sum: sum,
+            encoding_sum_hash,
+            encoding_sum_salt,
+        }
+    }
+
+    /// Creates a commitment to this chunk with the provided salt.
+    #[allow(clippy::borrowed_box)]
+    fn commit_with_salt<F>(
+        &self,
+        backend: &Box<dyn Backend<F>>,
+        salt: F,
+    ) -> ChunkCommitmentDetails<I, F>
+    where
+        F: Field + Clone + std::ops::Add<Output = F>,
+    {
+        let sum = self.encodings.compute_sum::<F>();
+
+        let plaintext_hash =
+            backend.commit_plaintext_with_salt(self.encodings.plaintext(), salt.clone());
+
+        let (encoding_sum_hash, encoding_sum_salt) = backend.commit_encoding_sum(sum.clone());
+
+        ChunkCommitmentDetails {
+            plaintext_hash,
+            plaintext_salt: salt,
             encodings: self.encodings.clone(),
             encoding_sum: sum,
             encoding_sum_hash,

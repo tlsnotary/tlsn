@@ -52,7 +52,7 @@ pub struct UnverifiedChunkCommitment<I, F> {
     /// Hash commitment to the arithemtic sum of the encodings of the plaintext.
     #[getset(get = "pub")]
     encoding_sum_hash: F,
-    /// The id of each bit of the committed plaintext.
+    /// The id of each bit of the committed plaintext in MSB0 bit order.
     #[getset(get = "pub")]
     ids: I,
 }
@@ -110,6 +110,11 @@ where
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.chunk_commitments.iter().map(|com| com.ids.len()).sum()
+    }
+
+    /// Returns a non-empty collection of commitments for each chunk of the plaintext.
+    pub fn chunk_commitments(&self) -> &Vec<VerifiedChunkCommitment<I, F>> {
+        &self.chunk_commitments
     }
 }
 

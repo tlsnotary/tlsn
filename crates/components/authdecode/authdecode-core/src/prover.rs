@@ -3,11 +3,6 @@ use crate::{
     encodings::EncodingProvider,
     id::IdCollection,
     msgs::{Commit, Proofs},
-    prover::{
-        commitment::{CommitmentData, CommitmentDetails},
-        error::ProverError,
-        state,
-    },
     PublicInput,
 };
 
@@ -17,13 +12,21 @@ use std::{marker::PhantomData, ops::Add};
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};
 
+mod commitment;
+mod error;
+mod state;
+
+pub use commitment::{CommitmentData, CommitmentDetails};
+pub use error::ProverError;
+pub use state::{Committed, Initialized, ProofGenerated, ProverState};
+
 /// The prover's public and private inputs to the circuit.
 #[derive(Clone, Default, Getters)]
 pub struct ProverInput<F> {
-    /// Public input.
+    /// The public input.
     #[getset(get = "pub")]
     public: PublicInput<F>,
-    /// Private input.
+    /// The private input.
     #[getset(get = "pub")]
     private: PrivateInput<F>,
 }
@@ -81,7 +84,7 @@ where
     pub fn commit(
         self,
         data_set: Vec<CommitmentData<I>>,
-    ) -> Result<(Prover<I, state::Committed<I, F>, F>, Commit<I, F>), ProverError>
+    ) -> Result<(Prover<I, Committed<I, F>, F>, Commit<I, F>), ProverError>
     where
         I: IdCollection,
         F: Field + Clone + std::ops::Add<Output = F>,
@@ -95,7 +98,42 @@ where
         Ok((
             Prover {
                 backend: self.backend,
-                state: state::Committed {
+                state: Committed {
+                    commitments: commitments.clone(),
+                },
+                pd: PhantomData,
+            },
+            commitments.into(),
+        ))
+    }
+
+    /// Creates a commitment to each element in the `data_set` with the provided salts.
+    ///
+    /// Returns the prover in a new state and the message to be passed to the verifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `data_set` - The set of commitment data with salts for each chunk of it.
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[allow(clippy::type_complexity)]
+    pub fn commit_with_salt(
+        self,
+        data_set: Vec<(CommitmentData<I>, Vec<F>)>,
+    ) -> Result<(Prover<I, Committed<I, F>, F>, Commit<I, F>), ProverError>
+    where
+        I: IdCollection,
+        F: Field + Clone + std::ops::Add<Output = F>,
+    {
+        // Commit to each element in the set individually.
+        let commitments = data_set
+            .into_iter()
+            .map(|(data, salt)| data.commit_with_salt(&self.backend, salt))
+            .collect::<Result<Vec<CommitmentDetails<I, F>>, ProverError>>()?;
+
+        Ok((
+            Prover {
+                backend: self.backend,
+                state: Committed {
                     commitments: commitments.clone(),
                 },
                 pd: PhantomData,
@@ -105,7 +143,7 @@ where
     }
 }
 
-impl<I, F> Prover<I, state::Committed<I, F>, F>
+impl<I, F> Prover<I, Committed<I, F>, F>
 where
     I: IdCollection,
     F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,
@@ -122,8 +160,8 @@ where
     #[allow(clippy::type_complexity)]
     pub fn prove(
         self,
-        encoding_provider: impl EncodingProvider<I>,
-    ) -> Result<(Prover<I, state::ProofGenerated<I, F>, F>, Proofs), ProverError> {
+        encoding_provider: &impl EncodingProvider<I>,
+    ) -> Result<(Prover<I, ProofGenerated<I, F>, F>, Proofs), ProverError> {
         // Collect proof inputs for each chunk of plaintext committed to.
         let proof_inputs = self
             .state
@@ -163,7 +201,7 @@ where
         Ok((
             Prover {
                 backend: self.backend,
-                state: state::ProofGenerated {
+                state: ProofGenerated {
                     commitments: self.state.commitments,
                 },
                 pd: PhantomData,
@@ -174,7 +212,7 @@ where
 }
 
 #[cfg(any(test, feature = "fixtures"))]
-impl<I, F> Prover<I, state::ProofGenerated<I, F>, F>
+impl<I, F> Prover<I, ProofGenerated<I, F>, F>
 where
     I: IdCollection,
     F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,

@@ -33,8 +33,8 @@ mod tests {
         backend::traits::{Field, ProverBackend, VerifierBackend},
         fixtures,
         mock::{MockBitIds, MockEncodingProvider},
-        prover::{commitment::CommitmentData, state::ProofGenerated},
-        verifier::state::VerifiedSuccessfully,
+        prover::{CommitmentData, ProofGenerated},
+        verifier::VerifiedSuccessfully,
     };
     use futures_util::StreamExt;
     use rstest::*;
@@ -75,7 +75,7 @@ mod tests {
         encoding_provider: MockEncodingProvider<MockBitIds>,
     ) {
         run_authdecode(
-            authdecode_core::backend::halo2::fixtures::backend_pair(),
+            authdecode_core::backend::halo2::fixtures::backend_pair_mock(),
             commitment_data,
             encoding_provider,
         )
@@ -120,17 +120,20 @@ mod tests {
             .unwrap();
 
         let verifier = verifier
-            .receive_commitments(&mut verifier_stream, encoding_provider.clone())
+            .receive_commitments(&mut verifier_stream)
             .await
             .unwrap();
 
-        // An encoding provider is instantiated with authenticated full encodings from external context.
+        // An encoding provider is instantiated with authenticated full encodings from an external context.
         let prover = prover
-            .prove(&mut prover_sink, encoding_provider)
+            .prove(&mut prover_sink, &encoding_provider)
             .await
             .unwrap();
 
-        let verifier = verifier.verify(&mut verifier_stream).await.unwrap();
+        let verifier = verifier
+            .verify(&mut verifier_stream, &encoding_provider)
+            .await
+            .unwrap();
 
         (prover, verifier)
     }

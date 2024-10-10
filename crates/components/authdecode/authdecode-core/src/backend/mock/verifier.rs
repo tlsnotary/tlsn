@@ -3,7 +3,7 @@ use crate::{
         mock::{circuit::is_circuit_satisfied, MockField, MockProof, CHUNK_SIZE},
         traits::VerifierBackend as Backend,
     },
-    verifier::error::VerifierError,
+    verifier::VerifierError,
     Proof, PublicInput,
 };
 

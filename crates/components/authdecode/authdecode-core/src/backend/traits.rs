@@ -1,8 +1,8 @@
 //! Traits for the prover backend and the verifier backend.
 
 use crate::{
-    prover::{error::ProverError, prover::ProverInput},
-    verifier::error::VerifierError,
+    prover::{ProverError, ProverInput},
+    verifier::VerifierError,
     Proof, PublicInput,
 };
 
@@ -18,10 +18,29 @@ where
     ///
     /// Returns the commitment and the salt used to create the commitment.
     ///
+    /// # Panics
+    ///
+    /// Panics if the length of the plaintext exceeds the allowed maximum.
+    ///
     /// # Arguments
     ///
-    /// * `plaintext` - The plaintext to be committed to.
+    /// * `plaintext` - The plaintext to commit to.
     fn commit_plaintext(&self, plaintext: Vec<u8>) -> (F, F);
+
+    /// Creates a commitment to the plaintext with the provided salt, padding the plaintext if
+    /// necessary.
+    ///
+    /// Returns the commitment.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length of the plaintext exceeds the allowed maximum.
+    ///
+    /// # Arguments
+    ///
+    /// * `plaintext` - The plaintext to commit to.
+    /// * `salt` - The salt of the commitment.
+    fn commit_plaintext_with_salt(&self, plaintext: Vec<u8>, salt: F) -> F;
 
     /// Creates a commitment to the encoding sum.
     ///
@@ -29,10 +48,10 @@ where
     ///
     /// # Arguments
     ///
-    /// * `encoding_sum` - The sum of the encodings be committed to.
+    /// * `encoding_sum` - The sum of the encodings to commit to.
     fn commit_encoding_sum(&self, encoding_sum: F) -> (F, F);
 
-    /// Given the `inputs` to the AuthDecode zk circuit, generates and returns `Proof`(s)
+    /// Given the `inputs` to the AuthDecode circuit, generates and returns `Proof`(s).
     ///
     /// # Arguments
     ///
@@ -49,7 +68,7 @@ where
 }
 
 /// A trait for zk proof verification backend.
-pub trait VerifierBackend<F>
+pub trait VerifierBackend<F>: Send
 where
     F: Field,
 {
@@ -65,8 +84,15 @@ where
 /// Methods for working with a field element.
 pub trait Field {
     /// Creates a new field element from bytes in big-endian byte order.
-    fn from_bytes_be(bytes: Vec<u8>) -> Self;
+    fn from_bytes_be(bytes: Vec<u8>) -> Self
+    where
+        Self: Sized;
+
+    /// Returns the field element as bytes in big-endian byte order.
+    fn to_bytes_be(self) -> Vec<u8>;
 
     /// Returns zero, the additive identity.
-    fn zero() -> Self;
+    fn zero() -> Self
+    where
+        Self: Sized;
 }

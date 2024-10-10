@@ -20,7 +20,7 @@ use std::ops::{Add, Sub};
 
 mod circuit;
 pub mod onetimesetup;
-mod poseidon;
+pub mod poseidon;
 pub mod prover;
 mod utils;
 pub mod verifier;
@@ -33,10 +33,10 @@ lazy_static! {
 }
 
 /// The bytesize of one chunk of plaintext.
-const CHUNK_SIZE: usize = circuit::FIELD_ELEMENTS * circuit::USABLE_BYTES;
+pub const CHUNK_SIZE: usize = circuit::FIELD_ELEMENTS * circuit::USABLE_BYTES;
 
 /// A field element of the Bn256 curve.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Bn256F {
     #[serde(serialize_with = "fr_serialize", deserialize_with = "fr_deserialize")]
     pub inner: Fr,
@@ -53,6 +53,13 @@ impl Field for Bn256F {
         Self {
             inner: bytes_be_to_f(bytes),
         }
+    }
+
+    fn to_bytes_be(self) -> Vec<u8> {
+        let mut le = self.inner.to_bytes();
+        // Reverse from little-endian to big-endian.
+        le.reverse();
+        le.to_vec()
     }
 
     fn zero() -> Self {
@@ -80,8 +87,14 @@ impl Sub for Bn256F {
     }
 }
 
+impl From<Fr> for Bn256F {
+    fn from(value: Fr) -> Self {
+        Bn256F::new(value)
+    }
+}
+
 #[allow(clippy::from_over_into)]
-impl Into<Fr> for Bn256F {
+impl Into<Fr> for &Bn256F {
     fn into(self) -> Fr {
         self.inner
     }

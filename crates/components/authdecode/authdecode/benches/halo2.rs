@@ -20,7 +20,7 @@ criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
 
 async fn authdecode_halo2() {
-    let pair = authdecode_core::backend::halo2::fixtures::backend_pair();
+    let pair = authdecode_core::backend::halo2::fixtures::backend_pair_mock();
     let commitment_data = commitment_data();
     let encoding_provider = fixtures::encoding_provider();
 
@@ -38,15 +38,18 @@ async fn authdecode_halo2() {
         .unwrap();
 
     let verifier = verifier
-        .receive_commitments(&mut verifier_stream, encoding_provider.clone())
+        .receive_commitments(&mut verifier_stream)
         .await
         .unwrap();
 
     // An encoding provider is instantiated with authenticated full encodings from external context.
     let _ = prover
-        .prove(&mut prover_sink, encoding_provider)
+        .prove(&mut prover_sink, &encoding_provider)
         .await
         .unwrap();
 
-    let _ = verifier.verify(&mut verifier_stream).await.unwrap();
+    let _ = verifier
+        .verify(&mut verifier_stream, &encoding_provider)
+        .await
+        .unwrap();
 }

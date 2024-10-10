@@ -11,12 +11,11 @@ use halo2_proofs::{
 use std::convert::TryInto;
 
 use crate::backend::halo2::{
-    poseidon::{
-        circuit_config::{configure_poseidon_rate_15, configure_poseidon_rate_2},
-        spec::{Spec15, Spec2},
-    },
+    poseidon::{configure_poseidon_rate_15, configure_poseidon_rate_2},
     utils::{compose_bits, f_to_bits},
 };
+
+use poseidon_halo2::{Spec15, Spec2};
 
 // Rationale for the selection of constants.
 //

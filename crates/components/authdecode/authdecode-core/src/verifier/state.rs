@@ -2,7 +2,6 @@
 
 use crate::{
     backend::traits::Field,
-    encodings::EncodingProvider,
     id::IdCollection,
     verifier::commitment::{UnverifiedCommitment, VerifiedCommitment},
 };
@@ -15,8 +14,6 @@ opaque_debug::implement!(Initialized);
 pub struct CommitmentReceived<I, F> {
     /// Details pertaining to each commitment.
     pub commitments: Vec<UnverifiedCommitment<I, F>>,
-    /// The provider of the encodings for plaintext bits.
-    pub encoding_provider: Box<dyn EncodingProvider<I>>,
 }
 opaque_debug::implement!(CommitmentReceived<I, F>);
 

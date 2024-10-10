@@ -1,16 +1,24 @@
+use std::marker::PhantomData;
+
 use crate::{
     backend::traits::{Field, VerifierBackend as Backend},
     encodings::EncodingProvider,
     id::IdCollection,
     msgs::{Commit, Proofs},
-    verifier::{commitment::UnverifiedCommitment, error::VerifierError, state},
     PublicInput,
 };
 
-use std::marker::PhantomData;
-
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};
+
+mod commitment;
+mod error;
+mod state;
+
+pub use commitment::VerifiedCommitment;
+pub(crate) use commitment::{UnverifiedChunkCommitment, UnverifiedCommitment};
+pub use error::VerifierError;
+pub use state::{CommitmentReceived, Initialized, VerifiedSuccessfully, VerifierState};
 
 /// Verifier in the AuthDecode protocol.
 pub struct Verifier<I, S, F>
@@ -56,17 +64,13 @@ where
     pub fn receive_commitments(
         self,
         commitments: Commit<I, F>,
-        encoding_provider: impl EncodingProvider<I> + 'static,
     ) -> Result<Verifier<I, state::CommitmentReceived<I, F>, F>, VerifierError> {
         let commitments: Vec<UnverifiedCommitment<I, F>> =
             commitments.into_vec_commitment(self.backend.chunk_size())?;
 
         Ok(Verifier {
             backend: self.backend,
-            state: state::CommitmentReceived {
-                commitments,
-                encoding_provider: Box::new(encoding_provider),
-            },
+            state: state::CommitmentReceived { commitments },
             phantom: PhantomData,
         })
     }
@@ -83,10 +87,12 @@ where
     ///
     /// # Arguments
     /// * `proofs` - The prover's message containing proofs.
+    /// * `encoding_provider` - The provider of the encodings for plaintext bits.
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
     pub fn verify(
         self,
         proofs: Proofs,
+        encoding_provider: &(impl EncodingProvider<I> + 'static),
     ) -> Result<Verifier<I, state::VerifiedSuccessfully<I, F>, F>, VerifierError> {
         let Proofs { proofs } = proofs;
 
@@ -97,7 +103,7 @@ where
             .iter()
             .flat_map(|com| com.chunk_commitments())
             .map(|com| {
-                let encodings = self.state.encoding_provider.get_by_ids(com.ids())?;
+                let encodings = encoding_provider.get_by_ids(com.ids())?;
 
                 Ok(PublicInput {
                     plaintext_hash: com.plaintext_hash().clone(),
@@ -122,5 +128,16 @@ where
             },
             phantom: PhantomData,
         })
+    }
+}
+
+impl<I, F> Verifier<I, state::VerifiedSuccessfully<I, F>, F>
+where
+    I: IdCollection,
+    F: Field + std::ops::Add<Output = F> + std::ops::Sub<Output = F> + Clone,
+{
+    /// Returns the verified comitments.
+    pub fn commitments(&self) -> &Vec<VerifiedCommitment<I, F>> {
+        &self.state.commitments
     }
 }

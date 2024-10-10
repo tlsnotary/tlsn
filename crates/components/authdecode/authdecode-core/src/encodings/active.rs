@@ -4,9 +4,9 @@ use getset::Getters;
 use itybity::FromBitIterator;
 
 /// A non-empty collection of active bit encodings with the associated plaintext value.
-#[derive(Clone, PartialEq, Debug, Getters)]
+#[derive(Clone, PartialEq, Debug, Getters, Default)]
 pub struct ActiveEncodings<I> {
-    /// The encoding for each bit of the plaintext.
+    /// The encoding for each bit of the plaintext in MSB0 bit order.
     #[getset(get = "pub")]
     encodings: Vec<Encoding>,
     /// A collection of ids of each bit of the encoded plaintext.
@@ -72,9 +72,7 @@ where
         self.encodings.len()
     }
 
-    /// Returns the plaintext encoded by this collection as big-endian bytes.
-    ///
-    /// Treats the encoded bits as if they were in MSB-first bit order.
+    /// Returns the plaintext encoded by this collection.
     pub fn plaintext(&self) -> Vec<u8> {
         Vec::<u8>::from_msb0_iter(self.encodings.iter().map(|enc| *enc.bit()))
     }

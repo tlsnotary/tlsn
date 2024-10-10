@@ -7,7 +7,7 @@ use authdecode_core::{
     encodings::EncodingProvider,
     id::IdCollection,
     msgs::Message,
-    prover::{commitment::CommitmentData, error::ProverError, state},
+    prover::{CommitmentData, Committed, Initialized, ProofGenerated, ProverError, ProverState},
     Prover as CoreProver,
 };
 
@@ -19,13 +19,13 @@ pub struct Prover<I, S, F>
 where
     I: IdCollection,
     F: Field + Add<Output = F>,
-    S: state::ProverState,
+    S: ProverState,
 {
     /// The wrapped prover in the AuthDecode protocol.
     prover: CoreProver<I, S, F>,
 }
 
-impl<I, F> Prover<I, state::Initialized, F>
+impl<I, F> Prover<I, Initialized, F>
 where
     I: IdCollection,
     F: Field + Add<Output = F>,
@@ -42,7 +42,7 @@ where
     }
 }
 
-impl<I, F> Prover<I, state::Initialized, F>
+impl<I, F> Prover<I, Initialized, F>
 where
     I: IdCollection,
     F: Field + Add<Output = F>,
@@ -58,7 +58,7 @@ where
         self,
         sink: &mut Si,
         data_set: Vec<CommitmentData<I>>,
-    ) -> Result<Prover<I, state::Committed<I, F>, F>, ProverError>
+    ) -> Result<Prover<I, Committed<I, F>, F>, ProverError>
     where
         I: IdCollection,
         F: Field + Clone + std::ops::Add<Output = F>,
@@ -71,9 +71,34 @@ where
             prover: core_prover,
         })
     }
+
+    /// Creates a commitment to each element in the `data_set` with the provided salts.
+    ///
+    /// # Arguments
+    ///
+    /// * `sink` - The sink for sending messages to the verifier.
+    /// * `data_set` - The set of commitment data with salts for each chunk of it.
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    pub async fn commit_with_salt<Si: IoSink<Message<I, F>> + Send + Unpin>(
+        self,
+        sink: &mut Si,
+        data_set: Vec<(CommitmentData<I>, Vec<F>)>,
+    ) -> Result<Prover<I, Committed<I, F>, F>, ProverError>
+    where
+        I: IdCollection,
+        F: Field + Clone + std::ops::Add<Output = F>,
+    {
+        let (core_prover, msg) = self.prover.commit_with_salt(data_set)?;
+
+        sink.send(Message::Commit(msg)).await?;
+
+        Ok(Prover {
+            prover: core_prover,
+        })
+    }
 }
 
-impl<I, F> Prover<I, state::Committed<I, F>, F>
+impl<I, F> Prover<I, Committed<I, F>, F>
 where
     I: IdCollection,
     F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,
@@ -89,8 +114,8 @@ where
     pub async fn prove<Si: IoSink<Message<I, F>> + Send + Unpin>(
         self,
         sink: &mut Si,
-        encoding_provider: impl EncodingProvider<I>,
-    ) -> Result<Prover<I, state::ProofGenerated<I, F>, F>, ProverError> {
+        encoding_provider: &impl EncodingProvider<I>,
+    ) -> Result<Prover<I, ProofGenerated<I, F>, F>, ProverError> {
         let (prover, msg) = self.prover.prove(encoding_provider)?;
 
         sink.send(Message::Proofs(msg)).await?;

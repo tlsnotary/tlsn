@@ -3,7 +3,7 @@ use crate::{
         mock::{MockField, MockProof, CHUNK_SIZE},
         traits::{Field, ProverBackend},
     },
-    prover::{error::ProverError, prover::ProverInput},
+    prover::{ProverError, ProverInput},
     Proof,
 };
 
@@ -36,6 +36,10 @@ impl ProverBackend<MockField> for MockProverBackend {
             MockField::from_bytes_be(hash_bytes.to_vec()),
             MockField::from_bytes_be(salt.to_vec()),
         )
+    }
+
+    fn commit_plaintext_with_salt(&self, _plaintext: Vec<u8>, _salt: MockField) -> MockField {
+        unimplemented!()
     }
 
     fn commit_encoding_sum(&self, encoding_sum: MockField) -> (MockField, MockField) {

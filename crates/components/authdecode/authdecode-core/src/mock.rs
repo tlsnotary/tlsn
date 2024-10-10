@@ -150,10 +150,6 @@ impl IdCollection for MockBitIds {
         unreachable!()
     }
 
-    fn ids(&self) -> Vec<Id> {
-        (0..self.len()).map(|idx| self.id(idx)).collect::<Vec<_>>()
-    }
-
     fn len(&self) -> usize {
         self.ranges.iter().map(|r| r.len()).sum()
     }
@@ -202,11 +198,11 @@ where
 {
     pub fn new(full_encodings: FullEncodings<T>) -> Self {
         let mut hashmap = HashMap::new();
-        for (full_enc, id) in full_encodings
-            .encodings()
-            .iter()
-            .zip(full_encodings.ids().ids())
-        {
+        let ids = (0..full_encodings.ids().len())
+            .map(|idx| full_encodings.ids().id(idx))
+            .collect::<Vec<_>>();
+
+        for (full_enc, id) in full_encodings.encodings().iter().zip(ids) {
             if hashmap.insert(id.clone(), *full_enc).is_some() {
                 panic!("duplicate ids detected");
             }
@@ -223,8 +219,9 @@ where
     T: IdCollection,
 {
     fn get_by_ids(&self, ids: &T) -> Result<FullEncodings<T>, EncodingProviderError> {
-        let full_encodings = ids
-            .ids()
+        let all_ids = (0..ids.len()).map(|idx| ids.id(idx)).collect::<Vec<_>>();
+
+        let full_encodings = all_ids
             .iter()
             .map(|id| *self.full_encodings.get(id).unwrap())
             .collect::<Vec<_>>();

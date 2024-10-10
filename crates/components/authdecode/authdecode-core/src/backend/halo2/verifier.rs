@@ -3,7 +3,7 @@ use crate::{
         halo2::{circuit::USABLE_BYTES, Bn256F, CHUNK_SIZE, PARAMS},
         traits::VerifierBackend as Backend,
     },
-    verifier::error::VerifierError,
+    verifier::VerifierError,
     Proof, PublicInput,
 };
 
@@ -24,16 +24,33 @@ use halo2_proofs::{
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};
 
-use super::prepare_instance;
+use super::{onetimesetup::verification_key, prepare_instance};
 
 /// The Verifier of the authdecode circuit.
 pub struct Verifier {
     /// The verification key.
     verification_key: VerifyingKey<G1Affine>,
 }
+
+impl Default for Verifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Verifier {
-    /// Creates a new verifier.
-    pub fn new(verification_key: VerifyingKey<G1Affine>) -> Self {
+    /// Generates a verification key and creates a new verifier.
+    //
+    // To prevent the latency caused by the generation of a verification key, consider caching
+    // the verification key and use `new_with_key` instead.
+    pub fn new() -> Self {
+        Self {
+            verification_key: verification_key(),
+        }
+    }
+
+    /// Creates a new verifier with the provided key.
+    pub fn new_with_key(verification_key: VerifyingKey<G1Affine>) -> Self {
         Self { verification_key }
     }
 

@@ -14,7 +14,7 @@ pub enum EncodingProviderError {
     EncodingWithIdNotAvailable(usize),
 }
 
-/// A provider of full encodings of bits identified by their id .
+/// A provider of full encodings of bits identified by their id.
 pub trait EncodingProvider<I>
 where
     I: IdCollection,

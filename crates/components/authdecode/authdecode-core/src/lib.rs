@@ -31,8 +31,8 @@ pub mod fixtures;
 #[cfg(any(test, feature = "mock"))]
 pub mod mock;
 
-pub use prover::prover::Prover;
-pub use verifier::verifier::Verifier;
+pub use prover::Prover;
+pub use verifier::Verifier;
 
 use serde::{Deserialize, Serialize};
 
@@ -63,7 +63,7 @@ pub struct PublicInput<F> {
     /// The sum of the encodings which encode the value 0 of a bit .
     zero_sum: F,
     /// An arithmetic difference between the encoding of bit value 1 and encoding of bit value 0 for
-    /// each bit of the plaintext.
+    /// each bit of the plaintext in MSB0 bit order.
     deltas: Vec<F>,
 }
 
@@ -73,12 +73,8 @@ mod tests {
         backend::traits::{Field, ProverBackend, VerifierBackend},
         fixtures,
         mock::{MockBitIds, MockEncodingProvider},
-        prover::{
-            commitment::CommitmentData,
-            prover::{Prover, ProverInput},
-            state::ProofGenerated,
-        },
-        verifier::{state::VerifiedSuccessfully, verifier::Verifier},
+        prover::{CommitmentData, ProofGenerated, Prover, ProverInput},
+        verifier::{VerifiedSuccessfully, Verifier},
         Proof,
     };
 
@@ -117,26 +113,26 @@ mod tests {
 
     // Tests the protocol with a mock halo2 prover and verifier.
     #[rstest]
+    fn test_mock_halo2_backend(
+        commitment_data: &[CommitmentData<MockBitIds>],
+        encoding_provider: &MockEncodingProvider<MockBitIds>,
+    ) {
+        run_authdecode(
+            crate::backend::halo2::fixtures::backend_pair_mock(),
+            commitment_data,
+            encoding_provider,
+        );
+    }
+
+    // Tests the protocol with a halo2 prover and verifier..
+    #[ignore = "expensive"]
+    #[rstest]
     fn test_halo2_backend(
         commitment_data: &[CommitmentData<MockBitIds>],
         encoding_provider: &MockEncodingProvider<MockBitIds>,
     ) {
         run_authdecode(
             crate::backend::halo2::fixtures::backend_pair(),
-            commitment_data,
-            encoding_provider,
-        );
-    }
-
-    // Tests the protocol with a real halo2 prover and verifier..
-    #[ignore = "expensive"]
-    #[rstest]
-    fn test_halo2_backend_real(
-        commitment_data: &[CommitmentData<MockBitIds>],
-        encoding_provider: &MockEncodingProvider<MockBitIds>,
-    ) {
-        run_authdecode(
-            crate::backend::halo2::fixtures::backend_pair_real(),
             commitment_data,
             encoding_provider,
         );
@@ -164,22 +160,20 @@ mod tests {
 
         let (prover, commitments) = prover.commit(commitment_data.to_vec()).unwrap();
 
-        // Message types are checked durind deserialization.
+        // Message types are checked during deserialization.
         let commitments = bincode::serialize(&commitments).unwrap();
         let commitments = bincode::deserialize(&commitments).unwrap();
 
-        let verifier = verifier
-            .receive_commitments(commitments, encoding_provider.clone())
-            .unwrap();
+        let verifier = verifier.receive_commitments(commitments).unwrap();
 
         // An encoding provider is instantiated with authenticated full encodings from external context.
-        let (prover, proofs) = prover.prove(encoding_provider.clone()).unwrap();
+        let (prover, proofs) = prover.prove(encoding_provider).unwrap();
 
         // Message types are checked durind deserialization.
         let proofs = bincode::serialize(&proofs).unwrap();
         let proofs = bincode::deserialize(&proofs).unwrap();
 
-        let verifier = verifier.verify(proofs).unwrap();
+        let verifier = verifier.verify(proofs, encoding_provider).unwrap();
 
         (prover, verifier)
     }
@@ -220,10 +214,14 @@ mod tests {
                 self.prover.commit_plaintext(plaintext)
             }
 
+            fn commit_plaintext_with_salt(&self, _plaintext: Vec<u8>, _salt: F) -> F {
+                unimplemented!()
+            }
+
             fn prove(
                 &self,
                 input: Vec<ProverInput<F>>,
-            ) -> Result<Vec<crate::Proof>, crate::prover::error::ProverError> {
+            ) -> Result<Vec<crate::Proof>, crate::prover::ProverError> {
                 // Save proof inputs, return a dummy proof.
                 *self.proof_inputs.borrow_mut() = Some(input);
                 Ok(vec![Proof::new(&[0u8])])
@@ -251,7 +249,7 @@ mod tests {
                 &self,
                 _inputs: Vec<crate::PublicInput<F>>,
                 _proofs: Vec<Proof>,
-            ) -> Result<(), crate::verifier::error::VerifierError> {
+            ) -> Result<(), crate::verifier::VerifierError> {
                 Ok(())
             }
         }

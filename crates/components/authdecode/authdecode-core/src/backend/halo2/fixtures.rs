@@ -2,7 +2,6 @@ use crate::{
     backend::{
         halo2::{
             circuit::USABLE_BYTES,
-            onetimesetup::{proving_key, verification_key},
             prepare_instance,
             prover::{Prover, _prepare_circuit},
             verifier::Verifier,
@@ -10,7 +9,7 @@ use crate::{
         },
         traits::{Field, ProverBackend, VerifierBackend},
     },
-    prover::prover::ProverInput,
+    prover::ProverInput,
     Proof,
 };
 
@@ -27,8 +26,8 @@ use std::{
 };
 
 /// Returns a pair of backends which use halo2's MockProver to prove and verify.
-pub fn backend_pair() -> (ProverBackendWrapper<Bn256F>, VerifierBackendWrapper<Bn256F>) {
-    let pair = backend_pair_real();
+pub fn backend_pair_mock() -> (ProverBackendWrapper<Bn256F>, VerifierBackendWrapper<Bn256F>) {
+    let pair = backend_pair();
     (
         ProverBackendWrapper {
             prover: Box::new(pair.0),
@@ -39,13 +38,9 @@ pub fn backend_pair() -> (ProverBackendWrapper<Bn256F>, VerifierBackendWrapper<B
     )
 }
 
-/// Returns a pair of zk backends which uses halo2's real prover and verifier
-/// (i.e. NOT the MockProver).
-pub fn backend_pair_real() -> (Prover, Verifier) {
-    (
-        Prover::new(proving_key()),
-        Verifier::new(verification_key()),
-    )
+/// Returns a pair of zk backends which use halo2.
+pub fn backend_pair() -> (Prover, Verifier) {
+    (Prover::new(), Verifier::new())
 }
 
 /// Returns the K parameter.
@@ -71,10 +66,14 @@ impl ProverBackend<Bn256F> for ProverBackendWrapper<Bn256F> {
         self.prover.commit_plaintext(plaintext)
     }
 
+    fn commit_plaintext_with_salt(&self, plaintext: Vec<u8>, salt: Bn256F) -> Bn256F {
+        self.prover.commit_plaintext_with_salt(plaintext, salt)
+    }
+
     fn prove(
         &self,
         input: Vec<ProverInput<Bn256F>>,
-    ) -> Result<Vec<crate::Proof>, crate::prover::error::ProverError> {
+    ) -> Result<Vec<crate::Proof>, crate::prover::ProverError> {
         _ = input
             .into_iter()
             .map(|input| {
@@ -112,7 +111,7 @@ where
         &self,
         _inputs: Vec<crate::PublicInput<F>>,
         _proofs: Vec<Proof>,
-    ) -> Result<(), crate::verifier::error::VerifierError> {
+    ) -> Result<(), crate::verifier::VerifierError> {
         // The proof has already been verified with MockProver::verify().
         Ok(())
     }

@@ -20,7 +20,7 @@ impl<I> FullEncodings<I>
 where
     I: IdCollection,
 {
-    /// Creates a new collection of active encodings.
+    /// Creates a new collection of full encodings.
     ///
     /// # Arguments
     ///

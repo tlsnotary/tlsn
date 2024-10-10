@@ -24,13 +24,6 @@ pub struct MockField {
     inner: BigInt,
 }
 
-impl MockField {
-    fn to_bytes_be(&self) -> Vec<u8> {
-        let (_, bytes) = self.inner.to_bytes_be();
-        bytes
-    }
-}
-
 impl Add for MockField {
     type Output = Self;
 
@@ -56,6 +49,11 @@ impl Field for MockField {
         Self {
             inner: BigInt::from_bytes_be(Sign::Plus, &bytes),
         }
+    }
+
+    fn to_bytes_be(self) -> Vec<u8> {
+        let (_, bytes) = self.inner.to_bytes_be();
+        bytes
     }
 
     fn zero() -> Self {
