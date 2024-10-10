@@ -1,4 +1,4 @@
-use crate::{ CliFields, NotaryServerProperties };
+use crate::{CliFields, NotaryServerProperties};
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::path::Path;
@@ -16,12 +16,13 @@ impl Settings {
         let mut builder = Config::builder()
             // Load base configuration
             .add_source(File::from(config_path))
-            // Add in settings from environment variables (with a prefix of NOTARY_SERVER and '__' as separator).
+            // Add in settings from environment variables (with a prefix of NOTARY_SERVER and '__'
+            // as separator).
             .add_source(
                 Environment::with_prefix("NOTARY_SERVER")
                     .try_parsing(true)
                     .prefix_separator("__")
-                    .separator("__")
+                    .separator("__"),
             );
 
         // Apply CLI argument overrides

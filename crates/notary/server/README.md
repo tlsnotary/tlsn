@@ -84,13 +84,13 @@ The notary server can be configured using three methods: a configuration file, c
    
    ...
     ```
-   
-2. Command-Line Interface (CLI) Arguments - You can override configuration file settings using CLI arguments when starting the server. They take precedence over both the config file and Environment Variables arguments, e.g.
+
+2. Command-Line Interface (CLI) Arguments - You can override *some* configuration file settings using CLI arguments when starting the server. This also takes precedence over the environment variable method below. E.g.
    ```shell
    cargo run -- --port 8080 --tls-enabled false --log-level INFO
    ```
 
-3. Environment Variables can also be used to configure the server and take precedence over the config file. The environment variables use the prefix `NOTARY_SERVER__` followed by the configuration path in uppercase, with double underscores used for nested configuration such that `tls.enabled` in the config file, which will be `TLS__ENABLED` on CLI, e.g.
+3. Environment Variables - This can be used to configure all the server settings, where it will override the config file. It uses the prefix `NOTARY_SERVER__` followed by the configuration key(s) in uppercase. Double underscores are used in nested configuration keys, e.g. `tls.enabled` in the config file will be `NOTARY_SERVER__TLS__ENABLED`. E.g.   
    ```shell
    NOTARY_SERVER__SERVER__PORT=8080 NOTARY_SERVER__NOTARIZATION__MAX_SENT_DATA=2048 NOTARY_SERVER__TLS__ENABLED=false cargo run
    ```
