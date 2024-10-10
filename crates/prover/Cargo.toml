@@ -12,8 +12,21 @@ edition = "2021"
 default = ["rayon"]
 rayon = ["mpz-common/rayon"]
 force-st = ["mpz-common/force-st"]
+# Enables the AuthDecode protocol which allows to prove zk-friendly hashes over the transcript data.
+# This is an early iteration meant for gathering feedback and assessing performance. As such, this 
+# feature has an "_unsafe" suffix since it will leak the ranges of data committed to.
+# Future iterations will get rid of the leakage at the cost of worse performance.
+# This feature is EXPERIMENTAL and will be removed in future releases without prior notice.
+authdecode_unsafe = [
+    "tlsn-authdecode-core",
+    "tlsn-authdecode-single-range",
+    "tlsn-core/use_poseidon_halo2",
+    "tlsn-common/authdecode_unsafe_common",
+]
 
 [dependencies]
+tlsn-authdecode-core = { workspace = true, optional = true }
+tlsn-authdecode-single-range = { workspace = true, optional = true }
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-formats = { workspace = true, optional = true }
@@ -40,6 +53,7 @@ derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
+serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }

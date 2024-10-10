@@ -41,6 +41,8 @@ enum ErrorKind {
     Mpc,
     Attestation,
     Verify,
+    #[cfg(feature = "authdecode_unsafe")]
+    AuthDecode,
 }
 
 impl fmt::Display for VerifierError {
@@ -53,6 +55,8 @@ impl fmt::Display for VerifierError {
             ErrorKind::Mpc => f.write_str("mpc error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
             ErrorKind::Verify => f.write_str("verification error")?,
+            #[cfg(feature = "authdecode_unsafe")]
+            ErrorKind::AuthDecode => f.write_str("authdecode error")?,
         }
 
         if let Some(source) = &self.source {
@@ -138,5 +142,12 @@ impl From<mpz_garble::MemoryError> for VerifierError {
 impl From<mpz_garble::VerifyError> for VerifierError {
     fn from(e: mpz_garble::VerifyError) -> Self {
         Self::new(ErrorKind::Mpc, e)
+    }
+}
+
+#[cfg(feature = "authdecode_unsafe")]
+impl From<authdecode_core::verifier::VerifierError> for VerifierError {
+    fn from(e: authdecode_core::verifier::VerifierError) -> Self {
+        Self::new(ErrorKind::AuthDecode, e)
     }
 }

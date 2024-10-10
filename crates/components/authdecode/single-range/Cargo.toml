@@ -1,0 +1,22 @@
+[package]
+name = "tlsn-authdecode-single-range"
+authors = ["TLSNotary Team"]
+description = "A convenience type for using AuthDecode with data contained in a single range of bytes"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "authdecode_single_range"
+
+[dependencies]
+tlsn-authdecode-core = { workspace = true }
+tlsn-core = { workspace = true, features = ["use_poseidon_halo2"] }
+mpz-circuits = { workspace = true }
+mpz-garble-core = { workspace = true }
+mpz-core = { workspace = true }
+
+getset = "0.1.2"
+serde =  { workspace = true }

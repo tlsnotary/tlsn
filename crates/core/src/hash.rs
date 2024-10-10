@@ -30,6 +30,11 @@ impl Default for HashProvider {
         algs.insert(HashAlgId::SHA256, Box::new(Sha256::default()));
         algs.insert(HashAlgId::BLAKE3, Box::new(Blake3::default()));
         algs.insert(HashAlgId::KECCAK256, Box::new(Keccak256::default()));
+        #[cfg(feature = "use_poseidon_halo2")]
+        algs.insert(
+            HashAlgId::POSEIDON_HALO2,
+            Box::new(PoseidonHalo2::default()),
+        );
 
         Self { algs }
     }
@@ -71,6 +76,9 @@ impl HashAlgId {
     pub const BLAKE3: Self = Self(2);
     /// Keccak-256 hash algorithm.
     pub const KECCAK256: Self = Self(3);
+    /// Poseidon hash algorithm (defined in the `poseidon-halo2` crate) with input padding.
+    #[cfg(feature = "use_poseidon_halo2")]
+    pub const POSEIDON_HALO2: Self = Self(4);
 
     /// Creates a new hash algorithm identifier.
     ///
@@ -236,6 +244,11 @@ pub trait HashAlgorithm {
 
     /// Computes the hash of the provided data with a prefix.
     fn hash_prefixed(&self, prefix: &[u8], data: &[u8]) -> Hash;
+
+    /// Computes the hash of the provided blinded data.
+    fn hash_blinded(&self, data: &Blinded<Vec<u8>>) -> Hash {
+        self.hash_canonical(data)
+    }
 }
 
 pub(crate) trait HashAlgorithmExt: HashAlgorithm {
@@ -252,7 +265,14 @@ impl<T: HashAlgorithm + ?Sized> HashAlgorithmExt for T {}
 
 /// A hash blinder.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Blinder([u8; 16]);
+pub struct Blinder([u8; 16]);
+
+impl Blinder {
+    /// Returns a reference to the inner value.
+    pub fn as_inner(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
 
 opaque_debug::implement!(Blinder);
 
@@ -266,7 +286,7 @@ impl Distribution<Blinder> for Standard {
 
 /// A blinded pre-image of a hash.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Blinded<T> {
+pub struct Blinded<T> {
     data: T,
     blinder: Blinder,
 }
@@ -350,7 +370,6 @@ mod sha2 {
 pub use sha2::Sha256;
 
 mod blake3 {
-
     /// BLAKE3 hash algorithm.
     #[derive(Default, Clone)]
     pub struct Blake3 {}
@@ -407,3 +426,78 @@ mod keccak {
 }
 
 pub use keccak::Keccak256;
+
+#[cfg(feature = "use_poseidon_halo2")]
+mod poseidon_halo2 {
+    use super::Blinded;
+    use poseidon_halo2::{hash as poseidon_hash, F};
+
+    /// Poseidon hash algorithm with preimage padding.
+    #[derive(Default, Clone)]
+    pub struct PoseidonHalo2 {}
+
+    /// How many least significant bytes of a field element are used to pack the preimage into.
+    const BYTES_PER_FIELD_ELEMENT: usize = 31;
+
+    /// Maximum allowed bytesize of the hash preimage.
+    ///
+    /// If more data than the allowed maximum needs to be hashed, then the data should be split up
+    /// into chunks and each chunk should be hashed separately.
+    pub const POSEIDON_MAX_INPUT_SIZE: usize = 434;
+
+    impl super::HashAlgorithm for PoseidonHalo2 {
+        fn id(&self) -> super::HashAlgId {
+            super::HashAlgId::POSEIDON_HALO2
+        }
+
+        fn hash(&self, _data: &[u8]) -> super::Hash {
+            unimplemented!()
+        }
+
+        fn hash_prefixed(&self, _prefix: &[u8], _data: &[u8]) -> super::Hash {
+            unimplemented!()
+        }
+
+        fn hash_blinded(&self, data: &Blinded<Vec<u8>>) -> super::Hash {
+            let (data, blinder) = data.clone().into_parts();
+
+            let mut field_elements = to_field_elements(&data);
+
+            // Zero-pad to a total of 14 field elements.
+            while field_elements.len() < 14 {
+                field_elements.push(F::zero());
+            }
+            // The last field element is the salt.
+            field_elements.push(to_field_elements(blinder.as_inner())[0]);
+
+            poseidon_hash(&field_elements).into()
+        }
+    }
+
+    fn to_field_elements(data: &[u8]) -> Vec<F> {
+        data.chunks(BYTES_PER_FIELD_ELEMENT)
+            .map(|bytes| {
+                let mut bytes = bytes.to_vec();
+                // Reverse to little-endian.
+                bytes.reverse();
+                let mut new_bytes = [0u8; 32];
+                new_bytes[0..bytes.len()].copy_from_slice(&bytes);
+                // Any random 31 bytes should be a valid BN256 field element.
+                F::from_bytes(&new_bytes).expect("Input should always be canonical")
+            })
+            .collect::<Vec<_>>()
+    }
+
+    #[allow(clippy::from_over_into)]
+    impl Into<super::Hash> for F {
+        fn into(self) -> super::Hash {
+            let mut bytes = self.to_bytes();
+            // Reverse to big endian.
+            bytes.reverse();
+            super::Hash::new(&bytes)
+        }
+    }
+}
+
+#[cfg(feature = "use_poseidon_halo2")]
+pub use poseidon_halo2::{PoseidonHalo2, POSEIDON_MAX_INPUT_SIZE};

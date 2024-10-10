@@ -32,6 +32,14 @@ impl ProverError {
     {
         Self::new(ErrorKind::Attestation, source)
     }
+
+    #[cfg(feature = "authdecode_unsafe")]
+    pub(crate) fn authdecode<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::AuthDecode, source)
+    }
 }
 
 #[derive(Debug)]
@@ -40,6 +48,8 @@ enum ErrorKind {
     Mpc,
     Config,
     Attestation,
+    #[cfg(feature = "authdecode_unsafe")]
+    AuthDecode,
 }
 
 impl fmt::Display for ProverError {
@@ -51,6 +61,8 @@ impl fmt::Display for ProverError {
             ErrorKind::Mpc => f.write_str("mpc error")?,
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
+            #[cfg(feature = "authdecode_unsafe")]
+            ErrorKind::AuthDecode => f.write_str("authdecode error")?,
         }
 
         if let Some(source) = &self.source {
@@ -136,5 +148,12 @@ impl From<mpz_garble::MemoryError> for ProverError {
 impl From<mpz_garble::ProveError> for ProverError {
     fn from(e: mpz_garble::ProveError) -> Self {
         Self::new(ErrorKind::Mpc, e)
+    }
+}
+
+#[cfg(feature = "authdecode_unsafe")]
+impl From<crate::authdecode::TranscriptProverError> for ProverError {
+    fn from(e: crate::authdecode::TranscriptProverError) -> Self {
+        Self::new(ErrorKind::AuthDecode, e)
     }
 }

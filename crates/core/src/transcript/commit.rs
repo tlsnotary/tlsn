@@ -10,6 +10,12 @@ use crate::{
     transcript::{Direction, Idx, Transcript},
 };
 
+#[cfg(feature = "use_poseidon_halo2")]
+pub(crate) const SUPPORTED_PLAINTEXT_HASH_ALGS: &[HashAlgId] = &[HashAlgId::POSEIDON_HALO2];
+
+#[cfg(not(feature = "use_poseidon_halo2"))]
+pub(crate) const SUPPORTED_PLAINTEXT_HASH_ALGS: &[HashAlgId] = &[];
+
 /// Kind of transcript commitment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TranscriptCommitmentKind {
@@ -55,12 +61,22 @@ impl TranscriptCommitConfig {
         })
     }
 
-    /// Returns an iterator over the hash commitment indices.
-    pub fn iter_hash(&self) -> impl Iterator<Item = (&(Direction, Idx), &HashAlgId)> {
-        self.commits.iter().filter_map(|(idx, kind)| match kind {
-            TranscriptCommitmentKind::Hash { alg } => Some((idx, alg)),
-            _ => None,
-        })
+    /// Returns whether the configuration has any plaintext hash commitments.
+    pub fn has_plaintext_hashes(&self) -> bool {
+        self.commits
+            .iter()
+            .any(|(_, kind)| matches!(kind, TranscriptCommitmentKind::Hash { .. }))
+    }
+
+    /// Returns the plaintext hash commitment details.
+    pub fn plaintext_hashes(&self) -> Vec<((Direction, Idx), HashAlgId)> {
+        self.commits
+            .iter()
+            .filter_map(|(idx, kind)| match kind {
+                TranscriptCommitmentKind::Hash { alg } => Some((idx.clone(), *alg)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -124,6 +140,15 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
                     self.transcript.len_of_direction(direction)
                 ),
             ));
+        }
+
+        if let TranscriptCommitmentKind::Hash { alg } = kind {
+            if !SUPPORTED_PLAINTEXT_HASH_ALGS.contains(&alg) {
+                return Err(TranscriptCommitConfigBuilderError::new(
+                    ErrorKind::Algorithm,
+                    format!("unsupported plaintext hash commitment algorithm {}", alg,),
+                ));
+            }
         }
 
         self.commits.insert(((direction, idx), kind));
@@ -200,12 +225,14 @@ impl TranscriptCommitConfigBuilderError {
 #[derive(Debug)]
 enum ErrorKind {
     Index,
+    Algorithm,
 }
 
 impl fmt::Display for TranscriptCommitConfigBuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             ErrorKind::Index => f.write_str("index error")?,
+            ErrorKind::Algorithm => f.write_str("algorithm error")?,
         }
 
         if let Some(source) = &self.source {

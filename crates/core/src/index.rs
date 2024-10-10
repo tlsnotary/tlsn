@@ -1,23 +1,23 @@
+//! Index types.
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     attestation::{Field, FieldId},
-    transcript::{
-        hash::{PlaintextHash, PlaintextHashSecret},
-        Idx,
-    },
+    transcript::{Direction, Idx, PlaintextHash, PlaintextHashSecret},
 };
 
-/// Index for items which can be looked up by transcript index or field id.
+/// Index for items which can be looked up by either the transcript index and direction or by the
+/// field id.
 #[derive(Debug, Clone)]
 pub(crate) struct Index<T> {
     items: Vec<T>,
     // Lookup by field id
     field_ids: HashMap<FieldId, usize>,
-    // Lookup by transcript index
-    transcript_idxs: HashMap<Idx, usize>,
+    // Lookup by transcript direction and index
+    transcript_idxs: HashMap<(Direction, Idx), usize>,
 }
 
 impl<T> Default for Index<T> {
@@ -60,14 +60,14 @@ impl<T> From<Index<T>> for Vec<T> {
 impl<T> Index<T> {
     pub(crate) fn new<F>(items: Vec<T>, f: F) -> Self
     where
-        F: Fn(&T) -> (&FieldId, &Idx),
+        F: Fn(&T) -> (&FieldId, &Idx, &Direction),
     {
         let mut field_ids = HashMap::new();
         let mut transcript_idxs = HashMap::new();
         for (i, item) in items.iter().enumerate() {
-            let (id, idx) = f(item);
+            let (id, idx, dir) = f(item);
             field_ids.insert(*id, i);
-            transcript_idxs.insert(idx.clone(), i);
+            transcript_idxs.insert((*dir, idx.clone()), i);
         }
         Self {
             items,
@@ -76,6 +76,7 @@ impl<T> Index<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
         self.items.iter()
     }
@@ -84,15 +85,17 @@ impl<T> Index<T> {
         self.field_ids.get(id).map(|i| &self.items[*i])
     }
 
-    pub(crate) fn get_by_transcript_idx(&self, idx: &Idx) -> Option<&T> {
-        self.transcript_idxs.get(idx).map(|i| &self.items[*i])
+    pub(crate) fn get_by_transcript_idx(&self, dir: &Direction, idx: &Idx) -> Option<&T> {
+        self.transcript_idxs
+            .get(&(*dir, idx.clone()))
+            .map(|i| &self.items[*i])
     }
 }
 
 impl From<Vec<Field<PlaintextHash>>> for Index<Field<PlaintextHash>> {
     fn from(items: Vec<Field<PlaintextHash>>) -> Self {
         Self::new(items, |field: &Field<PlaintextHash>| {
-            (&field.id, &field.data.idx)
+            (&field.id, &field.data.idx, &field.data.direction)
         })
     }
 }
@@ -100,7 +103,7 @@ impl From<Vec<Field<PlaintextHash>>> for Index<Field<PlaintextHash>> {
 impl From<Vec<PlaintextHashSecret>> for Index<PlaintextHashSecret> {
     fn from(items: Vec<PlaintextHashSecret>) -> Self {
         Self::new(items, |item: &PlaintextHashSecret| {
-            (&item.commitment, &item.idx)
+            (&item.commitment, &item.idx, &item.direction)
         })
     }
 }

@@ -3,6 +3,10 @@
 //! The prover deals with a TLS verifier that is only a notary.
 
 use super::{state::Notarize, Prover, ProverError};
+
+#[cfg(feature = "authdecode_unsafe")]
+use crate::authdecode::{authdecode_prover, TranscriptProver};
+
 use mpz_ot::VerifiableOTReceiver;
 use serio::{stream::IoStreamExt as _, SinkExt as _};
 use tlsn_core::{
@@ -53,7 +57,7 @@ impl Prover<Notarize> {
         builder
             .server_name(self.config.server_name().clone())
             .server_cert_data(server_cert_data)
-            .transcript(transcript);
+            .transcript(transcript.clone());
 
         if let Some(config) = transcript_commit_config {
             if config.has_encoding() {
@@ -67,6 +71,10 @@ impl Prover<Notarize> {
                     .unwrap(),
                 );
             }
+
+            if config.has_plaintext_hashes() {
+                builder.plaintext_hashes(config.plaintext_hashes());
+            }
         }
 
         let (request, secrets) = builder.build(provider).map_err(ProverError::attestation)?;
@@ -77,11 +85,45 @@ impl Prover<Notarize> {
 
                 io.send(request.clone()).await?;
 
+                #[cfg(feature = "authdecode_unsafe")]
+                let authdecode_prover =
+                    match self.config.protocol_config().max_zk_friendly_hash_data() {
+                        0 => None,
+                        max => {
+                            let mut authdecode_prover = authdecode_prover(
+                                &request,
+                                &secrets,
+                                &*encoding_provider,
+                                &transcript,
+                                max,
+                            )?;
+
+                            io.send(authdecode_prover.commit()?).await?;
+
+                            debug!("sent AuthDecode commitment");
+
+                            Some(authdecode_prover)
+                        }
+                    };
+
                 ot_recv.accept_reveal(&mut ctx).await?;
 
                 debug!("received OT secret");
 
-                vm.finalize().await?;
+                #[allow(unused_variables)]
+                let seed = vm
+                    .finalize()
+                    .await?
+                    .expect("The seed should be returned to the follower");
+
+                #[cfg(feature = "authdecode_unsafe")]
+                if let Some(mut authdecode_prover) = authdecode_prover {
+                    // Now that the full encodings were authenticated, it is safe to proceed to the
+                    // proof generation phase of the AuthDecode protocol.
+                    io.send(authdecode_prover.prove(seed)?).await?;
+
+                    debug!("sent AuthDecode proof");
+                }
 
                 let attestation: Attestation = io.expect_next().await?;
 

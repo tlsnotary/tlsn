@@ -4,6 +4,8 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "authdecode_unsafe")]
+pub(crate) mod authdecode;
 pub(crate) mod config;
 mod error;
 mod notarize;

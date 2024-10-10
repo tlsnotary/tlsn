@@ -1,11 +1,11 @@
+//! Secrets types.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::{ServerCertOpening, ServerIdentityProof, ServerName},
     index::Index,
-    transcript::{
-        encoding::EncodingTree, hash::PlaintextHashSecret, Transcript, TranscriptProofBuilder,
-    },
+    transcript::{encoding::EncodingTree, PlaintextHashSecret, Transcript, TranscriptProofBuilder},
 };
 
 /// Secret data of an [`Attestation`](crate::attestation::Attestation).
@@ -14,7 +14,7 @@ pub struct Secrets {
     pub(crate) server_name: ServerName,
     pub(crate) server_cert_opening: ServerCertOpening,
     pub(crate) encoding_tree: Option<EncodingTree>,
-    pub(crate) plaintext_hashes: Index<PlaintextHashSecret>,
+    pub(crate) plaintext_hash_secrets: Option<Index<PlaintextHashSecret>>,
     pub(crate) transcript: Transcript,
 }
 
@@ -41,7 +41,7 @@ impl Secrets {
         TranscriptProofBuilder::new(
             &self.transcript,
             self.encoding_tree.as_ref(),
-            &self.plaintext_hashes,
+            &self.plaintext_hash_secrets,
         )
     }
 }

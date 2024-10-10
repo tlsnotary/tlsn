@@ -6,6 +6,9 @@ edition = "2021"
 
 [features]
 default = []
+# Enables common types and config parameters used in the AuthDecode protocol. 
+# This feature can only be used if the prover and the verifier enable their `authdecode_unsafe` feature.
+authdecode_unsafe_common = []
 
 [dependencies]
 tlsn-core = { workspace = true }

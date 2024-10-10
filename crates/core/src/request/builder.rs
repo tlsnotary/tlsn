@@ -1,9 +1,17 @@
+use rand::{
+    distributions::{Distribution, Standard},
+    thread_rng,
+};
+
 use crate::{
+    attestation::{compare_hash_details, FieldId, PLAINTEXT_HASH_INITIAL_FIELD_ID},
     connection::{ServerCertData, ServerCertOpening, ServerName},
-    index::Index,
+    hash::{Blinded, Blinder, HashAlgId, TypedHash},
     request::{Request, RequestConfig},
     secrets::Secrets,
-    transcript::{encoding::EncodingTree, Transcript},
+    transcript::{
+        encoding::EncodingTree, Direction, Idx, PlaintextHash, PlaintextHashSecret, Transcript,
+    },
     CryptoProvider,
 };
 
@@ -14,6 +22,7 @@ pub struct RequestBuilder<'a> {
     server_cert_data: Option<ServerCertData>,
     encoding_tree: Option<EncodingTree>,
     transcript: Option<Transcript>,
+    plaintext_hashes: Option<Vec<((Direction, Idx), HashAlgId)>>,
 }
 
 impl<'a> RequestBuilder<'a> {
@@ -25,6 +34,7 @@ impl<'a> RequestBuilder<'a> {
             server_cert_data: None,
             encoding_tree: None,
             transcript: None,
+            plaintext_hashes: None,
         }
     }
 
@@ -52,6 +62,15 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    /// Sets the plaintext hash commitment details.
+    pub fn plaintext_hashes(
+        &mut self,
+        plaintext_hashes: Vec<((Direction, Idx), HashAlgId)>,
+    ) -> &mut Self {
+        self.plaintext_hashes = Some(plaintext_hashes);
+        self
+    }
+
     /// Builds the attestation request and returns the corresponding secrets.
     pub fn build(
         self,
@@ -63,6 +82,7 @@ impl<'a> RequestBuilder<'a> {
             server_cert_data,
             encoding_tree,
             transcript,
+            plaintext_hashes,
         } = self;
 
         let signature_alg = *config.signature_alg();
@@ -87,23 +107,89 @@ impl<'a> RequestBuilder<'a> {
 
         let encoding_commitment_root = encoding_tree.as_ref().map(|tree| tree.root());
 
+        let (pt_hashes, pt_secrets) = match plaintext_hashes {
+            Some(mut plaintext_hashes) => {
+                if plaintext_hashes.is_empty() {
+                    return Err(RequestBuilderError::new("empty plaintext hash details were set"));
+                }
+
+                sort_plaintext_hashes(&mut plaintext_hashes);
+
+                let mut field_id = FieldId::new(PLAINTEXT_HASH_INITIAL_FIELD_ID);
+
+                let (pt_hashes, pt_secrets): (Vec<PlaintextHash>, Vec<PlaintextHashSecret>) = plaintext_hashes.into_iter().map(|((direction, idx), alg)|{
+                        let hasher = provider
+                        .hash
+                        .get(&alg)
+                        .map_err(|_| RequestBuilderError::new("hash provider is missing"))?;
+
+                    #[cfg(feature = "use_poseidon_halo2")]
+                    if alg == HashAlgId::POSEIDON_HALO2 {
+                        if idx.count() != 1 {
+                            return Err(RequestBuilderError::new("committing to more than one range with POSEIDON_HALO2 is not supported"));
+                        } else if idx.len() > crate::hash::POSEIDON_MAX_INPUT_SIZE {
+                            return Err(RequestBuilderError::new(format!("committing to more than {} bytes with POSEIDON_HALO2 is not supported", crate::hash::POSEIDON_MAX_INPUT_SIZE)));
+                        }
+                    }
+
+                    let data = transcript.get(direction, &idx).ok_or_else(|| {
+                        RequestBuilderError::new(format!(
+                            "direction {} and index {:?} were not found in the transcript",
+                            &direction, &idx
+                        ))
+                    })?;
+
+                    let blinder: Blinder = Standard.sample(&mut thread_rng());
+                    let data = Blinded::new_with_blinder(data.data().to_vec(), blinder.clone());
+
+                    let field = field_id.next(PlaintextHash {
+                        direction,
+                        idx: idx.clone(),
+                        hash: TypedHash {
+                            alg,
+                            value: hasher.hash_blinded(&data),
+                        },
+                    });
+
+                    Ok((field.data, PlaintextHashSecret {
+                        blinder,
+                        idx,
+                        direction,
+                        commitment: field.id,
+                    }))
+                    
+                }).collect::<Result<Vec<_>, RequestBuilderError>>()?.into_iter().unzip();
+
+                (Some(pt_hashes), Some(pt_secrets.into()))
+            }
+            None => (None, None),
+        };
+
         let request = Request {
             signature_alg,
             hash_alg,
             server_cert_commitment,
             encoding_commitment_root,
+            plaintext_hashes: pt_hashes,
         };
 
         let secrets = Secrets {
             server_name,
             server_cert_opening,
             encoding_tree,
-            plaintext_hashes: Index::default(),
+            plaintext_hash_secrets: pt_secrets,
             transcript,
         };
 
         Ok((request, secrets))
     }
+}
+
+/// Sorts plaintext hash commitment details in-place.
+fn sort_plaintext_hashes(details: &mut [((Direction, Idx), HashAlgId)]) {
+    details.sort_by(|((dir1, idx1), alg1), ((dir2, idx2), alg2)| {
+        compare_hash_details(&(dir1, idx1, alg1), &(dir2, idx2, alg2))
+    });
 }
 
 /// Error for [`RequestBuilder`].

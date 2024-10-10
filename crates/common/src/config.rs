@@ -35,6 +35,10 @@ pub struct ProtocolConfig {
     max_recv_data_online: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
+    #[cfg(feature = "authdecode_unsafe_common")]
+    /// Maximum number of bytes which can be committed to using a zk-friendly hash.
+    #[builder(default = "0")]
+    max_zk_friendly_hash_data: usize,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -72,6 +76,12 @@ impl ProtocolConfig {
         self.max_recv_data
     }
 
+    #[cfg(feature = "authdecode_unsafe_common")]
+    /// Returns the maximum number of bytes for which a zk-friendly hash commitment can be computed.
+    pub fn max_zk_friendly_hash_data(&self) -> usize {
+        self.max_zk_friendly_hash_data
+    }
+
     /// Returns OT sender setup count.
     pub fn ot_sender_setup_count(&self, role: Role) -> usize {
         ot_send_estimate(
@@ -101,6 +111,10 @@ pub struct ProtocolConfigValidator {
     max_sent_data: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
+    /// Maximum number of bytes for which a zk-friendly hash commitment can be computed.
+    #[builder(default = "0")]
+    #[cfg(feature = "authdecode_unsafe_common")]
+    max_zk_friendly_hash_data: usize,
     /// Version that is being run by checker.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -122,10 +136,17 @@ impl ProtocolConfigValidator {
         self.max_recv_data
     }
 
-    /// Performs compatibility check of the protocol configuration between
-    /// prover and verifier.
+    #[cfg(feature = "authdecode_unsafe_common")]
+    /// Returns the maximum number of bytes for which a zk-friendly hash commitment can be computed.
+    pub fn max_zk_friendly_hash_data(&self) -> usize {
+        self.max_zk_friendly_hash_data
+    }
+
+    /// Performs compatibility check of the protocol configuration between prover and verifier.
     pub fn validate(&self, config: &ProtocolConfig) -> Result<(), ProtocolConfigError> {
         self.check_max_transcript_size(config.max_sent_data, config.max_recv_data)?;
+        #[cfg(feature = "authdecode_unsafe_common")]
+        self.check_max_zk_friendly_hash_data(config.max_zk_friendly_hash_data)?;
         self.check_version(&config.version)?;
         Ok(())
     }
@@ -153,8 +174,24 @@ impl ProtocolConfigValidator {
         Ok(())
     }
 
-    // Checks if both versions are the same (might support check for different but
-    // compatible versions in the future).
+    #[cfg(feature = "authdecode_unsafe_common")]
+    // Checks if the number of bytes for zk-friendly hashes is within limits.
+    fn check_max_zk_friendly_hash_data(
+        &self,
+        max_zk_friendly_hash_data: usize,
+    ) -> Result<(), ProtocolConfigError> {
+        if max_zk_friendly_hash_data > self.max_zk_friendly_hash_data {
+            return Err(ProtocolConfigError::version(format!(
+                "max_zk_friendly_hash_data {:?} is greater than the configured limit {:?}",
+                max_zk_friendly_hash_data, self.max_zk_friendly_hash_data
+            )));
+        }
+
+        Ok(())
+    }
+
+    // Checks if both versions are the same (might support check for different but compatible versions
+    // in the future).
     fn check_version(&self, peer_version: &Version) -> Result<(), ProtocolConfigError> {
         if *peer_version != self.version {
             return Err(ProtocolConfigError::version(format!(

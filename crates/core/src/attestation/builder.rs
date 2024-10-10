@@ -5,18 +5,26 @@ use rand::{thread_rng, Rng};
 use crate::{
     attestation::{
         Attestation, AttestationConfig, Body, EncodingCommitment, FieldId, FieldKind, Header,
-        ServerCertCommitment, VERSION,
+        ServerCertCommitment, MAX_TOTAL_PLAINTEXT_HASH, PLAINTEXT_HASH_INITIAL_FIELD_ID, VERSION,
     },
     connection::{ConnectionInfo, ServerEphemKey},
     hash::{HashAlgId, TypedHash},
     request::Request,
     serialize::CanonicalSerialize,
     signing::SignatureAlgId,
+    transcript::PlaintextHash,
     CryptoProvider,
 };
 
+use super::{compare_hash_details, Field};
+
 /// Attestation builder state for accepting a request.
-pub struct Accept {}
+pub struct Accept {
+    /// A collection of authenticated plaintext hashes.
+    ///
+    /// The request must contain plaintext hashes only from this collection.
+    plaintext_hashes: Option<Vec<PlaintextHash>>,
+}
 
 pub struct Sign {
     signature_alg: SignatureAlgId,
@@ -26,6 +34,7 @@ pub struct Sign {
     cert_commitment: ServerCertCommitment,
     encoding_commitment_root: Option<TypedHash>,
     encoding_seed: Option<Vec<u8>>,
+    plaintext_hashes: Option<Vec<Field<PlaintextHash>>>,
 }
 
 /// An attestation builder.
@@ -39,7 +48,9 @@ impl<'a> AttestationBuilder<'a, Accept> {
     pub fn new(config: &'a AttestationConfig) -> Self {
         Self {
             config,
-            state: Accept {},
+            state: Accept {
+                plaintext_hashes: None,
+            },
         }
     }
 
@@ -55,6 +66,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
             hash_alg,
             server_cert_commitment: cert_commitment,
             encoding_commitment_root,
+            plaintext_hashes,
         } = request;
 
         if !config.supported_signature_algs().contains(&signature_alg) {
@@ -82,6 +94,37 @@ impl<'a> AttestationBuilder<'a, Accept> {
             ));
         }
 
+        let plaintext_hashes = match (plaintext_hashes, self.state.plaintext_hashes) {
+            (Some(mut request_hashes), Some(mut authed_hashes)) => {
+                sort_hashes(&mut authed_hashes);
+                sort_hashes(&mut request_hashes);
+
+                if authed_hashes != request_hashes {
+                    return Err(AttestationBuilderError::new(
+                        ErrorKind::Request,
+                        "plaintext hash mismatch",
+                    ));
+                }
+
+                let mut field_id = FieldId::new(PLAINTEXT_HASH_INITIAL_FIELD_ID);
+                Some(
+                    authed_hashes
+                        .iter()
+                        .map(|hash| field_id.next(hash.clone()))
+                        .collect::<Vec<_>>(),
+                )
+            }
+            // If there were no hashes in the request, do nothing.
+            (None, Some(_authed_hashes)) => None,
+            (None, None) => None,
+            (Some(_request_hashes), None) => {
+                return Err(AttestationBuilderError::new(
+                    ErrorKind::Request,
+                    "cannot accept plaintext hashes",
+                ));
+            }
+        };
+
         Ok(AttestationBuilder {
             config: self.config,
             state: Sign {
@@ -92,8 +135,21 @@ impl<'a> AttestationBuilder<'a, Accept> {
                 cert_commitment,
                 encoding_commitment_root,
                 encoding_seed: None,
+                plaintext_hashes,
             },
         })
+    }
+
+    /// Sets the authenticated plaintext hashes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of hashes exceeds the allowed maximum.
+    pub fn plaintext_hashes(&mut self, hashes: Vec<PlaintextHash>) -> &mut Self {
+        assert!(hashes.len() <= MAX_TOTAL_PLAINTEXT_HASH as usize);
+
+        self.state.plaintext_hashes = Some(hashes);
+        self
     }
 }
 
@@ -126,6 +182,7 @@ impl AttestationBuilder<'_, Sign> {
             cert_commitment,
             encoding_commitment_root,
             encoding_seed,
+            plaintext_hashes,
         } = self.state;
 
         let hasher = provider.hash.get(&hash_alg).map_err(|_| {
@@ -168,7 +225,7 @@ impl AttestationBuilder<'_, Sign> {
             })?),
             cert_commitment: field_id.next(cert_commitment),
             encoding_commitment: encoding_commitment.map(|commitment| field_id.next(commitment)),
-            plaintext_hashes: Default::default(),
+            plaintext_hashes,
         };
 
         let header = Header {
@@ -187,6 +244,25 @@ impl AttestationBuilder<'_, Sign> {
             body,
         })
     }
+}
+
+/// Sorts hash commitments in-place.
+fn sort_hashes(hashes: &mut [PlaintextHash]) {
+    hashes.sort_by(|a, b| {
+        let PlaintextHash {
+            direction: dir1,
+            idx: idx1,
+            hash: TypedHash { alg: alg1, .. },
+        } = a;
+
+        let PlaintextHash {
+            direction: dir2,
+            idx: idx2,
+            hash: TypedHash { alg: alg2, .. },
+        } = b;
+
+        compare_hash_details(&(dir1, idx1, alg1), &(dir2, idx2, alg2))
+    });
 }
 
 /// Error for [`AttestationBuilder`].

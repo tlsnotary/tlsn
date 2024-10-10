@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use utils::range::ToRangeSet;
 
 use crate::{
-    attestation::Body,
+    attestation::{Body, Field},
     hash::Blinded,
     index::Index,
     transcript::{
@@ -18,11 +18,13 @@ use crate::{
     CryptoProvider,
 };
 
+use super::hash::PlaintextHash;
+
 /// Proof of the contents of a transcript.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TranscriptProof {
     encoding_proof: Option<EncodingProof>,
-    hash_proofs: Vec<PlaintextHashProof>,
+    hash_proofs: Option<Vec<PlaintextHashProof>>,
 }
 
 opaque_debug::implement!(TranscriptProof);
@@ -60,10 +62,16 @@ impl TranscriptProof {
             transcript.union_transcript(&seq);
         }
 
-        // Verify hash openings.
-        for proof in self.hash_proofs {
-            let commitment = attestation_body
-                .plaintext_hashes()
+        match (
+            attestation_body.plaintext_hashes().clone(),
+            self.hash_proofs,
+        ) {
+            (Some(attested_hashes), Some(hash_proofs)) => {
+                let index: Index<Field<PlaintextHash>> = attested_hashes.into();
+
+                // Verify hash openings.
+                for proof in hash_proofs {
+                    let commitment = index
                 .get_by_field_id(proof.commitment_id())
                 .map(|field| &field.data)
                 .ok_or_else(|| {
@@ -73,8 +81,19 @@ impl TranscriptProof {
                     )
                 })?;
 
-            let (direction, seq) = proof.verify(&provider.hash, commitment)?;
-            transcript.union_subsequence(direction, &seq);
+                    let (direction, seq) = proof.verify(&provider.hash, commitment)?;
+                    transcript.union_subsequence(direction, &seq);
+                }
+            }
+            // If there are no hash proofs, do nothing.
+            (None, None) => {}
+            (Some(_attested_hashes), None) => {}
+            (None, Some(_hash_proofs)) => {
+                return Err(TranscriptProofError::new(
+                    ErrorKind::Hash,
+                    "contains a hash opening but attestation contains no hash commitments",
+                ));
+            }
         }
 
         Ok(transcript)
@@ -141,7 +160,7 @@ pub struct TranscriptProofBuilder<'a> {
     default_kind: TranscriptCommitmentKind,
     transcript: &'a Transcript,
     encoding_tree: Option<&'a EncodingTree>,
-    plaintext_hashes: &'a Index<PlaintextHashSecret>,
+    plaintext_hashes: &'a Option<Index<PlaintextHashSecret>>,
     encoding_proof_idxs: HashSet<(Direction, Idx)>,
     hash_proofs: Vec<PlaintextHashProof>,
 }
@@ -151,7 +170,7 @@ impl<'a> TranscriptProofBuilder<'a> {
     pub(crate) fn new(
         transcript: &'a Transcript,
         encoding_tree: Option<&'a EncodingTree>,
-        plaintext_hashes: &'a Index<PlaintextHashSecret>,
+        plaintext_hashes: &'a Option<Index<PlaintextHashSecret>>,
     ) -> Self {
         Self {
             default_kind: TranscriptCommitmentKind::Encoding,
@@ -220,14 +239,36 @@ impl<'a> TranscriptProofBuilder<'a> {
 
                 self.encoding_proof_idxs.insert(dir_idx);
             }
-            TranscriptCommitmentKind::Hash { .. } => {
-                let Some(PlaintextHashSecret {
-                    direction,
-                    commitment,
-                    blinder,
-                    ..
-                }) = self.plaintext_hashes.get_by_transcript_idx(&idx)
-                else {
+            TranscriptCommitmentKind::Hash { .. } => match self.plaintext_hashes {
+                Some(hashes) => {
+                    let Some(PlaintextHashSecret {
+                        direction,
+                        commitment,
+                        blinder,
+                        ..
+                    }) = hashes.get_by_transcript_idx(&direction, &idx)
+                    else {
+                        return Err(TranscriptProofBuilderError::new(
+                            BuilderErrorKind::MissingCommitment,
+                            format!(
+                                "hash commitment is missing for ranges in {} transcript",
+                                direction
+                            ),
+                        ));
+                    };
+
+                    let (_, data) = self
+                        .transcript
+                        .get(*direction, &idx)
+                        .expect("subsequence was checked to be in transcript")
+                        .into_parts();
+
+                    self.hash_proofs.push(PlaintextHashProof::new(
+                        Blinded::new_with_blinder(data, blinder.clone()),
+                        *commitment,
+                    ));
+                }
+                None => {
                     return Err(TranscriptProofBuilderError::new(
                         BuilderErrorKind::MissingCommitment,
                         format!(
@@ -235,19 +276,8 @@ impl<'a> TranscriptProofBuilder<'a> {
                             direction
                         ),
                     ));
-                };
-
-                let (_, data) = self
-                    .transcript
-                    .get(*direction, &idx)
-                    .expect("subsequence was checked to be in transcript")
-                    .into_parts();
-
-                self.hash_proofs.push(PlaintextHashProof::new(
-                    Blinded::new_with_blinder(data, blinder.clone()),
-                    *commitment,
-                ));
-            }
+                }
+            },
         }
 
         Ok(self)
@@ -306,9 +336,15 @@ impl<'a> TranscriptProofBuilder<'a> {
             None
         };
 
+        let hash_proofs = if !self.hash_proofs.is_empty() {
+            Some(self.hash_proofs)
+        } else {
+            None
+        };
+
         Ok(TranscriptProof {
             encoding_proof,
-            hash_proofs: self.hash_proofs,
+            hash_proofs,
         })
     }
 }
@@ -365,7 +401,7 @@ mod tests {
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         );
-        let index = Index::default();
+        let index = Some(Index::default());
         let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
 
         assert!(builder.reveal(&(10..15), Direction::Sent).is_err());

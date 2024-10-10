@@ -12,7 +12,8 @@ use crate::{
         Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerCertData,
         ServerEphemKey, ServerName, ServerSignature, SignatureScheme, TlsVersion, TranscriptLength,
     },
-    transcript::{encoding::EncodingProvider, Transcript},
+    request::Request,
+    transcript::{encoding::EncodingProvider, PlaintextHash, Transcript},
 };
 
 /// A fixture containing various TLS connection data.
@@ -133,4 +134,12 @@ pub fn encoder_seed() -> [u8; 32] {
 /// Returns a notary signing key fixture.
 pub fn notary_signing_key() -> SigningKey {
     SigningKey::from_slice(&[1; 32]).unwrap()
+}
+
+/// Returns plaintext hashes contained in the request.
+pub fn plaintext_hashes_from_request(request: &Request) -> Vec<PlaintextHash> {
+    match &request.plaintext_hashes {
+        Some(hashes) => hashes.clone(),
+        None => Vec::new(),
+    }
 }
