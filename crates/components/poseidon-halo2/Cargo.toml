@@ -1,0 +1,17 @@
+[package]
+name = "poseidon-halo2"
+authors = ["TLSNotary Team"]
+description = "An experimental implementation of Poseidon based on PSE's poseidon-gadget"
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "poseidon_halo2"
+
+[dependencies]
+ff = "0.13"
+group = "0.13"
+halo2_poseidon = { git = "https://github.com/privacy-scaling-explorations/poseidon-gadget", rev="764a682"}
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false}
