@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, ops::Range};
+use std::collections::VecDeque;
 
 use crate::{
     cipher::{Aes128, Cipher},
@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use mpz_common::{try_join, Context};
 use mpz_memory_core::{
     binary::{Binary, U8},
-    Array, MemoryExt, Repr, Vector, ViewExt,
+    Array, MemoryExt, Repr, StaticSize, Vector, ViewExt,
 };
 use mpz_vm_core::{CallBuilder, Execute, VmExt};
 use std::fmt::Debug;
@@ -85,10 +85,11 @@ impl<U> MpcAesGcm<U> {
         self.iv.ok_or(AesGcmError::new(ErrorKind::Iv, "Iv not set"))
     }
 
-    fn alloc<R: Repr<Binary> + Copy, Vm: ViewExt + VmExt<Binary>>(
-        vm: &mut Vm,
-        visibility: Visibility,
-    ) -> Result<R, AesGcmError> {
+    fn alloc<R, Vm>(vm: &mut Vm, visibility: Visibility) -> Result<R, AesGcmError>
+    where
+        R: Repr<Binary> + StaticSize<Binary> + Copy,
+        Vm: ViewExt<Binary> + VmExt<Binary>,
+    {
         let value = vm
             .alloc()
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
@@ -103,12 +104,21 @@ impl<U> MpcAesGcm<U> {
         Ok(value)
     }
 
-    fn asssign<R: Repr<Binary>, Vm: VmExt<Binary>>(
-        vm: &mut Vm,
-        value: R,
-        clear: R::Clear,
-    ) -> Result<(), AesGcmError> {
+    fn asssign<R, Vm>(vm: &mut Vm, value: R, clear: R::Clear) -> Result<(), AesGcmError>
+    where
+        R: Repr<Binary>,
+        Vm: VmExt<Binary>,
+    {
         vm.assign(value, clear)
+            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))
+    }
+
+    fn commit<R, Vm>(vm: &mut Vm, value: R) -> Result<(), AesGcmError>
+    where
+        R: Repr<Binary>,
+        Vm: VmExt<Binary>,
+    {
+        vm.commit(value)
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))
     }
 
@@ -116,14 +126,12 @@ impl<U> MpcAesGcm<U> {
         vm: &mut Vm,
         key: <Aes128 as Cipher>::Key,
         iv: Array<U8, 4>,
-        ctr_number: u32,
     ) -> Result<Keystream, AesGcmError>
     where
-        Vm: VmExt<Binary> + ViewExt,
+        Vm: VmExt<Binary> + ViewExt<Binary>,
     {
         let explicit_nonce: Array<U8, 8> = Self::alloc(vm, Visibility::Public)?;
         let counter: Array<U8, 4> = Self::alloc(vm, Visibility::Public)?;
-        Self::asssign(vm, counter, ctr_number.to_be_bytes())?;
 
         let aes_ctr = CallBuilder::new(<Aes128 as Cipher>::ctr())
             .arg(key)
@@ -146,15 +154,37 @@ impl<U> MpcAesGcm<U> {
         Ok(keystream)
     }
 
+    fn prepare_mac<Vm>(
+        vm: &mut Vm,
+        key: <Aes128 as Cipher>::Key,
+        iv: Array<U8, 4>,
+        record_count: usize,
+    ) -> Result<Mac, AesGcmError>
+    where
+        Vm: VmExt<Binary> + ViewExt<Binary>,
+    {
+        let mut j0 = VecDeque::with_capacity(record_count);
+        for _ in 0..record_count {
+            let j0_block = Self::prepare_keystream_block(vm, key, iv)?;
+            j0.push_back(j0_block);
+        }
+
+        let mac_key = Self::prepare_mac_key(vm, key)?;
+        let mac = Mac { key: mac_key, j0 };
+
+        Ok(mac)
+    }
+
     fn prepare_mac_key<Vm>(
         vm: &mut Vm,
         key: <Aes128 as Cipher>::Key,
     ) -> Result<Array<U8, 16>, AesGcmError>
     where
-        Vm: VmExt<Binary> + ViewExt,
+        Vm: VmExt<Binary> + ViewExt<Binary>,
     {
         let zero: Array<U8, 16> = Self::alloc(vm, Visibility::Public)?;
         Self::asssign(vm, zero, [0_u8; 16])?;
+        Self::commit(vm, zero)?;
 
         let aes_ecb = CallBuilder::new(<Aes128 as Cipher>::ecb())
             .arg(key)
@@ -174,7 +204,7 @@ impl<Ctx, Vm, U> AeadCipher<Aes128, Ctx, Vm> for MpcAesGcm<U>
 where
     Ctx: Context,
     Self: Send,
-    Vm: VmExt<Binary> + ViewExt + Execute<Ctx> + Send,
+    Vm: VmExt<Binary> + ViewExt<Binary> + Execute<Ctx> + Send,
     U: UniversalHash<Ctx> + Send,
 {
     type Error = AesGcmError;
@@ -188,26 +218,20 @@ where
         &mut self,
         ctx: &mut Ctx,
         vm: &mut Vm,
-        counters: Range<u32>,
+        block_count: usize,
     ) -> Result<(), Self::Error> {
-        let block_count = counters.len();
         let key = self.key()?;
         let iv = self.iv()?;
 
-        for ctr in counters {
-            let keystream = Self::prepare_keystream_block(vm, key, iv, ctr)?;
+        for _ in 0..block_count {
+            let keystream = Self::prepare_keystream_block(vm, key, iv)?;
             self.keystream.push_back(keystream);
         }
 
-        let mac_key = Self::prepare_mac_key(vm, key)?;
-        let mut j0 = VecDeque::with_capacity(block_count);
-
-        for _ in 0..block_count {
-            let j0_block = Self::prepare_keystream_block(vm, key, iv, 1)?;
-            j0.push_back(j0_block);
-        }
-
-        let mac = Mac { key: mac_key, j0 };
+        // One TLS record fits 2^17 bits, and one AES block fits 2^7 bits.
+        // So we need one j0 block per 2^10 AES blocks.
+        let record_count = (block_count >> 10) + (block_count % 1024);
+        let mac = Self::prepare_mac(vm, key, iv, record_count)?;
         self.mac = Some(mac);
 
         _ = try_join!(
@@ -238,8 +262,27 @@ where
         Ok(())
     }
 
-    async fn start(&mut self) -> Result<(), Self::Error> {
-        todo!()
+    async fn start(&mut self, ctx: &mut Ctx, vm: &mut Vm) -> Result<(), Self::Error> {
+        let mac_key = match self.mac {
+            Some(ref mac) => mac.key,
+            None => Self::prepare_mac_key(vm, self.key()?)?,
+        };
+        vm.execute(ctx)
+            .await
+            .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
+        vm.flush(ctx)
+            .await
+            .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
+
+        // TODO: Need to decode_shared here!
+        let mac_key = vm
+            .decode(mac_key)
+            .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?
+            .await
+            .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
+
+        self.ghash.set_key(mac_key.to_vec(), ctx).await?;
+        Ok(())
     }
 
     async fn encrypt(

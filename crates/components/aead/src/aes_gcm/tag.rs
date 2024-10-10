@@ -1,9 +1,5 @@
 use crate::{
-    aes_gcm::{
-        error::{AesGcmError, ErrorKind},
-        MpcAesGcm,
-    },
-    cipher::{Aes128, Cipher},
+    aes_gcm::{error::AesGcmError, MpcAesGcm},
     config::Role,
 };
 use mpz_common::Context;
@@ -15,7 +11,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
     Array, Vector, ViewExt,
 };
-use mpz_vm_core::{CallBuilder, VmExt};
+use mpz_vm_core::VmExt;
 use serde::{Deserialize, Serialize};
 use serio::{stream::IoStreamExt, SinkExt};
 use std::ops::Add;
@@ -54,10 +50,26 @@ impl<U> MpcAesGcm<U> {
     where
         Ctx: Context,
         U: UniversalHash<Ctx>,
-        Vm: VmExt<Binary> + ViewExt,
+        Vm: VmExt<Binary> + ViewExt<Binary>,
     {
         let key = self.key()?;
         let iv = self.iv()?;
+
+        // TODO: Commit to nonce and ciphertext
+
+        let mac = match self.mac {
+            Some(ref mut mac) => mac,
+            None => &mut Self::prepare_mac(vm, key, iv, 1)?,
+        };
+
+        let j0 = match mac.j0.pop_front() {
+            Some(j0) => j0,
+            None => Self::prepare_keystream_block(vm, key, iv)?,
+        };
+        // TODO: Get cleartext j0 and decode_share it
+        // TODO: Compute hash
+
+        let mac_key = mac.key;
 
         todo!()
     }

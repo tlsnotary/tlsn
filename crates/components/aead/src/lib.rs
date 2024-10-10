@@ -40,14 +40,14 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
         &mut self,
         ctx: &mut Ctx,
         vm: &mut Vm,
-        counters: Range<u32>,
+        block_count: usize,
     ) -> Result<(), Self::Error>;
 
     fn set_key(&mut self, key: C::Key) -> Result<(), Self::Error>;
 
     fn set_iv(&mut self, key: C::Iv) -> Result<(), Self::Error>;
 
-    async fn start(&mut self) -> Result<(), Self::Error>;
+    async fn start(&mut self, ctx: &mut Ctx, vm: &mut Vm) -> Result<(), Self::Error>;
 
     async fn encrypt(
         &mut self,
