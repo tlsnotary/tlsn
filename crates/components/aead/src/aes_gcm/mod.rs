@@ -399,11 +399,11 @@ where
 
         let key = vm
             .decode(key)
-            .map_err(|err| AesGcmError::new(ErrorKind::Ghash, err))?;
+            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
 
         let iv = vm
             .decode(iv)
-            .map_err(|err| AesGcmError::new(ErrorKind::Ghash, err))?;
+            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
 
         vm.execute(ctx)
             .await
@@ -413,7 +413,7 @@ where
             .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
 
         let (mut key, mut iv) =
-            futures::try_join!(key, iv).map_err(|err| AesGcmError::new(ErrorKind::Ghash, err))?;
+            futures::try_join!(key, iv).map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
 
         if let Role::Leader = self.config.role() {
             key.iter_mut()
@@ -422,6 +422,7 @@ where
             iv.iter_mut()
                 .zip(otp_iv.expect("otp should be set for leader"))
                 .for_each(|(value, otp)| *value ^= otp);
+
             return Ok(Some((key, iv)));
         }
 
