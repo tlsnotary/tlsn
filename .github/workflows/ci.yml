@@ -83,7 +83,7 @@ jobs:
           apt install -y chromium-driver
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: cargo install wasm-pack
 
       - name: use caching
         uses: mozilla-actions/sccache-action@v0.0.6
