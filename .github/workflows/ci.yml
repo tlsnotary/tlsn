@@ -81,7 +81,7 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
           apt update
-          apt install -y chromium-driver
+          apt install -y chromium-driver clang
 
       - name: Install wasm-pack
         run: cargo install wasm-pack
