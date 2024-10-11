@@ -25,7 +25,7 @@ jobs:
     name: Check formatting
     runs-on: ubuntu-latest
     container:
-      # We use nightly to support `imports_granularity` feature
+      # We use nightly because we need fmt's nightly `imports_granularity` feature
       image: instrumentisto/rust:nightly-slim
     steps:
       - name: Checkout repository
