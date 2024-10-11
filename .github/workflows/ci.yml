@@ -75,6 +75,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: use caching
+        uses: mozilla-actions/sccache-action@v0.0.6
+      - name: tell rustc about cache
+        run: |
+            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Install wasm target + chromedriver
         run: |
@@ -86,18 +92,11 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack
 
-      - name: use caching
-        uses: mozilla-actions/sccache-action@v0.0.6
-      - name: tell rustc about cache
-        run: |
-            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-
       - name: Run tests
         run: |
           
           cd crates/wasm-test-runner 
-          useradd -m -s /bin/sh tlsn && chown -R tlsn:tlsn ../../* && chmod +x run.sh  && su -c ./run.sh tlsn
+          chmod +x run.sh && ./run.sh
       
   tests-integration:
     name: Run tests release build
