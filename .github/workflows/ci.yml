@@ -96,7 +96,8 @@ jobs:
       - name: Run tests
         run: |
           cd crates/wasm-test-runner
-          ./run.sh
+          useradd -m -s /bin/sh tlsn && chmod +x run.sh  && su -c ./run.sh tlsn
+      
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
