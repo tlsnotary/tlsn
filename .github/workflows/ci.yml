@@ -80,7 +80,7 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           apt update
-          apt install -y chromium-chromedriver
+          apt install -y chromium-driver
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
