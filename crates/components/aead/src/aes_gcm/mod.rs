@@ -197,7 +197,6 @@ impl<U> MpcAesGcm<U> {
         let mut rng = thread_rng();
         let mut otp_0: Array<U8, 16> = Self::alloc(vm, Visibility::Private)?;
         let otp_value: [u8; 16] = rng.gen();
-
         Self::asssign(vm, otp_0, otp_value)?;
         Self::commit(vm, otp_0)?;
 
@@ -305,11 +304,12 @@ where
             .await
             .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
 
-        if let Role::Leader = self.config.role() {
-            mac_key
+        match self.config.role() {
+            Role::Leader => mac_key
                 .iter_mut()
                 .zip(otp)
-                .for_each(|(key, otp)| *key ^= otp);
+                .for_each(|(key, otp)| *key ^= otp),
+            Role::Follower => mac_key = otp,
         }
 
         self.ghash.set_key(mac_key.to_vec(), ctx).await?;
