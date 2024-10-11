@@ -17,6 +17,7 @@ pub async fn run() -> Result<Vec<TestResult>> {
     let config = BrowserConfig::builder()
         .request_timeout(Duration::from_secs(60))
         .incognito() // Run in incognito mode to avoid unexplained WS connection errors in chromiumoxide.
+        .no_sandbox() // runner is a root container, chrome wont start as root unless sandbox is off
         .build()
         .map_err(|s| anyhow!(s))?;
 
