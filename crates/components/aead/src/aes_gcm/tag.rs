@@ -59,7 +59,7 @@ impl<U> MpcAesGcm<U> {
 
         let mac = match self.mac {
             Some(ref mut mac) => mac,
-            None => &mut Self::prepare_mac(vm, key, iv, 1)?,
+            None => &mut Self::prepare_mac(self.config.role(), vm, key, iv, 1)?,
         };
 
         let j0 = match mac.j0.pop_front() {

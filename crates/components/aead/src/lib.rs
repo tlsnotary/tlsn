@@ -18,8 +18,6 @@ pub mod aes_gcm;
 pub mod cipher;
 pub mod config;
 
-use std::ops::Range;
-
 use async_trait::async_trait;
 use cipher::Cipher;
 use mpz_common::Context;

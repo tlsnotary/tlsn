@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::{
-    cipher::{Aes128, Cipher},
-    config::MpcAeadConfig,
+    cipher::Cipher,
+    config::{MpcAeadConfig, Role},
     AeadCipher,
 };
 use async_trait::async_trait;
@@ -12,15 +12,16 @@ use mpz_memory_core::{
     Array, MemoryExt, Repr, StaticSize, Vector, ViewExt,
 };
 use mpz_vm_core::{CallBuilder, Execute, VmExt};
+use rand::{thread_rng, Rng};
 use std::fmt::Debug;
 use tlsn_universal_hash::UniversalHash;
 
+mod circuit;
 mod error;
 mod tag;
 
-use error::AesGcmError;
-
-use self::error::ErrorKind;
+use circuit::Aes128;
+use error::{AesGcmError, ErrorKind};
 
 pub struct MpcAesGcm<U> {
     config: MpcAeadConfig,
@@ -53,6 +54,7 @@ struct Keystream {
 
 #[derive(Debug, Clone)]
 struct Mac {
+    pub otp: [u8; 16],
     pub key: Array<U8, 16>,
     pub j0: VecDeque<Keystream>,
 }
@@ -155,6 +157,7 @@ impl<U> MpcAesGcm<U> {
     }
 
     fn prepare_mac<Vm>(
+        role: Role,
         vm: &mut Vm,
         key: <Aes128 as Cipher>::Key,
         iv: Array<U8, 4>,
@@ -169,16 +172,21 @@ impl<U> MpcAesGcm<U> {
             j0.push_back(j0_block);
         }
 
-        let mac_key = Self::prepare_mac_key(vm, key)?;
-        let mac = Mac { key: mac_key, j0 };
+        let (mac_key, otp) = Self::prepare_mac_key(role, vm, key)?;
+        let mac = Mac {
+            otp,
+            key: mac_key,
+            j0,
+        };
 
         Ok(mac)
     }
 
     fn prepare_mac_key<Vm>(
+        role: Role,
         vm: &mut Vm,
         key: <Aes128 as Cipher>::Key,
-    ) -> Result<Array<U8, 16>, AesGcmError>
+    ) -> Result<(Array<U8, 16>, [u8; 16]), AesGcmError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
@@ -186,16 +194,33 @@ impl<U> MpcAesGcm<U> {
         Self::asssign(vm, zero, [0_u8; 16])?;
         Self::commit(vm, zero)?;
 
-        let aes_ecb = CallBuilder::new(<Aes128 as Cipher>::ecb())
+        let mut rng = thread_rng();
+        let mut otp_0: Array<U8, 16> = Self::alloc(vm, Visibility::Private)?;
+        let otp_value: [u8; 16] = rng.gen();
+
+        Self::asssign(vm, otp_0, otp_value)?;
+        Self::commit(vm, otp_0)?;
+
+        let mut otp_1: Array<U8, 16> = Self::alloc(vm, Visibility::Blind)?;
+        Self::commit(vm, otp_1)?;
+
+        if let Role::Follower = role {
+            std::mem::swap(&mut otp_0, &mut otp_1);
+        }
+
+        let aes_shared = CallBuilder::new(<Aes128 as Cipher>::ecb_shared())
             .arg(key)
             .arg(zero)
+            .arg(otp_0)
+            .arg(otp_1)
             .build()
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+
         let mac_key: Array<U8, 16> = vm
-            .call(aes_ecb)
+            .call(aes_shared)
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
 
-        Ok(mac_key)
+        Ok((mac_key, otp_value))
     }
 }
 
@@ -231,7 +256,7 @@ where
         // One TLS record fits 2^17 bits, and one AES block fits 2^7 bits.
         // So we need one j0 block per 2^10 AES blocks.
         let record_count = (block_count >> 10) + (block_count % 1024);
-        let mac = Self::prepare_mac(vm, key, iv, record_count)?;
+        let mac = Self::prepare_mac(self.config.role(), vm, key, iv, record_count)?;
         self.mac = Some(mac);
 
         _ = try_join!(
@@ -263,9 +288,9 @@ where
     }
 
     async fn start(&mut self, ctx: &mut Ctx, vm: &mut Vm) -> Result<(), Self::Error> {
-        let mac_key = match self.mac {
-            Some(ref mac) => mac.key,
-            None => Self::prepare_mac_key(vm, self.key()?)?,
+        let (mac_key, otp) = match self.mac {
+            Some(ref mac) => (mac.key, mac.otp),
+            None => Self::prepare_mac_key(self.config.role(), vm, self.key()?)?,
         };
         vm.execute(ctx)
             .await
@@ -274,12 +299,18 @@ where
             .await
             .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
 
-        // TODO: Need to decode_shared here!
-        let mac_key = vm
+        let mut mac_key = vm
             .decode(mac_key)
             .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?
             .await
             .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
+
+        if let Role::Leader = self.config.role() {
+            mac_key
+                .iter_mut()
+                .zip(otp)
+                .for_each(|(key, otp)| *key ^= otp);
+        }
 
         self.ghash.set_key(mac_key.to_vec(), ctx).await?;
         Ok(())
