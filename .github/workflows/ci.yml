@@ -19,6 +19,10 @@ env:
   #   - https://github.com/privacy-scaling-explorations/mpz/issues/178
   # 32 seems to be big enough for the foreseeable future
   RAYON_NUM_THREADS: 32
+  # these remove the need for git in notary-server build.rs:
+  GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
+  GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
+
 
 jobs:
   fmt:
