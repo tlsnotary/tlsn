@@ -37,7 +37,7 @@ jobs:
             echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
             echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       - name: Check formatting
-        run: cargo +nightly fmt --check --all
+        run: rustup component add rustfmt && cargo +nightly fmt --check --all
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
