@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
-use mc_sgx_dcap_types::QlError;
+use mc_sgx_dcap_types::{QlError, Quote3};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -101,17 +101,11 @@ async fn gramine_quote() -> Result<Quote, QuoteError> {
     //// Reading from the gramine quote pseudo-hardware `/dev/attestation/quote`
     let mut quote_file = File::open("/dev/attestation/quote")?;
     let mut quote = Vec::new();
-    quote_file.read_to_end(&mut quote)?;
-
-    if quote.len() < 432 {
-        error!("Quote data is too short, expected at least 432 bytes");
-        return Err(QuoteError::IntelQuoteLibrary(QlError::InvalidReport));
-    }
-
-    //// Extract mrenclave: enclave image,  and mrsigner: identity key bound to
-    //// enclave https://github.com/intel/linux-sgx/blob/main/common/inc/sgx_quote.h
-    let mrenclave = hex::encode(&quote[112..144]);
-    let mrsigner = hex::encode(&quote[176..208]);
+    let _ = quote_file.read_to_end(&mut quote);
+    //// todo: wire up Qlerror and drop .expect()
+    let quote3 = Quote3::try_from(quote.as_ref()).expect("quote3 error");
+    let mrenclave = quote3.app_report_body().mr_enclave().to_string();
+    let mrsigner = quote3.app_report_body().mr_signer().to_string();
 
     debug!("mrenclave: {}", mrenclave);
     debug!("mrsigner: {}", mrsigner);
