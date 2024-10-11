@@ -1,5 +1,7 @@
 use crate::cipher::Cipher;
-use mpz_circuits::{circuits::aes128_trace, once_cell::sync::Lazy, Circuit, CircuitBuilder};
+use mpz_circuits::{
+    circuits::aes128_trace, once_cell::sync::Lazy, Circuit, CircuitBuilder, Tracer,
+};
 use mpz_memory_core::{binary::U8, Array};
 use std::sync::Arc;
 
@@ -22,6 +24,22 @@ impl Cipher for Aes128 {
 
     fn ctr_masked() -> Arc<Circuit> {
         AES128_CTR_MASKED.clone()
+    }
+
+    fn otp() -> Arc<Circuit> {
+        let builder = CircuitBuilder::new();
+
+        let key = builder.add_array_input::<u8, 16>();
+        let otp = builder.add_array_input::<u8, 16>();
+
+        let output = key
+            .into_iter()
+            .zip(otp)
+            .map(|(key, otp)| key ^ otp)
+            .collect::<Vec<_>>();
+        builder.add_output(output);
+
+        Arc::new(builder.build().unwrap())
     }
 }
 

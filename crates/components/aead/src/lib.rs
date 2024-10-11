@@ -23,7 +23,7 @@ use cipher::Cipher;
 use mpz_common::Context;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    Vector,
+    Repr, Vector,
 };
 use mpz_vm_core::VmExt;
 
@@ -63,5 +63,15 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
         aad: Vector<U8>,
     ) -> Result<Vector<U8>, Self::Error>;
 
-    async fn decode_key(&mut self) -> Result<(), Self::Error>;
+    async fn decode_key_and_iv(
+        &mut self,
+        vm: &mut Vm,
+        ctx: &mut Ctx,
+    ) -> Result<
+        Option<(
+            <<C as Cipher>::Key as Repr<Binary>>::Clear,
+            <<C as Cipher>::Iv as Repr<Binary>>::Clear,
+        )>,
+        Self::Error,
+    >;
 }

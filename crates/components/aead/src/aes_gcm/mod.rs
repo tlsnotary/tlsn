@@ -12,7 +12,7 @@ use mpz_memory_core::{
     Array, MemoryExt, Repr, StaticSize, Vector, ViewExt,
 };
 use mpz_vm_core::{CallBuilder, Execute, VmExt};
-use rand::{thread_rng, Rng};
+use rand::{distributions::Standard, prelude::Distribution, thread_rng, Rng};
 use std::fmt::Debug;
 use tlsn_universal_hash::UniversalHash;
 
@@ -221,6 +221,49 @@ impl<U> MpcAesGcm<U> {
 
         Ok((mac_key, otp_value))
     }
+
+    fn decode_for_leader<R, Vm>(
+        role: Role,
+        vm: &mut Vm,
+        value: R,
+    ) -> Result<(R, Option<R::Clear>), AesGcmError>
+    where
+        R: Repr<Binary> + StaticSize<Binary> + Copy,
+        R::Clear: Copy,
+        Vm: VmExt<Binary> + ViewExt<Binary>,
+        Standard: Distribution<R::Clear>,
+    {
+        let (otp, otp_value): (R, Option<R::Clear>) = match role {
+            Role::Leader => {
+                let mut rng = thread_rng();
+                let otp = Self::alloc(vm, Visibility::Private)?;
+                let otp_value: R::Clear = rng.gen();
+
+                Self::asssign(vm, otp, otp_value)?;
+                Self::commit(vm, otp)?;
+
+                (otp, Some(otp_value))
+            }
+            Role::Follower => {
+                let otp = Self::alloc(vm, Visibility::Blind)?;
+                Self::commit(vm, otp)?;
+
+                (otp, None)
+            }
+        };
+
+        let otp_circuit = CallBuilder::new(<Aes128 as Cipher>::otp())
+            .arg(value)
+            .arg(otp)
+            .build()
+            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+
+        let value = vm
+            .call(otp_circuit)
+            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+
+        Ok((value, otp_value))
+    }
 }
 
 #[async_trait]
@@ -291,6 +334,7 @@ where
             Some(ref mac) => (mac.key, mac.otp),
             None => Self::prepare_mac_key(self.config.role(), vm, self.key()?)?,
         };
+
         vm.execute(ctx)
             .await
             .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
@@ -336,7 +380,51 @@ where
         todo!()
     }
 
-    async fn decode_key(&mut self) -> Result<(), Self::Error> {
-        todo!()
+    async fn decode_key_and_iv(
+        &mut self,
+        vm: &mut Vm,
+        ctx: &mut Ctx,
+    ) -> Result<
+        Option<(
+            <<Aes128 as Cipher>::Key as Repr<Binary>>::Clear,
+            <<Aes128 as Cipher>::Iv as Repr<Binary>>::Clear,
+        )>,
+        Self::Error,
+    > {
+        let key = self.key()?;
+        let iv = self.iv()?;
+
+        let (key, otp_key) = Self::decode_for_leader(self.config.role(), vm, key)?;
+        let (iv, otp_iv) = Self::decode_for_leader(self.config.role(), vm, iv)?;
+
+        let key = vm
+            .decode(key)
+            .map_err(|err| AesGcmError::new(ErrorKind::Ghash, err))?;
+
+        let iv = vm
+            .decode(iv)
+            .map_err(|err| AesGcmError::new(ErrorKind::Ghash, err))?;
+
+        vm.execute(ctx)
+            .await
+            .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
+        vm.flush(ctx)
+            .await
+            .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
+
+        let (mut key, mut iv) =
+            futures::try_join!(key, iv).map_err(|err| AesGcmError::new(ErrorKind::Ghash, err))?;
+
+        if let Role::Leader = self.config.role() {
+            key.iter_mut()
+                .zip(otp_key.expect("otp should be set for leader"))
+                .for_each(|(value, otp)| *value ^= otp);
+            iv.iter_mut()
+                .zip(otp_iv.expect("otp should be set for leader"))
+                .for_each(|(value, otp)| *value ^= otp);
+            return Ok(Some((key, iv)));
+        }
+
+        Ok(None)
     }
 }
