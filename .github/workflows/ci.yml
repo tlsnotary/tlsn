@@ -75,8 +75,8 @@ jobs:
       - name: Install wasm target + chromedriver
         run: |
           rustup target add wasm32-unknown-unknown
-          sudo apt-get update
-          sudo apt-get install -y chromium-chromedriver
+          apt update
+          apt install -y chromium-chromedriver
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -109,7 +109,7 @@ jobs:
             echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Add custom DNS entry to /etc/hosts for notary TLS test
-        run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
+        run: echo "127.0.0.1 tlsnotaryserver.io" | tee -a /etc/hosts
 
       - name: Run integration tests
         run: cargo test --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored
