@@ -95,8 +95,9 @@ jobs:
 
       - name: Run tests
         run: |
-          cd crates/wasm-test-runner
-          useradd -m -s /bin/sh tlsn && chmod +x run.sh  && su -c ./run.sh tlsn
+          
+          cd crates/wasm-test-runner 
+          useradd -m -s /bin/sh tlsn && chown -R tlsn:tlsn ../../* && chmod +x run.sh  && su -c ./run.sh tlsn
       
   tests-integration:
     name: Run tests release build
