@@ -42,7 +42,7 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     container:
-      image: rust:slim-bullseye
+      image: rust:bullseye
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -96,7 +96,7 @@ jobs:
     name: Run tests release build
     runs-on: ubuntu-latest
     container:
-      image: rust:slim-bullseye
+      image: rust:bullseye
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -116,7 +116,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     container:
-      image: rust:slim-bullseye
+      image: rust:bullseye
     env:
       CARGO_TERM_COLOR: always
     steps:
