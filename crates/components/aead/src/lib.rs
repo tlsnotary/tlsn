@@ -21,10 +21,7 @@ pub mod config;
 use async_trait::async_trait;
 use cipher::Cipher;
 use mpz_common::Context;
-use mpz_memory_core::{
-    binary::{Binary, U8},
-    Repr, Vector,
-};
+use mpz_memory_core::{binary::Binary, Repr};
 use mpz_vm_core::VmExt;
 
 #[async_trait]
@@ -47,21 +44,16 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
 
     async fn start(&mut self, ctx: &mut Ctx, vm: &mut Vm) -> Result<(), Self::Error>;
 
-    async fn encrypt(
-        &mut self,
-        vm: &mut Vm,
-        ctx: &mut Ctx,
-        plaintext: Vector<U8>,
-        aad: Vector<U8>,
-    ) -> Result<Vector<U8>, Self::Error>;
+    fn encrypt(&mut self, len: usize) -> Encrypt<C>;
 
-    async fn decrypt(
+    fn decrypt(
         &mut self,
         vm: &mut Vm,
-        ctx: &mut Ctx,
-        ciphertext: Vector<U8>,
-        aad: Vector<U8>,
-    ) -> Result<Vector<U8>, Self::Error>;
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+        start_counter: u32,
+    ) -> Decrypt<C>;
 
     async fn decode_key_and_iv(
         &mut self,
@@ -75,3 +67,24 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
         Self::Error,
     >;
 }
+
+pub struct Encrypt<C: Cipher> {
+    key: C::Key,
+    iv: C::Iv,
+    nonce: C::Nonce,
+    counter: C::Counter,
+    message: C::Block,
+    output: C::Block,
+}
+
+impl<C: Cipher> Encrypt<C> {
+    pub fn set_nonce(&mut self) -> &mut Self {
+        todo!()
+    }
+
+    pub fn set_counter(&mut self) -> &mut Self {
+        todo!()
+    }
+}
+
+pub struct Decrypt<C: Cipher> {}

@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use crate::{
     cipher::Cipher,
     config::{MpcAeadConfig, Role},
-    AeadCipher,
+    AeadCipher, Decrypt, Encrypt,
 };
 use async_trait::async_trait;
 use mpz_common::{try_join, Context};
@@ -28,7 +28,7 @@ pub struct MpcAesGcm<U> {
     key: Option<<Aes128 as Cipher>::Key>,
     iv: Option<Array<U8, 4>>,
     ghash: U,
-    keystream: VecDeque<Keystream>,
+    aes_ctr: VecDeque<AesCtrBlock>,
     mac: Option<Mac>,
 }
 
@@ -39,16 +39,17 @@ impl<U: Debug> Debug for MpcAesGcm<U> {
             .field("key", &"{{...}}")
             .field("iv", &"{{...}}")
             .field("ghash", &self.ghash)
-            .field("keystream", &self.keystream)
+            .field("aes_ctr", &self.aes_ctr)
             .field("mac", &self.mac)
             .finish()
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Keystream {
+struct AesCtrBlock {
     pub explicit_nonce: Array<U8, 8>,
     pub counter: Array<U8, 4>,
+    pub message: Array<U8, 16>,
     pub output: Array<U8, 16>,
 }
 
@@ -56,7 +57,7 @@ struct Keystream {
 struct Mac {
     pub otp: [u8; 16],
     pub key: Array<U8, 16>,
-    pub j0: VecDeque<Keystream>,
+    pub j0: VecDeque<AesCtrBlock>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -73,7 +74,7 @@ impl<U> MpcAesGcm<U> {
             key: None,
             iv: None,
             ghash,
-            keystream: VecDeque::default(),
+            aes_ctr: VecDeque::default(),
             mac: None,
         }
     }
@@ -124,22 +125,28 @@ impl<U> MpcAesGcm<U> {
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))
     }
 
-    fn prepare_keystream_block<Vm>(
+    fn prepare_aes_ctr<Vm>(
         vm: &mut Vm,
         key: <Aes128 as Cipher>::Key,
         iv: Array<U8, 4>,
-    ) -> Result<Keystream, AesGcmError>
+    ) -> Result<AesCtrBlock, AesGcmError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
         let explicit_nonce: Array<U8, 8> = Self::alloc(vm, Visibility::Public)?;
         let counter: Array<U8, 4> = Self::alloc(vm, Visibility::Public)?;
 
+        // Visibility of message is not known at this point, so we just allocate.
+        let message: Array<U8, 16> = vm
+            .alloc()
+            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+
         let aes_ctr = CallBuilder::new(<Aes128 as Cipher>::ctr())
             .arg(key)
             .arg(iv)
             .arg(explicit_nonce)
             .arg(counter)
+            .arg(message)
             .build()
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
 
@@ -147,13 +154,14 @@ impl<U> MpcAesGcm<U> {
             .call(aes_ctr)
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
 
-        let keystream = Keystream {
+        let aes_ctr = AesCtrBlock {
             explicit_nonce,
             counter,
+            message,
             output,
         };
 
-        Ok(keystream)
+        Ok(aes_ctr)
     }
 
     fn prepare_mac<Vm>(
@@ -168,7 +176,7 @@ impl<U> MpcAesGcm<U> {
     {
         let mut j0 = VecDeque::with_capacity(record_count);
         for _ in 0..record_count {
-            let j0_block = Self::prepare_keystream_block(vm, key, iv)?;
+            let j0_block = Self::prepare_aes_ctr(vm, key, iv)?;
             j0.push_back(j0_block);
         }
 
@@ -291,8 +299,8 @@ where
         let iv = self.iv()?;
 
         for _ in 0..block_count {
-            let keystream = Self::prepare_keystream_block(vm, key, iv)?;
-            self.keystream.push_back(keystream);
+            let aes_ctr = Self::prepare_aes_ctr(vm, key, iv)?;
+            self.aes_ctr.push_back(aes_ctr);
         }
 
         // One TLS record fits 2^17 bits, and one AES block fits 2^7 bits.
@@ -360,23 +368,20 @@ where
         Ok(())
     }
 
-    async fn encrypt(
-        &mut self,
-        vm: &mut Vm,
-        ctx: &mut Ctx,
-        plaintext: Vector<U8>,
-        aad: Vector<U8>,
-    ) -> Result<Vector<U8>, Self::Error> {
+    fn encrypt(&mut self, len: usize) -> Encrypt<Aes128> {
+        let block_count = (len / 16) + (len % 16 != 0) as usize;
+        let aes_ctr: Vec<AesCtrBlock> = self.aes_ctr.drain(..block_count).collect();
         todo!()
     }
 
-    async fn decrypt(
+    fn decrypt(
         &mut self,
         vm: &mut Vm,
-        ctx: &mut Ctx,
-        ciphertext: Vector<U8>,
-        aad: Vector<U8>,
-    ) -> Result<Vector<U8>, Self::Error> {
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+        start_counter: u32,
+    ) -> Decrypt<Aes128> {
         todo!()
     }
 
