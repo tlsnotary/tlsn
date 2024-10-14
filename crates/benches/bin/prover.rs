@@ -11,9 +11,7 @@ use anyhow::Context;
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tls_core::verify::WebPkiVerifier;
 use tlsn_benches::{
-    config::{BenchInstance, Config},
-    metrics::Metrics,
-    set_interface, PROVER_INTERFACE,
+    config::{BenchInstance, Config}, metrics::Metrics, preprocess_prf_circuits, set_interface, PROVER_INTERFACE
 };
 use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{transcript::Idx, CryptoProvider};
@@ -27,6 +25,9 @@ use tokio_util::{
 
 use tlsn_prover::{Prover, ProverConfig};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
+
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -52,6 +53,9 @@ async fn main() -> anyhow::Result<()> {
         .append(true)
         .open("metrics.csv")
         .context("failed to open metrics file")?;
+
+    // Preprocess the PRF circuits as they are allocating a lot of memory, which don't need to be accounted for in the benchmarks.
+    preprocess_prf_circuits().await;
 
     {
         let mut metric_wtr = csv::Writer::from_writer(&mut file);
@@ -108,7 +112,15 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         upload_size,
         download_size,
         defer_decryption,
+        memory_profile
     } = instance.clone();
+
+    let _profiler = if memory_profile {
+        // Build a testing profiler as it won't output to stderr
+        Some(dhat::Profiler::builder().testing().build())
+    } else {
+        None
+    };
 
     set_interface(PROVER_INTERFACE, upload, 1, upload_delay)?;
 
@@ -173,6 +185,12 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .await?;
     prover.finalize().await?;
 
+    let heap_max_bytes = if memory_profile {
+        Some(dhat::HeapStats::get().max_bytes)
+    } else {
+        None
+    };
+
     Ok(Metrics {
         name,
         upload,
@@ -185,6 +203,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         runtime: Instant::now().duration_since(start_time).as_secs(),
         uploaded: uploaded.load(Ordering::SeqCst),
         downloaded: downloaded.load(Ordering::SeqCst),
+        heap_max_bytes
     })
 }
 

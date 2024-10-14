@@ -13,6 +13,9 @@ use tlsn_core::CryptoProvider;
 use tlsn_server_fixture_certs::CA_CERT_DER;
 use tlsn_verifier::{Verifier, VerifierConfig};
 
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config_path = std::env::var("CFG").unwrap_or_else(|_| "bench.toml".to_string());
@@ -60,6 +63,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         download_delay,
         upload_size,
         download_size,
+        memory_profile,
         ..
     } = instance;
 
@@ -76,6 +80,13 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .build()
         .unwrap();
 
+    let _profiler = if memory_profile {
+        // Build a testing profiler as it won't output to stderr
+        Some(dhat::Profiler::builder().testing().build())
+    } else {
+        None
+    };
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
             .protocol_config_validator(config_validator)
@@ -86,6 +97,10 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     _ = verifier.verify(io.compat()).await?;
 
     println!("verifier done");
+
+    if memory_profile {
+        println!("verifier peak heap memory usage: {}", dhat::HeapStats::get().max_bytes);
+    }
 
     Ok(())
 }
