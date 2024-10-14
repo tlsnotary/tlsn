@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use spansy::{json::KeyValue, Spanned};
-use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
+use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
 
@@ -60,7 +60,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_value(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         value: &JsonValue,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -76,8 +76,8 @@ pub trait JsonCommit {
 
     /// Commits to a JSON object.
     ///
-    /// The default implementation commits the object without any of the key-value pairs, then
-    /// commits each key-value pair individually.
+    /// The default implementation commits the object without any of the
+    /// key-value pairs, then commits each key-value pair individually.
     ///
     /// # Arguments
     ///
@@ -86,7 +86,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_object(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         object: &Object,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -103,8 +103,8 @@ pub trait JsonCommit {
 
     /// Commits to a JSON key-value pair.
     ///
-    /// The default implementation commits the pair without the value, and then commits the value
-    /// separately.
+    /// The default implementation commits the pair without the value, and then
+    /// commits the value separately.
     ///
     /// # Arguments
     ///
@@ -113,7 +113,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_key_value(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         kv: &KeyValue,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -131,8 +131,8 @@ pub trait JsonCommit {
 
     /// Commits to a JSON array.
     ///
-    /// The default implementation commits to the entire array, then commits the array
-    /// excluding all values and separators.
+    /// The default implementation commits to the entire array, then commits the
+    /// array excluding all values and separators.
     ///
     /// # Arguments
     ///
@@ -141,7 +141,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_array(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         array: &Array,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -172,7 +172,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_string(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         string: &JsonString,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -196,7 +196,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_number(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         number: &Number,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -215,7 +215,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_bool(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         boolean: &Bool,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -234,7 +234,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_null(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut TranscriptCommitConfigBuilder,
         null: &Null,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {

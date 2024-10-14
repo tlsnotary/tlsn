@@ -19,13 +19,15 @@ type CompatSinkWriter =
 
 /// A TLS connection to a server.
 ///
-/// This type implements `AsyncRead` and `AsyncWrite` and can be used to communicate
-/// with a server using TLS.
+/// This type implements `AsyncRead` and `AsyncWrite` and can be used to
+/// communicate with a server using TLS.
 ///
 /// # Note
 ///
-/// This connection is closed on a best-effort basis if this is dropped. To ensure a clean close, you should call
-/// [`AsyncWriteExt::close`](futures::io::AsyncWriteExt::close) to close the connection.
+/// This connection is closed on a best-effort basis if this is dropped. To
+/// ensure a clean close, you should call
+/// [`AsyncWriteExt::close`](futures::io::AsyncWriteExt::close) to close the
+/// connection.
 #[derive(Debug)]
 pub struct TlsConnection {
     /// The data to be transmitted to the server is sent to this sink.

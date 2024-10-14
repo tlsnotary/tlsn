@@ -46,8 +46,8 @@ where
     /// # Arguments
     ///
     /// * `config`      - The configuration for this Ghash instance.
-    /// * `converter`   - An instance which allows to convert multiplicative into additive shares
-    ///                   and vice versa.
+    /// * `converter`   - An instance which allows to convert multiplicative
+    ///   into additive shares and vice versa.
     /// * `context`     - The context.
     pub fn new(config: GhashConfig, converter: C, context: Ctx) -> Self {
         Self {
@@ -89,7 +89,6 @@ impl<C, Ctx> Debug for Ghash<C, Ctx> {
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<Ctx, C> UniversalHash for Ghash<C, Ctx>
 where
     Ctx: Context,
@@ -129,9 +128,9 @@ where
 
     #[instrument(level = "debug", fields(thread = %self.context.id()), skip_all, err)]
     async fn setup(&mut self) -> Result<(), UniversalHashError> {
-        // We need only half the number of `max_block_count` M2As because of the free squaring trick
-        // and we need one extra A2M conversion in the beginning. Both M2A and A2M, each require a single
-        // OLE.
+        // We need only half the number of `max_block_count` M2As because of the free
+        // squaring trick and we need one extra A2M conversion in the beginning.
+        // Both M2A and A2M, each require a single OLE.
         let ole_count = self.config.max_block_count / 2 + 1;
         self.converter.alloc(ole_count);
 

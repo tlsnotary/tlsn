@@ -11,12 +11,15 @@ tls-server-fixture = { workspace = true }
 tlsn-common = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-tls-core = { workspace = true }
+tlsn-core = { workspace = true }
 
 async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
 http = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1", "server"] }
-hyper-tls = { version = "0.6", features = ["vendored"] } # specify vendored feature to use statically linked copy of OpenSSL
+hyper-tls = { version = "0.6", features = [
+    "vendored",
+] } # specify vendored feature to use statically linked copy of OpenSSL
 hyper-util = { workspace = true, features = ["full"] }
 rstest = { workspace = true }
 rustls = { workspace = true }

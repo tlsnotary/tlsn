@@ -1,6 +1,7 @@
 //! Notary client.
 //!
-//! This module sets up connection to notary server via TCP or TLS for subsequent requests for notarization.
+//! This module sets up connection to notary server via TCP or TLS for
+//! subsequent requests for notarization.
 
 use http_body_util::{BodyExt as _, Either, Empty, Full};
 use hyper::{body::Bytes, client::conn::http1::Parts, Request, StatusCode};
@@ -12,7 +13,6 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tlsn_common::config::{DEFAULT_MAX_RECV_LIMIT, DEFAULT_MAX_SENT_LIMIT};
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
@@ -30,10 +30,8 @@ use crate::error::{ClientError, ErrorKind};
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct NotarizationRequest {
     /// Maximum number of bytes that can be sent.
-    #[builder(default = "DEFAULT_MAX_SENT_LIMIT")]
     max_sent_data: usize,
     /// Maximum number of bytes that can be received.
-    #[builder(default = "DEFAULT_MAX_RECV_LIMIT")]
     max_recv_data: usize,
 }
 
@@ -110,19 +108,25 @@ impl AsyncWrite for NotaryConnection {
 /// Client that sets up connection to notary server.
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct NotaryClient {
-    /// Host of the notary server endpoint, either a DNS name (if TLS is used) or IP address.
+    /// Host of the notary server endpoint, either a DNS name (if TLS is used)
+    /// or IP address.
     #[builder(setter(into))]
     host: String,
     /// Port of the notary server endpoint.
     #[builder(default = "self.default_port()")]
     port: u16,
+    /// URL path prefix of the notary server endpoint, e.g. "https://<host>:<port>/<path_prefix>/...".
+    #[builder(setter(into), default = "String::from(\"\")")]
+    path_prefix: String,
     /// Flag to turn on/off using TLS with notary server.
     #[builder(setter(name = "enable_tls"), default = "true")]
     tls: bool,
-    /// Root certificate store used for establishing TLS connection with notary server.
+    /// Root certificate store used for establishing TLS connection with notary
+    /// server.
     #[builder(default = "default_root_store()")]
     root_cert_store: RootCertStore,
-    /// API key used to call notary server endpoints if whitelisting is enabled in notary server.
+    /// API key used to call notary server endpoints if whitelisting is enabled
+    /// in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
 }
@@ -130,8 +134,9 @@ pub struct NotaryClient {
 impl NotaryClientBuilder {
     // Default setter of port.
     fn default_port(&self) -> u16 {
-        // If port is not specified, set it to 80 if TLS is off, else 443 since TLS is on
-        // (including when self.tls = None, which means it's set to default (true)).
+        // If port is not specified, set it to 80 if TLS is off, else 443 since TLS is
+        // on (including when self.tls = None, which means it's set to default
+        // (true)).
         if let Some(false) = self.tls {
             80
         } else {
@@ -146,7 +151,8 @@ impl NotaryClient {
         NotaryClientBuilder::default()
     }
 
-    /// Configures and requests a notarization, returning a connection to the notary server if successful.
+    /// Configures and requests a notarization, returning a connection to the
+    /// notary server if successful.
     pub async fn request_notarization(
         &self,
         notarization_request: NotarizationRequest,
@@ -204,8 +210,14 @@ impl NotaryClient {
         notarization_request: NotarizationRequest,
     ) -> Result<(S, String), ClientError> {
         let http_scheme = if self.tls { "https" } else { "http" };
+        let path_prefix = if self.path_prefix.is_empty() {
+            String::new()
+        } else {
+            format!("/{}", self.path_prefix)
+        };
 
-        // Attach the hyper HTTP client to the notary connection to send request to the /session endpoint to configure notarization and obtain session id.
+        // Attach the hyper HTTP client to the notary connection to send request to the
+        // /session endpoint to configure notarization and obtain session id.
         let (mut notary_request_sender, notary_connection) =
             hyper::client::conn::http1::handshake(TokioIo::new(notary_socket))
                 .await
@@ -214,7 +226,8 @@ impl NotaryClient {
                     ClientError::new(ErrorKind::Connection, Some(Box::new(err)))
                 })?;
 
-        // Create a future to poll the notary connection to completion before extracting the socket.
+        // Create a future to poll the notary connection to completion before extracting
+        // the socket.
         let notary_connection_fut = async {
             // Claim back notary socket after HTTP exchange is done.
             let Parts {
@@ -227,7 +240,8 @@ impl NotaryClient {
             Ok(notary_socket)
         };
 
-        // Create a future to send configuration and notarization requests to the notary server using the connection established above.
+        // Create a future to send configuration and notarization requests to the notary
+        // server using the connection established above.
         let client_requests_fut = async {
             // Build the HTTP request to configure notarization.
             let configuration_request_payload =
@@ -243,8 +257,8 @@ impl NotaryClient {
 
             let mut configuration_request_builder = Request::builder()
                 .uri(format!(
-                    "{http_scheme}://{}:{}/session",
-                    self.host, self.port
+                    "{http_scheme}://{}:{}{}/session",
+                    self.host, self.port, path_prefix
                 ))
                 .method("POST")
                 .header("Host", &self.host)
@@ -314,18 +328,24 @@ impl NotaryClient {
                 configuration_response_payload_parsed
             );
 
-            // Send notarization request via HTTP, where the underlying TCP/TLS connection will be extracted later.
+            // Send notarization request via HTTP, where the underlying TCP/TLS connection
+            // will be extracted later.
             let notarization_request = Request::builder()
-                // Need to specify the session_id so that notary server knows the right configuration to use
-                // as the configuration is set in the previous HTTP call.
+                // Need to specify the session_id so that notary server knows the right
+                // configuration to use as the configuration is set in the previous
+                // HTTP call.
                 .uri(format!(
-                    "{http_scheme}://{}:{}/notarize?sessionId={}",
-                    self.host, self.port, &configuration_response_payload_parsed.session_id
+                    "{http_scheme}://{}:{}{}/notarize?sessionId={}",
+                    self.host,
+                    self.port,
+                    path_prefix,
+                    &configuration_response_payload_parsed.session_id
                 ))
                 .method("GET")
                 .header("Host", &self.host)
                 .header("Connection", "Upgrade")
-                // Need to specify this upgrade header for server to extract TCP/TLS connection later.
+                // Need to specify this upgrade header for server to extract TCP/TLS connection
+                // later.
                 .header("Upgrade", "TCP")
                 .body(Either::Right(Empty::<Bytes>::new()))
                 .map_err(|err| {
@@ -361,7 +381,8 @@ impl NotaryClient {
             Ok(configuration_response_payload_parsed.session_id)
         };
 
-        // Poll both futures simultaneously to obtain the resulting socket and session_id.
+        // Poll both futures simultaneously to obtain the resulting socket and
+        // session_id.
         let (notary_socket, session_id) =
             futures::try_join!(notary_connection_fut, client_requests_fut)?;
 

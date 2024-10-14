@@ -2,6 +2,8 @@ pub mod axum_websocket;
 pub mod tcp;
 pub mod websocket;
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use axum::{
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
@@ -9,9 +11,9 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
-use p256::ecdsa::{Signature, SigningKey};
 use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_core::{attestation::AttestationConfig, CryptoProvider};
+use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, trace};
@@ -30,8 +32,9 @@ use crate::{
     },
 };
 
-/// A wrapper enum to facilitate extracting TCP connection for either WebSocket or TCP clients,
-/// so that we can use a single endpoint and handler for notarization for both types of clients
+/// A wrapper enum to facilitate extracting TCP connection for either WebSocket
+/// or TCP clients, so that we can use a single endpoint and handler for
+/// notarization for both types of clients
 pub enum ProtocolUpgrade {
     Tcp(TcpUpgrade),
     Ws(WebSocketUpgrade),
@@ -65,9 +68,10 @@ where
     }
 }
 
-/// Handler to upgrade protocol from http to either websocket or underlying tcp depending on the type of client
-/// the session_id parameter is also extracted here to fetch the configuration parameters
-/// that have been submitted in the previous request to /session made by the same client
+/// Handler to upgrade protocol from http to either websocket or underlying tcp
+/// depending on the type of client the session_id parameter is also extracted
+/// here to fetch the configuration parameters that have been submitted in the
+/// previous request to /session made by the same client
 pub async fn upgrade_protocol(
     protocol_upgrade: ProtocolUpgrade,
     State(notary_globals): State<NotaryGlobals>,
@@ -75,7 +79,8 @@ pub async fn upgrade_protocol(
 ) -> Response {
     info!("Received upgrade protocol request");
     let session_id = params.session_id;
-    // Check if session_id exists in the store, this also removes session_id from the store as each session_id can only be used once
+    // Check if session_id exists in the store, this also removes session_id from
+    // the store as each session_id can only be used once
     if notary_globals
         .store
         .lock()
@@ -87,7 +92,8 @@ pub async fn upgrade_protocol(
         error!(err_msg);
         return NotaryServerError::BadProverRequest(err_msg).into_response();
     };
-    // This completes the HTTP Upgrade request and returns a successful response to the client, meanwhile initiating the websocket or tcp connection
+    // This completes the HTTP Upgrade request and returns a successful response to
+    // the client, meanwhile initiating the websocket or tcp connection
     match protocol_upgrade {
         ProtocolUpgrade::Ws(ws) => {
             ws.on_upgrade(move |socket| websocket_notarize(socket, notary_globals, session_id))
@@ -98,7 +104,8 @@ pub async fn upgrade_protocol(
     }
 }
 
-/// Handler to initialize and configure notarization for both TCP and WebSocket clients
+/// Handler to initialize and configure notarization for both TCP and WebSocket
+/// clients
 #[debug_handler(state = NotaryGlobals)]
 pub async fn initialize(
     State(notary_globals): State<NotaryGlobals>,
@@ -118,7 +125,8 @@ pub async fn initialize(
         }
     };
 
-    // Ensure that the max_sent_data, max_recv_data submitted is not larger than the global max limits configured in notary server
+    // Ensure that the max_sent_data, max_recv_data submitted is not larger than the
+    // global max limits configured in notary server
     if payload.max_sent_data.is_some() || payload.max_recv_data.is_some() {
         if payload.max_sent_data.unwrap_or_default()
             > notary_globals.notarization_config.max_sent_data
@@ -172,25 +180,30 @@ pub async fn initialize(
 /// Run the notarization
 pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     socket: T,
-    signing_key: &SigningKey,
+    crypto_provider: Arc<CryptoProvider>,
     session_id: &str,
     max_sent_data: usize,
     max_recv_data: usize,
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
 
-    let config_validator = ProtocolConfigValidator::builder()
-        .max_sent_data(max_sent_data)
-        .max_recv_data(max_recv_data)
-        .build()?;
+    let att_config = AttestationConfig::builder()
+        .supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()))
+        .build()
+        .map_err(|err| NotaryServerError::Notarization(Box::new(err)))?;
 
     let config = VerifierConfig::builder()
-        .id(session_id)
-        .protocol_config_validator(config_validator)
+        .protocol_config_validator(
+            ProtocolConfigValidator::builder()
+                .max_sent_data(max_sent_data)
+                .max_recv_data(max_recv_data)
+                .build()?,
+        )
+        .crypto_provider(crypto_provider)
         .build()?;
 
     Verifier::new(config)
-        .notarize::<_, Signature>(socket.compat(), signing_key)
+        .notarize(socket.compat(), &att_config)
         .await?;
 
     Ok(())

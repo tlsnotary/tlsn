@@ -13,7 +13,7 @@ use hyper_util::rt::TokioIo;
 use notify::{
     event::ModifyKind, Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
-use p256::{ecdsa::SigningKey, pkcs8::DecodePrivateKey};
+use pkcs8::DecodePrivateKey;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use std::{
     collections::HashMap,
@@ -24,11 +24,13 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
 };
-use tokio::{fs::File, net::TcpListener};
+use tlsn_core::CryptoProvider;
+use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use tracing::{debug, error, info};
+use zeroize::Zeroize;
 
 use crate::{
     config::{NotaryServerProperties, NotarySigningKeyProperties},
@@ -40,14 +42,18 @@ use crate::{
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
+    signing::AttestationKey,
     util::parse_csv_file,
 };
 
-/// Start a TCP server (with or without TLS) to accept notarization request for both TCP and WebSocket clients
+/// Start a TCP server (with or without TLS) to accept notarization request for
+/// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
     // Load the private key for notarized transcript signing
-    let notary_signing_key = load_notary_signing_key(&config.notary_key).await?;
+    let attestation_key = load_attestation_key(&config.notary_key).await?;
+    let crypto_provider = build_crypto_provider(attestation_key);
+
     // Build TLS acceptor if it is turned on
     let tls_acceptor = if !config.tls.enabled {
         debug!("Skipping TLS setup as it is turned off.");
@@ -95,7 +101,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
 
     let protocol = Arc::new(http1::Builder::new());
     let notary_globals = NotaryGlobals::new(
-        notary_signing_key,
+        Arc::new(crypto_provider),
         config.notarization.clone(),
         authorization_whitelist,
     );
@@ -156,7 +162,8 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         .with_state(notary_globals);
 
     loop {
-        // Poll and await for any incoming connection, ensure that all operations inside are infallible to prevent bringing down the server
+        // Poll and await for any incoming connection, ensure that all operations inside
+        // are infallible to prevent bringing down the server
         let stream = match poll_fn(|cx| Pin::new(&mut listener).poll_accept(cx)).await {
             Ok((stream, _)) => stream,
             Err(err) => {
@@ -186,8 +193,9 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                         // Serve different requests using the same hyper protocol and axum router
                         let _ = protocol
                             .serve_connection(io, hyper_service)
-                            // use with_upgrades to upgrade connection to websocket for websocket clients
-                            // and to extract tcp connection for tcp clients
+                            // use with_upgrades to upgrade connection to websocket for websocket
+                            // clients and to extract tcp connection for
+                            // tcp clients
                             .with_upgrades()
                             .await;
                     }
@@ -216,15 +224,30 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     }
 }
 
-/// Load notary signing key from static file
-async fn load_notary_signing_key(config: &NotarySigningKeyProperties) -> Result<SigningKey> {
+fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
+    let mut provider = CryptoProvider::default();
+    provider.signer.set_signer(attestation_key.into_signer());
+    provider
+}
+
+/// Load notary signing key for attestations from static file
+async fn load_attestation_key(config: &NotarySigningKeyProperties) -> Result<AttestationKey> {
     debug!("Loading notary server's signing key");
 
-    let notary_signing_key = SigningKey::read_pkcs8_pem_file(&config.private_key_pem_path)
+    let mut file = File::open(&config.private_key_pem_path).await?;
+    let mut pem = String::new();
+    file.read_to_string(&mut pem)
+        .await
+        .map_err(|_| eyre!("pem file does not contain valid UTF-8"))?;
+
+    let key = AttestationKey::from_pkcs8_pem(&pem)
         .map_err(|err| eyre!("Failed to load notary signing key for notarization: {err}"))?;
 
+    pem.zeroize();
+
     debug!("Successfully loaded notary server's signing key!");
-    Ok(notary_signing_key)
+
+    Ok(key)
 }
 
 /// Read a PEM-formatted file and return its buffer reader
@@ -280,7 +303,8 @@ fn load_authorization_whitelist(
 
 // Setup a watcher to detect any changes to authorization whitelist
 // When the list file is modified, the watcher thread will reload the whitelist
-// The watcher is setup in a separate thread by the notify library which is synchronous
+// The watcher is setup in a separate thread by the notify library which is
+// synchronous
 fn watch_and_reload_authorization_whitelist(
     config: NotaryServerProperties,
     authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
@@ -288,7 +312,8 @@ fn watch_and_reload_authorization_whitelist(
     // Only setup the watcher if auth whitelist is loaded
     let watcher = if let Some(authorization_whitelist) = authorization_whitelist {
         let cloned_config = config.clone();
-        // Setup watcher by giving it a function that will be triggered when an event is detected
+        // Setup watcher by giving it a function that will be triggered when an event is
+        // detected
         let mut watcher = RecommendedWatcher::new(
             move |event: Result<Event, Error>| {
                 match event {
@@ -331,7 +356,8 @@ fn watch_and_reload_authorization_whitelist(
         // Skip setup the watcher if auth whitelist is not loaded
         None
     };
-    // Need to return the watcher to parent function, else it will be dropped and stop listening
+    // Need to return the watcher to parent function, else it will be dropped and
+    // stop listening
     Ok(watcher)
 }
 
@@ -355,13 +381,12 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_load_notary_signing_key() {
+    async fn test_load_attestation_key() {
         let config = NotarySigningKeyProperties {
             private_key_pem_path: "./fixture/notary/notary.key".to_string(),
             public_key_pem_path: "./fixture/notary/notary.pub".to_string(),
         };
-        let result: Result<SigningKey> = load_notary_signing_key(&config).await;
-        assert!(result.is_ok(), "Could not load notary private key");
+        load_attestation_key(&config).await.unwrap();
     }
 
     #[tokio::test]

@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config;
+pub mod msg;
 pub mod mux;
 
 use serio::codec::Codec;

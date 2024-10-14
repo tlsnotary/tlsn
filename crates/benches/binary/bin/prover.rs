@@ -24,9 +24,9 @@ use tokio_util::{
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[cfg(not(feature = "browser-bench"))]
-use tlsn_benches::prover::NativeProver as Prover;
+use tlsn_benches::prover::NativeProver as BenchProver;
 #[cfg(feature = "browser-bench")]
-use tlsn_benches_browser_native::BrowserProver as Prover;
+use tlsn_benches_browser_native::BrowserProver as BenchProver;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -115,7 +115,7 @@ async fn run_instance(instance: BenchInstance, io: impl AsyncIo) -> anyhow::Resu
     let (client_conn, server_conn) = tokio::io::duplex(1 << 16);
     tokio::spawn(bind(server_conn.compat()));
 
-    let mut prover = Prover::setup(
+    let mut prover = BenchProver::setup(
         upload_size,
         download_size,
         defer_decryption,

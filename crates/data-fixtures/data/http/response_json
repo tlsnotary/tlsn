@@ -1,0 +1,6 @@
+HTTP/1.1 200 OK
+Cookie: very-secret-cookie
+Content-Length: 44
+Content-Type: application/json
+
+{"foo": "bar", "bazz": 123, "buzz": [1,"5"]}

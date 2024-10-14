@@ -1,15 +1,21 @@
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
-use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
-use tlsn_prover::tls::{state::Prove, Prover, ProverConfig};
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
+use tlsn_core::transcript::Idx;
+use tlsn_prover::{state::Prove, Prover, ProverConfig};
+use tlsn_verifier::{SessionInfo, Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 const SECRET: &str = "TLSNotary's private key 🤡";
 const SERVER_DOMAIN: &str = "example.com";
+
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
@@ -25,13 +31,10 @@ async fn main() {
     let (_, (sent, received, _session_info)) = tokio::join!(prover, verifier);
 
     println!("Successfully verified {}", &uri);
-    println!(
-        "Verified sent data:\n{}",
-        bytes_to_redacted_string(sent.data())
-    );
+    println!("Verified sent data:\n{}", bytes_to_redacted_string(&sent));
     println!(
         "Verified received data:\n{}",
-        bytes_to_redacted_string(received.data())
+        bytes_to_redacted_string(&received)
     );
 }
 
@@ -51,8 +54,14 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Perform the setup phase with the verifier.
     let prover = Prover::new(
         ProverConfig::builder()
-            .id(id)
-            .server_dns(server_domain)
+            .server_name(server_domain)
+            .protocol_config(
+                ProtocolConfig::builder()
+                    .max_sent_data(MAX_SENT_DATA)
+                    .max_recv_data(MAX_RECV_DATA)
+                    .build()
+                    .unwrap(),
+            )
             .build()
             .unwrap(),
     )
@@ -69,9 +78,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let (mpc_tls_connection, prover_fut) =
         prover.connect(tls_client_socket.compat()).await.unwrap();
 
-    // Grab a controller for the Prover so we can enable deferred decryption.
-    let ctrl = prover_fut.control();
-
     // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
@@ -86,10 +92,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
-
-    // Enable deferred decryption. This speeds up the proving time, but doesn't
-    // let us see the decrypted data until after the connection is closed.
-    ctrl.defer_decryption().await.unwrap();
 
     // MPC-TLS: Send Request and wait for Response.
     let request = Request::builder()
@@ -106,9 +108,12 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Create proof for the Verifier.
     let mut prover = prover_task.await.unwrap().unwrap().start_prove();
-    redact_and_reveal_received_data(&mut prover);
-    redact_and_reveal_sent_data(&mut prover);
-    prover.prove().await.unwrap();
+
+    let idx_sent = redact_and_reveal_sent_data(&mut prover);
+    let idx_recv = redact_and_reveal_received_data(&mut prover);
+
+    // Reveal parts of the transcript
+    prover.prove_transcript(idx_sent, idx_recv).await.unwrap();
 
     // Finalize.
     prover.finalize().await.unwrap()
@@ -118,23 +123,34 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
     id: &str,
-) -> (RedactedTranscript, RedactedTranscript, SessionInfo) {
+) -> (Vec<u8>, Vec<u8>, SessionInfo) {
     // Setup Verifier.
-    let verifier_config = VerifierConfig::builder().id(id).build().unwrap();
+    let config_validator = ProtocolConfigValidator::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let verifier_config = VerifierConfig::builder()
+        .protocol_config_validator(config_validator)
+        .build()
+        .unwrap();
     let verifier = Verifier::new(verifier_config);
 
     // Verify MPC-TLS and wait for (redacted) data.
-    let (sent, received, session_info) = verifier.verify(socket.compat()).await.unwrap();
+    let (mut partial_transcript, session_info) = verifier.verify(socket.compat()).await.unwrap();
+    partial_transcript.set_unauthed(0);
 
     // Check sent data: check host.
-    let sent_data = String::from_utf8(sent.data().to_vec()).expect("Verifier expected sent data");
+    let sent = partial_transcript.sent_unsafe().to_vec();
+    let sent_data = String::from_utf8(sent.clone()).expect("Verifier expected sent data");
     sent_data
         .find(SERVER_DOMAIN)
         .unwrap_or_else(|| panic!("Verification failed: Expected host {}", SERVER_DOMAIN));
 
     // Check received data: check json and version number.
-    let response =
-        String::from_utf8(received.data().to_vec()).expect("Verifier expected received data");
+    let received = partial_transcript.received_unsafe().to_vec();
+    let response = String::from_utf8(received.clone()).expect("Verifier expected received data");
     response
         .find("Example Domain")
         .expect("Expected valid data from example.com");
@@ -146,35 +162,35 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 }
 
 /// Redacts and reveals received data to the verifier.
-fn redact_and_reveal_received_data(prover: &mut Prover<Prove>) {
-    let recv_transcript_len = prover.recv_transcript().data().len();
+fn redact_and_reveal_received_data(prover: &mut Prover<Prove>) -> Idx {
+    let recv_transcript = prover.transcript().received();
+    let recv_transcript_len = recv_transcript.len();
 
     // Get the received data as a string.
-    let received_string = String::from_utf8(prover.recv_transcript().data().to_vec()).unwrap();
+    let received_string = String::from_utf8(recv_transcript.to_vec()).unwrap();
     // Find the substring "illustrative".
     let start = received_string
         .find("illustrative")
         .expect("Error: The substring 'illustrative' was not found in the received data.");
     let end = start + "illustrative".len();
 
-    // Reveal everything except for the substring "illustrative".
-    _ = prover.reveal(0..start, Direction::Received);
-    _ = prover.reveal(end..recv_transcript_len, Direction::Received);
+    Idx::new([0..start, end..recv_transcript_len])
 }
 
 /// Redacts and reveals sent data to the verifier.
-fn redact_and_reveal_sent_data(prover: &mut Prover<Prove>) {
-    let sent_transcript_len = prover.sent_transcript().data().len();
+fn redact_and_reveal_sent_data(prover: &mut Prover<Prove>) -> Idx {
+    let sent_transcript = prover.transcript().sent();
+    let sent_transcript_len = sent_transcript.len();
 
-    let sent_string = String::from_utf8(prover.sent_transcript().data().to_vec()).unwrap();
+    let sent_string = String::from_utf8(sent_transcript.to_vec()).unwrap();
+
     let secret_start = sent_string.find(SECRET).unwrap();
 
     // Reveal everything except for the SECRET.
-    _ = prover.reveal(0..secret_start, Direction::Sent);
-    _ = prover.reveal(
+    Idx::new([
+        0..secret_start,
         secret_start + SECRET.len()..sent_transcript_len,
-        Direction::Sent,
-    );
+    ])
 }
 
 /// Render redacted bytes as `🙈`.

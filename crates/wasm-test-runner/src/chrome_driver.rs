@@ -7,14 +7,18 @@ use chromiumoxide::{
     Browser, BrowserConfig, Page,
 };
 use futures::{Future, FutureExt, StreamExt};
-use std::env;
+use std::{env, time::Duration};
 use tracing::{debug, error, instrument};
 
 use crate::{TestResult, DEFAULT_SERVER_IP, DEFAULT_WASM_PORT};
 
 #[instrument]
 pub async fn run() -> Result<Vec<TestResult>> {
-    let config = BrowserConfig::builder().build().map_err(|s| anyhow!(s))?;
+    let config = BrowserConfig::builder()
+        .request_timeout(Duration::from_secs(60))
+        .incognito() // Run in incognito mode to avoid unexplained WS connection errors in chromiumoxide.
+        .build()
+        .map_err(|s| anyhow!(s))?;
 
     debug!("launching chromedriver");
 

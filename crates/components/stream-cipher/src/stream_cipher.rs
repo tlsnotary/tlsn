@@ -57,8 +57,8 @@ struct KeyAndIv {
 
 /// A subset of plaintext bytes processed by the stream cipher.
 ///
-/// Note that `Transcript` does not store the actual bytes. Instead, it provides IDs which are
-/// assigned to plaintext bytes of the stream cipher.
+/// Note that `Transcript` does not store the actual bytes. Instead, it provides
+/// IDs which are assigned to plaintext bytes of the stream cipher.
 struct Transcript {
     /// The ID of this transcript.
     id: String,
@@ -74,7 +74,8 @@ impl Transcript {
         }
     }
 
-    /// Returns unique identifiers for the next plaintext bytes in the transcript.
+    /// Returns unique identifiers for the next plaintext bytes in the
+    /// transcript.
     fn extend_plaintext(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| self.plaintext.increment_in_place().to_string())
@@ -260,7 +261,6 @@ where
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<C, E> StreamCipher<C> for MpcStreamCipher<C, E>
 where
     C: CtrCircuit,

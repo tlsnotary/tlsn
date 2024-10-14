@@ -56,7 +56,8 @@ impl State {
 
 /// An MPC key exchange protocol.
 ///
-/// Can be either a leader or a follower depending on the `role` field in [`KeyExchangeConfig`].
+/// Can be either a leader or a follower depending on the `role` field in
+/// [`KeyExchangeConfig`].
 #[derive(Debug)]
 pub struct MpcKeyExchange<Ctx, C0, C1, E> {
     ctx: Ctx,
@@ -66,7 +67,8 @@ pub struct MpcKeyExchange<Ctx, C0, C1, E> {
     converter_1: C1,
     /// MPC executor.
     executor: E,
-    /// The private key of the party behind this instance, either follower or leader.
+    /// The private key of the party behind this instance, either follower or
+    /// leader.
     private_key: Option<SecretKey>,
     /// The public key of the server.
     server_key: Option<PublicKey>,
@@ -200,7 +202,6 @@ where
 }
 
 #[async_trait]
-#[allow(clippy::blocks_in_conditions)]
 impl<Ctx, C0, C1, E> KeyExchange for MpcKeyExchange<Ctx, C0, C1, E>
 where
     Ctx: Context,
@@ -420,9 +421,9 @@ async fn compute_pms_shares<
 ) -> Result<(P256, P256), KeyExchangeError> {
     // Compute the leader's/follower's share of the pre-master secret.
     //
-    // We need to mimic the [diffie-hellman](p256::ecdh::diffie_hellman) function without the
-    // [SharedSecret](p256::ecdh::SharedSecret) wrapper, because this makes it harder to get
-    // the result as an EC curve point.
+    // We need to mimic the [diffie-hellman](p256::ecdh::diffie_hellman) function
+    // without the [SharedSecret](p256::ecdh::SharedSecret) wrapper, because
+    // this makes it harder to get the result as an EC curve point.
     let shared_secret = {
         let public_projective = server_key.to_projective();
         (public_projective * private_key.to_nonzero_scalar().as_ref()).to_affine()

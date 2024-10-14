@@ -1,19 +1,21 @@
-//! This module implements the AES-GCM's GHASH function in a secure two-party computation (2PC)
-//! setting. The parties start with their secret XOR shares of H (the GHASH key) and at the end
-//! each gets their XOR share of the GHASH output. The method is described here:
-//! <https://tlsnotary.org/how_it_works#section4>.
+//! This module implements the AES-GCM's GHASH function in a secure two-party
+//! computation (2PC) setting. The parties start with their secret XOR shares of
+//! H (the GHASH key) and at the end each gets their XOR share of the GHASH
+//! output. The method is described here: <https://tlsnotary.org/how_it_works#section4>.
 //!
-//! At first we will convert the XOR (additive) share of `H`, into a multiplicative share. This
-//! allows us to compute all the necessary powers of `H^n` locally. Note, that it is only required
-//! to compute the odd multiplicative powers, because of free squaring. Then each of these
-//! multiplicative shares will be converted back into additive shares. The even additive shares can
-//! then locally be built by using the odd ones. This way, we can batch nearly all oblivious
-//! transfers and reduce the round complexity of the protocol.
+//! At first we will convert the XOR (additive) share of `H`, into a
+//! multiplicative share. This allows us to compute all the necessary powers of
+//! `H^n` locally. Note, that it is only required to compute the odd
+//! multiplicative powers, because of free squaring. Then each of these
+//! multiplicative shares will be converted back into additive shares. The even
+//! additive shares can then locally be built by using the odd ones. This way,
+//! we can batch nearly all oblivious transfers and reduce the round complexity
+//! of the protocol.
 //!
-//! On the whole, we need a single additive-to-multiplicative (A2M) and `n/2`, where `n` is the
-//! number of blocks of message, multiplicative-to-additive (M2A) conversions. Finally, having
-//! additive shares of `H^n` for all needed `n`, we can compute an additive share of the GHASH
-//! output.
+//! On the whole, we need a single additive-to-multiplicative (A2M) and `n/2`,
+//! where `n` is the number of blocks of message, multiplicative-to-additive
+//! (M2A) conversions. Finally, having additive shares of `H^n` for all needed
+//! `n`, we can compute an additive share of the GHASH output.
 
 /// Contains the core logic for ghash.
 mod core;
@@ -35,14 +37,16 @@ pub(crate) enum GhashError {
 
 /// Computes missing odd multiplicative shares of the hashkey powers.
 ///
-/// Checks if depending on the number of `needed` shares, we need more odd multiplicative shares and
-/// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
-/// derive even additive shares from odd additive shares, which we call free squaring.
+/// Checks if depending on the number of `needed` shares, we need more odd
+/// multiplicative shares and computes them. Notice that we only need odd
+/// multiplicative shares for the OT, because we can derive even additive shares
+/// from odd additive shares, which we call free squaring.
 ///
 /// # Arguments
 ///
 /// * `present_odd_mul_shares`  - Multiplicative odd shares already present.
-/// * `needed`                  - How many powers we need including odd and even.
+/// * `needed`                  - How many powers we need including odd and
+///   even.
 #[instrument(level = "trace", skip(present_odd_mul_shares))]
 fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed: usize) {
     // Divide by 2 and round up.
@@ -59,33 +63,35 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed:
     }
 }
 
-/// Computes new even (additive) shares from new odd (additive) shares and saves both the new odd shares
-/// and the new even shares.
+/// Computes new even (additive) shares from new odd (additive) shares and saves
+/// both the new odd shares and the new even shares.
 ///
-/// This function implements the derivation of even additive shares from odd additive shares,
-/// which we refer to as free squaring. Every additive share of an even power of
-/// `H` can be computed without an OT interaction by squaring the corresponding additive share
-/// of an odd power of `H`, e.g. if we have a share of H^3, we can derive the share of H^6 by doing
-/// (H^3)^2.
+/// This function implements the derivation of even additive shares from odd
+/// additive shares, which we refer to as free squaring. Every additive share of
+/// an even power of `H` can be computed without an OT interaction by squaring
+/// the corresponding additive share of an odd power of `H`, e.g. if we have a
+/// share of H^3, we can derive the share of H^6 by doing (H^3)^2.
 ///
 /// # Arguments
 ///
-/// * `new_add_odd_shares` - New odd additive shares we got as a result of doing an OT on odd
-///                          multiplicative shares.
-/// * `add_shares`         - All additive shares (even and odd) we already have. This is a mutable
-///                          reference to cached_add_shares in [crate::ghash::state::Intermediate].
+/// * `new_add_odd_shares` - New odd additive shares we got as a result of doing
+///   an OT on odd multiplicative shares.
+/// * `add_shares`         - All additive shares (even and odd) we already have.
+///   This is a mutable reference to cached_add_shares in
+///   [crate::ghash::state::Intermediate].
 #[instrument(level = "trace", skip_all)]
 fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<Gf2_128>) {
     for (odd_share, current_odd_power) in new_add_odd_shares
         .iter()
         .zip((add_shares.len() + 1..).step_by(2))
     {
-        // `add_shares` always have an even number of shares so we simply add the next odd share.
+        // `add_shares` always have an even number of shares so we simply add the next
+        // odd share.
         add_shares.push(*odd_share);
 
         // Now we need to compute the next even share and add it.
-        // Note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
-        // is the share of H^5.
+        // Note that the n-th index corresponds to the (n+1)-th power, e.g.
+        // add_shares[4] is the share of H^5.
         let mut base_share = add_shares[current_odd_power / 2];
         base_share = base_share * base_share;
         add_shares.push(base_share);

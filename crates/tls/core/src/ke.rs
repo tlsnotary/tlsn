@@ -3,8 +3,8 @@ use crate::msgs::handshake::DigitallySignedStruct;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ServerKxDetails {
-    kx_params: Vec<u8>,
-    kx_sig: DigitallySignedStruct,
+    pub kx_params: Vec<u8>,
+    pub kx_sig: DigitallySignedStruct,
 }
 
 impl ServerKxDetails {

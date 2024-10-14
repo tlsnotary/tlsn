@@ -19,10 +19,10 @@ impl AesGcmError {
         }
     }
 
-    //    #[cfg(test)]
-    //    pub(crate) fn kind(&self) -> ErrorKind {
-    //        self.kind
-    //    }
+    #[cfg(test)]
+    pub(crate) fn kind(&self) -> ErrorKind {
+        self.kind
+    }
 
     pub(crate) fn invalid_tag() -> Self {
         Self {

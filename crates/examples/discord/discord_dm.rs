@@ -6,25 +6,23 @@ use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
-use std::{env, ops::Range, str};
-use tlsn_common::config::ProtocolConfig;
-use tlsn_core::proof::TlsProof;
-use tlsn_prover::tls::{Prover, ProverConfig};
-use tokio::io::AsyncWriteExt as _;
+use std::{env, str};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
+use utils::range::RangeSet;
+
+use tlsn_common::config::ProtocolConfig;
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig};
+use tlsn_prover::{Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
 
-// Setting of the notary server — make sure these are the same with the config in ../../notary/server
+// Setting of the notary server — make sure these are the same with the config
+// in ../../notary/server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
-// P/S: If the following limits are increased, please ensure max-transcript-size of
-// the notary server's config (../../notary/server) is increased too, where
-// max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
-//
 // Maximum number of bytes that can be sent from prover to server
 const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server
@@ -59,12 +57,12 @@ async fn main() {
 
     let Accepted {
         io: notary_connection,
-        id: session_id,
+        id: _session_id,
         ..
     } = notary_client
         .request_notarization(notarization_request)
         .await
-        .unwrap();
+        .expect("Could not connect to notary. Make sure it is running.");
 
     // Set up protocol configuration for prover.
     let protocol_config = ProtocolConfig::builder()
@@ -73,15 +71,12 @@ async fn main() {
         .build()
         .unwrap();
 
-    // Configure a new prover with the unique session id returned from notary client.
+    // Create a new prover and set up the MPC backend.
     let prover_config = ProverConfig::builder()
-        .id(session_id)
-        .server_dns(SERVER_DOMAIN)
+        .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
         .build()
         .unwrap();
-
-    // Create a new prover and set up the MPC backend.
     let prover = Prover::new(prover_config)
         .setup(notary_connection.compat())
         .await
@@ -145,69 +140,50 @@ async fn main() {
     let mut prover = prover.start_notarize();
 
     // Identify the ranges in the transcript that contain secrets
-    let (public_ranges, private_ranges) =
-        find_ranges(prover.sent_transcript().data(), &[auth_token.as_bytes()]);
+    let sent_transcript = prover.transcript().sent();
+    let recv_transcript = prover.transcript().received();
 
-    let recv_len = prover.recv_transcript().data().len();
+    // Identify the ranges in the outbound data which contain data which we want to
+    // disclose
+    let (sent_public_ranges, _) = find_ranges(sent_transcript, &[auth_token.as_bytes()]);
+    #[allow(clippy::single_range_in_vec_init)]
+    let recv_public_ranges = RangeSet::from([0..recv_transcript.len()]);
 
-    let builder = prover.commitment_builder();
+    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
-    // Collect commitment ids for the outbound transcript
-    let mut commitment_ids = public_ranges
-        .iter()
-        .chain(private_ranges.iter())
-        .map(|range| builder.commit_sent(range).unwrap())
-        .collect::<Vec<_>>();
+    // Commit to public ranges
+    builder.commit_sent(&sent_public_ranges).unwrap();
+    builder.commit_recv(&recv_public_ranges).unwrap();
 
-    // Commit to the full received transcript in one shot, as we don't need to redact anything
-    commitment_ids.push(builder.commit_recv(&(0..recv_len)).unwrap());
+    let config = builder.build().unwrap();
+
+    prover.transcript_commit(config);
 
     // Finalize, returning the notarized session
-    let notarized_session = prover.finalize().await.unwrap();
+    let request_config = RequestConfig::default();
+    let (attestation, secrets) = prover.finalize(&request_config).await.unwrap();
 
     debug!("Notarization complete!");
 
-    // Dump the notarized session to a file
-    let mut file = tokio::fs::File::create("discord_dm_notarized_session.json")
-        .await
-        .unwrap();
-    file.write_all(
-        serde_json::to_string_pretty(&notarized_session)
-            .unwrap()
-            .as_bytes(),
+    tokio::fs::write(
+        "discord.attestation.tlsn",
+        bincode::serialize(&attestation).unwrap(),
     )
     .await
     .unwrap();
 
-    let session_proof = notarized_session.session_proof();
-
-    let mut proof_builder = notarized_session.data().build_substrings_proof();
-
-    // Reveal everything but the auth token (which was assigned commitment id 2)
-    proof_builder.reveal_by_id(commitment_ids[0]).unwrap();
-    proof_builder.reveal_by_id(commitment_ids[1]).unwrap();
-    proof_builder.reveal_by_id(commitment_ids[3]).unwrap();
-
-    let substrings_proof = proof_builder.build().unwrap();
-
-    let proof = TlsProof {
-        session: session_proof,
-        substrings: substrings_proof,
-    };
-
-    // Dump the proof to a file.
-    let mut file = tokio::fs::File::create("discord_dm_proof.json")
-        .await
-        .unwrap();
-    file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
-        .await
-        .unwrap();
+    tokio::fs::write(
+        "discord.secrets.tlsn",
+        bincode::serialize(&secrets).unwrap(),
+    )
+    .await
+    .unwrap();
 }
 
 /// Find the ranges of the public and private parts of a sequence.
 ///
 /// Returns a tuple of `(public, private)` ranges.
-fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
+fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (RangeSet<usize>, RangeSet<usize>) {
     let mut private_ranges = Vec::new();
     for s in sub_seq {
         for (idx, w) in seq.windows(s.len()).enumerate() {
@@ -233,5 +209,8 @@ fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<u
         public_ranges.push(last_end..seq.len());
     }
 
-    (public_ranges, private_ranges)
+    (
+        RangeSet::from(public_ranges),
+        RangeSet::from(private_ranges),
+    )
 }

@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use futures::SinkExt;
 
 use key_exchange as ke;
-use mpz_core::commit::{Decommitment, HashCommit};
 
 use aead::{aes_gcm::AesGcmError, Aead};
 use hmac_sha256::Prf;
@@ -57,7 +56,8 @@ pub struct MpcTlsLeader {
     encrypter: Encrypter,
     decrypter: Decrypter,
 
-    /// When set, notifies the backend that there are TLS messages which need to be decrypted.
+    /// When set, notifies the backend that there are TLS messages which need to
+    /// be decrypted.
     notifier: BackendNotifier,
 
     /// Whether the backend is ready to decrypt messages.
@@ -101,6 +101,7 @@ impl MpcTlsLeader {
             config.common().rx_config().id().to_string(),
             config.common().rx_config().opaque_id().to_string(),
         );
+        let is_decrypting = !config.defer_decryption_from_start();
 
         Self {
             config,
@@ -111,7 +112,7 @@ impl MpcTlsLeader {
             encrypter,
             decrypter,
             notifier: BackendNotifier::new(),
-            is_decrypting: true,
+            is_decrypting,
             buffer: VecDeque::new(),
             committed: false,
         }
@@ -134,11 +135,12 @@ impl MpcTlsLeader {
         self.ke.preprocess().await?;
         self.prf.preprocess().await?;
 
+        let preprocess_encrypt = self.config.common().tx_config().max_online_size();
+        let preprocess_decrypt = self.config.common().rx_config().max_online_size();
+
         futures::try_join!(
-            self.encrypter
-                .preprocess(self.config.common().tx_config().max_size()),
-            // For now we just preprocess enough for the handshake
-            self.decrypter.preprocess(256),
+            self.encrypter.preprocess(preprocess_encrypt),
+            self.decrypter.preprocess(preprocess_decrypt),
         )?;
 
         self.prf
@@ -150,7 +152,8 @@ impl MpcTlsLeader {
 
     /// Runs the leader actor.
     ///
-    /// Returns a control handle and a future that resolves when the actor is stopped.
+    /// Returns a control handle and a future that resolves when the actor is
+    /// stopped.
     ///
     /// # Note
     ///
@@ -178,7 +181,7 @@ impl MpcTlsLeader {
         match direction {
             Direction::Sent => {
                 let new_len = self.encrypter.sent_bytes() + len;
-                let max_size = self.config.common().tx_config().max_size();
+                let max_size = self.config.common().tx_config().max_online_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,
@@ -191,7 +194,8 @@ impl MpcTlsLeader {
             }
             Direction::Recv => {
                 let new_len = self.decrypter.recv_bytes() + len;
-                let max_size = self.config.common().rx_config().max_size();
+                let max_size = self.config.common().rx_config().max_online_size()
+                    + self.config.common().rx_config().max_offline_size();
                 if new_len > max_size {
                     return Err(MpcTlsError::new(
                         Kind::Config,
@@ -320,8 +324,9 @@ impl MpcTlsLeader {
             .await?;
 
         let msg = if self.committed {
-            // At this point the AEAD key was revealed to us. We will locally decrypt the TLS message
-            // and will prove the knowledge of the plaintext to the follower.
+            // At this point the AEAD key was revealed to us. We will locally decrypt the
+            // TLS message and will prove the knowledge of the plaintext to the
+            // follower.
             self.decrypter.prove_plaintext(msg).await?
         } else {
             self.decrypter.decrypt_private(msg).await?
@@ -388,8 +393,8 @@ impl MpcTlsLeader {
 
     /// Commits the leader to the current transcript.
     ///
-    /// This reveals the AEAD key to the leader and disables sending or receiving
-    /// any further messages.
+    /// This reveals the AEAD key to the leader and disables sending or
+    /// receiving any further messages.
     #[instrument(name = "finalize", level = "debug", skip_all, err)]
     #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
@@ -596,18 +601,8 @@ impl Backend for MpcTlsLeader {
             server_random,
         );
 
-        let (handshake_decommitment, handshake_commitment) =
-            if self.config.common().handshake_commit() {
-                let (decommitment, commitment) = handshake_data.clone().hash_commit();
-
-                (Some(decommitment), Some(commitment))
-            } else {
-                (None, None)
-            };
-
         self.channel
             .send(MpcTlsMessage::ComputeKeyExchange(ComputeKeyExchange {
-                handshake_commitment,
                 server_random: server_random.0,
             }))
             .await
@@ -632,7 +627,6 @@ impl Backend for MpcTlsLeader {
                 server_public_key,
                 server_kx_details,
                 handshake_data,
-                handshake_decommitment,
             },
         });
 
@@ -748,8 +742,6 @@ pub struct MpcTlsData {
     pub server_kx_details: ServerKxDetails,
     /// Handshake data.
     pub handshake_data: HandshakeData,
-    /// Handshake data decommitment.
-    pub handshake_decommitment: Option<Decommitment<HandshakeData>>,
 }
 
 mod state {
