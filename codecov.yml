@@ -1,0 +1,6 @@
+coverage:
+  round: up
+  precision: 2
+ignore:
+  - "crates/wasm"
+  - "crates/wasm-test-runner"
