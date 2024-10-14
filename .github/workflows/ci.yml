@@ -34,12 +34,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: use caching
-        uses: mozilla-actions/sccache-action@v0.0.6
-      - name: tell rustc about cache
-        run: |
-            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       - name: Check formatting
         run: rustup component add rustfmt && cargo +nightly fmt --check --all
   build-and-test:
