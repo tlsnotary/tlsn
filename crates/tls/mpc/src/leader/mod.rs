@@ -489,7 +489,7 @@ impl Backend for MpcTlsLeader {
 
         let vd = self
             .prf
-            .compute_server_finished_vd(hash)
+            .set_sf_hash(hash)
             .await
             .map_err(MpcTlsError::from)?;
 
@@ -511,7 +511,7 @@ impl Backend for MpcTlsLeader {
 
         let vd = self
             .prf
-            .compute_client_finished_vd(hash)
+            .set_cf_hash(hash)
             .await
             .map_err(MpcTlsError::from)?;
 
@@ -558,7 +558,7 @@ impl Backend for MpcTlsLeader {
         self.ke.compute_pms().await.map_err(MpcTlsError::from)?;
 
         self.prf
-            .compute_session_keys(server_random.0)
+            .set_server_random(server_random.0)
             .await
             .map_err(MpcTlsError::from)?;
 

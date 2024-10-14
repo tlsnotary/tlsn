@@ -188,7 +188,7 @@ impl MpcTlsFollower {
             .expect("server key should be set after computing pms");
 
         // PRF
-        self.prf.compute_session_keys(server_random).await?;
+        self.prf.set_server_random(server_random).await?;
 
         futures::try_join!(self.encrypter.start(), self.decrypter.start())?;
 
@@ -206,7 +206,7 @@ impl MpcTlsFollower {
     async fn client_finished_vd(&mut self, handshake_hash: [u8; 32]) -> Result<(), MpcTlsError> {
         let Ke { server_key } = self.state.take().try_into_ke()?;
 
-        let client_finished = self.prf.compute_client_finished_vd(handshake_hash).await?;
+        let client_finished = self.prf.set_cf_hash(handshake_hash).await?;
 
         self.state = State::Cf(Cf {
             server_key,
@@ -223,7 +223,7 @@ impl MpcTlsFollower {
             server_finished,
         } = self.state.take().try_into_sf()?;
 
-        let expected_server_finished = self.prf.compute_server_finished_vd(handshake_hash).await?;
+        let expected_server_finished = self.prf.set_sf_hash(handshake_hash).await?;
 
         let Some(server_finished) = server_finished else {
             return Err(MpcTlsError::new(Kind::State, "server finished is not set"));
