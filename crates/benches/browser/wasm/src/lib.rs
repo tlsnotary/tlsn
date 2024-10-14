@@ -1,6 +1,7 @@
 //! Contains the wasm component of the browser prover.
 //!
-//! Conceptually the browser prover consists of the native and the wasm components.
+//! Conceptually the browser prover consists of the native and the wasm
+//! components.
 
 use serio::{stream::IoStreamExt, SinkExt as _};
 use tlsn_benches_browser_core::{

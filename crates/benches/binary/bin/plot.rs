@@ -34,6 +34,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error::Error>> {
     const TITLE: &str = "Runtime vs Latency";
 
+    let prover_kind: String = all_data
+        .first()
+        .map(|s| s.kind.clone().into())
+        .unwrap_or_default();
+
     let data: Vec<Vec<f32>> = all_data
         .iter()
         .filter(|record| record.name == "latency")
@@ -45,7 +50,11 @@ fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error:
 
     // https://github.com/yuankunzhang/charming
     let chart = Chart::new()
-        .title(Title::new().text(TITLE))
+        .title(
+            Title::new()
+                .text(TITLE)
+                .subtext(format!("{} Prover", prover_kind)),
+        )
         .tooltip(Tooltip::new().trigger(Trigger::Axis))
         .legend(Legend::new().orient(Orient::Vertical))
         .toolbox(

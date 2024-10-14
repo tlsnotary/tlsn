@@ -1,4 +1,5 @@
-//! Messages exchanged by the native and the wasm components of the browser prover.
+//! Messages exchanged by the native and the wasm components of the browser
+//! prover.
 
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +12,6 @@ pub struct Config {
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
-/// Sent by the wasm component when proving process is finished. Contains total runtime
-/// in seconds.
+/// Sent by the wasm component when proving process is finished. Contains total
+/// runtime in seconds.
 pub struct Runtime(pub u64);

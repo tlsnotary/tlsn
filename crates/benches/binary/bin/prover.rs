@@ -128,6 +128,7 @@ async fn run_instance(instance: BenchInstance, io: impl AsyncIo) -> anyhow::Resu
 
     Ok(Metrics {
         name,
+        kind: prover.kind(),
         upload,
         upload_delay,
         download,

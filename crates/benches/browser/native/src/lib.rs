@@ -1,7 +1,8 @@
 //! Contains the native component of the browser prover.
 //!
-//! Conceptually the browser prover consists of the native and the wasm components. The native
-//! component is responsible for starting the browser, loading the wasm component and driving it.
+//! Conceptually the browser prover consists of the native and the wasm
+//! components. The native component is responsible for starting the browser,
+//! loading the wasm component and driving it.
 
 use std::{env, net::IpAddr};
 
@@ -10,7 +11,7 @@ use tlsn_benches_browser_core::{
     msg::{Config, Runtime},
     FramedIo,
 };
-use tlsn_benches_library::{AsyncIo, ProverTrait};
+use tlsn_benches_library::{AsyncIo, ProverKind, ProverTrait};
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -115,7 +116,8 @@ impl ProverTrait for BrowserProver {
 
         info!("spawning browser");
 
-        // Note that the browser must be spawned only when the WebSocket relay is running.
+        // Note that the browser must be spawned only when the WebSocket relay is
+        // running.
         let browser = spawn_browser(
             wasm_ip,
             ws_ip,
@@ -152,6 +154,10 @@ impl ProverTrait for BrowserProver {
 
         Ok(runtime.0)
     }
+
+    fn kind(&self) -> ProverKind {
+        ProverKind::Browser
+    }
 }
 
 impl BrowserProver {
@@ -182,8 +188,8 @@ pub async fn spawn_websocket_relay(
     Ok(tokio::spawn(websocket_relay::run(listener)))
 }
 
-/// Binds to the given localhost `port`, accepts a connection and relays data between the
-/// connection and the `channel`.
+/// Binds to the given localhost `port`, accepts a connection and relays data
+/// between the connection and the `channel`.
 pub async fn spawn_port_relay(
     port: u16,
     channel: Box<dyn AsyncIo>,

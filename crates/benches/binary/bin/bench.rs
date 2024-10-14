@@ -25,7 +25,8 @@ fn main() {
         return clean_up();
     };
 
-    // Allow the verifier some time to start listening before the prover attempts to connect.
+    // Allow the verifier some time to start listening before the prover attempts to
+    // connect.
     thread::sleep(Duration::from_secs(1));
 
     let Ok(mut prover) = Command::new("ip")

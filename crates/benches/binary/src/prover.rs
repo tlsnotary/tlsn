@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use tlsn_benches_library::{run_prover, AsyncIo, ProverTrait};
+use tlsn_benches_library::{run_prover, AsyncIo, ProverKind, ProverTrait};
 
 use async_trait::async_trait;
 
@@ -49,5 +49,9 @@ impl ProverTrait for NativeProver {
         .await?;
 
         Ok(Instant::now().duration_since(start_time).as_secs())
+    }
+
+    fn kind(&self) -> ProverKind {
+        ProverKind::Native
     }
 }

@@ -7,6 +7,7 @@ use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use anyhow::Context;
 use async_trait::async_trait;
 use futures::{future::join, AsyncReadExt as _, AsyncWriteExt as _};
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
@@ -15,7 +16,8 @@ impl<T> AsyncIo for T where T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 's
 
 #[async_trait]
 pub trait ProverTrait {
-    /// Sets up the prover preparing it to be run. Returns a prover ready to be run.
+    /// Sets up the prover preparing it to be run. Returns a prover ready to be
+    /// run.
     async fn setup(
         upload_size: usize,
         download_size: usize,
@@ -28,6 +30,27 @@ pub trait ProverTrait {
 
     /// Runs the prover. Returns the total run time in seconds.
     async fn run(&mut self) -> anyhow::Result<u64>;
+
+    /// Returns the kind of the prover.
+    fn kind(&self) -> ProverKind;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// The kind of a prover.
+pub enum ProverKind {
+    /// The prover compiled into a native binary.
+    Native,
+    /// The prover compiled into a wasm binary.
+    Browser,
+}
+
+impl From<ProverKind> for String {
+    fn from(value: ProverKind) -> Self {
+        match value {
+            ProverKind::Native => "Native".to_string(),
+            ProverKind::Browser => "Browser".to_string(),
+        }
+    }
 }
 
 pub async fn run_prover(
