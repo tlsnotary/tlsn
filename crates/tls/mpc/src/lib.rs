@@ -16,6 +16,7 @@ pub(crate) mod follower;
 pub(crate) mod leader;
 pub mod msg;
 pub(crate) mod record_layer;
+mod tag;
 
 pub use components::build_components;
 pub use config::{
