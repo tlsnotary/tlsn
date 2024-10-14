@@ -8,9 +8,9 @@ pub enum Role {
     Follower,
 }
 
-/// Configuration for MPC-AEAD.
+/// Configuration for the cipher.
 #[derive(Debug, Clone, Builder)]
-pub struct MpcAeadConfig {
+pub struct CipherConfig {
     /// The id of this instance.
     #[builder(setter(into))]
     id: String,
@@ -18,10 +18,10 @@ pub struct MpcAeadConfig {
     role: Role,
 }
 
-impl MpcAeadConfig {
-    /// Creates a new builder for the MPC-AEAD configuration.
-    pub fn builder() -> MpcAeadConfigBuilder {
-        MpcAeadConfigBuilder::default()
+impl CipherConfig {
+    /// Creates a new builder for the cipher configuration.
+    pub fn builder() -> CipherConfigBuilder {
+        CipherConfigBuilder::default()
     }
 
     /// Returns the id of this instance.

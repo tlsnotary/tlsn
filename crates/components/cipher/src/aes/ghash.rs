@@ -1,7 +1,7 @@
 use crate::{
-    aes_gcm::{
-        error::{AesGcmError, ErrorKind},
-        Aes128, MpcAesGcm,
+    aes::{
+        error::{AesError, ErrorKind},
+        Aes128, MpcAes,
     },
     config::Role,
     KeystreamBlock,
@@ -25,12 +25,12 @@ impl GhashPrep {
     pub async fn compute_mac_key<Vm: VmExt<Binary>>(
         &self,
         vm: &mut Vm,
-    ) -> Result<[u8; 16], AesGcmError> {
+    ) -> Result<[u8; 16], AesError> {
         let mut mac_key = vm
             .decode(self.mac_key)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?
             .await
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         match self.role {
             Role::Leader => mac_key
@@ -49,16 +49,16 @@ impl GhashPrep {
         key: Array<U8, 16>,
         iv: Array<U8, 4>,
         record_count: usize,
-    ) -> Result<Vec<KeystreamBlock<Aes128>>, AesGcmError>
+    ) -> Result<Vec<KeystreamBlock<Aes128>>, AesError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
         if self.j0.len() >= record_count {
-            Ok::<_, AesGcmError>(self.j0.drain(..record_count).collect())
+            Ok::<_, AesError>(self.j0.drain(..record_count).collect())
         } else {
             let mut keystream: Vec<KeystreamBlock<Aes128>> = self.j0.drain(..).collect();
             for _ in 0..(record_count - keystream.len()) {
-                let aes_ctr_block = MpcAesGcm::prepare_keystream(vm, key, iv)?;
+                let aes_ctr_block = MpcAes::prepare_keystream(vm, key, iv)?;
                 keystream.push(aes_ctr_block);
             }
             Ok(keystream)

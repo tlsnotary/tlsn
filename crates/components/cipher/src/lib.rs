@@ -1,20 +1,17 @@
-//! This crate provides implementations of 2PC AEADs for authenticated
-//! encryption with a shared key.
+//! This crate provides implementations of 2PC ciphers for encryption with a shared key.
 //!
-//! Both parties can work together to encrypt and decrypt messages with
-//! different visibility configurations. See [`Aead`] for more information on
-//! the interface.
+//! Both parties can work together to encrypt and decrypt messages with different visibility
+//! configurations. See [`Cipher`] for more information on the interface.
 //!
-//! For example, one party can privately provide the plaintext to encrypt, while
-//! both parties can see the ciphertext and the tag. Or, both parties can
-//! cooperate to decrypt a ciphertext and verify the tag, while only one party
-//! can see the plaintext.
+//! For example, one party can privately provide the plaintext to encrypt, while both parties can
+//! see the ciphertext. Or, both parties can cooperate to decrypt a ciphertext, while only one
+//! party can see the plaintext.
 
 //#![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod aes_gcm;
+pub mod aes;
 pub mod cipher;
 pub mod config;
 
@@ -26,7 +23,7 @@ use mpz_vm_core::VmExt;
 
 #[async_trait]
 pub trait Cipher<C: CipherCircuit, Ctx: Context, Vm: VmExt<Binary>> {
-    /// The error type for the AEAD.
+    /// The error type for the cipher.
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Contains data necessary for constructing macs for the cipher

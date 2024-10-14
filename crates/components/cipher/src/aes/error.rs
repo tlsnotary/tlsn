@@ -1,14 +1,14 @@
 use std::fmt::Display;
 
-/// AES-GCM error.
+/// AES error.
 #[derive(Debug, thiserror::Error)]
-pub struct AesGcmError {
+pub struct AesError {
     kind: ErrorKind,
     #[source]
     source: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
 
-impl AesGcmError {
+impl AesError {
     pub(crate) fn new<E>(kind: ErrorKind, source: E) -> Self
     where
         E: Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -25,7 +25,7 @@ pub(crate) enum ErrorKind {
     Vm,
 }
 
-impl Display for AesGcmError {
+impl Display for AesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             ErrorKind::Vm => write!(f, "vm error")?,

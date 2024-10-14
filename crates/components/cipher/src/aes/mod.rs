@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use crate::{
     cipher::CipherCircuit,
-    config::{MpcAeadConfig, Role},
+    config::{CipherConfig, Role},
     Cipher, DecryptPrivate, DecryptPublic, Encrypt, KeystreamBlock,
 };
 use async_trait::async_trait;
@@ -20,20 +20,20 @@ mod error;
 mod ghash;
 
 use circuit::Aes128;
-use error::{AesGcmError, ErrorKind};
+use error::{AesError, ErrorKind};
 pub use ghash::GhashPrep;
 
-pub struct MpcAesGcm {
-    config: MpcAeadConfig,
+pub struct MpcAes {
+    config: CipherConfig,
     key: <Aes128 as CipherCircuit>::Key,
     iv: <Aes128 as CipherCircuit>::Iv,
     aes_ctr: VecDeque<KeystreamBlock<Aes128>>,
     mac: Option<GhashPrep>,
 }
 
-impl Debug for MpcAesGcm {
+impl Debug for MpcAes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MpcAesGcm")
+        f.debug_struct("MpcAes")
             .field("config", &self.config)
             .field("key", &"{{...}}")
             .field("iv", &"{{...}}")
@@ -50,9 +50,9 @@ enum Visibility {
     Blind,
 }
 
-impl MpcAesGcm {
+impl MpcAes {
     pub fn new(
-        config: MpcAeadConfig,
+        config: CipherConfig,
         key: <Aes128 as CipherCircuit>::Key,
         iv: <Aes128 as CipherCircuit>::Iv,
     ) -> Self {
@@ -73,48 +73,48 @@ impl MpcAesGcm {
         self.iv
     }
 
-    fn alloc<R, Vm>(vm: &mut Vm, visibility: Visibility) -> Result<R, AesGcmError>
+    fn alloc<R, Vm>(vm: &mut Vm, visibility: Visibility) -> Result<R, AesError>
     where
         R: Repr<Binary> + StaticSize<Binary> + Copy,
         Vm: ViewExt<Binary> + VmExt<Binary>,
     {
         let value = vm
             .alloc()
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         match visibility {
             Visibility::Private => vm.mark_private(value),
             Visibility::Public => vm.mark_public(value),
             Visibility::Blind => vm.mark_blind(value),
         }
-        .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+        .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         Ok(value)
     }
 
-    fn asssign<R, Vm>(vm: &mut Vm, value: R, clear: R::Clear) -> Result<(), AesGcmError>
+    fn asssign<R, Vm>(vm: &mut Vm, value: R, clear: R::Clear) -> Result<(), AesError>
     where
         R: Repr<Binary>,
         Vm: VmExt<Binary>,
     {
         vm.assign(value, clear)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))
     }
 
-    fn commit<R, Vm>(vm: &mut Vm, value: R) -> Result<(), AesGcmError>
+    fn commit<R, Vm>(vm: &mut Vm, value: R) -> Result<(), AesError>
     where
         R: Repr<Binary>,
         Vm: VmExt<Binary>,
     {
         vm.commit(value)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))
     }
 
     fn prepare_keystream<Vm>(
         vm: &mut Vm,
         key: <Aes128 as CipherCircuit>::Key,
         iv: Array<U8, 4>,
-    ) -> Result<KeystreamBlock<Aes128>, AesGcmError>
+    ) -> Result<KeystreamBlock<Aes128>, AesError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
@@ -124,7 +124,7 @@ impl MpcAesGcm {
         // Visibility of message is not known at this point, so we just allocate.
         let message: Array<U8, 16> = vm
             .alloc()
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         let aes_ctr = CallBuilder::new(<Aes128 as CipherCircuit>::ctr())
             .arg(key)
@@ -133,11 +133,11 @@ impl MpcAesGcm {
             .arg(counter)
             .arg(message)
             .build()
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         let output: Array<U8, 16> = vm
             .call(aes_ctr)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         let aes_ctr = KeystreamBlock::<Aes128> {
             explicit_nonce,
@@ -155,12 +155,12 @@ impl MpcAesGcm {
         key: <Aes128 as CipherCircuit>::Key,
         iv: Array<U8, 4>,
         block_count: usize,
-    ) -> Result<Vec<KeystreamBlock<Aes128>>, AesGcmError>
+    ) -> Result<Vec<KeystreamBlock<Aes128>>, AesError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
         if self.aes_ctr.len() >= block_count {
-            Ok::<_, AesGcmError>(self.aes_ctr.drain(..block_count).collect())
+            Ok::<_, AesError>(self.aes_ctr.drain(..block_count).collect())
         } else {
             let mut keystream: Vec<KeystreamBlock<Aes128>> = self.aes_ctr.drain(..).collect();
             for _ in 0..(block_count - keystream.len()) {
@@ -177,7 +177,7 @@ impl MpcAesGcm {
         key: <Aes128 as CipherCircuit>::Key,
         iv: <Aes128 as CipherCircuit>::Iv,
         record_count: usize,
-    ) -> Result<GhashPrep, AesGcmError>
+    ) -> Result<GhashPrep, AesError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
@@ -203,7 +203,7 @@ impl MpcAesGcm {
         role: Role,
         vm: &mut Vm,
         key: <Aes128 as CipherCircuit>::Key,
-    ) -> Result<(Array<U8, 16>, [u8; 16]), AesGcmError>
+    ) -> Result<(Array<U8, 16>, [u8; 16]), AesError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
@@ -230,11 +230,11 @@ impl MpcAesGcm {
             .arg(otp_0)
             .arg(otp_1)
             .build()
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         let mac_key: Array<U8, 16> = vm
             .call(aes_shared)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         Ok((mac_key, otp_value))
     }
@@ -243,7 +243,7 @@ impl MpcAesGcm {
         role: Role,
         vm: &mut Vm,
         value: R,
-    ) -> Result<(R, Option<R::Clear>), AesGcmError>
+    ) -> Result<(R, Option<R::Clear>), AesError>
     where
         R: Repr<Binary> + StaticSize<Binary> + Copy,
         R::Clear: Copy,
@@ -273,24 +273,24 @@ impl MpcAesGcm {
             .arg(value)
             .arg(otp)
             .build()
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         let value = vm
             .call(otp_circuit)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         Ok((value, otp_value))
     }
 }
 
 #[async_trait]
-impl<Ctx, Vm> Cipher<Aes128, Ctx, Vm> for MpcAesGcm
+impl<Ctx, Vm> Cipher<Aes128, Ctx, Vm> for MpcAes
 where
     Ctx: Context,
     Self: Send,
     Vm: VmExt<Binary> + ViewExt<Binary> + Execute<Ctx> + Send,
 {
-    type Error = AesGcmError;
+    type Error = AesError;
     type MacPrep = GhashPrep;
 
     async fn preprocess(
@@ -315,7 +315,7 @@ where
 
         vm.preprocess(ctx)
             .await
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         Ok(())
     }
@@ -332,7 +332,7 @@ where
         Ok(mac_prep)
     }
 
-    fn encrypt(&mut self, vm: &mut Vm, len: usize) -> Result<Encrypt<Aes128>, AesGcmError> {
+    fn encrypt(&mut self, vm: &mut Vm, len: usize) -> Result<Encrypt<Aes128>, AesError> {
         let block_count = (len / 16) + (len % 16 != 0) as usize;
 
         let key = self.key();
@@ -349,7 +349,7 @@ where
         &mut self,
         vm: &mut Vm,
         len: usize,
-    ) -> Result<DecryptPrivate<Aes128>, AesGcmError> {
+    ) -> Result<DecryptPrivate<Aes128>, AesError> {
         let block_count = (len / 16) + (len % 16 != 0) as usize;
 
         let key = self.key();
@@ -386,7 +386,7 @@ where
         &mut self,
         vm: &mut Vm,
         len: usize,
-    ) -> Result<DecryptPublic<Aes128>, AesGcmError> {
+    ) -> Result<DecryptPublic<Aes128>, AesError> {
         let block_count = (len / 16) + (len % 16 != 0) as usize;
 
         let key = self.key();
@@ -418,11 +418,11 @@ where
 
         let key = vm
             .decode(key)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         let iv = vm
             .decode(iv)
-            .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         vm.execute(ctx)
             .await
@@ -432,7 +432,7 @@ where
             .map_err(|err| Self::Error::new(ErrorKind::Vm, err))?;
 
         let (mut key, mut iv) =
-            futures::try_join!(key, iv).map_err(|err| AesGcmError::new(ErrorKind::Vm, err))?;
+            futures::try_join!(key, iv).map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         if let Role::Leader = self.config.role() {
             key.iter_mut()

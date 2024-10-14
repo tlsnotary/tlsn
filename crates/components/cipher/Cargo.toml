@@ -1,15 +1,15 @@
 [package]
-name = "tlsn-aead"
+name = "tlsn-cipher"
 authors = ["TLSNotary Team"]
-description = "This crate provides an implementation of a two-party version of AES-GCM behind an AEAD trait"
-keywords = ["tls", "mpc", "2pc", "aead", "aes", "aes-gcm"]
+description = "This crate provides implementations of ciphers for two parties"
+keywords = ["tls", "mpc", "2pc", "aes"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
 version = "0.1.0-alpha.8-pre"
 edition = "2021"
 
 [lib]
-name = "aead"
+name = "cipher"
 
 [features]
 default = ["mock"]
