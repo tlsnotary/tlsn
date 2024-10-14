@@ -2,7 +2,10 @@ pub mod config;
 pub mod metrics;
 pub mod prover;
 
-use std::{io, process::Command};
+use std::{
+    io,
+    process::{Command, Stdio},
+};
 
 pub const PROVER_NAMESPACE: &str = "prover-ns";
 pub const PROVER_INTERFACE: &str = "prover-veth";
@@ -95,13 +98,20 @@ pub fn clean_up() {
 /// * `delay` - The delay in ms.
 pub fn set_interface(interface: &str, egress: usize, burst: usize, delay: usize) -> io::Result<()> {
     // Clear rules
-    _ = Command::new("tc")
+    let output = Command::new("tc")
         .arg("qdisc")
         .arg("del")
         .arg("dev")
         .arg(interface)
         .arg("root")
-        .status();
+        .stdout(Stdio::piped())
+        .output()?;
+
+    if output.stderr == "Error: Cannot delete qdisc with handle of zero.\n".as_bytes() {
+        // This error is informative, do not log it to stderr.
+    } else if !output.status.success() {
+        return Err(io::Error::other("Failed to clear rules"));
+    }
 
     // Egress
     Command::new("tc")
