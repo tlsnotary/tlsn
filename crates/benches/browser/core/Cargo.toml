@@ -1,0 +1,13 @@
+[package]
+edition = "2021"
+name = "tlsn-benches-browser-core"
+publish = false
+version = "0.1.0"
+
+[dependencies]
+tlsn-benches-library = { workspace = true }
+
+serio = { workspace = true }
+
+serde = { workspace = true }
+tokio-util= { workspace = true, features = ["compat", "io-util"] }
