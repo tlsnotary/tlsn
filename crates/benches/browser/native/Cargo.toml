@@ -13,7 +13,7 @@ websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6ef0
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-chromiumoxide = { version = "0.6", features = ["tokio-runtime"] }
+chromiumoxide = { version = "0.6.0" , features = ["tokio-runtime"] }
 futures = { workspace = true }
 rust-embed = "8.5.0"
 tokio = { workspace = true, features = ["rt", "io-std"] }

@@ -31,7 +31,11 @@ sudo ./bench.sh
 
 #### Browser benches
 
-Make sure you're in the `crates/benches/` directory, build the wasm module, build the binaries, and then run the script:
+(Note, we recommend running browser benches inside a docker container (see docker.md) to avoid
+facing incompatibility issues observed in the latest versions of Chrome.)
+
+With a Chrome browser installed on your system, make sure you're in the `crates/benches/` 
+directory, build the wasm module, build the binaries, and then run the script:
 ```sh
 cd browser/wasm
 rustup run nightly wasm-pack build --release --target web
