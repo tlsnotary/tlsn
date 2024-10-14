@@ -44,7 +44,7 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
 
     async fn start(&mut self, ctx: &mut Ctx, vm: &mut Vm) -> Result<(), Self::Error>;
 
-    fn encrypt(&mut self, len: usize) -> Encrypt<C>;
+    fn encrypt(&mut self, len: usize, vm: &mut Vm) -> Result<Encrypt<C>, Self::Error>;
 
     fn decrypt(
         &mut self,
@@ -71,14 +71,23 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
 pub struct Encrypt<C: Cipher> {
     key: C::Key,
     iv: C::Iv,
-    nonce: C::Nonce,
-    counter: C::Counter,
-    message: C::Block,
-    output: C::Block,
+    keystream: Vec<KeystreamBlock<C>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct KeystreamBlock<C: Cipher> {
+    pub explicit_nonce: C::Nonce,
+    pub counter: C::Counter,
+    pub message: C::Block,
+    pub output: C::Block,
 }
 
 impl<C: Cipher> Encrypt<C> {
-    pub fn set_nonce(&mut self) -> &mut Self {
+    pub fn set_explicit_nonce<Vm: VmExt<Binary>>(
+        &mut self,
+        nonce: [u8; 8],
+        vm: &mut Vm,
+    ) -> &mut Self {
         todo!()
     }
 
@@ -87,4 +96,7 @@ impl<C: Cipher> Encrypt<C> {
     }
 }
 
-pub struct Decrypt<C: Cipher> {}
+// TODO: ...
+pub struct Decrypt<C> {
+    phantom: std::marker::PhantomData<C>,
+}
