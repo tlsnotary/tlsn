@@ -109,6 +109,7 @@ impl ProverTrait for BrowserProver {
 
         // Create a framed connection to the wasm component.
         let (wasm_left, wasm_right) = tokio::io::duplex(1 << 16);
+
         relays.push(spawn_port_relay(wasm_to_native_port, Box::new(wasm_right)).await?);
         let mut wasm_io = FramedIo::new(Box::new(wasm_left));
 
@@ -237,6 +238,7 @@ async fn spawn_browser(
     // Chrome requires --no-sandbox when running as root.
     let config = BrowserConfig::builder()
         .no_sandbox()
+        .incognito()
         .build()
         .map_err(|s| anyhow!(s))?;
 
