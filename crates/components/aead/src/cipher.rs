@@ -5,7 +5,7 @@ use mpz_memory_core::{binary::Binary, Repr};
 use std::sync::Arc;
 
 /// A cipher circuit.
-pub trait Cipher: Default {
+pub trait CipherCircuit: Default {
     /// The key type.
     type Key: Repr<Binary> + Copy;
     /// The initialization vector type.

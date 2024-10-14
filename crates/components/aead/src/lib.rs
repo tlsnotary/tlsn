@@ -19,17 +19,18 @@ pub mod cipher;
 pub mod config;
 
 use async_trait::async_trait;
-use cipher::Cipher;
+use cipher::CipherCircuit;
 use mpz_common::Context;
 use mpz_memory_core::{binary::Binary, Repr};
 use mpz_vm_core::VmExt;
 
 #[async_trait]
-pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
+pub trait Cipher<C: CipherCircuit, Ctx: Context, Vm: VmExt<Binary>> {
     /// The error type for the AEAD.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    fn setup(&mut self) -> Result<(), Self::Error>;
+    /// Contains data necessary for constructing macs for the cipher
+    type MacPrep;
 
     async fn preprocess(
         &mut self,
@@ -38,22 +39,17 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
         block_count: usize,
     ) -> Result<(), Self::Error>;
 
-    fn set_key(&mut self, key: C::Key) -> Result<(), Self::Error>;
+    async fn compute_mac(&mut self, vm: &mut Vm) -> Result<Self::MacPrep, Self::Error>;
 
-    fn set_iv(&mut self, key: C::Iv) -> Result<(), Self::Error>;
+    fn encrypt(&mut self, vm: &mut Vm, len: usize) -> Result<Encrypt<C>, Self::Error>;
 
-    async fn start(&mut self, ctx: &mut Ctx, vm: &mut Vm) -> Result<(), Self::Error>;
-
-    fn encrypt(&mut self, len: usize, vm: &mut Vm) -> Result<Encrypt<C>, Self::Error>;
-
-    fn decrypt(
+    fn decrypt_private(
         &mut self,
         vm: &mut Vm,
-        explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
-        aad: Vec<u8>,
-        start_counter: u32,
-    ) -> Decrypt<C>;
+        len: usize,
+    ) -> Result<DecryptPrivate<C>, Self::Error>;
+
+    fn decrypt_public(&mut self, vm: &mut Vm, len: usize) -> Result<DecryptPublic<C>, Self::Error>;
 
     async fn decode_key_and_iv(
         &mut self,
@@ -61,42 +57,50 @@ pub trait AeadCipher<C: Cipher, Ctx: Context, Vm: VmExt<Binary>> {
         ctx: &mut Ctx,
     ) -> Result<
         Option<(
-            <<C as Cipher>::Key as Repr<Binary>>::Clear,
-            <<C as Cipher>::Iv as Repr<Binary>>::Clear,
+            <<C as CipherCircuit>::Key as Repr<Binary>>::Clear,
+            <<C as CipherCircuit>::Iv as Repr<Binary>>::Clear,
         )>,
         Self::Error,
     >;
 }
 
-pub struct Encrypt<C: Cipher> {
-    key: C::Key,
-    iv: C::Iv,
+#[derive(Debug, Clone, Copy)]
+pub struct KeystreamBlock<C: CipherCircuit> {
+    explicit_nonce: C::Nonce,
+    counter: C::Counter,
+    input: C::Block,
+    output: C::Block,
+}
+
+impl<C: CipherCircuit> KeystreamBlock<C> {
+    pub fn nonce(&self) -> C::Nonce {
+        self.explicit_nonce
+    }
+
+    pub fn counter(&self) -> C::Counter {
+        self.counter
+    }
+
+    pub fn input(&self) -> C::Block {
+        self.input
+    }
+
+    pub fn output(&self) -> C::Block {
+        self.output
+    }
+}
+
+impl<C: CipherCircuit> KeystreamBlock<C> {}
+
+pub struct Encrypt<C: CipherCircuit> {
     keystream: Vec<KeystreamBlock<C>>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct KeystreamBlock<C: Cipher> {
-    pub explicit_nonce: C::Nonce,
-    pub counter: C::Counter,
-    pub message: C::Block,
-    pub output: C::Block,
+pub struct DecryptPrivate<C: CipherCircuit> {
+    keystream: Vec<KeystreamBlock<C>>,
+    otps: Option<Vec<<<C as CipherCircuit>::Block as Repr<Binary>>::Clear>>,
 }
 
-impl<C: Cipher> Encrypt<C> {
-    pub fn set_explicit_nonce<Vm: VmExt<Binary>>(
-        &mut self,
-        nonce: [u8; 8],
-        vm: &mut Vm,
-    ) -> &mut Self {
-        todo!()
-    }
-
-    pub fn set_counter(&mut self) -> &mut Self {
-        todo!()
-    }
-}
-
-// TODO: ...
-pub struct Decrypt<C> {
-    phantom: std::marker::PhantomData<C>,
+pub struct DecryptPublic<C: CipherCircuit> {
+    keystream: Vec<KeystreamBlock<C>>,
 }

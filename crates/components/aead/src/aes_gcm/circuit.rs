@@ -1,4 +1,4 @@
-use crate::cipher::Cipher;
+use crate::cipher::CipherCircuit;
 use mpz_circuits::{circuits::aes128_trace, once_cell::sync::Lazy, trace, Circuit, CircuitBuilder};
 use mpz_memory_core::{binary::U8, Array};
 use std::sync::Arc;
@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Aes128;
 
-impl Cipher for Aes128 {
+impl CipherCircuit for Aes128 {
     type Key = Array<U8, 16>;
     type Iv = Array<U8, 4>;
     type Nonce = Array<U8, 8>;
