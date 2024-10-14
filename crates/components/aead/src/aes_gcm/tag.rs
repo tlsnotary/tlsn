@@ -64,7 +64,7 @@ impl<U> MpcAesGcm<U> {
 
         let j0 = match mac.j0.pop_front() {
             Some(j0) => j0,
-            None => Self::prepare_aes_ctr(vm, key, iv)?,
+            None => Self::prepare_keystream(vm, key, iv)?,
         };
         // TODO: Get cleartext j0 and decode_share it
         // TODO: Compute hash

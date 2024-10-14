@@ -23,9 +23,6 @@ pub trait Cipher: Default {
     /// Returns the circuit of the cipher in counter mode.
     fn ctr() -> Arc<Circuit>;
 
-    /// Returns the circuit of the cipher in counter mode and applies a one-time pad to the output.
-    fn ctr_masked() -> Arc<Circuit>;
-
     /// Returns a one-time pad circuit for decoding the key.
     fn otp() -> Arc<Circuit>;
 }

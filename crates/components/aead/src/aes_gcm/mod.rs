@@ -117,7 +117,7 @@ impl<U> MpcAesGcm<U> {
             .map_err(|err| AesGcmError::new(ErrorKind::Vm, err))
     }
 
-    fn prepare_aes_ctr<Vm>(
+    fn prepare_keystream<Vm>(
         vm: &mut Vm,
         key: <Aes128 as Cipher>::Key,
         iv: Array<U8, 4>,
@@ -168,7 +168,7 @@ impl<U> MpcAesGcm<U> {
     {
         let mut j0 = VecDeque::with_capacity(record_count);
         for _ in 0..record_count {
-            let j0_block = Self::prepare_aes_ctr(vm, key, iv)?;
+            let j0_block = Self::prepare_keystream(vm, key, iv)?;
             j0.push_back(j0_block);
         }
 
@@ -291,7 +291,7 @@ where
         let iv = self.iv()?;
 
         for _ in 0..block_count {
-            let aes_ctr = Self::prepare_aes_ctr(vm, key, iv)?;
+            let aes_ctr = Self::prepare_keystream(vm, key, iv)?;
             self.aes_ctr.push_back(aes_ctr);
         }
 
@@ -371,7 +371,7 @@ where
         } else {
             let mut keystream = Vec::with_capacity(block_count);
             for _ in 0..block_count {
-                let aes_ctr_block = Self::prepare_aes_ctr(vm, key, iv)?;
+                let aes_ctr_block = Self::prepare_keystream(vm, key, iv)?;
                 keystream.push(aes_ctr_block);
             }
             Ok(keystream)

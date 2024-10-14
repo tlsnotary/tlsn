@@ -22,10 +22,6 @@ impl Cipher for Aes128 {
         AES128_CTR.clone()
     }
 
-    fn ctr_masked() -> Arc<Circuit> {
-        AES128_CTR_MASKED.clone()
-    }
-
     fn otp() -> Arc<Circuit> {
         let builder = CircuitBuilder::new();
 
@@ -58,29 +54,6 @@ static AES128_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
         .into_iter()
         .zip(message)
         .map(|(a, b)| a ^ b)
-        .collect::<Vec<_>>();
-    builder.add_output(output);
-
-    Arc::new(builder.build().unwrap())
-});
-
-/// `fn(key: [u8; 16], iv: [u8; 4], nonce: [u8; 8], ctr: [u8; 4], message: [u8; 16], otp: [u8; 16]) -> [u8; 16]`
-static AES128_CTR_MASKED: Lazy<Arc<Circuit>> = Lazy::new(|| {
-    let builder = CircuitBuilder::new();
-
-    let key = builder.add_array_input::<u8, 16>();
-    let iv = builder.add_array_input::<u8, 4>();
-    let nonce = builder.add_array_input::<u8, 8>();
-    let ctr = builder.add_array_input::<u8, 4>();
-    let keystream = aes_ctr_trace(builder.state(), key, iv, nonce, ctr);
-
-    let message = builder.add_array_input::<u8, 16>();
-    let otp = builder.add_array_input::<u8, 16>();
-    let output = keystream
-        .into_iter()
-        .zip(message)
-        .zip(otp)
-        .map(|((ks, msg), otp)| ks ^ msg ^ otp)
         .collect::<Vec<_>>();
     builder.add_output(output);
 
