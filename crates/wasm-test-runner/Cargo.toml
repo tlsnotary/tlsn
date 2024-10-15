@@ -19,12 +19,8 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 chromiumoxide = { version = "0.6", features = ["tokio-runtime"] }
 futures = { workspace = true }
-once_cell = { workspace = true }
-k256 = { workspace = true }
-rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-tungstenite = { version = "0.23", features = ["url"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tower = { version = "0.4" }
 tower-http = { version = "0.5", features = ["fs", "set-header"] }

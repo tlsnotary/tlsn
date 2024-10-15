@@ -5,10 +5,8 @@ edition = "2021"
 
 [dependencies]
 tlsn-core = { workspace = true }
-tlsn-utils = { workspace = true }
 
 bytes = { workspace = true }
-serde = { workspace = true }
 spansy = { workspace = true, features = ["serde"] }
 thiserror = { workspace = true }
 

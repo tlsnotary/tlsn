@@ -26,7 +26,6 @@ tlsn-universal-hash = { workspace = true }
 tlsn-utils-aio = { workspace = true }
 
 mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
@@ -41,7 +40,6 @@ derive_builder = { workspace = true }
 enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
 p256 = { workspace = true }
-rand = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 notary-server = { workspace = true }
-tlsn-common = { workspace = true }
 
 derive_builder = { workspace = true }
 futures = { workspace = true }
