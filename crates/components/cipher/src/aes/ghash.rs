@@ -1,24 +1,23 @@
 use crate::{
     aes::{
         error::{AesError, ErrorKind},
-        Aes128, MpcAes,
+        prepare_keystream, Aes128, MpcAes,
     },
     config::Role,
-    KeystreamBlock,
+    Keystream,
 };
 use mpz_memory_core::{
     binary::{Binary, U8},
     Array, MemoryExt, ViewExt,
 };
 use mpz_vm_core::VmExt;
-use std::collections::VecDeque;
 
 #[derive(Debug, Clone)]
 pub struct GhashPrep {
     pub(crate) role: Role,
     pub(crate) otp: [u8; 16],
     pub(crate) mac_key: Array<U8, 16>,
-    pub(crate) j0: VecDeque<KeystreamBlock<Aes128>>,
+    pub(crate) j0_blocks: Keystream<Aes128>,
 }
 
 impl GhashPrep {
@@ -49,18 +48,17 @@ impl GhashPrep {
         key: Array<U8, 16>,
         iv: Array<U8, 4>,
         record_count: usize,
-    ) -> Result<Vec<KeystreamBlock<Aes128>>, AesError>
+    ) -> Result<Keystream<Aes128>, AesError>
     where
         Vm: VmExt<Binary> + ViewExt<Binary>,
     {
-        if self.j0.len() >= record_count {
-            Ok::<_, AesError>(self.j0.drain(..record_count).collect())
+        if self.j0_blocks.len() >= record_count {
+            Ok::<_, AesError>(self.j0_blocks.chunk(record_count))
         } else {
-            let mut keystream: Vec<KeystreamBlock<Aes128>> = self.j0.drain(..).collect();
-            for _ in 0..(record_count - keystream.len()) {
-                let aes_ctr_block = MpcAes::prepare_keystream(vm, key, iv)?;
-                keystream.push(aes_ctr_block);
-            }
+            let mut keystream = std::mem::take(&mut self.j0_blocks);
+            let missing = prepare_keystream(vm, key, iv, record_count - keystream.len())?;
+            keystream.append(missing);
+
             Ok(keystream)
         }
     }

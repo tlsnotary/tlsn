@@ -61,43 +61,91 @@ pub trait Cipher<C: CipherCircuit, Ctx: Context, Vm: VmExt<Binary>> {
     >;
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct KeystreamBlock<C: CipherCircuit> {
-    explicit_nonce: C::Nonce,
-    counter: C::Counter,
-    input: C::Block,
-    output: C::Block,
+#[derive(Debug, Clone)]
+pub struct Keystream<C: CipherCircuit> {
+    explicit_nonces: Vec<C::Nonce>,
+    counters: Vec<C::Counter>,
+    inputs: Vec<C::Block>,
+    outputs: Vec<C::Block>,
 }
 
-impl<C: CipherCircuit> KeystreamBlock<C> {
-    pub fn nonce(&self) -> C::Nonce {
-        self.explicit_nonce
+impl<C: CipherCircuit> Keystream<C> {
+    pub fn explicit_nonces(&self) -> &[<C as CipherCircuit>::Nonce] {
+        &self.explicit_nonces
     }
 
-    pub fn counter(&self) -> C::Counter {
-        self.counter
+    pub fn counters(&self) -> &[<C as CipherCircuit>::Counter] {
+        &self.counters
     }
 
-    pub fn input(&self) -> C::Block {
-        self.input
+    pub fn inputs(&self) -> &[<C as CipherCircuit>::Block] {
+        &self.inputs
     }
 
-    pub fn output(&self) -> C::Block {
-        self.output
+    pub fn outputs(&self) -> &[<C as CipherCircuit>::Block] {
+        &self.outputs
+    }
+
+    pub fn chunk(&mut self, block_count: usize) -> Keystream<C> {
+        let explicit_nonces = self.explicit_nonces.drain(..block_count).collect();
+        let counters = self.counters.drain(..block_count).collect();
+        let inputs = self.inputs.drain(..block_count).collect();
+        let outputs = self.outputs.drain(..block_count).collect();
+
+        Keystream {
+            explicit_nonces,
+            counters,
+            inputs,
+            outputs,
+        }
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.explicit_nonces.len()
+    }
+
+    fn push(
+        &mut self,
+        explicit_nonce: C::Nonce,
+        counter: C::Counter,
+        input: C::Block,
+        output: C::Block,
+    ) {
+        self.explicit_nonces.push(explicit_nonce);
+        self.counters.push(counter);
+        self.inputs.push(input);
+        self.outputs.push(output);
+    }
+
+    fn append(&mut self, mut keystream: Keystream<C>) {
+        self.explicit_nonces.append(&mut keystream.explicit_nonces);
+        self.counters.append(&mut keystream.counters);
+        self.inputs.append(&mut keystream.inputs);
+        self.outputs.append(&mut keystream.outputs);
     }
 }
 
-impl<C: CipherCircuit> KeystreamBlock<C> {}
+impl<C: CipherCircuit> Default for Keystream<C> {
+    fn default() -> Self {
+        Self {
+            explicit_nonces: Vec::default(),
+            counters: Vec::default(),
+            inputs: Vec::default(),
+            outputs: Vec::default(),
+        }
+    }
+}
 
 pub struct Encrypt<C: CipherCircuit> {
-    keystream: Vec<KeystreamBlock<C>>,
+    keystream: Keystream<C>,
 }
 
 pub struct DecryptPrivate<C: CipherCircuit> {
-    keystream: Vec<KeystreamBlock<C>>,
+    keystream: Keystream<C>,
     otps: Option<Vec<<<C as CipherCircuit>::Block as Repr<Binary>>::Clear>>,
 }
 
 pub struct DecryptPublic<C: CipherCircuit> {
-    keystream: Vec<KeystreamBlock<C>>,
+    keystream: Keystream<C>,
 }
