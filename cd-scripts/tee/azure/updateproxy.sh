@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Variables (Update these as needed)x
 CADDYFILE=${1:-/etc/caddy/Caddyfile}  # Path to your Caddyfile
@@ -52,6 +52,8 @@ add_new_handle_path() {
     mv "$tmp_file" "$CADDYFILE"
 
 }
+#git action perms +r
+chmod 664 cd-scripts/tee/azure/Caddyfile
 
 # Check if the commit hash already exists in a handle_path
 if handle_path_exists "$GIT_COMMIT_HASH"; then
@@ -69,5 +71,12 @@ else
     # Add the new handle_path block inside notary.codes block
     add_new_handle_path "$new_port" "$GIT_COMMIT_HASH"
     echo $new_port
+    # commit the changes
+    git config user.name github-actions
+    git config user.email github-actions@github.com
+    git add -A
+    git commit -m "azure tee reverse proxy => port:$NEXT_PORT/${RELEASE_TAG}"
+    git push
+    echo "deploy=new" >> $GITHUB_OUTPUT
     exit 0
 fi
