@@ -19,10 +19,28 @@ sudo apt-get install iproute2 -y
 
 Running the benches requires root privileges because they will set up virtual interfaces. The script is designed to fully clean up when the benches are done, but run them at your own risk.
 
-Make sure you're in the `crates/benches/` directory, build the binaries then run the script:
+#### Native benches
+
+Make sure you're in the `crates/benches/` directory, build the binaries, and then run the script:
 
 ```sh
+cd binary
 cargo build --release
+sudo ./bench.sh
+```
+
+#### Browser benches
+
+(Note, we recommend running browser benches inside a docker container (see docker.md) to avoid
+facing incompatibility issues observed in the latest versions of Chrome.)
+
+With a Chrome browser installed on your system, make sure you're in the `crates/benches/` 
+directory, build the wasm module, build the binaries, and then run the script:
+```sh
+cd browser/wasm
+rustup run nightly wasm-pack build --release --target web
+cd ../../binary
+cargo build --release --features browser-bench
 sudo ./bench.sh
 ```
 

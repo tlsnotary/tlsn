@@ -1,8 +1,3 @@
-use anyhow::Context;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::compat::TokioAsyncReadCompatExt;
-use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
-
 use tls_core::verify::WebPkiVerifier;
 use tlsn_benches::{
     config::{BenchInstance, Config},
@@ -12,6 +7,11 @@ use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::CryptoProvider;
 use tlsn_server_fixture_certs::CA_CERT_DER;
 use tlsn_verifier::{Verifier, VerifierConfig};
+
+use anyhow::Context;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
