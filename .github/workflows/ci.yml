@@ -34,7 +34,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Check formatting
         run: rustup component add rustfmt && cargo +nightly fmt --check --all
-
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
@@ -43,36 +42,54 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
+        
+      - name: use caching
+        uses: mozilla-actions/sccache-action@v0.0.6
+      - name: tell rustc about cache
+        run: |
+            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+            
       - name: Clippy
         run: rustup component add clippy && cargo clippy --all-features --all-targets -- -D warnings
+
       - name: Build
         run: cargo build --all-targets
+
       - name: Test
         run: cargo test
-
   build-wasm:
     name: Build and test wasm
     runs-on: ubuntu-latest
     container:
       image: instrumentisto/rust:nightly-slim
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
+      - name: use caching
+        uses: mozilla-actions/sccache-action@v0.0.6
+      - name: tell rustc about cache
+        run: |
+            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
       - name: Install wasm target + chromedriver
         run: |
           rustup target add wasm32-unknown-unknown
           rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
           apt update
           apt install -y chromium-driver clang
+
       - name: Install wasm-pack
         run: cargo install wasm-pack
-      - name: Run tests
-        run: crates/wasm-test-runner/run.sh
 
+      - name: Run tests
+        run: |
+          
+          cd crates/wasm-test-runner 
+          chmod +x run.sh && ./run.sh
+      
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
@@ -81,17 +98,25 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
+        
+      - name: use caching
+        uses: mozilla-actions/sccache-action@v0.0.6
+      - name: tell rustc about cache
+        run: |
+            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
       - name: Add custom DNS entry to /etc/hosts for notary TLS test
         run: echo "127.0.0.1 tlsnotaryserver.io" | tee -a /etc/hosts
+
       - name: Run integration tests
         run: cargo test --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored
-
   coverage:
     runs-on: ubuntu-latest
     container:
       image: rust:bullseye
+    env:
+      CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v4
       - name: Install cargo-llvm-cov
