@@ -32,5 +32,3 @@ hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
 rstest = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
-tracing-subscriber = { workspace = true }
-webpki-roots = { workspace = true }

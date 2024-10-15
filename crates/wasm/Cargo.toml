@@ -31,15 +31,11 @@ bincode = { workspace = true }
 console_error_panic_hook = { version = "0.1" }
 enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
-getrandom = { version = "0.2", features = ["js"] }
 http-body-util = { version = "0.1" }
 hyper = { workspace = true, features = ["client", "http1"] }
-p256 = { workspace = true }
 parking_lot = { version = "0.12", features = ["nightly"] }
 pin-project-lite = { workspace = true }
-ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
 serde = { workspace = true, features = ["derive"] }
-serde-wasm-bindgen = { version = "0.6" }
 serde_json = { version = "1.0" }
 time = { version = "0.3", features = ["wasm-bindgen"] }
 tracing = { workspace = true }
