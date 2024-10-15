@@ -2,8 +2,6 @@ pub mod axum_websocket;
 pub mod tcp;
 pub mod websocket;
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use axum::{
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
@@ -11,10 +9,12 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
+use eyre::eyre;
+use std::{sync::Arc, time::Duration};
 use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::{attestation::AttestationConfig, CryptoProvider};
 use tlsn_verifier::{Verifier, VerifierConfig};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{io::{AsyncRead, AsyncWrite}, time::timeout};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, trace};
 use uuid::Uuid;
@@ -31,6 +31,9 @@ use crate::{
         websocket::websocket_notarize,
     },
 };
+
+/// Number of seconds before Verifier::notarize() timeouts to prevent unreleased memory
+const NOTARIZATION_TIMEOUT_SECONDS: u64 = 1800; // 30 minutes
 
 /// A wrapper enum to facilitate extracting TCP connection for either WebSocket
 /// or TCP clients, so that we can use a single endpoint and handler for
@@ -202,9 +205,12 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .crypto_provider(crypto_provider)
         .build()?;
 
-    Verifier::new(config)
-        .notarize(socket.compat(), &att_config)
-        .await?;
+    timeout(
+        Duration::from_secs(NOTARIZATION_TIMEOUT_SECONDS),
+        Verifier::new(config).notarize(socket.compat(), &att_config)
+    )
+    .await
+    .map_err(|_| eyre!("Timeout reached before notarization complete"))??;
 
     Ok(())
 }
