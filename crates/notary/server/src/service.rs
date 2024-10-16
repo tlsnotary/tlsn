@@ -14,7 +14,10 @@ use std::{sync::Arc, time::Duration};
 use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::{attestation::AttestationConfig, CryptoProvider};
 use tlsn_verifier::{Verifier, VerifierConfig};
-use tokio::{io::{AsyncRead, AsyncWrite}, time::timeout};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    time::timeout,
+};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, trace};
 use uuid::Uuid;
@@ -32,7 +35,8 @@ use crate::{
     },
 };
 
-/// Number of seconds before Verifier::notarize() timeouts to prevent unreleased memory
+/// Number of seconds before Verifier::notarize() timeouts to prevent unreleased
+/// memory
 const NOTARIZATION_TIMEOUT_SECONDS: u64 = 1800; // 30 minutes
 
 /// A wrapper enum to facilitate extracting TCP connection for either WebSocket
@@ -207,7 +211,7 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     timeout(
         Duration::from_secs(NOTARIZATION_TIMEOUT_SECONDS),
-        Verifier::new(config).notarize(socket.compat(), &att_config)
+        Verifier::new(config).notarize(socket.compat(), &att_config),
     )
     .await
     .map_err(|_| eyre!("Timeout reached before notarization complete"))??;
