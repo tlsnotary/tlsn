@@ -2,7 +2,7 @@
 edition = "2021"
 name = "tlsn-benches"
 publish = false
-version = "0.1.0-alpha.8-pre"
+version = "0.0.0"
 
 [features]
 default = []

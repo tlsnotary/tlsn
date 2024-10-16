@@ -2,7 +2,7 @@
 edition = "2021"
 name = "tlsn-benches-browser-core"
 publish = false
-version = "0.1.0-alpha.8-pre"
+version = "0.0.0"
 
 [dependencies]
 tlsn-benches-library = { workspace = true }
