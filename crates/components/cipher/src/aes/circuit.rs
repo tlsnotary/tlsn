@@ -1,4 +1,4 @@
-use crate::cipher::CipherCircuit;
+use crate::circuit::CipherCircuit;
 use mpz_circuits::{circuits::aes128_trace, once_cell::sync::Lazy, trace, Circuit, CircuitBuilder};
 use mpz_memory_core::{binary::U8, Array};
 use std::sync::Arc;

@@ -12,16 +12,19 @@
 #![forbid(unsafe_code)]
 
 pub mod aes;
-pub mod cipher;
+pub mod circuit;
 pub mod config;
 
 use std::collections::VecDeque;
 
 use async_trait::async_trait;
-use cipher::CipherCircuit;
+use circuit::CipherCircuit;
+use mpz_circuits::types::{ValueType, U8};
 use mpz_common::Context;
-use mpz_memory_core::binary::Binary;
-use mpz_vm_core::Vm;
+use mpz_memory_core::{binary::Binary, Vector};
+use mpz_vm_core::{CallBuilder, Vm};
+
+use self::circuit::build_xor_circuit;
 
 #[async_trait]
 pub trait Cipher<C: CipherCircuit, Ctx: Context, V: Vm<Binary>> {
@@ -56,6 +59,19 @@ impl<C: CipherCircuit> Keystream<C> {
         }
     }
 
+    pub fn apply<V>(
+        &mut self,
+        vm: &mut V,
+        input: Vector<U8>,
+    ) -> Result<CipherOutput<C>, KeystreamError>
+    where
+        V: Vm<Binary>,
+    {
+        let xor = build_xor_circuit(&[ValueType::new_array::<u8>(input.len())]);
+        //let output = CallBuilder::new(xor).arg(arg);
+        todo!()
+    }
+
     pub fn chunk(&mut self, block_count: usize) -> Keystream<C> {
         let explicit_nonces = self.explicit_nonces.drain(..block_count).collect();
         let counters = self.counters.drain(..block_count).collect();
@@ -80,11 +96,25 @@ impl<C: CipherCircuit> Keystream<C> {
         self.counters.push_back(counter);
         self.outputs.push_back(output);
     }
+}
 
-    fn append(&mut self, mut keystream: Keystream<C>) {
-        self.explicit_nonces.append(&mut keystream.explicit_nonces);
-        self.counters.append(&mut keystream.counters);
-        self.outputs.append(&mut keystream.outputs);
+// TODO
+pub struct CipherOutput<C> {
+    pd: std::marker::PhantomData<C>,
+}
+
+impl<C: CipherCircuit> CipherOutput<C> {
+    pub fn assign<V>(
+        self,
+        vm: V,
+        nonce: [u8; 8],
+        start_ctr: u32,
+        message: Vec<u8>,
+    ) -> Result<Vector<U8>, KeystreamError>
+    where
+        V: Vm<Binary>,
+    {
+        todo!()
     }
 }
 

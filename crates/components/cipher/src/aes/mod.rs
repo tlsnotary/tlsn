@@ -1,4 +1,4 @@
-use crate::{cipher::CipherCircuit, config::CipherConfig, Cipher, EcbBlock, Keystream};
+use crate::{circuit::CipherCircuit, config::CipherConfig, Cipher, EcbBlock, Keystream};
 use async_trait::async_trait;
 use mpz_common::Context;
 use mpz_memory_core::{binary::Binary, MemoryExt, Repr, StaticSize, View, ViewExt};
