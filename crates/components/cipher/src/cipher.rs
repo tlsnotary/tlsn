@@ -17,12 +17,9 @@ pub trait CipherCircuit {
     /// The block type.
     type Block: Repr<Binary> + Copy + StaticSize<Binary>;
 
-    /// Returns the circuit of the cipher in ecb mode and applies two one-time pads to the output.
-    fn ecb_shared() -> Arc<Circuit>;
+    /// Returns the circuit of the cipher in ecb mode.
+    fn ecb() -> Arc<Circuit>;
 
     /// Returns the circuit of the cipher in counter mode.
     fn ctr() -> Arc<Circuit>;
-
-    /// Returns a one-time pad circuit for decoding the key.
-    fn otp() -> Arc<Circuit>;
 }

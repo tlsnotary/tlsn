@@ -14,32 +14,16 @@ impl CipherCircuit for Aes128 {
     type Counter = Array<U8, 4>;
     type Block = Array<U8, 16>;
 
-    fn ecb_shared() -> Arc<Circuit> {
-        AES128_ECB_SHARED.clone()
+    fn ecb() -> Arc<Circuit> {
+        AES128_ECB.clone()
     }
 
     fn ctr() -> Arc<Circuit> {
         AES128_CTR.clone()
     }
-
-    fn otp() -> Arc<Circuit> {
-        let builder = CircuitBuilder::new();
-
-        let key = builder.add_array_input::<u8, 16>();
-        let otp = builder.add_array_input::<u8, 16>();
-
-        let output = key
-            .into_iter()
-            .zip(otp)
-            .map(|(key, otp)| key ^ otp)
-            .collect::<Vec<_>>();
-        builder.add_output(output);
-
-        Arc::new(builder.build().unwrap())
-    }
 }
 
-/// `fn(key: [u8; 16], iv: [u8; 4], nonce: [u8; 8], ctr: [u8; 4], message: [u8; 16]) -> [u8; 16]`
+/// `fn(key: [u8; 16], iv: [u8; 4], nonce: [u8; 8], ctr: [u8; 4]) -> [u8; 16]`
 static AES128_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let builder = CircuitBuilder::new();
 
@@ -47,37 +31,23 @@ static AES128_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let iv = builder.add_array_input::<u8, 4>();
     let nonce = builder.add_array_input::<u8, 8>();
     let ctr = builder.add_array_input::<u8, 4>();
+
     let keystream = aes_ctr_trace(builder.state(), key, iv, nonce, ctr);
 
-    let message = builder.add_array_input::<u8, 16>();
-    let output = keystream
-        .into_iter()
-        .zip(message)
-        .map(|(a, b)| a ^ b)
-        .collect::<Vec<_>>();
-    builder.add_output(output);
+    builder.add_output(keystream);
 
     Arc::new(builder.build().unwrap())
 });
 
-/// `fn(key: [u8; 16], msg: [u8; 16], otp_0: [u8; 16], otp_1: [u8; 16]) -> [u8; 16]`
-static AES128_ECB_SHARED: Lazy<Arc<Circuit>> = Lazy::new(|| {
+/// `fn(key: [u8; 16], msg: [u8; 16]) -> [u8; 16]`
+static AES128_ECB: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let builder = CircuitBuilder::new();
 
     let key = builder.add_array_input::<u8, 16>();
     let message = builder.add_array_input::<u8, 16>();
-    let aes_block = aes128_trace(builder.state(), key, message);
+    let block = aes128_trace(builder.state(), key, message);
 
-    let otp_0 = builder.add_array_input::<u8, 16>();
-    let otp_1 = builder.add_array_input::<u8, 16>();
-
-    let output = aes_block
-        .into_iter()
-        .zip(otp_0)
-        .zip(otp_1)
-        .map(|((block, otp_0), otp_1)| block ^ otp_0 ^ otp_1)
-        .collect::<Vec<_>>();
-    builder.add_output(output);
+    builder.add_output(block);
 
     Arc::new(builder.build().unwrap())
 });
