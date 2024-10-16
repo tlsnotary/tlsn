@@ -1,8 +1,8 @@
 use crate::{cipher::CipherCircuit, config::CipherConfig, Cipher, Keystream};
 use async_trait::async_trait;
 use mpz_common::Context;
-use mpz_memory_core::{binary::Binary, MemoryExt, Repr, StaticSize, ViewExt};
-use mpz_vm_core::{CallBuilder, Execute, VmExt};
+use mpz_memory_core::{binary::Binary, MemoryExt, Repr, StaticSize, View, ViewExt};
+use mpz_vm_core::{CallBuilder, Execute, Vm, VmExt};
 use std::fmt::Debug;
 
 mod circuit;
@@ -49,10 +49,10 @@ impl MpcAes {
             .ok_or_else(|| AesError::new(ErrorKind::Iv, "iv not set"))
     }
 
-    fn alloc_public<R, Vm>(vm: &mut Vm) -> Result<R, AesError>
+    fn alloc_public<R, V>(vm: &mut V) -> Result<R, AesError>
     where
         R: Repr<Binary> + StaticSize<Binary> + Copy,
-        Vm: ViewExt<Binary> + VmExt<Binary>,
+        V: View<Binary> + Vm<Binary>,
     {
         let value = vm
             .alloc()
@@ -64,13 +64,13 @@ impl MpcAes {
         Ok(value)
     }
 
-    fn prepare_keystream<Vm>(
+    fn prepare_keystream<V>(
         &self,
-        vm: &mut Vm,
+        vm: &mut V,
         block_count: usize,
     ) -> Result<Keystream<Aes128>, AesError>
     where
-        Vm: VmExt<Binary> + ViewExt<Binary>,
+        V: Vm<Binary> + View<Binary>,
     {
         let key = self.key()?;
         let iv = self.iv()?;
@@ -107,11 +107,11 @@ impl MpcAes {
 }
 
 #[async_trait]
-impl<Ctx, Vm> Cipher<Aes128, Ctx, Vm> for MpcAes
+impl<Ctx, V> Cipher<Aes128, Ctx, V> for MpcAes
 where
     Ctx: Context,
     Self: Send,
-    Vm: VmExt<Binary> + ViewExt<Binary> + Execute<Ctx> + Send,
+    V: Vm<Binary> + View<Binary> + Execute<Ctx> + Send,
 {
     type Error = AesError;
 
@@ -123,12 +123,7 @@ where
         self.iv = Some(iv);
     }
 
-    async fn preprocess(
-        &mut self,
-        vm: &mut Vm,
-        ctx: &mut Ctx,
-        block_count: usize,
-    ) -> Result<(), Self::Error> {
+    fn alloc(&mut self, vm: &mut V, block_count: usize) -> Result<(), Self::Error> {
         let new_keystream = self.prepare_keystream(vm, block_count)?;
         if let Some(ref mut keystream) = self.keystream {
             keystream.append(new_keystream);
@@ -136,16 +131,12 @@ where
             self.keystream = Some(new_keystream);
         }
 
-        vm.preprocess(ctx)
-            .await
-            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-
         Ok(())
     }
 
-    async fn compute_keystream(
+    fn compute_keystream(
         &mut self,
-        vm: &mut Vm,
+        vm: &mut V,
         block_count: usize,
     ) -> Result<Keystream<Aes128>, Self::Error> {
         let keystream = match &mut self.keystream {

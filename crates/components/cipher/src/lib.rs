@@ -32,14 +32,9 @@ pub trait Cipher<C: CipherCircuit, Ctx: Context, Vm: VmExt<Binary>> {
 
     fn set_iv(&mut self, iv: <C as CipherCircuit>::Iv);
 
-    async fn preprocess(
-        &mut self,
-        vm: &mut Vm,
-        ctx: &mut Ctx,
-        block_count: usize,
-    ) -> Result<(), Self::Error>;
+    fn alloc(&mut self, vm: &mut Vm, block_count: usize) -> Result<(), Self::Error>;
 
-    async fn compute_keystream(
+    fn compute_keystream(
         &mut self,
         vm: &mut Vm,
         block_count: usize,
