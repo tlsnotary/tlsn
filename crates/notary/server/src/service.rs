@@ -214,7 +214,7 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         Verifier::new(config).notarize(socket.compat(), &att_config),
     )
     .await
-    .map_err(|_| eyre!("Timeout reached before notarization complete"))??;
+    .map_err(|_| eyre!("Timeout reached before notarization completes"))??;
 
     Ok(())
 }
