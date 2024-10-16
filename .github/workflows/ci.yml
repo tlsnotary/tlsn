@@ -20,7 +20,13 @@ env:
   # these remove the need for git in notary-server build.rs:
   GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
   GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.pushed_at}}
-
+  # macs attempt to wire up sccache correctly:
+  SCCACHE_ENABLED: 1
+  SCCACHE_GHA_ENABLED: true
+  RUSTC_WRAPPER: sccache
+  CARGO_INCREMENTAL: 0
+  # not that we intend to use gcc, but just in case =>
+  CCACHE: sccache
 
 jobs:
   fmt:
@@ -40,21 +46,12 @@ jobs:
     container:
       image: rust:bullseye
     steps:
+      - name: ensure this job has sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: use caching
-        uses: mozilla-actions/sccache-action@v0.0.6
-      - name: tell rustc about cache
-        run: |
-            echo "SCCACHE_ENABLED=1" >> "$GITHUB_ENV"
-            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-            : # https://github.com/dtolnay/rust-toolchain/issues/26
-            echo "CARGO_INCREMENTAL=0" >>  $GITHUB_ENV
-            : # not that we intend to use gcc, but just in case =>
-            echo CCACHE=sccache >> $GITHUB_ENV
-            
       - name: Clippy
         run: rustup component add clippy && cargo clippy --all-features --all-targets -- -D warnings
 
@@ -74,11 +71,6 @@ jobs:
         uses: actions/checkout@v4
       - name: use caching
         uses: mozilla-actions/sccache-action@v0.0.6
-      - name: tell rustc about cache
-        run: |
-            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-
       - name: Install wasm target + chromedriver
         run: |
           rustup target add wasm32-unknown-unknown
@@ -107,9 +99,6 @@ jobs:
       - name: use caching
         uses: mozilla-actions/sccache-action@v0.0.6
       - name: tell rustc about cache
-        run: |
-            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Add custom DNS entry to /etc/hosts for notary TLS test
         run: echo "127.0.0.1 tlsnotaryserver.io" | tee -a /etc/hosts
@@ -124,6 +113,7 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v4
+      - uses: mozilla-actions/sccache-action@v0.0.6
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
