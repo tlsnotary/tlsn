@@ -52,4 +52,3 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
-getrandom = { version = "0.2", features = ["js"] }

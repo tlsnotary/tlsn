@@ -1,3 +1,5 @@
+use tlsn_benches::metrics::Metrics;
+
 use charming::{
     component::{
         Axis, DataView, Feature, Legend, Restore, SaveAsImage, Title, Toolbox, ToolboxDataZoom,
@@ -7,7 +9,7 @@ use charming::{
     theme::Theme,
     Chart, HtmlRenderer,
 };
-use tlsn_benches::metrics::Metrics;
+use csv::Reader;
 
 const THEME: Theme = Theme::Default;
 
@@ -16,12 +18,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .expect("Usage: plot <path_to_csv_file>");
 
-    let mut rdr = csv::Reader::from_path(csv_file)?;
+    let mut rdr = Reader::from_path(csv_file)?;
 
-    // Prepare data for plotting
+    // Prepare data for plotting.
     let all_data: Vec<Metrics> = rdr
         .deserialize::<Metrics>()
-        .collect::<Result<Vec<_>, _>>()?; // Attempt to collect all results, return an error if any fail
+        .collect::<Result<Vec<_>, _>>()?; // Attempt to collect all results, return an error if any fail.
 
     let _chart = runtime_vs_latency(&all_data)?;
     let _chart = runtime_vs_bandwidth(&all_data)?;
@@ -31,6 +33,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error::Error>> {
     const TITLE: &str = "Runtime vs Latency";
+
+    let prover_kind: String = all_data
+        .first()
+        .map(|s| s.kind.clone().into())
+        .unwrap_or_default();
 
     let data: Vec<Vec<f32>> = all_data
         .iter()
@@ -43,7 +50,11 @@ fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error:
 
     // https://github.com/yuankunzhang/charming
     let chart = Chart::new()
-        .title(Title::new().text(TITLE))
+        .title(
+            Title::new()
+                .text(TITLE)
+                .subtext(format!("{} Prover", prover_kind)),
+        )
         .tooltip(Tooltip::new().trigger(Trigger::Axis))
         .legend(Legend::new().orient(Orient::Vertical))
         .toolbox(

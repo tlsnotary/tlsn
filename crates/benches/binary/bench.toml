@@ -35,5 +35,7 @@ upload-delay = 25
 download = 250
 download-delay = 25
 upload-size = 1024
-download-size = [1024, 4096, 16384, 65536]
+# Setting download-size higher than 45000 will cause a `Maximum call stack size exceeded`
+# error in the browser.
+download-size = [1024, 4096, 16384, 45000]
 defer-decryption = true

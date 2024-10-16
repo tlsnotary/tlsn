@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
+use tlsn_benches_library::ProverKind;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metrics {
     pub name: String,
+    /// The kind of the prover, either native or browser.
+    pub kind: ProverKind,
     /// Upload bandwidth in Mbps.
     pub upload: usize,
     /// Upload latency in ms.
