@@ -98,7 +98,6 @@ jobs:
         
       - name: use caching
         uses: mozilla-actions/sccache-action@v0.0.6
-      - name: tell rustc about cache
 
       - name: Add custom DNS entry to /etc/hosts for notary TLS test
         run: echo "127.0.0.1 tlsnotaryserver.io" | tee -a /etc/hosts
