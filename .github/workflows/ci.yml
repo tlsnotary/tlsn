@@ -20,7 +20,7 @@ env:
   # these remove the need for git in notary-server build.rs:
   GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
   GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.pushed_at}}
-  # macs attempt to wire up sccache correctly:
+  # macs attempt to wire up sccache correctly!:
   SCCACHE_ENABLED: 1
   SCCACHE_GHA_ENABLED: true
   RUSTC_WRAPPER: sccache
