@@ -21,10 +21,10 @@ use async_trait::async_trait;
 use cipher::CipherCircuit;
 use mpz_common::Context;
 use mpz_memory_core::{binary::Binary, Repr};
-use mpz_vm_core::VmExt;
+use mpz_vm_core::Vm;
 
 #[async_trait]
-pub trait Cipher<C: CipherCircuit, Ctx: Context, Vm: VmExt<Binary>> {
+pub trait Cipher<C: CipherCircuit, Ctx: Context, V: Vm<Binary>> {
     /// The error type for the cipher.
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -32,11 +32,11 @@ pub trait Cipher<C: CipherCircuit, Ctx: Context, Vm: VmExt<Binary>> {
 
     fn set_iv(&mut self, iv: <C as CipherCircuit>::Iv);
 
-    fn alloc(&mut self, vm: &mut Vm, block_count: usize) -> Result<(), Self::Error>;
+    fn alloc(&mut self, vm: &mut V, block_count: usize) -> Result<(), Self::Error>;
 
     fn compute_keystream(
         &mut self,
-        vm: &mut Vm,
+        vm: &mut V,
         block_count: usize,
     ) -> Result<Keystream<C>, Self::Error>;
 }
