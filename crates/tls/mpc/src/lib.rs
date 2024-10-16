@@ -16,6 +16,10 @@ pub(crate) mod follower;
 pub(crate) mod leader;
 pub mod msg;
 pub(crate) mod record_layer;
+
+// These need to be integrated/reused
+mod mac_prep;
+mod other;
 mod tag;
 
 pub use components::build_components;

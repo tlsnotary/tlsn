@@ -15,6 +15,8 @@ pub mod aes;
 pub mod cipher;
 pub mod config;
 
+use std::collections::VecDeque;
+
 use async_trait::async_trait;
 use cipher::CipherCircuit;
 use mpz_common::Context;
@@ -26,64 +28,67 @@ pub trait Cipher<C: CipherCircuit, Ctx: Context, Vm: VmExt<Binary>> {
     /// The error type for the cipher.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Contains data necessary for constructing macs for the cipher
-    type MacPrep;
+    fn set_key(&mut self, key: <C as CipherCircuit>::Key);
+
+    fn set_iv(&mut self, iv: <C as CipherCircuit>::Iv);
 
     async fn preprocess(
         &mut self,
-        ctx: &mut Ctx,
         vm: &mut Vm,
+        ctx: &mut Ctx,
         block_count: usize,
     ) -> Result<(), Self::Error>;
 
-    async fn compute_mac(&mut self, vm: &mut Vm) -> Result<Self::MacPrep, Self::Error>;
-
-    fn encrypt(&mut self, vm: &mut Vm, len: usize) -> Result<Encrypt<C>, Self::Error>;
-
-    fn decrypt_private(
+    async fn compute_keystream(
         &mut self,
         vm: &mut Vm,
-        len: usize,
-    ) -> Result<DecryptPrivate<C>, Self::Error>;
-
-    fn decrypt_public(&mut self, vm: &mut Vm, len: usize) -> Result<DecryptPublic<C>, Self::Error>;
-
-    async fn decode_key_and_iv(
-        &mut self,
-        vm: &mut Vm,
-        ctx: &mut Ctx,
-    ) -> Result<
-        Option<(
-            <<C as CipherCircuit>::Key as Repr<Binary>>::Clear,
-            <<C as CipherCircuit>::Iv as Repr<Binary>>::Clear,
-        )>,
-        Self::Error,
-    >;
+        block_count: usize,
+    ) -> Result<Keystream<C>, Self::Error>;
 }
 
-#[derive(Debug, Clone)]
 pub struct Keystream<C: CipherCircuit> {
-    explicit_nonces: Vec<C::Nonce>,
-    counters: Vec<C::Counter>,
-    inputs: Vec<C::Block>,
-    outputs: Vec<C::Block>,
+    key: <C as CipherCircuit>::Key,
+    iv: <C as CipherCircuit>::Iv,
+    explicit_nonces: VecDeque<C::Nonce>,
+    counters: VecDeque<C::Counter>,
+    inputs: VecDeque<C::Block>,
+    outputs: VecDeque<C::Block>,
 }
 
 impl<C: CipherCircuit> Keystream<C> {
-    pub fn explicit_nonces(&self) -> &[<C as CipherCircuit>::Nonce] {
-        &self.explicit_nonces
-    }
-
-    pub fn counters(&self) -> &[<C as CipherCircuit>::Counter] {
-        &self.counters
+    pub(crate) fn new(key: <C as CipherCircuit>::Key, iv: <C as CipherCircuit>::Iv) -> Self {
+        Self {
+            key,
+            iv,
+            explicit_nonces: VecDeque::default(),
+            counters: VecDeque::default(),
+            inputs: VecDeque::default(),
+            outputs: VecDeque::default(),
+        }
     }
 
     pub fn inputs(&self) -> &[<C as CipherCircuit>::Block] {
-        &self.inputs
+        todo!()
     }
 
-    pub fn outputs(&self) -> &[<C as CipherCircuit>::Block] {
-        &self.outputs
+    pub fn apply(
+        &mut self,
+        explicit_nonces: &[<<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear],
+        counters: &[<<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear],
+        input: &[<<C as CipherCircuit>::Block as Repr<Binary>>::Clear],
+    ) -> Result<Vec<<<C as CipherCircuit>::Block as Repr<Binary>>::Clear>, KeystreamError> {
+        if explicit_nonces.len() != counters.len()
+            || explicit_nonces.len() != input.len()
+            || counters.len() != input.len()
+        {
+            return Err(KeystreamError::new(
+                "Unequal length of vectors when applying keystream",
+            ));
+        }
+
+        //for (nonce, counter, input) in self.inputs.it {}
+
+        todo!()
     }
 
     pub fn chunk(&mut self, block_count: usize) -> Keystream<C> {
@@ -93,6 +98,8 @@ impl<C: CipherCircuit> Keystream<C> {
         let outputs = self.outputs.drain(..block_count).collect();
 
         Keystream {
+            key: self.key,
+            iv: self.iv,
             explicit_nonces,
             counters,
             inputs,
@@ -112,10 +119,10 @@ impl<C: CipherCircuit> Keystream<C> {
         input: C::Block,
         output: C::Block,
     ) {
-        self.explicit_nonces.push(explicit_nonce);
-        self.counters.push(counter);
-        self.inputs.push(input);
-        self.outputs.push(output);
+        self.explicit_nonces.push_back(explicit_nonce);
+        self.counters.push_back(counter);
+        self.inputs.push_back(input);
+        self.outputs.push_back(output);
     }
 
     fn append(&mut self, mut keystream: Keystream<C>) {
@@ -126,26 +133,20 @@ impl<C: CipherCircuit> Keystream<C> {
     }
 }
 
-impl<C: CipherCircuit> Default for Keystream<C> {
-    fn default() -> Self {
+#[derive(Debug, thiserror::Error)]
+#[error("{source}")]
+pub struct KeystreamError {
+    #[source]
+    source: Box<dyn std::error::Error + Send + Sync>,
+}
+
+impl KeystreamError {
+    pub(crate) fn new<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
         Self {
-            explicit_nonces: Vec::default(),
-            counters: Vec::default(),
-            inputs: Vec::default(),
-            outputs: Vec::default(),
+            source: source.into(),
         }
     }
-}
-
-pub struct Encrypt<C: CipherCircuit> {
-    keystream: Keystream<C>,
-}
-
-pub struct DecryptPrivate<C: CipherCircuit> {
-    keystream: Keystream<C>,
-    otps: Option<Vec<<<C as CipherCircuit>::Block as Repr<Binary>>::Clear>>,
-}
-
-pub struct DecryptPublic<C: CipherCircuit> {
-    keystream: Keystream<C>,
 }

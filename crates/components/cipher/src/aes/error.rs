@@ -23,12 +23,18 @@ impl AesError {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ErrorKind {
     Vm,
+    Key,
+    Iv,
+    Keystream,
 }
 
 impl Display for AesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             ErrorKind::Vm => write!(f, "vm error")?,
+            ErrorKind::Key => write!(f, "key error")?,
+            ErrorKind::Iv => write!(f, "iv error")?,
+            ErrorKind::Keystream => write!(f, "keystream error")?,
         }
 
         if let Some(source) = &self.source {
