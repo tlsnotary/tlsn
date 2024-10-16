@@ -1,6 +1,6 @@
 //! TLS prover states.
 
-use mpz_core::serialize::CanonicalSerialize;
+use mpz_core::{serialize::CanonicalSerialize, Block};
 use mpz_garble::protocol::deap::PeerEncodings;
 use mpz_garble_core::{encoding_state, EncodedValue};
 use std::collections::HashMap;
@@ -89,6 +89,25 @@ impl From<Closed> for Notarize {
                 }
 
                 Some(encoding)
+            }
+
+            fn provide_bit_encodings(
+                &self,
+                direction: Direction,
+                idx: &Idx,
+            ) -> Option<Vec<Vec<u8>>> {
+                let mut encodings = Vec::with_capacity(idx.len() * 8);
+                let prefix = match direction {
+                    Direction::Sent => "tx/",
+                    Direction::Received => "rx/",
+                };
+                for i in idx.iter() {
+                    for label in self.0.get(&format!("{}{}", prefix, i))?.iter() {
+                        encodings.push(Block::to_bytes(*label.as_ref()).to_vec())
+                    }
+                }
+
+                Some(encodings)
             }
         }
 

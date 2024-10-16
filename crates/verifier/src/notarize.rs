@@ -12,6 +12,9 @@ use tlsn_core::{
 };
 use tracing::{debug, info, instrument};
 
+#[cfg(feature = "authdecode_unsafe")]
+use crate::authdecode::{authdecode_verifier, TranscriptVerifier};
+
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
     ///
@@ -38,6 +41,25 @@ impl Verifier<Notarize> {
                 // finalization.
                 let request: Request = io.expect_next().await?;
 
+                #[cfg(feature = "authdecode_unsafe")]
+                let mut authdecode_verifier = match self
+                    .config
+                    .protocol_config_validator()
+                    .max_zk_friendly_hash_data()
+                {
+                    0 => None,
+                    max => {
+                        let mut verifier = authdecode_verifier(&request);
+                        verifier
+                            .receive_commitments(io.expect_next().await?, max)
+                            .unwrap();
+
+                        debug!("received Authdecode commitment");
+                        // Now that the commitments are received, it is safe to reveal MPC secrets.
+                        Some(verifier)
+                    }
+                };
+
                 // Finalize all MPC before attesting.
                 ot_send.reveal(&mut ctx).await?;
 
@@ -47,7 +69,20 @@ impl Verifier<Notarize> {
 
                 info!("Finalized all MPC");
 
-                let mut builder = Attestation::builder(config)
+                #[allow(unused_mut)]
+                let mut builder = Attestation::builder(config);
+
+                #[cfg(feature = "authdecode_unsafe")]
+                if let Some(ref mut authdecode_verifier) = authdecode_verifier {
+                    let hashes = authdecode_verifier
+                        .verify(io.expect_next().await?, encoder_seed)
+                        .unwrap();
+                    debug!("verified Authdecode proofs");
+
+                    builder.plaintext_hashes(hashes);
+                }
+
+                let mut builder = builder
                     .accept_request(request)
                     .map_err(VerifierError::attestation)?;
 

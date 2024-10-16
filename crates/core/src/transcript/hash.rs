@@ -2,16 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     attestation::FieldId,
-    hash::{
-        impl_domain_separator, Blinded, Blinder, HashAlgorithmExt, HashProvider, HashProviderError,
-        TypedHash,
-    },
+    hash::{impl_domain_separator, Blinded, Blinder, HashProvider, HashProviderError, TypedHash},
     transcript::{Direction, Idx, InvalidSubsequence, Subsequence},
 };
 
 /// Hash of plaintext in the transcript.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct PlaintextHash {
+pub struct PlaintextHash {
     /// Direction of the plaintext.
     pub direction: Direction,
     /// Index of plaintext.
@@ -24,7 +21,7 @@ impl_domain_separator!(PlaintextHash);
 
 /// Secret data for a plaintext hash commitment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PlaintextHashSecret {
+pub struct PlaintextHashSecret {
     pub(crate) direction: Direction,
     pub(crate) idx: Idx,
     pub(crate) commitment: FieldId,
@@ -62,7 +59,7 @@ impl PlaintextHashProof {
     ) -> Result<(Direction, Subsequence), PlaintextHashProofError> {
         let alg = provider.get(&commitment.hash.alg)?;
 
-        if commitment.hash.value != alg.hash_canonical(&self.data) {
+        if commitment.hash.value != alg.hash_blinded(&self.data) {
             return Err(PlaintextHashProofError::new(
                 "hash does not match commitment",
             ));

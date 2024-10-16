@@ -16,10 +16,20 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
-// Maximum number of bytes that can be sent from prover to server
+#[cfg(feature = "authdecode_unsafe")]
+use tlsn_core::hash::HashAlgId;
+#[cfg(feature = "authdecode_unsafe")]
+use tlsn_core::hash::POSEIDON_MAX_INPUT_SIZE;
+#[cfg(feature = "authdecode_unsafe")]
+use tlsn_core::transcript::TranscriptCommitmentKind;
+
+// Maximum number of bytes that can be sent from prover to server.
 const MAX_SENT_DATA: usize = 1 << 12;
-// Maximum number of bytes that can be received by prover from server
+// Maximum number of bytes that can be received by prover from server.
 const MAX_RECV_DATA: usize = 1 << 14;
+#[cfg(feature = "authdecode_unsafe")]
+// Maximum number of bytes for which a zk-friendly hash commitment can be computed.
+const MAX_ZK_FRIENDLY_HASH_DATA: usize = 1 << 10;
 
 #[tokio::test]
 #[ignore]
@@ -47,12 +57,16 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         ..Default::default()
     };
 
-    let protocol_config = ProtocolConfig::builder()
+    let mut builder = ProtocolConfig::builder();
+    builder
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
-        .max_recv_data_online(MAX_RECV_DATA)
-        .build()
-        .unwrap();
+        .max_recv_data_online(MAX_RECV_DATA);
+
+    #[cfg(feature = "authdecode_unsafe")]
+    builder.max_zk_friendly_hash_data(MAX_ZK_FRIENDLY_HASH_DATA);
+
+    let protocol_config = builder.build().unwrap();
 
     let prover = Prover::new(
         ProverConfig::builder()
@@ -101,9 +115,30 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
-    // Commit to everything
-    builder.commit_sent(&(0..sent_tx_len)).unwrap();
-    builder.commit_recv(&(0..recv_tx_len)).unwrap();
+    // Commit to a portion of the data.
+    builder
+        .commit_sent(&(sent_tx_len / 2..sent_tx_len))
+        .unwrap();
+    builder
+        .commit_recv(&(recv_tx_len / 2..recv_tx_len))
+        .unwrap();
+
+    #[cfg(feature = "authdecode_unsafe")]
+    {
+        builder.default_kind(TranscriptCommitmentKind::Hash {
+            alg: HashAlgId::POSEIDON_HALO2,
+        });
+        // Currently there is a limit on commitment data length for POSEIDON_HALO2.
+        let sent_range = 0..sent_tx_len / 2;
+        let recv_range = 0..POSEIDON_MAX_INPUT_SIZE;
+        assert!(sent_range.len() <= POSEIDON_MAX_INPUT_SIZE);
+        assert!(recv_range.len() <= POSEIDON_MAX_INPUT_SIZE);
+        builder
+            .commit_sent(&sent_range)
+            .unwrap()
+            .commit_recv(&recv_range)
+            .unwrap();
+    }
 
     let config = builder.build().unwrap();
 
@@ -128,11 +163,15 @@ async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socke
 
     provider.signer.set_secp256k1(&[1u8; 32]).unwrap();
 
-    let config_validator = ProtocolConfigValidator::builder()
+    let mut builder = ProtocolConfigValidator::builder();
+    builder
         .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
-        .build()
-        .unwrap();
+        .max_recv_data(MAX_RECV_DATA);
+
+    #[cfg(feature = "authdecode_unsafe")]
+    builder.max_zk_friendly_hash_data(MAX_ZK_FRIENDLY_HASH_DATA);
+
+    let config_validator = builder.build().unwrap();
 
     let verifier = Verifier::new(
         VerifierConfig::builder()

@@ -89,16 +89,21 @@ impl BodyProof {
         hasher: &dyn HashAlgorithm,
         body: Body,
     ) -> Result<BodyProof, AttestationError> {
-        let (indices, leaves): (Vec<_>, Vec<_>) = body
+        let leaves = body
             .hash_fields(hasher)
             .into_iter()
-            .map(|(id, hash)| (id.0 as usize, hash))
-            .unzip();
+            .map(|(_, hash)| hash)
+            .collect::<Vec<_>>();
+        let leaf_count = leaves.len();
 
         let mut tree = MerkleTree::new(hasher.id());
-        tree.insert(hasher, leaves);
+        tree.insert(hasher, leaves.clone());
+
+        let indices = (0..leaf_count).collect::<Vec<_>>();
+        let l = indices.clone().into_iter().zip(leaves);
 
         let proof = tree.proof(&indices);
+        assert!(proof.verify(hasher, &tree.root(), l).is_ok());
 
         Ok(BodyProof { body, proof })
     }
@@ -122,7 +127,8 @@ impl BodyProof {
             .body
             .hash_fields(hasher)
             .into_iter()
-            .map(|(id, hash)| (id.0 as usize, hash));
+            .enumerate()
+            .map(|(idx, (_, hash))| (idx, hash));
 
         self.proof
             .verify(hasher, &header.root, fields)

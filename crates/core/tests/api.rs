@@ -1,27 +1,31 @@
 use tlsn_core::{
     attestation::{Attestation, AttestationConfig},
     connection::{HandshakeData, HandshakeDataV1_2},
-    fixtures::{self, encoder_seed, ConnectionFixture},
-    hash::Blake3,
+    fixtures::{self, encoder_seed, plaintext_hashes_from_request, ConnectionFixture},
+    hash::{Blake3, HashAlgId},
     presentation::PresentationOutput,
     request::{Request, RequestConfig},
     signing::SignatureAlgId,
-    transcript::{encoding::EncodingTree, Direction, Transcript, TranscriptCommitConfigBuilder},
+    transcript::{
+        encoding::EncodingTree, Direction, Idx, Transcript, TranscriptCommitConfigBuilder,
+        TranscriptCommitmentKind,
+    },
     CryptoProvider,
 };
 use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+use utils::range::{RangeSet, Union};
 
-/// Tests that the attestation protocol and verification work end-to-end
+/// Tests that the attestation protocol and verification work end-to-end.
 #[test]
 fn test_api() {
     let mut provider = CryptoProvider::default();
 
-    // Configure signer for Notary
+    // Configure signer for Notary.
     provider.signer.set_secp256k1(&[42u8; 32]).unwrap();
 
     let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
     let (sent_len, recv_len) = transcript.len();
-    // Plaintext encodings which the Prover obtained from GC evaluation
+    // Plaintext encodings which the Prover obtained from GC evaluation.
     let encodings_provider = fixtures::encoding_provider(GET_WITH_HEADER, OK_JSON);
 
     // At the end of the TLS connection the Prover holds the:
@@ -42,10 +46,22 @@ fn test_api() {
     // Prover specifies the ranges it wants to commit to.
     let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
     transcript_commitment_builder
-        .commit_sent(&(0..sent_len))
+        .commit_sent(&(0..sent_len / 2))
         .unwrap()
-        .commit_recv(&(0..recv_len))
+        .commit_recv(&(0..recv_len / 2))
         .unwrap();
+
+    #[cfg(feature = "use_poseidon_halo2")]
+    {
+        transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash {
+            alg: HashAlgId::POSEIDON_HALO2,
+        });
+        transcript_commitment_builder
+            .commit_sent(&(sent_len / 2..sent_len))
+            .unwrap()
+            .commit_recv(&(recv_len / 2..recv_len))
+            .unwrap();
+    }
 
     let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
 
@@ -67,17 +83,31 @@ fn test_api() {
         .transcript(transcript)
         .encoding_tree(encoding_tree);
 
+    if transcripts_commitment_config.has_plaintext_hashes() {
+        request_builder.plaintext_hashes(transcripts_commitment_config.plaintext_hashes());
+    }
+
     let (request, secrets) = request_builder.build(&provider).unwrap();
+
+    // At this point the Authdecode protocol must be run if there was a commitment algorithm used
+    // which requires it. After that, the Notary can proceed to create an attestation.
 
     let attestation_config = AttestationConfig::builder()
         .supported_signature_algs([SignatureAlgId::SECP256K1])
         .build()
         .unwrap();
 
-    // Notary signs an attestation according to their view of the connection.
-    let mut attestation_builder = Attestation::builder(&attestation_config)
-        .accept_request(request.clone())
-        .unwrap();
+    // Notary builds and signs an attestation according to their view of the connection.
+    let mut attestation_builder = Attestation::builder(&attestation_config);
+
+    // Optionally, Notary obtains authenticated plaintext hashes from an external context and adds them
+    // to the attestation.
+    let authenticated_hashes = plaintext_hashes_from_request(&request);
+    if !authenticated_hashes.is_empty() {
+        attestation_builder.plaintext_hashes(authenticated_hashes);
+    }
+
+    let mut attestation_builder = attestation_builder.accept_request(request.clone()).unwrap();
 
     attestation_builder
         // Notary's view of the connection
@@ -93,12 +123,35 @@ fn test_api() {
 
     let mut transcript_proof_builder = secrets.transcript_proof_builder();
 
+    // Stores the ranges which were revealed for the sent and the received data.
+    let mut revealed_sent = RangeSet::default();
+    let mut revealed_recv = RangeSet::default();
+
     transcript_proof_builder
-        .reveal(&(0..sent_len), Direction::Sent)
+        .reveal(&(0..sent_len / 2), Direction::Sent)
         .unwrap();
+    revealed_sent = revealed_sent.union(&(0..sent_len / 2));
+
     transcript_proof_builder
-        .reveal(&(0..recv_len), Direction::Received)
+        .reveal(&(0..recv_len / 2), Direction::Received)
         .unwrap();
+    revealed_recv = revealed_recv.union(&(0..recv_len / 2));
+
+    #[cfg(feature = "use_poseidon_halo2")]
+    {
+        transcript_proof_builder.default_kind(TranscriptCommitmentKind::Hash {
+            alg: HashAlgId::POSEIDON_HALO2,
+        });
+        transcript_proof_builder
+            .reveal(&(sent_len / 2..sent_len), Direction::Sent)
+            .unwrap();
+        revealed_sent = revealed_sent.union(&(sent_len / 2..sent_len));
+
+        transcript_proof_builder
+            .reveal(&(recv_len / 2..recv_len), Direction::Received)
+            .unwrap();
+        revealed_recv = revealed_recv.union(&(recv_len / 2..recv_len));
+    }
 
     let transcript_proof = transcript_proof_builder.build().unwrap();
 
@@ -123,11 +176,9 @@ fn test_api() {
     let presented_transcript = presented_transcript.unwrap();
 
     assert_eq!(
-        presented_transcript.sent_unsafe(),
-        secrets.transcript().sent()
-    );
-    assert_eq!(
-        presented_transcript.received_unsafe(),
-        secrets.transcript().received()
+        presented_transcript,
+        secrets
+            .transcript()
+            .to_partial(Idx::new(revealed_sent), Idx::new(revealed_recv))
     );
 }

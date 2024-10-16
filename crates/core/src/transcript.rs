@@ -31,10 +31,12 @@
 //! To create a proof, use the [`TranscriptProofBuilder`] which is returned by
 //! [`Secrets::transcript_proof_builder`](crate::Secrets::transcript_proof_builder).
 
+#[cfg(feature = "use_poseidon_halo2")]
+pub mod authdecode;
 mod commit;
 #[doc(hidden)]
 pub mod encoding;
-pub(crate) mod hash;
+mod hash;
 mod proof;
 
 use std::{fmt, ops::Range};
@@ -48,6 +50,7 @@ pub use commit::{
     TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitConfigBuilderError,
     TranscriptCommitmentKind,
 };
+pub use hash::{PlaintextHash, PlaintextHashSecret};
 pub use proof::{
     TranscriptProof, TranscriptProofBuilder, TranscriptProofBuilderError, TranscriptProofError,
 };
@@ -160,9 +163,8 @@ impl Transcript {
 
 /// A partial transcript.
 ///
-/// A partial transcript is a transcript which may not have all the data
-/// authenticated.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A partial transcript is a transcript which may not have all the data authenticated.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(try_from = "validation::PartialTranscriptUnchecked")]
 pub struct PartialTranscript {
     /// Data sent from the Prover to the Server.
@@ -363,9 +365,9 @@ impl PartialTranscript {
 
 /// The direction of data communicated over a TLS connection.
 ///
-/// This is used to differentiate between data sent from the Prover to the TLS
-/// peer, and data received by the Prover from the TLS peer (client or server).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// This is used to differentiate between data sent from the Prover to the TLS peer,
+/// and data received by the Prover from the TLS peer (client or server).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum Direction {
     /// Sent from the Prover to the TLS peer.
     Sent = 0x00,

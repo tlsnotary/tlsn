@@ -4,6 +4,13 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 
+[features]
+# Enables the AuthDecode protocol which allows to prove zk-friendly hashes over the transcript data.
+authdecode_unsafe = [
+    "tlsn-prover/authdecode_unsafe",
+    "tlsn-verifier/authdecode_unsafe"
+    ]
+
 [dev-dependencies]
 tlsn-core = { workspace = true }
 tlsn-common = { workspace = true }

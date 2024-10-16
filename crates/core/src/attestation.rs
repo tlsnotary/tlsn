@@ -25,12 +25,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::{ConnectionInfo, ServerCertCommitment, ServerEphemKey},
-    hash::{impl_domain_separator, Hash, HashAlgorithm, HashAlgorithmExt, TypedHash},
-    index::Index,
+    hash::{impl_domain_separator, Hash, HashAlgId, HashAlgorithm, HashAlgorithmExt, TypedHash},
     merkle::MerkleTree,
     presentation::PresentationBuilder,
     signing::{Signature, VerifyingKey},
-    transcript::{encoding::EncodingCommitment, hash::PlaintextHash},
+    transcript::{encoding::EncodingCommitment, Direction, Idx, PlaintextHash},
     CryptoProvider,
 };
 
@@ -40,6 +39,12 @@ pub use proof::{AttestationError, AttestationProof};
 
 /// Current version of attestations.
 pub const VERSION: Version = Version(0);
+
+/// The maximum total number of plaintext hash commitments allowed in the attestation.
+pub const MAX_TOTAL_PLAINTEXT_HASH: u32 = 10000;
+
+/// The initial id for fields containing plaintext hash commitments.
+pub const PLAINTEXT_HASH_INITIAL_FIELD_ID: u32 = u32::MAX - MAX_TOTAL_PLAINTEXT_HASH;
 
 /// Unique identifier for an attestation.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -64,7 +69,7 @@ pub struct Version(u32);
 impl_domain_separator!(Version);
 
 /// Public attestation field.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Field<T> {
     /// Identifier of the field.
     pub id: FieldId,
@@ -79,6 +84,11 @@ pub struct Field<T> {
 pub struct FieldId(pub u32);
 
 impl FieldId {
+    /// Creates a new `FieldId` with the given initial id value.
+    pub(crate) fn new(initial_id: u32) -> Self {
+        Self(initial_id)
+    }
+
     pub(crate) fn next<T>(&mut self, data: T) -> Field<T> {
         let id = *self;
         self.0 += 1;
@@ -134,7 +144,7 @@ pub struct Body {
     server_ephemeral_key: Field<ServerEphemKey>,
     cert_commitment: Field<ServerCertCommitment>,
     encoding_commitment: Option<Field<EncodingCommitment>>,
-    plaintext_hashes: Index<Field<PlaintextHash>>,
+    plaintext_hashes: Option<Vec<Field<PlaintextHash>>>,
 }
 
 impl Body {
@@ -198,8 +208,10 @@ impl Body {
             ));
         }
 
-        for field in plaintext_hashes.iter() {
-            fields.push((field.id, hasher.hash_separated(&field.data)));
+        if let Some(plaintext_hashes) = plaintext_hashes {
+            for field in plaintext_hashes.iter() {
+                fields.push((field.id, hasher.hash_separated(&field.data)));
+            }
         }
 
         fields.sort_by_key(|(id, _)| *id);
@@ -225,7 +237,7 @@ impl Body {
     }
 
     /// Returns the plaintext hash commitments.
-    pub(crate) fn plaintext_hashes(&self) -> &Index<Field<PlaintextHash>> {
+    pub(crate) fn plaintext_hashes(&self) -> &Option<Vec<Field<PlaintextHash>>> {
         &self.plaintext_hashes
     }
 }
@@ -256,4 +268,14 @@ impl Attestation {
     ) -> PresentationBuilder<'a> {
         PresentationBuilder::new(provider, self)
     }
+}
+
+/// Returns the result of comparing details associated with a hash commitment.
+pub(crate) fn compare_hash_details(
+    a: &(&Direction, &Idx, &HashAlgId),
+    b: &(&Direction, &Idx, &HashAlgId),
+) -> std::cmp::Ordering {
+    bcs::to_bytes(a)
+        .expect("Should serialize infallibly")
+        .cmp(&bcs::to_bytes(b).expect("Should serialize infallibly"))
 }

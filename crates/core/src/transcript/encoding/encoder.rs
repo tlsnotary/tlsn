@@ -28,7 +28,7 @@ impl Encoder for ChaChaEncoder {
             Direction::Received => RX_TRANSCRIPT_ID,
         };
 
-        let mut encoding = Vec::with_capacity(seq.len() * 16);
+        let mut encoding = Vec::with_capacity(seq.len() * 16);  
         for (byte_id, &byte) in seq.index().iter().zip(seq.data()) {
             let id_hash = mpz_core::utils::blake3(format!("{}/{}", id, byte_id).as_bytes());
             let id = u64::from_be_bytes(id_hash[..8].try_into().unwrap());

@@ -4,6 +4,8 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "authdecode_unsafe")]
+mod authdecode;
 mod config;
 mod error;
 mod future;

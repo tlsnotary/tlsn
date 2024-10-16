@@ -26,4 +26,8 @@ impl EncodingProvider for ChaChaProvider {
         let seq = self.transcript.get(direction, idx)?;
         Some(self.encoder.encode_subsequence(direction, &seq))
     }
+
+    fn provide_bit_encodings(&self, _direction: Direction, _idx: &Idx) -> Option<Vec<Vec<u8>>> {
+        unimplemented!()
+    }
 }
