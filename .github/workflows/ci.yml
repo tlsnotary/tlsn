@@ -47,8 +47,13 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.6
       - name: tell rustc about cache
         run: |
+            echo "SCCACHE_ENABLED=1" >> "$GITHUB_ENV"
             echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
             echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+            : # https://github.com/dtolnay/rust-toolchain/issues/26
+            echo "CARGO_INCREMENTAL=0" >>  $GITHUB_ENV
+            : # not that we intend to use gcc, but just in case =>
+            echo CCACHE=sccache >> $GITHUB_ENV
             
       - name: Clippy
         run: rustup component add clippy && cargo clippy --all-features --all-targets -- -D warnings
