@@ -1,8 +1,11 @@
+//! The AES-128 block cipher.
+//!
+//! [`MpcAes`] implements [`crate::Cipher`] for AES-128 using [`Aes128`].
+
 use crate::{
     circuit::CipherCircuit, config::CipherConfig, Cipher, CipherError, CipherOutput, Keystream,
 };
 use async_trait::async_trait;
-use mpz_common::Context;
 use mpz_memory_core::{
     binary::{Binary, U8},
     Memory, MemoryExt, Repr, StaticSize, Vector, View, ViewExt,
@@ -16,6 +19,7 @@ mod error;
 pub use circuit::Aes128;
 use error::{AesError, ErrorKind};
 
+/// Computes AES-128.
 pub struct MpcAes {
     config: CipherConfig,
     key: Option<<Aes128 as CipherCircuit>::Key>,
@@ -33,6 +37,7 @@ impl Debug for MpcAes {
 }
 
 impl MpcAes {
+    /// Creates a new instance.
     pub fn new(config: CipherConfig) -> Self {
         Self {
             config,
@@ -41,11 +46,13 @@ impl MpcAes {
         }
     }
 
+    /// Returns the key reference.
     pub fn key(&self) -> Result<<Aes128 as CipherCircuit>::Key, AesError> {
         self.key
             .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))
     }
 
+    /// Returns the iv reference.
     pub fn iv(&self) -> Result<<Aes128 as CipherCircuit>::Iv, AesError> {
         self.iv
             .ok_or_else(|| AesError::new(ErrorKind::Iv, "iv not set"))
@@ -68,9 +75,8 @@ impl MpcAes {
 }
 
 #[async_trait]
-impl<Ctx, V> Cipher<Aes128, Ctx, V> for MpcAes
+impl<V> Cipher<Aes128, V> for MpcAes
 where
-    Ctx: Context,
     V: Vm<Binary> + View<Binary>,
 {
     type Error = AesError;
@@ -83,7 +89,7 @@ where
         self.iv = Some(iv);
     }
 
-    fn alloc(&mut self, vm: &mut V, block_count: usize) -> Result<Keystream<Aes128>, Self::Error> {
+    fn alloc(&self, vm: &mut V, block_count: usize) -> Result<Keystream<Aes128>, Self::Error> {
         let key = self.key()?;
         let iv = self.iv()?;
 
@@ -122,8 +128,8 @@ where
         Ok(keystream)
     }
 
-    fn alloc_block(
-        &mut self,
+    fn assign_block(
+        &self,
         vm: &mut V,
         input_ref: <Aes128 as CipherCircuit>::Block,
         input: <<Aes128 as CipherCircuit>::Block as Repr<Binary>>::Clear,
@@ -150,6 +156,14 @@ where
 }
 
 impl CipherOutput<Aes128> {
+    /// Assigns values to the input references and returns the output reference.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The necessary virtual machine.
+    /// * `explicit_nonce` - The TLS explicit nonce.
+    /// * `start_ctr` - The TLS counter number to start with.
+    /// * `message` - The message to en-/decrypt.
     pub fn assign<V>(
         self,
         vm: &mut V,

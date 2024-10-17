@@ -1,3 +1,5 @@
+//! Configuration for ciphers.
+
 use derive_builder::Builder;
 
 /// Configuration for the cipher.
