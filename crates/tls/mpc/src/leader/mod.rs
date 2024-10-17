@@ -1,14 +1,21 @@
-use std::{collections::VecDeque, future::Future};
-
+use crate::{
+    error::Kind,
+    msg::{
+        ClientFinishedVd, CloseConnection, Commit, CommitMessage, ComputeKeyExchange, DecryptAlert,
+        DecryptMessage, DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
+        MpcTlsMessage, ServerFinishedVd,
+    },
+    record_layer::{Decrypter, Encrypter},
+    Direction, MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
+};
+use aead::{aes_gcm::AesGcmError, Aead};
 use async_trait::async_trait;
 use futures::SinkExt;
-
-use key_exchange as ke;
-
-use aead::{aes_gcm::AesGcmError, Aead};
 use hmac_sha256::Prf;
 use ke::KeyExchange;
-
+use key_exchange as ke;
+use ludi::Context;
+use std::collections::VecDeque;
 use tls_backend::{
     Backend, BackendError, BackendNotifier, BackendNotify, DecryptMode, EncryptMode,
 };
@@ -26,25 +33,15 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
-use tracing::{debug, instrument, trace, Instrument};
+use tracing::{debug, instrument, trace};
 
-use crate::{
-    error::Kind,
-    follower::{
-        ClientFinishedVd, CommitMessage, ComputeKeyExchange, DecryptAlert, DecryptMessage,
-        DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
-        ServerFinishedVd,
-    },
-    msg::{CloseConnection, Commit, MpcTlsLeaderMsg, MpcTlsMessage},
-    record_layer::{Decrypter, Encrypter},
-    Direction, MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
-};
+mod actor;
+use actor::MpcTlsLeaderCtrl;
 
 /// Controller for MPC-TLS leader.
-pub type LeaderCtrl = MpcTlsLeaderCtrl<ludi::FuturesAddress<MpcTlsLeaderMsg>>;
+pub type LeaderCtrl = MpcTlsLeaderCtrl;
 
 /// MPC-TLS leader.
-#[derive(ludi::Controller)]
 pub struct MpcTlsLeader {
     config: MpcTlsLeaderConfig,
     channel: MpcTlsChannel,
@@ -66,19 +63,6 @@ pub struct MpcTlsLeader {
     buffer: VecDeque<OpaqueMessage>,
     /// Whether we have already committed to the transcript.
     committed: bool,
-}
-
-impl ludi::Actor for MpcTlsLeader {
-    type Stop = MpcTlsData;
-    type Error = MpcTlsError;
-
-    async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
-        debug!("leader actor stopped");
-
-        let state::Closed { data } = self.state.take().try_into_closed()?;
-
-        Ok(data)
-    }
 }
 
 impl MpcTlsLeader {
@@ -148,28 +132,6 @@ impl MpcTlsLeader {
             .await?;
 
         Ok(())
-    }
-
-    /// Runs the leader actor.
-    ///
-    /// Returns a control handle and a future that resolves when the actor is
-    /// stopped.
-    ///
-    /// # Note
-    ///
-    /// The future must be polled continuously to make progress.
-    pub fn run(
-        mut self,
-    ) -> (
-        LeaderCtrl,
-        impl Future<Output = Result<MpcTlsData, MpcTlsError>>,
-    ) {
-        let (mut mailbox, addr) = ludi::mailbox(100);
-
-        let ctrl = LeaderCtrl::from(addr);
-        let fut = async move { ludi::run(&mut self, &mut mailbox).await };
-
-        (ctrl, fut.in_current_span())
     }
 
     /// Returns the number of bytes sent and received.
@@ -356,14 +318,10 @@ impl MpcTlsLeader {
 
         Ok(())
     }
-}
 
-#[ludi::implement(msg(name = "{name}"), ctrl(err))]
-impl MpcTlsLeader {
     /// Closes the connection.
     #[instrument(name = "close_connection", level = "debug", skip_all, err)]
-    #[msg(skip, name = "CloseConnection")]
-    pub async fn close_connection(&mut self) -> Result<(), MpcTlsError> {
+    pub async fn close_connection(&mut self, ctx: &mut Context<Self>) -> Result<(), MpcTlsError> {
         debug!("closing connection");
 
         self.channel
@@ -373,7 +331,6 @@ impl MpcTlsLeader {
         let Active { data } = self.state.take().try_into_active()?;
 
         self.state = State::Closed(Closed { data });
-
         ctx.stop();
 
         Ok(())
@@ -390,21 +347,8 @@ impl MpcTlsLeader {
 
         Ok(())
     }
-
-    /// Commits the leader to the current transcript.
-    ///
-    /// This reveals the AEAD key to the leader and disables sending or
-    /// receiving any further messages.
-    #[instrument(name = "finalize", level = "debug", skip_all, err)]
-    #[msg(skip, name = "Commit")]
-    pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
-        self.commit().await
-    }
 }
 
-#[ludi::implement]
-#[ctrl(err = "MpcTlsError::from")]
-#[msg(foreign, wrap, vis = "pub")]
 #[async_trait]
 impl Backend for MpcTlsLeader {
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
@@ -433,11 +377,11 @@ impl Backend for MpcTlsLeader {
         unimplemented!()
     }
 
-    async fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), BackendError> {
+    async fn set_encrypt(&mut self, _mode: EncryptMode) -> Result<(), BackendError> {
         unimplemented!()
     }
 
-    async fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), BackendError> {
+    async fn set_decrypt(&mut self, _mode: DecryptMode) -> Result<(), BackendError> {
         unimplemented!()
     }
 
@@ -519,11 +463,14 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    async fn set_hs_hash_client_key_exchange(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
+    async fn set_hs_hash_client_key_exchange(
+        &mut self,
+        _hash: Vec<u8>,
+    ) -> Result<(), BackendError> {
         Ok(())
     }
 
-    async fn set_hs_hash_server_hello(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
+    async fn set_hs_hash_server_hello(&mut self, _hash: Vec<u8>) -> Result<(), BackendError> {
         Ok(())
     }
 
@@ -636,7 +583,7 @@ impl Backend for MpcTlsLeader {
     async fn encrypt(
         &mut self,
         msg: PlainMessage,
-        seq: u64,
+        _seq: u64,
     ) -> Result<OpaqueMessage, BackendError> {
         let msg = match msg.typ {
             ContentType::Handshake => self.encrypt_client_finished(msg).await,
@@ -656,7 +603,7 @@ impl Backend for MpcTlsLeader {
     async fn decrypt(
         &mut self,
         msg: OpaqueMessage,
-        seq: u64,
+        _seq: u64,
     ) -> Result<PlainMessage, BackendError> {
         let msg = match msg.typ {
             ContentType::Handshake => self.decrypt_server_finished(msg).await,
