@@ -8,7 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    Memory, MemoryExt, Repr, StaticSize, Vector, View, ViewExt,
+    MemoryExt, Repr, StaticSize, Vector, View, ViewExt,
 };
 use mpz_vm_core::{CallBuilder, Vm, VmExt};
 use std::{collections::VecDeque, fmt::Debug};
@@ -172,7 +172,7 @@ impl CipherOutput<Aes128> {
         message: Vec<u8>,
     ) -> Result<Vector<U8>, CipherError>
     where
-        V: Vm<Binary> + Memory<Binary>,
+        V: Vm<Binary>,
     {
         if self.len() != message.len() {
             return Err(CipherError::new(format!(
@@ -203,5 +203,158 @@ impl CipherOutput<Aes128> {
         vm.commit(self.input).map_err(CipherError::new)?;
 
         Ok(self.output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        aes::{Aes128, MpcAes},
+        Cipher, CipherConfig,
+    };
+    use mpz_common::{
+        executor::{test_st_executor, TestSTExecutor},
+        Context,
+    };
+    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_memory_core::{
+        binary::{Binary, U8},
+        correlated::Delta,
+        Array, Memory, MemoryExt, Vector, View, ViewExt,
+    };
+    use mpz_ot::ideal::cot::ideal_cot_with_delta;
+    use mpz_vm_core::{Execute, Vm};
+    use rand::{rngs::StdRng, SeedableRng};
+
+    #[tokio::test]
+    async fn test_aes_ctr() {
+        let key = [0_u8; 16];
+        let iv = [0_u8; 4];
+        let nonce = [0_u8; 8];
+        let start_counter = 0;
+
+        let (mut ctx_a, mut ctx_b) = test_st_executor(8);
+        let (mut gen, mut ev) = mock_vm::<TestSTExecutor>();
+
+        let aes_gen = setup(key, iv, &mut gen);
+        let aes_ev = setup(key, iv, &mut ev);
+
+        let keystream_gen = aes_gen.alloc(&mut gen, 1).unwrap();
+        let keystream_ev = aes_ev.alloc(&mut ev, 1).unwrap();
+
+        let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
+
+        let msg_ref_gen: Vector<U8> = gen.alloc_vec(msg.len()).unwrap();
+        gen.mark_public(msg_ref_gen).unwrap();
+
+        let msg_ref_ev: Vector<U8> = ev.alloc_vec(msg.len()).unwrap();
+        ev.mark_public(msg_ref_ev).unwrap();
+
+        let cipher_out_gen = keystream_gen.apply(&mut gen, msg_ref_gen).unwrap();
+        let cipher_out_ev = keystream_ev.apply(&mut ev, msg_ref_ev).unwrap();
+
+        let out_gen = cipher_out_gen
+            .assign(&mut gen, nonce, start_counter, msg.clone())
+            .unwrap();
+        let out_ev = cipher_out_ev
+            .assign(&mut gen, nonce, start_counter, msg.clone())
+            .unwrap();
+
+        let (ciphertext_gen, ciphetext_ev) = futures::try_join!(
+            async {
+                gen.flush(&mut ctx_a).await.unwrap();
+                gen.execute(&mut ctx_a).await.unwrap();
+                gen.flush(&mut ctx_a).await.unwrap();
+
+                gen.decode(out_gen).unwrap().await
+            },
+            async {
+                ev.flush(&mut ctx_b).await.unwrap();
+                ev.execute(&mut ctx_b).await.unwrap();
+                ev.flush(&mut ctx_b).await.unwrap();
+
+                ev.decode(out_ev).unwrap().await
+            }
+        )
+        .unwrap();
+
+        assert_eq!(ciphertext_gen, ciphetext_ev);
+
+        let expected = aes_apply_keystream(key, iv, nonce, start_counter as usize, msg);
+        assert_eq!(ciphertext_gen, expected);
+    }
+
+    fn test_aes_ecb() {
+        let (mut ctx_a, mut ctx_b) = test_st_executor(8);
+        todo!()
+    }
+
+    fn mock_vm<Ctx>() -> (
+        impl Vm<Binary> + View<Binary> + Execute<Ctx>,
+        impl Vm<Binary> + View<Binary> + Execute<Ctx>,
+    )
+    where
+        Ctx: Context,
+    {
+        let mut rng = StdRng::seed_from_u64(0);
+        let delta = Delta::random(&mut rng);
+
+        let (cot_send, cot_recv) = ideal_cot_with_delta(delta.into_inner());
+
+        let gen = Generator::new(cot_send, [0u8; 16], delta);
+        let ev = Evaluator::new(cot_recv);
+
+        (gen, ev)
+    }
+
+    fn setup<V, Ctx>(key: [u8; 16], iv: [u8; 4], vm: &mut V) -> MpcAes
+    where
+        V: Vm<Binary> + Memory<Binary> + View<Binary> + Execute<Ctx>,
+        Ctx: Context,
+    {
+        let key_ref: Array<U8, 16> = vm.alloc().unwrap();
+        vm.mark_public(key_ref).unwrap();
+        vm.assign(key_ref, key).unwrap();
+        vm.commit(key_ref).unwrap();
+
+        let iv_ref: Array<U8, 4> = vm.alloc().unwrap();
+        vm.mark_public(iv_ref).unwrap();
+        vm.assign(iv_ref, iv).unwrap();
+        vm.commit(iv_ref).unwrap();
+
+        let config = CipherConfig::builder().id("test").build().unwrap();
+
+        let mut aes = MpcAes::new(config);
+
+        Cipher::<Aes128, V>::set_key(&mut aes, key_ref);
+        Cipher::<Aes128, V>::set_iv(&mut aes, iv_ref);
+
+        aes
+    }
+
+    fn aes_apply_keystream(
+        key: [u8; 16],
+        iv: [u8; 4],
+        explicit_nonce: [u8; 8],
+        start_ctr: usize,
+        msg: Vec<u8>,
+    ) -> Vec<u8> {
+        use ::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+        use aes::Aes128;
+        use ctr::Ctr32BE;
+
+        let mut full_iv = [0u8; 16];
+        full_iv[0..4].copy_from_slice(&iv);
+        full_iv[4..12].copy_from_slice(&explicit_nonce);
+
+        let mut cipher = Ctr32BE::<Aes128>::new(&key.into(), &full_iv.into());
+        let mut out = msg.clone();
+
+        cipher
+            .try_seek(start_ctr * 16)
+            .expect("start counter is less than keystream length");
+        cipher.apply_keystream(&mut out);
+
+        out
     }
 }
