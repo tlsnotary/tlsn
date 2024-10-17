@@ -7,7 +7,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
     Memory, MemoryExt, Repr, StaticSize, Vector, View, ViewExt,
 };
-use mpz_vm_core::{CallBuilder, Execute, Vm, VmExt};
+use mpz_vm_core::{CallBuilder, Vm, VmExt};
 use std::{collections::VecDeque, fmt::Debug};
 
 mod circuit;
@@ -71,8 +71,7 @@ impl MpcAes {
 impl<Ctx, V> Cipher<Aes128, Ctx, V> for MpcAes
 where
     Ctx: Context,
-    Self: Send,
-    V: Vm<Binary> + View<Binary> + Execute<Ctx> + Send,
+    V: Vm<Binary> + View<Binary>,
 {
     type Error = AesError;
 
