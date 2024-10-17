@@ -257,7 +257,7 @@ mod tests {
             .assign(&mut gen, nonce, start_counter, msg.clone())
             .unwrap();
         let out_ev = cipher_out_ev
-            .assign(&mut gen, nonce, start_counter, msg.clone())
+            .assign(&mut ev, nonce, start_counter, msg.clone())
             .unwrap();
 
         let (ciphertext_gen, ciphetext_ev) = futures::try_join!(
