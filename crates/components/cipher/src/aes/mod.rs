@@ -149,6 +149,7 @@ where
         Ok(output)
     }
 }
+
 impl CipherOutput<Aes128> {
     pub fn assign<V>(
         self,

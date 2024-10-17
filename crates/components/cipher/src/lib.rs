@@ -12,13 +12,14 @@
 #![forbid(unsafe_code)]
 
 pub mod aes;
-pub mod circuit;
+mod circuit;
 pub mod config;
 
-use std::collections::VecDeque;
+pub use circuit::CipherCircuit;
+pub use config::CipherConfig;
 
 use async_trait::async_trait;
-use circuit::{build_xor_circuit, CipherCircuit};
+use circuit::build_xor_circuit;
 use mpz_circuits::types::ValueType;
 use mpz_common::Context;
 use mpz_memory_core::{
@@ -26,6 +27,7 @@ use mpz_memory_core::{
     FromRaw, Repr, Slice, StaticSize, ToRaw, Vector,
 };
 use mpz_vm_core::{CallBuilder, CallError, Vm, VmExt};
+use std::collections::VecDeque;
 
 #[async_trait]
 pub trait Cipher<C: CipherCircuit, Ctx: Context, V: Vm<Binary>> {
