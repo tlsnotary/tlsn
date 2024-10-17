@@ -2,7 +2,7 @@
 edition = "2021"
 name = "tlsn-benches-library"
 publish = false
-version = "0.1.0"
+version = "0.0.0"
 
 [dependencies]
 tlsn-common = { workspace = true }
@@ -16,9 +16,4 @@ async-trait = "0.1.81"
 futures = { version = "0.3", features = ["compat"] }
 serde = { workspace = true }
 tokio = {version = "1", default-features = false, features = ["rt", "macros"]}
-tokio-tungstenite-wasm = "0.3.1"
 tokio-util= {version = "0.7", features = ["compat", "io"]}
-toml = "0.8.11"
-
-
-

@@ -5,7 +5,7 @@ description = "Core types for TLSNotary"
 keywords = ["tls", "mpc", "2pc", "types"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8-pre"
 edition = "2021"
 
 [features]
@@ -24,7 +24,6 @@ mpz-circuits = { workspace = true }
 bcs = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
-derive_builder = { workspace = true }
 hex = { workspace = true, optional = true }
 k256 = { workspace = true }
 opaque-debug = { workspace = true }
@@ -43,14 +42,12 @@ webpki-roots = { workspace = true }
 [dev-dependencies]
 rstest = { workspace = true }
 hex = { workspace = true }
-rand_chacha = { workspace = true }
-bincode = { workspace = true }
 tlsn-data-fixtures = { workspace = true }
 
 [[test]]
 name = "api"
 required-features = ["fixtures"]
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
-getrandom = { version = "0.2", features = ["js"] }
+# [target.'cfg(target_arch = "wasm32")'.dependencies]
+# ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+# getrandom = { version = "0.2", features = ["js"] }
