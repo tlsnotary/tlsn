@@ -25,7 +25,6 @@ pub(crate) enum ErrorKind {
     Vm,
     Key,
     Iv,
-    Keystream,
 }
 
 impl Display for AesError {
@@ -34,7 +33,6 @@ impl Display for AesError {
             ErrorKind::Vm => write!(f, "vm error")?,
             ErrorKind::Key => write!(f, "key error")?,
             ErrorKind::Iv => write!(f, "iv error")?,
-            ErrorKind::Keystream => write!(f, "keystream error")?,
         }
 
         if let Some(source) = &self.source {

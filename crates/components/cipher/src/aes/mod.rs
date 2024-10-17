@@ -1,14 +1,20 @@
-use crate::{circuit::CipherCircuit, config::CipherConfig, Cipher, EcbBlock, Keystream};
+use crate::{
+    circuit::CipherCircuit, config::CipherConfig, Cipher, CipherError, CipherOutput, EcbBlock,
+    Keystream,
+};
 use async_trait::async_trait;
 use mpz_common::Context;
-use mpz_memory_core::{binary::Binary, MemoryExt, Repr, StaticSize, View, ViewExt};
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Memory, MemoryExt, Repr, StaticSize, Vector, View, ViewExt,
+};
 use mpz_vm_core::{CallBuilder, Execute, Vm, VmExt};
 use std::{collections::VecDeque, fmt::Debug};
 
 mod circuit;
 mod error;
 
-use circuit::Aes128;
+pub use circuit::Aes128;
 use error::{AesError, ErrorKind};
 
 pub struct MpcAes {
@@ -120,5 +126,47 @@ where
 
     fn alloc_block(&mut self, vm: &mut V) -> Result<EcbBlock<Aes128>, Self::Error> {
         todo!()
+    }
+}
+impl CipherOutput<Aes128> {
+    pub fn assign<V>(
+        self,
+        vm: &mut V,
+        explicit_nonce: [u8; 8],
+        start_ctr: u32,
+        message: Vec<u8>,
+    ) -> Result<Vector<U8>, CipherError>
+    where
+        V: Vm<Binary> + Memory<Binary>,
+    {
+        if self.len() != message.len() {
+            return Err(CipherError::new(format!(
+                "message has wrong length, got {}, but expected {}",
+                message.len(),
+                self.len()
+            )));
+        }
+
+        let message_len = message.len() as u32;
+        let block_count = (message_len / 16) + (message_len % 16 != 0) as u32;
+        let counters = (start_ctr..start_ctr + block_count).map(|counter| counter.to_be_bytes());
+
+        for ((ctr, ctr_value), nonce) in self
+            .counters
+            .into_iter()
+            .zip(counters)
+            .zip(self.explicit_nonces)
+        {
+            vm.assign(ctr, ctr_value).map_err(CipherError::new)?;
+            vm.commit(ctr).map_err(CipherError::new)?;
+
+            vm.assign(nonce, explicit_nonce).map_err(CipherError::new)?;
+            vm.commit(nonce).map_err(CipherError::new)?;
+        }
+
+        vm.assign(self.input, message).map_err(CipherError::new)?;
+        vm.commit(self.input).map_err(CipherError::new)?;
+
+        Ok(self.output)
     }
 }

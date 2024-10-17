@@ -141,3 +141,16 @@ webpki = { version = "0.22" }
 webpki-roots = { version = "0.26" }
 ws_stream_tungstenite = { version = "0.13" }
 zeroize = { version = "1.8" }
+
+#[patch."https://github.com/privacy-scaling-explorations/mpz"]
+#mpz-common = { path = "../mpz/crates/mpz-common" }
+#mpz-core = { path = "../mpz/crates/mpz-core" }
+#mpz-garble = { path = "../mpz/crates/mpz-garble" }
+#mpz-circuits = { path = "../mpz/crates/mpz-circuits" }
+#mpz-vm-core = { path = "../mpz/crates/mpz-vm-core" }
+#mpz-memory-core = { path = "../mpz/crates/mpz-memory-core" }
+#mpz-ot = { path = "../mpz/crates/mpz-ot", optional = true, features = ["ideal"] }
+#mpz-garble-core = { path = "../mpz/crates/mpz-garble-core" }
+#mpz-ole = { path = "../mpz/crates/mpz-ole" }
+#mpz-share-conversion = { path = "../mpz/crates/mpz-share-conversion" }
+

@@ -60,12 +60,12 @@ impl<C: CipherCircuit> Keystream<C> {
         }
     }
 
-    pub fn apply<V>(self, vm: &mut V, input: Vector<U8>) -> Result<CipherOutput<C>, KeystreamError>
+    pub fn apply<V>(self, vm: &mut V, input: Vector<U8>) -> Result<CipherOutput<C>, CipherError>
     where
         V: Vm<Binary>,
     {
-        if self.len() * <C::Block as StaticSize<Binary>>::SIZE < input.len() {
-            return Err(KeystreamError::new("input too long for keystream"));
+        if self.block_len() * <C::Block as StaticSize<Binary>>::SIZE < input.len() {
+            return Err(CipherError::new("input is too long for keystream"));
         }
 
         let mut keystream: Vector<U8> = transmute(self.outputs);
@@ -74,11 +74,9 @@ impl<C: CipherCircuit> Keystream<C> {
         let xor = build_xor_circuit(&[ValueType::new_array::<u8>(input.len())]);
         let call = CallBuilder::new(xor).arg(keystream).arg(input).build()?;
 
-        let output = vm.call(call).map_err(|err| KeystreamError::new(err))?;
+        let output: Vector<U8> = vm.call(call).map_err(CipherError::new)?;
 
         let cipher_output = CipherOutput {
-            key: self.key,
-            iv: self.iv,
             explicit_nonces: self.explicit_nonces,
             counters: self.counters,
             input,
@@ -103,15 +101,12 @@ impl<C: CipherCircuit> Keystream<C> {
     }
 
     #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> usize {
+    pub fn block_len(&self) -> usize {
         self.explicit_nonces.len()
     }
 }
 
-// TODO
 pub struct CipherOutput<C: CipherCircuit> {
-    key: <C as CipherCircuit>::Key,
-    iv: <C as CipherCircuit>::Iv,
     pub(crate) explicit_nonces: VecDeque<C::Nonce>,
     pub(crate) counters: VecDeque<C::Counter>,
     pub(crate) input: Vector<U8>,
@@ -119,17 +114,9 @@ pub struct CipherOutput<C: CipherCircuit> {
 }
 
 impl<C: CipherCircuit> CipherOutput<C> {
-    pub fn assign<V>(
-        self,
-        vm: V,
-        nonce: [u8; 8],
-        start_ctr: u32,
-        message: Vec<u8>,
-    ) -> Result<Vector<U8>, KeystreamError>
-    where
-        V: Vm<Binary>,
-    {
-        todo!()
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.input.len()
     }
 }
 
@@ -140,12 +127,12 @@ pub struct EcbBlock<C: CipherCircuit> {
 
 #[derive(Debug, thiserror::Error)]
 #[error("{source}")]
-pub struct KeystreamError {
+pub struct CipherError {
     #[source]
     source: Box<dyn std::error::Error + Send + Sync>,
 }
 
-impl KeystreamError {
+impl CipherError {
     pub(crate) fn new<E>(source: E) -> Self
     where
         E: Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -156,7 +143,7 @@ impl KeystreamError {
     }
 }
 
-impl From<CallError> for KeystreamError {
+impl From<CallError> for CipherError {
     fn from(value: CallError) -> Self {
         Self::new(value)
     }
