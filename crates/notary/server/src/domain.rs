@@ -14,6 +14,4 @@ pub struct InfoResponse {
     pub public_key: String,
     /// Current git commit hash of notary-server
     pub git_commit_hash: String,
-    /// Current git commit timestamp of notary-server
-    pub git_commit_timestamp: String,
 }
