@@ -18,13 +18,14 @@ pub mod config;
 use std::collections::VecDeque;
 
 use async_trait::async_trait;
-use circuit::CipherCircuit;
-use mpz_circuits::types::{ValueType, U8};
+use circuit::{build_xor_circuit, CipherCircuit};
+use mpz_circuits::types::ValueType;
 use mpz_common::Context;
-use mpz_memory_core::{binary::Binary, Vector};
-use mpz_vm_core::{CallBuilder, Vm};
-
-use self::circuit::build_xor_circuit;
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    FromRaw, Slice, StaticSize, ToRaw, Vector,
+};
+use mpz_vm_core::{CallBuilder, CallError, Vm, VmExt};
 
 #[async_trait]
 pub trait Cipher<C: CipherCircuit, Ctx: Context, V: Vm<Binary>> {
@@ -43,9 +44,9 @@ pub trait Cipher<C: CipherCircuit, Ctx: Context, V: Vm<Binary>> {
 pub struct Keystream<C: CipherCircuit> {
     key: <C as CipherCircuit>::Key,
     iv: <C as CipherCircuit>::Iv,
-    explicit_nonces: VecDeque<C::Nonce>,
-    counters: VecDeque<C::Counter>,
-    outputs: VecDeque<C::Block>,
+    pub(crate) explicit_nonces: VecDeque<C::Nonce>,
+    pub(crate) counters: VecDeque<C::Counter>,
+    pub(crate) outputs: VecDeque<C::Block>,
 }
 
 impl<C: CipherCircuit> Keystream<C> {
@@ -59,17 +60,32 @@ impl<C: CipherCircuit> Keystream<C> {
         }
     }
 
-    pub fn apply<V>(
-        &mut self,
-        vm: &mut V,
-        input: Vector<U8>,
-    ) -> Result<CipherOutput<C>, KeystreamError>
+    pub fn apply<V>(self, vm: &mut V, input: Vector<U8>) -> Result<CipherOutput<C>, KeystreamError>
     where
         V: Vm<Binary>,
     {
+        if self.len() * <C::Block as StaticSize<Binary>>::SIZE < input.len() {
+            return Err(KeystreamError::new("input too long for keystream"));
+        }
+
+        let mut keystream: Vector<U8> = transmute(self.outputs);
+        keystream.truncate(input.len());
+
         let xor = build_xor_circuit(&[ValueType::new_array::<u8>(input.len())]);
-        //let output = CallBuilder::new(xor).arg(arg);
-        todo!()
+        let call = CallBuilder::new(xor).arg(keystream).arg(input).build()?;
+
+        let output = vm.call(call).map_err(|err| KeystreamError::new(err))?;
+
+        let cipher_output = CipherOutput {
+            key: self.key,
+            iv: self.iv,
+            explicit_nonces: self.explicit_nonces,
+            counters: self.counters,
+            input,
+            output,
+        };
+
+        Ok(cipher_output)
     }
 
     pub fn chunk(&mut self, block_count: usize) -> Keystream<C> {
@@ -90,17 +106,16 @@ impl<C: CipherCircuit> Keystream<C> {
     pub fn len(&self) -> usize {
         self.explicit_nonces.len()
     }
-
-    fn push(&mut self, explicit_nonce: C::Nonce, counter: C::Counter, output: C::Block) {
-        self.explicit_nonces.push_back(explicit_nonce);
-        self.counters.push_back(counter);
-        self.outputs.push_back(output);
-    }
 }
 
 // TODO
-pub struct CipherOutput<C> {
-    pd: std::marker::PhantomData<C>,
+pub struct CipherOutput<C: CipherCircuit> {
+    key: <C as CipherCircuit>::Key,
+    iv: <C as CipherCircuit>::Iv,
+    pub(crate) explicit_nonces: VecDeque<C::Nonce>,
+    pub(crate) counters: VecDeque<C::Counter>,
+    pub(crate) input: Vector<U8>,
+    pub(crate) output: Vector<U8>,
 }
 
 impl<C: CipherCircuit> CipherOutput<C> {
@@ -119,7 +134,7 @@ impl<C: CipherCircuit> CipherOutput<C> {
 }
 
 // TODO
-pub struct EcbBlock<C> {
+pub struct EcbBlock<C: CipherCircuit> {
     pd: std::marker::PhantomData<C>,
 }
 
@@ -139,4 +154,28 @@ impl KeystreamError {
             source: source.into(),
         }
     }
+}
+
+impl From<CallError> for KeystreamError {
+    fn from(value: CallError) -> Self {
+        Self::new(value)
+    }
+}
+
+// # Safety
+
+// This is only safe to call, if the provided vm arrays have been sequentially allocated.
+fn transmute<T>(values: VecDeque<T>) -> Vector<U8>
+where
+    T: StaticSize<Binary> + ToRaw,
+{
+    let ptr = values
+        .front()
+        .expect("Vector should not be empty")
+        .to_raw()
+        .ptr();
+    let size = <T as StaticSize<Binary>>::SIZE * values.len();
+    let slice = Slice::new_unchecked(ptr, size);
+
+    Vector::<U8>::from_raw(slice)
 }

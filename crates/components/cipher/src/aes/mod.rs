@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use mpz_common::Context;
 use mpz_memory_core::{binary::Binary, MemoryExt, Repr, StaticSize, View, ViewExt};
 use mpz_vm_core::{CallBuilder, Execute, Vm, VmExt};
-use std::fmt::Debug;
+use std::{collections::VecDeque, fmt::Debug};
 
 mod circuit;
 mod error;
@@ -84,7 +84,9 @@ where
         let iv = self.iv()?;
 
         let mut keystream = Keystream::<Aes128>::new(key, iv);
+        let mut circuits = VecDeque::with_capacity(block_count);
 
+        // outputs need to be allocated sequentially so we do two separate for loops.
         for _ in 0..block_count {
             let explicit_nonce: <Aes128 as CipherCircuit>::Nonce = MpcAes::alloc_public(vm)?;
             let counter: <Aes128 as CipherCircuit>::Counter = MpcAes::alloc_public(vm)?;
@@ -97,11 +99,20 @@ where
                 .build()
                 .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
+            keystream.explicit_nonces.push_back(explicit_nonce);
+            keystream.counters.push_back(counter);
+            circuits.push_back(aes_ctr);
+        }
+
+        for _ in 0..block_count {
+            let aes_ctr = circuits
+                .pop_front()
+                .expect("Enough aes-ctr circuits should be available");
             let output: <Aes128 as CipherCircuit>::Block = vm
                 .call(aes_ctr)
                 .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
-            keystream.push(explicit_nonce, counter, output);
+            keystream.outputs.push_back(output);
         }
 
         Ok(keystream)
