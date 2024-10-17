@@ -1,6 +1,5 @@
 use crate::{
-    circuit::CipherCircuit, config::CipherConfig, Cipher, CipherError, CipherOutput, EcbBlock,
-    Keystream,
+    circuit::CipherCircuit, config::CipherConfig, Cipher, CipherError, CipherOutput, Keystream,
 };
 use async_trait::async_trait;
 use mpz_common::Context;
@@ -89,7 +88,7 @@ where
         let key = self.key()?;
         let iv = self.iv()?;
 
-        let mut keystream = Keystream::<Aes128>::new(key, iv);
+        let mut keystream = Keystream::<Aes128>::default();
         let mut circuits = VecDeque::with_capacity(block_count);
 
         // outputs need to be allocated sequentially so we do two separate for loops.
@@ -124,8 +123,30 @@ where
         Ok(keystream)
     }
 
-    fn alloc_block(&mut self, vm: &mut V) -> Result<EcbBlock<Aes128>, Self::Error> {
-        todo!()
+    fn alloc_block(
+        &mut self,
+        vm: &mut V,
+        input_ref: <Aes128 as CipherCircuit>::Block,
+        input: <<Aes128 as CipherCircuit>::Block as Repr<Binary>>::Clear,
+    ) -> Result<<Aes128 as CipherCircuit>::Block, Self::Error> {
+        let key = self.key()?;
+
+        vm.assign(input_ref, input)
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+        vm.commit(input_ref)
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+        let aes_ecb = CallBuilder::new(<Aes128 as CipherCircuit>::ecb())
+            .arg(key)
+            .arg(input_ref)
+            .build()
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+        let output: <Aes128 as CipherCircuit>::Block = vm
+            .call(aes_ecb)
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+        Ok(output)
     }
 }
 impl CipherOutput<Aes128> {

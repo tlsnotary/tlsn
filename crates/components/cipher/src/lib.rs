@@ -23,7 +23,7 @@ use mpz_circuits::types::ValueType;
 use mpz_common::Context;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    FromRaw, Slice, StaticSize, ToRaw, Vector,
+    FromRaw, Repr, Slice, StaticSize, ToRaw, Vector,
 };
 use mpz_vm_core::{CallBuilder, CallError, Vm, VmExt};
 
@@ -38,28 +38,31 @@ pub trait Cipher<C: CipherCircuit, Ctx: Context, V: Vm<Binary>> {
 
     fn alloc(&mut self, vm: &mut V, block_count: usize) -> Result<Keystream<C>, Self::Error>;
 
-    fn alloc_block(&mut self, vm: &mut V) -> Result<EcbBlock<C>, Self::Error>;
+    fn alloc_block(
+        &mut self,
+        vm: &mut V,
+        input_ref: <C as CipherCircuit>::Block,
+        input: <<C as CipherCircuit>::Block as Repr<Binary>>::Clear,
+    ) -> Result<<C as CipherCircuit>::Block, Self::Error>;
 }
 
 pub struct Keystream<C: CipherCircuit> {
-    key: <C as CipherCircuit>::Key,
-    iv: <C as CipherCircuit>::Iv,
     pub(crate) explicit_nonces: VecDeque<C::Nonce>,
     pub(crate) counters: VecDeque<C::Counter>,
     pub(crate) outputs: VecDeque<C::Block>,
 }
 
-impl<C: CipherCircuit> Keystream<C> {
-    pub(crate) fn new(key: <C as CipherCircuit>::Key, iv: <C as CipherCircuit>::Iv) -> Self {
+impl<C: CipherCircuit> Default for Keystream<C> {
+    fn default() -> Self {
         Self {
-            key,
-            iv,
             explicit_nonces: VecDeque::default(),
             counters: VecDeque::default(),
             outputs: VecDeque::default(),
         }
     }
+}
 
+impl<C: CipherCircuit> Keystream<C> {
     pub fn apply<V>(self, vm: &mut V, input: Vector<U8>) -> Result<CipherOutput<C>, CipherError>
     where
         V: Vm<Binary>,
@@ -86,18 +89,25 @@ impl<C: CipherCircuit> Keystream<C> {
         Ok(cipher_output)
     }
 
-    pub fn chunk(&mut self, block_count: usize) -> Keystream<C> {
+    pub fn chunk(&mut self, block_count: usize) -> Result<Keystream<C>, CipherError> {
+        if block_count > self.block_len() {
+            return Err(CipherError::new(format!(
+                "keysteam only contains {} blocks",
+                self.block_len()
+            )));
+        }
+
         let explicit_nonces = self.explicit_nonces.drain(..block_count).collect();
         let counters = self.counters.drain(..block_count).collect();
         let outputs = self.outputs.drain(..block_count).collect();
 
-        Keystream {
-            key: self.key,
-            iv: self.iv,
+        let keystream = Keystream {
             explicit_nonces,
             counters,
             outputs,
-        }
+        };
+
+        Ok(keystream)
     }
 
     #[allow(clippy::len_without_is_empty)]
@@ -118,11 +128,6 @@ impl<C: CipherCircuit> CipherOutput<C> {
     pub fn len(&self) -> usize {
         self.input.len()
     }
-}
-
-// TODO
-pub struct EcbBlock<C: CipherCircuit> {
-    pd: std::marker::PhantomData<C>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -151,7 +156,7 @@ impl From<CallError> for CipherError {
 
 // # Safety
 
-// This is only safe to call, if the provided vm arrays have been sequentially allocated.
+// This is only safe to call, if the provided vm values have been sequentially allocated.
 fn transmute<T>(values: VecDeque<T>) -> Vector<U8>
 where
     T: StaticSize<Binary> + ToRaw,
