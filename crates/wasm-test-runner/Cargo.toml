@@ -1,6 +1,6 @@
 [package]
 name = "tlsn-wasm-test-runner"
-version = "0.1.0-alpha.8-pre"
+version = "0.0.0"
 edition = "2021"
 publish = false
 
