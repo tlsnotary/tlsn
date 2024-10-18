@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose::STANDARD, Engine};
 use mc_sgx_dcap_types::{QlError, Quote3};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -17,6 +16,11 @@ use std::{
     path::Path,
 };
 use tracing::{debug, error, instrument};
+
+lazy_static::lazy_static! {
+    static ref SECP256K1_OID: simple_asn1::OID = simple_asn1::oid!(1, 3, 132, 0, 10);
+    static ref ECDSA_OID: simple_asn1::OID = simple_asn1::oid!(1, 2, 840, 10045, 2, 1);
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +71,25 @@ impl From<QlError> for QuoteError {
 }
 
 static PUBLIC_KEY: OnceCell<PublicKey> = OnceCell::new();
+
+fn pem_der_encode_with_asn1(public_point: &[u8]) -> String {
+    use simple_asn1::*;
+
+    let ecdsa_oid = ASN1Block::ObjectIdentifier(0, ECDSA_OID.clone());
+    let secp256k1_oid = ASN1Block::ObjectIdentifier(0, SECP256K1_OID.clone());
+    let alg_id = ASN1Block::Sequence(0, vec![ecdsa_oid, secp256k1_oid]);
+    let key_bytes = ASN1Block::BitString(0, public_point.len() * 8, public_point.to_vec());
+
+    let blocks = vec![alg_id, key_bytes];
+
+    let der_out = simple_asn1::to_der(&ASN1Block::Sequence(0, blocks))
+        .expect("Failed to encode ECDSA private key as DER");
+
+    pem::encode(&pem::Pem {
+        tag: "PUBLIC KEY".to_string(),
+        contents: der_out,
+    })
+}
 
 #[instrument(level = "debug", skip_all)]
 async fn gramine_quote() -> Result<Quote, QuoteError> {
@@ -131,16 +154,11 @@ pub fn ephemeral_keypair() -> (AttestationKey, String) {
         .verifying_key()
         .to_encoded_point(true)
         .to_bytes();
-    let b64k = STANDARD.encode(derk.as_ref());
-    let pem = format!(
-        "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----\n",
-        b64k
-    );
-
+    let pem_spki_pub = pem_der_encode_with_asn1(&derk);
     let _ = PUBLIC_KEY
         .set(*signing_key.verifying_key())
         .map_err(|_| "Public key has already been set");
-    (attkey, pem)
+    (attkey, pem_spki_pub)
 }
 
 pub async fn quote() -> Quote {
