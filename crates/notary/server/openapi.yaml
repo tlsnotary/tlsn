@@ -203,11 +203,7 @@ components:
         gitCommitHash:
           description: The git commit hash of source code that this notary server is running
           type: string
-        gitCommitTimestamp:
-          description: The git commit timestamp of source code that this notary server is running
-          type: string
       required:
         - "version"
         - "publicKey"
         - "gitCommitHash"
-        - "gitCommitTimestamp"

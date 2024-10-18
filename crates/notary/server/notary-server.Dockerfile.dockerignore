@@ -1,12 +1,4 @@
-# exclude everything
-*
-
-# include notary and core library dependencies
-!/crates
-!/Cargo.toml
-
-# include .git for program to get git info
-!/.git
-
-# exclude any /target folders inside the included folders above
-**/target*
+# exclude Rust build artifacts
+./target
+./crates/wasm/pkg/
+./crates/wasm-test-runner/static/generated/
