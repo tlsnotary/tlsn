@@ -17,45 +17,43 @@ env:
   #   - https://github.com/privacy-scaling-explorations/mpz/issues/178
   # 32 seems to be big enough for the foreseeable future
   RAYON_NUM_THREADS: 32
+  # these remove the need for git in notary-server build.rs:
+  GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
+  GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.pushed_at}}
+  # macs attempt to wire up sccache correctly!:
+  SCCACHE_ENABLED: 1
+  SCCACHE_GHA_ENABLED: true
+  RUSTC_WRAPPER: sccache
+  CARGO_INCREMENTAL: 0
+  # not that we intend to use gcc, but just in case =>
+  CCACHE: sccache
 
 jobs:
   fmt:
     name: Check formatting
     runs-on: ubuntu-latest
+    container:
+      # We use nightly because we need fmt's nightly `imports_granularity` feature
+      image: instrumentisto/rust:nightly-slim
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-        # We use nightly to support `imports_granularity` feature
-      - name: Install nightly rust toolchain with rustfmt
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: nightly
-          components: rustfmt
-
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
-
       - name: Check formatting
-        run: cargo +nightly fmt --check --all
+        run: rustup component add rustfmt && cargo +nightly fmt --check --all
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
+    container:
+      image: rust:bullseye
     steps:
+      - name: ensure this job has sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install stable rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          components: clippy
-
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
-
+        
       - name: Clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
+        run: rustup component add clippy && cargo clippy --all-features --all-targets -- -D warnings
 
       - name: Build
         run: cargo build --all-targets
@@ -65,68 +63,58 @@ jobs:
   build-wasm:
     name: Build and test wasm
     runs-on: ubuntu-latest
+    container:
+      image: instrumentisto/rust:nightly-slim
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install stable rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-          toolchain: stable
-
-      - name: Install nightly rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown,x86_64-unknown-linux-gnu
-          toolchain: nightly
-          components: rust-src
-
-      - name: Install chromedriver
+      - name: use caching
+        uses: mozilla-actions/sccache-action@v0.0.6
+      - name: Install wasm target + chromedriver
         run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-chromedriver
+          rustup target add wasm32-unknown-unknown
+          rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+          apt update
+          apt install -y chromium-driver clang
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
+        run: cargo install wasm-pack
 
       - name: Run tests
         run: |
-          cd crates/wasm-test-runner
-          ./run.sh
+          
+          cd crates/wasm-test-runner 
+          chmod +x run.sh && ./run.sh
+      
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
+    container:
+      image: rust:bullseye
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install stable rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Use caching
-        uses: Swatinem/rust-cache@v2.7.3
+        
+      - name: use caching
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Add custom DNS entry to /etc/hosts for notary TLS test
-        run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
+        run: echo "127.0.0.1 tlsnotaryserver.io" | tee -a /etc/hosts
 
       - name: Run integration tests
         run: cargo test --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored
   coverage:
     runs-on: ubuntu-latest
+    container:
+      image: rust:bullseye
     env:
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v4
-      - name: Install stable rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
