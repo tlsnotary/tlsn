@@ -611,7 +611,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_get_subsequence(transcript: Transcript) {
+    fn test_transcript_get_subsequence(transcript: Transcript) {
         let subseq = transcript
             .get(Direction::Received, &Idx(RangeSet::from([0..4, 7..10])))
             .unwrap();
@@ -630,5 +630,242 @@ mod tests {
 
         let subseq = transcript.get(Direction::Sent, &Idx(RangeSet::from([0..4, 7..10, 11..13])));
         assert_eq!(subseq, None);
+    }
+
+    #[rstest]
+    fn test_transcript_to_partial_success(transcript: Transcript) {
+        let partial = transcript.to_partial(
+            Idx::new(0..2), 
+            Idx::new(3..7), 
+        );
+        assert_eq!(partial.sent_unsafe(), [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(partial.received_unsafe(), [0, 0, 0, 3, 4, 5, 6, 0, 0, 0, 0, 0]);
+    }
+
+    #[rstest]
+    #[should_panic]
+    fn test_transcript_to_partial_failure(transcript: Transcript) {
+        let _ = transcript.to_partial(
+            Idx::new(0..14), 
+            Idx::new(3..7), 
+        );
+    }
+
+    #[rstest]
+    fn test_partial_transcript_contains(transcript: Transcript) {
+        let partial = transcript.to_partial(
+            Idx::new(0..2), 
+            Idx::new(3..7), 
+        );
+        assert!(partial.contains(Direction::Sent, &Idx::new([0..5, 7..10])));
+        assert!(!partial.contains(Direction::Received, &Idx::new([4..6, 7..13])))
+    }
+
+    #[rstest]
+    fn test_partial_transcript_unauthed(transcript: Transcript) {
+        let partial = transcript.to_partial(
+            Idx::new(0..2), 
+            Idx::new(3..7), 
+        );
+        assert_eq!(partial.sent_unauthed(), Idx::new(2..12));
+        assert_eq!(partial.received_unauthed(), Idx::new([0..3, 7..12]));
+    }
+
+    #[rstest]
+    fn test_partial_transcript_union_success(transcript: Transcript) {
+        // non overlapping ranges
+        let mut simple_partial = transcript.to_partial(
+            Idx::new(0..2), 
+            Idx::new(3..7), 
+        );
+
+        let other_simple_partial = transcript.to_partial(
+            Idx::new(3..5), 
+            Idx::new(1..2), 
+        );
+
+        simple_partial.union_transcript(&other_simple_partial);
+
+        assert_eq!(simple_partial.sent_unsafe(), [0, 1, 0, 3, 4, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(simple_partial.received_unsafe(), [0, 1, 0, 3, 4, 5, 6, 0, 0, 0, 0, 0]);
+        assert_eq!(simple_partial.sent_authed(), &Idx::new([0..2, 3..5]));
+        assert_eq!(simple_partial.received_authed(), &Idx::new([1..2, 3..7]));
+
+        // overwrite with another partial transcript
+
+        let another_simple_partial = transcript.to_partial(
+            Idx::new(1..4), 
+            Idx::new(6..9), 
+        );
+
+        simple_partial.union_transcript(&another_simple_partial);
+
+        assert_eq!(simple_partial.sent_unsafe(), [0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(simple_partial.received_unsafe(), [0, 1, 0, 3, 4, 5, 6, 7, 8, 0, 0, 0]);
+        assert_eq!(simple_partial.sent_authed(), &Idx::new(0..5));
+        assert_eq!(simple_partial.received_authed(), &Idx::new([1..2, 3..9]));
+
+        // overlapping ranges
+        let mut overlap_partial = transcript.to_partial(
+            Idx::new(4..6), 
+            Idx::new(3..7), 
+        );
+
+        let other_overlap_partial = transcript.to_partial(
+            Idx::new(3..5), 
+            Idx::new(5..9), 
+        );
+
+        overlap_partial.union_transcript(&other_overlap_partial);
+
+        assert_eq!(overlap_partial.sent_unsafe(), [0, 0, 0, 3, 4, 5, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(overlap_partial.received_unsafe(), [0, 0, 0, 3, 4, 5, 6, 7, 8, 0, 0, 0]);
+        assert_eq!(overlap_partial.sent_authed(), &Idx::new([3..5, 4..6]));
+        assert_eq!(overlap_partial.received_authed(), &Idx::new([3..7, 5..9]));
+
+        // equal ranges
+        let mut equal_partial = transcript.to_partial(
+            Idx::new(4..6), 
+            Idx::new(3..7), 
+        );
+
+        let other_equal_partial = transcript.to_partial(
+            Idx::new(4..6), 
+            Idx::new(3..7), 
+        );
+
+        equal_partial.union_transcript(&other_equal_partial);
+
+        assert_eq!(equal_partial.sent_unsafe(), [0, 0, 0, 0, 4, 5, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(equal_partial.received_unsafe(), [0, 0, 0, 3, 4, 5, 6, 0, 0, 0, 0, 0]);
+        assert_eq!(equal_partial.sent_authed(), &Idx::new(4..6));
+        assert_eq!(equal_partial.received_authed(), &Idx::new(3..7));
+
+        // subset ranges
+        let mut subset_partial = transcript.to_partial(
+            Idx::new(4..10), 
+            Idx::new(3..11), 
+        );
+
+        let other_subset_partial = transcript.to_partial(
+            Idx::new(6..9), 
+            Idx::new(5..6), 
+        );
+
+        subset_partial.union_transcript(&other_subset_partial);
+
+        assert_eq!(subset_partial.sent_unsafe(), [0, 0, 0, 0, 4, 5, 6, 7, 8, 9, 0, 0]);
+        assert_eq!(subset_partial.received_unsafe(), [0, 0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 0]);
+        assert_eq!(subset_partial.sent_authed(), &Idx::new(4..10));
+        assert_eq!(subset_partial.received_authed(), &Idx::new(3..11));
+    }
+
+    #[rstest]
+    #[should_panic]
+    fn test_partial_transcript_union_failure(transcript: Transcript) {
+        let mut partial = transcript.to_partial(
+            Idx::new(4..10), 
+            Idx::new(3..11), 
+        );
+
+        let other_transcript = Transcript::new(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        );
+        
+        let other_partial = other_transcript.to_partial(
+            Idx::new(6..9), 
+            Idx::new(5..6), 
+        );
+
+        partial.union_transcript(&other_partial);
+    }
+
+    #[rstest]
+    fn test_partial_transcript_union_subseq_success(transcript: Transcript) {
+        let mut partial = transcript.to_partial(
+            Idx::new(4..10), 
+            Idx::new(3..11), 
+        );
+        let sent_seq = Subsequence::new(
+            Idx::new([0..3, 5..7]),
+            [0, 1, 2, 5, 6].into()
+        ).unwrap();
+
+        let recv_seq = Subsequence::new(
+            Idx::new([0..4, 5..7]),
+            [0, 1, 2, 3, 5, 6].into()
+        ).unwrap();
+
+        partial.union_subsequence(Direction::Sent, &sent_seq);
+        partial.union_subsequence(Direction::Received, &recv_seq);
+
+        assert_eq!(partial.sent_unsafe(), [0, 1, 2, 0, 4, 5, 6, 7, 8, 9, 0, 0]);
+        assert_eq!(partial.received_unsafe(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0]);
+        assert_eq!(partial.sent_authed(), &Idx::new([0..3, 4..10]));
+        assert_eq!(partial.received_authed(), &Idx::new(0..11));
+
+        // overwrite with another subseq
+        let other_sent_seq = Subsequence::new(
+            Idx::new(0..3),
+            [3, 2, 1].into()
+        ).unwrap();
+
+        partial.union_subsequence(Direction::Sent, &other_sent_seq);
+        assert_eq!(partial.sent_unsafe(), [3, 2, 1, 0, 4, 5, 6, 7, 8, 9, 0, 0]);
+        assert_eq!(partial.sent_authed(), &Idx::new([0..3, 4..10]));
+    }
+
+    #[rstest]
+    #[should_panic]
+    fn test_partial_transcript_union_subseq_failure(transcript: Transcript) {
+        let mut partial = transcript.to_partial(
+            Idx::new(4..10), 
+            Idx::new(3..11), 
+        );
+
+        let sent_seq = Subsequence::new(
+            Idx::new([0..3, 13..15]),
+            [0, 1, 2, 5, 6].into()
+        ).unwrap();
+
+        partial.union_subsequence(Direction::Sent, &sent_seq);
+    }
+
+    #[rstest]
+    fn test_partial_transcript_set_unatuhed_range(transcript: Transcript) {
+        let mut partial = transcript.to_partial(
+            Idx::new(4..10), 
+            Idx::new(3..7), 
+        );
+
+        partial.set_unauthed_range(7, Direction::Sent, 2..5);
+        partial.set_unauthed_range(5, Direction::Sent, 0..2);
+        partial.set_unauthed_range(3, Direction::Received, 4..6);
+        partial.set_unauthed_range(1, Direction::Received, 3..7);
+
+        assert_eq!(partial.sent_unsafe(), [5, 5, 7, 7, 4, 5, 6, 7, 8, 9, 0, 0]);
+        assert_eq!(partial.received_unsafe(), [0, 0, 0, 3, 4, 5, 6, 0, 0, 0, 0, 0]);   
+    }
+
+    #[rstest]
+    #[should_panic]
+    fn test_subsequence_new_invalid_len() {
+        let _ = Subsequence::new(
+            Idx::new([0..3, 5..8]),
+            [0, 1, 2, 5, 6].into()
+        ).unwrap();
+    }
+
+    #[rstest]
+    #[should_panic]
+    fn test_subsequence_copy_to_invalid_len() {
+        let seq = Subsequence::new(
+            Idx::new([0..3, 5..7]),
+            [0, 1, 2, 5, 6].into()
+        ).unwrap();
+
+        let mut data: [u8; 3] = [0, 1, 2];
+        seq.copy_to(&mut data);
     }
 }
