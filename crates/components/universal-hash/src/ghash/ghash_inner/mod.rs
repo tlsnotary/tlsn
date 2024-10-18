@@ -123,7 +123,7 @@ where
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn setup(&mut self) -> Result<(), UniversalHashError> {
+    fn setup(&mut self) -> Result<(), UniversalHashError> {
         // We need only half the number of `max_block_count` M2As because of the free
         // squaring trick and we need one extra A2M conversion in the beginning.
         // Both M2A and A2M, each require a single OLE.

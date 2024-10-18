@@ -58,7 +58,7 @@ impl<Ctx: Context> UniversalHash<Ctx> for IdealGhash {
         Ok(())
     }
 
-    async fn setup(&mut self) -> Result<(), UniversalHashError> {
+    fn setup(&mut self) -> Result<(), UniversalHashError> {
         Ok(())
     }
 

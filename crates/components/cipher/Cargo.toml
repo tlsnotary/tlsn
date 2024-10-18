@@ -1,0 +1,32 @@
+[package]
+name = "tlsn-cipher"
+authors = ["TLSNotary Team"]
+description = "This crate provides implementations of ciphers for two parties"
+keywords = ["tls", "mpc", "2pc", "aes"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.8-pre"
+edition = "2021"
+
+[lib]
+name = "cipher"
+
+[dependencies]
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+thiserror = { workspace = true }
+aes = { workspace = true }
+
+[dev-dependencies]
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble", features = ["ideal"] }
+rand = { workspace = true }
+ctr = { workspace = true }
+cipher = { workspace = true }
