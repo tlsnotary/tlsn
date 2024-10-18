@@ -1,9 +1,9 @@
 use crate::{
     follower::{Closed, MpcTlsFollower, MpcTlsFollowerData},
     msg::{
-        mpc_tls_follower_msg::MpcTlsFollowerMsg, ClientFinishedVd, CloseConnection, Commit,
-        CommitMessage, ComputeKeyExchange, DecryptAlert, DecryptMessage, DecryptServerFinished,
-        EncryptAlert, EncryptClientFinished, EncryptMessage, ServerFinishedVd,
+        follower::MpcTlsFollowerMsg, ClientFinishedVd, CloseConnection, Commit, CommitMessage,
+        ComputeKeyExchange, DecryptAlert, DecryptMessage, DecryptServerFinished, EncryptAlert,
+        EncryptClientFinished, EncryptMessage, ServerFinishedVd,
     },
     MpcTlsError,
 };

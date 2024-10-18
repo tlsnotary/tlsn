@@ -1,7 +1,7 @@
 use super::{MpcTlsData, MpcTlsLeader};
 use crate::{
     leader::state,
-    msg::mpc_tls_leader_msg::{
+    msg::leader::{
         BackendMsgBufferIncoming, BackendMsgBufferLen, BackendMsgDecrypt, BackendMsgEncrypt,
         BackendMsgGetClientFinishedVd, BackendMsgGetClientKeyShare, BackendMsgGetClientRandom,
         BackendMsgGetNotify, BackendMsgGetServerFinishedVd, BackendMsgGetSuite,
