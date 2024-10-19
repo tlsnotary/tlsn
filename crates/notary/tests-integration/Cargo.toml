@@ -1,0 +1,34 @@
+[package]
+name = "notary-tests-integration"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+notary-client = { workspace = true }
+notary-server = { workspace = true }
+tls-server-fixture = { workspace = true }
+tlsn-common = { workspace = true }
+tlsn-prover = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tlsn-core = { workspace = true }
+
+async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
+http = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1", "server"] }
+hyper-tls = { version = "0.6", features = [
+    "vendored",
+] } # specify vendored feature to use statically linked copy of OpenSSL
+hyper-util = { workspace = true, features = ["full"] }
+rstest = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-native-tls = { version = "0.3.1", features = ["vendored"] }
+tokio-util = { workspace = true, features = ["compat"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+uuid = { workspace = true, features = ["v4", "fast-rng"] }
+ws_stream_tungstenite = { workspace = true, features = ["tokio_io"] }

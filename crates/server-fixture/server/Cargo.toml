@@ -1,0 +1,21 @@
+[package]
+name = "tlsn-server-fixture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { workspace = true }
+anyhow = { workspace = true }
+futures = { workspace = true }
+futures-rustls = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-util = { workspace = true, features = ["compat", "io"] }
+tower-service = { version = "0.3" }
+
+tlsn-server-fixture-certs = { workspace = true }
+
+[[bin]]
+name = "main"
+path = "src/main.rs"

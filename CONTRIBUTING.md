@@ -16,26 +16,19 @@ keywords.
 
 Try to do one pull request per change.
 
-### Updating the changelog
+## Linting
 
-Update the changes you have made in
-[CHANGELOG](CHANGELOG.md)
-file under the **Unreleased** section.
+Before a Pull Request (PR) can be merged, the Continuous Integration (CI) pipeline automatically lints all code using [Clippy](https://doc.rust-lang.org/stable/clippy/usage.html). To ensure your code is free of linting issues before creating a PR, run the following command:
 
-Add the changes of your pull request to one of the following subsections,
-depending on the types of changes defined by
-[Keep a changelog](https://keepachangelog.com/en/1.0.0/):
+```sh
+cargo clippy --all-features --all-targets -- -D warnings
+```
 
-- `Added` for new features.
-- `Changed` for changes in existing functionality.
-- `Deprecated` for soon-to-be removed features.
-- `Removed` for now removed features.
-- `Fixed` for any bug fixes.
-- `Security` in case of vulnerabilities.
-
-If the required subsection does not exist yet under **Unreleased**, create it!
+This command will lint your code with all features and targets enabled, and treat any warnings as errors, ensuring that your code meets the required standards.
 
 ## Style
+
+This repository includes a `rustfmt.toml` file with custom formatting settings that are automatically validated by CI before any Pull Requests (PRs) can be merged. To ensure your code adheres to these standards, format your code using this configuration before submitting a PR. We strongly recommend enabling *auto format on save* to streamline this process. In Visual Studio Code (VSCode), you can enable this feature by turning on [`editor.formatOnSave`](https://code.visualstudio.com/docs/editor/codebasics#_formatting) in the settings.
 
 ### Capitalization and punctuation
 

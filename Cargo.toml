@@ -1,0 +1,140 @@
+[workspace]
+members = [
+    "crates/benches",
+    "crates/common",
+    "crates/components/aead",
+    "crates/components/block-cipher",
+    "crates/components/hmac-sha256",
+    "crates/components/hmac-sha256-circuits",
+    "crates/components/key-exchange",
+    "crates/components/stream-cipher",
+    "crates/components/universal-hash",
+    "crates/core",
+    "crates/data-fixtures",
+    "crates/examples",
+    "crates/formats",
+    "crates/notary/client",
+    "crates/notary/server",
+    "crates/notary/tests-integration",
+    "crates/prover",
+    "crates/server-fixture/certs",
+    "crates/server-fixture/server",
+    "crates/tests-integration",
+    "crates/tls/backend",
+    "crates/tls/client",
+    "crates/tls/client-async",
+    "crates/tls/core",
+    "crates/tls/mpc",
+    "crates/tls/server-fixture",
+    "crates/verifier",
+    "crates/wasm",
+    "crates/wasm-test-runner",
+]
+resolver = "2"
+
+[profile.tests-integration]
+inherits = "release"
+opt-level = 1
+
+[workspace.dependencies]
+notary-client = { path = "crates/notary/client" }
+notary-server = { path = "crates/notary/server" }
+tls-server-fixture = { path = "crates/tls/server-fixture" }
+tlsn-aead = { path = "crates/components/aead" }
+tlsn-block-cipher = { path = "crates/components/block-cipher" }
+tlsn-common = { path = "crates/common" }
+tlsn-core = { path = "crates/core" }
+tlsn-data-fixtures = { path = "crates/data-fixtures" }
+tlsn-formats = { path = "crates/formats" }
+tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
+tlsn-hmac-sha256-circuits = { path = "crates/components/hmac-sha256-circuits" }
+tlsn-key-exchange = { path = "crates/components/key-exchange" }
+tlsn-prover = { path = "crates/prover" }
+tlsn-server-fixture = { path = "crates/server-fixture/server" }
+tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
+tlsn-stream-cipher = { path = "crates/components/stream-cipher" }
+tlsn-tls-backend = { path = "crates/tls/backend" }
+tlsn-tls-client = { path = "crates/tls/client" }
+tlsn-tls-client-async = { path = "crates/tls/client-async" }
+tlsn-tls-core = { path = "crates/tls/core" }
+tlsn-tls-mpc = { path = "crates/tls/mpc" }
+tlsn-universal-hash = { path = "crates/components/universal-hash" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e7b2db6" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e7b2db6" }
+tlsn-verifier = { path = "crates/verifier" }
+
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+
+serio = { version = "0.1" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e7b2db6" }
+uid-mux = { version = "0.1", features = ["serio"] }
+
+aes = { version = "0.8" }
+aes-gcm = { version = "0.9" }
+anyhow = { version = "1.0" }
+async-trait = { version = "0.1" }
+async-tungstenite = { version = "0.25" }
+axum = { version = "0.7" }
+bcs = { version = "0.1" }
+bincode = { version = "1.3" }
+blake3 = { version = "1.5" }
+bytes = { version = "1.4" }
+chrono = { version = "0.4" }
+cipher = { version = "0.4" }
+criterion = { version = "0.5" }
+ctr = { version = "0.9" }
+derive_builder = { version = "0.12" }
+digest = { version = "0.10" }
+elliptic-curve = { version = "0.13" }
+enum-try-as-inner = { version = "0.1" }
+env_logger = { version = "0.10" }
+futures = { version = "0.3" }
+futures-rustls = { version = "0.26" }
+futures-util = { version = "0.3" }
+generic-array = { version = "0.14" }
+hex = { version = "0.4" }
+hmac = { version = "0.12" }
+http = { version = "1.1" }
+http-body-util = { version = "0.1" }
+hyper = { version = "1.1" }
+hyper-util = { version = "0.1" }
+k256 = { version = "0.13" }
+log = { version = "0.4" }
+once_cell = { version = "1.19" }
+opaque-debug = { version = "0.3" }
+p256 = { version = "0.13" }
+pkcs8 = { version = "0.10" }
+pin-project-lite = { version = "0.2" }
+rand = { version = "0.8" }
+rand_chacha = { version = "0.3" }
+rand_core = { version = "0.6" }
+regex = { version = "1.10" }
+ring = { version = "0.17" }
+rs_merkle = { git = "https://github.com/tlsnotary/rs-merkle.git", rev = "85f3e82" }
+rstest = { version = "0.17" }
+rustls = { version = "0.21" }
+rustls-pemfile = { version = "1.0" }
+sct = { version = "0.7" }
+serde = { version = "1.0" }
+serde_json = { version = "1.0" }
+sha2 = { version = "0.10" }
+signature = { version = "2.2" }
+thiserror = { version = "1.0" }
+tokio = { version = "1.38" }
+tokio-rustls = { version = "0.24" }
+tokio-util = { version = "0.7" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3" }
+uuid = { version = "1.4" }
+web-time = { version = "0.2" }
+webpki = { version = "0.22" }
+webpki-roots = { version = "0.26" }
+ws_stream_tungstenite = { version = "0.13" }
+zeroize = { version = "1.8" }

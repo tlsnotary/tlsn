@@ -1,0 +1,55 @@
+[package]
+name = "tlsn-wasm"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.wasm-pack.profile.debug]
+debug = false
+
+[package.metadata.wasm-pack.profile.release]
+opt-level = "z"
+wasm-opt = true
+
+[features]
+default = []
+test = []
+no-bundler = ["wasm-bindgen-rayon/no-bundler"]
+
+[dependencies]
+tlsn-common = { path = "../common" }
+tlsn-core = { path = "../core" }
+tlsn-prover = { path = "../prover" }
+tlsn-server-fixture-certs = { workspace = true }
+tlsn-tls-client-async = { path = "../tls/client-async" }
+tlsn-tls-core = { path = "../tls/core" }
+tlsn-verifier = { path = "../verifier" }
+
+bincode = { workspace = true }
+console_error_panic_hook = { version = "0.1" }
+enum-try-as-inner = { workspace = true }
+futures = { workspace = true }
+getrandom = { version = "0.2", features = ["js"] }
+http-body-util = { version = "0.1" }
+hyper = { workspace = true, features = ["client", "http1"] }
+p256 = { workspace = true }
+parking_lot = { version = "0.12", features = ["nightly"] }
+pin-project-lite = { workspace = true }
+ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+serde = { workspace = true, features = ["derive"] }
+serde-wasm-bindgen = { version = "0.6" }
+serde_json = { version = "1.0" }
+time = { version = "0.3", features = ["wasm-bindgen"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["time"] }
+tracing-web = { version = "0.1" }
+tsify-next = { version = "0.5", default-features = false, features = ["js"] }
+wasm-bindgen = { version = "=0.2.92" }
+wasm-bindgen-futures = { version = "0.4" }
+# Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
+ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-rayon = { version = "1.0" }

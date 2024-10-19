@@ -1,0 +1,50 @@
+[package]
+name = "tlsn-universal-hash"
+authors = ["TLSNotary Team"]
+description = "A crate which implements different hash functions for two-party computation"
+keywords = ["tls", "mpc", "2pc", "hash"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[features]
+default = ["ghash", "ideal"]
+ghash = []
+ideal = ["dep:ghash_rc"]
+
+[dependencies]
+# tlsn
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+    "ideal",
+] }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+
+ghash_rc = { package = "ghash", version = "0.5", optional = true }
+
+async-trait = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+thiserror = { workspace = true }
+opaque-debug = { workspace = true }
+tracing = { workspace = true }
+derive_builder = { workspace = true }
+
+[dev-dependencies]
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+    "test-utils",
+] }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+    "ideal",
+] }
+
+ghash_rc = { package = "ghash", version = "0.5" }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+criterion = { workspace = true }
+rstest = { workspace = true }
+rand_chacha = { workspace = true }
+rand = { workspace = true }
+generic-array = { workspace = true }

@@ -1,0 +1,42 @@
+[package]
+name = "tlsn-verifier"
+authors = ["TLSNotary Team"]
+description = "A library for the TLSNotary verifier"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[features]
+default = ["rayon"]
+rayon = ["mpz-common/rayon"]
+force-st = ["mpz-common/force-st"]
+
+[dependencies]
+tlsn-common = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tlsn-tls-mpc = { workspace = true }
+tlsn-utils = { workspace = true }
+tlsn-utils-aio = { workspace = true }
+
+serio = { workspace = true, features = ["compat"] }
+uid-mux = { workspace = true, features = ["serio"] }
+
+mpz-circuits = { workspace = true }
+mpz-common = { workspace = true }
+mpz-core = { workspace = true }
+mpz-garble = { workspace = true }
+mpz-ole = { workspace = true }
+mpz-ot = { workspace = true }
+mpz-share-conversion = { workspace = true }
+
+derive_builder = { workspace = true }
+futures = { workspace = true }
+opaque-debug = { workspace = true }
+rand = { workspace = true }
+signature = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+web-time = { workspace = true }

@@ -1,0 +1,45 @@
+[package]
+name = "tlsn-key-exchange"
+authors = ["TLSNotary Team"]
+description = "Implementation of the 3-party key-exchange protocol"
+keywords = ["tls", "mpc", "2pc", "pms", "key-exchange"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "key_exchange"
+
+[features]
+default = ["mock"]
+mock = []
+
+[dependencies]
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+    "ideal",
+] }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+
+p256 = { workspace = true, features = ["ecdh", "serde"] }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+futures = { workspace = true }
+serio = { workspace = true }
+derive_builder = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
+    "ideal",
+] }
+
+rand_chacha = { workspace = true }
+rand_core = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }

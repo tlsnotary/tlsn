@@ -1,0 +1,19 @@
+[package]
+name = "tlsn-tls-backend"
+authors = ["TLSNotary Team"]
+description = "A TLS backend trait for TLSNotary"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "tls_backend"
+
+[dependencies]
+tlsn-tls-core = { workspace = true }
+
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+futures = { workspace = true }

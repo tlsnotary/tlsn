@@ -1,0 +1,27 @@
+[package]
+name = "tests-integration"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+tlsn-core = { workspace = true }
+tlsn-common = { workspace = true }
+tlsn-prover = { workspace = true }
+tlsn-server-fixture = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tlsn-utils = { workspace = true }
+tlsn-verifier = { workspace = true }
+
+bincode = { workspace = true }
+futures = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true, features = ["full"] }
+p256 = { workspace = true, features = ["ecdsa"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

@@ -1,0 +1,35 @@
+[package]
+name = "tlsn-tls-core"
+authors = ["TLSNotary Team"]
+description = "Cryptographic operations for the TLSNotary TLS client"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "tls_core"
+
+[features]
+default = ["logging", "tls12", "prf"]
+serde = ["dep:serde"]
+tls12 = []
+handshake = []
+ghash = []
+logging = ["tracing"]
+prf = ["dep:hmac", "dep:sha2"]
+
+[dependencies]
+futures = { workspace = true }
+hmac = { workspace = true, optional = true }
+rand = { workspace = true }
+ring = { workspace = true }
+rustls-pemfile = { workspace = true }
+sct = { workspace = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
+sha2 = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tracing = { workspace = true, optional = true }
+web-time = { workspace = true }
+webpki = { workspace = true, features = ["alloc", "std"] }

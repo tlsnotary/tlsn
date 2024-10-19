@@ -1,0 +1,40 @@
+[package]
+name = "tlsn-hmac-sha256"
+authors = ["TLSNotary Team"]
+description = "A 2PC implementation of TLS HMAC-SHA256 PRF"
+keywords = ["tls", "mpc", "2pc", "hmac", "sha256"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "hmac_sha256"
+
+[features]
+default = ["mock"]
+rayon = ["mpz-common/rayon"]
+mock = []
+
+[dependencies]
+tlsn-hmac-sha256-circuits = { workspace = true }
+
+mpz-garble = { workspace = true }
+mpz-circuits = { workspace = true }
+mpz-common = { workspace = true }
+
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true, features = ["async_tokio"] }
+mpz-common = { workspace = true, features = ["test-utils"] }
+mpz-ot = { workspace = true, features = ["ideal"] }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+
+[[bench]]
+name = "prf"
+harness = false

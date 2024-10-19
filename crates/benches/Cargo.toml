@@ -1,0 +1,46 @@
+[package]
+edition = "2021"
+name = "tlsn-benches"
+publish = false
+version = "0.0.0"
+
+[dependencies]
+anyhow = { workspace = true }
+charming = { version = "0.3.1", features = ["ssr"] }
+csv = "1.3.0"
+futures = { workspace = true }
+serde = { workspace = true }
+tlsn-common = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-prover = { workspace = true }
+tlsn-server-fixture = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tlsn-verifier = { workspace = true }
+tokio = { workspace = true, features = [
+  "rt",
+  "rt-multi-thread",
+  "macros",
+  "net",
+  "io-std",
+  "fs",
+] }
+tokio-util = { workspace = true }
+toml = "0.8.11"
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[[bin]]
+name = "bench"
+path = "bin/bench.rs"
+
+[[bin]]
+name = "prover"
+path = "bin/prover.rs"
+
+[[bin]]
+name = "verifier"
+path = "bin/verifier.rs"
+
+[[bin]]
+name = "plot"
+path = "bin/plot.rs"

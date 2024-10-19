@@ -1,0 +1,27 @@
+[package]
+name = "notary-client"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[dependencies]
+notary-server = { workspace = true }
+tlsn-common = { workspace = true }
+
+derive_builder = { workspace = true }
+futures = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true, features = ["full"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+  "rt",
+  "rt-multi-thread",
+  "macros",
+  "net",
+  "io-std",
+  "fs",
+] }
+tokio-rustls = { workspace = true }
+tracing = { workspace = true }
+webpki-roots = { workspace = true }

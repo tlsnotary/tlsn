@@ -1,0 +1,56 @@
+[package]
+name = "tlsn-core"
+authors = ["TLSNotary Team"]
+description = "Core types for TLSNotary"
+keywords = ["tls", "mpc", "2pc", "types"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[features]
+default = []
+fixtures = ["dep:hex", "dep:tlsn-data-fixtures"]
+
+[dependencies]
+tlsn-data-fixtures = { workspace = true, optional = true }
+tlsn-tls-core = { workspace = true, features = ["serde"] }
+tlsn-utils = { workspace = true }
+
+mpz-core = { workspace = true }
+mpz-garble-core = { workspace = true }
+mpz-circuits = { workspace = true }
+
+bcs = { workspace = true }
+bimap = { version = "0.6", features = ["serde"] }
+blake3 = { workspace = true }
+derive_builder = { workspace = true }
+hex = { workspace = true, optional = true }
+k256 = { workspace = true }
+opaque-debug = { workspace = true }
+p256 = { workspace = true, features = ["serde"] }
+rand = { workspace = true }
+rand_core = { workspace = true }
+rs_merkle = { workspace = true, features = ["serde"] }
+rstest = { workspace = true, optional = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+web-time = { workspace = true }
+webpki-roots = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+hex = { workspace = true }
+rand_chacha = { workspace = true }
+bincode = { workspace = true }
+tlsn-data-fixtures = { workspace = true }
+
+[[test]]
+name = "api"
+required-features = ["fixtures"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+getrandom = { version = "0.2", features = ["js"] }

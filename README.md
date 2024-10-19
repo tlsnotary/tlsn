@@ -8,7 +8,7 @@
 
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [apache-badge]: https://img.shields.io/github/license/saltstack/salt
-[actions-badge]: https://github.com/tlsnotary/tlsn/actions/workflows/ci.yml/badge.svg
+[actions-badge]: https://github.com/tlsnotary/tlsn/actions/workflows/ci.yml/badge.svg?branch=dev
 [actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Aci+branch%3Adev
 
 [Website](https://tlsnotary.org) |
@@ -43,15 +43,33 @@ at your option.
 
 ## Directory
 
-- [tlsn](./tlsn/): The home for examples and API libraries.
-    - [examples](./tlsn/examples/): Examples on how to use the TLSNotary protocol.
-    - [tlsn-prover](./tlsn/tlsn-prover/): The library for the prover component.
-    - [tlsn-verifier](./tlsn/tlsn-verifier/): The library for the verifier component.
-- [notary](./notary/): Implements the [notary server](https://docs.tlsnotary.org/intro.html#tls-verification-with-a-general-purpose-notary) and its client.
-- [components](./components/): Houses low-level libraries utilized by [tlsn](./tlsn/).
+- [examples](./crates/examples/): Examples on how to use the TLSNotary protocol.
+- [tlsn-prover](./crates/prover/): The library for the prover component.
+- [tlsn-verifier](./crates/verifier/): The library for the verifier component.
+- [notary](./crates/notary/): Implements the [notary server](https://docs.tlsnotary.org/intro.html#tls-verification-with-a-general-purpose-notary) and its client.
+- [components](./crates/components/): Houses low-level libraries.
 
 This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-js`](https://github.com/tlsnotary/tlsn-js), [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), [`explorer`](https://github.com/tlsnotary/explorer), among others.
 
+
+## Development
+
+> [!IMPORTANT]
+> **Note on Rust-to-WASM Compilation**: This project requires compiling Rust into WASM, which needs [`clang`](https://clang.llvm.org/) version 16.0.0 or newer. MacOS users, be aware that Xcode's default `clang` might be older. If you encounter the error `No available targets are compatible with triple "wasm32-unknown-unknown"`, it's likely due to an outdated `clang`. Updating `clang` to a newer version should resolve this issue.
+> 
+> For MacOS aarch64 users, if Apple's default `clang` isn't working, try installing `llvm` via Homebrew (`brew install llvm`). You can then prioritize the Homebrew `clang` over the default macOS version by modifying your `PATH`. Add the following line to your shell configuration file (e.g., `.bashrc`, `.zshrc`):
+> ```sh
+> export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+> ```
+
+If you run into this error:
+```
+Could not find directory of OpenSSL installation, and this `-sys` crate cannot
+  proceed without this knowledge. If OpenSSL is installed and this crate had
+  trouble finding it,  you can set the `OPENSSL_DIR` environment variable for the
+  compilation process.
+```
+Make sure you have the development packages of OpenSSL installed (`libssl-dev` on Ubuntu or `openssl-devel` on Fedora).
 
 ## Contribution
 
