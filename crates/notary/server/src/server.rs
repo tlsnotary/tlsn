@@ -59,22 +59,26 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         debug!("Skipping TLS setup as it is turned off.");
         None
     } else {
-        let (tls_private_key, tls_certificates) = load_tls_key_and_cert(
-            &config.tls.private_key_pem_path,
-            &config.tls.certificate_pem_path,
-        )
-        .await?;
+        if let (Some(private_key_path), Some(certificate_pem_path)) = (
+            config.tls.private_key_pem_path.as_deref(),
+            config.tls.certificate_pem_path.as_deref(),
+        ) {
+            let (tls_private_key, tls_certificates) =
+                load_tls_key_and_cert(private_key_path, certificate_pem_path).await?;
 
-        let mut server_config = ServerConfig::builder()
-            .with_safe_defaults()
-            .with_no_client_auth()
-            .with_single_cert(tls_certificates, tls_private_key)
-            .map_err(|err| eyre!("Failed to instantiate notary server tls config: {err}"))?;
+            let mut server_config = ServerConfig::builder()
+                .with_safe_defaults()
+                .with_no_client_auth()
+                .with_single_cert(tls_certificates, tls_private_key)
+                .map_err(|err| eyre!("Failed to instantiate notary server tls config: {err}"))?;
 
-        // Set the http protocols we support
-        server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
-        let tls_config = Arc::new(server_config);
-        Some(TlsAcceptor::from(tls_config))
+            // Set the http protocols we support
+            server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            let tls_config = Arc::new(server_config);
+            Some(TlsAcceptor::from(tls_config))
+        } else {
+            None
+        }
     };
 
     // Load the authorization whitelist csv if it is turned on
@@ -251,18 +255,15 @@ async fn load_attestation_key(config: &NotarySigningKeyProperties) -> Result<Att
 }
 
 /// Read a PEM-formatted file and return its buffer reader
-pub async fn read_pem_file(file_path: &Option<String>) -> Result<BufReader<StdFile>> {
-    let file_path = file_path.as_ref().ok_or_else(|| {
-        eyre!("Failed to read pem file as the file path is not provided in the config")
-    })?;
+pub async fn read_pem_file(file_path: &str) -> Result<BufReader<StdFile>> {
     let key_file = File::open(file_path).await?.into_std().await;
     Ok(BufReader::new(key_file))
 }
 
 /// Load notary tls private key and cert from static files
 async fn load_tls_key_and_cert(
-    private_key_pem_path: &Option<String>,
-    certificate_pem_path: &Option<String>,
+    private_key_pem_path: &str,
+    certificate_pem_path: &str,
 ) -> Result<(PrivateKey, Vec<Certificate>)> {
     debug!("Loading notary server's tls private key and certificate");
 
@@ -297,7 +298,9 @@ fn load_authorization_whitelist(
             .authorization
             .whitelist_csv_path
             .as_deref()
-            .ok_or_else(|| eyre!("Whitelist CSV path is not provided in the config"))?;
+            .ok_or_else(|| {
+                eyre!("Authorization whitelist csv path is not provided in the config")
+            })?;
         // Load the csv
         let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
             .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
@@ -355,15 +358,17 @@ fn watch_and_reload_authorization_whitelist(
             .authorization
             .whitelist_csv_path
             .as_deref()
-            .ok_or_else(|| eyre!("Whitelist CSV path is not provided in the config"))?;
+            .ok_or_else(|| {
+                eyre!("Authorization whitelist csv path is not provided in the config")
+            })?;
 
         // Start watcher to listen to any changes on the whitelist file
         watcher
-        .watch(
-            Path::new(whitelist_csv_path),
-            RecursiveMode::Recursive,
-        )
-        .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
+            .watch(
+                Path::new(whitelist_csv_path),
+                RecursiveMode::Recursive,
+            )
+            .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
         Some(watcher)
     } else {
@@ -387,8 +392,8 @@ mod test {
 
     #[tokio::test]
     async fn test_load_notary_key_and_cert() {
-        let private_key_pem_path = &Some("./fixture/tls/notary.key".to_string());
-        let certificate_pem_path = &Some("./fixture/tls/notary.crt".to_string());
+        let private_key_pem_path = "./fixture/tls/notary.key";
+        let certificate_pem_path = "./fixture/tls/notary.crt";
         let result: Result<(PrivateKey, Vec<Certificate>)> =
             load_tls_key_and_cert(private_key_pem_path, certificate_pem_path).await;
         assert!(result.is_ok(), "Could not load tls private key and cert");

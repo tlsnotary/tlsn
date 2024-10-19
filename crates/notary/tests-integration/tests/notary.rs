@@ -121,9 +121,7 @@ async fn tcp_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
 }
 
 async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection, String) {
-    let mut certificate_file_reader = read_pem_file(&Some(NOTARY_CA_CERT_PATH.to_string()))
-        .await
-        .unwrap();
+    let mut certificate_file_reader = read_pem_file(NOTARY_CA_CERT_PATH).await.unwrap();
     let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut certificate_file_reader)
         .unwrap()
         .into_iter()

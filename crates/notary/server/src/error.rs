@@ -18,8 +18,6 @@ pub enum NotaryServerError {
     BadProverRequest(String),
     #[error("Unauthorized request from prover: {0}")]
     UnauthorizedProverRequest(String),
-    #[error("Configuration error: {0}")]
-    ConfigurationError(String),
 }
 
 impl From<VerifierError> for NotaryServerError {
