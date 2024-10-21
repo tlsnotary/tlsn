@@ -19,7 +19,7 @@ use circuit::build_xor_circuit;
 use mpz_circuits::types::ValueType;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    FromRaw, Repr, Slice, StaticSize, ToRaw, Vector,
+    FromRaw, MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
 };
 use mpz_vm_core::{CallBuilder, CallError, Vm, VmExt};
 use std::collections::VecDeque;
@@ -156,6 +156,57 @@ pub struct CipherOutput<C: CipherCircuit> {
 }
 
 impl<C: CipherCircuit> CipherOutput<C> {
+    /// Assigns values to the input references and returns the output reference.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The necessary virtual machine.
+    /// * `explicit_nonce` - The TLS explicit nonce.
+    /// * `start_ctr` - The TLS counter number to start with.
+    /// * `message` - The message to en-/decrypt.
+    pub fn assign<V>(
+        self,
+        vm: &mut V,
+        explicit_nonce: <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear,
+        start_ctr: u32,
+        message: Vec<u8>,
+    ) -> Result<Vector<U8>, CipherError>
+    where
+        V: Vm<Binary>,
+        <<C as CipherCircuit>::Counter as Repr<Binary>>::Clear: From<[u8; 4]>,
+        <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear: Copy,
+    {
+        if self.len() != message.len() {
+            return Err(CipherError::new(format!(
+                "message has wrong length, got {}, but expected {}",
+                message.len(),
+                self.len()
+            )));
+        }
+
+        let message_len = message.len() as u32;
+        let block_count = (message_len / 16) + (message_len % 16 != 0) as u32;
+        let counters = (start_ctr..start_ctr + block_count).map(|counter| counter.to_be_bytes());
+
+        for ((ctr, ctr_value), nonce) in self
+            .counters
+            .into_iter()
+            .zip(counters)
+            .zip(self.explicit_nonces)
+        {
+            vm.assign(ctr, ctr_value.into()).map_err(CipherError::new)?;
+            vm.commit(ctr).map_err(CipherError::new)?;
+
+            vm.assign(nonce, explicit_nonce).map_err(CipherError::new)?;
+            vm.commit(nonce).map_err(CipherError::new)?;
+        }
+
+        vm.assign(self.input, message).map_err(CipherError::new)?;
+        vm.commit(self.input).map_err(CipherError::new)?;
+
+        Ok(self.output)
+    }
+
     /// Returns the stream length in bytes.
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
