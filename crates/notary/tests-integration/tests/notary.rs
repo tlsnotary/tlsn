@@ -386,7 +386,7 @@ async fn test_websocket_prover() {
         .build()
         .unwrap();
 
-    // // Set up prover config.
+    // Set up prover config.
     let prover_config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
