@@ -9,10 +9,19 @@ use p256::ecdsa::SigningKey;
 use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
 use crate::{
-    attestation::{Attestation, AttestationConfig}, connection::{
+    attestation::{Attestation, AttestationConfig},
+    connection::{
         Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerCertData,
         ServerEphemKey, ServerName, ServerSignature, SignatureScheme, TlsVersion, TranscriptLength,
-    }, hash::Blake3, request::{Request, RequestConfig}, signing::SignatureAlgId, transcript::{encoding::{EncodingProvider, EncodingTree}, Transcript, TranscriptCommitConfigBuilder}, CryptoProvider
+    },
+    hash::Blake3,
+    request::{Request, RequestConfig},
+    signing::SignatureAlgId,
+    transcript::{
+        encoding::{EncodingProvider, EncodingTree},
+        Transcript, TranscriptCommitConfigBuilder,
+    },
+    CryptoProvider,
 };
 
 /// A fixture containing various TLS connection data.

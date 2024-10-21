@@ -268,10 +268,7 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_accept_unsupported_signer() {
-        let TestFixture {
-            request,
-            ..
-        } = test_fixture();
+        let TestFixture { request, .. } = test_fixture();
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256R1])
             .build()
@@ -286,10 +283,7 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_accept_unsupported_hasher() {
-        let TestFixture {
-            request,
-            ..
-        } = test_fixture();
+        let TestFixture { request, .. } = test_fixture();
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -306,10 +300,7 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_accept_unsupported_encoding_commitment() {
-        let TestFixture {
-            request,
-            ..
-        } = test_fixture();
+        let TestFixture { request, .. } = test_fixture();
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -332,10 +323,7 @@ mod test {
     fn test_attestation_builder_sign_missing_signer(
         default_attestation_config: &AttestationConfig,
     ) {
-        let TestFixture {
-            request,
-            ..
-        } = test_fixture();
+        let TestFixture { request, .. } = test_fixture();
 
         let attestation_builder = Attestation::builder(default_attestation_config)
             .accept_request(request.clone())

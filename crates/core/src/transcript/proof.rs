@@ -373,7 +373,10 @@ mod tests {
         let err = builder.reveal(&(10..15), Direction::Sent).err().unwrap();
         assert!(matches!(err.kind, BuilderErrorKind::Index));
 
-        let err = builder.reveal(&(10..15), Direction::Received).err().unwrap();
+        let err = builder
+            .reveal(&(10..15), Direction::Received)
+            .err()
+            .unwrap();
         assert!(matches!(err.kind, BuilderErrorKind::Index));
     }
 
@@ -425,7 +428,10 @@ mod tests {
         let attestation = attestation_fixture((request, connection));
 
         let provider = CryptoProvider::default();
-        let err = transcript_proof.verify_with_provider(&provider, &attestation.body).err().unwrap();
+        let err = transcript_proof
+            .verify_with_provider(&provider, &attestation.body)
+            .err()
+            .unwrap();
         assert!(matches!(err.kind, ErrorKind::Encoding));
     }
 }
