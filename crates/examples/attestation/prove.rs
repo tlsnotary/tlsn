@@ -7,14 +7,15 @@ use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
+use tls_core::verify::WebPkiVerifier;
+use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig};
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_examples::run_notary;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
 
 // Setting of the application server
-const SERVER_DOMAIN: &str = "example.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
 #[tokio::main]
@@ -25,6 +26,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start a local simple notary service
     tokio::spawn(run_notary(notary_socket.compat()));
+
+    // custom root store with server-fixture
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     // Prover configuration.
     let config = ProverConfig::builder()
@@ -38,13 +50,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .max_recv_data(4096)
                 .build()?,
         )
+        .crypto_provider(provider)
         .build()?;
 
     // Create a new prover and perform necessary setup.
     let prover = Prover::new(config).setup(prover_socket.compat()).await?;
 
     // Open a TCP connection to the server.
-    let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443)).await?;
+    let client_socket = tokio::net::TcpStream::connect(("localhost", 4000)).await?;
 
     // Bind the prover to the server connection.
     // The returned `mpc_tls_connection` is an MPC TLS connection to the server: all
@@ -65,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build a simple HTTP request with common headers
     let request = Request::builder()
-        .uri("/")
+        .uri("/formats/html")
         .header("Host", SERVER_DOMAIN)
         .header("Accept", "*/*")
         // Using "identity" instructs the Server not to use compression for its HTTP response.
@@ -80,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Send the request to the server and wait for the response.
     let response = request_sender.send_request(request).await?;
 
-    println!("Got a response from the server");
+    println!("Got a response from the server: {}", response.status());
 
     assert!(response.status() == StatusCode::OK);
 

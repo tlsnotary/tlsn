@@ -18,5 +18,5 @@ tower-service = { version = "0.3" }
 tlsn-server-fixture-certs = { workspace = true }
 
 [[bin]]
-name = "main"
+name = "tlsn-server-fixture"
 path = "src/main.rs"

@@ -12,6 +12,8 @@ tlsn-prover = { workspace = true }
 tlsn-utils = { workspace = true }
 tlsn-verifier = { workspace = true }
 tlsn-formats = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tls-server-fixture = { workspace = true }
 
 bincode = { workspace = true }
 chrono = { workspace = true }

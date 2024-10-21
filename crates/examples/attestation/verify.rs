@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+use tls_core::verify::WebPkiVerifier;
+use tls_server_fixture::CA_CERT_DER;
 use tlsn_core::{
     presentation::{Presentation, PresentationOutput},
     signing::VerifyingKey,
@@ -15,8 +17,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let presentation: Presentation =
         bincode::deserialize(&std::fs::read("example.presentation.tlsn")?)?;
 
-    let provider = CryptoProvider::default();
+    // custom root store with server-fixture
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
 
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
     let VerifyingKey {
         alg,
         data: key_data,
