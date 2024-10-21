@@ -10,9 +10,9 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use eyre::eyre;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::{attestation::AttestationConfig, CryptoProvider};
+use tlsn_core::attestation::AttestationConfig;
 use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -34,10 +34,6 @@ use crate::{
         websocket::websocket_notarize,
     },
 };
-
-/// Number of seconds before Verifier::notarize() timeouts to prevent unreleased
-/// memory
-const NOTARIZATION_TIMEOUT_SECONDS: u64 = 1800; // 30 minutes
 
 /// A wrapper enum to facilitate extracting TCP connection for either WebSocket
 /// or TCP clients, so that we can use a single endpoint and handler for
@@ -187,12 +183,12 @@ pub async fn initialize(
 /// Run the notarization
 pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     socket: T,
-    crypto_provider: Arc<CryptoProvider>,
+    notary_globals: NotaryGlobals,
     session_id: &str,
-    max_sent_data: usize,
-    max_recv_data: usize,
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
+
+    let crypto_provider = notary_globals.crypto_provider.clone();
 
     let att_config = AttestationConfig::builder()
         .supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()))
@@ -202,15 +198,15 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let config = VerifierConfig::builder()
         .protocol_config_validator(
             ProtocolConfigValidator::builder()
-                .max_sent_data(max_sent_data)
-                .max_recv_data(max_recv_data)
+                .max_sent_data(notary_globals.notarization_config.max_sent_data)
+                .max_recv_data(notary_globals.notarization_config.max_recv_data)
                 .build()?,
         )
         .crypto_provider(crypto_provider)
         .build()?;
 
     timeout(
-        Duration::from_secs(NOTARIZATION_TIMEOUT_SECONDS),
+        Duration::from_secs(notary_globals.notarization_config.timeout),
         Verifier::new(config).notarize(socket.compat(), &att_config),
     )
     .await
