@@ -1,5 +1,3 @@
-// TODO: Needs a lot of work
-
 use crate::{
     aes_gcm::{error::AesGcmError, MpcAesGcm},
     config::Role,
