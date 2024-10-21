@@ -5,7 +5,7 @@ use utils::iter::DuplicateCheck;
 
 use crate::hash::{Hash, HashAlgId, HashAlgorithm, TypedHash};
 
-/// Errors that can occur during operations with Merkle tree and Merkle proof
+/// Errors that can occur during operations with Merkle tree and Merkle proof.
 #[derive(Debug, thiserror::Error)]
 #[error("merkle error: {0}")]
 pub(crate) struct MerkleError(String);
@@ -26,8 +26,8 @@ pub(crate) struct MerkleProof {
 opaque_debug::implement!(MerkleProof);
 
 impl MerkleProof {
-    /// Checks if indices, hashes and leaves count are valid for the provided
-    /// root
+    /// Checks if the counts of indices, hashes, and leaves are valid for the
+    /// provided root.
     ///
     /// # Panics
     ///
@@ -158,7 +158,7 @@ mod test {
         indices.into_iter().map(|i| (i, leaves[i])).collect()
     }
 
-    // Expect Merkle proof verification to succeed
+    // Expect Merkle proof verification to succeed.
     #[rstest]
     #[case::sha2(Sha256::default())]
     #[case::blake3(Blake3::default())]
@@ -194,7 +194,7 @@ mod test {
 
         choices[1].1 = leaves[0];
 
-        // fail because the leaf is wrong
+        // Fail because the leaf is wrong.
         assert!(proof.verify(&hasher, &tree.root(), choices).is_err());
     }
 
@@ -261,7 +261,7 @@ mod test {
 
         proof.tree_len += 1;
 
-        // fail because leaf count is wrong
+        // Fail because leaf count is wrong.
         assert!(proof
             .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
             .is_err());
@@ -283,7 +283,7 @@ mod test {
         let mut choices = choose_leaves([2, 3, 4], &leaves);
         choices[1].0 = 1;
 
-        // fail because leaf index is wrong
+        // Fail because leaf index is wrong.
         assert!(proof.verify(&hasher, &tree.root(), choices).is_err());
     }
 
@@ -300,7 +300,7 @@ mod test {
 
         let proof = tree.proof(&[2, 3, 4]);
 
-        // trying to verify less leaves than what was included in the proof
+        // Trying to verify less leaves than what was included in the proof.
         assert!(proof
             .verify(&hasher, &tree.root(), choose_leaves([2, 3], &leaves))
             .is_err());
