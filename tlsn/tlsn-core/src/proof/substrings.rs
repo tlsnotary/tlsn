@@ -15,6 +15,7 @@ use mpz_garble_core::Encoder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utils::range::{RangeDisjoint, RangeSet, RangeUnion, ToRangeSet};
+use mpz_core::hash::Hash;
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
@@ -40,7 +41,8 @@ pub struct SubstringsProofBuilder<'a> {
     transcript_tx: &'a Transcript,
     transcript_rx: &'a Transcript,
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
-    private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
+    // private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
+    private_openings: HashMap<CommitmentId, (CommitmentInfo, HashMap<String, Hash>)>,
 }
 
 opaque_debug::implement!(SubstringsProofBuilder<'_>);
@@ -160,11 +162,12 @@ impl<'a> SubstringsProofBuilder<'a> {
         id: CommitmentId,
     ) -> Result<&mut Self, SubstringsProofBuilderError> {
         let (info, commitment, _) = self.get_commitment_info(id)?;
-
         // add commitment to openings and return an error if it is already present
+        let mut commitment_hashmap: HashMap<String, Hash> = HashMap::new();
+        commitment_hashmap.insert(String::from("hash"), *commitment.hash());
         if self
             .private_openings
-            .insert(id, (info.clone(), *commitment))
+            .insert(id, (info.clone(), commitment_hashmap))
             .is_some()
         {
             return Err(SubstringsProofBuilderError::DuplicateCommitmentId(id));
@@ -230,7 +233,7 @@ pub enum SubstringsProofError {
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsProof {
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
-    private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
+    private_openings: HashMap<CommitmentId, (CommitmentInfo, HashMap<String, Hash>)>,
     inclusion_proof: MerkleProof,
 }
 
@@ -340,10 +343,10 @@ impl SubstringsProof {
             }
         }
 
-        for (commitment_id, (_, blake3_commitment)) in private_openings {
+        for (commitment_id, (_, blake3_hash)) in private_openings {
             println!("Pushing private commitment id: {:?}", commitment_id);
             indices.push(commitment_id.to_inner() as usize);
-            expected_hashes.push(*blake3_commitment.hash());
+            expected_hashes.push(*blake3_hash.get("hash").unwrap());
         }
 
         // Verify that the expected hashes are present in the merkle tree.

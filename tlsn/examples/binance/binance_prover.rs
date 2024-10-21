@@ -3,8 +3,10 @@
 
 use http_body_util::Empty;
 use http_body_util::BodyExt;
+use hyper::server;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
+use sha2::digest::typenum::array;
 use std::ops::Range;
 use tlsn_core::{proof::TlsProof, transcript::get_value_ids};
 use tokio::io::AsyncWriteExt as _;
@@ -12,30 +14,45 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
+use serde_json::Value;
+use reqwest::Error;
 
 // Setting of the application server
-const SERVER_DOMAIN: &str = "jernkunpittaya.github.io";
-const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
+const SERVER_DOMAIN: &str = "api.binance.com";
+const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+const API_KEY:&str = "SFn8TZJWUBJMAUk542nr6vpYlJUzkRkXmBrGye8pXfhrLkLcZnYMyyuNxSEBVs1O";
+const API_SECRET:&str = "s0AiwZ6OpR8K76zde5JM25YFiu0PMqoCiGIT4VpCptJmHzZcgGjl4ctAZJYwZTdJ";
 
 use std::{env, str};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use reqwest::Client;
+use std::collections::HashMap;
+use hex;
+
+// Alias for HMAC-SHA256
+type HmacSha256 = Hmac<Sha256>;
+
+fn create_signature(params: &HashMap<&str, String>, secret_key: &str) -> String {
+    let query_string = params.iter()
+        .map(|(key, value)| format!("{}={}", key, value))
+        .collect::<Vec<String>>()
+        .join("&");
+
+    let mut mac = HmacSha256::new_from_slice(secret_key.as_bytes())
+        .expect("HMAC can take key of any size");
+    mac.update(query_string.as_bytes());
+
+    let result = mac.finalize();
+    let signature_bytes = result.into_bytes();
+
+    hex::encode(signature_bytes) // Convert to hex string
+}
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    // Get party index from command line argument
-    let party_index = match env::args().nth(1) {
-        Some(index) => match index.as_str() {
-            "0" | "1" | "2" => index,
-            _ => {
-                eprintln!("Error: Party index must be 0, 1, or 2");
-                std::process::exit(1);
-            }
-        },
-        None => {
-            eprintln!("Error: Party index not provided");
-            std::process::exit(1);
-        }
-    };
+
 
     let (prover_socket, notary_socket) = tokio::io::duplex(1 << 16);
 
@@ -44,7 +61,7 @@ async fn main() {
 
     // A Prover configuration
     let config = ProverConfig::builder()
-        .id("example")
+        .id("binance_eth")
         .server_dns(SERVER_DOMAIN)
         .build()
         .unwrap();
@@ -79,10 +96,43 @@ async fn main() {
     // Spawn the HTTP task to be run concurrently
     tokio::spawn(connection);
 
-    // Build a simple HTTP request with common headers
+    // let request = Request::builder()
+    //     .uri("/api/v3/time")
+    //     .header("Host", SERVER_DOMAIN)
+    //     .header("Accept", "*/*")
+    //     // Using "identity" instructs the Server not to use compression for its HTTP response.
+    //     // TLSNotary tooling does not support compression.
+    //     .header("Accept-Encoding", "identity")
+    //     .header("Connection", "close")
+    //     .header("User-Agent", USER_AGENT)
+    //     .body(Empty::<Bytes>::new())
+    //     .unwrap();
+
+    let res = reqwest::get("https://api.binance.com/api/v3/time").await;
+    let json_value:Value = res.unwrap().json().await.unwrap();
+    // println!("json value: {}", json_value);
+    let server_time = json_value.get("serverTime").unwrap().to_string();
+    // println!("serverTime: {}", server_time);
+    let mut params = HashMap::new();
+    params.insert("timestamp", server_time);
+    params.insert("omitZeroBalances",String::from("true"));
+
+    // Generate the signature
+    let signature = create_signature(&params, API_SECRET);
+    
+    params.insert("signature", signature);
+
+    let query_string: String = params.iter()
+    .map(|(key, value)| format!("{}={}", key, value))
+    .collect::<Vec<String>>()
+    .join("&");
+
+    // println!("query string: {}", query_string);
+
     let request = Request::builder()
-        .uri(format!("/followers-page/party_{}.html", party_index))
+        .uri(format!("/api/v3/account?{}", query_string))
         .header("Host", SERVER_DOMAIN)
+        .header("X-MBX-APIKEY", API_KEY)
         .header("Accept", "*/*")
         // Using "identity" instructs the Server not to use compression for its HTTP response.
         // TLSNotary tooling does not support compression.
@@ -91,7 +141,7 @@ async fn main() {
         .header("User-Agent", USER_AGENT)
         .body(Empty::<Bytes>::new())
         .unwrap();
-
+    
     println!("Starting an MPC TLS connection with the server");
 
     // Send the request to the Server and get a response via the MPC TLS connection
@@ -100,26 +150,27 @@ async fn main() {
     println!("Got a response from the server");
 
     assert!(response.status() == StatusCode::OK);
-
     // Read and print the response body
+
     let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
     let body_str = String::from_utf8_lossy(&body_bytes);
 
     println!("Response body:\n{}", body_str);
+    let json_value: Value = serde_json::from_str(&body_str).unwrap();
+    let balances = json_value.get("balances").unwrap();
 
-    // Extract followers count
-    let followers_count = body_str
-        .lines()
-        .find(|line| line.starts_with("followers="))
-        .and_then(|line| line.split('=').nth(1))
-        // .and_then(|count| count.parse::<f32>().ok())
-        .ok_or_else(|| {
-            eprintln!("Error: Followers count not found in the response");
-            std::process::exit(1);
-        })
-        .unwrap();
+    // Find the asset "ETH"
+    if let Some(eth) = balances.as_array().and_then(|assets| {
+        assets.iter().find(|asset| asset["asset"] == "ETH")
+    }) {
+        // Extract the "free" amount of TON
+        let free_eth = eth["free"].as_str().expect("Failed to get ETH free amount");
+        println!("The amount of ETH is: {}", free_eth);
+    } else {
+        println!("ETH not found.");
+    }
 
-    println!("Party {} has {} followers", party_index, followers_count);
+    // println!("Party {} has {} followers", party_index, followers_count);
 
     // The Prover task should be done now, so we can grab the Prover.
     let prover = prover_task.await.unwrap().unwrap();
@@ -135,9 +186,9 @@ async fn main() {
         build_proof_with_redactions(prover).await
     };
 
-    // Write the proof to a file
+    // // Write the proof to a file
     let args: Vec<String> = std::env::args().collect();
-    let file_dest = args.get(2).expect("Please provide a file destination as the second argument");
+    let file_dest = args.get(1).expect("Please provide a file destination as the second argument");
     let mut file = tokio::fs::File::create(file_dest).await.unwrap();
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
@@ -250,10 +301,16 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         ],
     );
 
-    // Identify the ranges in the inbound data which contain data which we want to disclose
-    let (recv_public_ranges, recv_private_ranges) = find_ranges_regex(
+    // Sensor all data in "balances"
+    let (recv_public_ranges, _) = find_ranges_regex(
         prover.recv_transcript().data(),
-        &[r"followers=(\d+(\.\d+)?)"],
+        &[r#""balances":(\[(\{("|:|,|.|\w)+\})+\])"#]
+    );
+    // Create only proof for ETH "free" amount
+    let (_, recv_private_ranges) = find_ranges_regex(
+        prover.recv_transcript().data(),
+        &[r#""ETH","free":"(\d+(\.\d+)?)"#]
+
     );
     println!("Received private ranges: {:?}", recv_private_ranges);
 
@@ -299,11 +356,8 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     }
 
     let substrings_proof = proof_builder.build().unwrap();
-    // [712..724]
     println!("Received private ranges: {:?}", recv_private_ranges);
     // Generate the encodings for the private ranges
-    // Value ids: ["rx/712", "rx/713", "rx/714", "rx/715", "rx/716", "rx/717", "rx/718", "rx/719", "rx/720", "rx/721", "rx/722", "rx/723"]
-    // received_private_encodings len: 12
     let received_private_encodings =
         get_value_ids(&recv_private_ranges.into(), tlsn_core::Direction::Received)
             .map(|id| notarized_session.header().encode(&id))

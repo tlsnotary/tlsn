@@ -33,6 +33,10 @@ elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
 regex = "1.10.3"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json"] } 
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 [[example]]
 name = "simple_prover"
@@ -57,3 +61,11 @@ path = "discord/discord_dm_verifier.rs"
 [[example]]
 name = "interactive"
 path = "interactive/interactive.rs"
+
+[[example]]
+name = "binance_prover"
+path = "binance/binance_prover.rs"
+
+[[example]]
+name = "binance_verifier"
+path = "binance/binance_verifier.rs"
