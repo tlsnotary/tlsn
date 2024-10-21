@@ -139,3 +139,10 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
+  trigger-deployment:
+    # doing this here due to feedback @ https://github.com/tlsnotary/tlsn/pull/631#issuecomment-2415806267
+    needs: tests-integration
+    uses: ./.github/workflows/tee-cd.yml
+    with:
+      # what this is supposed to do -> $ref is the tag: e.g., v0.1.0-alpha.7; pass the $ref string to the cd script and update reverse proxy / deploy 
+      ref: ${{  github.ref_name }}	
