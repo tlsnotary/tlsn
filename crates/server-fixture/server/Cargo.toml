@@ -14,9 +14,9 @@ hyper-util = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat", "io"] }
 tower-service = { version = "0.3" }
-
+serde_json = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 
 [[bin]]
-name = "main"
+name = "tlsn-server-fixture"
 path = "src/main.rs"
