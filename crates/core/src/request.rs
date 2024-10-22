@@ -97,8 +97,8 @@ mod test {
     use crate::{
         connection::{ServerCertOpening, TranscriptLength},
         fixtures::{
-            attestation_fixture, encoding_provider, request_fixture, ConnectionFixture,
-            RequestFixture,
+            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            ConnectionFixture, RequestFixture,
         },
         hash::{Blake3, Hash, HashAlgId},
         signing::SignatureAlgId,
@@ -118,8 +118,12 @@ mod test {
             Blake3::default(),
         );
 
-        let attestation =
-            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
+        let attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         assert!(request.validate(&attestation).is_ok())
     }
@@ -136,8 +140,12 @@ mod test {
             Blake3::default(),
         );
 
-        let attestation =
-            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
+        let attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         request.signature_alg = SignatureAlgId::SECP256R1;
 
@@ -157,8 +165,12 @@ mod test {
             Blake3::default(),
         );
 
-        let attestation =
-            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
+        let attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         request.hash_alg = HashAlgId::SHA256;
 
@@ -178,8 +190,12 @@ mod test {
             Blake3::default(),
         );
 
-        let attestation =
-            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
+        let attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         let ConnectionFixture {
             server_cert_data, ..
@@ -209,8 +225,12 @@ mod test {
             Blake3::default(),
         );
 
-        let attestation =
-            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
+        let attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         request.encoding_commitment_root = Some(TypedHash {
             alg: HashAlgId::BLAKE3,

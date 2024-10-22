@@ -361,8 +361,8 @@ mod tests {
 
     use crate::{
         fixtures::{
-            attestation_fixture, encoding_provider, request_fixture, ConnectionFixture,
-            RequestFixture,
+            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            ConnectionFixture, RequestFixture,
         },
         hash::Blake3,
         signing::SignatureAlgId,
@@ -444,7 +444,12 @@ mod tests {
         let transcript_proof = builder.build().unwrap();
 
         request.encoding_commitment_root = None;
-        let attestation = attestation_fixture(request, connection, SignatureAlgId::SECP256K1);
+        let attestation = attestation_fixture(
+            request,
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         let provider = CryptoProvider::default();
         let err = transcript_proof

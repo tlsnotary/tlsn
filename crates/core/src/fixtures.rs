@@ -205,6 +205,7 @@ pub fn attestation_fixture(
     request: Request,
     connection: ConnectionFixture,
     signature_alg: SignatureAlgId,
+    encoding_seed: Vec<u8>,
 ) -> Attestation {
     let ConnectionFixture {
         connection_info,
@@ -236,7 +237,7 @@ pub fn attestation_fixture(
     attestation_builder
         .connection_info(connection_info)
         .server_ephemeral_key(server_ephemeral_key)
-        .encoding_seed(encoder_seed().to_vec());
+        .encoding_seed(encoding_seed);
 
     attestation_builder.build(&provider).unwrap()
 }
