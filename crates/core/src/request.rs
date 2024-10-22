@@ -90,38 +90,54 @@ pub struct InconsistentAttestation(String);
 
 #[cfg(test)]
 mod test {
+    use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+
     use super::*;
 
     use crate::{
         connection::{ServerCertOpening, TranscriptLength},
-        fixtures::{attestation_fixture, test_fixture, ConnectionFixture, TestFixture},
-        hash::{Hash, HashAlgId},
+        fixtures::{
+            attestation_fixture, encoding_provider, request_fixture, ConnectionFixture,
+            RequestFixture,
+        },
+        hash::{Blake3, Hash, HashAlgId},
         signing::SignatureAlgId,
+        transcript::Transcript,
         CryptoProvider,
     };
 
     #[test]
     fn test_success() {
-        let TestFixture {
-            request,
-            connection,
-            ..
-        } = test_fixture();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let attestation = attestation_fixture((request.clone(), connection));
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
 
         assert!(request.validate(&attestation).is_ok())
     }
 
     #[test]
     fn test_wrong_signature_alg() {
-        let TestFixture {
-            mut request,
-            connection,
-            ..
-        } = test_fixture();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let attestation = attestation_fixture((request.clone(), connection));
+        let RequestFixture { mut request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
 
         request.signature_alg = SignatureAlgId::SECP256R1;
 
@@ -131,13 +147,18 @@ mod test {
 
     #[test]
     fn test_wrong_hash_alg() {
-        let TestFixture {
-            mut request,
-            connection,
-            ..
-        } = test_fixture();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let attestation = attestation_fixture((request.clone(), connection));
+        let RequestFixture { mut request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
 
         request.hash_alg = HashAlgId::SHA256;
 
@@ -147,13 +168,18 @@ mod test {
 
     #[test]
     fn test_wrong_server_commitment() {
-        let TestFixture {
-            mut request,
-            connection,
-            ..
-        } = test_fixture();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let attestation = attestation_fixture((request.clone(), connection));
+        let RequestFixture { mut request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
 
         let ConnectionFixture {
             server_cert_data, ..
@@ -173,13 +199,18 @@ mod test {
 
     #[test]
     fn test_wrong_encoding_commitment_root() {
-        let TestFixture {
-            mut request,
-            connection,
-            ..
-        } = test_fixture();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let attestation = attestation_fixture((request.clone(), connection));
+        let RequestFixture { mut request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1);
 
         request.encoding_commitment_root = Some(TypedHash {
             alg: HashAlgId::BLAKE3,

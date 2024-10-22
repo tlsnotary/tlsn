@@ -357,7 +357,16 @@ impl fmt::Display for TranscriptProofBuilderError {
 
 #[cfg(test)]
 mod tests {
-    use crate::fixtures::{attestation_fixture, test_fixture, TestFixture};
+    use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+
+    use crate::{
+        fixtures::{
+            attestation_fixture, encoding_provider, request_fixture, ConnectionFixture,
+            RequestFixture,
+        },
+        hash::Blake3,
+        signing::SignatureAlgId,
+    };
 
     use super::*;
 
@@ -395,11 +404,15 @@ mod tests {
 
     #[test]
     fn test_reveal_missing_encoding_commitment_range() {
-        let TestFixture {
-            transcript,
-            encoding_tree,
-            ..
-        } = test_fixture();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { encoding_tree, .. } = request_fixture(
+            transcript.clone(),
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
 
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
@@ -410,12 +423,18 @@ mod tests {
 
     #[test]
     fn test_verify_missing_encoding_commitment() {
-        let TestFixture {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture {
             mut request,
-            connection,
-            transcript,
             encoding_tree,
-        } = test_fixture();
+        } = request_fixture(
+            transcript.clone(),
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
 
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
@@ -425,7 +444,7 @@ mod tests {
         let transcript_proof = builder.build().unwrap();
 
         request.encoding_commitment_root = None;
-        let attestation = attestation_fixture((request, connection));
+        let attestation = attestation_fixture(request, connection, SignatureAlgId::SECP256K1);
 
         let provider = CryptoProvider::default();
         let err = transcript_proof
