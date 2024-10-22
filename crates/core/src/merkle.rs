@@ -235,6 +235,21 @@ mod test {
     #[case::blake3(Blake3::default())]
     #[case::keccak(Keccak256::default())]
     #[should_panic]
+    fn test_proof_fail_index_out_of_bounds<H: HashAlgorithm>(#[case] hasher: H) {
+        let mut tree = MerkleTree::new(hasher.id());
+
+        let leaves = leaves(&hasher, [T(0), T(1), T(2), T(3), T(4)]);
+
+        tree.insert(&hasher, leaves.clone());
+
+        _ = tree.proof(&[2, 3, 4, 6]);
+    }
+
+    #[rstest]
+    #[case::sha2(Sha256::default())]
+    #[case::blake3(Blake3::default())]
+    #[case::keccak(Keccak256::default())]
+    #[should_panic]
     fn test_proof_fail_length_duplicates<H: HashAlgorithm>(#[case] hasher: H) {
         let mut tree = MerkleTree::new(hasher.id());
 
