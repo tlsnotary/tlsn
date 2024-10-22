@@ -17,8 +17,9 @@ pub(crate) mod leader;
 pub mod msg;
 pub(crate) mod record_layer;
 
-mod cipher;
 mod decode;
+mod dump;
+mod tag;
 
 pub use components::build_components;
 pub use config::{

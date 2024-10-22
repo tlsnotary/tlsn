@@ -1,5 +1,6 @@
 use std::{error::Error, fmt::Display};
 
+use cipher::CipherError;
 use tls_backend::BackendError;
 
 /// MPC-TLS protocol error.
@@ -81,6 +82,8 @@ pub(crate) enum Kind {
     Config,
     /// Peer misbehaved somehow, perhaps maliciously.
     PeerMisbehaved,
+    /// Virtual machine error
+    Vm,
     /// Other error
     Other,
 }
@@ -98,6 +101,7 @@ impl Display for Kind {
             Kind::Decrypt => write!(f, "Decryption"),
             Kind::Config => write!(f, "Config"),
             Kind::PeerMisbehaved => write!(f, "PeerMisbehaved"),
+            Kind::Vm => write!(f, "Vm"),
             Kind::Other => write!(f, "Other"),
         }
     }
@@ -128,16 +132,6 @@ impl From<mpz_common::ContextError> for MpcTlsError {
         Self {
             kind: Kind::Ctx,
             msg: "context error".to_string(),
-            source: Some(Box::new(err)),
-        }
-    }
-}
-
-impl From<mpz_garble::VmError> for MpcTlsError {
-    fn from(err: mpz_garble::VmError) -> Self {
-        Self {
-            kind: Kind::Mpc,
-            msg: "mpc-vm error".to_string(),
             source: Some(Box::new(err)),
         }
     }

@@ -10,6 +10,7 @@ use crate::{
 };
 use aead::{aes_gcm::AesGcmError, Aead};
 use async_trait::async_trait;
+use cipher::Cipher;
 use futures::SinkExt;
 use hmac_sha256::Prf;
 use ke::KeyExchange;
@@ -42,21 +43,20 @@ use actor::MpcTlsLeaderCtrl;
 pub type LeaderCtrl = MpcTlsLeaderCtrl;
 
 /// MPC-TLS leader.
-pub struct MpcTlsLeader {
+pub struct MpcTlsLeader<Ke, Prf, C> {
     config: MpcTlsLeaderConfig,
     channel: MpcTlsChannel,
 
     state: State,
 
-    ke: Box<dyn KeyExchange + Send>,
-    prf: Box<dyn Prf + Send>,
+    key_exchange: Ke,
+    prf: Prf,
     encrypter: Encrypter,
     decrypter: Decrypter,
-
+    cipher: C,
     /// When set, notifies the backend that there are TLS messages which need to
     /// be decrypted.
     notifier: BackendNotifier,
-
     /// Whether the backend is ready to decrypt messages.
     is_decrypting: bool,
     /// Messages which have been committed but not yet decrypted.

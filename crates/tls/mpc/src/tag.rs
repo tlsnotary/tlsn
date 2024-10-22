@@ -21,7 +21,7 @@ use tracing::instrument;
 pub(crate) const TAG_LEN: usize = 16;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct Tag([u8; TAG_LEN]);
+pub struct Tag([u8; TAG_LEN]);
 
 impl AsRef<[u8]> for Tag {
     fn as_ref(&self) -> &[u8] {

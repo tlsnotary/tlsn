@@ -32,6 +32,7 @@ mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", branch =
 mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
 mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
 mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
 
 uid-mux = { version = "0.1", features = ["serio"] }
 ludi = { git = "https://github.com/sinui0/ludi", rev = "e511c3b", default-features = false }
@@ -44,6 +45,7 @@ p256 = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 serio = { version = "0.1", features = ["compat"] }
