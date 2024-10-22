@@ -193,14 +193,16 @@ mod validation {
 
     /// The maximum allowed height of the Merkle tree of encoding commitments.
     ///
-    /// The statistical security parameter (SSP) of the encoding commitment protocol is calculated
-    /// as "the number of uniformly random bits in a single bit's encoding minus `MAX_HEIGHT`".
+    /// The statistical security parameter (SSP) of the encoding commitment
+    /// protocol is calculated as "the number of uniformly random bits in a
+    /// single bit's encoding minus `MAX_HEIGHT`".
     ///
-    /// For example, a bit encoding used in garbled circuits typically has 127 uniformly random
-    /// bits, hence when using it in the encoding commitment protocol, the SSP is 117 bits.
+    /// For example, a bit encoding used in garbled circuits typically has 127
+    /// uniformly random bits, hence when using it in the encoding
+    /// commitment protocol, the SSP is 117 bits.
     ///
-    /// DO NOT use bit encodings which have less than 50 uniformly random bits, since the SSP < 40
-    /// bits is widely considered inadequate.
+    /// DO NOT use bit encodings which have less than 50 uniformly random bits,
+    /// since the SSP < 40 bits is widely considered inadequate.
     const MAX_HEIGHT: usize = 10;
 
     #[derive(Debug, Deserialize)]
