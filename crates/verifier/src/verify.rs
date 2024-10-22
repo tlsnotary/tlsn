@@ -94,7 +94,7 @@ impl Verifier<VerifyState> {
             data,
         } = mux_fut
             .poll_with(async {
-                // Finalize all MPC
+                // Finalize all MPC.
                 ot_send.reveal(&mut ctx).await?;
 
                 vm.finalize().await?;

@@ -19,7 +19,7 @@ impl MerkleError {
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct MerkleProof {
     alg: HashAlgId,
-    tree_len: usize,
+    leaf_count: usize,
     proof: rs_merkle::MerkleProof<Hash>,
 }
 
@@ -55,12 +55,23 @@ impl MerkleProof {
             root.value,
             &indices,
             &leaves,
-            self.tree_len,
+            self.leaf_count,
         ) {
             return Err(MerkleError::new("invalid merkle proof"));
         }
 
         Ok(())
+    }
+
+    /// Returns the leaf count of the Merkle tree associated with the proof.
+    pub(crate) fn leaf_count(&self) -> usize {
+        self.leaf_count
+    }
+
+    #[cfg(test)]
+    /// Sets the leaf count. Testing only.
+    pub(crate) fn set_leaf_count(&mut self, count: usize) {
+        self.leaf_count = count;
     }
 }
 
@@ -126,7 +137,7 @@ impl MerkleTree {
 
         MerkleProof {
             alg: self.alg,
-            tree_len: self.tree.leaves_len(),
+            leaf_count: self.tree.leaves_len(),
             proof: self.tree.proof(indices),
         }
     }
@@ -257,12 +268,20 @@ mod test {
 
         tree.insert(&hasher, leaves.clone());
 
-        let mut proof = tree.proof(&[2, 3, 4]);
+        let mut proof1 = tree.proof(&[2, 3, 4]);
+        let mut proof2 = proof1.clone();
 
-        proof.tree_len += 1;
+        // Increment the `leaf_count` field.
+        proof1.leaf_count += 1;
+        // Decrement the `leaf_count` field.
+        proof2.leaf_count -= 1;
 
         // Fail because leaf count is wrong.
-        assert!(proof
+        assert!(proof1
+            .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
+            .is_err());
+
+        assert!(proof2
             .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
             .is_err());
     }

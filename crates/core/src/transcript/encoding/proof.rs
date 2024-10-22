@@ -27,6 +27,7 @@ opaque_debug::implement!(Opening);
 
 /// An encoding commitment proof.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "validation::EncodingProofUnchecked")]
 pub struct EncodingProof {
     /// The proof of inclusion of the commitment(s) in the Merkle tree of
     /// commitments.
@@ -180,5 +181,92 @@ impl From<HashProviderError> for EncodingProofError {
 impl From<MerkleError> for EncodingProofError {
     fn from(error: MerkleError) -> Self {
         Self::new(ErrorKind::Proof, error)
+    }
+}
+
+/// Invalid encoding proof error.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid encoding proof: {0}")]
+pub struct InvalidEncodingProof(&'static str);
+
+mod validation {
+    use super::*;
+
+    /// The maximum allowed height of the Merkle tree of encoding commitments.
+    ///
+    /// The statistical security parameter (SSP) of the encoding commitment protocol is calculated
+    /// as "the number of uniformly random bits in a single bit's encoding minus `MAX_HEIGHT`".
+    ///
+    /// For example, a bit encoding used in garbled circuits typically has 127 uniformly random
+    /// bits, hence when using it in the encoding commitment protocol, the SSP is 117 bits.
+    ///
+    /// DO NOT use bit encodings which have less than 50 uniformly random bits, since the SSP < 40
+    /// bits is widely considered inadequate.
+    const MAX_HEIGHT: usize = 10;
+
+    #[derive(Debug, Deserialize)]
+    pub(super) struct EncodingProofUnchecked {
+        inclusion_proof: MerkleProof,
+        openings: HashMap<usize, Opening>,
+    }
+
+    impl TryFrom<EncodingProofUnchecked> for EncodingProof {
+        type Error = InvalidEncodingProof;
+
+        fn try_from(unchecked: EncodingProofUnchecked) -> Result<Self, Self::Error> {
+            if unchecked.inclusion_proof.leaf_count() > 1 << MAX_HEIGHT {
+                return Err(InvalidEncodingProof(
+                    "the height of the tree exceeds the maximum allowed",
+                ));
+            }
+
+            Ok(Self {
+                inclusion_proof: unchecked.inclusion_proof,
+                openings: unchecked.openings,
+            })
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        hash::{impl_domain_separator, Hash, HashAlgorithm, Sha256},
+        merkle::MerkleTree,
+    };
+
+    #[derive(Serialize)]
+    struct T(u64);
+
+    impl_domain_separator!(T);
+
+    fn leaves<H: HashAlgorithm>(hasher: &H, leaves: impl IntoIterator<Item = T>) -> Vec<Hash> {
+        leaves
+            .into_iter()
+            .map(|x| hasher.hash_canonical(&x))
+            .collect()
+    }
+
+    #[test]
+    // Expect to fail since EncodingProof did not pass validation.
+    fn test_proof_validation_fail() {
+        let hasher = Sha256::default();
+
+        let mut tree = MerkleTree::new(hasher.id());
+        tree.insert(&hasher, leaves(&hasher, [T(0)]));
+
+        let mut proof = tree.proof(&[0]);
+        proof.set_leaf_count((1 << 20) + 1);
+
+        let proof = EncodingProof {
+            inclusion_proof: proof,
+            openings: HashMap::default(),
+        };
+
+        let bytes = bincode::serialize(&proof).expect("proof should be serializable");
+
+        let proof: Result<EncodingProof, Box<bincode::ErrorKind>> = bincode::deserialize(&bytes);
+        assert!(proof.is_err())
     }
 }
