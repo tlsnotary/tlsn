@@ -150,19 +150,19 @@
     ///
     /// # Warning
     ///
-    /// The content of the received transcripts can not be considered authentic
+    /// The content of the received transcript can not be considered authentic
     /// until after finalization.
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"info"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>receive(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;PartialTranscript, VerifierError&gt; {
         <span class="self">self</span>.state
             .mux_fut
             .poll_with(<span class="kw">async </span>{
-                <span class="comment">// Receive partial transcript from the prover
+                <span class="comment">// Receive partial transcript from the prover.
                 </span><span class="kw">let </span>partial_transcript: PartialTranscript = <span class="self">self</span>.state.io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
 
                 <span class="macro">info!</span>(<span class="string">"Received partial transcript from prover"</span>);
 
-                <span class="comment">// Check ranges
+                <span class="comment">// Check ranges.
                 </span><span class="kw">if </span>partial_transcript.len_sent()
                     != <span class="self">self</span>.state.connection_info.transcript_length.sent <span class="kw">as </span>usize
                     || partial_transcript.len_received()
@@ -173,7 +173,7 @@
                     ));
                 }
 
-                <span class="comment">// Now verify the transcript parts which the prover wants to reveal
+                <span class="comment">// Now verify the transcript parts which the prover wants to reveal.
                 </span><span class="kw">let </span>sent_value_ids =
                     get_value_ids(Direction::Sent, partial_transcript.sent_authed());
                 <span class="kw">let </span>recv_value_ids =
@@ -195,10 +195,10 @@
                     .map(Value::U8)
                     .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-                <span class="comment">// Check that purported values are correct
+                <span class="comment">// Check that purported values are correct.
                 </span><span class="self">self</span>.state.vm.verify(<span class="kw-2">&amp;</span>value_refs, <span class="kw-2">&amp;</span>values).<span class="kw">await</span><span class="question-mark">?</span>;
 
-                <span class="macro">info!</span>(<span class="string">"Successfully verified purported cleartext"</span>);
+                <span class="macro">info!</span>(<span class="string">"Successfully verified purported transcript"</span>);
 
                 <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(partial_transcript)
             })

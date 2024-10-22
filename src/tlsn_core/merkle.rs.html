@@ -313,7 +313,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::hash::{Hash, HashAlgId, HashAlgorithm, TypedHash};
 
-<span class="doccomment">/// Errors that can occur during operations with Merkle tree and Merkle proof
+<span class="doccomment">/// Errors that can occur during operations with Merkle tree and Merkle proof.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 #[error(<span class="string">"merkle error: {0}"</span>)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MerkleError(String);
@@ -334,8 +334,8 @@
 <span class="macro">opaque_debug::implement!</span>(MerkleProof);
 
 <span class="kw">impl </span>MerkleProof {
-    <span class="doccomment">/// Checks if indices, hashes and leaves count are valid for the provided
-    /// root
+    <span class="doccomment">/// Checks if the counts of indices, hashes, and leaves are valid for the
+    /// provided root.
     ///
     /// # Panics
     ///
@@ -466,7 +466,7 @@
         indices.into_iter().map(|i| (i, leaves[i])).collect()
     }
 
-    <span class="comment">// Expect Merkle proof verification to succeed
+    <span class="comment">// Expect Merkle proof verification to succeed.
     </span><span class="attr">#[rstest]
     #[case::sha2(Sha256::default())]
     #[case::blake3(Blake3::default())]
@@ -502,7 +502,7 @@
 
         choices[<span class="number">1</span>].<span class="number">1 </span>= leaves[<span class="number">0</span>];
 
-        <span class="comment">// fail because the leaf is wrong
+        <span class="comment">// Fail because the leaf is wrong.
         </span><span class="macro">assert!</span>(proof.verify(<span class="kw-2">&amp;</span>hasher, <span class="kw-2">&amp;</span>tree.root(), choices).is_err());
     }
 
@@ -569,7 +569,7 @@
 
         proof.tree_len += <span class="number">1</span>;
 
-        <span class="comment">// fail because leaf count is wrong
+        <span class="comment">// Fail because leaf count is wrong.
         </span><span class="macro">assert!</span>(proof
             .verify(<span class="kw-2">&amp;</span>hasher, <span class="kw-2">&amp;</span>tree.root(), choose_leaves([<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>leaves))
             .is_err());
@@ -591,7 +591,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>choices = choose_leaves([<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>leaves);
         choices[<span class="number">1</span>].<span class="number">0 </span>= <span class="number">1</span>;
 
-        <span class="comment">// fail because leaf index is wrong
+        <span class="comment">// Fail because leaf index is wrong.
         </span><span class="macro">assert!</span>(proof.verify(<span class="kw-2">&amp;</span>hasher, <span class="kw-2">&amp;</span>tree.root(), choices).is_err());
     }
 
@@ -608,7 +608,7 @@
 
         <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
 
-        <span class="comment">// trying to verify less leaves than what was included in the proof
+        <span class="comment">// Trying to verify less leaves than what was included in the proof.
         </span><span class="macro">assert!</span>(proof
             .verify(<span class="kw-2">&amp;</span>hasher, <span class="kw-2">&amp;</span>tree.root(), choose_leaves([<span class="number">2</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>leaves))
             .is_err());

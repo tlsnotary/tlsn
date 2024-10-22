@@ -257,6 +257,7 @@
 <a href="#257" id="257">257</a>
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Attestation types.
 //!
 //! An attestation is a cryptographically signed document issued by a Notary who
@@ -426,8 +427,7 @@
     /// The order of fields is not stable across versions.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hash_fields(<span class="kw-2">&amp;</span><span class="self">self</span>, hasher: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HashAlgorithm) -&gt; Vec&lt;(FieldId, Hash)&gt; {
         <span class="comment">// CRITICAL: ensure all fields are included! If a new field is added to the
-        // struct without including it here it will not be verified to be
-        // included in the attestation.
+        // struct without including it here, it will not be included in the attestation.
         </span><span class="kw">let </span><span class="self">Self </span>{
             verifying_key,
             connection_info: conn_info,
@@ -470,11 +470,13 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.connection_info.data
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>server_ephemeral_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ServerEphemKey {
+    <span class="doccomment">/// Returns the server's ephemeral public key.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>server_ephemeral_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ServerEphemKey {
         <span class="kw-2">&amp;</span><span class="self">self</span>.server_ephemeral_key.data
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cert_commitment(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ServerCertCommitment {
+    <span class="doccomment">/// Returns the commitment to a server certificate.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cert_commitment(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ServerCertCommitment {
         <span class="kw-2">&amp;</span><span class="self">self</span>.cert_commitment.data
     }
 
@@ -489,7 +491,7 @@
     }
 }
 
-<span class="doccomment">/// An attestation.
+<span class="doccomment">/// An attestation document.
 ///
 /// See [module level documentation](crate::attestation) for more information.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]

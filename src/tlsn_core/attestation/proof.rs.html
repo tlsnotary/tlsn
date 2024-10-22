@@ -175,6 +175,9 @@
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -232,7 +235,7 @@
             .get(<span class="kw-2">&amp;</span><span class="self">self</span>.signature.alg)
             .map_err(|e| AttestationError::new(ErrorKind::Provider, e))<span class="question-mark">?</span>;
 
-        <span class="comment">// Verify body corresponding to the header.
+        <span class="comment">// Verify that the body is corresponding to the header.
         </span><span class="kw">let </span>body = <span class="self">self</span>.body.verify_with_provider(provider, <span class="kw-2">&amp;</span><span class="self">self</span>.header)<span class="question-mark">?</span>;
 
         <span class="comment">// Verify signature of the header.
@@ -256,12 +259,15 @@
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>BodyProof {
     body: Body,
-    proof: MerkleProof,
+    <span class="doccomment">/// A proof of inclusion of a subset of fields in the `body`.
+    </span><span class="comment">// Currently, proves the inclusion of all fields.
+    </span>proof: MerkleProof,
 }
 
 <span class="kw">impl </span>BodyProof {
     <span class="doccomment">/// Returns a new body proof.
-    </span><span class="comment">// TODO: Support including a subset of fields instead of the entire body.
+    </span><span class="comment">// TODO: Support creating a proof for a subset of fields instead of the entire
+    // body.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
         hasher: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HashAlgorithm,
         body: Body,

@@ -103,9 +103,11 @@
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the notarization phase of the prover.
 //!
-//! The prover deals with a TLS verifier that is only a notary.
+//! The prover interacts with a TLS verifier who acts as a Notary, i.e. the
+//! verifier produces an attestation but does not verify transcript data.
 
 </span><span class="kw">use super</span>::{state::Notarize, Prover, ProverError};
 <span class="kw">use </span>mpz_ot::VerifiableOTReceiver;

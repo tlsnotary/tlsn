@@ -191,9 +191,9 @@
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Index&lt;T&gt; {
     items: Vec&lt;T&gt;,
-    <span class="comment">// Lookup by field id
+    <span class="comment">// Lookup by field id.
     </span>field_ids: HashMap&lt;FieldId, usize&gt;,
-    <span class="comment">// Lookup by transcript index
+    <span class="comment">// Lookup by transcript index.
     </span>transcript_idxs: HashMap&lt;Idx, usize&gt;,
 }
 

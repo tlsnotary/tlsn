@@ -103,8 +103,8 @@
 <a href="#103" id="103">103</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the proving phase of the prover.
 //!
-//! Here the prover deals with a verifier directly, so there is no notary
-//! involved. Instead the verifier directly verifies parts of the transcript.
+//! The prover interacts with a TLS verifier directly, without involving a
+//! Notary. The verifier verifies transcript data.
 
 </span><span class="kw">use super</span>::{state::Prove <span class="kw">as </span>ProveState, Prover, ProverError};
 <span class="kw">use </span>mpz_garble::{Memory, Prove};
@@ -121,7 +121,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.state.transcript
     }
 
-    <span class="doccomment">/// Prove subsequences in the transcript to the verifier.
+    <span class="doccomment">/// Proves subsequences in the transcript to the verifier.
     ///
     /// # Arguments
     ///
@@ -164,7 +164,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Finalize the proving
+    <span class="doccomment">/// Finalizes the proving.
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
         <span class="kw">let </span>ProveState {
@@ -184,7 +184,7 @@
 
                 vm.finalize().<span class="kw">await</span><span class="question-mark">?</span>;
 
-                <span class="comment">// Send identity proof to the verifier
+                <span class="comment">// Send identity proof to the verifier.
                 </span>io.send(ServerIdentityProof {
                     name: <span class="self">self</span>.config.server_name().clone(),
                     data: server_cert_data,

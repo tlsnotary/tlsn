@@ -76,9 +76,11 @@
 <a href="#76" id="76">76</a>
 <a href="#77" id="77">77</a>
 <a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the notarization phase of the verifier.
 //!
-//! The TLS verifier is only a notary.
+//! The TLS verifier acts as a Notary, i.e. the verifier produces an
+//! attestation but does not verify transcript data.
 
 </span><span class="kw">use super</span>::{state::Notarize, Verifier, VerifierError};
 <span class="kw">use </span>mpz_ot::CommittedOTSender;
@@ -95,7 +97,7 @@
     ///
     /// # Arguments
     ///
-    /// * `signer` - The signer used to sign the notarization result.
+    /// * `config` - The attestation configuration.
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>, config: <span class="kw-2">&amp;</span>AttestationConfig) -&gt; <span class="prelude-ty">Result</span>&lt;Attestation, VerifierError&gt; {
         <span class="kw">let </span>Notarize {
@@ -140,7 +142,7 @@
 
                 io.send(attestation.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
 
-                <span class="macro">info!</span>(<span class="string">"Sent session header"</span>);
+                <span class="macro">info!</span>(<span class="string">"Sent attestation"</span>);
 
                 <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(attestation)
             })

@@ -715,7 +715,7 @@
             <span class="kw">fn </span><span class="macro-nonterminal">domain</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
                 <span class="kw">use </span>std::sync::LazyLock;
 
-                <span class="comment">// Computes a 16 byte hash of the types name to use as a domain separator.
+                <span class="comment">// Computes a 16 byte hash of the type's name to use as a domain separator.
                 </span><span class="kw">static </span>DOMAIN: LazyLock&lt;[u8; <span class="number">16</span>]&gt; = LazyLock::new(|| {
                     <span class="kw">let </span>domain: [u8; <span class="number">32</span>] = blake3::hash(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>).<span class="macro-nonterminal">as_bytes</span>()).into();
                     domain[..<span class="number">16</span>].try_into().unwrap()

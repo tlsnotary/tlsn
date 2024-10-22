@@ -400,7 +400,7 @@
 
         <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         <span class="kw">let </span>(sent_len, recv_len) = transcript.len();
-        <span class="comment">// Plaintext encodings which the Prover obtained from GC evaluation
+        <span class="comment">// Plaintext encodings which the Prover obtained from GC evaluation.
         </span><span class="kw">let </span>encodings_provider = encoding_provider(GET_WITH_HEADER, OK_JSON);
 
         <span class="comment">// At the end of the TLS connection the Prover holds the:

@@ -656,7 +656,7 @@
 
 <span class="macro">impl_domain_separator!</span>(VerifyingKey);
 
-<span class="doccomment">/// Error occurred while verifying a signature.
+<span class="doccomment">/// Error that can occur while verifying a signature.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 #[error(<span class="string">"signature verification failed: {0}"</span>)]
 </span><span class="kw">pub struct </span>SignatureError(String);

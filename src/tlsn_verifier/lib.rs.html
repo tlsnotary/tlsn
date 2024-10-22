@@ -510,7 +510,7 @@
     /// # Arguments
     ///
     /// * `socket` - The socket to the prover.
-    /// * `signer` - The signer used to sign the notarization result.
+    /// * `config` - The attestation configuration.
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"info"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>notarize&lt;S: AsyncWrite + AsyncRead + Send + Unpin + <span class="lifetime">'static</span>&gt;(
         <span class="self">self</span>,
@@ -622,7 +622,7 @@
     <span class="doccomment">/// Starts verification of the TLS session.
     ///
     /// This function transitions the verifier into a state where it can verify
-    /// content of the transcript.
+    /// the contents of the transcript.
     </span><span class="kw">pub fn </span>start_verify(<span class="self">self</span>) -&gt; Verifier&lt;Verify&gt; {
         Verifier {
             config: <span class="self">self</span>.config,
