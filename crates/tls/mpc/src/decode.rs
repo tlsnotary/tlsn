@@ -1,9 +1,12 @@
-use std::sync::Arc;
+use std::{ops::BitXor, sync::Arc};
 
 use crate::{MpcTlsError, TlsRole};
 use cipher::Cipher;
 use mpz_circuits::{types::ValueType, Circuit, CircuitBuilder, Tracer};
-use mpz_memory_core::{binary::Binary, MemoryExt, Repr, StaticSize, Vector, View, ViewExt};
+use mpz_memory_core::{
+    binary::Binary, DecodeFutureTyped, Memory, MemoryExt, MemoryType, Repr, StaticSize, Vector,
+    View, ViewExt,
+};
 use mpz_vm_core::{CallBuilder, Vm, VmExt};
 use rand::{distributions::Standard, prelude::Distribution, thread_rng};
 
@@ -46,7 +49,7 @@ impl<R> Decode<R>
 where
     R: Repr<Binary>,
 {
-    pub fn private<V>(&mut self, vm: &mut V) -> Result<OneTimePad<R>, MpcTlsError>
+    pub fn private<V>(self, vm: &mut V) -> Result<OneTimePadPrivate<R>, MpcTlsError>
     where
         V: Vm<Binary> + View<Binary>,
         Standard: Distribution<R::Clear>,
@@ -77,8 +80,9 @@ where
             .map_err(MpcTlsError::vm)?;
 
         let output = vm.call(call).map_err(MpcTlsError::vm)?;
+        let output = vm.decode(output).map_err(MpcTlsError::vm)?;
 
-        let otp = OneTimePad {
+        let otp = OneTimePadPrivate {
             role: self.role,
             value: output,
             otp: otp_value,
@@ -87,7 +91,7 @@ where
         Ok(otp)
     }
 
-    pub fn shared<V>(&mut self, vm: &mut V) -> Result<OneTimePad<R>, MpcTlsError>
+    pub fn shared<V>(self, vm: &mut V) -> Result<OneTimePadShared<R>, MpcTlsError>
     where
         V: Vm<Binary> + View<Binary>,
         Standard: Distribution<R::Clear>,
@@ -116,8 +120,9 @@ where
             .map_err(MpcTlsError::vm)?;
 
         let output = vm.call(call).map_err(MpcTlsError::vm)?;
+        let output = vm.decode(output).map_err(MpcTlsError::vm)?;
 
-        let otp = OneTimePad {
+        let otp = OneTimePadPrivate {
             role: self.role,
             value: output,
             otp: otp_value,
@@ -127,20 +132,80 @@ where
     }
 }
 
-pub struct OneTimePad<R> {
+pub struct OneTimePadPrivate<R: Repr<Binary>> {
     role: TlsRole,
-    value: R,
+    value: DecodeFutureTyped<<Binary as MemoryType>::Raw, R::Clear>,
     otp: Option<R::Clear>,
 }
 
-// TODO: Maybe 2 different types?
-impl<R: Repr> OneTimePad<R> {
-    pub fn decode_private() {
-        todo!()
+impl<R> OneTimePadPrivate<R>
+where
+    R: Repr<Binary> + Memory<Binary> + BitXor,
+{
+    pub async fn decode(self) -> Result<Option<R::Clear>, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode);
+        match self.role {
+            TlsRole::Leader => {
+                let otp = self.otp.expect("Otp should be set for leader");
+                let out = Some(otp ^ self.value);
+                Ok(out)
+            }
+            TlsRole::Follower => Ok(None),
+        }
     }
+}
 
-    pub fn decode_shared() {
-        todo!()
+impl<R> OneTimePadPrivate<R>
+where
+    R: Repr<Binary> + Memory<Binary> + IntoIterator<Item: BitXor>,
+{
+    pub async fn decode(self) -> Result<Option<R::Clear>, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode);
+        match self.role {
+            TlsRole::Leader => {
+                let otp = self.otp.expect("Otp should be set for leader");
+                let out: Vec<R::Clear> = self
+                    .value
+                    .into_iter()
+                    .zip(otp.into_iter())
+                    .map(|v, o| v ^ o)
+                    .collect();
+                Ok(out)
+            }
+            TlsRole::Follower => Ok(None),
+        }
+    }
+}
+
+pub struct OneTimePadShared<R: Repr<Binary>> {
+    role: TlsRole,
+    value: DecodeFutureTyped<<Binary as MemoryType>::Raw, R::Clear>,
+    otp: R::Clear,
+}
+
+impl<R> OneTimePadShared<R>
+where
+    R: Repr<Binary> + Memory<Binary> + BitXor,
+{
+    pub async fn decode(self) -> Result<R::Clear, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode);
+        match self.role {
+            TlsRole::Leader => todo!(),
+            TlsRole::Follower => todo!(),
+        }
+    }
+}
+
+impl<R> OneTimePadPrivate<R>
+where
+    R: Repr<Binary> + Memory<Binary> + IntoIterator<Item: BitXor>,
+{
+    pub async fn decode(self) -> Result<R::Clear, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode);
+        match self.role {
+            TlsRole::Leader => todo!(),
+            TlsRole::Follower => todo!(),
+        }
     }
 }
 
