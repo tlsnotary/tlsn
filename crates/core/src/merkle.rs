@@ -129,10 +129,16 @@ impl MerkleTree {
     /// # Panics
     ///
     /// - If the provided indices are not unique and sorted.
+    /// - If the provided indices are out of bounds.
     pub(crate) fn proof(&self, indices: &[usize]) -> MerkleProof {
         assert!(
             indices.windows(2).all(|w| w[0] < w[1]),
             "indices must be unique and sorted"
+        );
+
+        assert!(
+            *indices.last().unwrap() < self.tree.leaves_len(),
+            "one or more provided indices are out of bounds"
         );
 
         MerkleProof {
