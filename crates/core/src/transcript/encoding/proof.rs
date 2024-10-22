@@ -7,9 +7,8 @@ use crate::{
     hash::{Blinded, Blinder, HashAlgorithmExt, HashProviderError},
     merkle::{MerkleError, MerkleProof},
     transcript::{
-        encoding::{
-            new_encoder, tree::EncodingLeaf, Encoder, EncodingCommitment, MAX_TOTAL_COMMITTED_DATA,
-        },
+        commit::MAX_TOTAL_COMMITTED_DATA,
+        encoding::{new_encoder, tree::EncodingLeaf, Encoder, EncodingCommitment},
         Direction, PartialTranscript, Subsequence,
     },
     CryptoProvider,
