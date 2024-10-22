@@ -773,7 +773,6 @@ mod tests {
     fn test_partial_transcript_union_subseq_success(transcript: Transcript) {
         let mut partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..11));
         let sent_seq = Subsequence::new(Idx::new([0..3, 5..7]), [0, 1, 2, 5, 6].into()).unwrap();
-
         let recv_seq = Subsequence::new(Idx::new([0..4, 5..7]), [0, 1, 2, 3, 5, 6].into()).unwrap();
 
         partial.union_subsequence(Direction::Sent, &sent_seq);
@@ -806,7 +805,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_partial_transcript_set_unatuhed_range(transcript: Transcript) {
+    fn test_partial_transcript_set_unauthed_range(transcript: Transcript) {
         let mut partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..7));
 
         partial.set_unauthed_range(7, Direction::Sent, 2..5);

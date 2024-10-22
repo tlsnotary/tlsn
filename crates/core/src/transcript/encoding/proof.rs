@@ -195,13 +195,13 @@ mod test {
 
     use super::*;
 
-    struct TestFixture {
+    struct EncodingFixture {
         transcript: Transcript,
         proof: EncodingProof,
         commitment: EncodingCommitment,
     }
 
-    fn new_test_fixture(seed: Vec<u8>) -> TestFixture {
+    fn new_encoding_fixture(seed: Vec<u8>) -> EncodingFixture {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
         let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
@@ -229,7 +229,7 @@ mod test {
             seed,
         };
 
-        TestFixture {
+        EncodingFixture {
             transcript,
             proof,
             commitment,
@@ -238,11 +238,11 @@ mod test {
 
     #[test]
     fn test_verify_encoding_proof_invalid_seed() {
-        let TestFixture {
+        let EncodingFixture {
             transcript,
             proof,
             commitment,
-        } = new_test_fixture(encoder_seed().to_vec().split_off(1));
+        } = new_encoding_fixture(encoder_seed().to_vec().split_off(1));
 
         let err = proof
             .verify_with_provider(
@@ -257,11 +257,11 @@ mod test {
 
     #[test]
     fn test_verify_encoding_proof_out_of_range() {
-        let TestFixture {
+        let EncodingFixture {
             transcript,
             proof,
             commitment,
-        } = new_test_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_seed().to_vec());
 
         let err = proof
             .verify_with_provider(
@@ -279,11 +279,11 @@ mod test {
 
     #[test]
     fn test_verify_encoding_proof_tampered_encoding_seq() {
-        let TestFixture {
+        let EncodingFixture {
             transcript,
             mut proof,
             commitment,
-        } = new_test_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_seed().to_vec());
 
         let Opening { seq, .. } = proof.openings.values_mut().next().unwrap();
 
@@ -302,11 +302,11 @@ mod test {
 
     #[test]
     fn test_verify_encoding_proof_tampered_encoding_blinder() {
-        let TestFixture {
+        let EncodingFixture {
             transcript,
             mut proof,
             commitment,
-        } = new_test_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_seed().to_vec());
 
         let Opening { blinder, .. } = proof.openings.values_mut().next().unwrap();
 
