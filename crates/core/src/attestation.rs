@@ -167,8 +167,7 @@ impl Body {
     /// The order of fields is not stable across versions.
     pub(crate) fn hash_fields(&self, hasher: &dyn HashAlgorithm) -> Vec<(FieldId, Hash)> {
         // CRITICAL: ensure all fields are included! If a new field is added to the
-        // struct without including it here it will not be verified to be
-        // included in the attestation.
+        // struct without including it here, it will not be included in the attestation.
         let Self {
             verifying_key,
             connection_info: conn_info,
@@ -211,10 +210,12 @@ impl Body {
         &self.connection_info.data
     }
 
+    /// Returns the server's ephemeral public key.
     pub(crate) fn server_ephemeral_key(&self) -> &ServerEphemKey {
         &self.server_ephemeral_key.data
     }
 
+    /// Returns the commitment to a server certificate.
     pub(crate) fn cert_commitment(&self) -> &ServerCertCommitment {
         &self.cert_commitment.data
     }
@@ -230,7 +231,7 @@ impl Body {
     }
 }
 
-/// An attestation.
+/// An attestation document.
 ///
 /// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
