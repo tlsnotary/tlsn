@@ -2,14 +2,14 @@
 edition = "2021"
 name = "tlsn-benches-browser-native"
 publish = false
-version = "0.1.0"
+version = "0.0.0"
 
 [dependencies]
 tlsn-benches-browser-core = { workspace = true }
 tlsn-benches-library = { workspace = true }
 
 serio = { workspace = true }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6ef048c" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "76c9de0" }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }

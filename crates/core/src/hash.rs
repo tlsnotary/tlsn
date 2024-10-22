@@ -306,7 +306,7 @@ macro_rules! impl_domain_separator {
             fn domain(&self) -> &[u8] {
                 use std::sync::LazyLock;
 
-                // Computes a 16 byte hash of the types name to use as a domain separator.
+                // Computes a 16 byte hash of the type's name to use as a domain separator.
                 static DOMAIN: LazyLock<[u8; 16]> = LazyLock::new(|| {
                     let domain: [u8; 32] = blake3::hash(stringify!($type).as_bytes()).into();
                     domain[..16].try_into().unwrap()

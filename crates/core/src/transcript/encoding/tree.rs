@@ -70,7 +70,7 @@ impl EncodingTree {
     ///
     /// # Arguments
     ///
-    /// * `alg` - The hash algorithm to use.
+    /// * `hasher` - The hash algorithm to use.
     /// * `idxs` - The subsequence indices to commit to.
     /// * `provider` - The encoding provider.
     /// * `transcript_length` - The length of the transcript.

@@ -25,9 +25,11 @@ pub(super) struct Opening {
 
 opaque_debug::implement!(Opening);
 
-/// An encoding proof.
+/// An encoding commitment proof.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncodingProof {
+    /// The proof of inclusion of the commitment(s) in the Merkle tree of
+    /// commitments.
     pub(super) inclusion_proof: MerkleProof,
     pub(super) openings: HashMap<usize, Opening>,
 }
@@ -84,7 +86,7 @@ impl EncodingProof {
                 ))?;
             }
 
-            // Make sure the ranges are within the bounds of the transcript
+            // Make sure the ranges are within the bounds of the transcript.
             let transcript_len = match direction {
                 Direction::Sent => sent_len,
                 Direction::Received => recv_len,

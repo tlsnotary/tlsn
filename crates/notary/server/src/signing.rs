@@ -17,7 +17,7 @@ impl TryFrom<PrivateKeyInfo<'_>> for AttestationKey {
         const OID_EC_PUBLIC_KEY: ObjectIdentifier =
             ObjectIdentifier::new_unwrap("1.2.840.10045.2.1");
 
-        // For now we only support elliptic curve keys
+        // For now we only support elliptic curve keys.
         if pkcs8.algorithm.oid != OID_EC_PUBLIC_KEY {
             error!("unsupported key algorithm OID: {:?}", pkcs8.algorithm.oid);
 
