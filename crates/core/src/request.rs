@@ -143,7 +143,7 @@ mod test {
 
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let (sent_len, recv_len) = transcript.len();
-        // Plaintext encodings which the Prover obtained from GC evaluation
+        // Plaintext encodings which the Prover obtained from GC evaluation.
         let encodings_provider = encoding_provider(GET_WITH_HEADER, OK_JSON);
 
         // At the end of the TLS connection the Prover holds the:
