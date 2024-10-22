@@ -97,6 +97,11 @@ fn runtime_vs_latency(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error:
 fn runtime_vs_bandwidth(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::error::Error>> {
     const TITLE: &str = "Runtime vs Bandwidth";
 
+    let prover_kind: String = all_data
+        .first()
+        .map(|s| s.kind.clone().into())
+        .unwrap_or_default();
+
     let download_data: Vec<Vec<f32>> = all_data
         .iter()
         .filter(|record| record.name == "download_bandwidth")
@@ -115,7 +120,11 @@ fn runtime_vs_bandwidth(all_data: &[Metrics]) -> Result<Chart, Box<dyn std::erro
 
     // https://github.com/yuankunzhang/charming
     let chart = Chart::new()
-        .title(Title::new().text(TITLE))
+        .title(
+            Title::new()
+                .text(TITLE)
+                .subtext(format!("{} Prover", prover_kind)),
+        )
         .tooltip(Tooltip::new().trigger(Trigger::Axis))
         .legend(Legend::new().orient(Orient::Vertical))
         .toolbox(

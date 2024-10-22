@@ -1,6 +1,6 @@
 [package]
 name = "tlsn-wasm"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8-pre"
 edition = "2021"
 
 [lib]
@@ -49,3 +49,4 @@ ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-rayon = { version = "1.0" }
+getrandom = { version = "0.2", features = ["js"] }
