@@ -48,6 +48,7 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
         notarization: NotarizationProperties {
             max_sent_data: 1 << 13,
             max_recv_data: 1 << 14,
+            timeout: 1800,
         },
         tls: TLSProperties {
             enabled: tls_enabled,
@@ -191,8 +192,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .build()
         .unwrap();
 
-    // Prover config using the session_id returned from calling /session endpoint in
-    // notary client.
+    // Set up prover config.
     let prover_config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
@@ -386,7 +386,7 @@ async fn test_websocket_prover() {
         .build()
         .unwrap();
 
-    // Basic default prover config — use the responded session id from notary server
+    // Set up prover config.
     let prover_config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
