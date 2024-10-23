@@ -1,7 +1,16 @@
-name: Run Benchmarks
+name: Run Benchmarks (Native or Browser)
 on:
   # manual trigger
   workflow_dispatch:
+    inputs:
+      bench_type:
+        description: "Specify the benchmark type (native or browser)"
+        required: true
+        default: "native"
+        type: choice
+        options:
+          - native
+          - browser
 
 jobs:
   run-benchmarks:
@@ -12,7 +21,7 @@ jobs:
 
     - name: Build Docker Image
       run: |
-        docker build -t tlsn-bench . -f ./crates/benches/binary/benches.Dockerfile --build-arg BENCH_TYPE=native
+        docker build -t tlsn-bench . -f ./crates/benches/binary/benches.Dockerfile --build-arg BENCH_TYPE=${{ github.event.inputs.bench_type }}
 
     - name: Run Benchmarks
       run: |
