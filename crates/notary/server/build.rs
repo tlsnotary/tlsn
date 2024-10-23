@@ -13,7 +13,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 eprintln!("Failed to get commit hash in notary server build");
                 eprintln!("Fix the error or configure GIT_COMMIT_HASH as environment variable");
                 return Err(e.message().into());
-                // return Err(e.to_string().into());
             }
         };
     }
