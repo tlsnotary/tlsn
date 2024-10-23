@@ -161,7 +161,7 @@ pub(crate) struct OneTimePadPrivate<R: Repr<Binary>> {
 
 impl<R> OneTimePadPrivate<R>
 where
-    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary>,
+    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary> + StaticSize<Binary>,
 {
     pub(crate) async fn decode(self) -> Result<Option<R::Clear>, MpcTlsError> {
         let value = self.value.await.map_err(MpcTlsError::decode)?;
@@ -206,7 +206,7 @@ pub(crate) struct OneTimePadShared<R: Repr<Binary>> {
 
 impl<R> OneTimePadShared<R>
 where
-    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary>,
+    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary> + StaticSize<Binary>,
 {
     pub(crate) async fn decode(self) -> Result<R::Clear, MpcTlsError> {
         let value = self.value.await.map_err(MpcTlsError::decode)?;

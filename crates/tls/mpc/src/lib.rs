@@ -10,31 +10,30 @@
 #![forbid(unsafe_code)]
 
 //mod components;
-//mod config;
+mod config;
 mod error;
 //pub(crate) mod follower;
-//pub(crate) mod leader;
-//pub mod msg;
-//pub(crate) mod record_layer;
+pub(crate) mod leader;
+pub mod msg;
 
 mod decode;
 //mod dump;
 //mod tag;
-//
+
 //pub use components::build_components;
-//pub use config::{
-//    MpcTlsCommonConfig, MpcTlsCommonConfigBuilder, MpcTlsCommonConfigBuilderError,
-//    MpcTlsFollowerConfig, MpcTlsFollowerConfigBuilder, MpcTlsFollowerConfigBuilderError,
-//    MpcTlsLeaderConfig, MpcTlsLeaderConfigBuilder, MpcTlsLeaderConfigBuilderError,
-//    TranscriptConfig, TranscriptConfigBuilder, TranscriptConfigBuilderError,
-//};
+pub use config::{
+    MpcTlsCommonConfig, MpcTlsCommonConfigBuilder, MpcTlsCommonConfigBuilderError,
+    MpcTlsFollowerConfig, MpcTlsFollowerConfigBuilder, MpcTlsFollowerConfigBuilderError,
+    MpcTlsLeaderConfig, MpcTlsLeaderConfigBuilder, MpcTlsLeaderConfigBuilderError,
+    TranscriptConfig, TranscriptConfigBuilder, TranscriptConfigBuilderError,
+};
 pub use error::MpcTlsError;
 //pub use follower::{FollowerCtrl, MpcTlsFollower, MpcTlsFollowerData};
-//pub use leader::{LeaderCtrl, MpcTlsData, MpcTlsLeader};
-//use utils_aio::duplex::Duplex;
-//
-///// A channel for sending and receiving messages between leader and follower
-//pub type MpcTlsChannel = Box<dyn Duplex<msg::MpcTlsMessage>>;
+pub use leader::{LeaderCtrl, MpcTlsData, MpcTlsLeader};
+use utils_aio::duplex::Duplex;
+
+/// A channel for sending and receiving messages between leader and follower
+pub type MpcTlsChannel = Box<dyn Duplex<msg::MpcTlsMessage>>;
 
 /// Sets the role of a party
 #[allow(missing_docs)]

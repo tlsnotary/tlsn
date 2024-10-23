@@ -1,7 +1,3 @@
-use crate::{
-    aes_gcm::{error::AesGcmError, MpcAesGcm},
-    config::Role,
-};
 use mpz_common::Context;
 use mpz_core::{
     commit::{Decommitment, HashCommit},

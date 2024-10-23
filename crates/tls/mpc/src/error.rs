@@ -30,6 +30,8 @@ enum ErrorRepr {
     PeerMisbehaved(Box<dyn Error + Send + Sync + 'static>),
     /// Virtual machine error
     Vm(Box<dyn Error + Send + Sync + 'static>),
+    /// Backend error
+    Backend(Box<dyn Error + Send + Sync + 'static>),
     /// Decoding error
     Decode(Box<dyn Error + Send + Sync + 'static>),
     /// Other error
@@ -49,6 +51,7 @@ impl Display for ErrorRepr {
             ErrorRepr::Config(error) => write!(f, "{error}"),
             ErrorRepr::PeerMisbehaved(error) => write!(f, "{error}"),
             ErrorRepr::Vm(error) => write!(f, "{error}"),
+            ErrorRepr::Backend(error) => write!(f, "{error}"),
             ErrorRepr::Decode(error) => write!(f, "{error}"),
             ErrorRepr::Other(error) => write!(f, "{error}"),
         }
@@ -126,6 +129,13 @@ impl MpcTlsError {
         Self(ErrorRepr::Vm(err.into()))
     }
 
+    pub(crate) fn backend<E>(err: E) -> MpcTlsError
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self(ErrorRepr::Backend(err.into()))
+    }
+
     pub(crate) fn decode<E>(err: E) -> MpcTlsError
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
@@ -138,5 +148,11 @@ impl MpcTlsError {
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
     {
         Self(ErrorRepr::Other(err.into()))
+    }
+}
+
+impl From<StateError> for MpcTlsError {
+    fn from(value: StateError) -> Self {
+        MpcTlsError::state(value)
     }
 }

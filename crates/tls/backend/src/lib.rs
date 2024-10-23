@@ -37,13 +37,23 @@ pub enum BackendError {
     #[error("Invalid configuration: {0:?}")]
     InvalidConfig(String),
     #[error("Invalid server public keyshare")]
-    InvalidServerKey,
+    InvalidServerKey(String),
     #[error("internal error: {0:?}")]
     InternalError(String),
     #[error("Encryption error: {0:?}")]
     EncryptionError(String),
     #[error("Decryption error: {0:?}")]
     DecryptionError(String),
+    #[error("Server finished error: {0:?}")]
+    ServerFinished(String),
+    #[error("Server finished error: {0:?}")]
+    ClientFinished(String),
+    #[error("Key exchange error: {0:?}")]
+    KeyExchange(String),
+    #[error("Prf error: {0:?}")]
+    Prf(String),
+    #[error("Other error: {0:?}")]
+    Other(String),
 }
 
 /// Encryption modes for Crypto implementor
