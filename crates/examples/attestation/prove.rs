@@ -7,10 +7,9 @@ use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
-use tls_core::verify::WebPkiVerifier;
-use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tls_server_fixture::SERVER_DOMAIN;
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig};
 use tlsn_examples::run_notary;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
@@ -27,17 +26,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start a local simple notary service
     tokio::spawn(run_notary(notary_socket.compat()));
 
-    // custom root store with server-fixture
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
-    let provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
-
     // Prover configuration.
     let config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
@@ -50,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .max_recv_data(4096)
                 .build()?,
         )
-        .crypto_provider(provider)
+        .crypto_provider(tlsn_examples::get_crypto_provider_with_server_fixture())
         .build()?;
 
     // Create a new prover and perform necessary setup.

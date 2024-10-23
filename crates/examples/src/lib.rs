@@ -1,9 +1,10 @@
 use futures::{AsyncRead, AsyncWrite};
 use k256::{pkcs8::DecodePrivateKey, SecretKey};
+use tls_core::verify::WebPkiVerifier;
+use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::{attestation::AttestationConfig, signing::SignatureAlgId, CryptoProvider};
 use tlsn_verifier::{Verifier, VerifierConfig};
-
 /// The private key used by the Notary for signing attestations.
 pub const NOTARY_PRIVATE_KEY: &[u8] = &[1u8; 32];
 
@@ -43,4 +44,18 @@ pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn
         .notarize(conn, &attestation_config)
         .await
         .unwrap();
+}
+
+pub fn get_crypto_provider_with_server_fixture() -> CryptoProvider {
+    // custom root store with server-fixture
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+
+    let provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
+    provider
 }
