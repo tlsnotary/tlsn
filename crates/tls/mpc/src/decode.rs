@@ -1,18 +1,19 @@
 use std::{ops::BitXor, sync::Arc};
 
 use crate::{MpcTlsError, TlsRole};
-use cipher::Cipher;
 use mpz_circuits::{types::ValueType, Circuit, CircuitBuilder, Tracer};
 use mpz_memory_core::{
-    binary::Binary, DecodeFutureTyped, Memory, MemoryExt, MemoryType, Repr, StaticSize, Vector,
-    View, ViewExt,
+    binary::Binary, ClearValue, DecodeFutureTyped, Memory, MemoryExt, MemoryType, Repr, StaticSize,
+    Vector, View, ViewExt,
 };
 use mpz_vm_core::{CallBuilder, Vm, VmExt};
-use rand::{distributions::Standard, prelude::Distribution, thread_rng};
+use rand::{distributions::Standard, prelude::Distribution, thread_rng, Rng};
 
-pub struct Decode<R> {
+pub(crate) struct Decode<R> {
     role: TlsRole,
     value: R,
+    otp_0: R,
+    otp_1: R,
     len: usize,
 }
 
@@ -20,12 +21,21 @@ impl<R> Decode<R>
 where
     R: Repr<Binary> + StaticSize<Binary>,
 {
-    pub fn new(role: TlsRole, value: R) -> Self {
-        Self {
+    pub(crate) fn new<V>(vm: &mut V, role: TlsRole, value: R) -> Result<Self, MpcTlsError>
+    where
+        V: Vm<Binary> + View<Binary>,
+    {
+        let otp_0: R = vm.alloc().map_err(MpcTlsError::vm)?;
+        let otp_1: R = vm.alloc().map_err(MpcTlsError::vm)?;
+        let decode = Self {
             role,
             value,
+            otp_0,
+            otp_1,
             len: R::SIZE,
-        }
+        };
+
+        Ok(decode)
     }
 }
 
@@ -33,53 +43,63 @@ impl<R> Decode<Vector<R>>
 where
     R: Repr<Binary> + StaticSize<Binary>,
 {
-    pub fn new_vec(role: TlsRole, value: Vector<R>) -> Self {
-        let rng = thread_rng();
-        let otp = rng.gen();
-
-        Self {
+    pub(crate) fn new_vec<V>(
+        vm: &mut V,
+        role: TlsRole,
+        value: Vector<R>,
+    ) -> Result<Self, MpcTlsError>
+    where
+        V: Vm<Binary> + View<Binary>,
+    {
+        let len = value.len() * R::SIZE;
+        let otp_0: Vector<R> = vm.alloc_vec(len).map_err(MpcTlsError::vm)?;
+        let otp_1: Vector<R> = vm.alloc_vec(len).map_err(MpcTlsError::vm)?;
+        let decode = Self {
             role,
             value,
-            len: R::SIZE * value.len(),
-        }
+            otp_0,
+            otp_1,
+            len,
+        };
+
+        Ok(decode)
     }
 }
 
 impl<R> Decode<R>
 where
-    R: Repr<Binary>,
+    R: Repr<Binary, Clear: Clone> + Copy,
 {
-    pub fn private<V>(self, vm: &mut V) -> Result<OneTimePadPrivate<R>, MpcTlsError>
+    pub(crate) fn private<V>(self, vm: &mut V) -> Result<OneTimePadPrivate<R>, MpcTlsError>
     where
         V: Vm<Binary> + View<Binary>,
         Standard: Distribution<R::Clear>,
     {
-        let otp = vm.alloc().map_err(MpcTlsError::vm)?;
-
-        let (otp, otp_value) = match self.role {
+        let otp_value = match self.role {
             TlsRole::Leader => {
-                let rng = thread_rng();
+                let mut rng = thread_rng();
                 let otp_value = rng.gen();
 
-                vm.mark_private(otp).map_err(MpcTlsError::vm)?;
-                vm.assign(otp, otp_value).map_err(MpcTlsError::vm)?;
-                (otp, otp_value)
+                vm.mark_private(self.otp_0).map_err(MpcTlsError::vm)?;
+                vm.assign(self.otp_0, otp_value.clone())
+                    .map_err(MpcTlsError::vm)?;
+                Some(otp_value)
             }
             TlsRole::Follower => {
-                vm.mark_blind(otp).map_err(MpcTlsError::vm)?;
-                (otp, None)
+                vm.mark_blind(self.otp_0).map_err(MpcTlsError::vm)?;
+                None
             }
         };
-        vm.commit(otp).map_err(MpcTlsError::vm)?;
+        vm.commit(self.otp_0).map_err(MpcTlsError::vm)?;
 
         let otp_circuit = build_otp(self.len);
         let call = CallBuilder::new(otp_circuit)
             .arg(self.value)
-            .arg(otp)
+            .arg(self.otp_0)
             .build()
             .map_err(MpcTlsError::vm)?;
 
-        let output = vm.call(call).map_err(MpcTlsError::vm)?;
+        let output: R = vm.call(call).map_err(MpcTlsError::vm)?;
         let output = vm.decode(output).map_err(MpcTlsError::vm)?;
 
         let otp = OneTimePadPrivate {
@@ -91,22 +111,23 @@ where
         Ok(otp)
     }
 
-    pub fn shared<V>(self, vm: &mut V) -> Result<OneTimePadShared<R>, MpcTlsError>
+    pub(crate) fn shared<V>(self, vm: &mut V) -> Result<OneTimePadShared<R>, MpcTlsError>
     where
         V: Vm<Binary> + View<Binary>,
         Standard: Distribution<R::Clear>,
     {
-        let rng = thread_rng();
-        let otp_0 = vm.alloc().map_err(MpcTlsError::vm)?;
-        let otp_1 = vm.alloc().map_err(MpcTlsError::vm)?;
+        let mut rng = thread_rng();
         let otp_value = rng.gen();
 
+        let mut otp_0 = self.otp_0;
+        let mut otp_1 = self.otp_1;
         if let TlsRole::Follower = self.role {
             std::mem::swap(&mut otp_0, &mut otp_1);
         }
         vm.mark_private(otp_0).map_err(MpcTlsError::vm)?;
         vm.mark_blind(otp_1).map_err(MpcTlsError::vm)?;
-        vm.assign(otp_0, otp_value).map_err(MpcTlsError::vm)?;
+        vm.assign(otp_0, otp_value.clone())
+            .map_err(MpcTlsError::vm)?;
 
         vm.commit(otp_0).map_err(MpcTlsError::vm)?;
         vm.commit(otp_1).map_err(MpcTlsError::vm)?;
@@ -119,10 +140,10 @@ where
             .build()
             .map_err(MpcTlsError::vm)?;
 
-        let output = vm.call(call).map_err(MpcTlsError::vm)?;
+        let output: R = vm.call(call).map_err(MpcTlsError::vm)?;
         let output = vm.decode(output).map_err(MpcTlsError::vm)?;
 
-        let otp = OneTimePadPrivate {
+        let otp = OneTimePadShared {
             role: self.role,
             value: output,
             otp: otp_value,
@@ -132,7 +153,7 @@ where
     }
 }
 
-pub struct OneTimePadPrivate<R: Repr<Binary>> {
+pub(crate) struct OneTimePadPrivate<R: Repr<Binary>> {
     role: TlsRole,
     value: DecodeFutureTyped<<Binary as MemoryType>::Raw, R::Clear>,
     otp: Option<R::Clear>,
@@ -140,14 +161,14 @@ pub struct OneTimePadPrivate<R: Repr<Binary>> {
 
 impl<R> OneTimePadPrivate<R>
 where
-    R: Repr<Binary> + Memory<Binary> + BitXor,
+    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary>,
 {
-    pub async fn decode(self) -> Result<Option<R::Clear>, MpcTlsError> {
-        let value = self.value.await.map_err(MpcTlsError::decode);
+    pub(crate) async fn decode(self) -> Result<Option<R::Clear>, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode)?;
         match self.role {
             TlsRole::Leader => {
                 let otp = self.otp.expect("Otp should be set for leader");
-                let out = Some(otp ^ self.value);
+                let out = Some(otp ^ value);
                 Ok(out)
             }
             TlsRole::Follower => Ok(None),
@@ -155,29 +176,29 @@ where
     }
 }
 
-impl<R> OneTimePadPrivate<R>
+impl<R> OneTimePadPrivate<Vector<R>>
 where
-    R: Repr<Binary> + Memory<Binary> + IntoIterator<Item: BitXor>,
+    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary> + StaticSize<Binary>,
+    Vec<R::Clear>: ClearValue<Binary>,
 {
-    pub async fn decode(self) -> Result<Option<R::Clear>, MpcTlsError> {
-        let value = self.value.await.map_err(MpcTlsError::decode);
+    pub(crate) async fn decode_vec(self) -> Result<Option<Vec<R::Clear>>, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode)?;
         match self.role {
             TlsRole::Leader => {
                 let otp = self.otp.expect("Otp should be set for leader");
-                let out: Vec<R::Clear> = self
-                    .value
+                let out: Vec<R::Clear> = value
                     .into_iter()
                     .zip(otp.into_iter())
-                    .map(|v, o| v ^ o)
+                    .map(|(v, o)| v ^ o)
                     .collect();
-                Ok(out)
+                Ok(Some(out))
             }
             TlsRole::Follower => Ok(None),
         }
     }
 }
 
-pub struct OneTimePadShared<R: Repr<Binary>> {
+pub(crate) struct OneTimePadShared<R: Repr<Binary>> {
     role: TlsRole,
     value: DecodeFutureTyped<<Binary as MemoryType>::Raw, R::Clear>,
     otp: R::Clear,
@@ -185,26 +206,34 @@ pub struct OneTimePadShared<R: Repr<Binary>> {
 
 impl<R> OneTimePadShared<R>
 where
-    R: Repr<Binary> + Memory<Binary> + BitXor,
+    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary>,
 {
-    pub async fn decode(self) -> Result<R::Clear, MpcTlsError> {
-        let value = self.value.await.map_err(MpcTlsError::decode);
+    pub(crate) async fn decode(self) -> Result<R::Clear, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode)?;
         match self.role {
-            TlsRole::Leader => todo!(),
-            TlsRole::Follower => todo!(),
+            TlsRole::Leader => Ok(self.otp ^ value),
+            TlsRole::Follower => Ok(self.otp),
         }
     }
 }
 
-impl<R> OneTimePadPrivate<R>
+impl<R> OneTimePadShared<Vector<R>>
 where
-    R: Repr<Binary> + Memory<Binary> + IntoIterator<Item: BitXor>,
+    R: Repr<Binary, Clear: BitXor<Output = R::Clear>> + Memory<Binary> + StaticSize<Binary>,
+    Vec<R::Clear>: ClearValue<Binary>,
 {
-    pub async fn decode(self) -> Result<R::Clear, MpcTlsError> {
-        let value = self.value.await.map_err(MpcTlsError::decode);
+    pub(crate) async fn decode_vec(self) -> Result<Vec<R::Clear>, MpcTlsError> {
+        let value = self.value.await.map_err(MpcTlsError::decode)?;
         match self.role {
-            TlsRole::Leader => todo!(),
-            TlsRole::Follower => todo!(),
+            TlsRole::Leader => {
+                let value: Vec<R::Clear> = value
+                    .into_iter()
+                    .zip(self.otp.into_iter())
+                    .map(|(v, o)| v ^ o)
+                    .collect();
+                Ok(value)
+            }
+            TlsRole::Follower => Ok(self.otp),
         }
     }
 }

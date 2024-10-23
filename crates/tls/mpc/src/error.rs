@@ -36,6 +36,25 @@ enum ErrorRepr {
     Other(Box<dyn Error + Send + Sync + 'static>),
 }
 
+impl Display for ErrorRepr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorRepr::State(error) => write!(f, "{error}"),
+            ErrorRepr::Ctx(error) => write!(f, "{error}"),
+            ErrorRepr::Io(error) => write!(f, "{error}"),
+            ErrorRepr::KeyExchange(error) => write!(f, "{error}"),
+            ErrorRepr::Prf(error) => write!(f, "{error}"),
+            ErrorRepr::Encrypt(error) => write!(f, "{error}"),
+            ErrorRepr::Decrypt(error) => write!(f, "{error}"),
+            ErrorRepr::Config(error) => write!(f, "{error}"),
+            ErrorRepr::PeerMisbehaved(error) => write!(f, "{error}"),
+            ErrorRepr::Vm(error) => write!(f, "{error}"),
+            ErrorRepr::Decode(error) => write!(f, "{error}"),
+            ErrorRepr::Other(error) => write!(f, "{error}"),
+        }
+    }
+}
+
 impl MpcTlsError {
     pub(crate) fn state<E>(err: E) -> MpcTlsError
     where
@@ -118,6 +137,6 @@ impl MpcTlsError {
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
     {
-        Self(ErrorRepr::other(err.into()))
+        Self(ErrorRepr::Other(err.into()))
     }
 }
