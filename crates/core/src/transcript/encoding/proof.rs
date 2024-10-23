@@ -182,3 +182,144 @@ impl From<MerkleError> for EncodingProofError {
         Self::new(ErrorKind::Proof, error)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
+
+    use crate::{
+        fixtures::{encoder_seed, encoding_provider},
+        hash::Blake3,
+        transcript::{encoding::EncodingTree, Idx, Transcript},
+    };
+
+    use super::*;
+
+    struct EncodingFixture {
+        transcript: Transcript,
+        proof: EncodingProof,
+        commitment: EncodingCommitment,
+    }
+
+    fn new_encoding_fixture(seed: Vec<u8>) -> EncodingFixture {
+        let transcript = Transcript::new(POST_JSON, OK_JSON);
+
+        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()));
+
+        let provider = encoding_provider(transcript.sent(), transcript.received());
+        let transcript_length = TranscriptLength {
+            sent: transcript.sent().len() as u32,
+            received: transcript.received().len() as u32,
+        };
+        let tree = EncodingTree::new(
+            &Blake3::default(),
+            [&idx_0, &idx_1],
+            &provider,
+            &transcript_length,
+        )
+        .unwrap();
+
+        let proof = tree
+            .proof(&transcript, [&idx_0, &idx_1].into_iter())
+            .unwrap();
+
+        let commitment = EncodingCommitment {
+            root: tree.root(),
+            seed,
+        };
+
+        EncodingFixture {
+            transcript,
+            proof,
+            commitment,
+        }
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_invalid_seed() {
+        let EncodingFixture {
+            transcript,
+            proof,
+            commitment,
+        } = new_encoding_fixture(encoder_seed().to_vec().split_off(1));
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &transcript.length(),
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Commitment));
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_out_of_range() {
+        let EncodingFixture {
+            transcript,
+            proof,
+            commitment,
+        } = new_encoding_fixture(encoder_seed().to_vec());
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &TranscriptLength {
+                    sent: (transcript.len_of_direction(Direction::Sent) - 1) as u32,
+                    received: (transcript.len_of_direction(Direction::Received) - 2) as u32,
+                },
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Proof));
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_tampered_encoding_seq() {
+        let EncodingFixture {
+            transcript,
+            mut proof,
+            commitment,
+        } = new_encoding_fixture(encoder_seed().to_vec());
+
+        let Opening { seq, .. } = proof.openings.values_mut().next().unwrap();
+
+        *seq = Subsequence::new(Idx::new([0..3, 13..15]), [0, 1, 2, 5, 6].into()).unwrap();
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &transcript.length(),
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Proof));
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_tampered_encoding_blinder() {
+        let EncodingFixture {
+            transcript,
+            mut proof,
+            commitment,
+        } = new_encoding_fixture(encoder_seed().to_vec());
+
+        let Opening { blinder, .. } = proof.openings.values_mut().next().unwrap();
+
+        *blinder = rand::random();
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &transcript.length(),
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Proof));
+    }
+}

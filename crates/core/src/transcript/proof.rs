@@ -357,10 +357,21 @@ impl fmt::Display for TranscriptProofBuilderError {
 
 #[cfg(test)]
 mod tests {
+    use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+
+    use crate::{
+        fixtures::{
+            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            ConnectionFixture, RequestFixture,
+        },
+        hash::Blake3,
+        signing::SignatureAlgId,
+    };
+
     use super::*;
 
     #[test]
-    fn test_range_out_of_bounds() {
+    fn test_reveal_range_out_of_bounds() {
         let transcript = Transcript::new(
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -368,7 +379,83 @@ mod tests {
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
 
-        assert!(builder.reveal(&(10..15), Direction::Sent).is_err());
-        assert!(builder.reveal(&(10..15), Direction::Received).is_err());
+        let err = builder.reveal(&(10..15), Direction::Sent).err().unwrap();
+        assert!(matches!(err.kind, BuilderErrorKind::Index));
+
+        let err = builder
+            .reveal(&(10..15), Direction::Received)
+            .err()
+            .unwrap();
+        assert!(matches!(err.kind, BuilderErrorKind::Index));
+    }
+
+    #[test]
+    fn test_reveal_missing_encoding_tree() {
+        let transcript = Transcript::new(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        );
+        let index = Index::default();
+        let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
+
+        let err = builder.reveal_recv(&(9..11)).err().unwrap();
+        assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
+    }
+
+    #[test]
+    fn test_reveal_missing_encoding_commitment_range() {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { encoding_tree, .. } = request_fixture(
+            transcript.clone(),
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
+
+        let index = Index::default();
+        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
+
+        let err = builder.reveal_recv(&(0..11)).err().unwrap();
+        assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
+    }
+
+    #[test]
+    fn test_verify_missing_encoding_commitment() {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture {
+            mut request,
+            encoding_tree,
+        } = request_fixture(
+            transcript.clone(),
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let index = Index::default();
+        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
+
+        builder.reveal_recv(&(0..transcript.len().1)).unwrap();
+
+        let transcript_proof = builder.build().unwrap();
+
+        request.encoding_commitment_root = None;
+        let attestation = attestation_fixture(
+            request,
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
+
+        let provider = CryptoProvider::default();
+        let err = transcript_proof
+            .verify_with_provider(&provider, &attestation.body)
+            .err()
+            .unwrap();
+        assert!(matches!(err.kind, ErrorKind::Encoding));
     }
 }
