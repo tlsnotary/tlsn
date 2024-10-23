@@ -66,7 +66,13 @@ pub struct MpcTlsLeader<K, P, C, U> {
     committed: bool,
 }
 
-impl<K, P, C, U> MpcTlsLeader<K, P, C, U> {
+impl<K, P, C, U> MpcTlsLeader<K, P, C, U>
+where
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     /// Create a new leader instance
     pub fn new(
         config: MpcTlsLeaderConfig,
@@ -180,9 +186,10 @@ impl<K, P, C, U> MpcTlsLeader<K, P, C, U> {
 #[async_trait]
 impl<K, P, C, U> Backend for MpcTlsLeader<K, P, C, U>
 where
-    Self: Send,
-    K: KeyExchange,
-    P: Prf,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
 {
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
         let Ke {

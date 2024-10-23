@@ -15,6 +15,8 @@ use crate::{
     MpcTlsError,
 };
 use async_trait::async_trait;
+use hmac_sha256::Prf;
+use key_exchange::KeyExchange;
 use ludi::{mailbox, Actor, Address, Context, Dispatch, Handler, Message};
 use std::future::Future;
 use tls_backend::{Backend, BackendError, BackendNotify, DecryptMode, EncryptMode};
@@ -43,7 +45,14 @@ impl MpcTlsLeaderCtrl {
     }
 }
 
-impl MpcTlsLeader {
+impl<K, P, C, U> MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     /// Runs the leader actor.
     ///
     /// Returns a control handle and a future that resolves when the actor is
@@ -67,7 +76,14 @@ impl MpcTlsLeader {
     }
 }
 
-impl Actor for MpcTlsLeader {
+impl<K, P, C, U> Actor for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     type Stop = MpcTlsData;
     type Error = MpcTlsError;
 
@@ -80,11 +96,18 @@ impl Actor for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for MpcTlsLeaderMsg {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for MpcTlsLeaderMsg
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) {
         match self {
@@ -252,63 +275,63 @@ impl Backend for MpcTlsLeaderCtrl {
         self.address
             .send(BackendMsgSetProtocolVersion { version })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_cipher_suite(&mut self, suite: SupportedCipherSuite) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgSetCipherSuite { suite })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn get_suite(&mut self) -> Result<SupportedCipherSuite, BackendError> {
         self.address
             .send(BackendMsgGetSuite)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgSetEncrypt { mode })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgSetDecrypt { mode })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn get_client_random(&mut self) -> Result<Random, BackendError> {
         self.address
             .send(BackendMsgGetClientRandom)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn get_client_key_share(&mut self) -> Result<PublicKey, BackendError> {
         self.address
             .send(BackendMsgGetClientKeyShare)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgSetServerRandom { random })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgSetServerKeyShare { key })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_server_cert_details(
@@ -318,7 +341,7 @@ impl Backend for MpcTlsLeaderCtrl {
         self.address
             .send(BackendMsgSetServerCertDetails { cert_details })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_server_kx_details(
@@ -328,42 +351,42 @@ impl Backend for MpcTlsLeaderCtrl {
         self.address
             .send(BackendMsgSetServerKxDetails { kx_details })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_hs_hash_client_key_exchange(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgSetHsHashClientKeyExchange { hash })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn set_hs_hash_server_hello(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgSetHsHashServerHello { hash })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn get_server_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
         self.address
             .send(BackendMsgGetServerFinishedVd { hash })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
         self.address
             .send(BackendMsgGetClientFinishedVd { hash })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn prepare_encryption(&mut self) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgPrepareEncryption)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn encrypt(
@@ -374,7 +397,7 @@ impl Backend for MpcTlsLeaderCtrl {
         self.address
             .send(BackendMsgEncrypt { msg, seq })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn decrypt(
@@ -385,54 +408,60 @@ impl Backend for MpcTlsLeaderCtrl {
         self.address
             .send(BackendMsgDecrypt { msg, seq })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgBufferIncoming { msg })
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
         self.address
             .send(BackendMsgNextIncoming)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
         self.address
             .send(BackendMsgGetNotify)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn buffer_len(&mut self) -> Result<usize, BackendError> {
         self.address
             .send(BackendMsgBufferLen)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 
     async fn server_closed(&mut self) -> Result<(), BackendError> {
         self.address
             .send(BackendMsgServerClosed)
             .await
-            .map_err(MpcTlsError::from)?
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
 }
 
 impl MpcTlsLeaderCtrl {
     /// Defers decryption of any incoming messages.
     pub async fn defer_decryption(&self) -> Result<(), MpcTlsError> {
-        self.address.send(DeferDecryption).await?
+        self.address
+            .send(DeferDecryption)
+            .await
+            .map_err(MpcTlsError::io)?
     }
 
     /// Closes the connection.
     pub async fn close_connection(&self) -> Result<(), MpcTlsError> {
-        self.address.send(CloseConnection).await?
+        self.address
+            .send(CloseConnection)
+            .await
+            .map_err(MpcTlsError::io)?
     }
 
     /// Commits the leader to the current transcript.
@@ -440,22 +469,36 @@ impl MpcTlsLeaderCtrl {
     /// This reveals the AEAD key to the leader and disables sending or
     /// receiving any further messages.
     pub async fn commit(&self) -> Result<(), MpcTlsError> {
-        self.address.send(Commit).await?
+        self.address.send(Commit).await.map_err(MpcTlsError::io)?
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetProtocolVersion {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetProtocolVersion
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetProtocolVersion> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetProtocolVersion> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetProtocolVersion,
@@ -465,18 +508,32 @@ impl Handler<BackendMsgSetProtocolVersion> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetCipherSuite {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetCipherSuite
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetCipherSuite> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetCipherSuite> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetCipherSuite,
@@ -486,18 +543,32 @@ impl Handler<BackendMsgSetCipherSuite> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgGetSuite {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgGetSuite
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgGetSuite> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgGetSuite> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgGetSuite,
@@ -507,18 +578,32 @@ impl Handler<BackendMsgGetSuite> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetEncrypt {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetEncrypt
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetEncrypt> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetEncrypt> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetEncrypt,
@@ -528,18 +613,32 @@ impl Handler<BackendMsgSetEncrypt> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetDecrypt {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetDecrypt
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetDecrypt> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetDecrypt> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetDecrypt,
@@ -549,18 +648,32 @@ impl Handler<BackendMsgSetDecrypt> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgGetClientRandom {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgGetClientRandom
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgGetClientRandom> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgGetClientRandom> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgGetClientRandom,
@@ -570,18 +683,32 @@ impl Handler<BackendMsgGetClientRandom> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgGetClientKeyShare {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgGetClientKeyShare
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgGetClientKeyShare> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgGetClientKeyShare> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgGetClientKeyShare,
@@ -591,18 +718,32 @@ impl Handler<BackendMsgGetClientKeyShare> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetServerRandom {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetServerRandom
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetServerRandom> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetServerRandom> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetServerRandom,
@@ -612,18 +753,32 @@ impl Handler<BackendMsgSetServerRandom> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetServerKeyShare {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetServerKeyShare
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetServerKeyShare> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetServerKeyShare> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetServerKeyShare,
@@ -633,18 +788,32 @@ impl Handler<BackendMsgSetServerKeyShare> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetServerCertDetails {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetServerCertDetails
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetServerCertDetails> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetServerCertDetails> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetServerCertDetails,
@@ -654,18 +823,32 @@ impl Handler<BackendMsgSetServerCertDetails> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetServerKxDetails {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetServerKxDetails
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetServerKxDetails> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetServerKxDetails> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetServerKxDetails,
@@ -675,18 +858,32 @@ impl Handler<BackendMsgSetServerKxDetails> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetHsHashClientKeyExchange {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetHsHashClientKeyExchange
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetHsHashClientKeyExchange> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetHsHashClientKeyExchange> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetHsHashClientKeyExchange,
@@ -696,18 +893,32 @@ impl Handler<BackendMsgSetHsHashClientKeyExchange> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgSetHsHashServerHello {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgSetHsHashServerHello
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgSetHsHashServerHello> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgSetHsHashServerHello> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgSetHsHashServerHello,
@@ -717,18 +928,32 @@ impl Handler<BackendMsgSetHsHashServerHello> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgGetServerFinishedVd {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgGetServerFinishedVd
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgGetServerFinishedVd> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgGetServerFinishedVd> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgGetServerFinishedVd,
@@ -738,18 +963,32 @@ impl Handler<BackendMsgGetServerFinishedVd> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgGetClientFinishedVd {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgGetClientFinishedVd
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgGetClientFinishedVd> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgGetClientFinishedVd> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgGetClientFinishedVd,
@@ -759,18 +998,32 @@ impl Handler<BackendMsgGetClientFinishedVd> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgPrepareEncryption {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgPrepareEncryption
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgPrepareEncryption> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgPrepareEncryption> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgPrepareEncryption,
@@ -780,18 +1033,32 @@ impl Handler<BackendMsgPrepareEncryption> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgEncrypt {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgEncrypt
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgEncrypt> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgEncrypt> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgEncrypt,
@@ -801,18 +1068,32 @@ impl Handler<BackendMsgEncrypt> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgDecrypt {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgDecrypt
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgDecrypt> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgDecrypt> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgDecrypt,
@@ -822,18 +1103,32 @@ impl Handler<BackendMsgDecrypt> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgBufferIncoming {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgBufferIncoming
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgBufferIncoming> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgBufferIncoming> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         msg: BackendMsgBufferIncoming,
@@ -843,18 +1138,32 @@ impl Handler<BackendMsgBufferIncoming> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgNextIncoming {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgNextIncoming
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgNextIncoming> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgNextIncoming> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgNextIncoming,
@@ -864,18 +1173,32 @@ impl Handler<BackendMsgNextIncoming> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgGetNotify {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgGetNotify
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgGetNotify> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgGetNotify> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgGetNotify,
@@ -885,18 +1208,32 @@ impl Handler<BackendMsgGetNotify> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgBufferLen {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgBufferLen
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgBufferLen> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgBufferLen> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgBufferLen,
@@ -906,18 +1243,32 @@ impl Handler<BackendMsgBufferLen> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for BackendMsgServerClosed {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for BackendMsgServerClosed
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<BackendMsgServerClosed> for MpcTlsLeader {
+impl<K, P, C, U> Handler<BackendMsgServerClosed> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: BackendMsgServerClosed,
@@ -927,18 +1278,32 @@ impl Handler<BackendMsgServerClosed> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for DeferDecryption {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for DeferDecryption
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<DeferDecryption> for MpcTlsLeader {
+impl<K, P, C, U> Handler<DeferDecryption> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: DeferDecryption,
@@ -948,18 +1313,32 @@ impl Handler<DeferDecryption> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for CloseConnection {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for CloseConnection
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<CloseConnection> for MpcTlsLeader {
+impl<K, P, C, U> Handler<CloseConnection> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: CloseConnection,
@@ -969,18 +1348,32 @@ impl Handler<CloseConnection> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for Commit {
+impl<K, P, C, U> Dispatch<MpcTlsLeader<K, P, C, U>> for Commit
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
-        actor: &mut MpcTlsLeader,
-        ctx: &mut Context<MpcTlsLeader>,
+        actor: &mut MpcTlsLeader<K, P, C, U>,
+        ctx: &mut Context<MpcTlsLeader<K, P, C, U>>,
         ret: R,
     ) -> impl Future<Output = ()> + Send {
         actor.process(self, ctx, ret)
     }
 }
 
-impl Handler<Commit> for MpcTlsLeader {
+impl<K, P, C, U> Handler<Commit> for MpcTlsLeader<K, P, C, U>
+where
+    Self: Send,
+    K: KeyExchange + Send,
+    P: Prf + Send,
+    C: Send,
+    U: Send,
+{
     async fn handle(
         &mut self,
         _msg: Commit,

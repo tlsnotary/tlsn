@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub mod follower;
+//pub mod follower;
 pub mod leader;
 
 /// MPC-TLS protocol message.
