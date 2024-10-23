@@ -175,13 +175,6 @@ impl<K, P, C, U> MpcTlsLeader<K, P, C, U> {
 
         Ok(())
     }
-
-    pub fn test<V>()
-    where
-        C: Cipher<CipherCircuit, V>,
-        V: Vm<Binary>,
-    {
-    }
 }
 
 #[async_trait]
@@ -564,13 +557,13 @@ pub struct MpcTlsData {
     pub handshake_data: HandshakeData,
 }
 
-mod state {
+pub(crate) mod state {
     use super::*;
     use enum_try_as_inner::EnumTryAsInner;
 
     #[derive(Debug, EnumTryAsInner)]
     #[derive_err(Debug)]
-    pub(super) enum State {
+    pub(crate) enum State {
         Ke(Ke),
         Cf(Cf),
         Sf(Sf),
@@ -606,34 +599,34 @@ mod state {
     }
 
     #[derive(Debug)]
-    pub(super) struct Ke {
-        pub(super) protocol_version: Option<ProtocolVersion>,
-        pub(super) cipher_suite: Option<CipherSuite>,
-        pub(super) client_random: Random,
-        pub(super) server_random: Option<Random>,
-        pub(super) server_cert_details: Option<ServerCertDetails>,
-        pub(super) server_public_key: Option<PublicKey>,
-        pub(super) server_kx_details: Option<ServerKxDetails>,
+    pub(crate) struct Ke {
+        pub(crate) protocol_version: Option<ProtocolVersion>,
+        pub(crate) cipher_suite: Option<CipherSuite>,
+        pub(crate) client_random: Random,
+        pub(crate) server_random: Option<Random>,
+        pub(crate) server_cert_details: Option<ServerCertDetails>,
+        pub(crate) server_public_key: Option<PublicKey>,
+        pub(crate) server_kx_details: Option<ServerKxDetails>,
     }
 
     #[derive(Debug)]
-    pub(super) struct Cf {
-        pub(super) data: MpcTlsData,
+    pub(crate) struct Cf {
+        pub(crate) data: MpcTlsData,
     }
 
     #[derive(Debug)]
-    pub(super) struct Sf {
-        pub(super) data: MpcTlsData,
+    pub(crate) struct Sf {
+        pub(crate) data: MpcTlsData,
     }
 
     #[derive(Debug)]
-    pub(super) struct Active {
-        pub(super) data: MpcTlsData,
+    pub(crate) struct Active {
+        pub(crate) data: MpcTlsData,
     }
 
     #[derive(Debug)]
-    pub(super) struct Closed {
-        pub(super) data: MpcTlsData,
+    pub(crate) struct Closed {
+        pub(crate) data: MpcTlsData,
     }
 }
 
