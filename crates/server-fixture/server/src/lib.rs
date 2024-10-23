@@ -30,6 +30,8 @@ use hyper::header;
 
 use tlsn_server_fixture_certs::*;
 
+pub const DEFAULT_FIXTURE_PORT: u16 = 3000;
+
 struct AppState {
     shutdown: Option<oneshot::Sender<()>>,
 }
