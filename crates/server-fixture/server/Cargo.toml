@@ -20,3 +20,8 @@ tlsn-server-fixture-certs = { workspace = true }
 [[bin]]
 name = "tlsn-server-fixture"
 path = "src/main.rs"
+
+[dev-dependencies]
+axum-test = "16.2.0"
+http-body-util = "0.1.2"
+tower = "0.5.1"

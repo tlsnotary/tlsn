@@ -136,3 +136,58 @@ async fn html(
 
     Html(include_str!("data/4kb.html"))
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{self, Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use tower::ServiceExt;
+
+    fn get_app() -> Router {
+        let (sender, _) = oneshot::channel();
+        let state = AppState {
+            shutdown: Some(sender),
+        };
+        app(state)
+    }
+
+    #[tokio::test]
+    async fn hello_world() {
+        let response = get_app()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], b"Hello, World!");
+    }
+
+    #[tokio::test]
+    async fn json() {
+        let response = get_app()
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri("/formats/json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            body.get("id").unwrap().as_number().unwrap().as_u64(),
+            Some(1234567890)
+        );
+    }
+}
