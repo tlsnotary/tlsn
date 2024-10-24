@@ -15,6 +15,7 @@ tlsn-formats = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-server-fixture = { workspace = true }
+spansy = { workspace = true }
 
 bincode = { workspace = true }
 chrono = { workspace = true }

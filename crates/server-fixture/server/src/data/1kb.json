@@ -8,7 +8,12 @@
       "state": "XY",
       "postalCode": "12345"
     },
-    "favoriteColors": ["blue", "red", "green", "yellow"],
+    "favoriteColors": [
+      "blue",
+      "red",
+      "green",
+      "yellow"
+    ],
     "description": "John is a software engineer. He enjoys hiking, playing video games, and reading books. His favorite book is 'Moby Dick'.",
     "education": {
       "degree": "Bachelor's in Computer Science",

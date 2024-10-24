@@ -13,11 +13,7 @@ use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use tls_server_fixture::SERVER_DOMAIN;
 use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig};
-use tlsn_examples::run_notary;
-use tlsn_formats::{
-    http::{DefaultHttpCommitter, HttpCommit, HttpTranscript},
-    json::{DefaultJsonCommitter, JsonCommit},
-};
+use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tracing::debug;
@@ -116,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build a simple HTTP request with common headers
     let request = Request::builder()
         // .uri("/protected")
-        .uri("/formats/html")
+        .uri("/protected")
         .header("Host", SERVER_DOMAIN)
         .header("Accept", "*/*")
         // Using "identity" instructs the Server not to use compression for its HTTP response.
@@ -138,9 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Pretty printing :)
     let payload = response.into_body().collect().await.unwrap().to_bytes();
-    // let parsed =
-    //     serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload))?;
-    let parsed = String::from_utf8_lossy(&payload);
+    let parsed = serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload))?;
     debug!("{}", serde_json::to_string_pretty(&parsed).unwrap());
 
     // The prover task should be done now, so we can await it.
@@ -151,12 +145,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
+    // dbg!(&transcript);
+
+    let x: &spansy::http::BodyContent = &transcript.responses[0].body.as_ref().unwrap().content;
+
+    match x {
+        tlsn_formats::http::BodyContent::Json(json) => {
+            dbg!(&json);
+        }
+        tlsn_formats::http::BodyContent::Unknown(span) => {
+            dbg!("unknown");
+            dbg!(&span.indices());
+        }
+        _ => {}
+    }
 
     // Commit to the transcript.
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
-    //FIXME: JSON?
-    // DefaultJsonCommitter::default().commit_value(&mut builder, value, direction);
     DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
 
     prover.transcript_commit(builder.build()?);
