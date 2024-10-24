@@ -2,7 +2,7 @@ server:
   name: "notary.codes"
   host: "0.0.0.0"
   port: 7047
-  html-info: |
+  html_info: |
     <head>
     <meta charset="UTF-8">
     <meta name="description" content="mpc-tls">
@@ -25,21 +25,21 @@ server:
     </body>
 
 notarization:
-  max-sent-data: 4096
-  max-recv-data: 16384
+  max_sent_data: 4096
+  max_recv_data: 16384
 
 tls:
   enabled: false
-  private-key-pem-path: "."
-  certificate-pem-path: "."
+  private_key_pem_path: "."
+  certificate_pem_path: "."
 
-notary-key:
-  private-key-pem-path: "."
-  public-key-pem-path: "."
+notary_key:
+  private_key_pem_path: "."
+  public_key_pem_path: "."
 
 logging:
   level: INFO
 
 authorization:
   enabled: false
-  whitelist-csv-path: "."
+  whitelist_csv_path: "."
