@@ -1,0 +1,21 @@
+[package]
+name = "tls-server-fixture"
+authors = ["TLSNotary Team"]
+description = "Fixtures for testing"
+keywords = ["tls", "fixture"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bytes = { workspace = true }
+futures = { workspace = true }
+futures-rustls = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["full"] }
+hyper-util = { workspace = true, features = ["full"] }
+tokio = { workspace = true }
+tokio-util = { workspace = true, features = ["compat", "io-util"] }
+tracing = { workspace = true }

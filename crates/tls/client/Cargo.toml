@@ -1,0 +1,55 @@
+[package]
+name = "tlsn-tls-client"
+authors = ["TLSNotary Team"]
+description = "A TLS client for TLSNotary"
+keywords = ["tls", "mpc", "2pc", "client", "sync"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+autobenches = false
+
+[lib]
+name = "tls_client"
+
+[dependencies]
+tlsn-tls-backend = { workspace = true }
+tlsn-tls-core = { workspace = true }
+
+async-trait = { workspace = true }
+log = { workspace = true, optional = true }
+ring = { workspace = true }
+sct = { workspace = true }
+webpki = { workspace = true, features = ["alloc", "std"] }
+aes-gcm = { workspace = true }
+p256 = { workspace = true, features = ["ecdh"] }
+rand = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true, features = ["compress"] }
+digest = { workspace = true }
+futures = { workspace = true }
+web-time = { workspace = true }
+
+[features]
+default = ["logging", "tls12"]
+logging = ["log"]
+tls12 = []
+
+[dev-dependencies]
+env_logger = { workspace = true }
+webpki-roots = { workspace = true }
+rustls-pemfile = { workspace = true }
+rustls = { version = "0.20", features = ["tls12"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
+
+[[example]]
+name = "bench"
+path = "examples/internal/bench.rs"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+getrandom = { version = "0.2", features = ["js"] }

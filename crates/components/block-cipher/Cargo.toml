@@ -1,0 +1,30 @@
+[package]
+name = "tlsn-block-cipher"
+authors = ["TLSNotary Team"]
+description = "2PC block cipher implementation"
+keywords = ["tls", "mpc", "2pc", "block-cipher"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "block_cipher"
+
+[features]
+default = ["mock"]
+mock = []
+
+[dependencies]
+mpz-circuits = { workspace = true }
+mpz-garble = { workspace = true }
+tlsn-utils = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+derive_builder = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+aes = { workspace = true }
+cipher = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }

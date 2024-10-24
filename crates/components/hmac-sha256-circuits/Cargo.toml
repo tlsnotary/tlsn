@@ -1,0 +1,19 @@
+[package]
+name = "tlsn-hmac-sha256-circuits"
+authors = ["TLSNotary Team"]
+description = "The 2PC circuits for TLS HMAC-SHA256 PRF"
+keywords = ["tls", "mpc", "2pc", "hmac", "sha256"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "hmac_sha256_circuits"
+
+[dependencies]
+mpz-circuits = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+ring = { workspace = true }

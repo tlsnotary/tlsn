@@ -1,0 +1,41 @@
+[package]
+name = "tlsn-aead"
+authors = ["TLSNotary Team"]
+description = "This crate provides an implementation of a two-party version of AES-GCM behind an AEAD trait"
+keywords = ["tls", "mpc", "2pc", "aead", "aes", "aes-gcm"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "aead"
+
+[features]
+default = ["mock"]
+mock = ["mpz-common/test-utils", "dep:mpz-ot"]
+
+[dependencies]
+tlsn-block-cipher = { workspace = true }
+tlsn-stream-cipher = { workspace = true }
+tlsn-universal-hash = { workspace = true }
+
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", optional = true, features = [
+    "ideal",
+] }
+
+serio = { workspace = true }
+
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+aes-gcm = { workspace = true }

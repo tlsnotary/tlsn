@@ -1,0 +1,27 @@
+name: Run Benchmarks
+on:
+  # manual trigger
+  workflow_dispatch:
+
+jobs:
+  run-benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Build Docker Image
+      run: |
+        docker build -t tlsn-bench . -f ./crates/benches/benches.Dockerfile
+
+    - name: Run Benchmarks
+      run: |
+        docker run --privileged -v ${{ github.workspace }}/crates/benches/:/benches tlsn-bench
+
+    - name: Upload runtime_vs_latency.html
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark_graphs
+        path: |
+          ./crates/benches/runtime_vs_latency.html
+          ./crates/benches/runtime_vs_bandwidth.html

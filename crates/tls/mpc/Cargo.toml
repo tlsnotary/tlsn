@@ -1,0 +1,57 @@
+[package]
+name = "tlsn-tls-mpc"
+authors = ["TLSNotary Team"]
+description = "Implementation of the backend trait for 2PC"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.7"
+edition = "2021"
+
+[lib]
+name = "tls_mpc"
+
+[features]
+default = []
+
+[dependencies]
+tlsn-aead = { workspace = true }
+tlsn-block-cipher = { workspace = true }
+tlsn-hmac-sha256 = { workspace = true }
+tlsn-key-exchange = { workspace = true }
+tlsn-stream-cipher = { workspace = true }
+tlsn-tls-backend = { workspace = true }
+tlsn-tls-core = { workspace = true, features = ["serde"] }
+tlsn-universal-hash = { workspace = true }
+tlsn-utils-aio = { workspace = true }
+
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+
+uid-mux = { version = "0.1", features = ["serio"] }
+ludi = { git = "https://github.com/sinui0/ludi", rev = "b590de5" }
+
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+enum-try-as-inner = { workspace = true }
+futures = { workspace = true }
+p256 = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+serio = { version = "0.1", features = ["compat"] }
+tls-server-fixture = { workspace = true }
+tlsn-tls-client = { workspace = true }
+tlsn-tls-client-async = { workspace = true }
+
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+tokio-util = { workspace = true, features = ["compat"] }
+tracing-subscriber = { workspace = true }
