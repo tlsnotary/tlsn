@@ -1,6 +1,10 @@
 [workspace]
 members = [
-    "crates/benches",
+    "crates/benches/binary",
+    "crates/benches/browser/core",
+    "crates/benches/browser/native",
+    "crates/benches/browser/wasm",
+    "crates/benches/library",
     "crates/common",
     "crates/components/aead",
     "crates/components/block-cipher",
@@ -43,6 +47,9 @@ notary-server = { path = "crates/notary/server" }
 poseidon-halo2 = { path = "crates/components/poseidon-halo2" }
 tls-server-fixture = { path = "crates/tls/server-fixture" }
 tlsn-aead = { path = "crates/components/aead" }
+tlsn-benches-browser-core = { path = "crates/benches/browser/core" }
+tlsn-benches-browser-native = { path = "crates/benches/browser/native" }
+tlsn-benches-library = { path = "crates/benches/library" }
 tlsn-block-cipher = { path = "crates/components/block-cipher" }
 tlsn-common = { path = "crates/common" }
 tlsn-core = { path = "crates/core" }

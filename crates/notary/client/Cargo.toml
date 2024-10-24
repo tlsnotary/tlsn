@@ -1,11 +1,10 @@
 [package]
 name = "notary-client"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8-pre"
 edition = "2021"
 
 [dependencies]
 notary-server = { workspace = true }
-tlsn-common = { workspace = true }
 
 derive_builder = { workspace = true }
 futures = { workspace = true }

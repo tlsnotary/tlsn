@@ -111,7 +111,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
     let version = env!("CARGO_PKG_VERSION").to_string();
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
-    let git_commit_timestamp = env!("GIT_COMMIT_TIMESTAMP").to_string();
 
     // Parameters needed for the root / endpoint
     let html_string = config.server.html_info.clone();
@@ -119,7 +118,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         html_string
             .replace("{version}", &version)
             .replace("{git_commit_hash}", &git_commit_hash)
-            .replace("{git_commit_timestamp}", &git_commit_timestamp)
             .replace("{public_key}", &public_key),
     );
 
@@ -141,7 +139,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                         version,
                         public_key,
                         git_commit_hash,
-                        git_commit_timestamp,
                     }),
                 )
                     .into_response()

@@ -1,32 +1,32 @@
 use std::{
+    fs::metadata,
     io::Write,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
-    time::Instant,
 };
 
-use anyhow::Context;
-use futures::{AsyncReadExt, AsyncWriteExt};
-use tls_core::verify::WebPkiVerifier;
 use tlsn_benches::{
     config::{BenchInstance, Config},
     metrics::Metrics,
     set_interface, PROVER_INTERFACE,
 };
-use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{transcript::Idx, CryptoProvider};
+use tlsn_benches_library::{AsyncIo, ProverTrait};
 use tlsn_server_fixture::bind;
-use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
-use tokio::io::{AsyncRead, AsyncWrite};
+
+use anyhow::Context;
+use csv::WriterBuilder;
 use tokio_util::{
     compat::TokioAsyncReadCompatExt,
     io::{InspectReader, InspectWriter},
 };
-
-use tlsn_prover::{Prover, ProverConfig};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
+
+#[cfg(not(feature = "browser-bench"))]
+use tlsn_benches::prover::NativeProver as BenchProver;
+#[cfg(feature = "browser-bench")]
+use tlsn_benches_browser_native::BrowserProver as BenchProver;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -54,7 +54,10 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to open metrics file")?;
 
     {
-        let mut metric_wtr = csv::Writer::from_writer(&mut file);
+        let mut metric_wtr = WriterBuilder::new()
+            // If file is not empty, assume that the CSV header is already present in the file.
+            .has_headers(metadata("metrics.csv")?.len() == 0)
+            .from_writer(&mut file);
         for bench in config.benches {
             let instances = bench.flatten();
             for instance in instances {
@@ -78,10 +81,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
-    instance: BenchInstance,
-    io: S,
-) -> anyhow::Result<Metrics> {
+async fn run_instance(instance: BenchInstance, io: impl AsyncIo) -> anyhow::Result<Metrics> {
     let uploaded = Arc::new(AtomicU64::new(0));
     let downloaded = Arc::new(AtomicU64::new(0));
     let io = InspectWriter::new(
@@ -112,69 +112,23 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     set_interface(PROVER_INTERFACE, upload, 1, upload_delay)?;
 
-    let (client_conn, server_conn) = tokio::io::duplex(2 << 16);
+    let (client_conn, server_conn) = tokio::io::duplex(1 << 16);
     tokio::spawn(bind(server_conn.compat()));
 
-    let start_time = Instant::now();
-
-    let provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store(), None),
-        ..Default::default()
-    };
-
-    let protocol_config = if defer_decryption {
-        ProtocolConfig::builder()
-            .max_sent_data(upload_size + 256)
-            .max_recv_data(download_size + 256)
-            .build()
-            .unwrap()
-    } else {
-        ProtocolConfig::builder()
-            .max_sent_data(upload_size + 256)
-            .max_recv_data(download_size + 256)
-            .max_recv_data_online(download_size + 256)
-            .build()
-            .unwrap()
-    };
-
-    let prover = Prover::new(
-        ProverConfig::builder()
-            .server_name(SERVER_DOMAIN)
-            .protocol_config(protocol_config)
-            .defer_decryption_from_start(defer_decryption)
-            .crypto_provider(provider)
-            .build()
-            .context("invalid prover config")?,
+    let mut prover = BenchProver::setup(
+        upload_size,
+        download_size,
+        defer_decryption,
+        Box::new(io),
+        Box::new(client_conn),
     )
-    .setup(io.compat())
     .await?;
 
-    let (mut mpc_tls_connection, prover_fut) = prover.connect(client_conn.compat()).await.unwrap();
-
-    let prover_task = tokio::spawn(prover_fut);
-
-    let request = format!(
-        "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
-        download_size,
-        String::from_utf8(vec![0x42u8; upload_size]).unwrap(),
-    );
-
-    mpc_tls_connection.write_all(request.as_bytes()).await?;
-    mpc_tls_connection.close().await?;
-
-    let mut response = vec![];
-    mpc_tls_connection.read_to_end(&mut response).await?;
-
-    let mut prover = prover_task.await??.start_prove();
-
-    let (sent_len, recv_len) = prover.transcript().len();
-    prover
-        .prove_transcript(Idx::new(0..sent_len), Idx::new(0..recv_len))
-        .await?;
-    prover.finalize().await?;
+    let runtime = prover.run().await?;
 
     Ok(Metrics {
         name,
+        kind: prover.kind(),
         upload,
         upload_delay,
         download,
@@ -182,16 +136,8 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         upload_size,
         download_size,
         defer_decryption,
-        runtime: Instant::now().duration_since(start_time).as_secs(),
+        runtime,
         uploaded: uploaded.load(Ordering::SeqCst),
         downloaded: downloaded.load(Ordering::SeqCst),
     })
-}
-
-fn root_store() -> tls_core::anchors::RootCertStore {
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-    root_store
 }
