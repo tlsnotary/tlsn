@@ -40,8 +40,9 @@ web-time = { workspace = true }
 webpki-roots = { workspace = true }
 
 [dev-dependencies]
-rstest = { workspace = true }
+bincode = { workspace = true }
 hex = { workspace = true }
+rstest = { workspace = true }
 tlsn-data-fixtures = { workspace = true }
 
 [[test]]
