@@ -15,18 +15,14 @@ use tlsn_universal_hash::{
 use crate::{MpcTlsCommonConfig, TlsRole};
 
 /// Builds the components for MPC-TLS.
-// TODO: Better dependency injection!!
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-pub fn build_components<K, P OTS, OTR>(
+pub fn build_components<K, P, OTS, OTR>(
     role: TlsRole,
     config: &MpcTlsCommonConfig,
-    ctx: Ctx
+    ctx: Ctx,
     vm: V,
     ot_send: OTS,
     ot_recv: OTR,
-) -> (
-    K, P
-)
+) -> (K, P)
 where
     Ctx: Context + 'static,
     OTS: Preprocess<Ctx, Error = OTError>
@@ -67,7 +63,7 @@ where
         ),
     };
 
-    let prf: Box<dyn Prf + Send> = Box::new(MpcPrf::new(
+    let prf = MpcPrf::new(
         PrfConfig::builder()
             .role(match role {
                 TlsRole::Leader => PrfRole::Leader,
@@ -75,74 +71,29 @@ where
             })
             .build()
             .unwrap(),
-        thread_prf_0,
-        thread_prf_1,
-    ));
+    );
 
-    // Encrypter
-    let block_cipher = Box::new(MpcBlockCipher::<Aes128, _>::new(
-        BlockCipherConfig::builder()
-            .id("encrypter/block_cipher")
-            .build()
-            .unwrap(),
-        thread_encrypter_block_cipher,
-    ));
-
-    let stream_cipher = Box::new(MpcStreamCipher::<Aes128Ctr, _>::new(
-        StreamCipherConfig::builder()
-            .id("encrypter/stream_cipher")
-            .transcript_id("tx")
-            .build()
-            .unwrap(),
-        thread_encrypter_stream_cipher,
-    ));
-
-    let ghash: Box<dyn UniversalHash + Send> = match role {
-        TlsRole::Leader => Box::new(Ghash::new(
+    let ghash_encrypt = match role {
+        TlsRole::Leader => Ghash::new(
             GhashConfig::builder().build().unwrap(),
             ShareConversionSender::new(OLESender::new(ot_send.clone())),
-            ctx_ghash_encrypter,
-        )),
-        TlsRole::Follower => Box::new(Ghash::new(
+        ),
+        TlsRole::Follower => Ghash::new(
             GhashConfig::builder().build().unwrap(),
             ShareConversionReceiver::new(OLEReceiver::new(ot_recv.clone())),
-            ctx_ghash_encrypter,
-        )),
+        ),
     };
 
-
-    encrypter.set_transcript_id(config.tx_config().opaque_id());
-
-
-    let ghash: Box<dyn UniversalHash + Send> = match role {
-        TlsRole::Leader => Box::new(Ghash::new(
+    let ghash_decrypt = match role {
+        TlsRole::Leader => Ghash::new(
             GhashConfig::builder().build().unwrap(),
             ShareConversionSender::new(OLESender::new(ot_send)),
-            ctx_ghash_decrypter,
-        )),
-        TlsRole::Follower => Box::new(Ghash::new(
+        ),
+        TlsRole::Follower => Ghash::new(
             GhashConfig::builder().build().unwrap(),
             ShareConversionReceiver::new(OLEReceiver::new(ot_recv)),
-            ctx_ghash_decrypter,
-        )),
+        ),
     };
 
-    let mut decrypter = Box::new(MpcAesGcm::new(
-        AesGcmConfig::builder()
-            .id("decrypter/aes_gcm")
-            .role(match role {
-                TlsRole::Leader => AeadRole::Leader,
-                TlsRole::Follower => AeadRole::Follower,
-            })
-            .build()
-            .unwrap(),
-        ctx_decrypter,
-        block_cipher,
-        stream_cipher,
-        ghash,
-    ));
-
-    decrypter.set_transcript_id(config.rx_config().opaque_id());
-
-    (ke, prf, encrypter, decrypter)
+    (ke, prf, ghash_encrypt, ghash_decrypt)
 }

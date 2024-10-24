@@ -24,16 +24,16 @@ tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-universal-hash = { workspace = true }
 tlsn-utils-aio = { workspace = true }
 
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/garble" }
+mpz-common = { workspace = true }
+mpz-core = { workspace = true }
+mpz-fields = { workspace = true }
+mpz-garble = { workspace = true }
+mpz-ole = { workspace = true }
+mpz-ot = { workspace = true }
+mpz-share-conversion = { workspace = true }
+mpz-vm-core = { workspace = true }
+mpz-memory-core = { workspace = true }
+mpz-circuits = { workspace = true }
 
 uid-mux = { version = "0.1", features = ["serio"] }
 ludi = { git = "https://github.com/sinui0/ludi", rev = "e511c3b", default-features = false }
