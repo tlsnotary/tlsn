@@ -1,17 +1,28 @@
 ## Simple Attestation Example: Notarize Public Data from example.com (Rust) <a name="rust-simple"></a>
 
-This example demonstrates the simplest possible use case for TLSNotary:
-1. Fetch <https://example.com/> and acquire an attestation of its content.
+This example demonstrates the simplest possible use case for TLSNotary. We will run a  Server, Prover and Notary.
+
+1. Notarize a request from the test server and acquire an attestation of its content.
 2. Create a verifiable presentation using the attestation, while redacting the value of a header.
 3. Verify the presentation.
 
 ### 1. Notarize <https://example.com/>
 
-Run the `prove` binary.
+1. Run the test server:
+   ```sh
+   PORT=4000 cargo run --bin tlsn-server-fixture
+   ```
+2. Run the notary server:
+    ```
+    cd crates/notary/server
+    cargo run -r -- --tls-enabled false
+    ```
+3. Run the `prove` binary.
+    ```shell
+    SERVER_PORT=4000 cargo run --release --example attestation_prove
+    ```
 
-```shell
-cargo run --release --example attestation_prove
-```
+TODO : DEBUG: RUST_LOG=debug,yamux=info,uid_mux=info
 
 If the notarization was successful, you should see this output in the console:
 

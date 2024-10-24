@@ -12,7 +12,14 @@
         "postalCode": "45678"
       },
       "bio": "John is a passionate software engineer with over a decade of experience. Throughout his career, he's contributed to many open-source projects, co-authored several tech publications, and spoken at international conferences. In his free time, he loves hiking in national parks, experimenting with new recipes, and mentoring young tech enthusiasts.",
-      "favoriteColors": ["blue", "red", "green", "yellow", "purple", "orange"],
+      "favoriteColors": [
+        "blue",
+        "red",
+        "green",
+        "yellow",
+        "purple",
+        "orange"
+      ],
       "education": {
         "highSchool": {
           "name": "Anytown High",

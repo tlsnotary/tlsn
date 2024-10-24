@@ -7,7 +7,6 @@ use std::time::Duration;
 use tlsn_core::{
     presentation::{Presentation, PresentationOutput},
     signing::VerifyingKey,
-    CryptoProvider,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let presentation: Presentation =
         bincode::deserialize(&std::fs::read("example.presentation.tlsn")?)?;
 
-    let provider = CryptoProvider::default();
+    let provider = tlsn_examples::get_crypto_provider_with_server_fixture();
 
     let VerifyingKey {
         alg,

@@ -18,30 +18,6 @@
     "education": {
       "degree": "Bachelor's in Computer Science",
       "school": "Anytown University"
-    },
-    "family": {
-      "siblings": [
-        {
-          "name": "Jane Doe",
-          "relation": "Sister",
-          "age": 24
-        },
-        {
-          "name": "Jack Doe",
-          "relation": "Brother",
-          "age": 20
-        }
-      ],
-      "parents": {
-        "father": {
-          "name": "James Doe",
-          "age": 55
-        },
-        "mother": {
-          "name": "Jenny Doe",
-          "age": 53
-        }
-      }
     }
   },
   "meta": {
