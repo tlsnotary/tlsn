@@ -3,11 +3,14 @@
 // example to learn how to acquire an attestation from a Notary.
 
 use hyper::header;
-use spansy::Spanned;
+use spansy::{
+    json::{JsonValue, Object},
+    Spanned,
+};
 use tlsn_core::{
     attestation::Attestation,
     presentation::Presentation,
-    transcript::{self, Direction},
+    transcript::{self, Direction, TranscriptProofBuilder},
     CryptoProvider, Secrets,
 };
 use tlsn_formats::http::HttpTranscript;
@@ -53,45 +56,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     dbg!("foo");
 
-    let x = &transcript.responses[0].body.as_ref().unwrap().content;
-    // dbg!(x);
-    builder.reveal_recv(&transcript.responses[0].without_data())?;
+    let response = &transcript.responses[0];
+    let content = &transcript.responses[0].body.as_ref().unwrap().content;
+    // dbg!(content);
 
-    match x {
+    builder.reveal_recv(&response.without_data())?;
+    for header in &response.headers {
+        builder.reveal_recv(header)?;
+    }
+
+    fn reveal(
+        json: &JsonValue,
+        builder: &mut TranscriptProofBuilder<'_>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match json {
+            JsonValue::Object(v) => {
+                for child in v.elems.iter() {
+                    // FIXME: revealing key is not supported yet
+                    // builder.reveal_recv(&child.key)?;
+
+                    reveal(&child.value, builder)?;
+                }
+            }
+            // JsonValue::Array(a) => {
+            //     for child in a.elems.iter() {
+            //         reveal(&child, builder)?;
+            //     }
+            // }
+            JsonValue::String(s) => {
+                builder.reveal_recv(s)?;
+            }
+            JsonValue::Number(n) => {
+                builder.reveal_recv(n)?;
+            }
+            _ => {
+                // todo!()
+            }
+        }
+        Ok(())
+    }
+
+    match content {
         tlsn_formats::http::BodyContent::Json(json) => {
-            let id = json.get("id").unwrap();
-            let lhs = json.span().to_range_set();
-            let rhs = id.span().to_range_set();
-            let diff = lhs.difference(&rhs);
+            // reveal(json, &mut builder)?;
 
-            let test = json.get("information.name").unwrap();
+            // let test = json
+            //     .span()
+            //     .to_range_set()
+            //     .difference(&json.get("id").unwrap().span().to_range_set());
 
-            let test = json
-                .span()
-                .to_range_set()
-                .difference(&json.get("id").unwrap().span().to_range_set());
-
-            let transcript_range_set = transcript.responses[0].span().to_range_set();
-            let json_range_set = json.span().to_range_set();
-            println!("transcript: {:?}", &transcript_range_set);
-            println!("Json: {:?}", &json_range_set);
-
-            //works
             // let xxx = RangeSet::new(&vec![542..562]);
             // builder.reveal_recv(&xxx);
 
-            //does not work
-            let xxx = RangeSet::new(&vec![542..561]);
-            builder.reveal_recv(&xxx)?;
-
-            // if true {
-            //     // works
-            //     builder.reveal_recv(&transcript_range_set)?;
-            //     // builder.reveal_recv(json.get("id").unwrap())?;
-            // } else {
-            //     // does not work
-            //     builder.reveal_recv(&json_range_set)?;
-            // }
+            let reveal_all = false;
+            if reveal_all {
+                builder.reveal_recv(&transcript.responses[0])?;
+            } else {
+                builder.reveal_recv(json.get("id").unwrap())?;
+                builder.reveal_recv(json.get("information.name").unwrap())?;
+                builder.reveal_recv(json.get("meta.version").unwrap())?;
+            }
         }
         tlsn_formats::http::BodyContent::Unknown(span) => {
             // dbg!(&span);
@@ -105,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let offset = span.indices().min().unwrap();
             let mut s = id.span().indices();
             // s.offset(offset);
-            builder.reveal_recv(s)?;
+            // builder.reveal_recv(s)?;
             // println!("Reveal: {:?}", &transcript.responses[0]);
             // builder.reveal_recv(&transcript.responses[0])?;
         }
