@@ -101,7 +101,14 @@ where
 
     /// Performs any one-time setup operations.
     #[instrument(level = "debug", skip_all, err)]
-    pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
+    pub async fn setup<Circ, Ctx, V>(&mut self) -> Result<(), MpcTlsError>
+    where
+        U: UniversalHash<Ctx>,
+        C: Cipher<Circ, V>,
+        Circ: CipherCircuit,
+        Ctx: Context,
+        V: Vm<Binary>,
+    {
         todo!()
     }
 
