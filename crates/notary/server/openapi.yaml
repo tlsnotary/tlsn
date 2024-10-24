@@ -203,6 +203,19 @@ components:
         gitCommitHash:
           description: The git commit hash of source code that this notary server is running
           type: string
+        quote:
+          type: object
+          properties:
+            rawQuote:
+              description: hex bytes representing the signed-by-intel quote
+              type: string
+            mrsigner:
+              description: the key bound to the enclave = ephemeral = not used
+              type: string
+            mrenclave:
+              description: the enclave image hash, including gramine and the notary-server.
+              type: string
+            error: string
       required:
         - "version"
         - "publicKey"
