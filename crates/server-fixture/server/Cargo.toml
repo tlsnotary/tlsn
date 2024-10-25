@@ -22,6 +22,6 @@ name = "tlsn-server-fixture"
 path = "src/main.rs"
 
 [dev-dependencies]
-axum-test = "16.2.0"
-http-body-util = "0.1.2"
-tower = "0.5.1"
+axum-test = { version = "16.2.0" }
+http-body-util = { workspace = true }
+tower = { version = "0.5.1" }
