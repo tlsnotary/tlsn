@@ -2,16 +2,37 @@
 // attestation and the corresponding connection secrets. See the `prove.rs`
 // example to learn how to acquire an attestation from a Notary.
 
+use hyper::header;
 use tlsn_core::{attestation::Attestation, presentation::Presentation, CryptoProvider, Secrets};
+use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// What data to notarize
+    #[clap(default_value_t, value_enum)]
+    example_type: ExampleType,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+
+    create_presentation(&args.example_type).await
+}
+
+async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn std::error::Error>> {
+    let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
+    let secrets_path = tlsn_examples::get_file_path(example_type, "secrets");
+
     // Read attestation from disk.
-    let attestation: Attestation =
-        bincode::deserialize(&std::fs::read("example.attestation.tlsn")?)?;
+    let attestation: Attestation = bincode::deserialize(&std::fs::read(attestation_path)?)?;
 
     // Read secrets from disk.
-    let secrets: Secrets = bincode::deserialize(&std::fs::read("example.secrets.tlsn")?)?;
+    let secrets: Secrets = bincode::deserialize(&std::fs::read(secrets_path)?)?;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(secrets.transcript())?;
@@ -26,14 +47,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     builder.reveal_sent(&request.request.target)?;
     // Reveal all headers except the value of the User-Agent header.
     for header in &request.headers {
-        if !header.name.as_str().eq_ignore_ascii_case("User-Agent") {
+        if !(header
+            .name
+            .as_str()
+            .eq_ignore_ascii_case(header::USER_AGENT.as_str())
+            || header
+                .name
+                .as_str()
+                .eq_ignore_ascii_case(header::AUTHORIZATION.as_str()))
+        {
             builder.reveal_sent(header)?;
         } else {
             builder.reveal_sent(&header.without_value())?;
         }
     }
-    // Reveal the entire response.
-    builder.reveal_recv(&transcript.responses[0])?;
+
+    // Reveal only parts of the response
+    let response = &transcript.responses[0];
+    builder.reveal_recv(&response.without_data())?;
+    for header in &response.headers {
+        builder.reveal_recv(header)?;
+    }
+
+    let content = &response.body.as_ref().unwrap().content;
+    match content {
+        tlsn_formats::http::BodyContent::Json(json) => {
+            let reveal_all = false;
+            if reveal_all {
+                builder.reveal_recv(response)?;
+            } else {
+                builder.reveal_recv(json.get("id").unwrap())?;
+                builder.reveal_recv(json.get("information.name").unwrap())?;
+                builder.reveal_recv(json.get("meta.version").unwrap())?;
+            }
+        }
+        tlsn_formats::http::BodyContent::Unknown(span) => {
+            builder.reveal_recv(span)?;
+        }
+        _ => {}
+    }
 
     let transcript_proof = builder.build()?;
 
@@ -48,14 +100,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let presentation: Presentation = builder.build()?;
 
+    let presentation_path = tlsn_examples::get_file_path(example_type, "presentation");
+
     // Write the presentation to disk.
-    std::fs::write(
-        "example.presentation.tlsn",
-        bincode::serialize(&presentation)?,
-    )?;
+    std::fs::write(&presentation_path, bincode::serialize(&presentation)?)?;
 
     println!("Presentation built successfully!");
-    println!("The presentation has been written to `example.presentation.tlsn`.");
+    println!("The presentation has been written to `{presentation_path}`.");
 
     Ok(())
 }

@@ -26,6 +26,9 @@ use serde_json::Value;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tower_service::Service;
 
+use axum::{async_trait, extract::FromRequest};
+use hyper::header;
+
 use tlsn_server_fixture_certs::*;
 
 pub const DEFAULT_FIXTURE_PORT: u16 = 3000;
@@ -40,6 +43,7 @@ fn app(state: AppState) -> Router {
         .route("/bytes", get(bytes))
         .route("/formats/json", get(json))
         .route("/formats/html", get(html))
+        .route("/protected", get(protected_route))
         .with_state(Arc::new(Mutex::new(state)))
 }
 
@@ -136,6 +140,43 @@ async fn html(
 
     Html(include_str!("data/4kb.html"))
 }
+
+struct AuthenticatedUser;
+
+#[async_trait]
+impl<B> FromRequest<B> for AuthenticatedUser
+where
+    B: Send,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request(
+        req: axum::extract::Request,
+        _state: &B,
+    ) -> Result<Self, Self::Rejection> {
+        // Expected token (hardcoded for simplicity in the demo)
+        let expected_token = "random_auth_token";
+
+        let auth_header = req
+            .headers()
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok());
+
+        if let Some(auth_token) = auth_header {
+            let token = auth_token.trim_start_matches("Bearer ");
+            if token == expected_token {
+                return Ok(AuthenticatedUser);
+            }
+        }
+
+        Err((StatusCode::UNAUTHORIZED, "Invalid or missing token"))
+    }
+}
+
+async fn protected_route(_: AuthenticatedUser) -> Result<Json<Value>, StatusCode> {
+    get_json_value(include_str!("data/protected_data.json"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
