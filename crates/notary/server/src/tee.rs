@@ -1,16 +1,14 @@
+use k256::ecdsa::{SigningKey, VerifyingKey as PublicKey};
 use mc_sgx_dcap_types::{QlError, Quote3};
 use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
-use std::fs;
-
-use crate::signing::AttestationKey;
-use k256::ecdsa::{SigningKey, VerifyingKey as PublicKey};
-use pkcs8::{DecodePrivateKey, EncodePrivateKey, LineEnding};
+use pkcs8::{EncodePrivateKey, LineEnding};
 use rand_chacha::{
     rand_core::{OsRng, SeedableRng},
     ChaCha20Rng,
 };
+use serde::{Deserialize, Serialize};
 use std::{
+    fs,
     fs::File,
     io::{self, Read},
     path::Path,
@@ -142,23 +140,25 @@ async fn gramine_quote() -> Result<Quote, QuoteError> {
     })
 }
 
-pub fn ephemeral_keypair() -> (AttestationKey, String) {
+pub fn generate_ephemeral_keypair(notary_private: &str, notary_public: &str) {
     let mut rng = ChaCha20Rng::from_rng(OsRng).expect("os rng err!");
     let signing_key = SigningKey::random(&mut rng);
     let pem_string = signing_key
         .clone()
         .to_pkcs8_pem(LineEnding::LF)
         .expect("to pem");
-    let attkey = AttestationKey::from_pkcs8_pem(&pem_string).expect("from pem");
-    let derk = signing_key
+
+    std::fs::write(notary_private, pem_string).expect("fs::write");
+
+    let der = signing_key
         .verifying_key()
         .to_encoded_point(true)
         .to_bytes();
-    let pem_spki_pub = pem_der_encode_with_asn1(&derk);
+    let pem_spki_pub = pem_der_encode_with_asn1(&der);
+    std::fs::write(notary_public, pem_spki_pub).expect("fs::write");
     let _ = PUBLIC_KEY
         .set(*signing_key.verifying_key())
         .map_err(|_| "Public key has already been set");
-    (attkey, pem_spki_pub)
 }
 
 pub async fn quote() -> Quote {

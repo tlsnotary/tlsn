@@ -47,18 +47,12 @@ use crate::{
 };
 
 #[cfg(feature = "tee_quote")]
-use crate::tee::{ephemeral_keypair, quote};
+use crate::tee::{generate_ephemeral_keypair, quote};
 
 /// Start a TCP server (with or without TLS) to accept notarization request for
 /// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
-    // tee uses ephemeral key
-    #[cfg(feature = "tee_quote")]
-    let (attestation_key, public_key) = ephemeral_keypair();
-
-    // Load the private key for notarized transcript signing
-    #[cfg(not(feature = "tee_quote"))]
     let attestation_key = load_attestation_key(&config.notary_key).await?;
     let crypto_provider = build_crypto_provider(attestation_key);
 
@@ -115,7 +109,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     );
 
     // Parameters needed for the info endpoint
-    #[cfg(not(feature = "tee_quote"))]
     let public_key = std::fs::read_to_string(&config.notary_key.public_key_pem_path)
         .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
 
@@ -243,8 +236,10 @@ fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
 }
 
 /// Load notary signing key for attestations from static file
-#[allow(dead_code)]
 async fn load_attestation_key(config: &NotarySigningKeyProperties) -> Result<AttestationKey> {
+    #[cfg(feature = "tee_quote")]
+    generate_ephemeral_keypair(&config.private_key_pem_path, &config.public_key_pem_path);
+
     debug!("Loading notary server's signing key");
 
     let mut file = File::open(&config.private_key_pem_path).await?;
