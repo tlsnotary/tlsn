@@ -13,18 +13,14 @@ tlsn-server-fixture-certs = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-verifier = { workspace = true }
 
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "73a6be1" }
+websocket-relay = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
 chromiumoxide = { version = "0.6", features = ["tokio-runtime"] }
 futures = { workspace = true }
-once_cell = { workspace = true }
-k256 = { workspace = true }
-rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-tungstenite = { version = "0.23", features = ["url"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tower = { version = "0.4" }
 tower-http = { version = "0.5", features = ["fs", "set-header"] }

@@ -135,7 +135,7 @@ impl Verifier<state::Initialized> {
     /// # Arguments
     ///
     /// * `socket` - The socket to the prover.
-    /// * `signer` - The signer used to sign the notarization result.
+    /// * `config` - The attestation configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn notarize<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
@@ -247,7 +247,7 @@ impl Verifier<state::Closed> {
     /// Starts verification of the TLS session.
     ///
     /// This function transitions the verifier into a state where it can verify
-    /// content of the transcript.
+    /// the contents of the transcript.
     pub fn start_verify(self) -> Verifier<Verify> {
         Verifier {
             config: self.config,

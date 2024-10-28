@@ -1,6 +1,7 @@
 //! This module handles the notarization phase of the prover.
 //!
-//! The prover deals with a TLS verifier that is only a notary.
+//! The prover interacts with a TLS verifier who acts as a Notary, i.e. the
+//! verifier produces an attestation but does not verify transcript data.
 
 use super::{state::Notarize, Prover, ProverError};
 use mpz_ot::VerifiableOTReceiver;

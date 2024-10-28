@@ -30,6 +30,9 @@ pub struct NotarizationProperties {
     pub max_sent_data: usize,
     /// Global limit for maximum number of bytes that can be received
     pub max_recv_data: usize,
+    /// Number of seconds before notarization timeouts to prevent unreleased
+    /// memory
+    pub timeout: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
