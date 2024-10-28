@@ -10,6 +10,7 @@ loader.env.MALLOC_ARENA_MAX = "1"
 fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
+  { type = "tmpfs", path = "/ephemeral" },
   { type = "encrypted", path = "/vault", uri = "file:vault", key_name = "_sgx_mrenclave" },
 
 ]
