@@ -27,10 +27,11 @@ jobs:
       run: |
         docker run --privileged -v ${{ github.workspace }}/crates/benches/binary:/benches tlsn-bench
 
-    - name: Upload runtime_vs_latency.html
+    - name: Upload graphs
       uses: actions/upload-artifact@v4
       with:
         name: benchmark_graphs
         path: |
           ./crates/benches/binary/runtime_vs_latency.html
           ./crates/benches/binary/runtime_vs_bandwidth.html
+          ./crates/benches/binary/download_size_vs_memory.html
