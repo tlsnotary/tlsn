@@ -207,7 +207,7 @@ pub struct VerifyingKey {
 
 impl_domain_separator!(VerifyingKey);
 
-/// Error occurred while verifying a signature.
+/// Error that can occur while verifying a signature.
 #[derive(Debug, thiserror::Error)]
 #[error("signature verification failed: {0}")]
 pub struct SignatureError(String);

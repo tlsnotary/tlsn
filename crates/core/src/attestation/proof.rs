@@ -55,7 +55,7 @@ impl AttestationProof {
             .get(&self.signature.alg)
             .map_err(|e| AttestationError::new(ErrorKind::Provider, e))?;
 
-        // Verify body corresponding to the header.
+        // Verify that the body is corresponding to the header.
         let body = self.body.verify_with_provider(provider, &self.header)?;
 
         // Verify signature of the header.
@@ -79,12 +79,15 @@ impl AttestationProof {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BodyProof {
     body: Body,
+    /// A proof of inclusion of a subset of fields in the `body`.
+    // Currently, proves the inclusion of all fields.
     proof: MerkleProof,
 }
 
 impl BodyProof {
     /// Returns a new body proof.
-    // TODO: Support including a subset of fields instead of the entire body.
+    // TODO: Support creating a proof for a subset of fields instead of the entire
+    // body.
     pub(crate) fn new(
         hasher: &dyn HashAlgorithm,
         body: Body,

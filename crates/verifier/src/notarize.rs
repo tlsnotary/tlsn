@@ -1,6 +1,7 @@
 //! This module handles the notarization phase of the verifier.
 //!
-//! The TLS verifier is only a notary.
+//! The TLS verifier acts as a Notary, i.e. the verifier produces an
+//! attestation but does not verify transcript data.
 
 use super::{state::Notarize, Verifier, VerifierError};
 use mpz_ot::CommittedOTSender;
@@ -17,7 +18,7 @@ impl Verifier<Notarize> {
     ///
     /// # Arguments
     ///
-    /// * `signer` - The signer used to sign the notarization result.
+    /// * `config` - The attestation configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn finalize(self, config: &AttestationConfig) -> Result<Attestation, VerifierError> {
         let Notarize {
@@ -62,7 +63,7 @@ impl Verifier<Notarize> {
 
                 io.send(attestation.clone()).await?;
 
-                info!("Sent session header");
+                info!("Sent attestation");
 
                 Ok::<_, VerifierError>(attestation)
             })

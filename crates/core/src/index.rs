@@ -14,9 +14,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub(crate) struct Index<T> {
     items: Vec<T>,
-    // Lookup by field id
+    // Lookup by field id.
     field_ids: HashMap<FieldId, usize>,
-    // Lookup by transcript index
+    // Lookup by transcript index.
     transcript_idxs: HashMap<Idx, usize>,
 }
 
