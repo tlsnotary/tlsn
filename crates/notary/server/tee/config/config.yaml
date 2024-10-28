@@ -34,8 +34,8 @@ tls:
   certificate_pem_path: "."
 
 notary_key:
-  private_key_pem_path: "."
-  public_key_pem_path: "."
+  private_key_pem_path: "notary.key"
+  public_key_pem_path: "notary.pub"
 
 logging:
   level: INFO
