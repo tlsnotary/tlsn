@@ -111,7 +111,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     // Parameters needed for the info endpoint
     let public_key = std::fs::read_to_string(&config.notary_key.public_key_pem_path)
         .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
-
     let version = env!("CARGO_PKG_VERSION").to_string();
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
 
@@ -142,7 +141,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                         version,
                         public_key,
                         git_commit_hash,
-                        git_commit_timestamp,
                         #[cfg(feature = "tee_quote")]
                         quote: quote().await,
                     }),
