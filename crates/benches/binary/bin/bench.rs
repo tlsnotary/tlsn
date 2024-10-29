@@ -1,12 +1,26 @@
-use std::{process::Command, thread, time::Duration};
+use std::{env, process::Command, thread, time::Duration};
 
 use tlsn_benches::{clean_up, set_up};
 
 fn main() {
-    let prover_path = std::env::var("PROVER_PATH")
-        .unwrap_or_else(|_| "../../../target/release/prover".to_string());
-    let verifier_path = std::env::var("VERIFIER_PATH")
-        .unwrap_or_else(|_| "../../../target/release/verifier".to_string());
+    let args: Vec<String> = env::args().collect();
+    let is_memory_profiling = args.contains(&"--memory-profiling".to_string());
+
+    let (prover_path, verifier_path) = if is_memory_profiling {
+        (
+            std::env::var("PROVER_MEMORY_PATH")
+                .unwrap_or_else(|_| "../../../target/release/prover-memory".to_string()),
+            std::env::var("VERIFIER_MEMORY_PATH")
+                .unwrap_or_else(|_| "../../../target/release/verifier-memory".to_string()),
+        )
+    } else {
+        (
+            std::env::var("PROVER_PATH")
+                .unwrap_or_else(|_| "../../../target/release/prover".to_string()),
+            std::env::var("VERIFIER_PATH")
+                .unwrap_or_else(|_| "../../../target/release/verifier".to_string()),
+        )
+    };
 
     if let Err(e) = set_up() {
         println!("Error setting up: {}", e);

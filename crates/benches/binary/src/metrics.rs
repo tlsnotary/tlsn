@@ -26,4 +26,6 @@ pub struct Metrics {
     pub uploaded: u64,
     /// The total amount of data downloaded from the verifier in bytes.
     pub downloaded: u64,
+    /// The peak heap memory usage in bytes.
+    pub heap_max_bytes: Option<usize>,
 }
