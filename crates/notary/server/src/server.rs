@@ -46,11 +46,13 @@ use crate::{
     util::parse_csv_file,
 };
 
+#[cfg(feature = "tee_quote")]
+use crate::tee::{generate_ephemeral_keypair, quote};
+
 /// Start a TCP server (with or without TLS) to accept notarization request for
 /// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
-    // Load the private key for notarized transcript signing
     let attestation_key = load_attestation_key(&config.notary_key).await?;
     let crypto_provider = build_crypto_provider(attestation_key);
 
@@ -139,6 +141,8 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                         version,
                         public_key,
                         git_commit_hash,
+                        #[cfg(feature = "tee_quote")]
+                        quote: quote().await,
                     }),
                 )
                     .into_response()
@@ -229,6 +233,9 @@ fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
 
 /// Load notary signing key for attestations from static file
 async fn load_attestation_key(config: &NotarySigningKeyProperties) -> Result<AttestationKey> {
+    #[cfg(feature = "tee_quote")]
+    generate_ephemeral_keypair(&config.private_key_pem_path, &config.public_key_pem_path);
+
     debug!("Loading notary server's signing key");
 
     let mut file = File::open(&config.private_key_pem_path).await?;
