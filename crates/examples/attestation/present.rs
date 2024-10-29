@@ -45,7 +45,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     builder.reveal_sent(&request.without_data())?;
     // Reveal the request target.
     builder.reveal_sent(&request.request.target)?;
-    // Reveal all headers except the values of the User-Agent and Authorization.
+    // Reveal all headers except the values of User-Agent and Authorization.
     for header in &request.headers {
         if !(header
             .name
