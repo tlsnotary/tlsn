@@ -124,8 +124,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let mut prover = prover_task.await.unwrap().unwrap().start_prove();
 
     // Reveal parts of the transcript
-    let idx_sent = redact_ranges_sent(&mut prover);
-    let idx_recv = redact_ranges_received(&mut prover);
+    let idx_sent = revealed_ranges_sent(&mut prover);
+    let idx_recv = revealed_ranges_received(&mut prover);
     prover.prove_transcript(idx_sent, idx_recv).await.unwrap();
 
     // Finalize.
@@ -154,10 +154,9 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let (mut partial_transcript, session_info) = verifier.verify(socket.compat()).await.unwrap();
     partial_transcript.set_unauthed(0);
 
-    // Check sent data: check host.
+    // Check sent data:
     let sent = partial_transcript.sent_unsafe().to_vec();
     let sent_data = String::from_utf8(sent.clone()).expect("Verifier expected sent data");
-
     sent_data
         .find(SERVER_DOMAIN)
         .unwrap_or_else(|| panic!("Verification failed: Expected host {}", SERVER_DOMAIN));
@@ -175,8 +174,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     (sent, received, session_info)
 }
 
-/// Redacts and reveals received data to the verifier.
-fn redact_ranges_received(prover: &mut Prover<Prove>) -> Idx {
+/// Returns the received ranges to be revealed to the verifier.
+fn revealed_ranges_received(prover: &mut Prover<Prove>) -> Idx {
     let recv_transcript = prover.transcript().received();
     let recv_transcript_len = recv_transcript.len();
 
@@ -191,8 +190,8 @@ fn redact_ranges_received(prover: &mut Prover<Prove>) -> Idx {
     Idx::new([0..start, end..recv_transcript_len])
 }
 
-/// Redacts and reveals sent data to the verifier.
-fn redact_ranges_sent(prover: &mut Prover<Prove>) -> Idx {
+/// Returns the sent ranges to be revealed to the verifier.
+fn revealed_ranges_sent(prover: &mut Prover<Prove>) -> Idx {
     let sent_transcript = prover.transcript().sent();
     let sent_transcript_len = sent_transcript.len();
 

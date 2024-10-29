@@ -98,7 +98,8 @@ cargo run --release --example attestation_verify -- html
 
 ### Private Data
 
-The examples above demonstrate TLSNotary with public data. TLSNotary can also be used for private data by adding the necessary headers (e.g., an authentication token) or cookies to the request. To run a private data example:
+The examples above demonstrate how to use TLSNotary with publicly accessible data. TLSNotary can also be utilized for private data that requires authentication. To access this data, you can add the necessary headers (such as an authentication token) or cookies to your request. To run an example that uses an authentication token, execute the following command:
+
 ```shell
 # notarize
 SERVER_PORT=4000 cargo run --release --example attestation_prove -- authenticated

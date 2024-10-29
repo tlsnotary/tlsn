@@ -45,7 +45,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     builder.reveal_sent(&request.without_data())?;
     // Reveal the request target.
     builder.reveal_sent(&request.request.target)?;
-    // Reveal all headers except the value of the User-Agent header.
+    // Reveal all headers except the values of the User-Agent and Authorization.
     for header in &request.headers {
         if !(header
             .name
@@ -72,6 +72,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let content = &response.body.as_ref().unwrap().content;
     match content {
         tlsn_formats::http::BodyContent::Json(json) => {
+            // For experimentation, reveal the entire response or just a selection
             let reveal_all = false;
             if reveal_all {
                 builder.reveal_recv(response)?;
