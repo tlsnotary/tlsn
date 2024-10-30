@@ -7,21 +7,24 @@ use hyper::server;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use sha2::digest::typenum::array;
+use tlsn_core::proof;
+use tokio::time::error::Elapsed;
 use std::ops::Range;
 use tlsn_core::{proof::TlsProof, transcript::get_value_ids};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
-
 use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 use serde_json::Value;
 use reqwest::Error;
+use mpz_core::commit::Nonce;
+use serde_json::json;
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "api.binance.com";
-const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
-const API_KEY:&str = "SFn8TZJWUBJMAUk542nr6vpYlJUzkRkXmBrGye8pXfhrLkLcZnYMyyuNxSEBVs1O";
-const API_SECRET:&str = "s0AiwZ6OpR8K76zde5JM25YFiu0PMqoCiGIT4VpCptJmHzZcgGjl4ctAZJYwZTdJ";
+const USER_AGENT: &str = "";
+const API_KEY:&str = "";
+const API_SECRET:&str = "";
 
 use std::{env, str};
 use hmac::{Hmac, Mac};
@@ -96,18 +99,6 @@ async fn main() {
     // Spawn the HTTP task to be run concurrently
     tokio::spawn(connection);
 
-    // let request = Request::builder()
-    //     .uri("/api/v3/time")
-    //     .header("Host", SERVER_DOMAIN)
-    //     .header("Accept", "*/*")
-    //     // Using "identity" instructs the Server not to use compression for its HTTP response.
-    //     // TLSNotary tooling does not support compression.
-    //     .header("Accept-Encoding", "identity")
-    //     .header("Connection", "close")
-    //     .header("User-Agent", USER_AGENT)
-    //     .body(Empty::<Bytes>::new())
-    //     .unwrap();
-
     let res = reqwest::get("https://api.binance.com/api/v3/time").await;
     let json_value:Value = res.unwrap().json().await.unwrap();
     // println!("json value: {}", json_value);
@@ -159,18 +150,23 @@ async fn main() {
     let json_value: Value = serde_json::from_str(&body_str).unwrap();
     let balances = json_value.get("balances").unwrap();
 
+    let eth_free;
     // Find the asset "ETH"
     if let Some(eth) = balances.as_array().and_then(|assets| {
         assets.iter().find(|asset| asset["asset"] == "ETH")
     }) {
         // Extract the "free" amount of TON
-        let free_eth = eth["free"].as_str().expect("Failed to get ETH free amount");
-        println!("The amount of ETH is: {}", free_eth);
+        eth_free = eth["free"].as_str().expect("Failed to get ETH free amount");
+        println!("The free amount of ETH is: {}", eth_free);
     } else {
+        eth_free = "0";
         println!("ETH not found.");
     }
-
-    // println!("Party {} has {} followers", party_index, followers_count);
+    // Parse eth_free to a float
+    let num_eth_free: f32 = eth_free.parse().unwrap();
+    // Format the float to two decimal points
+    let two_dec_eth_free = &format!("{:.2}", num_eth_free);
+    println!("2-decimal free ETH: {}", two_dec_eth_free);  // Output: "0.12"
 
     // The Prover task should be done now, so we can grab the Prover.
     let prover = prover_task.await.unwrap().unwrap();
@@ -180,22 +176,38 @@ async fn main() {
 
     // Build proof (with or without redactions)
     let redact = true;
-    let proof = if !redact {
-        build_proof_without_redactions(prover).await
+
+    let (proof, nonce) = if !redact {
+        (build_proof_without_redactions(prover).await, None) // Initialize nonce with `None` or a default value here
     } else {
         build_proof_with_redactions(prover).await
     };
 
-    // // Write the proof to a file
+    // Write the proof to a file
     let args: Vec<String> = std::env::args().collect();
+
     let file_dest = args.get(1).expect("Please provide a file destination as the second argument");
     let mut file = tokio::fs::File::create(file_dest).await.unwrap();
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
         .unwrap();
 
+    if nonce.is_none(){
+        println!("No redaction, no need to write to secret file");
+    }
+    else{
+        let secret_file_dest = args.get(2).expect("Please provide a file destination for secret values as the third argument");
+        let mut secret_file = tokio::fs::File::create(secret_file_dest).await.unwrap();
+        let data = json!({
+            "eth_free": two_dec_eth_free,
+            "nonce": nonce.unwrap()
+        });
+        let json_string = serde_json::to_string_pretty(&data).unwrap();
+
+        // Write the JSON string to a secret file
+        secret_file.write_all(json_string.as_bytes()).await.unwrap();
+    }
     println!("Notarization completed successfully!");
-    println!("The proof has been written to `simple_proof.json`");
 }
 
 /// Find the ranges of the public and private parts of a sequence.
@@ -291,25 +303,49 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     }
 }
 
-async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
+async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> (TlsProof, Option<Nonce>) {
     // Identify the ranges in the outbound data which contain data which we want to disclose
-    let (sent_public_ranges, _) = find_ranges(
+    let (sent_public_ranges_pre, _) = find_ranges(
         prover.sent_transcript().data(),
         &[
-            // Redact the value of the "User-Agent" header. It will NOT be disclosed.
+            // Redact the value of the "User-Agent" & api-key header. It will NOT be disclosed.
             USER_AGENT.as_bytes(),
+            API_KEY.as_bytes(),
         ],
     );
+    // println!("Pre sent public ranges: {:?}", sent_public_ranges_pre);
+    let(_,signature_ranges ) = find_ranges_regex(
+        prover.sent_transcript().data(),
+        &[r#"signature=(\w+)[& ]"#]
+    );
+    // println!("sender data: {:?}", prover.sent_transcript().data());
+    // println!("Signature private ranges: {:?}", signature_ranges);
+
+    let mut sorted_sent_public_ranges = sent_public_ranges_pre.clone();
+    sorted_sent_public_ranges.sort_by_key(|r| r.start);
+
+    let mut sent_public_ranges = Vec::new();
+    for r in sorted_sent_public_ranges {
+        if (r.start < signature_ranges[0].start)&& (r.end>signature_ranges[0].end)  {
+            sent_public_ranges.push(r.start..(signature_ranges[0].start));
+            sent_public_ranges.push(signature_ranges[0].end..(r.end));
+        }
+        else{
+            sent_public_ranges.push(r);
+        }
+    }
+    // println!("Actual sent public ranges: {:?}", sent_public_ranges);
 
     // Sensor all data in "balances"
     let (recv_public_ranges, _) = find_ranges_regex(
         prover.recv_transcript().data(),
-        &[r#""balances":(\[(\{("|:|,|.|\w)+\})+\])"#]
+        &[r#"(?s)HTTP/1.1 200 OK(.*)\{"asset":"ETH","free""#, r#""ETH","free":"(\d+\.\d\d)"#, r#"(?s)"ETH","free":"\d+\.\d\d(\d*)""#,r#"(?s)"ETH","free":"\d+\.\d+"(.*)"#]
     );
     // Create only proof for ETH "free" amount
+    // Only 2 decimal points
     let (_, recv_private_ranges) = find_ranges_regex(
         prover.recv_transcript().data(),
-        &[r#""ETH","free":"(\d+(\.\d+)?)"#]
+        &[r#""ETH","free":"(\d+\.\d\d)"#]
 
     );
     println!("Received private ranges: {:?}", recv_private_ranges);
@@ -350,11 +386,10 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         proof_builder.reveal_by_id(commitment_id).unwrap();
     }
 
-    for commitment_id in recv_private_commitments {
-        println!("Revealing private commitment {:?}", commitment_id);
-        proof_builder.reveal_private_by_id(commitment_id).unwrap();
-    }
-
+    // Here only support revealing one private_commitment (if multiple can modify to use for-loop)
+    let commitment_id = recv_private_commitments[0];
+    println!("Revealing private commitment {:?}", commitment_id);
+    let nonce = proof_builder.reveal_private_by_id(commitment_id).await.unwrap();
     let substrings_proof = proof_builder.build().unwrap();
     println!("Received private ranges: {:?}", recv_private_ranges);
     // Generate the encodings for the private ranges
@@ -363,9 +398,9 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
             .map(|id| notarized_session.header().encode(&id))
             .collect::<Vec<_>>();
 
-    TlsProof {
+    (TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
         encodings: received_private_encodings,
-    }
+    }, Some(nonce))
 }

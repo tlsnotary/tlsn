@@ -55,7 +55,10 @@ fn main() {
     // Replace the bytes which the Prover chose not to disclose with 'X'
     sent.set_redacted(b'X');
     recv.set_redacted(b'X');
-
+    recv.set_private(b'Y');
+    // println!("rangeeee: {:?}",substrings );
+    // println!("DNS: {:?}", session_info.server_name.as_str());
+    assert!(session_info.server_name.as_str() == "api.binance.com", "Expected DNS to be api.binance.com, but got {:?}", session_info.server_name.as_str());
     println!("-------------------------------------------------------------------");
     println!(
         "Successfully verified that the bytes below came from a session with {:?} at {}.",

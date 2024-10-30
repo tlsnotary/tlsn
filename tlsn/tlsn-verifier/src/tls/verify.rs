@@ -11,6 +11,7 @@ use tlsn_core::{
     msg::ProvingInfo, proof::SessionInfo, transcript::get_value_ids, Direction, HandshakeSummary,
     RedactedTranscript, TranscriptSlice,
 };
+use utils::range:: RangeSet;
 
 use tracing::info;
 
@@ -98,8 +99,8 @@ impl Verifier<VerifyState> {
                 let recv_transcripts =
                     transcripts.split_off(proving_info.sent_ids.iter_ranges().count());
                 let (sent_redacted, recv_redacted) = (
-                    RedactedTranscript::new(self.state.sent_len, transcripts),
-                    RedactedTranscript::new(self.state.recv_len, recv_transcripts),
+                    RedactedTranscript::new(self.state.sent_len, transcripts, RangeSet::default()),
+                    RedactedTranscript::new(self.state.recv_len, recv_transcripts, RangeSet::default()),
                 );
 
                 info!("Successfully created redacted transcripts");
