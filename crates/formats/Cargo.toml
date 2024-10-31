@@ -1,14 +1,12 @@
 [package]
 name = "tlsn-formats"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8-pre"
 edition = "2021"
 
 [dependencies]
 tlsn-core = { workspace = true }
-tlsn-utils = { workspace = true }
 
 bytes = { workspace = true }
-serde = { workspace = true }
 spansy = { workspace = true, features = ["serde"] }
 thiserror = { workspace = true }
 

@@ -59,11 +59,11 @@ pub struct MpcTlsFollower {
 /// Data collected by the MPC-TLS follower.
 #[derive(Debug)]
 pub struct MpcTlsFollowerData {
-    /// The server's public key
+    /// The server's ephemeral public key.
     pub server_key: PublicKey,
-    /// The total number of bytes sent
+    /// The total number of bytes sent.
     pub bytes_sent: usize,
-    /// The total number of bytes received
+    /// The total number of bytes received.
     pub bytes_recv: usize,
 }
 
