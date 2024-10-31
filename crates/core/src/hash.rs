@@ -108,7 +108,7 @@ impl Display for HashAlgId {
 }
 
 /// A typed hash value.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, std::hash::Hash)]
 pub struct TypedHash {
     /// The algorithm of the hash.
     pub alg: HashAlgId,
@@ -117,7 +117,7 @@ pub struct TypedHash {
 }
 
 /// A hash value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, std::hash::Hash)]
 pub struct Hash {
     // To avoid heap allocation, we use a fixed-size array.
     // 64 bytes should be sufficient for most hash algorithms.
@@ -264,7 +264,7 @@ pub(crate) trait HashAlgorithmExt: HashAlgorithm {
 impl<T: HashAlgorithm + ?Sized> HashAlgorithmExt for T {}
 
 /// A hash blinder.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq, std::hash::Hash)]
 pub struct Blinder([u8; 16]);
 
 impl Blinder {

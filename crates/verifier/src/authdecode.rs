@@ -11,15 +11,12 @@ use authdecode_core::{
 use authdecode_single_range::{SingleRange, TranscriptEncoder};
 use tlsn_core::{
     hash::{HashAlgId, TypedHash},
-    request::Request,
-    transcript::{authdecode::AuthDecodeAlg, Idx, PlaintextHash},
+    transcript::{Idx, PlaintextHash},
 };
 
 /// Returns an AuthDecode verifier depending on the hash algorithm contained in the request.
-pub(crate) fn authdecode_verifier(request: &Request) -> impl TranscriptVerifier {
-    let alg: AuthDecodeAlg = request.try_into().unwrap();
-
-    match alg.alg() {
+pub(crate) fn authdecode_verifier(alg: &HashAlgId) -> impl TranscriptVerifier {
+    match alg {
         &HashAlgId::POSEIDON_HALO2 => PoseidonHalo2Verifier::new(),
         _ => unimplemented!(),
     }

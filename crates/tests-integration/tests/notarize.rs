@@ -17,19 +17,18 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 #[cfg(feature = "authdecode_unsafe")]
-use tlsn_core::hash::HashAlgId;
-#[cfg(feature = "authdecode_unsafe")]
-use tlsn_core::hash::POSEIDON_MAX_INPUT_SIZE;
-#[cfg(feature = "authdecode_unsafe")]
-use tlsn_core::transcript::TranscriptCommitmentKind;
+use tlsn_core::{
+    hash::{HashAlgId, POSEIDON_MAX_INPUT_SIZE},
+    transcript::{Direction, TranscriptCommitmentKind},
+};
 
 // Maximum number of bytes that can be sent from prover to server.
 const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server.
 const MAX_RECV_DATA: usize = 1 << 14;
 #[cfg(feature = "authdecode_unsafe")]
-// Maximum number of bytes for which a zk-friendly hash commitment can be computed.
-const MAX_ZK_FRIENDLY_HASH_DATA: usize = 1 << 10;
+// Maximum number of plaintext bytes which can be authenticated using the AuthDecode protocol.
+const MAX_AUTHDECODE_DATA: usize = 1 << 10;
 
 #[tokio::test]
 #[ignore]
@@ -64,7 +63,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .max_recv_data_online(MAX_RECV_DATA);
 
     #[cfg(feature = "authdecode_unsafe")]
-    builder.max_zk_friendly_hash_data(MAX_ZK_FRIENDLY_HASH_DATA);
+    builder.max_authdecode_data(MAX_AUTHDECODE_DATA);
 
     let protocol_config = builder.build().unwrap();
 
@@ -124,28 +123,43 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .unwrap();
 
     #[cfg(feature = "authdecode_unsafe")]
-    {
-        builder.default_kind(TranscriptCommitmentKind::Hash {
-            alg: HashAlgId::POSEIDON_HALO2,
-        });
+    let authdecode_inputs = {
+        let alg = HashAlgId::POSEIDON_HALO2;
+
+        builder.default_kind(TranscriptCommitmentKind::Hash { alg });
+
         // Currently there is a limit on commitment data length for POSEIDON_HALO2.
         let sent_range = 0..sent_tx_len / 2;
         let recv_range = 0..POSEIDON_MAX_INPUT_SIZE;
         assert!(sent_range.len() <= POSEIDON_MAX_INPUT_SIZE);
         assert!(recv_range.len() <= POSEIDON_MAX_INPUT_SIZE);
-        builder
-            .commit_sent(&sent_range)
-            .unwrap()
-            .commit_recv(&recv_range)
+
+        let blinder_sent = builder
+            .commit_with_blinder(&sent_range, Direction::Sent)
             .unwrap();
-    }
+
+        let blinder_recv = builder
+            .commit_with_blinder(&recv_range, Direction::Received)
+            .unwrap();
+        vec![
+            (Direction::Sent, sent_range, alg, blinder_sent),
+            (Direction::Received, recv_range, alg, blinder_recv),
+        ]
+    };
 
     let config = builder.build().unwrap();
 
-    prover.transcript_commit(config);
+    prover.transcript_commit(config.clone());
 
     let config = RequestConfig::default();
 
+    #[cfg(feature = "authdecode_unsafe")]
+    prover
+        .finalize_with_authdecode(&config, authdecode_inputs)
+        .await
+        .unwrap();
+
+    #[cfg(not(feature = "authdecode_unsafe"))]
     prover.finalize(&config).await.unwrap();
 }
 
@@ -169,7 +183,7 @@ async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socke
         .max_recv_data(MAX_RECV_DATA);
 
     #[cfg(feature = "authdecode_unsafe")]
-    builder.max_zk_friendly_hash_data(MAX_ZK_FRIENDLY_HASH_DATA);
+    builder.max_authdecode_data(MAX_AUTHDECODE_DATA);
 
     let config_validator = builder.build().unwrap();
 

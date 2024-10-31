@@ -29,7 +29,11 @@ mpz-circuits = { workspace = true }
 bcs = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
+<<<<<<< HEAD
 derive_builder = { workspace = true }
+=======
+getset = "0.1.2"
+>>>>>>> a1edbe6f (decouple authdecode from tlsn-core)
 hex = { workspace = true, optional = true }
 k256 = { workspace = true }
 opaque-debug = { workspace = true }

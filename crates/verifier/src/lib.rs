@@ -100,6 +100,9 @@ impl Verifier<state::Initialized> {
             })
             .await?;
 
+        #[cfg(feature = "authdecode_unsafe")]
+        let wants_authdecode = protocol_config.max_authdecode_data() > 0;
+
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
         let (mpc_tls, vm, ot_send) = mux_fut
             .poll_with(setup_mpc_backend(
@@ -125,6 +128,8 @@ impl Verifier<state::Initialized> {
                 ot_send,
                 ctx,
                 encoder_seed,
+                #[cfg(feature = "authdecode_unsafe")]
+                wants_authdecode,
             },
         })
     }
@@ -187,6 +192,8 @@ impl Verifier<state::Setup> {
             ot_send,
             ctx,
             encoder_seed,
+            #[cfg(feature = "authdecode_unsafe")]
+            wants_authdecode,
         } = self.state;
 
         let start_time = SystemTime::now()
@@ -227,6 +234,8 @@ impl Verifier<state::Setup> {
                     .try_into()
                     .expect("only supported key type should have been accepted"),
                 connection_info,
+                #[cfg(feature = "authdecode_unsafe")]
+                wants_authdecode,
             },
         })
     }

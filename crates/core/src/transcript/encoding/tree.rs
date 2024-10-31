@@ -103,25 +103,28 @@ impl EncodingTree {
 
             if idx.end() > len {
                 return Err(EncodingTreeError::OutOfBounds {
-                    index: idx.clone(),
+                    index: idx.clone().clone(),
                     transcript_length: len,
                 });
             }
 
-            if this.idxs.contains_right(dir_idx) {
+            if this.idxs.contains_right(&(direction, idx.clone().clone())) {
                 // The subsequence is already in the tree.
                 continue;
             }
 
-            let encoding = provider
-                .provide_encoding(direction, idx)
-                .ok_or_else(|| EncodingTreeError::MissingEncoding { index: idx.clone() })?;
+            let encoding = provider.provide_encoding(direction, idx).ok_or_else(|| {
+                EncodingTreeError::MissingEncoding {
+                    index: idx.clone().clone(),
+                }
+            })?;
 
             let leaf = Blinded::new(EncodingLeaf::new(encoding));
 
             leaves.push(hasher.hash(&CanonicalSerialize::serialize(&leaf)));
             this.nonces.push(leaf.into_parts().1);
-            this.idxs.insert(this.idxs.len(), dir_idx.clone());
+            this.idxs
+                .insert(this.idxs.len(), (direction, idx.clone().clone()).clone());
         }
 
         this.tree.insert(hasher, leaves);
@@ -221,17 +224,15 @@ mod tests {
     fn test_encoding_tree() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
-        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()));
+        let idx_0 = &(Direction::Sent, Idx::new(0..POST_JSON.len()));
+        let idx_1 = &(Direction::Received, Idx::new(0..OK_JSON.len()));
 
-        let tree = new_tree(&transcript, [&idx_0, &idx_1].into_iter()).unwrap();
+        let tree = new_tree(&transcript, [idx_0, idx_1].into_iter()).unwrap();
 
-        assert!(tree.contains(&idx_0));
-        assert!(tree.contains(&idx_1));
+        assert!(tree.contains(idx_0));
+        assert!(tree.contains(idx_1));
 
-        let proof = tree
-            .proof(&transcript, [&idx_0, &idx_1].into_iter())
-            .unwrap();
+        let proof = tree.proof(&transcript, [idx_0, idx_1].into_iter()).unwrap();
 
         let commitment = EncodingCommitment {
             root: tree.root(),

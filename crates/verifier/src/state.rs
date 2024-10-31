@@ -27,6 +27,9 @@ pub struct Setup {
     pub(crate) ctx: Context,
 
     pub(crate) encoder_seed: [u8; 32],
+    /// Whether the Prover wants to run the AuthDecode protocol.
+    #[cfg(feature = "authdecode_unsafe")]
+    pub(crate) wants_authdecode: bool,
 }
 
 /// State after the TLS connection has been closed.
@@ -42,6 +45,9 @@ pub struct Closed {
     pub(crate) encoder_seed: [u8; 32],
     pub(crate) server_ephemeral_key: ServerEphemKey,
     pub(crate) connection_info: ConnectionInfo,
+    /// Whether the Prover wants to run the AuthDecode protocol.
+    #[cfg(feature = "authdecode_unsafe")]
+    pub(crate) wants_authdecode: bool,
 }
 
 opaque_debug::implement!(Closed);
@@ -59,6 +65,9 @@ pub struct Notarize {
     pub(crate) encoder_seed: [u8; 32],
     pub(crate) server_ephemeral_key: ServerEphemKey,
     pub(crate) connection_info: ConnectionInfo,
+    /// Whether the Prover wants to run the AuthDecode protocol.
+    #[cfg(feature = "authdecode_unsafe")]
+    pub(crate) wants_authdecode: bool,
 }
 
 opaque_debug::implement!(Notarize);
@@ -75,6 +84,8 @@ impl From<Closed> for Notarize {
             encoder_seed: value.encoder_seed,
             server_ephemeral_key: value.server_ephemeral_key,
             connection_info: value.connection_info,
+            #[cfg(feature = "authdecode_unsafe")]
+            wants_authdecode: value.wants_authdecode,
         }
     }
 }

@@ -11,7 +11,10 @@ use tlsn_common::{
 };
 use tlsn_core::{
     connection::{ConnectionInfo, ServerCertData},
-    transcript::{encoding::EncodingProvider, Direction, Idx, Transcript, TranscriptCommitConfig},
+    transcript::{
+        encoding::{EncodingProvider, EncodingTree},
+        Direction, Idx, Transcript, TranscriptCommitConfig,
+    },
 };
 
 /// Entry state
@@ -66,6 +69,7 @@ pub struct Notarize {
 
     pub(crate) transcript: Transcript,
     pub(crate) encoding_provider: Box<dyn EncodingProvider + Send + Sync>,
+    pub(crate) encoding_commitments: Option<EncodingTree>,
 
     pub(crate) transcript_commit_config: Option<TranscriptCommitConfig>,
 }
@@ -124,6 +128,7 @@ impl From<Closed> for Notarize {
             server_cert_data: state.server_cert_data,
             transcript: state.transcript,
             encoding_provider: Box::new(encoding_provider),
+            encoding_commitments: None,
             transcript_commit_config: None,
         }
     }

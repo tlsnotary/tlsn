@@ -225,9 +225,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                     ));
                 };
 
-                let dir_idx = (direction, idx);
-
-                if !encoding_tree.contains(&dir_idx) {
+                if !encoding_tree.contains(&(direction, idx.clone())) {
                     return Err(TranscriptProofBuilderError::new(
                         BuilderErrorKind::MissingCommitment,
                         format!(
@@ -237,7 +235,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                     ));
                 }
 
-                self.encoding_proof_idxs.insert(dir_idx);
+                self.encoding_proof_idxs.insert((direction, idx));
             }
             TranscriptCommitmentKind::Hash { .. } => match self.plaintext_hashes {
                 Some(hashes) => {

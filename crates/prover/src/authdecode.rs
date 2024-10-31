@@ -1,6 +1,5 @@
-use std::mem;
+use std::{mem, ops::Range};
 
-use crate::error;
 use authdecode_core::{
     backend::{
         halo2::{Bn256F, CHUNK_SIZE},
@@ -14,37 +13,76 @@ use authdecode_core::{
 use authdecode_single_range::{SingleRange, TranscriptEncoder};
 use mpz_core::utils::blake3;
 use tlsn_core::{
-    hash::HashAlgId,
-    request::Request,
-    transcript::{
-        authdecode::{AuthdecodeInputs, AuthdecodeInputsWithAlg},
-        encoding::EncodingProvider,
-        Transcript,
-    },
-    Secrets,
+    hash::{Blinder, HashAlgId},
+    transcript::{encoding::EncodingProvider, Direction, Idx, Transcript},
 };
+use utils::range::RangeSet;
 
-/// Returns an AuthDecode prover for a TLS transcript based on the hashing algorithm used in the
-/// `request`.
+use crate::{error, ProverError};
+
+/// Returns an AuthDecode prover for a TLS transcript based on the hashing algorithm used.
 pub(crate) fn authdecode_prover(
-    request: &Request,
-    secrets: &Secrets,
+    inputs: Vec<(Direction, Range<usize>, HashAlgId, Blinder)>,
     encoding_provider: &(dyn EncodingProvider + Send + Sync),
     transcript: &Transcript,
     max_plaintext: usize,
 ) -> Result<impl TranscriptProver, error::ProverError> {
-    let inputs: AuthdecodeInputsWithAlg = (request, secrets, encoding_provider, transcript)
-        .try_into()
-        .map_err(error::ProverError::authdecode)?;
-
-    if inputs.total_plaintext() > max_plaintext {
-        return Err(error::ProverError::authdecode(
-            "total plaintext length exceeds the maximum allowed",
-        ));
+    if inputs.is_empty() {
+        return Err(ProverError::authdecode("inputs vector is empty"));
     }
 
-    match inputs.alg {
-        HashAlgId::POSEIDON_HALO2 => Ok(PoseidonHalo2Prover::new(inputs.inputs)),
+    let alg = inputs.first().expect("At least one input is expected").2;
+
+    let mut total_plaitext = 0;
+
+    let adinputs = inputs
+        .iter()
+        .map(|(dir, range, this_alg, blinder)| {
+            if &alg != this_alg {
+                return Err(ProverError::authdecode(
+                    "more than one hash algorithms are present",
+                ));
+            }
+
+            total_plaitext += range.len();
+            if total_plaitext > max_plaintext {
+                return Err(ProverError::authdecode("max_plaintext exceeded"));
+            }
+
+            let idx = Idx::new(RangeSet::new(&[range.clone()]));
+
+            let mut encodings = encoding_provider.provide_bit_encodings(*dir, &idx).ok_or(
+                ProverError::authdecode(format!(
+                    "direction {} and index {:?} were not found by the encoding provider",
+                    &dir, &idx
+                )),
+            )?;
+            // Reverse byte encodings to MSB0.
+            for chunk in encodings.chunks_mut(8) {
+                chunk.reverse();
+            }
+
+            let plaintext = transcript
+                .get(*dir, &idx)
+                .ok_or(ProverError::authdecode(format!(
+                    "direction {} and index {:?} were not found in the transcript",
+                    &dir, &idx
+                )))?
+                .data()
+                .to_vec();
+
+            Ok(AuthDecodeInput::new(
+                blinder.clone(),
+                plaintext,
+                encodings,
+                range.clone(),
+                *dir,
+            ))
+        })
+        .collect::<Result<Vec<_>, ProverError>>()?;
+
+    match alg {
+        HashAlgId::POSEIDON_HALO2 => Ok(PoseidonHalo2Prover::new(AuthdecodeInputs(adinputs))),
         alg => Err(error::ProverError::authdecode(format!(
             "unsupported hash algorithm {:?} for AuthDecode",
             alg
@@ -70,6 +108,9 @@ pub(crate) trait TranscriptProver {
     ///
     /// Returns a message to be passed to the verifier.
     fn prove(&mut self, seed: [u8; 32]) -> Result<impl serio::Serialize, TranscriptProverError>;
+
+    /// Returns the hash algorithm used to create commitments.
+    fn alg(&self) -> HashAlgId;
 }
 
 /// An AuthDecode prover for a batch of data from a TLS transcript using the
@@ -88,7 +129,7 @@ pub(crate) struct PoseidonHalo2Prover {
 
 impl TranscriptProver for PoseidonHalo2Prover {
     fn new(inputs: AuthdecodeInputs) -> Self {
-        let inputs = inputs.to_inner();
+        let inputs = inputs.into_inner();
 
         for input in &inputs {
             assert!(input.range.len() <= CHUNK_SIZE);
@@ -117,7 +158,7 @@ impl TranscriptProver for PoseidonHalo2Prover {
                         &hashed_encodings,
                         SingleRange::new(input.direction, &input.range),
                     ),
-                    Bn256F::from_bytes_be(input.salt.to_vec()),
+                    Bn256F::from_bytes_be(input.salt.as_inner().to_vec()),
                 )
             })
             .collect::<Vec<_>>();
@@ -162,6 +203,10 @@ impl TranscriptProver for PoseidonHalo2Prover {
 
         Ok(msg)
     }
+
+    fn alg(&self) -> HashAlgId {
+        HashAlgId::POSEIDON_HALO2
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -171,4 +216,59 @@ pub(crate) enum TranscriptProverError {
     CoreProtocolError(#[from] CoreProverError),
     #[error("AuthDecode prover failed with an error: {0}")]
     Other(String),
+}
+
+/// An AuthDecode input to prove a single range of a TLS transcript. Also contains the `salt` to be
+/// used for the plaintext commitment.
+struct AuthDecodeInput {
+    /// The salt of the plaintext commitment.
+    pub salt: Blinder,
+    /// The plaintext to commit to.
+    pub plaintext: Vec<u8>,
+    /// The encodings to commit to in MSB0 bit order.
+    pub encodings: Vec<Vec<u8>>,
+    /// The byterange of the plaintext.
+    pub range: Range<usize>,
+    /// The direction of the range in the transcript.
+    pub direction: Direction,
+}
+
+impl AuthDecodeInput {
+    /// Creates a new `AuthDecodeInput`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if some of the arguments are not correct.
+    fn new(
+        salt: Blinder,
+        plaintext: Vec<u8>,
+        encodings: Vec<Vec<u8>>,
+        range: Range<usize>,
+        direction: Direction,
+    ) -> Self {
+        assert!(!range.is_empty());
+        assert!(plaintext.len() * 8 == encodings.len());
+        assert!(plaintext.len() == range.len());
+        // All encodings should have the same length.
+        for pair in encodings.windows(2) {
+            assert!(pair[0].len() == pair[1].len());
+        }
+        Self {
+            salt,
+            plaintext,
+            encodings,
+            range,
+            direction,
+        }
+    }
+}
+
+/// A batch of AuthDecode inputs.  
+pub(crate) struct AuthdecodeInputs(Vec<AuthDecodeInput>);
+
+impl AuthdecodeInputs {
+    /// Consumes self, returning the inner vector.
+    fn into_inner(self) -> Vec<AuthDecodeInput> {
+        self.0
+    }
 }

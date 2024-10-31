@@ -10,10 +10,11 @@ use crate::{
     request::{Request, RequestConfig},
     secrets::Secrets,
     transcript::{
-        encoding::EncodingTree, Direction, Idx, PlaintextHash, PlaintextHashSecret, Transcript,
+        encoding::EncodingTree, PlaintextHash, PlaintextHashSecret, Transcript, TranscriptCommitmentKind
     },
     CryptoProvider,
 };
+use crate::transcript::commit::CommitInfo;
 
 /// Builder for [`Request`].
 pub struct RequestBuilder<'a> {
@@ -22,7 +23,7 @@ pub struct RequestBuilder<'a> {
     server_cert_data: Option<ServerCertData>,
     encoding_tree: Option<EncodingTree>,
     transcript: Option<Transcript>,
-    plaintext_hashes: Option<Vec<((Direction, Idx), HashAlgId)>>,
+    plaintext_hashes: Option<Vec<CommitInfo>>,
 }
 
 impl<'a> RequestBuilder<'a> {
@@ -62,10 +63,10 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    /// Sets the plaintext hash commitment details.
+    /// Sets the plaintext hash commitment info.
     pub fn plaintext_hashes(
         &mut self,
-        plaintext_hashes: Vec<((Direction, Idx), HashAlgId)>,
+        plaintext_hashes: Vec<CommitInfo>,
     ) -> &mut Self {
         self.plaintext_hashes = Some(plaintext_hashes);
         self
@@ -117,14 +118,40 @@ impl<'a> RequestBuilder<'a> {
 
                 let mut field_id = FieldId::new(PLAINTEXT_HASH_INITIAL_FIELD_ID);
 
-                let (pt_hashes, pt_secrets): (Vec<PlaintextHash>, Vec<PlaintextHashSecret>) = plaintext_hashes.into_iter().map(|((direction, idx), alg)|{
-                        let hasher = provider
-                        .hash
-                        .get(&alg)
-                        .map_err(|_| RequestBuilderError::new("hash provider is missing"))?;
+                let (pt_hashes, pt_secrets): (Vec<PlaintextHash>, Vec<PlaintextHashSecret>) = plaintext_hashes.into_iter().map(|info|{
+                    let alg = if let TranscriptCommitmentKind::Hash{alg} = info.kind() {
+                        alg
+                    } else {
+                        return Err(RequestBuilderError::new("only plaintext commitments are allowed"));
+                    };
+
+                    let (dir, idx) = info.idx().clone();
+
+                    let data = transcript.get(dir, &idx).ok_or_else(|| {
+                        RequestBuilderError::new(format!(
+                            "direction {} and index {:?} were not found in the transcript",
+                            dir, &idx
+                        ))
+                    })?;
+                    
+                    let  blinder = match info.blinder() {
+                        Some(blinder) => {
+                            // The hash was computed earlier.
+                            blinder.clone()
+                        }, 
+                        None => {
+                            let blinder: Blinder = Standard.sample(&mut thread_rng());
+                            blinder
+                        }
+                    };
+
+                    let hasher = provider
+                    .hash
+                    .get(alg)
+                    .map_err(|_| RequestBuilderError::new("hash provider is missing"))?;
 
                     #[cfg(feature = "use_poseidon_halo2")]
-                    if alg == HashAlgId::POSEIDON_HALO2 {
+                    if alg == &HashAlgId::POSEIDON_HALO2 {
                         if idx.count() != 1 {
                             return Err(RequestBuilderError::new("committing to more than one range with POSEIDON_HALO2 is not supported"));
                         } else if idx.len() > crate::hash::POSEIDON_MAX_INPUT_SIZE {
@@ -132,29 +159,22 @@ impl<'a> RequestBuilder<'a> {
                         }
                     }
 
-                    let data = transcript.get(direction, &idx).ok_or_else(|| {
-                        RequestBuilderError::new(format!(
-                            "direction {} and index {:?} were not found in the transcript",
-                            &direction, &idx
-                        ))
-                    })?;
-
-                    let blinder: Blinder = Standard.sample(&mut thread_rng());
                     let data = Blinded::new_with_blinder(data.data().to_vec(), blinder.clone());
+                    let hash = hasher.hash_blinded(&data);
 
                     let field = field_id.next(PlaintextHash {
-                        direction,
+                        direction: dir,
                         idx: idx.clone(),
                         hash: TypedHash {
-                            alg,
-                            value: hasher.hash_blinded(&data),
+                            alg: *alg,
+                            value: hash
                         },
                     });
 
                     Ok((field.data, PlaintextHashSecret {
                         blinder,
                         idx,
-                        direction,
+                        direction: dir,
                         commitment: field.id,
                     }))
                     
@@ -185,9 +205,18 @@ impl<'a> RequestBuilder<'a> {
     }
 }
 
-/// Sorts plaintext hash commitment details in-place.
-fn sort_plaintext_hashes(details: &mut [((Direction, Idx), HashAlgId)]) {
-    details.sort_by(|((dir1, idx1), alg1), ((dir2, idx2), alg2)| {
+/// Sorts plaintext hash commitment info in-place.
+fn sort_plaintext_hashes(info: &mut [CommitInfo]) {
+    info.sort_by(|info1, info2| {
+        let TranscriptCommitmentKind::Hash { alg:alg1 } = info1.kind() else {
+            panic!();
+        };
+        let TranscriptCommitmentKind::Hash { alg:alg2 } = info2.kind() else {
+            panic!();
+        };
+        let (dir1, idx1) = info1.idx();
+        let (dir2, idx2) = info2.idx();
+
         compare_hash_details(&(dir1, idx1, alg1), &(dir2, idx2, alg2))
     });
 }

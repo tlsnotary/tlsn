@@ -14,6 +14,8 @@ use tracing::{debug, info, instrument};
 
 #[cfg(feature = "authdecode_unsafe")]
 use crate::authdecode::{authdecode_verifier, TranscriptVerifier};
+#[cfg(feature = "authdecode_unsafe")]
+use tlsn_core::hash::HashAlgId;
 
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
@@ -33,6 +35,8 @@ impl Verifier<Notarize> {
             encoder_seed,
             server_ephemeral_key,
             connection_info,
+            #[cfg(feature = "authdecode_unsafe")]
+            wants_authdecode,
         } = self.state;
 
         let attestation = mux_fut
@@ -42,22 +46,25 @@ impl Verifier<Notarize> {
                 let request: Request = io.expect_next().await?;
 
                 #[cfg(feature = "authdecode_unsafe")]
-                let mut authdecode_verifier = match self
-                    .config
-                    .protocol_config_validator()
-                    .max_zk_friendly_hash_data()
-                {
-                    0 => None,
-                    max => {
-                        let mut verifier = authdecode_verifier(&request);
-                        verifier
-                            .receive_commitments(io.expect_next().await?, max)
-                            .unwrap();
+                let authdecode_verifier = if wants_authdecode {
+                    let alg: HashAlgId = io.expect_next().await?;
 
-                        debug!("received Authdecode commitment");
-                        // Now that the commitments are received, it is safe to reveal MPC secrets.
-                        Some(verifier)
-                    }
+                    let mut verifier = authdecode_verifier(&alg);
+
+                    let max = self
+                        .config
+                        .protocol_config_validator()
+                        .max_authdecode_data();
+
+                    verifier
+                        .receive_commitments(io.expect_next().await?, max)
+                        .unwrap();
+
+                    debug!("received Authdecode commitment");
+                    // Now that the commitments are received, it is safe to reveal MPC secrets.
+                    Some(verifier)
+                } else {
+                    None
                 };
 
                 // Finalize all MPC before attesting.
@@ -73,10 +80,14 @@ impl Verifier<Notarize> {
                 let mut builder = Attestation::builder(config);
 
                 #[cfg(feature = "authdecode_unsafe")]
-                if let Some(ref mut authdecode_verifier) = authdecode_verifier {
+                if wants_authdecode {
+                    let mut authdecode_verifier = authdecode_verifier
+                        .expect("AuthDecode verifier should be Some when wants_authdecode is set");
+
                     let hashes = authdecode_verifier
                         .verify(io.expect_next().await?, encoder_seed)
                         .unwrap();
+
                     debug!("verified Authdecode proofs");
 
                     builder.plaintext_hashes(hashes);
