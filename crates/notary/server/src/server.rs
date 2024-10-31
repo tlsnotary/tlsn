@@ -79,6 +79,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             let tls_config = Arc::new(server_config);
             Some(TlsAcceptor::from(tls_config))
         } else {
+            debug!("TLS is enabled but PEM paths are not set.");
             None
         }
     };
