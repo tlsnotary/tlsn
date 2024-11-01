@@ -664,7 +664,7 @@ mod tests {
 
     #[rstest]
     fn test_partial_transcript_union_success(transcript: Transcript) {
-        // non overlapping ranges
+        // Non overlapping ranges.
         let mut simple_partial = transcript.to_partial(Idx::new(0..2), Idx::new(3..7));
 
         let other_simple_partial = transcript.to_partial(Idx::new(3..5), Idx::new(1..2));
@@ -682,7 +682,7 @@ mod tests {
         assert_eq!(simple_partial.sent_authed(), &Idx::new([0..2, 3..5]));
         assert_eq!(simple_partial.received_authed(), &Idx::new([1..2, 3..7]));
 
-        // overwrite with another partial transcript
+        // Overwrite with another partial transcript.
 
         let another_simple_partial = transcript.to_partial(Idx::new(1..4), Idx::new(6..9));
 
@@ -699,7 +699,7 @@ mod tests {
         assert_eq!(simple_partial.sent_authed(), &Idx::new(0..5));
         assert_eq!(simple_partial.received_authed(), &Idx::new([1..2, 3..9]));
 
-        // overlapping ranges
+        // Overlapping ranges.
         let mut overlap_partial = transcript.to_partial(Idx::new(4..6), Idx::new(3..7));
 
         let other_overlap_partial = transcript.to_partial(Idx::new(3..5), Idx::new(5..9));
@@ -717,7 +717,7 @@ mod tests {
         assert_eq!(overlap_partial.sent_authed(), &Idx::new([3..5, 4..6]));
         assert_eq!(overlap_partial.received_authed(), &Idx::new([3..7, 5..9]));
 
-        // equal ranges
+        // Equal ranges.
         let mut equal_partial = transcript.to_partial(Idx::new(4..6), Idx::new(3..7));
 
         let other_equal_partial = transcript.to_partial(Idx::new(4..6), Idx::new(3..7));
@@ -735,7 +735,7 @@ mod tests {
         assert_eq!(equal_partial.sent_authed(), &Idx::new(4..6));
         assert_eq!(equal_partial.received_authed(), &Idx::new(3..7));
 
-        // subset ranges
+        // Subset ranges.
         let mut subset_partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..11));
 
         let other_subset_partial = transcript.to_partial(Idx::new(6..9), Idx::new(5..6));
@@ -786,7 +786,7 @@ mod tests {
         assert_eq!(partial.sent_authed(), &Idx::new([0..3, 4..10]));
         assert_eq!(partial.received_authed(), &Idx::new(0..11));
 
-        // overwrite with another subseq
+        // Overwrite with another subseq.
         let other_sent_seq = Subsequence::new(Idx::new(0..3), [3, 2, 1].into()).unwrap();
 
         partial.union_subsequence(Direction::Sent, &other_sent_seq);
