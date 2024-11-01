@@ -1,46 +1,45 @@
-use futures::{AsyncRead, AsyncWrite};
-use k256::{pkcs8::DecodePrivateKey, SecretKey};
-use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::{attestation::AttestationConfig, signing::SignatureAlgId, CryptoProvider};
-use tlsn_verifier::{Verifier, VerifierConfig};
-
-/// The private key used by the Notary for signing attestations.
-pub const NOTARY_PRIVATE_KEY: &[u8] = &[1u8; 32];
+use std::fmt;
+use tls_core::verify::WebPkiVerifier;
+use tls_server_fixture::CA_CERT_DER;
+use tlsn_core::CryptoProvider;
 
 // Maximum number of bytes that can be sent from prover to server
-const MAX_SENT_DATA: usize = 1 << 12;
+pub const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server
-const MAX_RECV_DATA: usize = 1 << 14;
+pub const MAX_RECV_DATA: usize = 1 << 14;
 
-/// Runs a simple Notary with the provided connection to the Prover.
-pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn: T) {
-    let pem_data = include_str!("../../notary/server/fixture/notary/notary.key");
-    let secret_key = SecretKey::from_pkcs8_pem(pem_data).unwrap().to_bytes();
-
-    let mut provider = CryptoProvider::default();
-    provider.signer.set_secp256k1(&secret_key).unwrap();
-
-    // Setup the config. Normally a different ID would be generated
-    // for each notarization.
-    let config_validator = ProtocolConfigValidator::builder()
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
-        .build()
+/// crypto provider accepting the server-fixture's self-signed certificate
+///
+/// This is only required for offline testing with the server-fixture. In
+/// production, use `CryptoProvider::default()` instead.
+pub fn get_crypto_provider_with_server_fixture() -> CryptoProvider {
+    // custom root store with server-fixture
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let config = VerifierConfig::builder()
-        .protocol_config_validator(config_validator)
-        .crypto_provider(provider)
-        .build()
-        .unwrap();
+    CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    }
+}
 
-    let attestation_config = AttestationConfig::builder()
-        .supported_signature_algs(vec![SignatureAlgId::SECP256K1])
-        .build()
-        .unwrap();
+#[derive(clap::ValueEnum, Clone, Default, Debug)]
+pub enum ExampleType {
+    #[default]
+    Json,
+    Html,
+    Authenticated,
+}
 
-    Verifier::new(config)
-        .notarize(conn, &attestation_config)
-        .await
-        .unwrap();
+impl fmt::Display for ExampleType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+pub fn get_file_path(example_type: &ExampleType, content_type: &str) -> String {
+    let example_type = example_type.to_string().to_ascii_lowercase();
+    format!("example-{}.{}.tlsn", example_type, content_type)
 }

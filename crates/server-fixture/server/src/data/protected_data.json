@@ -8,35 +8,16 @@
       "state": "XY",
       "postalCode": "12345"
     },
-    "favoriteColors": ["blue", "red", "green", "yellow"],
+    "favoriteColors": [
+      "blue",
+      "red",
+      "green",
+      "yellow"
+    ],
     "description": "John is a software engineer. He enjoys hiking, playing video games, and reading books. His favorite book is 'Moby Dick'.",
     "education": {
       "degree": "Bachelor's in Computer Science",
       "school": "Anytown University"
-    },
-    "family": {
-      "siblings": [
-        {
-          "name": "Jane Doe",
-          "relation": "Sister",
-          "age": 24
-        },
-        {
-          "name": "Jack Doe",
-          "relation": "Brother",
-          "age": 20
-        }
-      ],
-      "parents": {
-        "father": {
-          "name": "James Doe",
-          "age": 55
-        },
-        "mother": {
-          "name": "Jenny Doe",
-          "age": 53
-        }
-      }
     }
   },
   "meta": {

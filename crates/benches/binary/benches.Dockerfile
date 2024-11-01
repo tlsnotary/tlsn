@@ -36,11 +36,20 @@ RUN \
 
 RUN apt clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder ["/usr/src/tlsn/target/release/bench", "/usr/src/tlsn/target/release/prover", "/usr/src/tlsn/target/release/verifier", "/usr/src/tlsn/target/release/plot", "/usr/local/bin/"]
+COPY --from=builder \
+  ["/usr/src/tlsn/target/release/bench", \
+  "/usr/src/tlsn/target/release/prover", \
+  "/usr/src/tlsn/target/release/prover-memory", \
+  "/usr/src/tlsn/target/release/verifier", \
+  "/usr/src/tlsn/target/release/verifier-memory", \
+  "/usr/src/tlsn/target/release/plot", \
+  "/usr/local/bin/"]
 
 ENV PROVER_PATH="/usr/local/bin/prover"
 ENV VERIFIER_PATH="/usr/local/bin/verifier"
+ENV PROVER_MEMORY_PATH="/usr/local/bin/prover-memory"
+ENV VERIFIER_MEMORY_PATH="/usr/local/bin/verifier-memory"
 
 VOLUME [ "/benches" ]
 WORKDIR "/benches"
-CMD ["/bin/bash", "-c", "bench && plot /benches/metrics.csv && cat /benches/metrics.csv"]
+CMD ["/bin/bash", "-c", "bench && bench --memory-profiling && plot /benches/metrics.csv && cat /benches/metrics.csv"]

@@ -66,8 +66,8 @@ tlsn-tls-client-async = { path = "crates/tls/client-async" }
 tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-tls-mpc = { path = "crates/tls/mpc" }
 tlsn-universal-hash = { path = "crates/components/universal-hash" }
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e7b2db6" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e7b2db6" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "0040a00" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "0040a00" }
 tlsn-verifier = { path = "crates/verifier" }
 
 mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
@@ -80,8 +80,9 @@ mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b
 mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
 
 serio = { version = "0.1" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e7b2db6" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "0040a00" }
 uid-mux = { version = "0.1", features = ["serio"] }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "0040a00" }
 
 aes = { version = "0.8" }
 aes-gcm = { version = "0.9" }
