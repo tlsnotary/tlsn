@@ -1,19 +1,17 @@
-## Simple Example: Notarize Public Data from example.com (Rust) <a name="rust-simple"></a>
+## Binance Example: Notarize Private Ethereum Balance from spot account from api.binance.com (Rust)
 
-This example demonstrates the simplest possible use case for TLSNotary:
-1. Notarize: Fetch <https://example.com/> and create a proof of its content.
+This example demonstrates using TLSNotary with Binance API.
+
+1. Notarize: Fetch <https://api.binance.com/api/v3/account?/> followed by time, signature, and omitZeroBalances=true to query all non-zero balance of this user. Then we create a proof of the amount of free ETH token in spot account. Most parts of the proof are redacted, while the amount of free ETH in spot account up to 2 decimal points is redacted and included in the proof for further mpspdz usage.
+
 2. Verify the proof.
 
-Next, we will redact the content and verify it again:
-1. Redact the `USER_AGENT` and titles.
-2. Verify the redacted proof.
-
-### 1. Notarize <https://example.com/>
+### 1. Notarize <https://api.binance.com/api/v3/account?> with the queries
 
 Run a simple prover:
 
 ```shell
-cargo run --release --example simple_prover
+cargo run --release --example binance_prover proof.json secret.json
 ```
 
 If the notarization was successful, you should see this output in the console:
@@ -22,69 +20,43 @@ If the notarization was successful, you should see this output in the console:
 Starting an MPC TLS connection with the server
 Got a response from the server
 Notarization completed successfully!
-The proof has been written to `simple_proof.json`
 ```
 
-⚠️ In this simple example the `Notary` server is automatically started in the background. Note that this is for demonstration purposes only. In a real work example, the notary should be run by a neutral party or the verifier of the proofs. Consult the [Notary Server Docs](https://docs.tlsnotary.org/developers/notary_server.html) for more details on how to run a notary server.
+- The proof is written to the file called "proof.json"
+- While the private data like free ETH balance & its corresponding Nonce needed for proving the secret value in MP-SPDZ later on is written to the file called "secret.json" Note that we only create a proof for ETH balance up to 2 decimal points.
+
+⚠️ In this example the `Notary` server is automatically started in the background. Note that this is for demonstration purposes only. In a real work example, the notary should be run by a neutral party or the verifier of the proofs. Consult the [Notary Server Docs](https://docs.tlsnotary.org/developers/notary_server.html) for more details on how to run a notary server.
 
 ### 2. Verify the Proof
 
-When you open `simple_proof.json` in an editor, you will see a JSON file with lots of non-human-readable byte arrays. You can decode this file by running:
+When you open `proof.json` in an editor, you will see a JSON file with lots of non-human-readable byte arrays. You can decode this file by running:
 
 ```shell
-cargo run --release --example simple_verifier
+cargo run --release --example binance_verifier proof.json
 ```
 
-This will output the TLS-transaction in clear text:
+We can see the output like this
+...
 
 ```log
-Successfully verified that the bytes below came from a session with Dns("example.com") at 2023-11-03 08:48:20 UTC.
+Successfully verified that the bytes below came from a session with Dns("api.binance.com") at 2024-11-03 12:30:50 UTC.
 Note that the bytes which the Prover chose not to disclose are shown as X.
 
 Bytes sent:
+
+GET /api/v3/account?timestamp=1730637036395&omitZeroBalances=true&signature=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX HTTP/1.1
+host: api.binance.com
+x-mbx-apikey: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+accept: */*
+accept-encoding: identity
+connection: close
+user-agent: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Bytes received:
+
+HTTP/1.1 200 OKXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX{"asset":"ETH","free":"YYYYXXXXXX"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ...
 ```
 
-### 3. Redact Information
-
-Open `simple/src/examples/simple_prover.rs` and locate the line with:
-
-```rust
-let redact = false;
-```
-
-and change it to:
-
-```rust
-let redact = true;
-```
-
-Next, if you run the `simple_prover` and `simple_verifier` again, you'll notice redacted `X`'s in the output:
-
-```shell
-cargo run --release --example simple_prover
-cargo run --release --example simple_verifier
-```
-
-```log
-<!doctype html>
-<html>
-<head>
-    <title>XXXXXXXXXXXXXX</title>
-...
-```
-
-You can also use <https://explorer.tlsnotary.org/> to inspect your proofs. Simply drag and drop `simple_proof.json` from your file explorer into the drop zone. Redacted bytes are marked with X characters. [Notary public key](../../../notary/server/fixture/notary/notary.pub)
-
-### (Optional) Extra Experiments
-
-Feel free to try these extra challenges:
-
-- [ ] Modify the `server_name` (or any other data) in `simple_proof.json` and verify that the proof is no longer valid.
-- [ ] Modify the `build_proof_with_redactions` function in `simple_prover.rs` to redact more or different data.
-
-### Next steps
-
-Try out the [Discord example](../Discord/README.md) and notarize a Discord conversations.
-
-
+We can see that YYYY is the only part whose proof is included in the proof.json, other parts that are XX... are just redacted like in original implementation
