@@ -430,14 +430,11 @@ pub use keccak::Keccak256;
 #[cfg(feature = "use_poseidon_halo2")]
 mod poseidon_halo2 {
     use super::Blinded;
-    use poseidon_halo2::{hash as poseidon_hash, F};
+    use poseidon_halo2::hash as poseidon_hash;
 
     /// Poseidon hash algorithm with preimage padding.
     #[derive(Default, Clone)]
     pub struct PoseidonHalo2 {}
-
-    /// How many least significant bytes of a field element are used to pack the preimage into.
-    const BYTES_PER_FIELD_ELEMENT: usize = 31;
 
     /// Maximum allowed bytesize of the hash preimage.
     ///
@@ -460,41 +457,7 @@ mod poseidon_halo2 {
 
         fn hash_blinded(&self, data: &Blinded<Vec<u8>>) -> super::Hash {
             let (data, blinder) = data.clone().into_parts();
-
-            let mut field_elements = to_field_elements(&data);
-
-            // Zero-pad to a total of 14 field elements.
-            while field_elements.len() < 14 {
-                field_elements.push(F::zero());
-            }
-            // The last field element is the salt.
-            field_elements.push(to_field_elements(blinder.as_inner())[0]);
-
-            poseidon_hash(&field_elements).into()
-        }
-    }
-
-    fn to_field_elements(data: &[u8]) -> Vec<F> {
-        data.chunks(BYTES_PER_FIELD_ELEMENT)
-            .map(|bytes| {
-                let mut bytes = bytes.to_vec();
-                // Reverse to little-endian.
-                bytes.reverse();
-                let mut new_bytes = [0u8; 32];
-                new_bytes[0..bytes.len()].copy_from_slice(&bytes);
-                // Any random 31 bytes should be a valid BN256 field element.
-                F::from_bytes(&new_bytes).expect("Input should always be canonical")
-            })
-            .collect::<Vec<_>>()
-    }
-
-    #[allow(clippy::from_over_into)]
-    impl Into<super::Hash> for F {
-        fn into(self) -> super::Hash {
-            let mut bytes = self.to_bytes();
-            // Reverse to big endian.
-            bytes.reverse();
-            super::Hash::new(&bytes)
+            super::Hash::new(&poseidon_hash(data, blinder.as_inner().to_vec()))
         }
     }
 }
