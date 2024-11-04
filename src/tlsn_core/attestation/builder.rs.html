@@ -468,6 +468,15 @@
 <a href="#468" id="468">468</a>
 <a href="#469" id="469">469</a>
 <a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 
 <span class="kw">use </span>rand::{thread_rng, Rng};
@@ -715,64 +724,18 @@
 
     <span class="kw">use crate</span>::{
         connection::{HandshakeData, HandshakeDataV1_2},
-        fixtures::{encoder_seed, encoding_provider, ConnectionFixture},
+        fixtures::{
+            encoder_seed, encoding_provider, request_fixture, ConnectionFixture, RequestFixture,
+        },
         hash::Blake3,
-        request::RequestConfig,
-        transcript::{encoding::EncodingTree, Transcript, TranscriptCommitConfigBuilder},
+        transcript::Transcript,
     };
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn </span>request_and_connection() -&gt; (Request, ConnectionFixture) {
-        <span class="kw">let </span>provider = CryptoProvider::default();
-
-        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        <span class="kw">let </span>(sent_len, recv_len) = transcript.len();
-        <span class="comment">// Plaintext encodings which the Prover obtained from GC evaluation
-        </span><span class="kw">let </span>encodings_provider = encoding_provider(GET_WITH_HEADER, OK_JSON);
-
-        <span class="comment">// At the end of the TLS connection the Prover holds the:
-        </span><span class="kw">let </span>ConnectionFixture {
-            server_name,
-            server_cert_data,
-            ..
-        } = ConnectionFixture::tlsnotary(transcript.length());
-
-        <span class="comment">// Prover specifies the ranges it wants to commit to.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>transcript_commitment_builder = TranscriptCommitConfigBuilder::new(<span class="kw-2">&amp;</span>transcript);
-        transcript_commitment_builder
-            .commit_sent(<span class="kw-2">&amp;</span>(<span class="number">0</span>..sent_len))
-            .unwrap()
-            .commit_recv(<span class="kw-2">&amp;</span>(<span class="number">0</span>..recv_len))
-            .unwrap();
-
-        <span class="kw">let </span>transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        <span class="comment">// Prover constructs encoding tree.
-        </span><span class="kw">let </span>encoding_tree = EncodingTree::new(
-            <span class="kw-2">&amp;</span>Blake3::default(),
-            transcripts_commitment_config.iter_encoding(),
-            <span class="kw-2">&amp;</span>encodings_provider,
-            <span class="kw-2">&amp;</span>transcript.length(),
-        )
-        .unwrap();
-
-        <span class="kw">let </span>request_config = RequestConfig::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>request_builder = Request::builder(<span class="kw-2">&amp;</span>request_config);
-
-        request_builder
-            .server_name(server_name.clone())
-            .server_cert_data(server_cert_data)
-            .transcript(transcript.clone())
-            .encoding_tree(encoding_tree);
-        <span class="kw">let </span>(request, <span class="kw">_</span>) = request_builder.build(<span class="kw-2">&amp;</span>provider).unwrap();
-
-        (request, ConnectionFixture::tlsnotary(transcript.length()))
-    }
-
     <span class="attr">#[fixture]
     #[once]
-    </span><span class="kw">fn </span>default_attestation_config() -&gt; AttestationConfig {
+    </span><span class="kw">fn </span>attestation_config() -&gt; AttestationConfig {
         AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
             .build()
@@ -789,7 +752,16 @@
 
     <span class="attr">#[rstest]
     </span><span class="kw">fn </span>test_attestation_builder_accept_unsupported_signer() {
-        <span class="kw">let </span>(request, <span class="kw">_</span>) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
+
         <span class="kw">let </span>attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256R1])
             .build()
@@ -804,7 +776,15 @@
 
     <span class="attr">#[rstest]
     </span><span class="kw">fn </span>test_attestation_builder_accept_unsupported_hasher() {
-        <span class="kw">let </span>(request, <span class="kw">_</span>) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
 
         <span class="kw">let </span>attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -821,7 +801,15 @@
 
     <span class="attr">#[rstest]
     </span><span class="kw">fn </span>test_attestation_builder_accept_unsupported_encoding_commitment() {
-        <span class="kw">let </span>(request, <span class="kw">_</span>) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
 
         <span class="kw">let </span>attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -841,13 +829,19 @@
     }
 
     <span class="attr">#[rstest]
-    </span><span class="kw">fn </span>test_attestation_builder_sign_missing_signer(
-        default_attestation_config: <span class="kw-2">&amp;</span>AttestationConfig,
-    ) {
-        <span class="kw">let </span>(request, <span class="kw">_</span>) = request_and_connection();
+    </span><span class="kw">fn </span>test_attestation_builder_sign_missing_signer(attestation_config: <span class="kw-2">&amp;</span>AttestationConfig) {
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span>attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span>attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>provider = CryptoProvider::default();
@@ -859,13 +853,21 @@
 
     <span class="attr">#[rstest]
     </span><span class="kw">fn </span>test_attestation_builder_sign_missing_encoding_seed(
-        default_attestation_config: <span class="kw-2">&amp;</span>AttestationConfig,
+        attestation_config: <span class="kw-2">&amp;</span>AttestationConfig,
         crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
     ) {
-        <span class="kw">let </span>(request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span><span class="kw-2">mut </span>attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span><span class="kw-2">mut </span>attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         <span class="kw">let </span>ConnectionFixture {
@@ -877,10 +879,10 @@
         <span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake.clone();
+        }) = server_cert_data.handshake;
 
         attestation_builder
-            .connection_info(connection_info.clone())
+            .connection_info(connection_info)
             .server_ephemeral_key(server_ephemeral_key);
 
         <span class="kw">let </span>err = attestation_builder.build(crypto_provider).err().unwrap();
@@ -889,13 +891,21 @@
 
     <span class="attr">#[rstest]
     </span><span class="kw">fn </span>test_attestation_builder_sign_missing_server_ephemeral_key(
-        default_attestation_config: <span class="kw-2">&amp;</span>AttestationConfig,
+        attestation_config: <span class="kw-2">&amp;</span>AttestationConfig,
         crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
     ) {
-        <span class="kw">let </span>(request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span><span class="kw-2">mut </span>attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span><span class="kw-2">mut </span>attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         <span class="kw">let </span>ConnectionFixture {
@@ -903,7 +913,7 @@
         } = connection;
 
         attestation_builder
-            .connection_info(connection_info.clone())
+            .connection_info(connection_info)
             .encoding_seed(encoder_seed().to_vec());
 
         <span class="kw">let </span>err = attestation_builder.build(crypto_provider).err().unwrap();
@@ -912,13 +922,21 @@
 
     <span class="attr">#[rstest]
     </span><span class="kw">fn </span>test_attestation_builder_sign_missing_connection_info(
-        default_attestation_config: <span class="kw-2">&amp;</span>AttestationConfig,
+        attestation_config: <span class="kw-2">&amp;</span>AttestationConfig,
         crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
     ) {
-        <span class="kw">let </span>(request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span><span class="kw-2">mut </span>attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span><span class="kw-2">mut </span>attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         <span class="kw">let </span>ConnectionFixture {
@@ -928,7 +946,7 @@
         <span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake.clone();
+        }) = server_cert_data.handshake;
 
         attestation_builder
             .server_ephemeral_key(server_ephemeral_key)

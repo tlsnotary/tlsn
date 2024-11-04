@@ -241,20 +241,6 @@
 <a href="#241" id="241">241</a>
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Attestation requests.
 //!
 //! After the TLS connection, a Prover can request an attestation from the
@@ -347,115 +333,62 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
+    <span class="kw">use </span>tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">use crate</span>::{
-        attestation::{Attestation, AttestationConfig},
-        connection::{HandshakeData, HandshakeDataV1_2, ServerCertOpening, TranscriptLength},
-        fixtures::{encoder_seed, encoding_provider, ConnectionFixture},
+        connection::{ServerCertOpening, TranscriptLength},
+        fixtures::{
+            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            ConnectionFixture, RequestFixture,
+        },
         hash::{Blake3, Hash, HashAlgId},
         signing::SignatureAlgId,
-        transcript::{encoding::EncodingTree, Transcript, TranscriptCommitConfigBuilder},
+        transcript::Transcript,
         CryptoProvider,
     };
 
-    <span class="kw">use </span>tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
-
-    <span class="kw">fn </span>attestation(payload: (Request, ConnectionFixture)) -&gt; Attestation {
-        <span class="kw">let </span>(request, connection) = payload;
-
-        <span class="kw">let </span>ConnectionFixture {
-            connection_info,
-            server_cert_data,
-            ..
-        } = connection;
-
-        <span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 {
-            server_ephemeral_key,
-            ..
-        }) = server_cert_data.handshake.clone();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>provider = CryptoProvider::default();
-        provider.signer.set_secp256k1(<span class="kw-2">&amp;</span>[<span class="number">42u8</span>; <span class="number">32</span>]).unwrap();
-
-        <span class="kw">let </span>attestation_config = AttestationConfig::builder()
-            .supported_signature_algs([SignatureAlgId::SECP256K1])
-            .build()
-            .unwrap();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>attestation_builder = Attestation::builder(<span class="kw-2">&amp;</span>attestation_config)
-            .accept_request(request.clone())
-            .unwrap();
-
-        attestation_builder
-            .connection_info(connection_info.clone())
-            .server_ephemeral_key(server_ephemeral_key)
-            .encoding_seed(encoder_seed().to_vec());
-
-        attestation_builder.build(<span class="kw-2">&amp;</span>provider).unwrap()
-    }
-
-    <span class="kw">fn </span>request_and_connection() -&gt; (Request, ConnectionFixture) {
-        <span class="kw">let </span>provider = CryptoProvider::default();
-
-        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        <span class="kw">let </span>(sent_len, recv_len) = transcript.len();
-        <span class="comment">// Plaintext encodings which the Prover obtained from GC evaluation.
-        </span><span class="kw">let </span>encodings_provider = encoding_provider(GET_WITH_HEADER, OK_JSON);
-
-        <span class="comment">// At the end of the TLS connection the Prover holds the:
-        </span><span class="kw">let </span>ConnectionFixture {
-            server_name,
-            server_cert_data,
-            ..
-        } = ConnectionFixture::tlsnotary(transcript.length());
-
-        <span class="comment">// Prover specifies the ranges it wants to commit to.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>transcript_commitment_builder = TranscriptCommitConfigBuilder::new(<span class="kw-2">&amp;</span>transcript);
-        transcript_commitment_builder
-            .commit_sent(<span class="kw-2">&amp;</span>(<span class="number">0</span>..sent_len))
-            .unwrap()
-            .commit_recv(<span class="kw-2">&amp;</span>(<span class="number">0</span>..recv_len))
-            .unwrap();
-
-        <span class="kw">let </span>transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        <span class="comment">// Prover constructs encoding tree.
-        </span><span class="kw">let </span>encoding_tree = EncodingTree::new(
-            <span class="kw-2">&amp;</span>Blake3::default(),
-            transcripts_commitment_config.iter_encoding(),
-            <span class="kw-2">&amp;</span>encodings_provider,
-            <span class="kw-2">&amp;</span>transcript.length(),
-        )
-        .unwrap();
-
-        <span class="kw">let </span>request_config = RequestConfig::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>request_builder = Request::builder(<span class="kw-2">&amp;</span>request_config);
-
-        request_builder
-            .server_name(server_name.clone())
-            .server_cert_data(server_cert_data)
-            .transcript(transcript.clone())
-            .encoding_tree(encoding_tree);
-        <span class="kw">let </span>(request, <span class="kw">_</span>) = request_builder.build(<span class="kw-2">&amp;</span>provider).unwrap();
-
-        (request, ConnectionFixture::tlsnotary(transcript.length()))
-    }
-
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_success() {
-        <span class="kw">let </span>(request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span>attestation = attestation((request.clone(), connection));
+        <span class="kw">let </span>RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span>attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         <span class="macro">assert!</span>(request.validate(<span class="kw-2">&amp;</span>attestation).is_ok())
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_wrong_signature_alg() {
-        <span class="kw">let </span>(<span class="kw-2">mut </span>request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span>attestation = attestation((request.clone(), connection));
+        <span class="kw">let </span>RequestFixture { <span class="kw-2">mut </span>request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span>attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         request.signature_alg = SignatureAlgId::SECP256R1;
 
@@ -465,9 +398,22 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_wrong_hash_alg() {
-        <span class="kw">let </span>(<span class="kw-2">mut </span>request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span>attestation = attestation((request.clone(), connection));
+        <span class="kw">let </span>RequestFixture { <span class="kw-2">mut </span>request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span>attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         request.hash_alg = HashAlgId::SHA256;
 
@@ -477,9 +423,22 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_wrong_server_commitment() {
-        <span class="kw">let </span>(<span class="kw-2">mut </span>request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span>attestation = attestation((request.clone(), connection));
+        <span class="kw">let </span>RequestFixture { <span class="kw-2">mut </span>request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span>attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         <span class="kw">let </span>ConnectionFixture {
             server_cert_data, ..
@@ -499,9 +458,22 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_wrong_encoding_commitment_root() {
-        <span class="kw">let </span>(<span class="kw-2">mut </span>request, connection) = request_and_connection();
+        <span class="kw">let </span>transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        <span class="kw">let </span>connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        <span class="kw">let </span>attestation = attestation((request.clone(), connection));
+        <span class="kw">let </span>RequestFixture { <span class="kw-2">mut </span>request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        <span class="kw">let </span>attestation = attestation_fixture(
+            request.clone(),
+            connection,
+            SignatureAlgId::SECP256K1,
+            encoder_seed().to_vec(),
+        );
 
         request.encoding_commitment_root = <span class="prelude-val">Some</span>(TypedHash {
             alg: HashAlgId::BLAKE3,
