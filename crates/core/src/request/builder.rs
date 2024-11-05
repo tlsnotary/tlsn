@@ -6,7 +6,7 @@ use rand::{
 use crate::{
     attestation::{compare_hash_details, FieldId, PLAINTEXT_HASH_INITIAL_FIELD_ID},
     connection::{ServerCertData, ServerCertOpening, ServerName},
-    hash::{Blinded, Blinder, HashAlgId, TypedHash},
+    hash::{Blinded, Blinder, TypedHash},
     request::{Request, RequestConfig},
     secrets::Secrets,
     transcript::{
@@ -15,6 +15,9 @@ use crate::{
     CryptoProvider,
 };
 use crate::transcript::commit::CommitInfo;
+
+#[cfg(feature = "poseidon")]
+use crate::hash::HashAlgId;
 
 /// Builder for [`Request`].
 pub struct RequestBuilder<'a> {
@@ -150,8 +153,8 @@ impl<'a> RequestBuilder<'a> {
                     .get(alg)
                     .map_err(|_| RequestBuilderError::new("hash provider is missing"))?;
 
-                    #[cfg(feature = "use_poseidon_halo2")]
-                    if alg == &HashAlgId::POSEIDON_HALO2 {
+                    #[cfg(feature = "poseidon")]
+                    if alg == &HashAlgId::POSEIDON_BN256_434 {
                         if idx.count() != 1 {
                             return Err(RequestBuilderError::new("committing to more than one range with POSEIDON_HALO2 is not supported"));
                         } else if idx.len() > crate::hash::POSEIDON_MAX_INPUT_SIZE {

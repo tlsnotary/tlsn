@@ -124,7 +124,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     #[cfg(feature = "authdecode_unsafe")]
     let authdecode_inputs = {
-        let alg = HashAlgId::POSEIDON_HALO2;
+        let alg = HashAlgId::POSEIDON_BN256_434;
 
         builder.default_kind(TranscriptCommitmentKind::Hash { alg });
 

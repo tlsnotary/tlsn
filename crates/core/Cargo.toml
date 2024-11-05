@@ -14,7 +14,7 @@ fixtures = ["dep:hex", "dep:tlsn-data-fixtures"]
 # Enables support for Poseidon hashes as specified in the `poseidon-halo2` crate.
 # This feature can only be used if the prover and the verifier enable the `authdecode_unsafe` feature.
 # This feature is EXPERIMENTAL and will be removed in future releases without prior notice.
-use_poseidon_halo2 = ["poseidon-halo2"]
+poseidon = ["poseidon-halo2"]
 
 [dependencies]
 tlsn-data-fixtures = { workspace = true, optional = true }

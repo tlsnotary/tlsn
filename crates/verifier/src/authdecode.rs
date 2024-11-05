@@ -17,7 +17,7 @@ use tlsn_core::{
 /// Returns an AuthDecode verifier depending on the hash algorithm contained in the request.
 pub(crate) fn authdecode_verifier(alg: &HashAlgId) -> impl TranscriptVerifier {
     match alg {
-        &HashAlgId::POSEIDON_HALO2 => PoseidonHalo2Verifier::new(),
+        &HashAlgId::POSEIDON_BN256_434 => PoseidonHalo2Verifier::new(),
         _ => unimplemented!(),
     }
 }
@@ -130,7 +130,7 @@ impl TranscriptVerifier for PoseidonHalo2Verifier {
                 PlaintextHash {
                     direction: *range.direction(),
                     hash: TypedHash {
-                        alg: HashAlgId::POSEIDON_HALO2,
+                        alg: HashAlgId::POSEIDON_BN256_434,
                         value: com
                             .plaintext_hash()
                             .clone()

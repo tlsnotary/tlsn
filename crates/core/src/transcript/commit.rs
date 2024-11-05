@@ -14,10 +14,10 @@ use crate::{
 
 pub use builder::{TranscriptCommitConfigBuilder, TranscriptCommitConfigBuilderError};
 
-#[cfg(feature = "use_poseidon_halo2")]
-pub(crate) const SUPPORTED_PLAINTEXT_HASH_ALGS: &[HashAlgId] = &[HashAlgId::POSEIDON_HALO2];
+#[cfg(feature = "poseidon")]
+pub(crate) const SUPPORTED_PLAINTEXT_HASH_ALGS: &[HashAlgId] = &[HashAlgId::POSEIDON_BN256_434];
 
-#[cfg(not(feature = "use_poseidon_halo2"))]
+#[cfg(not(feature = "poseidon"))]
 pub(crate) const SUPPORTED_PLAINTEXT_HASH_ALGS: &[HashAlgId] = &[];
 
 /// Kind of transcript commitment.

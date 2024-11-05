@@ -82,7 +82,7 @@ pub(crate) fn authdecode_prover(
         .collect::<Result<Vec<_>, ProverError>>()?;
 
     match alg {
-        HashAlgId::POSEIDON_HALO2 => Ok(PoseidonHalo2Prover::new(AuthdecodeInputs(adinputs))),
+        HashAlgId::POSEIDON_BN256_434 => Ok(PoseidonHalo2Prover::new(AuthdecodeInputs(adinputs))),
         alg => Err(error::ProverError::authdecode(format!(
             "unsupported hash algorithm {:?} for AuthDecode",
             alg
@@ -205,7 +205,7 @@ impl TranscriptProver for PoseidonHalo2Prover {
     }
 
     fn alg(&self) -> HashAlgId {
-        HashAlgId::POSEIDON_HALO2
+        HashAlgId::POSEIDON_BN256_434
     }
 }
 

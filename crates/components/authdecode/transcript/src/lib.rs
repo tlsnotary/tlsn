@@ -1,12 +1,7 @@
 //! A convenience type for using AuthDecode with transcript data.
-
 use core::ops::Range;
 use getset::Getters;
-use mpz_circuits::types::ValueType;
-use mpz_core::{utils::blake3, Block};
-use mpz_garble_core::ChaChaEncoder;
 use serde::{Deserialize, Serialize};
-use tlsn_core::transcript::{Direction, RX_TRANSCRIPT_ID, TX_TRANSCRIPT_ID};
 
 use authdecode_core::{
     backend::halo2::CHUNK_SIZE,
@@ -14,6 +9,10 @@ use authdecode_core::{
     id::{Id, IdCollection},
     SSP,
 };
+use mpz_circuits::types::ValueType;
+use mpz_core::{utils::blake3, Block};
+use mpz_garble_core::ChaChaEncoder;
+use tlsn_core::transcript::{Direction, RX_TRANSCRIPT_ID, TX_TRANSCRIPT_ID};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Getters)]
 /// Information about a subset of transcript data.

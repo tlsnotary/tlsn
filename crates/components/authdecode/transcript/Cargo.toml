@@ -13,7 +13,7 @@ name = "authdecode_transcript"
 
 [dependencies]
 tlsn-authdecode-core = { workspace = true }
-tlsn-core = { workspace = true, features = ["use_poseidon_halo2"] }
+tlsn-core = { workspace = true }
 mpz-circuits = { workspace = true }
 mpz-garble-core = { workspace = true }
 mpz-core = { workspace = true }

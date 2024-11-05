@@ -20,7 +20,7 @@ force-st = ["mpz-common/force-st"]
 authdecode_unsafe = [
     "tlsn-authdecode-core",
     "tlsn-authdecode-transcript",
-    "tlsn-core/use_poseidon_halo2",
+    "tlsn-core/poseidon",
     "tlsn-common/authdecode_unsafe_common",
 ]
 

@@ -30,10 +30,10 @@ impl Default for HashProvider {
         algs.insert(HashAlgId::SHA256, Box::new(Sha256::default()));
         algs.insert(HashAlgId::BLAKE3, Box::new(Blake3::default()));
         algs.insert(HashAlgId::KECCAK256, Box::new(Keccak256::default()));
-        #[cfg(feature = "use_poseidon_halo2")]
+        #[cfg(feature = "poseidon")]
         algs.insert(
-            HashAlgId::POSEIDON_HALO2,
-            Box::new(PoseidonHalo2::default()),
+            HashAlgId::POSEIDON_BN256_434,
+            Box::new(PoseidonBn256::default()),
         );
 
         Self { algs }
@@ -76,9 +76,9 @@ impl HashAlgId {
     pub const BLAKE3: Self = Self(2);
     /// Keccak-256 hash algorithm.
     pub const KECCAK256: Self = Self(3);
-    /// Poseidon hash algorithm (defined in the `poseidon-halo2` crate) with input padding.
-    #[cfg(feature = "use_poseidon_halo2")]
-    pub const POSEIDON_HALO2: Self = Self(4);
+    /// Poseidon hash algorithm over the BN256 curve with 434-byte padding length.
+    #[cfg(feature = "poseidon")]
+    pub const POSEIDON_BN256_434: Self = Self(4);
 
     /// Creates a new hash algorithm identifier.
     ///
@@ -427,14 +427,14 @@ mod keccak {
 
 pub use keccak::Keccak256;
 
-#[cfg(feature = "use_poseidon_halo2")]
+#[cfg(feature = "poseidon")]
 mod poseidon_halo2 {
     use super::Blinded;
     use poseidon_halo2::hash as poseidon_hash;
 
     /// Poseidon hash algorithm with preimage padding.
     #[derive(Default, Clone)]
-    pub struct PoseidonHalo2 {}
+    pub struct PoseidonBn256 {}
 
     /// Maximum allowed bytesize of the hash preimage.
     ///
@@ -442,9 +442,9 @@ mod poseidon_halo2 {
     /// into chunks and each chunk should be hashed separately.
     pub const POSEIDON_MAX_INPUT_SIZE: usize = 434;
 
-    impl super::HashAlgorithm for PoseidonHalo2 {
+    impl super::HashAlgorithm for PoseidonBn256 {
         fn id(&self) -> super::HashAlgId {
-            super::HashAlgId::POSEIDON_HALO2
+            super::HashAlgId::POSEIDON_BN256_434
         }
 
         fn hash(&self, _data: &[u8]) -> super::Hash {
@@ -462,5 +462,5 @@ mod poseidon_halo2 {
     }
 }
 
-#[cfg(feature = "use_poseidon_halo2")]
-pub use poseidon_halo2::{PoseidonHalo2, POSEIDON_MAX_INPUT_SIZE};
+#[cfg(feature = "poseidon")]
+pub use poseidon_halo2::{PoseidonBn256, POSEIDON_MAX_INPUT_SIZE};
