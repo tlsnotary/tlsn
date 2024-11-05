@@ -19,7 +19,7 @@ mod config;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    attestation::{Attestation, FieldId, PLAINTEXT_HASH_INITIAL_FIELD_ID},
+    attestation::{Attestation, Field},
     connection::ServerCertCommitment,
     hash::{HashAlgId, TypedHash},
     signing::SignatureAlgId,
@@ -36,8 +36,10 @@ pub struct Request {
     pub(crate) hash_alg: HashAlgId,
     pub(crate) server_cert_commitment: ServerCertCommitment,
     pub(crate) encoding_commitment_root: Option<TypedHash>,
-    /// Sorted plaintext hash commitments.
-    pub(crate) plaintext_hashes: Option<Vec<PlaintextHash>>,
+    /// Plaintext hash commitments sorted by field id.
+    ///
+    /// The field ids start from [PLAINTEXT_HASH_INITIAL_FIELD_ID].
+    pub(crate) plaintext_hashes: Option<Vec<Field<PlaintextHash>>>,
 }
 
 impl Request {
@@ -84,13 +86,7 @@ impl Request {
 
         match (&self.plaintext_hashes, attestation.body.plaintext_hashes()) {
             (Some(request_hashes), Some(attested_hashes)) => {
-                let mut field_id = FieldId::new(PLAINTEXT_HASH_INITIAL_FIELD_ID);
-                let sorted_hash_fields = request_hashes
-                    .iter()
-                    .map(|hash| field_id.next(hash.clone()))
-                    .collect::<Vec<_>>();
-
-                if &sorted_hash_fields != attested_hashes {
+                if request_hashes != attested_hashes {
                     return Err(InconsistentAttestation(
                         "plaintext hash commitments do not match".to_string(),
                     ));

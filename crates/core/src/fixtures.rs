@@ -139,7 +139,7 @@ pub fn notary_signing_key() -> SigningKey {
 /// Returns plaintext hashes contained in the request.
 pub fn plaintext_hashes_from_request(request: &Request) -> Vec<PlaintextHash> {
     match &request.plaintext_hashes {
-        Some(hashes) => hashes.clone(),
+        Some(hashes) => hashes.iter().map(|f| f.data.clone()).collect::<Vec<_>>(),
         None => Vec::new(),
     }
 }

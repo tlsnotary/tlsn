@@ -25,11 +25,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::{ConnectionInfo, ServerCertCommitment, ServerEphemKey},
-    hash::{impl_domain_separator, Hash, HashAlgId, HashAlgorithm, HashAlgorithmExt, TypedHash},
+    hash::{impl_domain_separator, Hash, HashAlgorithm, HashAlgorithmExt, TypedHash},
     merkle::MerkleTree,
     presentation::PresentationBuilder,
     signing::{Signature, VerifyingKey},
-    transcript::{encoding::EncodingCommitment, Direction, Idx, PlaintextHash},
+    transcript::{encoding::EncodingCommitment, PlaintextHash},
     CryptoProvider,
 };
 
@@ -40,11 +40,14 @@ pub use proof::{AttestationError, AttestationProof};
 /// Current version of attestations.
 pub const VERSION: Version = Version(0);
 
-/// The maximum total number of plaintext hash commitments allowed in the attestation.
-pub const MAX_TOTAL_PLAINTEXT_HASH: u32 = 10000;
+/// The maximum total number of fields allowed in the attestation.
+pub const MAX_TOTAL_FIELDS: u32 = 1024;
 
-/// The initial id for fields containing plaintext hash commitments.
-pub const PLAINTEXT_HASH_INITIAL_FIELD_ID: u32 = u32::MAX - MAX_TOTAL_PLAINTEXT_HASH;
+/// The maximum total number of plaintext hash commitments allowed in the attestation.
+pub const MAX_TOTAL_PLAINTEXT_HASH: u32 = 512;
+
+/// The initial id for a plaintext hash commitment field.
+pub const PLAINTEXT_HASH_INITIAL_FIELD_ID: u32 = MAX_TOTAL_FIELDS - MAX_TOTAL_PLAINTEXT_HASH - 1;
 
 /// Unique identifier for an attestation.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -268,14 +271,4 @@ impl Attestation {
     ) -> PresentationBuilder<'a> {
         PresentationBuilder::new(provider, self)
     }
-}
-
-/// Returns the result of comparing details associated with a hash commitment.
-pub(crate) fn compare_hash_details(
-    a: &(&Direction, &Idx, &HashAlgId),
-    b: &(&Direction, &Idx, &HashAlgId),
-) -> std::cmp::Ordering {
-    bcs::to_bytes(a)
-        .expect("Should serialize infallibly")
-        .cmp(&bcs::to_bytes(b).expect("Should serialize infallibly"))
 }

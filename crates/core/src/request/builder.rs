@@ -4,7 +4,7 @@ use rand::{
 };
 
 use crate::{
-    attestation::{compare_hash_details, FieldId, PLAINTEXT_HASH_INITIAL_FIELD_ID},
+    attestation::{Field, FieldId, PLAINTEXT_HASH_INITIAL_FIELD_ID},
     connection::{ServerCertData, ServerCertOpening, ServerName},
     hash::{Blinded, Blinder, TypedHash},
     request::{Request, RequestConfig},
@@ -112,16 +112,14 @@ impl<'a> RequestBuilder<'a> {
         let encoding_commitment_root = encoding_tree.as_ref().map(|tree| tree.root());
 
         let (pt_hashes, pt_secrets) = match plaintext_hashes {
-            Some(mut plaintext_hashes) => {
+            Some(plaintext_hashes) => {
                 if plaintext_hashes.is_empty() {
                     return Err(RequestBuilderError::new("empty plaintext hash details were set"));
                 }
 
-                sort_plaintext_hashes(&mut plaintext_hashes);
-
                 let mut field_id = FieldId::new(PLAINTEXT_HASH_INITIAL_FIELD_ID);
 
-                let (pt_hashes, pt_secrets): (Vec<PlaintextHash>, Vec<PlaintextHashSecret>) = plaintext_hashes.into_iter().map(|info|{
+                let (pt_hashes, pt_secrets): (Vec<Field<PlaintextHash>>, Vec<PlaintextHashSecret>) = plaintext_hashes.into_iter().map(|info|{
                     let alg = if let TranscriptCommitmentKind::Hash{alg} = info.kind() {
                         alg
                     } else {
@@ -137,7 +135,7 @@ impl<'a> RequestBuilder<'a> {
                         ))
                     })?;
                     
-                    let  blinder = match info.blinder() {
+                    let blinder = match info.blinder() {
                         Some(blinder) => {
                             // The hash was computed earlier.
                             blinder.clone()
@@ -174,11 +172,12 @@ impl<'a> RequestBuilder<'a> {
                         },
                     });
 
-                    Ok((field.data, PlaintextHashSecret {
+                    let id = field.id;
+                    Ok((field, PlaintextHashSecret {
                         blinder,
                         idx,
                         direction: dir,
-                        commitment: field.id,
+                        commitment: id,
                     }))
                     
                 }).collect::<Result<Vec<_>, RequestBuilderError>>()?.into_iter().unzip();
@@ -206,22 +205,6 @@ impl<'a> RequestBuilder<'a> {
 
         Ok((request, secrets))
     }
-}
-
-/// Sorts plaintext hash commitment info in-place.
-fn sort_plaintext_hashes(info: &mut [CommitInfo]) {
-    info.sort_by(|info1, info2| {
-        let TranscriptCommitmentKind::Hash { alg:alg1 } = info1.kind() else {
-            panic!();
-        };
-        let TranscriptCommitmentKind::Hash { alg:alg2 } = info2.kind() else {
-            panic!();
-        };
-        let (dir1, idx1) = info1.idx();
-        let (dir2, idx2) = info2.idx();
-
-        compare_hash_details(&(dir1, idx1, alg1), &(dir2, idx2, alg2))
-    });
 }
 
 /// Error for [`RequestBuilder`].

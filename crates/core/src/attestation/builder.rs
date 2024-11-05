@@ -16,7 +16,7 @@ use crate::{
     CryptoProvider,
 };
 
-use super::{compare_hash_details, Field};
+use super::Field;
 
 /// Attestation builder state for accepting a request.
 pub struct Accept {
@@ -34,6 +34,9 @@ pub struct Sign {
     cert_commitment: ServerCertCommitment,
     encoding_commitment_root: Option<TypedHash>,
     encoding_seed: Option<Vec<u8>>,
+    /// Plaintext hash commitments sorted by field id.
+    ///
+    /// The field ids start from [PLAINTEXT_HASH_INITIAL_FIELD_ID].
     plaintext_hashes: Option<Vec<Field<PlaintextHash>>>,
 }
 
@@ -94,35 +97,40 @@ impl<'a> AttestationBuilder<'a, Accept> {
             ));
         }
 
-        let plaintext_hashes = match (plaintext_hashes, self.state.plaintext_hashes) {
-            (Some(mut request_hashes), Some(mut authed_hashes)) => {
-                sort_hashes(&mut authed_hashes);
-                sort_hashes(&mut request_hashes);
-
-                if authed_hashes != request_hashes {
+        match (&plaintext_hashes, &self.state.plaintext_hashes) {
+            (Some(request_hashes), Some(authed_hashes)) => {
+                if request_hashes.len() > MAX_TOTAL_PLAINTEXT_HASH as usize {
                     return Err(AttestationBuilderError::new(
                         ErrorKind::Request,
-                        "plaintext hash mismatch",
+                        "exceeded maximum allowed number of plaintext hashes",
                     ));
                 }
 
-                let mut field_id = FieldId::new(PLAINTEXT_HASH_INITIAL_FIELD_ID);
-                Some(
-                    authed_hashes
-                        .iter()
-                        .map(|hash| field_id.next(hash.clone()))
-                        .collect::<Vec<_>>(),
-                )
+                for (index, hash) in request_hashes.iter().enumerate() {
+                    if hash.id.0 != PLAINTEXT_HASH_INITIAL_FIELD_ID + index as u32 {
+                        return Err(AttestationBuilderError::new(
+                            ErrorKind::Request,
+                            "unexpected field id for a plaintext hash",
+                        ));
+                    }
+
+                    if !authed_hashes.contains(&hash.data) {
+                        return Err(AttestationBuilderError::new(
+                            ErrorKind::Request,
+                            "unexpected plaintext hash value",
+                        ));
+                    }
+                }
             }
-            // If there were no hashes in the request, do nothing.
-            (None, Some(_authed_hashes)) => None,
-            (None, None) => None,
+
             (Some(_request_hashes), None) => {
                 return Err(AttestationBuilderError::new(
                     ErrorKind::Request,
                     "cannot accept plaintext hashes",
                 ));
             }
+
+            _ => {}
         };
 
         Ok(AttestationBuilder {
@@ -141,22 +149,9 @@ impl<'a> AttestationBuilder<'a, Accept> {
     }
 
     /// Sets the authenticated plaintext hashes.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of hashes exceeds the allowed maximum.
-    pub fn plaintext_hashes(
-        &mut self,
-        hashes: Vec<PlaintextHash>,
-    ) -> Result<&mut Self, AttestationBuilderError> {
-        if hashes.len() > MAX_TOTAL_PLAINTEXT_HASH as usize {
-            return Err(AttestationBuilderError::new(
-                ErrorKind::Request,
-                "exceeded maximum allowed plaintext commitment number",
-            ));
-        }
+    pub fn plaintext_hashes(&mut self, hashes: Vec<PlaintextHash>) -> &mut Self {
         self.state.plaintext_hashes = Some(hashes);
-        Ok(self)
+        self
     }
 }
 
@@ -235,6 +230,14 @@ impl AttestationBuilder<'_, Sign> {
             plaintext_hashes,
         };
 
+        // Make sure there was no collision with plaintext hash field ids.
+        if field_id.next(()).id.0 > PLAINTEXT_HASH_INITIAL_FIELD_ID {
+            return Err(AttestationBuilderError::new(
+                ErrorKind::Field,
+                "plaintext hash field id collision detected",
+            ));
+        }
+
         let header = Header {
             id: thread_rng().gen(),
             version: VERSION,
@@ -251,25 +254,6 @@ impl AttestationBuilder<'_, Sign> {
             body,
         })
     }
-}
-
-/// Sorts hash commitments in-place.
-fn sort_hashes(hashes: &mut [PlaintextHash]) {
-    hashes.sort_by(|a, b| {
-        let PlaintextHash {
-            direction: dir1,
-            idx: idx1,
-            hash: TypedHash { alg: alg1, .. },
-        } = a;
-
-        let PlaintextHash {
-            direction: dir2,
-            idx: idx2,
-            hash: TypedHash { alg: alg2, .. },
-        } = b;
-
-        compare_hash_details(&(dir1, idx1, alg1), &(dir2, idx2, alg2))
-    });
 }
 
 /// Error for [`AttestationBuilder`].
