@@ -145,11 +145,18 @@ impl<'a> AttestationBuilder<'a, Accept> {
     /// # Panics
     ///
     /// Panics if the number of hashes exceeds the allowed maximum.
-    pub fn plaintext_hashes(&mut self, hashes: Vec<PlaintextHash>) -> &mut Self {
-        assert!(hashes.len() <= MAX_TOTAL_PLAINTEXT_HASH as usize);
-
+    pub fn plaintext_hashes(
+        &mut self,
+        hashes: Vec<PlaintextHash>,
+    ) -> Result<&mut Self, AttestationBuilderError> {
+        if hashes.len() > MAX_TOTAL_PLAINTEXT_HASH as usize {
+            return Err(AttestationBuilderError::new(
+                ErrorKind::Request,
+                "exceeded maximum allowed plaintext commitment number",
+            ));
+        }
         self.state.plaintext_hashes = Some(hashes);
-        self
+        Ok(self)
     }
 }
 
