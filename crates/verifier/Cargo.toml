@@ -22,7 +22,7 @@ authdecode_unsafe = ["tlsn-common/authdecode_unsafe_common"]
 [dependencies]
 tlsn-authdecode = { workspace = true }
 tlsn-authdecode-core = { workspace = true }
-tlsn-authdecode-single-range = { workspace = true }
+tlsn-authdecode-transcript = { workspace = true }
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-tls-core = { workspace = true }

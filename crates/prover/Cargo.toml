@@ -19,14 +19,14 @@ force-st = ["mpz-common/force-st"]
 # This feature is EXPERIMENTAL and will be removed in future releases without prior notice.
 authdecode_unsafe = [
     "tlsn-authdecode-core",
-    "tlsn-authdecode-single-range",
+    "tlsn-authdecode-transcript",
     "tlsn-core/use_poseidon_halo2",
     "tlsn-common/authdecode_unsafe_common",
 ]
 
 [dependencies]
 tlsn-authdecode-core = { workspace = true, optional = true }
-tlsn-authdecode-single-range = { workspace = true, optional = true }
+tlsn-authdecode-transcript = { workspace = true, optional = true }
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-formats = { workspace = true, optional = true }

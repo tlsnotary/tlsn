@@ -10,7 +10,7 @@ use authdecode_core::{
     },
     Prover as AuthDecodeProver, SSP,
 };
-use authdecode_single_range::{SingleRange, TranscriptEncoder};
+use authdecode_transcript::{TranscriptData, TranscriptEncoder};
 use mpz_core::utils::blake3;
 use tlsn_core::{
     hash::{Blinder, HashAlgId},
@@ -117,14 +117,14 @@ pub(crate) trait TranscriptProver {
 /// POSEIDON_HALO2 hash algorithm.
 pub(crate) struct PoseidonHalo2Prover {
     /// A batch of AuthDecode commitment data with the plaintext salt.
-    commitment_data: Option<Vec<(CommitmentData<SingleRange>, Bn256F)>>,
+    commitment_data: Option<Vec<(CommitmentData<TranscriptData>, Bn256F)>>,
     /// The prover in the [Initialized] state.
-    initialized: Option<AuthDecodeProver<SingleRange, Initialized, Bn256F>>,
+    initialized: Option<AuthDecodeProver<TranscriptData, Initialized, Bn256F>>,
     /// The prover in the [Committed] state.
-    committed: Option<AuthDecodeProver<SingleRange, Committed<SingleRange, Bn256F>, Bn256F>>,
+    committed: Option<AuthDecodeProver<TranscriptData, Committed<TranscriptData, Bn256F>, Bn256F>>,
     /// The prover in the [ProofGenerated] state.
     proof_generated:
-        Option<AuthDecodeProver<SingleRange, ProofGenerated<SingleRange, Bn256F>, Bn256F>>,
+        Option<AuthDecodeProver<TranscriptData, ProofGenerated<TranscriptData, Bn256F>, Bn256F>>,
 }
 
 impl TranscriptProver for PoseidonHalo2Prover {
@@ -156,7 +156,7 @@ impl TranscriptProver for PoseidonHalo2Prover {
                     CommitmentData::new(
                         &input.plaintext,
                         &hashed_encodings,
-                        SingleRange::new(input.direction, &input.range),
+                        TranscriptData::new(input.direction, &input.range),
                     ),
                     Bn256F::from_bytes_be(input.salt.as_inner().to_vec()),
                 )

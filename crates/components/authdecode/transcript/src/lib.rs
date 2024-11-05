@@ -1,6 +1,4 @@
-//! A convenience type for using AuthDecode with the halo2 backend for a single byterange of a TLS
-//! transcript data. The length of the data must not exceed the maximum chunk size allowed by the
-//! backend.
+//! A convenience type for using AuthDecode with transcript data.
 
 use core::ops::Range;
 use getset::Getters;
@@ -18,19 +16,20 @@ use authdecode_core::{
 };
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Getters)]
-/// A single byterange of data with the corresponding direction. The data is treated as a big-endian
-/// byte string with MSB0 bit ordering.
-pub struct SingleRange {
+/// Information about a subset of transcript data.
+///
+/// The data is treated as a big-endian bytestring with MSB0 bit ordering.
+pub struct TranscriptData {
     /// The direction in which the data was transmitted.
     #[getset(get = "pub")]
     direction: Direction,
-    /// A range of bytes.
+    /// The byterange in the transcript where the data is located.  
     #[getset(get = "pub")]
     range: Range<usize>,
 }
 
-impl SingleRange {
-    /// Creates a new `SingleRange`.
+impl TranscriptData {
+    /// Creates a new `TranscriptData`.
     ///
     /// # Panics
     ///
@@ -45,7 +44,7 @@ impl SingleRange {
     }
 }
 
-impl Default for SingleRange {
+impl Default for TranscriptData {
     fn default() -> Self {
         Self {
             direction: Direction::Sent,
@@ -54,7 +53,7 @@ impl Default for SingleRange {
     }
 }
 
-impl IdCollection for SingleRange {
+impl IdCollection for TranscriptData {
     fn drain_front(&mut self, count: usize) -> Self {
         assert!(count % 8 == 0);
         assert!(count <= CHUNK_SIZE * 8);
@@ -136,11 +135,11 @@ impl TranscriptEncoder {
     }
 }
 
-impl EncodingProvider<SingleRange> for TranscriptEncoder {
+impl EncodingProvider<TranscriptData> for TranscriptEncoder {
     fn get_by_ids(
         &self,
-        ids: &SingleRange,
-    ) -> Result<FullEncodings<SingleRange>, EncodingProviderError> {
+        ids: &TranscriptData,
+    ) -> Result<FullEncodings<TranscriptData>, EncodingProviderError> {
         let mut full_encoding = Vec::with_capacity(ids.range().len() * 8);
 
         for pos in ids.range().clone() {

@@ -1,7 +1,7 @@
 [package]
-name = "tlsn-authdecode-single-range"
+name = "tlsn-authdecode-transcript"
 authors = ["TLSNotary Team"]
-description = "A convenience type for using AuthDecode with data contained in a single range of bytes"
+description = "A convenience type for using AuthDecode with transcript data"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
@@ -9,7 +9,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "authdecode_single_range"
+name = "authdecode_transcript"
 
 [dependencies]
 tlsn-authdecode-core = { workspace = true }

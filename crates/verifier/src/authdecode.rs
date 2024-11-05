@@ -8,7 +8,7 @@ use authdecode_core::{
     msgs::{Commit, Proofs},
     verifier::{CommitmentReceived, Initialized, Verifier, VerifierError as CoreVerifierError},
 };
-use authdecode_single_range::{SingleRange, TranscriptEncoder};
+use authdecode_transcript::{TranscriptData, TranscriptEncoder};
 use tlsn_core::{
     hash::{HashAlgId, TypedHash},
     transcript::{Idx, PlaintextHash},
@@ -59,14 +59,14 @@ pub(crate) trait TranscriptVerifier {
 /// An AuthDecode verifier which uses hashes of the POSEIDON_HALO2 kind.
 pub(crate) struct PoseidonHalo2Verifier {
     /// The verifier in the [Initialized] state.
-    initialized: Option<Verifier<SingleRange, Initialized, Bn256F>>,
+    initialized: Option<Verifier<TranscriptData, Initialized, Bn256F>>,
     /// The verifier in the [CommitmentReceived] state.
     commitment_received:
-        Option<Verifier<SingleRange, CommitmentReceived<SingleRange, Bn256F>, Bn256F>>,
+        Option<Verifier<TranscriptData, CommitmentReceived<TranscriptData, Bn256F>, Bn256F>>,
 }
 
 impl TranscriptVerifier for PoseidonHalo2Verifier {
-    type CommitmentMessage = Commit<SingleRange, Bn256F>;
+    type CommitmentMessage = Commit<TranscriptData, Bn256F>;
     type ProofMessage = Proofs;
 
     fn new() -> Self {
