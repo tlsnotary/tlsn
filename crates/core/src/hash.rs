@@ -269,7 +269,7 @@ pub struct Blinder([u8; 16]);
 
 impl Blinder {
     /// Returns a reference to the inner value.
-    pub fn as_inner(&self) -> &[u8; 16] {
+    pub fn as_inner(&self) -> &[u8] {
         &self.0
     }
 }
