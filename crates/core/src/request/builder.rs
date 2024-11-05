@@ -69,9 +69,9 @@ impl<'a> RequestBuilder<'a> {
     /// Sets the plaintext hash commitment info.
     pub fn plaintext_hashes(
         &mut self,
-        plaintext_hashes: Vec<CommitInfo>,
+        plaintext_hashes: impl Iterator<Item = CommitInfo>,
     ) -> &mut Self {
-        self.plaintext_hashes = Some(plaintext_hashes);
+        self.plaintext_hashes = Some(plaintext_hashes.collect::<Vec<_>>());
         self
     }
 
@@ -113,8 +113,9 @@ impl<'a> RequestBuilder<'a> {
 
         let (pt_hashes, pt_secrets) = match plaintext_hashes {
             Some(plaintext_hashes) => {
+
                 if plaintext_hashes.is_empty() {
-                    return Err(RequestBuilderError::new("empty plaintext hash details were set"));
+                    return Err(RequestBuilderError::new("empty plaintext hash info was set"));
                 }
 
                 let mut field_id = FieldId::new(PLAINTEXT_HASH_INITIAL_FIELD_ID);

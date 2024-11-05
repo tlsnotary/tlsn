@@ -73,15 +73,15 @@ impl TranscriptCommitConfig {
             .any(|commit| matches!(commit.kind, TranscriptCommitmentKind::Hash { .. }))
     }
 
-    /// Returns the plaintext hash commitment info.
-    pub fn plaintext_hashes(&self) -> Vec<CommitInfo> {
-        self.commits
-            .iter()
-            .filter_map(|commit| match commit.kind {
-                TranscriptCommitmentKind::Hash { .. } => Some(commit.clone()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
+    /// Returns an iterator over the plaintext hash commitment info.
+    pub fn plaintext_hashes(&self) -> impl Iterator<Item = CommitInfo> + '_ {
+        self.commits.iter().filter_map(|commit| {
+            if matches!(commit.kind, TranscriptCommitmentKind::Hash { .. }) {
+                Some(commit.clone())
+            } else {
+                None
+            }
+        })
     }
 }
 
