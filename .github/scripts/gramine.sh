@@ -29,7 +29,6 @@ mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-se
 echo "mrenclave=$mr_enclave" >> "$GITHUB_OUTPUT"
 echo "#### sgx mrenclave" | tee >> $GITHUB_STEP_SUMMARY
 echo "\`\`\`${mr_enclave}\`\`\`" | tee >> $GITHUB_STEP_SUMMARY
-mkdir config && cp config.yaml config && mkdir /tee && cp -R ../tee/* /tee/ && cd /tee &&
 eval "$run"
 sleep 5
 
