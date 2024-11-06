@@ -2,7 +2,7 @@
 
 use crate::{
     commitment::{
-        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, CommitmentKind,
+        Commitment, CommitmentId, CommitmentInfo, CommitmentKind,
         CommitmentOpening, TranscriptCommitments,
     },
     merkle::MerkleProof,
@@ -15,6 +15,9 @@ use mpz_garble_core::Encoder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utils::range::{RangeDisjoint, RangeSet, RangeUnion, ToRangeSet};
+use mpz_core::hash::Hash;
+use std::ops::Range;
+use mpz_core::commit::Nonce;
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
@@ -40,7 +43,8 @@ pub struct SubstringsProofBuilder<'a> {
     transcript_tx: &'a Transcript,
     transcript_rx: &'a Transcript,
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
-    private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
+    // private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
+    private_openings: HashMap<CommitmentId, (CommitmentInfo, HashMap<String, Hash>)>,
 }
 
 opaque_debug::implement!(SubstringsProofBuilder<'_>);
@@ -155,22 +159,26 @@ impl<'a> SubstringsProofBuilder<'a> {
     }
 
     /// Reveals data corresponding to the provided commitment id
-    pub fn reveal_private_by_id(
+    /// Return Nonce back
+    pub async fn reveal_private_by_id(
         &mut self,
         id: CommitmentId,
-    ) -> Result<&mut Self, SubstringsProofBuilderError> {
+        // secret_file_dest:&String
+    ) -> Result<Nonce, SubstringsProofBuilderError> {
         let (info, commitment, _) = self.get_commitment_info(id)?;
-
         // add commitment to openings and return an error if it is already present
+        let mut commitment_hashmap: HashMap<String, Hash> = HashMap::new();
+        commitment_hashmap.insert(String::from("hash"), *commitment.hash());
+        let nonce = *commitment.nonce();
         if self
             .private_openings
-            .insert(id, (info.clone(), *commitment))
+            .insert(id, (info.clone(), commitment_hashmap))
             .is_some()
         {
             return Err(SubstringsProofBuilderError::DuplicateCommitmentId(id));
         }
 
-        Ok(self)
+        Ok(nonce)
     }
 
     /// Builds the [`SubstringsProof`]
@@ -230,7 +238,7 @@ pub enum SubstringsProofError {
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsProof {
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
-    private_openings: HashMap<CommitmentId, (CommitmentInfo, Blake3Commitment)>,
+    private_openings: HashMap<CommitmentId, (CommitmentInfo, HashMap<String, Hash>)>,
     inclusion_proof: MerkleProof,
 }
 
@@ -339,11 +347,13 @@ impl SubstringsProof {
                 data.truncate(start);
             }
         }
-
-        for (commitment_id, (_, blake3_commitment)) in private_openings {
+        let mut private_prf_slices: Vec<Range<usize>> = Vec::new();
+        for (commitment_id, (commitment_info, blake3_hash)) in private_openings {
             println!("Pushing private commitment id: {:?}", commitment_id);
             indices.push(commitment_id.to_inner() as usize);
-            expected_hashes.push(*blake3_commitment.hash());
+            expected_hashes.push(*blake3_hash.get("hash").unwrap());
+            private_prf_slices.push(commitment_info.ranges().clone().into_inner()[0].clone());
+            // println!("RRANGE: {:?}", *commitment_info.ranges());
         }
 
         // Verify that the expected hashes are present in the merkle tree.
@@ -364,10 +374,10 @@ impl SubstringsProof {
             .iter_ranges()
             .map(|range| TranscriptSlice::new(range.clone(), recv[range].to_vec()))
             .collect();
-
+        
         Ok((
-            RedactedTranscript::new(header.sent_len(), sent_slices),
-            RedactedTranscript::new(header.recv_len(), recv_slices),
+            RedactedTranscript::new(header.sent_len(), sent_slices, RangeSet::default()),
+            RedactedTranscript::new(header.recv_len(), recv_slices, RangeSet::from(private_prf_slices)),
         ))
     }
 }

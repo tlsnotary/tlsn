@@ -51,6 +51,8 @@ pub struct RedactedTranscript {
     auth: RangeSet<usize>,
     /// Ranges of `data` which have been redacted
     redacted: RangeSet<usize>,
+    /// Ranges of 'data' which have been redacted & committed for further use of this data privately
+    private: RangeSet<usize>
 }
 
 impl RedactedTranscript {
@@ -62,19 +64,20 @@ impl RedactedTranscript {
     ///
     /// * `len` - The length of the transcript
     /// * `slices` - A list of slices of data which have been authenticated
-    pub fn new(len: usize, slices: Vec<TranscriptSlice>) -> Self {
+    pub fn new(len: usize, slices: Vec<TranscriptSlice>, private:RangeSet<usize>) -> Self {
         let mut data = vec![0u8; len];
         let mut auth = RangeSet::default();
         for slice in slices {
             data[slice.range()].copy_from_slice(slice.data());
             auth = auth.union(&slice.range());
         }
-        let redacted = RangeSet::from(0..len).difference(&auth);
-
+        let mut redacted = RangeSet::from(0..len).difference(&auth);
+        redacted = redacted.difference(&private);
         Self {
             data,
             auth,
             redacted,
+            private
         }
     }
 
@@ -98,6 +101,11 @@ impl RedactedTranscript {
         &self.redacted
     }
 
+    /// Returns all the ranges of data which have been redacted & committed for further use of this data privately
+    pub fn private(&self) -> &RangeSet<usize> {
+        &self.private
+    }
+
     /// Sets all bytes in the transcript which were redacted.
     ///
     /// # Arguments
@@ -105,6 +113,17 @@ impl RedactedTranscript {
     /// * `value` - The value to set the redacted bytes to
     pub fn set_redacted(&mut self, value: u8) {
         for range in self.redacted().clone().iter_ranges() {
+            self.data[range].fill(value);
+        }
+    }
+
+    /// Sets all bytes in the transcript which were private yet include in commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to set the redacted bytes to
+    pub fn set_private(&mut self, value: u8) {
+        for range in self.private().clone().iter_ranges() {
             self.data[range].fill(value);
         }
     }

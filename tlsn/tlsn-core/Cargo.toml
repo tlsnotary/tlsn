@@ -35,6 +35,10 @@ bimap = { version = "0.6.3", features = ["serde"] }
 
 web-time.workspace = true
 
+tokio = { workspace = true, features = [
+  "fs"
+] }
+serde_json = "1.0"
 [dev-dependencies]
 rstest.workspace = true
 hex.workspace = true
