@@ -237,36 +237,8 @@ impl<'a> TranscriptProofBuilder<'a> {
 
                 self.encoding_proof_idxs.insert((direction, idx));
             }
-            TranscriptCommitmentKind::Hash { .. } => match self.plaintext_hashes {
-                Some(hashes) => {
-                    let Some(PlaintextHashSecret {
-                        direction,
-                        commitment,
-                        blinder,
-                        ..
-                    }) = hashes.get_by_transcript_idx(&direction, &idx)
-                    else {
-                        return Err(TranscriptProofBuilderError::new(
-                            BuilderErrorKind::MissingCommitment,
-                            format!(
-                                "hash commitment is missing for ranges in {} transcript",
-                                direction
-                            ),
-                        ));
-                    };
-
-                    let (_, data) = self
-                        .transcript
-                        .get(*direction, &idx)
-                        .expect("subsequence was checked to be in transcript")
-                        .into_parts();
-
-                    self.hash_proofs.push(PlaintextHashProof::new(
-                        Blinded::new_with_blinder(data, blinder.clone()),
-                        *commitment,
-                    ));
-                }
-                None => {
+            TranscriptCommitmentKind::Hash { .. } => {
+                let Some(hashes) = self.plaintext_hashes else {
                     return Err(TranscriptProofBuilderError::new(
                         BuilderErrorKind::MissingCommitment,
                         format!(
@@ -274,8 +246,35 @@ impl<'a> TranscriptProofBuilder<'a> {
                             direction
                         ),
                     ));
-                }
-            },
+                };
+
+                let Some(PlaintextHashSecret {
+                    direction,
+                    commitment,
+                    blinder,
+                    ..
+                }) = hashes.get_by_transcript_idx(&direction, &idx)
+                else {
+                    return Err(TranscriptProofBuilderError::new(
+                        BuilderErrorKind::MissingCommitment,
+                        format!(
+                            "hash commitment is missing for ranges in {} transcript",
+                            direction
+                        ),
+                    ));
+                };
+
+                let (_, data) = self
+                    .transcript
+                    .get(*direction, &idx)
+                    .expect("subsequence was checked to be in transcript")
+                    .into_parts();
+
+                self.hash_proofs.push(PlaintextHashProof::new(
+                    Blinded::new_with_blinder(data, blinder.clone()),
+                    *commitment,
+                ));
+            }
         }
 
         Ok(self)
