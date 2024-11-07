@@ -33,7 +33,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KH
 // Maximum number of bytes that can be sent from prover to server
 const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server
-const MAX_RECV_DATA: usize = 1 << 16;
+const MAX_RECV_DATA: usize = 1 << 14;
 
 use std::{env, str};
 use hmac::{Hmac, Mac};
