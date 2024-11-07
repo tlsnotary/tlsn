@@ -295,7 +295,7 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
 
     for commitment_id in recv_private_commitments {
         println!("Revealing private commitment {:?}", commitment_id);
-        proof_builder.reveal_private_by_id(commitment_id).unwrap();
+        proof_builder.reveal_private_by_id(commitment_id).await.unwrap();
     }
 
     let substrings_proof = proof_builder.build().unwrap();
