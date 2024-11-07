@@ -1,7 +1,7 @@
 server:
   name: "notary-server"
   host: "0.0.0.0"
-  port: 7047
+  port: 8003
   html-info: |
     <h1>Notary Server {version}!</h1>
     <ul>
