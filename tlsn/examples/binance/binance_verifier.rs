@@ -82,5 +82,8 @@ fn notary_pubkey() -> p256::PublicKey {
         "../../../notary/server/fixture/notary/notary.pub"
     ))
     .unwrap();
+    println!("Notary public key PEM file content:");
+    println!("{}", pem_file);
+
     p256::PublicKey::from_public_key_pem(pem_file).unwrap()
 }

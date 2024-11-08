@@ -1,7 +1,7 @@
 server:
   name: "notary-server"
   host: "0.0.0.0"
-  port: 7047
+  port: 8003
   html-info: |
     <h1>Notary Server {version}!</h1>
     <ul>
@@ -12,11 +12,11 @@ server:
     <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
 
 notarization:
-  max-transcript-size: 20480
+  max-transcript-size: 100000
 
 tls:
   enabled: true
-  private-key-pem-path: "./fixture/tls/notary.key"
+  private-key-pem-path: "./keys/cert_privkey.pem"
   certificate-pem-path: "./fixture/tls/notary.crt"
 
 notary-key:
