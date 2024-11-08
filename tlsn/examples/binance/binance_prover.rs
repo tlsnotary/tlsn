@@ -33,7 +33,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KH
 // Maximum number of bytes that can be sent from prover to server
 const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server
-const MAX_RECV_DATA: usize = 1 << 16;
+const MAX_RECV_DATA: usize = 1 << 14;
 
 use std::{env, str};
 use hmac::{Hmac, Mac};
@@ -227,7 +227,7 @@ async fn main() {
     };
 
     // Write the proof to a file
-    let file_dest = args.get(3).expect("Please provide a file destination as the second argument");
+    let file_dest = args.get(5).expect("Please provide a file destination as the second argument");
     let mut file = tokio::fs::File::create(file_dest).await.unwrap();
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
@@ -237,7 +237,7 @@ async fn main() {
         println!("No redaction, no need to write to secret file");
     }
     else{
-        let secret_file_dest = args.get(4).expect("Please provide a file destination for secret values as the third argument");
+        let secret_file_dest = args.get(6).expect("Please provide a file destination for secret values as the third argument");
         let mut secret_file = tokio::fs::File::create(secret_file_dest).await.unwrap();
         let data = json!({
             "eth_free": two_dec_eth_free,
