@@ -148,6 +148,7 @@ async fn main() {
     let mut params = HashMap::new();
     params.insert("timestamp", server_time);
     params.insert("omitZeroBalances",String::from("true"));
+    params.insert("recvWindow", String::from("60000")); // 60 seconds window
 
     // Generate the signature
     let signature = create_signature(&params, &api_secret);
@@ -183,14 +184,12 @@ async fn main() {
     let status = response.status();
     println!("Response status: {}", status);
     println!("Response headers: {:?}", response.headers());
-
-    assert!(response.status() == StatusCode::OK);
     // Read and print the response body
-
     let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
     let body_str = String::from_utf8_lossy(&body_bytes);
-
     println!("Response body:\n{}", body_str);
+    assert!(status == StatusCode::OK);
+
     let json_value: Value = serde_json::from_str(&body_str).unwrap();
     let balances = json_value.get("balances").unwrap();
 
