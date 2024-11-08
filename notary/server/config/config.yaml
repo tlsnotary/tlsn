@@ -20,7 +20,7 @@ tls:
   certificate-pem-path: "./fixture/tls/notary.crt"
 
 notary-key:
-  private-key-pem-path: "./keys/notary.key"
+  private-key-pem-path: "./fixture/notary/notary.key"
   public-key-pem-path: "./fixture/notary/notary.pub"
 
 logging:
