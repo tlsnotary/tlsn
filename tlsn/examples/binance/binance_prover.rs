@@ -35,7 +35,7 @@ const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server
 // TODO: determine the actual size of the response by querying the server with the same request first.
 // Right now it's fixed.
-const MAX_RECV_DATA: usize = 1 << 14;
+const MAX_RECV_DATA: usize = 1 << 12;
 
 use std::{env, str};
 use hmac::{Hmac, Mac};
@@ -162,7 +162,7 @@ async fn main() {
     .collect::<Vec<String>>()
     .join("&");
 
-    // println!("query string: {}", query_string);
+    println!("query string: {}", query_string);
 
     let request = Request::builder()
         .uri(format!("/api/v3/account?{}", query_string))
