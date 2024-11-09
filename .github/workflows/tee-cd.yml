@@ -35,7 +35,6 @@ jobs:
     outputs:
       teeport: ${{ steps.portbump.outputs.newport}}
       deploy: ${{ steps.portbump.outputs.deploy}}
-    
     steps:
       - name: checkout repository
         uses: actions/checkout@v4
@@ -43,14 +42,12 @@ jobs:
         id: portbump
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name ||  inputs.ref }}
-
         run: |
           echo "tag: $RELEASE_TAG"
           NEXT_PORT=$(bash cd-scripts/tee/azure/updateproxy.sh 'cd-scripts/tee/azure/Caddyfile' $RELEASE_TAG)
           echo "newport=$NEXT_PORT" >> $GITHUB_OUTPUT
           echo "new deploy port: $NEXT_PORT  🚀" >> $GITHUB_STEP_SUMMARY
           chmod +r -R cd-scripts/tee/azure/
-          
       - name: Deploy updated Caddyfile to server
         if: ${{ steps.portbump.outputs.deploy == 'new' }}
         uses: appleboy/scp-action@v0.1.7
@@ -60,10 +57,8 @@ jobs:
           key: ${{ secrets.AZURE_TEE_PROD_KEY }}
           source: "cd-scripts/tee/azure/Caddyfile"
           target: "~/"
-
       - name: Reload Caddy on server
         if: ${{ steps.portbump.outputs.deploy == 'new' }}
-
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AZURE_TEE_PROD_HOST }}
@@ -101,12 +96,10 @@ jobs:
             echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
         - name: reverse proxy port
           run: echo "${{needs.update-reverse-proxy.outputs.teeport}}" | tee >> $GITHUB_STEP_SUMMARY
-
         - name: get hardware measurement
           working-directory: ${{ github.workspace }}/crates/notary/server/tee
           run: |
                chmod +x  ../../../../.github/scripts/gramine.sh && ../../../../.github/scripts/gramine.sh sgx
- 
   artifact-deploy:
       if: ${{needs.update-reverse-proxy.outputs.deploy == 'new' }}
       environment: tee
@@ -131,8 +124,7 @@ jobs:
           run: |
             echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
             echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-        -
-          name: Set up Docker Buildx
+        - name: Set up Docker Buildx
           uses: docker/setup-buildx-action@v3
         - name: Get Git commit timestamps
           run: echo "TIMESTAMP=$(git log -1 --pretty=%ct)" >> $GITHUB_ENV
@@ -161,55 +153,15 @@ jobs:
           uses: actions/attest-build-provenance@v1
           with:
             subject-name: notaryserverbuilds.azurecr.io/prod/notary-sgx
-            subject-digest: ${{ steps.push.outputs.digest }}
-            sbom-path: 'sbom.cyclonedx.json'
+            subject-digest: ${{ steps.deploypush.outputs.digest }}
             push-to-registry: true
-
-        - name: run
+        -    
+          name: run
           run: |
-           docker run --device /dev/sgx_enclave --device /dev/sgx_provision --volume=/var/run/aesmd/aesm.socket:/var/run/aesmd/aesm.socket -p  ${{needs.update-reverse-proxy.outputs.teeport}}:7047 notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }} &
-           
-  artifact-reload:
-      if: ${{needs.update-reverse-proxy.outputs.deploy != 'new' }}
-      environment: tee
-      runs-on: [self-hosted, linux]
-      needs: [ build-measure, update-reverse-proxy ]
-      steps:
-        - name: auth to registry
-          uses: docker/login-action@v3
-          with:
-            registry: notaryserverbuilds.azurecr.io
-            username: notaryserverbuilds
-            password: ${{ secrets.AZURE_CR_BUILDS_PW }}
-        - name: get code
-          uses: actions/checkout@v4
-        - name: sccache
-          if: github.event_name != 'release'
-          # && github.event_name != 'workflow_dispatch'
-          uses: mozilla-actions/sccache-action@v0.0.6
-        - name: set rust env for scc
-          if: github.event_name != 'release'
-          # && github.event_name != 'workflow_dispatch'
-          run: |
-            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-        -
-          name: Set up Docker Buildx
-          uses: docker/setup-buildx-action@v3
-        - name: Build and push
-          uses: docker/build-push-action@v6
-          with:
-            provenance: mode=max
-            no-cache: true
-            context: ${{ github.workspace }}/crates/notary/server/tee
-            push: true
-            tags: notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }}
-            labels: ${{needs.update-reverse-proxy.outputs.teeport}}
-        - name: run
-          run: |
-            old=$(docker ps --filter "name=${{needs.update-reverse-proxy.outputs.teeport}}")
-            docker rm -f $old
-            docker run --name ${{needs.update-reverse-proxy.outputs.teeport}} --device /dev/sgx_enclave --device /dev/sgx_provision --volume=/var/run/aesmd/aesm.socket:/var/run/aesmd/aesm.socket -p  ${{needs.update-reverse-proxy.outputs.teeport}}:7047 notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }} &
-      
-
-      
+            if [[ ${{ needs.update-reverse-proxy.outputs.deploy }} == 'new' ]]; then
+              docker run --device /dev/sgx_enclave --device /dev/sgx_provision --volume=/var/run/aesmd/aesm.socket:/var/run/aesmd/aesm.socket -p  ${{needs.update-reverse-proxy.outputs.teeport}}:7047 notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }} &
+            else
+              old=$(docker ps --filter "name=${{needs.update-reverse-proxy.outputs.teeport}}")
+              docker rm -f $old
+              docker run --name ${{needs.update-reverse-proxy.outputs.teeport}} --device /dev/sgx_enclave --device /dev/sgx_provision --volume=/var/run/aesmd/aesm.socket:/var/run/aesmd/aesm.socket -p  ${{needs.update-reverse-proxy.outputs.teeport}}:7047 notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }} &
+            fi
