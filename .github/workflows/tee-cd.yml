@@ -101,7 +101,6 @@ jobs:
           run: |
                chmod +x  ../../../../.github/scripts/gramine.sh && ../../../../.github/scripts/gramine.sh sgx
   artifact-deploy:
-      if: ${{needs.update-reverse-proxy.outputs.deploy == 'new' }}
       environment: tee
       runs-on: [self-hosted, linux]
       needs: [ build-measure, update-reverse-proxy ]
