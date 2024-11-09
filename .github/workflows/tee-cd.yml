@@ -113,16 +113,6 @@ jobs:
             password: ${{ secrets.AZURE_CR_BUILDS_PW }}
         - name: get code
           uses: actions/checkout@v4
-        - name: sccache
-          if: github.event_name != 'release'
-          # && github.event_name != 'workflow_dispatch'
-          uses: mozilla-actions/sccache-action@v0.0.6
-        - name: set rust env for scc
-          if: github.event_name != 'release'
-          # && github.event_name != 'workflow_dispatch'
-          run: |
-            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
         - name: Set up Docker Buildx
           uses: docker/setup-buildx-action@v3
         - name: Get Git commit timestamps
