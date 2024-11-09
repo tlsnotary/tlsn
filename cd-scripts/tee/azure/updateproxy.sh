@@ -8,12 +8,14 @@ BASE_PORT=6061                      # The starting port for your reverse_proxy d
 # Function to check if handle_path for the given commit hash exists
 handle_path_exists() {
     local commit_hash=$1
+    #echo "handle_path_exists $1 -- CADDYFILE: $CADDYFILE"
     grep -q "handle_path /${commit_hash}\*" "$CADDYFILE"
 }
 
 # Function to extract the port for a given commit hash
 extract_port_for_commit() {
     local commit_hash=$1
+    #echo "extract_port_for_commit $1 -- 2: $2"
     grep -Pzo "handle_path /${commit_hash}\* \{\n\s*reverse_proxy :(.*) " "$CADDYFILE" | grep -Poa "reverse_proxy :(.*) " | awk '{print $2}'
 }
 
@@ -32,10 +34,10 @@ add_new_handle_path() {
 
     # Add the new handle_path in the notary.codes block
     awk -v port="$new_port" -v hash="$commit_hash" '
-        /tee\.notary\.codes \{/ {
+        /notary\.codes \{/ {
             print;
             print "    handle_path /" hash "* {";
-            print "        reverse_proxy :" port " :3333 tlsnotary.org:443 {";
+            print "        reverse_proxy :" port " :3333 {";
             print "            lb_try_duration 4s";
             print "            fail_duration 10s";
             print "            lb_policy header X-Upstream {";
@@ -75,8 +77,8 @@ else
     git config user.name github-actions
     git config user.email github-actions@github.com
     git add -A
-    git commit -m "azure tee reverse proxy => port:$NEXT_PORT/${RELEASE_TAG}"
-    git push
+    git commit --quiet --allow-empty -m "azure tee reverse proxy => port:$NEXT_PORT/${RELEASE_TAG}"
+    git push --quiet
     echo "deploy=new" >> $GITHUB_OUTPUT
     exit 0
 fi

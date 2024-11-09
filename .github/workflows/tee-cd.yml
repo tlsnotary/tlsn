@@ -1,5 +1,10 @@
 name: azure-tee-release
 
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  
 on:
   workflow_dispatch:
     inputs:
@@ -18,14 +23,19 @@ on:
 env:
   GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
   GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
+  REGISTRY: notaryserverbuilds.azurecr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   update-reverse-proxy:
+    permissions:
+      contents: write
     environment: tee
     runs-on: [self-hosted, linux]
     outputs:
       teeport: ${{ steps.portbump.outputs.newport}}
       deploy: ${{ steps.portbump.outputs.deploy}}
+    
     steps:
       - name: checkout repository
         uses: actions/checkout@v4
@@ -35,8 +45,11 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name ||  inputs.ref }}
 
         run: |
+          echo "tag: $RELEASE_TAG"
           NEXT_PORT=$(bash cd-scripts/tee/azure/updateproxy.sh 'cd-scripts/tee/azure/Caddyfile' $RELEASE_TAG)
           echo "newport=$NEXT_PORT" >> $GITHUB_OUTPUT
+          echo "new deploy port: $NEXT_PORT  🚀" >> $GITHUB_STEP_SUMMARY
+          chmod +r -R cd-scripts/tee/azure/
           
       - name: Deploy updated Caddyfile to server
         if: ${{ steps.portbump.outputs.deploy == 'new' }}
@@ -121,13 +134,37 @@ jobs:
         -
           name: Set up Docker Buildx
           uses: docker/setup-buildx-action@v3
+        - name: Get Git commit timestamps
+          run: echo "TIMESTAMP=$(git log -1 --pretty=%ct)" >> $GITHUB_ENV
         - name: Build and push
+          id: deploypush
           uses: docker/build-push-action@v6
           with:
+            provenance: mode=max
+            no-cache: true
             context: ${{ github.workspace }}/crates/notary/server/tee
             push: true
             tags: notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }}
             labels: ${{needs.update-reverse-proxy.outputs.teeport}}
+          env:
+            # reproducible builds: https://github.com/moby/buildkit/blob/master/docs/build-repro.md#source_date_epoch
+            SOURCE_DATE_EPOCH: ${{ env.TIMESTAMP }}
+        - name: Generate SBOM
+          uses: anchore/sbom-action@v0
+          with:
+            image:  notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }}
+            format: 'cyclonedx-json'
+            output-file: 'sbom.cyclonedx.json'
+          # attestation section ::
+          # https://docs.docker.com/build/ci/github-actions/attestations/
+        - name: Attest
+          uses: actions/attest-build-provenance@v1
+          with:
+            subject-name: notaryserverbuilds.azurecr.io/prod/notary-sgx
+            subject-digest: ${{ steps.push.outputs.digest }}
+            sbom-path: 'sbom.cyclonedx.json'
+            push-to-registry: true
+
         - name: run
           run: |
            docker run --device /dev/sgx_enclave --device /dev/sgx_provision --volume=/var/run/aesmd/aesm.socket:/var/run/aesmd/aesm.socket -p  ${{needs.update-reverse-proxy.outputs.teeport}}:7047 notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }} &
@@ -162,13 +199,15 @@ jobs:
         - name: Build and push
           uses: docker/build-push-action@v6
           with:
+            provenance: mode=max
+            no-cache: true
             context: ${{ github.workspace }}/crates/notary/server/tee
             push: true
             tags: notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }}
             labels: ${{needs.update-reverse-proxy.outputs.teeport}}
         - name: run
           run: |
-            old=$($ docker ps --filter "name=${{needs.update-reverse-proxy.outputs.teeport}}")
+            old=$(docker ps --filter "name=${{needs.update-reverse-proxy.outputs.teeport}}")
             docker rm -f $old
             docker run --name ${{needs.update-reverse-proxy.outputs.teeport}} --device /dev/sgx_enclave --device /dev/sgx_provision --volume=/var/run/aesmd/aesm.socket:/var/run/aesmd/aesm.socket -p  ${{needs.update-reverse-proxy.outputs.teeport}}:7047 notaryserverbuilds.azurecr.io/prod/notary-sgx:${{ env.GIT_COMMIT_HASH }} &
       
