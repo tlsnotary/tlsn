@@ -20,6 +20,7 @@ use serde_json::Value;
 use reqwest::Error;
 use mpz_core::commit::Nonce;
 use serde_json::json;
+use regex::bytes::Regex;
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "api.binance.com";
@@ -31,7 +32,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KH
 // max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
 //
 // Maximum number of bytes that can be sent from prover to server
-const MAX_SENT_DATA: usize = 1 << 12;
+const MAX_SENT_DATA: usize = 1 << 10;
 // Maximum number of bytes that can be received by prover from server
 // TODO: determine the actual size of the response by querying the server with the same request first.
 // Right now it's fixed.
@@ -379,10 +380,19 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>, api_key: &str
     }
     // println!("Actual sent public ranges: {:?}", sent_public_ranges);
 
+    // Temporary solution: Check that recv transcript ends with uid, if not, the user's data will be revealed, so
+    // we write logic here to reject that to protect you! Tbh, as of Binance API now, rec transcript data 
+    // always end with uid, so it should be fine. but we put this in case, to protect your privacy. If this happens, 
+    // Please run the notarization code of binance account again. If still not, contact us @mhchia & @jernkun
+
+    let uid_regex = r#""uid":\d+}"#;
+    let re = Regex::new(&uid_regex).unwrap();
+    assert!(re.is_match(prover.recv_transcript().data()), "this notarization might leak data that u dont want to leak, read our comment in binance_prover.rs file line 383");
+
     // Sensor all data in "balances"
     let (recv_public_ranges, _) = find_ranges_regex(
         prover.recv_transcript().data(),
-        &[r#"(?s)HTTP/1.1 200 OK(.*)\{"asset":"ETH","free""#, r#""ETH","free":"(\d+\.\d\d)"#, r#"(?s)"ETH","free":"\d+\.\d\d(\d*)""#,r#"(?s)"ETH","free":"\d+\.\d+"(.*)"#]
+        &[r#"(?s)HTTP/1.1 200 OK(.*)\{"asset":"ETH","free""#, r#""ETH","free":"(\d+\.\d\d)"#, r#"(?s)"ETH","free":"\d+\.\d\d(\d*)""#,r#"(?s)"ETH","free":"\d+\.\d+"(.*)"uid"#]
     );
     // Create only proof for ETH "free" amount
     // Only 2 decimal points
