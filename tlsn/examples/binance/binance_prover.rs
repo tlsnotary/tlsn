@@ -27,17 +27,6 @@ const SERVER_DOMAIN: &str = "api.binance.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
 
-// P/S: If the following limits are increased, please ensure max-transcript-size of
-// the notary server's config (../../../notary/server) is increased too, where
-// max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
-//
-// Maximum number of bytes that can be sent from prover to server
-const MAX_SENT_DATA: usize = 1 << 10;
-// Maximum number of bytes that can be received by prover from server
-// TODO: determine the actual size of the response by querying the server with the same request first.
-// Right now it's fixed.
-const MAX_RECV_DATA: usize = 1 << 12;
-
 use std::{env, str};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -49,10 +38,16 @@ use hex;
 type HmacSha256 = Hmac<Sha256>;
 
 fn create_signature(params: &HashMap<&str, String>, secret_key: &str) -> String {
-    let query_string = params.iter()
+    // Sort parameters alphabetically and create query string
+    let mut sorted_params: Vec<_> = params.iter().collect();
+    sorted_params.sort_by_key(|&(k, _)| k);
+
+    let query_string = sorted_params.iter()
         .map(|(key, value)| format!("{}={}", key, value))
         .collect::<Vec<String>>()
         .join("&");
+
+    println!("!@# String being signed: {}", query_string);
 
     let mut mac = HmacSha256::new_from_slice(secret_key.as_bytes())
         .expect("HMAC can take key of any size");
@@ -61,7 +56,67 @@ fn create_signature(params: &HashMap<&str, String>, secret_key: &str) -> String 
     let result = mac.finalize();
     let signature_bytes = result.into_bytes();
 
-    hex::encode(signature_bytes) // Convert to hex string
+    hex::encode(signature_bytes)
+}
+
+async fn dry_run_request(query_string: &str, api_key: &str) -> Result<(usize, usize), Error> {
+    let client = Client::new();
+    let url = format!("https://{}/api/v3/account?{}", SERVER_DOMAIN, query_string);
+
+    // Build request exactly as in main()
+    let request = Request::builder()
+        .uri(format!("/api/v3/account?{}", query_string))
+        .header("Host", SERVER_DOMAIN)
+        .header("X-MBX-APIKEY", api_key)
+        .header("Accept", "*/*")
+        .header("Accept-Encoding", "identity")
+        .header("Connection", "close")
+        .header("User-Agent", USER_AGENT)
+        .body(Empty::<Bytes>::new())
+        .unwrap();
+
+    // Calculate sent size including request line and headers
+    let mut sent_size = format!("GET {} HTTP/1.1\r\n", request.uri()).len();
+    for (name, value) in request.headers() {
+        sent_size += name.as_str().len() + 2 + value.len() + 2; // +2 for ": " and +2 for "\r\n"
+    }
+    sent_size += 2; // Final "\r\n"
+
+    // Send actual request to get response
+    let mut headers = reqwest::header::HeaderMap::new();
+    for (name, value) in request.headers() {
+        headers.insert(
+            reqwest::header::HeaderName::from_bytes(name.as_ref()).unwrap(),
+            reqwest::header::HeaderValue::from_bytes(value.as_bytes()).unwrap(),
+        );
+    }
+
+    let response = client
+        .get(url)
+        .headers(headers)
+        .send()
+        .await?;
+
+    // Calculate received size
+    let mut recv_size = format!("HTTP/1.1 {}\r\n", response.status()).len();
+    for (name, value) in response.headers() {
+        recv_size += name.as_str().len() + 2 + value.len() + 2;
+    }
+    recv_size += 2; // Headers terminating "\r\n"
+    let response_bytes = response.bytes().await?;
+    let response_content = String::from_utf8_lossy(&response_bytes);
+    println!("!@# Response content: {}", response_content);
+
+    // Add body size
+    recv_size += response_bytes.len();
+
+    Ok((sent_size, recv_size))
+}
+
+fn next_power_of_two(n: usize) -> usize {
+    if n == 0 { return 1; }
+    let n = n - 1;
+    1 << (usize::BITS - n.leading_zeros())
 }
 
 #[tokio::main]
@@ -89,10 +144,49 @@ async fn main() {
         .build()
         .unwrap();
 
+    let res = reqwest::get("https://api.binance.com/api/v3/time").await;
+    let json_value:Value = res.unwrap().json().await.unwrap();
+    // println!("json value: {}", json_value);
+    let server_time = json_value.get("serverTime").unwrap().to_string();
+    // println!("serverTime: {}", server_time);
+    let mut params = HashMap::new();
+    params.insert("timestamp", server_time);
+    params.insert("omitZeroBalances",String::from("true"));
+    params.insert("recvWindow", String::from("60000")); // 60 seconds window
+
+    // Generate the signature
+    let signature = create_signature(&params, &api_secret);
+
+    params.insert("signature", signature);
+    let mut query_parts: Vec<String> = params.iter()
+        .map(|(key, value)| format!("{}={}", key, value))
+        .collect();
+    query_parts.sort();  // Sort in place
+    let query_string = query_parts.join("&");
+
+    println!("!@# query string: {}", query_string);
+
+    // Then in main(), before setting up the notarization:
+    let (expected_sent_size, expected_recv_size) = dry_run_request(&query_string, api_key)
+        .await
+        .expect("Failed to do dry run");
+
+    println!("!@# Expected sent size: {} bytes", expected_sent_size);
+    println!("!@# Expected received size: {} bytes", expected_recv_size);
+
+    // Add some buffer to the constants based on predictions
+    // Maximum number of bytes that can be sent from prover to server
+    let max_sent_data: usize = next_power_of_two(expected_sent_size + 100);  // Add buffer for safety
+    // Maximum number of bytes that can be received by prover from server
+    let max_recv_data: usize = next_power_of_two(expected_recv_size + 100);  // Add buffer for safety
+
+    println!("!@# Max sent data: {} bytes", max_sent_data);
+    println!("!@# Max received data: {} bytes", max_recv_data);
+
     // Send requests for configuration and notarization to the notary server.
     let notarization_request = NotarizationRequest::builder()
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .max_sent_data(max_sent_data)
+        .max_recv_data(max_recv_data)
         .build()
         .unwrap();
 
@@ -109,8 +203,8 @@ async fn main() {
     let prover_config = ProverConfig::builder()
         .id(session_id)
         .server_dns(SERVER_DOMAIN)
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
+        .max_sent_data(max_sent_data)
+        .max_recv_data(max_recv_data)
         .build()
         .unwrap();
 
@@ -143,28 +237,6 @@ async fn main() {
     // Spawn the HTTP task to be run concurrently
     tokio::spawn(connection);
 
-    let res = reqwest::get("https://api.binance.com/api/v3/time").await;
-    let json_value:Value = res.unwrap().json().await.unwrap();
-    // println!("json value: {}", json_value);
-    let server_time = json_value.get("serverTime").unwrap().to_string();
-    // println!("serverTime: {}", server_time);
-    let mut params = HashMap::new();
-    params.insert("timestamp", server_time);
-    params.insert("omitZeroBalances",String::from("true"));
-    params.insert("recvWindow", String::from("60000")); // 60 seconds window
-
-    // Generate the signature
-    let signature = create_signature(&params, &api_secret);
-
-    params.insert("signature", signature);
-
-    let query_string: String = params.iter()
-    .map(|(key, value)| format!("{}={}", key, value))
-    .collect::<Vec<String>>()
-    .join("&");
-
-    println!("query string: {}", query_string);
-
     let request = Request::builder()
         .uri(format!("/api/v3/account?{}", query_string))
         .header("Host", SERVER_DOMAIN)
@@ -177,6 +249,9 @@ async fn main() {
         .header("User-Agent", USER_AGENT)
         .body(Empty::<Bytes>::new())
         .unwrap();
+
+    // Print the request size
+    let request_str = format!("{:?}", request);
 
     println!("Starting an MPC TLS connection with the server");
 
@@ -216,6 +291,10 @@ async fn main() {
 
     // The Prover task should be done now, so we can grab the Prover.
     let prover = prover_task.await.unwrap().unwrap();
+
+    // Print the actual sizes before starting notarization
+    println!("!@# Actual sent data size: {} bytes", prover.sent_transcript().data().len());
+    println!("!@# Actual received data size: {} bytes", prover.recv_transcript().data().len());
 
     // Prepare for notarization.
     let prover = prover.start_notarize();
@@ -381,8 +460,8 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>, api_key: &str
     // println!("Actual sent public ranges: {:?}", sent_public_ranges);
 
     // Temporary solution: Check that recv transcript ends with uid, if not, the user's data will be revealed, so
-    // we write logic here to reject that to protect you! Tbh, as of Binance API now, rec transcript data 
-    // always end with uid, so it should be fine. but we put this in case, to protect your privacy. If this happens, 
+    // we write logic here to reject that to protect you! Tbh, as of Binance API now, rec transcript data
+    // always end with uid, so it should be fine. but we put this in case, to protect your privacy. If this happens,
     // Please run the notarization code of binance account again. If still not, contact us @mhchia & @jernkun
 
     let uid_regex = r#""uid":\d+}"#;
