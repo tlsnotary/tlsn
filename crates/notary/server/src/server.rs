@@ -60,28 +60,26 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let tls_acceptor = if !config.tls.enabled {
         debug!("Skipping TLS setup as it is turned off.");
         None
+    } else if let (Some(private_key_path), Some(certificate_pem_path)) = (
+        config.tls.private_key_pem_path.as_deref(),
+        config.tls.certificate_pem_path.as_deref(),
+    ) {
+        let (tls_private_key, tls_certificates) =
+            load_tls_key_and_cert(private_key_path, certificate_pem_path).await?;
+
+        let mut server_config = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(tls_certificates, tls_private_key)
+            .map_err(|err| eyre!("Failed to instantiate notary server tls config: {err}"))?;
+
+        // Set the http protocols we support
+        server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
+        let tls_config = Arc::new(server_config);
+        Some(TlsAcceptor::from(tls_config))
     } else {
-        if let (Some(private_key_path), Some(certificate_pem_path)) = (
-            config.tls.private_key_pem_path.as_deref(),
-            config.tls.certificate_pem_path.as_deref(),
-        ) {
-            let (tls_private_key, tls_certificates) =
-                load_tls_key_and_cert(private_key_path, certificate_pem_path).await?;
-
-            let mut server_config = ServerConfig::builder()
-                .with_safe_defaults()
-                .with_no_client_auth()
-                .with_single_cert(tls_certificates, tls_private_key)
-                .map_err(|err| eyre!("Failed to instantiate notary server tls config: {err}"))?;
-
-            // Set the http protocols we support
-            server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
-            let tls_config = Arc::new(server_config);
-            Some(TlsAcceptor::from(tls_config))
-        } else {
-            debug!("TLS is enabled but PEM paths are not set.");
-            None
-        }
+        debug!("TLS is enabled but PEM paths are not set.");
+        None
     };
 
     // Load the authorization whitelist csv if it is turned on
@@ -369,10 +367,7 @@ fn watch_and_reload_authorization_whitelist(
 
         // Start watcher to listen to any changes on the whitelist file
         watcher
-            .watch(
-                Path::new(whitelist_csv_path),
-                RecursiveMode::Recursive,
-            )
+            .watch(Path::new(whitelist_csv_path), RecursiveMode::Recursive)
             .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
         Some(watcher)
@@ -449,10 +444,7 @@ mod test {
             created_at: "unit-test-created-at".to_string(),
         };
         if let Some(ref path) = config.authorization.whitelist_csv_path {
-            let file = OpenOptions::new()
-                .append(true)
-                .open(path)
-                .unwrap();
+            let file = OpenOptions::new().append(true).open(path).unwrap();
             let mut wtr = WriterBuilder::new()
                 .has_headers(false) // Set to false to avoid writing header again
                 .from_writer(file);
