@@ -60,12 +60,20 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let tls_acceptor = if !config.tls.enabled {
         debug!("Skipping TLS setup as it is turned off.");
         None
-    } else if let (Some(private_key_path), Some(certificate_pem_path)) = (
-        config.tls.private_key_pem_path.as_deref(),
-        config.tls.certificate_pem_path.as_deref(),
-    ) {
+    } else {
+        let private_key_pem_path = config
+            .tls
+            .private_key_pem_path
+            .as_deref()
+            .ok_or_else(|| eyre!("TLS is enabled but private key PEM path is not set"))?;
+        let certificate_pem_path = config
+            .tls
+            .certificate_pem_path
+            .as_deref()
+            .ok_or_else(|| eyre!("TLS is enabled but certificate PEM path is not set"))?;
+
         let (tls_private_key, tls_certificates) =
-            load_tls_key_and_cert(private_key_path, certificate_pem_path).await?;
+            load_tls_key_and_cert(private_key_pem_path, certificate_pem_path).await?;
 
         let mut server_config = ServerConfig::builder()
             .with_safe_defaults()
@@ -77,9 +85,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
         let tls_config = Arc::new(server_config);
         Some(TlsAcceptor::from(tls_config))
-    } else {
-        debug!("TLS is enabled but PEM paths are not set.");
-        None
     };
 
     // Load the authorization whitelist csv if it is turned on
