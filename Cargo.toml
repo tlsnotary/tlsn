@@ -11,6 +11,7 @@ members = [
     "crates/components/hmac-sha256",
     "crates/components/hmac-sha256-circuits",
     "crates/components/key-exchange",
+    "crates/components/poseidon-circomlib",
     "crates/components/stream-cipher",
     "crates/components/universal-hash",
     "crates/core",
@@ -43,6 +44,7 @@ opt-level = 1
 [workspace.dependencies]
 notary-client = { path = "crates/notary/client" }
 notary-server = { path = "crates/notary/server" }
+poseidon-circomlib = { path = "crates/components/poseidon-circomlib" }
 tls-server-fixture = { path = "crates/tls/server-fixture" }
 tlsn-aead = { path = "crates/components/aead" }
 tlsn-benches-browser-core = { path = "crates/benches/browser/core" }

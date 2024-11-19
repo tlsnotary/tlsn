@@ -1,0 +1,37 @@
+[package]
+name = "poseidon-circomlib"
+authors = ["TLSNotary Team"]
+description = "Poseidon permutation over the bn256 curve compatible with iden3's circomlib"
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "poseidon_circomlib"
+
+[dependencies]
+ff = { version = "0.13" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false }
+# Change to upstream when https://github.com/privacy-scaling-explorations/poseidon-gadget/pull/5
+# is merged.
+halo2_poseidon = { git = "https://github.com/themighty1/poseidon-gadget" }
+
+[dev-dependencies]
+criterion = { workspace = true }
+lazy_static = { version = "1.4" }
+num-bigint = { version = "0.4" }
+num-traits = { version = "0.2" }
+
+[build-dependencies]
+anyhow = { workspace = true }
+ff = { version = "0.13" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false }
+# Change to upstream when https://github.com/privacy-scaling-explorations/poseidon-gadget/pull/5
+# is merged.
+halo2_poseidon = { git = "https://github.com/themighty1/poseidon-gadget" }
+rayon = "1.5"
+
+[[bench]]
+name = "constants"
+harness = false
