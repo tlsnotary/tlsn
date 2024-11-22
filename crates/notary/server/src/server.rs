@@ -61,11 +61,19 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         debug!("Skipping TLS setup as it is turned off.");
         None
     } else {
-        let (tls_private_key, tls_certificates) = load_tls_key_and_cert(
-            &config.tls.private_key_pem_path,
-            &config.tls.certificate_pem_path,
-        )
-        .await?;
+        let private_key_pem_path = config
+            .tls
+            .private_key_pem_path
+            .as_deref()
+            .ok_or_else(|| eyre!("TLS is enabled but private key PEM path is not set"))?;
+        let certificate_pem_path = config
+            .tls
+            .certificate_pem_path
+            .as_deref()
+            .ok_or_else(|| eyre!("TLS is enabled but certificate PEM path is not set"))?;
+
+        let (tls_private_key, tls_certificates) =
+            load_tls_key_and_cert(private_key_pem_path, certificate_pem_path).await?;
 
         let mut server_config = ServerConfig::builder()
             .with_safe_defaults()
@@ -293,11 +301,17 @@ fn load_authorization_whitelist(
         debug!("Skipping authorization as it is turned off.");
         None
     } else {
+        // Check if whitelist_csv_path is Some and convert to &str
+        let whitelist_csv_path = config
+            .authorization
+            .whitelist_csv_path
+            .as_deref()
+            .ok_or_else(|| {
+                eyre!("Authorization whitelist csv path is not provided in the config")
+            })?;
         // Load the csv
-        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(
-            &config.authorization.whitelist_csv_path,
-        )
-        .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
+        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
+            .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
         // Convert the whitelist record into hashmap for faster lookup
         let whitelist_hashmap = authorization_whitelist_vec_into_hashmap(whitelist_csv);
         Some(whitelist_hashmap)
@@ -347,12 +361,18 @@ fn watch_and_reload_authorization_whitelist(
         )
         .map_err(|err| eyre!("Error occured when setting up watcher for hot reload: {err}"))?;
 
+        // Check if whitelist_csv_path is Some and convert to &str
+        let whitelist_csv_path = config
+            .authorization
+            .whitelist_csv_path
+            .as_deref()
+            .ok_or_else(|| {
+                eyre!("Authorization whitelist csv path is not provided in the config")
+            })?;
+
         // Start watcher to listen to any changes on the whitelist file
         watcher
-            .watch(
-                Path::new(&config.authorization.whitelist_csv_path),
-                RecursiveMode::Recursive,
-            )
+            .watch(Path::new(whitelist_csv_path), RecursiveMode::Recursive)
             .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
         Some(watcher)
@@ -404,7 +424,7 @@ mod test {
         let config = NotaryServerProperties {
             authorization: AuthorizationProperties {
                 enabled: true,
-                whitelist_csv_path,
+                whitelist_csv_path: Some(whitelist_csv_path.clone()),
             },
             ..Default::default()
         };
@@ -428,16 +448,16 @@ mod test {
             api_key: "unit-test-api-key".to_string(),
             created_at: "unit-test-created-at".to_string(),
         };
-        let file = OpenOptions::new()
-            .append(true)
-            .open(&config.authorization.whitelist_csv_path)
-            .unwrap();
-        let mut wtr = WriterBuilder::new()
-            .has_headers(false) // Set to false to avoid writing header again
-            .from_writer(file);
-        wtr.serialize(new_record).unwrap();
-        wtr.flush().unwrap();
-
+        if let Some(ref path) = config.authorization.whitelist_csv_path {
+            let file = OpenOptions::new().append(true).open(path).unwrap();
+            let mut wtr = WriterBuilder::new()
+                .has_headers(false) // Set to false to avoid writing header again
+                .from_writer(file);
+            wtr.serialize(new_record).unwrap();
+            wtr.flush().unwrap();
+        } else {
+            panic!("Whitelist CSV path should be provided in the config");
+        }
         // Sleep to buy a bit of time for updated whitelist to be hot reloaded
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -448,6 +468,6 @@ mod test {
             .contains_key("unit-test-api-key"));
 
         // Delete the cloned whitelist
-        std::fs::remove_file(&config.authorization.whitelist_csv_path).unwrap();
+        std::fs::remove_file(&whitelist_csv_path).unwrap();
     }
 }
