@@ -10,8 +10,10 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-latest]
-        target: [x86_64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-apple-darwin]
+        include:
+          - os: ubuntu-latest
+          - os: macos-15
+          - os: macos-15-arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -26,16 +28,16 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Build project
-        run: cargo build --release --example binance_prover --target ${{ matrix.target }}
+        run: cargo build --release --example binance_prover
 
       - name: Archive binary
         run: |
           mkdir -p artifacts/${{ matrix.os }}-${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/binance_prover artifacts/${{ matrix.os }}-${{ matrix.target }}/binance_prover
+          cp target/${{ matrix.target }}/release/binance_prover artifacts/${{ matrix.os }}/binance_prover
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: binance_prover
-          path: artifacts/${{ matrix.os }}-${{ matrix.target }}/
+          path: artifacts/${{ matrix.os }}/
 
