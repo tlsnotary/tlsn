@@ -28,7 +28,9 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Build project
-        run: cargo build --release --example binance_prover
+        run: |
+          cd tlsn
+          cargo build --release --example binance_prover
 
       - name: Archive binary
         run: |
