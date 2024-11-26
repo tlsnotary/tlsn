@@ -103,6 +103,20 @@ jobs:
           cd crates/wasm
           ./build.sh
 
+      - name: Publish tlsn-wasm to npm (for tags only)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd crates/wasm/pkg
+          # Check if the current GitHub reference is a tag
+          # If it is a tag, publish the package to npm
+          # If it is not a tag, perform a dry-run of the publish
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            npm publish
+          else
+            npm publish --dry-run
+          fi
+
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
