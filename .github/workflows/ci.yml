@@ -83,6 +83,8 @@ jobs:
           components: rust-src
 
       - name: Install chromedriver
+        # FIXME: remove if after testing
+        if: false
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-chromedriver
