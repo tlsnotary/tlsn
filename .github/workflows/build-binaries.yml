@@ -54,5 +54,5 @@ jobs:
         with:
           name: binance_prover_${{ matrix.binary_suffix }}
           path: artifacts/
-          compression-level: 9
+          compression-level: 0
 
