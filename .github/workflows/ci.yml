@@ -121,6 +121,22 @@ jobs:
           path: ./crates/wasm/pkg
           if-no-files-found: error
 
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # FIXME: fix name after testing
+          # name: ${{ github.ref_name }}-tlsn-wasm-pkg
+          name: ${{ github.sha }}-tlsn-wasm-pkg
+          path: tlsn-wasm-pkg
+
+      - name: NPM Publish for tlsn-wasm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # FIXME: remove dry-run after testing
+        run: |
+          cd tlsn-wasm-pkg
+          npm publish --dry-run
+
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
