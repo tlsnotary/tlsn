@@ -11,9 +11,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-          - os: macos-15
-          - os: macos-15-arm64
+          - os: ubuntu-24.04
+          - os: ubuntu-22.04
+          - os: macos-14
+          - os: macos-14-arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -27,7 +28,7 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
-      - name: Build project
+      - name: Build binance_prover
         run: |
           cd tlsn
           cargo build --release --example binance_prover
@@ -38,8 +39,9 @@ jobs:
           cp tlsn/target/release/examples/binance_prover artifacts/${{ matrix.os }}/binance_prover
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: binance_prover
           path: artifacts/${{ matrix.os }}/
+          compression-level: 9
 
