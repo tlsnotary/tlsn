@@ -34,8 +34,8 @@ jobs:
 
       - name: Archive binary
         run: |
-          mkdir -p artifacts/${{ matrix.os }}-${{ matrix.target }}
-          cp target/release/examples/binance_prover artifacts/${{ matrix.os }}/binance_prover
+          mkdir -p artifacts/${{ matrix.os }}
+          cp tlsn/target/release/examples/binance_prover artifacts/${{ matrix.os }}/binance_prover
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
