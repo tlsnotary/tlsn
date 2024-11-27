@@ -41,7 +41,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binance_prover
+          name: binance_prover-${{ matrix.os }}
           path: artifacts/${{ matrix.os }}/
           compression-level: 9
 
