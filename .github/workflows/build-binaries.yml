@@ -12,9 +12,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
+            binary_suffix: ubuntu_noble
           - os: ubuntu-22.04
+            binary_suffix: ubuntu_focal
           - os: macos-14
+            binary_suffix: macos_sonoma
           - os: macos-14-arm64
+            binary_suffix: macos_sonoma_arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -36,12 +40,12 @@ jobs:
       - name: Archive binary
         run: |
           mkdir -p artifacts/${{ matrix.os }}
-          cp tlsn/target/release/examples/binance_prover artifacts/${{ matrix.os }}/binance_prover-${{ matrix.os }}
+          cp tlsn/target/release/examples/binance_prover artifacts/${{ matrix.os }}/binance_prover_${{ matrix.binary_suffix }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binance_prover-${{ matrix.os }}
+          name: binance_prover_${{ matrix.binary_suffix }}
           path: artifacts/${{ matrix.os }}/
           compression-level: 9
 
