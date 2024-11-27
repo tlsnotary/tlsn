@@ -36,6 +36,9 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
       - name: Build binance_prover
         run: |
           cd tlsn
@@ -44,12 +47,12 @@ jobs:
       - name: Archive binary
         run: |
           mkdir -p artifacts/${{ matrix.os }}
-          cp tlsn/target/release/examples/binance_prover artifacts/${{ matrix.os }}/binance_prover_${{ matrix.binary_suffix }}
+          cp tlsn/target/release/examples/binance_prover artifacts/binance_prover_${{ matrix.binary_suffix }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: binance_prover_${{ matrix.binary_suffix }}
-          path: artifacts/${{ matrix.os }}/
+          path: artifacts/
           compression-level: 9
 
