@@ -83,8 +83,6 @@ jobs:
           components: rust-src
 
       - name: Install chromedriver
-        # FIXME: remove if after testing
-        if: false
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-chromedriver
@@ -96,8 +94,6 @@ jobs:
         uses: Swatinem/rust-cache@v2.7.3
 
       - name: Run tests
-        # FIXME: remove if after testing
-        if: false
         run: |
           cd crates/wasm-test-runner
           ./run.sh
@@ -107,35 +103,18 @@ jobs:
           cd crates/wasm
           ./build.sh
 
-      - name: Dry Run NPM Publish for tlsn-wasm
+      - name: Dry Run NPM Publish
         run: |
           cd crates/wasm/pkg
           npm publish --dry-run
 
       - name: Save tlsn-wasm package for tagged builds
-        # if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
-          # name: ${{ github.ref_name }}-tlsn-wasm-pkg
-          name: ${{ github.sha }}-tlsn-wasm-pkg
+          name: ${{ github.ref_name }}-tlsn-wasm-pkg
           path: ./crates/wasm/pkg
           if-no-files-found: error
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          # FIXME: fix name after testing
-          # name: ${{ github.ref_name }}-tlsn-wasm-pkg
-          name: ${{ github.sha }}-tlsn-wasm-pkg
-          path: tlsn-wasm-pkg
-
-      - name: NPM Publish for tlsn-wasm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        # FIXME: remove dry-run after testing
-        run: |
-          cd tlsn-wasm-pkg
-          npm publish --dry-run
 
   tests-integration:
     name: Run tests release build
