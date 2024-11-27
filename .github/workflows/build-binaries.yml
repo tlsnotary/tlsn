@@ -13,12 +13,16 @@ jobs:
         include:
           - os: ubuntu-24.04
             binary_suffix: ubuntu_noble
+            target: x86_64-unknown-linux-gnu
           - os: ubuntu-22.04
             binary_suffix: ubuntu_focal
+            target: x86_64-unknown-linux-gnu
           - os: macos-14
             binary_suffix: macos_sonoma
-          - os: macos-14-arm64
+            target: x86_64-apple-darwin
+          - os: macos-14
             binary_suffix: macos_sonoma_arm64
+            target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}
 
@@ -35,7 +39,7 @@ jobs:
       - name: Build binance_prover
         run: |
           cd tlsn
-          cargo build --release --example binance_prover
+          cargo build --release --example binance_prover --target ${{ matrix.target }}
 
       - name: Archive binary
         run: |
