@@ -30,7 +30,7 @@ halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", 
 # Change to upstream when https://github.com/privacy-scaling-explorations/poseidon-gadget/pull/5
 # is merged.
 halo2_poseidon = { git = "https://github.com/themighty1/poseidon-gadget" }
-rayon = "1.5"
+rayon = { version = "1.10" }
 
 [[bench]]
 name = "constants"
