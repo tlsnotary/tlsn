@@ -8,6 +8,7 @@ use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
 
 use clap::Parser;
+use utils::range::ToRangeSet;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -41,10 +42,11 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let mut builder = secrets.transcript_proof_builder();
 
     let request = &transcript.requests[0];
-    // Reveal the structure of the request without the headers or body.
-    builder.reveal_sent(&request.without_data())?;
-    // Reveal the request target.
-    builder.reveal_sent(&request.request.target)?;
+
+    // Reveal multiple parts of the request: (1) its structure without the headers
+    // or body, (2) the request target.
+    builder.reveal_sent_multi(&[&request.without_data(), &request.request.target])?;
+
     // Reveal all headers except the values of User-Agent and Authorization.
     for header in &request.headers {
         if !(header
@@ -63,10 +65,16 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     }
 
     // Reveal only parts of the response
+    // Use a vector to collect the ranges of all these parts before calling
+    // `reveal_recv_multi`
+    let mut recv_ranges: Vec<&dyn ToRangeSet<usize>> = Vec::new();
+
     let response = &transcript.responses[0];
-    builder.reveal_recv(&response.without_data())?;
+    let response_without_data = &response.without_data();
+    recv_ranges.push(response_without_data);
+
     for header in &response.headers {
-        builder.reveal_recv(header)?;
+        recv_ranges.push(header);
     }
 
     let content = &response.body.as_ref().unwrap().content;
@@ -75,18 +83,20 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
             // For experimentation, reveal the entire response or just a selection
             let reveal_all = false;
             if reveal_all {
-                builder.reveal_recv(response)?;
+                recv_ranges.push(response);
             } else {
-                builder.reveal_recv(json.get("id").unwrap())?;
-                builder.reveal_recv(json.get("information.name").unwrap())?;
-                builder.reveal_recv(json.get("meta.version").unwrap())?;
+                recv_ranges.push(json.get("id").unwrap());
+                recv_ranges.push(json.get("information.name").unwrap());
+                recv_ranges.push(json.get("meta.version").unwrap());
             }
         }
         tlsn_formats::http::BodyContent::Unknown(span) => {
-            builder.reveal_recv(span)?;
+            recv_ranges.push(span);
         }
         _ => {}
     }
+
+    builder.reveal_recv_multi(&recv_ranges)?;
 
     let transcript_proof = builder.build()?;
 

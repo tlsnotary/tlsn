@@ -281,6 +281,22 @@ impl<'a> TranscriptProofBuilder<'a> {
         self.reveal(ranges, Direction::Sent)
     }
 
+    /// Reveals multiple groups of ranges given in the sent transcript using the
+    /// default kind of commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges_groups` - Groups of ranges to reveal.
+    pub fn reveal_sent_multi(
+        &mut self,
+        ranges_groups: &[&dyn ToRangeSet<usize>],
+    ) -> Result<&mut Self, TranscriptProofBuilderError> {
+        for ranges in ranges_groups.iter() {
+            self.reveal(*ranges, Direction::Sent)?;
+        }
+        Ok(self)
+    }
+
     /// Reveals the given ranges in the received transcript using the default
     /// kind of commitment.
     ///
@@ -292,6 +308,22 @@ impl<'a> TranscriptProofBuilder<'a> {
         ranges: &dyn ToRangeSet<usize>,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
         self.reveal(ranges, Direction::Received)
+    }
+
+    /// Reveals multiple groups of ranges given in the received transcript using
+    /// the default kind of commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges_groups` - Groups of ranges to reveal.
+    pub fn reveal_recv_multi(
+        &mut self,
+        ranges_groups: &[&dyn ToRangeSet<usize>],
+    ) -> Result<&mut Self, TranscriptProofBuilderError> {
+        for ranges in ranges_groups.iter() {
+            self.reveal(*ranges, Direction::Received)?;
+        }
+        Ok(self)
     }
 
     /// Builds the transcript proof.
