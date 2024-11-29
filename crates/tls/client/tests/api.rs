@@ -1009,7 +1009,7 @@ where
     }
 }
 
-impl<'a, C, S> io::Read for ServerSession<'a, C, S>
+impl<C, S> io::Read for ServerSession<'_, C, S>
 where
     C: DerefMut + Deref<Target = rustls::ConnectionCommon<S>>,
     S: rustls::SideData,
@@ -1020,7 +1020,7 @@ where
     }
 }
 
-impl<'a, C, S> io::Write for ServerSession<'a, C, S>
+impl<C, S> io::Write for ServerSession<'_, C, S>
 where
     C: DerefMut + Deref<Target = rustls::ConnectionCommon<S>>,
     S: rustls::SideData,
@@ -1103,7 +1103,7 @@ where
     }
 }
 
-impl<'a, C> io::Read for ClientSession<'a, C>
+impl<C> io::Read for ClientSession<'_, C>
 where
     C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
 {
@@ -1113,7 +1113,7 @@ where
     }
 }
 
-impl<'a, C> io::Write for ClientSession<'a, C>
+impl<C> io::Write for ClientSession<'_, C>
 where
     C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
 {
