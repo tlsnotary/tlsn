@@ -1,0 +1,14 @@
+[package]
+name = "poseidon-bn256-pad14"
+authors = ["TLSNotary Team"]
+description = "Poseidon hash over the bn256 curve with the padding length of 14 field elements"
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "poseidon_bn256_pad14"
+
+[dependencies]
+poseidon-circomlib = { workspace = true}
