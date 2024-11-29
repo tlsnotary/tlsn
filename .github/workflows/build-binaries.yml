@@ -1,4 +1,4 @@
-name: Build Binance Prover Binaries
+name: Build binance_prover binaries
 
 on:
   push:
