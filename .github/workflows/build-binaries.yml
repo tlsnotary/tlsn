@@ -1,0 +1,55 @@
+name: Build Binance Prover Binaries
+
+on:
+  push:
+    paths:
+      - 'tlsn/examples/binance/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            binary_suffix: ubuntu_noble
+            target: x86_64-unknown-linux-gnu
+          - os: macos-14
+            binary_suffix: macos_sonoma
+            target: x86_64-apple-darwin
+          - os: macos-14
+            binary_suffix: macos_sonoma_arm64
+            target: aarch64-apple-darwin
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build binance_prover
+        run: |
+          cd tlsn
+          cargo build --release --example binance_prover --target ${{ matrix.target }}
+
+      - name: Archive binary
+        run: |
+          mkdir -p artifacts
+          cp tlsn/target/${{ matrix.target }}/release/examples/binance_prover artifacts/binance_prover_${{ matrix.binary_suffix }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binance_prover_${{ matrix.binary_suffix }}
+          path: artifacts/
+          compression-level: 9
+
