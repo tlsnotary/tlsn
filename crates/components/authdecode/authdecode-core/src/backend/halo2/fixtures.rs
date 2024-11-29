@@ -62,11 +62,11 @@ impl ProverBackend<Bn256F> for ProverBackendWrapper<Bn256F> {
         self.prover.commit_encoding_sum(encoding_sum)
     }
 
-    fn commit_plaintext(&self, plaintext: Vec<u8>) -> (Bn256F, Bn256F) {
+    fn commit_plaintext(&self, plaintext: &[u8]) -> (Bn256F, Bn256F) {
         self.prover.commit_plaintext(plaintext)
     }
 
-    fn commit_plaintext_with_salt(&self, plaintext: Vec<u8>, salt: Bn256F) -> Bn256F {
+    fn commit_plaintext_with_salt(&self, plaintext: &[u8], salt: &[u8]) -> Bn256F {
         self.prover.commit_plaintext_with_salt(plaintext, salt)
     }
 

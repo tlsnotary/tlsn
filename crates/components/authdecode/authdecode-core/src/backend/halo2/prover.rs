@@ -3,7 +3,8 @@ use crate::{
         halo2::{
             circuit::{AuthDecodeCircuit, FIELD_ELEMENTS, SALT_SIZE, USABLE_BYTES},
             onetimesetup::proving_key,
-            utils::bytes_be_to_f,
+            prepare_instance,
+            utils::bytes_to_f,
             Bn256F, CHUNK_SIZE, PARAMS,
         },
         traits::{Field, ProverBackend as Backend},
@@ -19,8 +20,8 @@ use halo2_proofs::{
     poly::kzg::{commitment::KZGCommitmentScheme, multiopen::ProverGWC},
     transcript::{Blake2bWrite, Challenge255, TranscriptWriterBuffer},
 };
-
-use poseidon_halo2::hash;
+use poseidon_bn256_pad14::hash_to_field;
+use poseidon_circomlib::hash;
 
 use rand::{thread_rng, Rng};
 
@@ -29,8 +30,6 @@ use std::any::Any;
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};
-
-use super::prepare_instance;
 
 /// The Prover of the AuthDecode circuit.
 #[derive(Clone)]
@@ -41,49 +40,42 @@ pub struct Prover {
 
 impl Backend<Bn256F> for Prover {
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
-    fn commit_plaintext(&self, plaintext: Vec<u8>) -> (Bn256F, Bn256F) {
+    fn commit_plaintext(&self, plaintext: &[u8]) -> (Bn256F, Bn256F) {
         // Generate a random salt and add it to the plaintext.
         let mut rng = thread_rng();
         let salt = core::iter::repeat_with(|| rng.gen::<u8>())
             .take(SALT_SIZE)
             .collect::<Vec<_>>();
-        let salt = Bn256F::from_bytes_be(salt);
 
         (
-            self.commit_plaintext_with_salt(plaintext, salt.clone()),
-            salt,
+            self.commit_plaintext_with_salt(plaintext, &salt),
+            Bn256F::from_bytes(&salt),
         )
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
-    fn commit_plaintext_with_salt(&self, plaintext: Vec<u8>, salt: Bn256F) -> Bn256F {
-        assert!(plaintext.len() <= self.chunk_size());
-
-        // Split up the plaintext bytes into field elements.
-        let mut plaintext: Vec<Bn256F> = plaintext
-            .chunks(self.usable_bytes())
-            .map(|bytes| Bn256F::from_bytes_be(bytes.to_vec()))
-            .collect::<Vec<_>>();
-        // Zero-pad the total count of field elements if needed.
-        plaintext.extend(vec![Bn256F::zero(); FIELD_ELEMENTS - plaintext.len()]);
-
-        plaintext.push(salt);
-
-        hash_internal(&plaintext)
+    fn commit_plaintext_with_salt(&self, plaintext: &[u8], salt: &[u8]) -> Bn256F {
+        Bn256F::new(hash_to_field(plaintext, salt))
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
     fn commit_encoding_sum(&self, encoding_sum: Bn256F) -> (Bn256F, Bn256F) {
         // Generate a random salt.
-        let mut rng = thread_rng();
-        let salt = core::iter::repeat_with(|| rng.gen::<u8>())
+        let salt = core::iter::repeat_with(|| thread_rng().gen::<u8>())
             .take(SALT_SIZE)
             .collect::<Vec<_>>();
-        let salt = Bn256F::from_bytes_be(salt);
+        let salt = Bn256F::from_bytes(&salt);
 
         // XXX: we could pack the sum and the salt into a single field element at the cost of performing
         // an additional range check in the circuit, but the gains would be negligible.
-        (hash_internal(&[encoding_sum, salt.clone()]), salt)
+
+        // Zero-pad the input before hashing.
+        // (Normally, we would use a rate-2 Poseidon without padding, but `halo2_poseidon`
+        // is not compatible with the Circomlib's rate-2 spec).
+        (
+            Bn256F::new(hash(&[encoding_sum.inner, F::zero(), salt.clone().inner])),
+            salt,
+        )
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
@@ -171,7 +163,7 @@ fn prepare_circuit(input: &PrivateInput<Bn256F>, usable_bytes: usize) -> AuthDec
     let mut plaintext: Vec<F> = input
         .plaintext()
         .chunks(usable_bytes)
-        .map(|bytes| bytes_be_to_f(bytes.to_vec()))
+        .map(bytes_to_f)
         .collect::<Vec<_>>();
     // Zero-pad the total count of field elements if needed.
     plaintext.extend(vec![F::zero(); FIELD_ELEMENTS - plaintext.len()]);
@@ -181,11 +173,6 @@ fn prepare_circuit(input: &PrivateInput<Bn256F>, usable_bytes: usize) -> AuthDec
         input.plaintext_salt().inner,
         input.encoding_sum_salt().inner,
     )
-}
-
-/// Hashes `inputs` with Poseidon and returns the digest.
-fn hash_internal(inputs: &[Bn256F]) -> Bn256F {
-    hash(&inputs.iter().map(|f| f.into()).collect::<Vec<_>>()).into()
 }
 
 #[cfg(any(test, feature = "fixtures"))]
@@ -373,7 +360,7 @@ mod tests {
         let mut proof_input: (Vec<Vec<F>>, AuthDecodeCircuit) = proof_input.clone();
 
         // Set the MSB to 1.
-        proof_input.1.plaintext[0][0][0] = F::one();
+        proof_input.1.plaintext[0][3][BITS_PER_LIMB - 1] = F::one();
 
         let prover = MockProver::run(*k, &proof_input.1, proof_input.0).unwrap();
 

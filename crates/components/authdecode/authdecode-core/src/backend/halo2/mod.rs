@@ -1,8 +1,10 @@
+//! Halo2 backend for AuthDecode.
+
 use crate::{
     backend::{
         halo2::{
             circuit::{BITS_PER_LIMB, FIELD_ELEMENTS},
-            utils::{bytes_be_to_f, slice_to_columns},
+            utils::{bytes_to_f, slice_to_columns},
         },
         traits::Field,
     },
@@ -39,27 +41,29 @@ pub const CHUNK_SIZE: usize = circuit::FIELD_ELEMENTS * circuit::USABLE_BYTES;
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Bn256F {
     #[serde(serialize_with = "fr_serialize", deserialize_with = "fr_deserialize")]
-    pub inner: Fr,
+    inner: Fr,
 }
 impl Bn256F {
     /// Creates a new Bn256 field element.
     pub fn new(inner: Fr) -> Self {
         Self { inner }
     }
+
+    /// Consumes self, returning the inner value.
+    pub fn into_inner(self) -> Fr {
+        self.inner
+    }
 }
 
 impl Field for Bn256F {
-    fn from_bytes_be(bytes: Vec<u8>) -> Self {
+    fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            inner: bytes_be_to_f(bytes),
+            inner: bytes_to_f(bytes),
         }
     }
 
-    fn to_bytes_be(self) -> Vec<u8> {
-        let mut le = self.inner.to_bytes();
-        // Reverse from little-endian to big-endian.
-        le.reverse();
-        le.to_vec()
+    fn to_bytes(self) -> Vec<u8> {
+        self.inner.to_bytes().to_vec()
     }
 
     fn zero() -> Self {

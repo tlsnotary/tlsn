@@ -7,8 +7,6 @@ use crate::{
     Proof,
 };
 
-use rand::{thread_rng, Rng};
-
 #[cfg(any(test, feature = "fixtures"))]
 use std::any::Any;
 
@@ -23,38 +21,26 @@ impl MockProverBackend {
 }
 
 impl ProverBackend<MockField> for MockProverBackend {
-    fn commit_plaintext(&self, mut plaintext: Vec<u8>) -> (MockField, MockField) {
+    fn commit_plaintext(&self, plaintext: &[u8]) -> (MockField, MockField) {
         assert!(plaintext.len() <= self.chunk_size());
 
-        // Add random salt to plaintext and hash it.
-        let salt: [u8; 16] = thread_rng().gen();
-        plaintext.extend(salt);
+        let salt = MockField::random();
+        let mut plaintext = plaintext.to_vec();
+        plaintext.extend(salt.clone().to_bytes());
 
-        let hash_bytes = &hash(&plaintext);
-
-        (
-            MockField::from_bytes_be(hash_bytes.to_vec()),
-            MockField::from_bytes_be(salt.to_vec()),
-        )
+        (MockField::from_bytes(&hash(&plaintext)), salt)
     }
 
-    fn commit_plaintext_with_salt(&self, _plaintext: Vec<u8>, _salt: MockField) -> MockField {
+    fn commit_plaintext_with_salt(&self, _plaintext: &[u8], _salt: &[u8]) -> MockField {
         unimplemented!()
     }
 
     fn commit_encoding_sum(&self, encoding_sum: MockField) -> (MockField, MockField) {
-        // Add random salt to encoding_sum and hash it.
-        let salt: [u8; 16] = thread_rng().gen();
+        let salt = MockField::random();
+        let mut enc_sum = encoding_sum.to_bytes();
+        enc_sum.extend(salt.clone().to_bytes());
 
-        let mut enc_sum = encoding_sum.to_bytes_be();
-        enc_sum.extend(salt);
-
-        let hash_bytes = hash(&enc_sum);
-
-        (
-            MockField::from_bytes_be(hash_bytes.to_vec()),
-            MockField::from_bytes_be(salt.to_vec()),
-        )
+        (MockField::from_bytes(&hash(&enc_sum)), salt)
     }
 
     fn chunk_size(&self) -> usize {

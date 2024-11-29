@@ -40,14 +40,15 @@ where
         Ok(CommitmentDetails { chunk_commitments })
     }
 
-    /// Creates a commitment to this commitment data with the provided plaintext salt.
+    /// Creates a commitment to this commitment data with the provided `salts` for each
+    /// chunk of the data.
     ///
     /// Returns an error if the amount of salts is not equal to the amount of chunks.
     #[allow(clippy::borrowed_box)]
     pub fn commit_with_salt<F>(
         self,
         backend: &Box<dyn Backend<F>>,
-        salts: Vec<F>,
+        salts: Vec<Vec<u8>>,
     ) -> Result<CommitmentDetails<I, F>, ProverError>
     where
         F: Field + Clone + std::ops::Add<Output = F>,
@@ -62,7 +63,7 @@ where
         let chunk_commitments = chunks
             .into_iter()
             .zip(salts)
-            .map(|(chunk, salt)| chunk.commit_with_salt(backend, salt))
+            .map(|(chunk, salt)| chunk.commit_with_salt(backend, &salt))
             .collect::<Vec<ChunkCommitmentDetails<I, F>>>();
 
         Ok(CommitmentDetails { chunk_commitments })
@@ -72,7 +73,7 @@ where
     ///
     /// # Arguments
     /// * `plaintext` - The plaintext being committed to.
-    /// * `encodings` - Uniformly random encodings of every bit of the `plaintext` in MSB0 bit order.
+    /// * `encodings` - Uniformly random encodings of every bit of the `plaintext` in LSB0 bit order.
     ///                 Note that correlated encodings like those used in garbled circuits must  
     ///                 not be used since they are not uniformly random.
     /// * `bit_ids` - The id of each bit of the `plaintext`.
@@ -85,7 +86,7 @@ where
         assert!(encodings.len() == bit_ids.len());
 
         let encodings = plaintext
-            .to_msb0_vec()
+            .to_lsb0_vec()
             .into_iter()
             .zip(encodings)
             .map(|(bit, enc)| Encoding::new(*enc, bit))
@@ -148,7 +149,8 @@ where
     {
         let sum = self.encodings.compute_sum::<F>();
 
-        let (plaintext_hash, plaintext_salt) = backend.commit_plaintext(self.encodings.plaintext());
+        let (plaintext_hash, plaintext_salt) =
+            backend.commit_plaintext(&self.encodings.plaintext());
 
         let (encoding_sum_hash, encoding_sum_salt) = backend.commit_encoding_sum(sum.clone());
 
@@ -167,21 +169,20 @@ where
     fn commit_with_salt<F>(
         &self,
         backend: &Box<dyn Backend<F>>,
-        salt: F,
+        salt: &[u8],
     ) -> ChunkCommitmentDetails<I, F>
     where
         F: Field + Clone + std::ops::Add<Output = F>,
     {
         let sum = self.encodings.compute_sum::<F>();
 
-        let plaintext_hash =
-            backend.commit_plaintext_with_salt(self.encodings.plaintext(), salt.clone());
+        let plaintext_hash = backend.commit_plaintext_with_salt(&self.encodings.plaintext(), salt);
 
         let (encoding_sum_hash, encoding_sum_salt) = backend.commit_encoding_sum(sum.clone());
 
         ChunkCommitmentDetails {
             plaintext_hash,
-            plaintext_salt: salt,
+            plaintext_salt: F::from_bytes(salt),
             encodings: self.encodings.clone(),
             encoding_sum: sum,
             encoding_sum_hash,

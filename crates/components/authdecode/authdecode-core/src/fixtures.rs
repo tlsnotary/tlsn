@@ -24,7 +24,7 @@ pub fn commitment_data() -> Vec<CommitmentData<MockBitIds>> {
     let full_encodings = full_encodings(PLAINTEXT_SIZE * 8);
 
     // Prover's active encodings are based on their choice bits.
-    let active_encodings = choose(&full_encodings, &plaintext.to_msb0_vec());
+    let active_encodings = choose(&full_encodings, &plaintext.to_lsb0_vec());
 
     // Prover creates two commitments: to the front and to the tail portions of the plaintext.
     // Some middle bits of the plaintext will not be committed to.
@@ -66,7 +66,6 @@ pub fn encoding_provider() -> MockEncodingProvider<MockBitIds> {
 fn full_encodings(len: usize) -> Vec<[[u8; 5]; 2]> {
     let mut rng = ChaCha12Rng::from_seed([1; 32]);
 
-    // Generate Verifier's full encodings for each bit of the plaintext.
     let mut full_encodings = vec![[[0u8; SSP / 8]; 2]; len];
     for elem in full_encodings.iter_mut() {
         *elem = rng.gen();
@@ -76,7 +75,7 @@ fn full_encodings(len: usize) -> Vec<[[u8; 5]; 2]> {
 
 /// Unzips a slice of pairs, returning items corresponding to choice.
 pub fn choose<T: Clone>(items: &[[T; 2]], choice: &[bool]) -> Vec<T> {
-    assert!(items.len() == choice.len(), "arrays are different length");
+    assert!(items.len() == choice.len(), "arrays have different lengths");
     items
         .iter()
         .zip(choice)

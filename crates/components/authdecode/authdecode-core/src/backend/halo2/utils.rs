@@ -6,38 +6,34 @@ use itybity::{FromBitIterator, ToBits};
 #[cfg(test)]
 use crate::backend::halo2::prover::TEST_BINARY_CHECK_FAIL_IS_RUNNING;
 
-/// Converts big-endian bytes into a field element by reducing by the modulus.
+/// Converts byte representation of a scalar into a field element.
 ///
 /// # Arguments
 ///
-/// * `bytes` - The bytes to be converted.
+/// * `bytes` - The little-endian bytes to be converted.
 ///
 /// # Panics
 ///
 /// Panics if the count of bytes is > 64.
-pub fn bytes_be_to_f(mut bytes: Vec<u8>) -> F {
-    bytes.reverse();
+pub fn bytes_to_f(bytes: &[u8]) -> F {
     let mut wide = [0u8; 64];
-    wide[0..bytes.len()].copy_from_slice(&bytes);
+    wide[0..bytes.len()].copy_from_slice(bytes);
     F::from_uniform_bytes(&wide)
 }
 
-/// Decomposes a field element into 256 bits in MSB-first bit order.
+/// Converts a field element into LSB0 bits.
 ///
 /// # Arguments
 ///
 /// * `f` - The field element to decompose.
 pub fn f_to_bits(f: &F) -> [bool; 256] {
-    let mut bytes = f.to_bytes();
-    // Reverse to get bytes in big-endian.
-    bytes.reverse();
     // It is safe to `unwrap` since 32 bytes will always convert to 256 bits.
-    bytes.to_msb0_vec().try_into().unwrap()
+    f.to_bytes().to_lsb0_vec().try_into().unwrap()
 }
 
 /// Converts a slice of `items` into a matrix in column-major order performing the necessary padding.
 ///
-/// Each chunk of `chunk_size` items will be padded with the default value on the left in order to
+/// Each chunk of `chunk_size` items will be padded with the default value on the right in order to
 /// bring the size of the chunk to `pad_chunk_to_size`. Then a matrix of `row_count` rows and
 /// `column_count` columns will be filled with items in row-major order, filling any empty trailing
 /// cells with the default value. Finally, the matrix will be transposed.
@@ -66,13 +62,14 @@ where
     let total = row_count * column_count;
     assert!(pad_chunk_to_size >= chunk_size);
 
-    // Left-pad each individual chunk.
+    // Right-pad each individual chunk.
     let mut items = items
         .chunks(chunk_size)
         .flat_map(|chunk| {
-            let mut v = vec![V::default(); pad_chunk_to_size - chunk.len()];
-            v.extend(chunk.to_vec());
-            v
+            let mut chunk = chunk.to_vec();
+            let padding = vec![V::default(); pad_chunk_to_size - chunk.len()];
+            chunk.extend(padding);
+            chunk
         })
         .collect::<Vec<_>>();
 
@@ -94,12 +91,12 @@ where
 }
 
 /// Composes the 64 `bits` of a limb with the given `index` into a field element, left shifting if
-/// needed. `bits` are in MSB-first order. The limb with `index` 0 is the highest limb.
+/// needed.
 ///
 /// # Arguments
 ///
-/// * `bits` - The bits to be composed.
-/// * `index` - The index of a limb to be composed.
+/// * `bits` - The bits to be composed in LSB0 bit order.
+/// * `index` - The index of a limb to be composed (the low limb has index 0).
 ///
 /// # Panics
 ///
@@ -136,7 +133,7 @@ pub fn compose_bits(bits: &[F; 64], index: usize) -> F {
     let two = F::one() + F::one();
 
     // Left-shift.
-    bits_to_f(&bits) * two.pow([((3 - index as u64) * 64).to_le()])
+    bits_to_f(&bits) * two.pow([(index as u64 * 64).to_le()])
 }
 
 /// Transposes a matrix.
@@ -161,43 +158,34 @@ where
         .collect::<Vec<_>>()
 }
 
-/// Converts bits in MSB-first order into BE bytes. The bits will be internally left-padded
-/// with zeroes to the nearest multiple of 8.
-fn boolvec_to_u8vec(bv: &[bool]) -> Vec<u8> {
-    // Reverse to lsb0 since `itybity` can only pad the rightmost bits.
-    let mut b = Vec::<u8>::from_lsb0_iter(bv.iter().rev().copied());
-    // Reverse to get big endian byte order.
-    b.reverse();
-    b
-}
-
-/// Converts bits in MSB-first order into a field element by reducing by the modulus.
+/// Converts bits in LSB0 order into a field element by reducing by the modulus.
 ///
 /// # Panics
 ///
 /// Panics if the count of bits is > 512.
 fn bits_to_f(bits: &[bool]) -> F {
-    bytes_be_to_f(boolvec_to_u8vec(bits))
+    bytes_to_f(&Vec::<u8>::from_lsb0_iter(bits.iter().copied()))
 }
 
 #[cfg(test)]
 mod tests {
-    use num::BigUint;
-
     use super::*;
 
     #[test]
-    fn test_bytes_be_to_f() {
-        assert_eq!(bytes_be_to_f(vec![1u8, 2u8]), F::from(258u64));
+    fn test_bytes_to_f() {
+        assert_eq!(bytes_to_f(&[2u8, 1u8]), F::from(258u64));
     }
 
     #[test]
     fn test_f_to_bits() {
-        let mut bits = vec![false; 246];
-        bits.extend([
+        let mut bits = vec![
             // 01 0000 0100 == 260
             false, true, false, false, false, false, false, true, false, false,
-        ]);
+        ];
+        // Reverse to little endian.
+        bits.reverse();
+        bits.extend(std::iter::repeat(false).take(256 - bits.len()));
+
         let expected: [bool; 256] = bits.try_into().unwrap();
         assert_eq!(f_to_bits(&F::from(260u64)), expected);
     }
@@ -208,24 +196,24 @@ mod tests {
 
         // First the matrix will be padded and chunked.
         // It will look like this in row-major order:
-        // 0 0 1 2
-        // 3 0 0 4
-        // 5 6 0 0
-        // 7 8 9 0
-        // 0 0 0 10
+        // 1 2 3 0
+        // 0 4 5 6
+        // 0 0 7 8
+        // 9 0 0 10
+        // 0 0 0 0
         // 0 0 0 0
         // Then it will be transposed to column-major order:
         let expected1 = vec![
-            vec![0, 3, 5, 7, 0, 0],
-            vec![0, 0, 6, 8, 0, 0],
             vec![1, 0, 0, 9, 0, 0],
-            vec![2, 4, 0, 0, 10, 0],
+            vec![2, 4, 0, 0, 0, 0],
+            vec![3, 5, 7, 0, 0, 0],
+            vec![0, 6, 8, 10, 0, 0],
         ];
         let expected2 = vec![
+            vec![1, 0, 4, 0, 7, 0, 10, 0, 0, 0],
+            vec![2, 0, 5, 0, 8, 0, 0, 0, 0, 0],
+            vec![3, 0, 6, 0, 9, 0, 0, 0, 0, 0],
             vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            vec![0, 1, 0, 4, 0, 7, 0, 0, 0, 0],
-            vec![0, 2, 0, 5, 0, 8, 0, 0, 0, 0],
-            vec![0, 3, 0, 6, 0, 9, 0, 10, 0, 0],
         ];
         assert_eq!(slice_to_columns(&slice, 3, 5, 6, 4), expected1);
         assert_eq!(slice_to_columns(&slice, 3, 8, 10, 4), expected2);
@@ -233,21 +221,19 @@ mod tests {
 
     #[test]
     fn test_compose_bits() {
-        let two = BigUint::from(2u128);
+        let two = F::from(2);
         let mut bits: [F; 64] = (0..64)
             .map(|_| F::zero())
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
 
-        for (i, expected) in (0..4).zip([1, 3, 7, 15]) {
+        for (i, limb) in (0..4).zip([1, 3, 7, 15]) {
             // On each iteration, set one more LSB.
-            bits[63 - i] = F::one();
+            bits[i] = F::one();
             assert_eq!(
-                compose_bits(&bits, 3 - i),
-                bytes_be_to_f(
-                    (BigUint::from(expected as u32) * two.pow(64 * i as u32)).to_bytes_be()
-                )
+                compose_bits(&bits, i),
+                F::from(limb) * two.pow_vartime([64 * i as u64])
             );
         }
     }
@@ -266,20 +252,13 @@ mod tests {
     }
 
     #[test]
-    fn test_boolvec_to_u8vec() {
-        let bits = [true, false];
-        assert_eq!(boolvec_to_u8vec(&bits), [2]);
-
-        let bits = [true, false, false, false, false, false, false, true, true];
-        assert_eq!(boolvec_to_u8vec(&bits), [1, 3]);
-    }
-
-    #[test]
     fn test_bits_to_f() {
         // 01 0000 0011 == 259
-        let bits = [
+        let mut bits = [
             false, true, false, false, false, false, false, false, true, true,
         ];
+        // Reverse to little-endian.
+        bits.reverse();
         assert_eq!(bits_to_f(&bits), F::from(259u64));
     }
 }

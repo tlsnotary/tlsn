@@ -84,9 +84,9 @@ where
     where
         F: Field + std::ops::Add<Output = F>,
     {
-        self.encodings.iter().fold(F::zero(), |acc, x| {
-            acc + F::from_bytes_be(x[0].value().to_vec())
-        })
+        self.encodings
+            .iter()
+            .fold(F::zero(), |acc, x| acc + F::from_bytes(x[0].value()))
     }
 
     /// Computes the arithmetic difference between the encoding of the bit value 1 and the encoding
@@ -98,8 +98,8 @@ where
         self.encodings
             .iter()
             .map(|pair| {
-                let a = F::from_bytes_be(pair[1].value().to_vec());
-                let b = F::from_bytes_be(pair[0].value().to_vec());
+                let a = F::from_bytes(pair[1].value());
+                let b = F::from_bytes(pair[0].value());
                 a - b
             })
             .collect()

@@ -1,7 +1,7 @@
 [package]
 name = "tlsn-authdecode-core"
 authors = ["TLSNotary Team"]
-description = "A 2PC protocol for authenticated decoding of encodings in zk"
+description = "A 2PC protocol for performing authenticated decoding of encodings in zk"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
@@ -18,7 +18,8 @@ mock = ["dep:bincode", "dep:num", "dep:blake3"]
 tracing = ["dep:tracing"]
 
 [dependencies]
-poseidon-halo2 = { workspace = true }
+poseidon-bn256-pad14 = { workspace = true }
+poseidon-circomlib = { workspace = true }
 
 bincode = { workspace = true, optional = true}
 blake3 = { workspace = true, optional = true}
@@ -27,8 +28,10 @@ enum-try-as-inner = { workspace = true }
 ff = "0.13"
 getset = "0.1.2"
 group = "0.13"
-halo2_poseidon = { git = "https://github.com/privacy-scaling-explorations/poseidon-gadget", rev="764a682"}
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false}
+# Change to upstream when https://github.com/privacy-scaling-explorations/poseidon-gadget/pull/5
+# is merged.
+halo2_poseidon = { git = "https://github.com/themighty1/poseidon-gadget" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false }
 itybity = "0.2"
 lazy_static = "1.4"
 num = { version = "0.4.1", optional = true}

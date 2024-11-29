@@ -82,7 +82,7 @@ where
     pub async fn commit_with_salt<Si: IoSink<Message<I, F>> + Send + Unpin>(
         self,
         sink: &mut Si,
-        data_set: Vec<(CommitmentData<I>, Vec<F>)>,
+        data_set: Vec<(CommitmentData<I>, Vec<Vec<u8>>)>,
     ) -> Result<Prover<I, Committed<I, F>, F>, ProverError>
     where
         I: IdCollection,

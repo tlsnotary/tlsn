@@ -10,7 +10,7 @@ use rand_core::CryptoRng;
 /// An encoding of either the 0 or the 1 value of a bit.
 #[derive(Clone, PartialEq, Debug, Default, Copy, Getters)]
 pub struct Encoding {
-    /// The value of the encoding represented as big-endian bytes.
+    /// The value of the encoding as little-endian bytes.
     #[getset(get = "pub")]
     value: [u8; SSP / 8],
     /// The value of the bit that the encoding encodes.

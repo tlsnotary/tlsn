@@ -1,4 +1,7 @@
-use halo2_poseidon::poseidon::{primitives::ConstantLength, Hash, Pow5Chip, Pow5Config};
+//! Authdecode circuit.
+
+use ff::Field;
+use halo2_poseidon::poseidon::{PoseidonInstructions, Pow5Chip, Pow5Config};
 use halo2_proofs::{
     circuit::{AssignedCell, Layouter, Region, SimpleFloorPlanner, Value},
     halo2curves::bn256::Fr as F,
@@ -8,14 +11,13 @@ use halo2_proofs::{
     },
     poly::Rotation,
 };
+use poseidon_circomlib::CircomlibSpec;
 use std::convert::TryInto;
 
 use crate::backend::halo2::{
-    poseidon::{configure_poseidon_rate_15, configure_poseidon_rate_2},
+    poseidon::{configure_poseidon_rate_15, configure_poseidon_rate_3},
     utils::{compose_bits, f_to_bits},
 };
-
-use poseidon_halo2::{Spec15, Spec2};
 
 // Rationale for the selection of constants.
 //
@@ -36,9 +38,6 @@ pub const FIELD_ELEMENTS: usize = 14;
 pub const USABLE_BYTES: usize = 31;
 
 /// How many bits there are in one limb of a plaintext field element.
-//
-// Note that internally the bits of one plaintext field element are zero-padded on the left to a
-// total of 256 bits. Then the bits are split up into 4 limbs of [BITS_PER_LIMB] bits.
 pub const BITS_PER_LIMB: usize = 64;
 
 /// Bytesize of the salt used both in the plaintext commitment and encoding sum commitment.
@@ -47,7 +46,7 @@ pub const SALT_SIZE: usize = 16;
 #[derive(Clone, Debug)]
 /// The circuit configuration.
 pub struct CircuitConfig {
-    /// Columns containing plaintext bits.  
+    /// Columns containing plaintext bits. A row of `bits` consitutes a limb is LSB0 bit order.  
     bits: [Column<Advice>; BITS_PER_LIMB],
     /// Scratch space used to calculate intermediate values.
     scratch_space: [Column<Advice>; 5],
@@ -62,9 +61,9 @@ pub struct CircuitConfig {
     /// Columns of deltas, arranged such that each row of deltas corresponds to one limb of plaintext.
     deltas: [Column<Instance>; BITS_PER_LIMB],
 
-    /// Since halo2 does not allow to constrain inputs in instance columns directly, we first need
-    /// to copy the inputs into this advice column.
-    advice_from_instance: Column<Advice>,
+    /// Contains the following public values in this order: (plaintext hash, encoding sum hash,
+    /// zero sum, the zero value).
+    advice_from_public: Column<Advice>,
 
     // SELECTORS.
     // A selector activates a gate with a similar name, e.g. "selector_dot_product" activates the
@@ -77,8 +76,8 @@ pub struct CircuitConfig {
 
     /// Config for rate-15 Poseidon.
     poseidon_config_rate15: Pow5Config<F, 16, 15>,
-    /// Config for rate-2 Poseidon.
-    poseidon_config_rate2: Pow5Config<F, 3, 2>,
+    /// Config for rate-3 Poseidon.
+    poseidon_config_rate3: Pow5Config<F, 4, 3>,
 
     /// Contains the following public inputs in this order: (plaintext hash, encoding sum hash,
     /// zero sum).
@@ -88,10 +87,10 @@ pub struct CircuitConfig {
 #[derive(Clone, Debug)]
 /// The AuthDecode circuit.
 pub struct AuthDecodeCircuit {
-    /// The bits of plaintext which was committed to. Each bit is represente as a field element.
+    /// The bits of plaintext committed to.
     ///
-    /// The plaintext consist of [FIELD_ELEMENTS] field elements. Each field element is split
-    /// into 4 limbs of [BITS_PER_LIMB] bits. The high limb has the index 0.
+    /// The bits are arranged into 4 limbs. The low limb has index 0. The limbs have LSB0 bit order.
+    /// Each individual bit is represented by a field element.
     pub plaintext: [[[F; BITS_PER_LIMB]; 4]; FIELD_ELEMENTS],
     /// The salt used to create a plaintext commitment.
     pub plaintext_salt: F,
@@ -167,8 +166,8 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         // POSEIDON
 
-        let poseidon_config_rate15 = configure_poseidon_rate_15::<Spec15>(15, meta);
-        let poseidon_config_rate2 = configure_poseidon_rate_2::<Spec2>(2, meta);
+        let poseidon_config_rate15 = configure_poseidon_rate_15(meta);
+        let poseidon_config_rate3 = configure_poseidon_rate_3(meta);
         // We need to have one column for global constants which the Poseidon chip requires.
         let global_constants = meta.fixed_column();
         meta.enable_constant(global_constants);
@@ -180,7 +179,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             dot_product,
             expected_composed_limbs: expected_limbs,
             salt,
-            advice_from_instance,
+            advice_from_public: advice_from_instance,
 
             deltas,
 
@@ -191,7 +190,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             selector_eight_bits_zero,
 
             poseidon_config_rate15,
-            poseidon_config_rate2,
+            poseidon_config_rate3,
 
             public_inputs,
         };
@@ -250,7 +249,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             Constraints::with_selector(sel, expressions)
         });
 
-        // Create 4 gates for each of the 4 limbs of the plaintext bits, starting from the high limb.
+        // Create 4 gates for each of the 4 limbs of the plaintext bits, starting from the low limb.
         for idx in 0..4 {
             // Compose the bits of a limb into a field element, left-shifting if necessary and
             // constrain the result to match the expected value.
@@ -258,10 +257,9 @@ impl Circuit<F> for AuthDecodeCircuit {
                 let mut sum_total = Expression::Constant(F::zero());
 
                 for i in 0..BITS_PER_LIMB {
-                    // The first bit is the highest bit. It is multiplied by the
-                    // highest power of 2 for that limb.
+                    // The lowest bit is multiplied by the lowest power of 2 for that limb.
                     let bit = meta.query_advice(cfg.bits[i], Rotation::cur());
-                    sum_total = sum_total + bit * pow_2_x[255 - (BITS_PER_LIMB * idx) - i].clone();
+                    sum_total = sum_total + bit * pow_2_x[BITS_PER_LIMB * idx + i].clone();
                 }
 
                 // Constrain to match the expected limb value.
@@ -289,7 +287,7 @@ impl Circuit<F> for AuthDecodeCircuit {
         // Constrains 8 most significant bits of a limb to be zero.
         meta.create_gate("eight_bits_zero", |meta| {
             let expressions: [Expression<F>; 8] = (0..8)
-                .map(|i| meta.query_advice(cfg.bits[i], Rotation::cur()))
+                .map(|i| meta.query_advice(cfg.bits[BITS_PER_LIMB - 1 - i], Rotation::cur()))
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
@@ -310,14 +308,15 @@ impl Circuit<F> for AuthDecodeCircuit {
             zero_sum,
             plaintext_salt,
             encoding_sum_salt,
+            zero_cell,
         ) = layouter.assign_region(
-            || "assign advice from instance",
+            || "assign advice",
             |mut region| {
                 let expected_plaintext_hash = region.assign_advice_from_instance(
                     || "assign plaintext hash",
                     cfg.public_inputs,
                     0,
-                    cfg.advice_from_instance,
+                    cfg.advice_from_public,
                     0,
                 )?;
 
@@ -325,7 +324,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                     || "assign encoding sum hash",
                     cfg.public_inputs,
                     1,
-                    cfg.advice_from_instance,
+                    cfg.advice_from_public,
                     1,
                 )?;
 
@@ -333,7 +332,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                     || "assign zero sum",
                     cfg.public_inputs,
                     2,
-                    cfg.advice_from_instance,
+                    cfg.advice_from_public,
                     2,
                 )?;
 
@@ -351,17 +350,25 @@ impl Circuit<F> for AuthDecodeCircuit {
                     || Value::known(self.encoding_sum_salt),
                 )?;
 
+                let zero_cell = region.assign_advice_from_constant(
+                    || "assign zero value",
+                    cfg.advice_from_public,
+                    3,
+                    F::ZERO,
+                )?;
+
                 Ok((
                     expected_plaintext_hash,
                     expected_encoding_sum_hash,
                     zero_sum,
                     plaintext_salt,
                     encoding_sum_salt,
+                    zero_cell,
                 ))
             },
         )?;
 
-        let (mut plaintext, encoding_sum) = layouter.assign_region(
+        let (plaintext, encoding_sum) = layouter.assign_region(
             || "compose plaintext and compute encoding sum",
             |mut region| {
                 // Plaintext field elements composed from bits.
@@ -382,12 +389,12 @@ impl Circuit<F> for AuthDecodeCircuit {
                     // of deltas.
                     let mut expected_dot_products = Vec::with_capacity(4);
 
-                    // Process one limb's bits at a time.
+                    // Process one limb at a time.
                     for (limb_idx, limb_bits) in limbs.iter().enumerate() {
                         // The index of the row where the bits and deltas are located.
                         let row_idx = field_element_idx * 4 + limb_idx;
 
-                        // Assign bits of a limb to the same row.
+                        // Assign all bits of a limb to the same row.
                         for (i, bit) in limb_bits.iter().enumerate() {
                             region.assign_advice(
                                 || "assign limb bits",
@@ -399,7 +406,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                         // Constrain the whole row of bits to be binary.
                         cfg.selector_binary_check.enable(&mut region, row_idx)?;
 
-                        if limb_idx == 0 {
+                        if limb_idx == 3 {
                             // Constrain the high limb's MSBs to be zero.
                             cfg.selector_eight_bits_zero.enable(&mut region, row_idx)?;
                         }
@@ -473,46 +480,77 @@ impl Circuit<F> for AuthDecodeCircuit {
         )?;
 
         // Hash the salted encoding sum and constrain the digest to match the expected value.
-        let chip = Pow5Chip::construct(cfg.poseidon_config_rate2.clone());
-        let hasher = Hash::<F, _, Spec2, ConstantLength<2>, 3, 2>::init(
-            chip,
-            layouter.namespace(|| "init spec2 poseidon"),
-        )?;
 
-        let output = hasher.hash(
-            layouter.namespace(|| "hash spec2 poseidon"),
-            vec![encoding_sum, encoding_sum_salt.clone()]
-                .try_into()
-                .unwrap(),
-        )?;
+        let chip = Pow5Chip::construct(cfg.poseidon_config_rate3.clone());
 
-        layouter.assign_region(
-            || "constrain encoding sum digest",
-            |mut region| {
-                region.constrain_equal(output.cell(), expected_encoding_sum_hash.cell())?;
-                Ok(())
-            },
-        )?;
+        // Zero-pad the input before hashing.
+        // (Normally, we would use a rate-2 Poseidon without padding, but `halo2_poseidon`
+        // is not compatible with the Circomlib's rate-2 spec).
+        let input = vec![
+            encoding_sum.clone(),
+            zero_cell.clone(),
+            encoding_sum_salt.clone(),
+        ];
 
-        // Hash the salted plaintext and constrain the digest to match the expected value.
-        plaintext.push(plaintext_salt.clone());
+        type WordRate3 =
+            <Pow5Chip<F, 4, 3> as PoseidonInstructions<F, CircomlibSpec<4, 3>, 4, 3>>::Word;
 
-        let chip = Pow5Chip::construct(cfg.poseidon_config_rate15.clone());
+        // Create the state with the first element set to zero.
+        let state: [WordRate3; 4] = std::iter::once(zero_cell.clone())
+            .chain(input)
+            .map(WordRate3::from)
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("state should have 4 elements");
 
-        let hasher = Hash::<F, _, Spec15, ConstantLength<15>, 16, 15>::init(
-            chip,
-            layouter.namespace(|| "init spec15 poseidon"),
-        )?;
-        // unwrap() is safe since we use exactly 15 field elements of plaintext.
-        let output = hasher.hash(
-            layouter.namespace(|| "hash spec15 poseidon"),
-            plaintext.try_into().unwrap(),
+        let output = PoseidonInstructions::<F, CircomlibSpec<4, 3>, 4, 3>::permute(
+            &chip,
+            &mut layouter.namespace(|| "permute with rate-3 poseidon"),
+            &state,
         )?;
 
         layouter.assign_region(
             || "constrain plaintext digest",
             |mut region| {
-                region.constrain_equal(output.cell(), expected_plaintext_hash.cell())?;
+                region.constrain_equal(
+                    // circomlib treats the first element of the permuted state as the digest.
+                    AssignedCell::<F, F>::from(output[0].clone()).cell(),
+                    expected_encoding_sum_hash.cell(),
+                )?;
+                Ok(())
+            },
+        )?;
+
+        // Hash the salted plaintext and constrain the digest to match the expected value.
+
+        let chip = Pow5Chip::construct(cfg.poseidon_config_rate15.clone());
+
+        type WordRate15 =
+            <Pow5Chip<F, 16, 15> as PoseidonInstructions<F, CircomlibSpec<16, 15>, 16, 15>>::Word;
+
+        // Create the state with the first element set to zero.
+        let state: [WordRate15; 16] = std::iter::once(zero_cell)
+            .chain(plaintext)
+            .chain(std::iter::once(plaintext_salt.clone()))
+            .map(WordRate15::from)
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("state should have 16 elements");
+
+        let output = PoseidonInstructions::<F, CircomlibSpec<16, 15>, 16, 15>::permute(
+            &chip,
+            &mut layouter.namespace(|| "permute with rate-15 poseidon"),
+            &state,
+        )?;
+
+        layouter.assign_region(
+            || "constrain plaintext digest",
+            |mut region| {
+                region.constrain_equal(
+                    // circomlib treats the first element of the permuted state as the digest.
+                    AssignedCell::<F, F>::from(output[0].clone()).cell(),
+                    expected_plaintext_hash.cell(),
+                )?;
                 Ok(())
             },
         )?;
@@ -524,7 +562,7 @@ impl Circuit<F> for AuthDecodeCircuit {
 impl AuthDecodeCircuit {
     /// Creates a new AuthDecode circuit.
     pub fn new(plaintext: [F; FIELD_ELEMENTS], plaintext_salt: F, encoding_sum_salt: F) -> Self {
-        // Split each field element into 4 BITS_PER_LIMB-bit limbs. The high limb has index 0.
+        // Split each field element into 4 limbs. The low limb has index 0.
         Self {
             plaintext: plaintext
                 .into_iter()

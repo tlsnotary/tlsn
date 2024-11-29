@@ -52,7 +52,7 @@ pub struct UnverifiedChunkCommitment<I, F> {
     /// Hash commitment to the arithemtic sum of the encodings of the plaintext.
     #[getset(get = "pub")]
     encoding_sum_hash: F,
-    /// The id of each bit of the committed plaintext in MSB0 bit order.
+    /// The id of each bit of the committed plaintext in LSB0 bit order.
     #[getset(get = "pub")]
     ids: I,
 }

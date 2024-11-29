@@ -118,7 +118,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn commit_with_salt(
         self,
-        data_set: Vec<(CommitmentData<I>, Vec<F>)>,
+        data_set: Vec<(CommitmentData<I>, Vec<Vec<u8>>)>,
     ) -> Result<(Prover<I, Committed<I, F>, F>, Commit<I, F>), ProverError>
     where
         I: IdCollection,

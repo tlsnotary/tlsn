@@ -6,7 +6,7 @@ use itybity::FromBitIterator;
 /// A non-empty collection of active bit encodings with the associated plaintext value.
 #[derive(Clone, PartialEq, Debug, Getters, Default)]
 pub struct ActiveEncodings<I> {
-    /// The encoding for each bit of the plaintext in MSB0 bit order.
+    /// The encoding for each bit of the plaintext in LSB0 bit order.
     #[getset(get = "pub")]
     encodings: Vec<Encoding>,
     /// A collection of ids of each bit of the encoded plaintext.
@@ -74,7 +74,7 @@ where
 
     /// Returns the plaintext encoded by this collection.
     pub fn plaintext(&self) -> Vec<u8> {
-        Vec::<u8>::from_msb0_iter(self.encodings.iter().map(|enc| *enc.bit()))
+        Vec::<u8>::from_lsb0_iter(self.encodings.iter().map(|enc| *enc.bit()))
     }
 }
 
@@ -87,9 +87,9 @@ where
     where
         F: Field + std::ops::Add<Output = F>,
     {
-        self.encodings.iter().fold(F::zero(), |acc, x| -> F {
-            acc + F::from_bytes_be(x.value().to_vec())
-        })
+        self.encodings
+            .iter()
+            .fold(F::zero(), |acc, x| -> F { acc + F::from_bytes(x.value()) })
     }
 }
 

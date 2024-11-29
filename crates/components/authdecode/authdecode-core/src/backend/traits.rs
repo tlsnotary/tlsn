@@ -14,7 +14,7 @@ pub trait ProverBackend<F>
 where
     F: Field,
 {
-    /// Creates a commitment to the plaintext, padding the plaintext if necessary.
+    /// Creates a commitment to the plaintext.
     ///
     /// Returns the commitment and the salt used to create the commitment.
     ///
@@ -25,10 +25,9 @@ where
     /// # Arguments
     ///
     /// * `plaintext` - The plaintext to commit to.
-    fn commit_plaintext(&self, plaintext: Vec<u8>) -> (F, F);
+    fn commit_plaintext(&self, plaintext: &[u8]) -> (F, F);
 
-    /// Creates a commitment to the plaintext with the provided salt, padding the plaintext if
-    /// necessary.
+    /// Creates a commitment to the plaintext using the provided salt.
     ///
     /// Returns the commitment.
     ///
@@ -40,7 +39,7 @@ where
     ///
     /// * `plaintext` - The plaintext to commit to.
     /// * `salt` - The salt of the commitment.
-    fn commit_plaintext_with_salt(&self, plaintext: Vec<u8>, salt: F) -> F;
+    fn commit_plaintext_with_salt(&self, plaintext: &[u8], salt: &[u8]) -> F;
 
     /// Creates a commitment to the encoding sum.
     ///
@@ -83,13 +82,13 @@ where
 
 /// Methods for working with a field element.
 pub trait Field {
-    /// Creates a new field element from bytes in big-endian byte order.
-    fn from_bytes_be(bytes: Vec<u8>) -> Self
+    /// Creates a new field element from a little-endian byte representation of a scalar.
+    fn from_bytes(bytes: &[u8]) -> Self
     where
         Self: Sized;
 
-    /// Returns the field element as bytes in big-endian byte order.
-    fn to_bytes_be(self) -> Vec<u8>;
+    /// Returns the little-endian byte representation of a field element.
+    fn to_bytes(self) -> Vec<u8>;
 
     /// Returns zero, the additive identity.
     fn zero() -> Self

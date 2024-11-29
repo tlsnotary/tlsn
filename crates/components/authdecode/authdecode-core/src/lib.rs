@@ -60,10 +60,10 @@ pub struct PublicInput<F> {
     plaintext_hash: F,
     /// The hash commitment to the sum of the encodings.
     encoding_sum_hash: F,
-    /// The sum of the encodings which encode the value 0 of a bit .
+    /// The sum of the encodings which encode the value 0 of a bit.
     zero_sum: F,
     /// An arithmetic difference between the encoding of bit value 1 and encoding of bit value 0 for
-    /// each bit of the plaintext in MSB0 bit order.
+    /// each bit of the plaintext in LSB0 bit order.
     deltas: Vec<F>,
 }
 
@@ -210,11 +210,11 @@ mod tests {
                 self.prover.commit_encoding_sum(encoding_sum)
             }
 
-            fn commit_plaintext(&self, plaintext: Vec<u8>) -> (F, F) {
+            fn commit_plaintext(&self, plaintext: &[u8]) -> (F, F) {
                 self.prover.commit_plaintext(plaintext)
             }
 
-            fn commit_plaintext_with_salt(&self, _plaintext: Vec<u8>, _salt: F) -> F {
+            fn commit_plaintext_with_salt(&self, _plaintext: &[u8], _salt: &[u8]) -> F {
                 unimplemented!()
             }
 

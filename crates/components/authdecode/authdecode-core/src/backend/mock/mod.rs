@@ -1,6 +1,7 @@
 use crate::backend::traits::Field;
 use bincode;
 use num::{bigint::Sign, BigInt};
+use rand::{thread_rng, Rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::{Add, Sub};
 
@@ -24,6 +25,17 @@ pub struct MockField {
     inner: BigInt,
 }
 
+impl MockField {
+    // Creates a new random MockField.
+    pub fn random() -> Self {
+        let mut random = [0u8; 32];
+        thread_rng().fill(&mut random[..]);
+        Self {
+            inner: BigInt::from_bytes_le(Sign::Plus, &random),
+        }
+    }
+}
+
 impl Add for MockField {
     type Output = Self;
 
@@ -45,15 +57,17 @@ impl Sub for MockField {
 }
 
 impl Field for MockField {
-    fn from_bytes_be(bytes: Vec<u8>) -> Self {
+    fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            inner: BigInt::from_bytes_be(Sign::Plus, &bytes),
+            inner: BigInt::from_bytes_le(Sign::Plus, bytes),
         }
     }
 
-    fn to_bytes_be(self) -> Vec<u8> {
-        let (_, bytes) = self.inner.to_bytes_be();
-        bytes
+    fn to_bytes(self) -> Vec<u8> {
+        let mut bytes = [0u8; 32];
+        let (_, inner_bytes) = self.inner.to_bytes_le();
+        bytes[0..inner_bytes.len()].copy_from_slice(&inner_bytes);
+        bytes.to_vec()
     }
 
     fn zero() -> Self {
