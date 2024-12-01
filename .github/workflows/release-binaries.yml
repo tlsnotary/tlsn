@@ -10,8 +10,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
 
       - name: Get current timestamp for tag
         id: timestamp
@@ -25,24 +30,6 @@ jobs:
           git push origin ${{ env.tag_name }}
         env:
           tag_name: ${{ env.tag_name }}
-
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: binance_prover_ubuntu_noble
-          path: artifacts/binance_prover_ubuntu_noble.zip
-
-      - name: Upload macOS Sonoma Binary
-        uses: actions/download-artifact@v3
-        with:
-          name: binance_prover_macos_sonoma
-          path: artifacts/binance_prover_macos_sonoma.zip
-
-      - name: Upload macOS Sonoma ARM64 Binary
-        uses: actions/download-artifact@v3
-        with:
-          name: binance_prover_macos_sonoma_arm64
-          path: artifacts/binance_prover_macos_sonoma_arm64.zip
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
