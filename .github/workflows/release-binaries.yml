@@ -1,10 +1,10 @@
 name: Create release
-
 on:
   workflow_run:
     workflows: ["Build binance_prover binaries"]
     types:
       - completed
+  workflow_dispatch:
 
 jobs:
   create-release:
