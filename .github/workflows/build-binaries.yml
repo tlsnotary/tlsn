@@ -46,10 +46,42 @@ jobs:
           mkdir -p artifacts
           cp tlsn/target/${{ matrix.target }}/release/examples/binance_prover artifacts/binance_prover_${{ matrix.binary_suffix }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Get current timestamp for tag
+        id: timestamp
+        run: echo "tag_name=binance_prover_$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ env.tag_name }}
+          git push origin ${{ env.tag_name }}
+        env:
+          tag_name: ${{ env.tag_name }}
+
+      - name: Create release
+        uses: actions/create-release@v1
         with:
-          name: binance_prover_${{ matrix.binary_suffix }}
-          path: artifacts/
-          compression-level: 9
+          tag_name: ${{ env.tag_name }}
+          release_name: "Release ${{ env.tag_name }}"
+          body: |
+            ## Binaries
+            - binance_prover_ubuntu_noble
+            - binance_prover_macos_sonoma
+            - binance_prover_macos_sonoma_arm64
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Release Assets
+        run: |
+          gh release upload ${{ env.tag_name }} \
+            artifacts/binance_prover_ubuntu_noble.zip \
+            artifacts/binance_prover_macos_sonoma.zip \
+            artifacts/binance_prover_macos_sonoma_arm64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
