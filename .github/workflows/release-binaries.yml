@@ -31,9 +31,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Display structure of downloaded files
-        run: ls -R
-
       - name: Get current timestamp for tag
         id: timestamp
         run: echo "tag_name=binance_prover_$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
@@ -68,9 +65,9 @@ jobs:
       - name: Upload Release Assets
         run: |
           gh release upload ${{ env.tag_name }} \
-            artifacts/binance_prover_ubuntu_noble \
-            artifacts/binance_prover_macos_sonoma \
-            artifacts/binance_prover_macos_sonoma_arm64
+            binance_prover_ubuntu_noble \
+            binance_prover_macos_sonoma \
+            binance_prover_macos_sonoma_arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
