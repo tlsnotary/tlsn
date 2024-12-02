@@ -31,7 +31,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-
       - name: Display structure of downloaded files
         run: ls -R
 
