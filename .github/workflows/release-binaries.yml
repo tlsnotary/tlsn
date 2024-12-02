@@ -36,7 +36,7 @@ jobs:
 
       - name: Get current timestamp for tag
         id: timestamp
-        run: echo "tag_name=binance_prover_$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+        run: echo "tag_name=binance_prover_$(date +'%Y%m%d%_H%M%S')" >> $GITHUB_ENV
 
       - name: Create Git Tag
         run: |
@@ -58,7 +58,7 @@ jobs:
             - binance_prover_ubuntu_noble
             - binance_prover_macos_sonoma
             - binance_prover_macos_sonoma_arm64
-          release_name: "Release ${{ env.tag_name }}"
+          release_name: "binance_prover ${{ env.tag_name }}"
           draft: false
           prerelease: false
 
