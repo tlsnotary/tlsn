@@ -10,13 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-        - name: Download artifact
-          id: download-artifact
-          uses: dawidd6/action-download-artifact@v6
-          with:
-            github_token: ${{secrets.GITHUB_TOKEN}}
-            workflow: build-binaries.yml
-            workflow_conclusion: success
+      - uses: actions/download-artifact@v4
+        with:
+          name: binance_prover_ubuntu_noble
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Display structure of downloaded files
         run: ls -R
