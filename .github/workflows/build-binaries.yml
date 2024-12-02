@@ -1,9 +1,6 @@
 name: Build binance_prover binaries
 
 on:
-  push:
-    paths:
-      - 'tlsn/examples/binance/**'
   workflow_dispatch:
 
 jobs:
