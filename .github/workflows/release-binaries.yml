@@ -58,7 +58,7 @@ jobs:
             - binance_prover_ubuntu_noble
             - binance_prover_macos_sonoma
             - binance_prover_macos_sonoma_arm64
-          release_name: "binance_prover ${{ env.tag_name }}"
+          release_name: "Release ${{ env.tag_name }}"
           draft: false
           prerelease: false
 
