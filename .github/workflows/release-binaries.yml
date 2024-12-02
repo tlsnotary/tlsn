@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download binance_prover_ubuntu_noble
         uses: actions/download-artifact@v4
         with:
@@ -34,9 +37,6 @@ jobs:
       - name: Get current timestamp for tag
         id: timestamp
         run: echo "tag_name=binance_prover_$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
       - name: Create Git Tag
         run: |
