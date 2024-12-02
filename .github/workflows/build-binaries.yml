@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -48,5 +48,5 @@ jobs:
         with:
           name: binance_prover_${{ matrix.binary_suffix }}
           path: artifacts/
-          compression-level: 9
+          compression-level: 0
 
