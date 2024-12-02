@@ -17,17 +17,17 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Download binance_prover_sonoma
+      - name: Download binance_prover_macos_sonoma
         uses: actions/download-artifact@v4
         with:
-          name: binance_prover_sonoma
+          name: binance_prover_macos_sonoma
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Download binance_prover_sonoma_arm64
+      - name: Download binance_prover_macos_sonoma_arm64
         uses: actions/download-artifact@v4
         with:
-          name: binance_prover_sonoma_arm64
+          name: binance_prover_macos_sonoma_arm64
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
