@@ -62,6 +62,9 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: Show downloaded files
+        run: ls -R
+
       - name: Upload Release Assets
         run: |
           gh release upload ${{ env.tag_name }} \
