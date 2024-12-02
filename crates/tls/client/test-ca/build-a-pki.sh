@@ -7,7 +7,7 @@ mkdir -p rsa/ ecdsa/ eddsa/
 
 openssl req -nodes \
           -x509 \
-          -days 3650 \
+          -days 36525 \
           -newkey rsa:4096 \
           -keyout rsa/ca.key \
           -out rsa/ca.cert \
@@ -58,7 +58,7 @@ openssl req -nodes \
           -out ecdsa/ca.cert \
           -sha256 \
           -batch \
-          -days 3650 \
+          -days 36525 \
           -subj "/CN=ponytown ECDSA CA"
 
 openssl req -nodes \
@@ -100,7 +100,7 @@ openssl req -nodes \
           -out eddsa/ca.cert \
           -sha256 \
           -batch \
-          -days 3650 \
+          -days 36525 \
           -subj "/CN=ponytown EdDSA CA"
 
 openssl genpkey -algorithm Ed25519 -out eddsa/inter.key
@@ -142,7 +142,7 @@ for kt in rsa ecdsa eddsa ; do
             -CA $kt/ca.cert \
             -CAkey $kt/ca.key \
             -sha256 \
-            -days 3650 \
+            -days 36525 \
             -set_serial 123 \
             -extensions v3_inter -extfile openssl.cnf
 
@@ -152,7 +152,7 @@ for kt in rsa ecdsa eddsa ; do
             -CA $kt/inter.cert \
             -CAkey $kt/inter.key \
             -sha256 \
-            -days 2000 \
+            -days 36525 \
             -set_serial 456 \
             -extensions v3_end -extfile openssl.cnf
 
@@ -162,7 +162,7 @@ for kt in rsa ecdsa eddsa ; do
             -CA $kt/inter.cert \
             -CAkey $kt/inter.key \
             -sha256 \
-            -days 2000 \
+            -days 36525 \
             -set_serial 789 \
             -extensions v3_client -extfile openssl.cnf
 
