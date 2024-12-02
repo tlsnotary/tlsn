@@ -55,12 +55,12 @@ jobs:
           uses: actions/create-release@v1
           env:
               GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          body: |
-            - binance_prover_ubuntu_noble
-            - binance_prover_macos_sonoma
-            - binance_prover_macos_sonoma_arm64
           with:
             tag_name: ${{ github.ref }}
+            body: |
+              - binance_prover_ubuntu_noble
+              - binance_prover_macos_sonoma
+              - binance_prover_macos_sonoma_arm64
             release_name: "Release ${{ env.tag_name }}"
             draft: false
             prerelease: false
