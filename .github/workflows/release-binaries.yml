@@ -36,7 +36,7 @@ jobs:
 
       - name: Get current timestamp for tag
         id: timestamp
-        run: echo "tag_name=binance_prover_$(date +'%Y%m%d%_H%M%S')" >> $GITHUB_ENV
+        run: echo "tag_name=binance_prover_$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
 
       - name: Create Git Tag
         run: |
