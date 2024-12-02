@@ -10,12 +10,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download binance_prover_ubuntu_noble
+        uses: actions/download-artifact@v4
+        with:
+          name: binance_prover_ubuntu_noble
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Download binance_prover_macos_sonoma
+        uses: actions/download-artifact@v4
+        with:
+          name: binance_prover_macos_sonoma
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Download binance_prover_macos_sonoma_arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: binance_prover_macos_sonoma_arm64
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Get current timestamp for tag
         id: timestamp
-        run: echo "tag_name=binance_prover_$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+        run: echo "tag_name=binance_prover_$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
 
       - name: Create Git Tag
         run: |
@@ -26,43 +47,30 @@ jobs:
         env:
           tag_name: ${{ env.tag_name }}
 
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: binance_prover_ubuntu_noble
-          path: artifacts/binance_prover_ubuntu_noble.zip
-
-      - name: Upload macOS Sonoma Binary
-        uses: actions/download-artifact@v3
-        with:
-          name: binance_prover_macos_sonoma
-          path: artifacts/binance_prover_macos_sonoma.zip
-
-      - name: Upload macOS Sonoma ARM64 Binary
-        uses: actions/download-artifact@v3
-        with:
-          name: binance_prover_macos_sonoma_arm64
-          path: artifacts/binance_prover_macos_sonoma_arm64.zip
-
-      - name: Create GitHub Release
+      - name: Create Release
+        id: create_release
         uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ env.tag_name }}
-          release_name: "Release ${{ env.tag_name }}"
           body: |
-            ## Binaries
             - binance_prover_ubuntu_noble
             - binance_prover_macos_sonoma
             - binance_prover_macos_sonoma_arm64
+          release_name: "Release ${{ env.tag_name }}"
           draft: false
           prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Show downloaded files
+        run: ls -R
 
       - name: Upload Release Assets
         run: |
           gh release upload ${{ env.tag_name }} \
-            artifacts/binance_prover_ubuntu_noble.zip \
-            artifacts/binance_prover_macos_sonoma.zip \
-            artifacts/binance_prover_macos_sonoma_arm64.zip
+            binance_prover_ubuntu_noble \
+            binance_prover_macos_sonoma \
+            binance_prover_macos_sonoma_arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
