@@ -1,0 +1,53 @@
+[package]
+name = "tlsn-authdecode-core"
+authors = ["TLSNotary Team"]
+description = "A 2PC protocol for performing authenticated decoding of encodings in zk"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "authdecode_core"
+
+[features]
+default = []
+fixtures = ["dep:rand_chacha"]
+mock = ["dep:bincode", "dep:num", "dep:blake3"]
+tracing = ["dep:tracing"]
+
+[dependencies]
+poseidon-bn256-pad14 = { workspace = true }
+poseidon-circomlib = { workspace = true }
+
+bincode = { workspace = true, optional = true}
+blake3 = { workspace = true, optional = true}
+cfg-if = "1"
+enum-try-as-inner = { workspace = true }
+ff = "0.13"
+getset = "0.1.2"
+group = "0.13"
+# Change to upstream when https://github.com/privacy-scaling-explorations/poseidon-gadget/pull/5
+# is merged.
+halo2_poseidon = { git = "https://github.com/themighty1/poseidon-gadget" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false }
+itybity = "0.2"
+lazy_static = "1.4"
+num = { version = "0.4.1", optional = true}
+opaque-debug = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true, optional = true}
+serde =  { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+tracing = { workspace = true, optional = true }
+
+[dev-dependencies]
+bincode = { workspace = true }
+blake3 = { workspace = true }
+criterion = { workspace = true }
+hex = { workspace = true }
+num = "0.4.1" 
+rand_chacha = { workspace = true }
+rand_core = { workspace = true }
+rstest = { workspace = true }

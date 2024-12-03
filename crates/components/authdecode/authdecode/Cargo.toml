@@ -1,0 +1,40 @@
+[package]
+name = "tlsn-authdecode"
+authors = ["TLSNotary Team"]
+description = "A 2PC protocol for authenticated decoding of encodings in zk"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "authdecode"
+
+[features]
+default = []
+tracing = ["dep:tracing"]
+
+[dependencies]
+tlsn-authdecode-core = { workspace = true }
+tlsn-utils-aio = { workspace = true }
+
+futures-util = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tracing = { version = "0.1", optional = true }
+
+[dev-dependencies]
+tlsn-authdecode-core = { workspace = true, features = ["fixtures", "mock"] }
+
+criterion = { workspace = true, features = ["async_tokio"] }
+rstest = { workspace = true }
+tokio = { workspace = true, features = [
+    "net",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+] }
+
+[[bench]]
+name = "halo2"
+harness = false
