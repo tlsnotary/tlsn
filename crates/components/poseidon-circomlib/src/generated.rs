@@ -2,21 +2,37 @@ use ff::Field;
 use halo2_poseidon::poseidon::primitives::Mds;
 use halo2_proofs::halo2curves::bn256::Fr as F;
 
+#[rustfmt::skip]
 mod rate10_constants;
+#[rustfmt::skip]
 mod rate11_constants;
+#[rustfmt::skip]
 mod rate12_constants;
+#[rustfmt::skip]
 mod rate13_constants;
+#[rustfmt::skip]
 mod rate14_constants;
+#[rustfmt::skip]
 mod rate15_constants;
+#[rustfmt::skip]
 mod rate16_constants;
+#[rustfmt::skip]
 mod rate1_constants;
+#[rustfmt::skip]
 mod rate2_constants;
+#[rustfmt::skip]
 mod rate3_constants;
+#[rustfmt::skip]
 mod rate4_constants;
+#[rustfmt::skip]
 mod rate5_constants;
+#[rustfmt::skip]
 mod rate6_constants;
+#[rustfmt::skip]
 mod rate7_constants;
+#[rustfmt::skip]
 mod rate8_constants;
+#[rustfmt::skip]
 mod rate9_constants;
 
 pub fn provide_constants<const WIDTH: usize>() -> (Vec<[F; WIDTH]>, Mds<F, WIDTH>, Mds<F, WIDTH>) {

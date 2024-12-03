@@ -41,7 +41,6 @@ impl<const WIDTH: usize, const RATE: usize> Spec<F, WIDTH, RATE> for CircomlibSp
     }
 
     fn constants() -> (Vec<[F; WIDTH]>, Mds<F, WIDTH>, Mds<F, WIDTH>) {
-        //halo2_poseidon::poseidon::primitives::generate_constants::<_, Self, WIDTH, RATE>()
         generated::provide_constants::<WIDTH>()
     }
 }

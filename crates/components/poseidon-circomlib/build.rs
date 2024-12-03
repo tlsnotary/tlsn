@@ -142,8 +142,6 @@ fn main() -> anyhow::Result<()> {
 
     tasks.par_iter().for_each(|task| task().unwrap());
 
-    println!("cargo:rerun-if-changed=build.rs");
-
     Ok(())
 }
 
