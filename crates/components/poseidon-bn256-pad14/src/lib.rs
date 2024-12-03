@@ -1,4 +1,5 @@
-//! Poseidon hash over the bn256 curve with the input padding length of 14 field elements.
+//! Poseidon hash over the bn256 curve with the input padding length of 14 field
+//! elements.
 
 use poseidon_circomlib::{hash as hash_inner, F};
 
@@ -9,7 +10,8 @@ const BYTES_PER_FIELD: usize = 31;
 /// The length to pad the plaintext field element count to.  
 const PAD_LENGTH: usize = 14;
 
-/// Hashes the given `plaintext` (padding it) and `salt`, returning the digest as bytes.
+/// Hashes the given `plaintext` (padding it) and `salt`, returning the digest
+/// as bytes.
 ///
 /// # Panics
 ///
@@ -20,7 +22,8 @@ pub fn hash(plaintext: &[u8], salt: &[u8]) -> Vec<u8> {
     out.to_vec()
 }
 
-/// Hashes the given `plaintext` (padding it) and `salt`, returning the digest as a field element.
+/// Hashes the given `plaintext` (padding it) and `salt`, returning the digest
+/// as a field element.
 ///
 /// # Panics
 ///
