@@ -15,7 +15,6 @@ name = "authdecode_core"
 default = []
 fixtures = ["dep:rand_chacha"]
 mock = ["dep:bincode", "dep:num", "dep:blake3"]
-tracing = ["dep:tracing"]
 
 [dependencies]
 poseidon-bn256-pad14 = { workspace = true }
@@ -40,7 +39,7 @@ rand = { workspace = true }
 rand_chacha = { workspace = true, optional = true }
 serde =  { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
-tracing = { workspace = true, optional = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 bincode = { workspace = true }

@@ -1,3 +1,4 @@
+use tracing::instrument;
 use utils_aio::stream::{ExpectStreamExt, IoStream};
 
 use authdecode_core::{
@@ -10,9 +11,6 @@ use authdecode_core::{
     },
     Verifier as CoreVerifier,
 };
-
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, instrument, Instrument};
 
 /// Verifier in the AuthDecode protocol.
 pub struct Verifier<I, S, F>
@@ -46,7 +44,7 @@ where
     /// # Arguments
     ///
     /// * `stream` - The stream for receiving messages from the prover.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn receive_commitments<St: IoStream<Message<I, F>> + Send + Unpin>(
         self,
         stream: &mut St,
@@ -73,8 +71,9 @@ where
     /// # Arguments
     ///
     /// * `stream` - The stream for receiving messages from the prover.
-    /// * `encoding_provider` - The provider of full encodings for plaintext being committed to.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    /// * `encoding_provider` - The provider of full encodings for plaintext
+    ///   being committed to.
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn verify<St: IoStream<Message<I, F>> + Send + Unpin>(
         self,
         stream: &mut St,

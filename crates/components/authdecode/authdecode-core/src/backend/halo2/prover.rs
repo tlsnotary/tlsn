@@ -1,3 +1,15 @@
+use halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fr as F, G1Affine},
+    plonk,
+    plonk::ProvingKey,
+    poly::kzg::{commitment::KZGCommitmentScheme, multiopen::ProverGWC},
+    transcript::{Blake2bWrite, Challenge255, TranscriptWriterBuffer},
+};
+use poseidon_bn256_pad14::hash_to_field;
+use poseidon_circomlib::hash;
+use rand::{thread_rng, Rng};
+use tracing::instrument;
+
 use crate::{
     backend::{
         halo2::{
@@ -13,23 +25,8 @@ use crate::{
     Proof,
 };
 
-use halo2_proofs::{
-    halo2curves::bn256::{Bn256, Fr as F, G1Affine},
-    plonk,
-    plonk::ProvingKey,
-    poly::kzg::{commitment::KZGCommitmentScheme, multiopen::ProverGWC},
-    transcript::{Blake2bWrite, Challenge255, TranscriptWriterBuffer},
-};
-use poseidon_bn256_pad14::hash_to_field;
-use poseidon_circomlib::hash;
-
-use rand::{thread_rng, Rng};
-
 #[cfg(any(test, feature = "fixtures"))]
 use std::any::Any;
-
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, instrument, Instrument};
 
 /// The Prover of the AuthDecode circuit.
 #[derive(Clone)]
@@ -39,7 +36,7 @@ pub struct Prover {
 }
 
 impl Backend<Bn256F> for Prover {
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
+    #[instrument(level = "debug", skip_all)]
     fn commit_plaintext(&self, plaintext: &[u8]) -> (Bn256F, Bn256F) {
         // Generate a random salt and add it to the plaintext.
         let mut rng = thread_rng();
@@ -53,12 +50,12 @@ impl Backend<Bn256F> for Prover {
         )
     }
 
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
+    #[instrument(level = "debug", skip_all)]
     fn commit_plaintext_with_salt(&self, plaintext: &[u8], salt: &[u8]) -> Bn256F {
         Bn256F::new(hash_to_field(plaintext, salt))
     }
 
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
+    #[instrument(level = "debug", skip_all)]
     fn commit_encoding_sum(&self, encoding_sum: Bn256F) -> (Bn256F, Bn256F) {
         // Generate a random salt.
         let salt = core::iter::repeat_with(|| thread_rng().gen::<u8>())
@@ -78,7 +75,7 @@ impl Backend<Bn256F> for Prover {
         )
     }
 
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     fn prove(&self, input: Vec<ProverInput<Bn256F>>) -> Result<Vec<Proof>, ProverError> {
         // XXX: using the default strategy of proving one chunk of plaintext with one proof.
         // There are considerable gains to be had when proving multiple chunks with one proof.
@@ -157,7 +154,7 @@ impl Prover {
 }
 
 /// Prepares an instance of the circuit.
-#[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
+#[instrument(level = "debug", skip_all)]
 fn prepare_circuit(input: &PrivateInput<Bn256F>, usable_bytes: usize) -> AuthDecodeCircuit {
     // Split up the plaintext into field elements.
     let mut plaintext: Vec<F> = input

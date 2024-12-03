@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use tracing::instrument;
+
 use crate::{
     backend::traits::{Field, VerifierBackend as Backend},
     encodings::EncodingProvider,
@@ -7,9 +9,6 @@ use crate::{
     msgs::{Commit, Proofs},
     PublicInput,
 };
-
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, instrument, Instrument};
 
 mod commitment;
 mod error;
@@ -60,7 +59,7 @@ where
     ///
     /// * `commitments` - The prover's message containing commitments.
     /// * `encoding_provider` - The provider of full encodings.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     pub fn receive_commitments(
         self,
         commitments: Commit<I, F>,
@@ -88,7 +87,7 @@ where
     /// # Arguments
     /// * `proofs` - The prover's message containing proofs.
     /// * `encoding_provider` - The provider of the encodings for plaintext bits.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     pub fn verify(
         self,
         proofs: Proofs,

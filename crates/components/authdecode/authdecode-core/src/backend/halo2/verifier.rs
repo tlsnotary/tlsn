@@ -1,12 +1,3 @@
-use crate::{
-    backend::{
-        halo2::{circuit::USABLE_BYTES, Bn256F, CHUNK_SIZE, PARAMS},
-        traits::VerifierBackend as Backend,
-    },
-    verifier::VerifierError,
-    Proof, PublicInput,
-};
-
 use ff::{FromUniformBytes, WithSmallOrderMulGroup};
 use halo2_proofs::{
     halo2curves::bn256::{Bn256, Fr as F, G1Affine},
@@ -20,11 +11,19 @@ use halo2_proofs::{
     },
     transcript::{Blake2bRead, Challenge255, EncodedChallenge, TranscriptReadBuffer},
 };
+use tracing::instrument;
 
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, instrument, Instrument};
-
-use super::{onetimesetup::verification_key, prepare_instance};
+use crate::{
+    backend::{
+        halo2::{
+            circuit::USABLE_BYTES, onetimesetup::verification_key, prepare_instance, Bn256F,
+            CHUNK_SIZE, PARAMS,
+        },
+        traits::VerifierBackend as Backend,
+    },
+    verifier::VerifierError,
+    Proof, PublicInput,
+};
 
 /// The Verifier of the authdecode circuit.
 pub struct Verifier {
@@ -61,7 +60,7 @@ impl Verifier {
 }
 
 impl Backend<Bn256F> for Verifier {
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     fn verify(
         &self,
         inputs: Vec<PublicInput<Bn256F>>,
@@ -100,7 +99,7 @@ impl Backend<Bn256F> for Verifier {
     }
 }
 
-#[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+#[instrument(level = "debug", skip_all, err)]
 fn verify_proof<
     'a,
     'params,

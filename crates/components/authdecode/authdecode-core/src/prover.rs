@@ -1,3 +1,8 @@
+use std::{marker::PhantomData, ops::Add};
+
+use getset::Getters;
+use tracing::instrument;
+
 use crate::{
     backend::traits::{Field, ProverBackend as Backend},
     encodings::EncodingProvider,
@@ -5,12 +10,6 @@ use crate::{
     msgs::{Commit, Proofs},
     PublicInput,
 };
-
-use getset::Getters;
-use std::{marker::PhantomData, ops::Add};
-
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, instrument, Instrument};
 
 mod commitment;
 mod error;
@@ -79,7 +78,7 @@ where
     /// # Arguments
     ///
     /// * `data_set` - The set of commitment data to be committed to.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     #[allow(clippy::type_complexity)]
     pub fn commit(
         self,
@@ -114,7 +113,7 @@ where
     /// # Arguments
     ///
     /// * `data_set` - The set of commitment data with salts for each chunk of it.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     #[allow(clippy::type_complexity)]
     pub fn commit_with_salt(
         self,
@@ -156,7 +155,7 @@ where
     ///
     /// * `encoding_provider` - The provider of full encodings for the plaintext committed to
     ///                         earlier.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     #[allow(clippy::type_complexity)]
     pub fn prove(
         self,

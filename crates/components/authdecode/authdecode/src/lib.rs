@@ -2,22 +2,27 @@
 //!
 //! The protocol performs authenticated decoding of encodings in zero knowledge.
 //!
-//! One of the use cases of AuthDecode is for the garbled circuits (GC) evaluator to produce a
-//! zk-friendly hash commitment to either the GC input or the GC output, where computing such a
-//! commitment directly using GC would be prohibitively expensive.
+//! One of the use cases of AuthDecode is for the garbled circuits (GC)
+//! evaluator to produce a zk-friendly hash commitment to either the GC input or
+//! the GC output, where computing such a commitment directly using GC would be
+//! prohibitively expensive.
 //!
 //! The protocol consists of the following steps:
-//! 1. The Prover commits to both the plaintext and the arithmetic sum of the active encodings of the
-//!    bits of the plaintext. (The protocol assumes that the Prover ascertained beforehand that the
-//!    active encodings are authentic.)
-//! 2. The Prover obtains the full encodings of the plaintext bits from some outer context and uses
-//!    them to create a zk proof, proving that during Step 1. they knew the correct active encodings
-//!    of the plaintext and also proving that a hash commitment H is an authentic commitment to the
+//! 1. The Prover commits to both the plaintext and the arithmetic sum of the
+//!    active encodings of the bits of the plaintext. (The protocol assumes that
+//!    the Prover ascertained beforehand that the active encodings are
+//!    authentic.)
+//! 2. The Prover obtains the full encodings of the plaintext bits from some
+//!    outer context and uses them to create a zk proof, proving that during
+//!    Step 1. they knew the correct active encodings of the plaintext and also
+//!    proving that a hash commitment H is an authentic commitment to the
 //!    plaintext.
-//! 3. The Verifier verifies the proof and accepts H as an authentic hash commitment to the plaintext.
+//! 3. The Verifier verifies the proof and accepts H as an authentic hash
+//!    commitment to the plaintext.
 //!
-//! Important: when using the protocol, you must ensure that the Prover obtains the full encodings
-//! from an outer context only **after** they've made a commitment in Step 1.
+//! Important: when using the protocol, you must ensure that the Prover obtains
+//! the full encodings from an outer context only **after** they've made a
+//! commitment in Step 1.
 
 mod prover;
 mod verifier;
@@ -124,7 +129,8 @@ mod tests {
             .await
             .unwrap();
 
-        // An encoding provider is instantiated with authenticated full encodings from an external context.
+        // An encoding provider is instantiated with authenticated full encodings from
+        // an external context.
         let prover = prover
             .prove(&mut prover_sink, &encoding_provider)
             .await

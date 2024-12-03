@@ -13,7 +13,6 @@ name = "authdecode"
 
 [features]
 default = []
-tracing = ["dep:tracing"]
 
 [dependencies]
 tlsn-authdecode-core = { workspace = true }
@@ -21,7 +20,7 @@ tlsn-utils-aio = { workspace = true }
 
 futures-util = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-tracing = { version = "0.1", optional = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tlsn-authdecode-core = { workspace = true, features = ["fixtures", "mock"] }

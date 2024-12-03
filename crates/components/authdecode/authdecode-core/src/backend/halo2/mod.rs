@@ -1,5 +1,15 @@
 //! Halo2 backend for AuthDecode.
 
+use std::ops::{Add, Sub};
+
+use halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fr},
+    poly::kzg::commitment::ParamsKZG,
+};
+use lazy_static::lazy_static;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use tracing::instrument;
+
 use crate::{
     backend::{
         halo2::{
@@ -10,15 +20,6 @@ use crate::{
     },
     PublicInput,
 };
-
-use halo2_proofs::{
-    halo2curves::bn256::{Bn256, Fr},
-    poly::kzg::commitment::ParamsKZG,
-};
-
-use lazy_static::lazy_static;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::ops::{Add, Sub};
 
 mod circuit;
 pub mod onetimesetup;
@@ -127,7 +128,7 @@ where
 }
 
 /// Prepares instance columns.
-#[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all))]
+#[instrument(level = "debug", skip_all)]
 fn prepare_instance(input: &PublicInput<Bn256F>, usable_bytes: usize) -> Vec<Vec<Fr>> {
     let deltas = input
         .deltas

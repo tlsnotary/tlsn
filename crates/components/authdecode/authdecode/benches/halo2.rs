@@ -42,7 +42,8 @@ async fn authdecode_halo2() {
         .await
         .unwrap();
 
-    // An encoding provider is instantiated with authenticated full encodings from external context.
+    // An encoding provider is instantiated with authenticated full encodings from
+    // external context.
     let _ = prover
         .prove(&mut prover_sink, &encoding_provider)
         .await

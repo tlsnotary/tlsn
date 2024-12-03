@@ -1,5 +1,7 @@
-use futures_util::SinkExt;
 use std::ops::Add;
+
+use futures_util::SinkExt;
+use tracing::instrument;
 use utils_aio::sink::IoSink;
 
 use authdecode_core::{
@@ -10,9 +12,6 @@ use authdecode_core::{
     prover::{CommitmentData, Committed, Initialized, ProofGenerated, ProverError, ProverState},
     Prover as CoreProver,
 };
-
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, instrument, Instrument};
 
 /// Prover in the AuthDecode protocol.
 pub struct Prover<I, S, F>
@@ -53,7 +52,7 @@ where
     ///
     /// * `sink` - The sink for sending messages to the verifier.
     /// * `data_set` - The set of commitment data to be committed to.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn commit<Si: IoSink<Message<I, F>> + Send + Unpin>(
         self,
         sink: &mut Si,
@@ -72,13 +71,15 @@ where
         })
     }
 
-    /// Creates a commitment to each element in the `data_set` with the provided salts.
+    /// Creates a commitment to each element in the `data_set` with the provided
+    /// salts.
     ///
     /// # Arguments
     ///
     /// * `sink` - The sink for sending messages to the verifier.
-    /// * `data_set` - The set of commitment data with salts for each chunk of it.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    /// * `data_set` - The set of commitment data with salts for each chunk of
+    ///   it.
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn commit_with_salt<Si: IoSink<Message<I, F>> + Send + Unpin>(
         self,
         sink: &mut Si,
@@ -108,9 +109,9 @@ where
     /// # Arguments
     ///
     /// * `sink` - The sink for sending messages to the verifier.
-    /// * `encoding_provider` - The provider of full encodings for the plaintext committed to
-    ///                         earlier.
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
+    /// * `encoding_provider` - The provider of full encodings for the plaintext
+    ///   committed to earlier.
+    #[instrument(level = "debug", skip_all, err)]
     pub async fn prove<Si: IoSink<Message<I, F>> + Send + Unpin>(
         self,
         sink: &mut Si,
