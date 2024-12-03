@@ -1,7 +1,6 @@
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
 pub struct NotaryServerProperties {
     /// Name and address of the notary server
     pub server: ServerProperties,
@@ -18,25 +17,25 @@ pub struct NotaryServerProperties {
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
 pub struct AuthorizationProperties {
     /// Switch to turn on or off auth middleware
     pub enabled: bool,
     /// File path of the whitelist API key csv
-    pub whitelist_csv_path: String,
+    pub whitelist_csv_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
 pub struct NotarizationProperties {
     /// Global limit for maximum number of bytes that can be sent
     pub max_sent_data: usize,
     /// Global limit for maximum number of bytes that can be received
     pub max_recv_data: usize,
+    /// Number of seconds before notarization timeouts to prevent unreleased
+    /// memory
+    pub timeout: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
 pub struct ServerProperties {
     /// Used for testing purpose
     pub name: String,
@@ -49,25 +48,22 @@ pub struct ServerProperties {
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
 pub struct TLSProperties {
     /// Flag to turn on/off TLS between prover and notary (should always be
     /// turned on unless TLS is handled by external setup e.g. reverse proxy,
     /// cloud)
     pub enabled: bool,
-    pub private_key_pem_path: String,
-    pub certificate_pem_path: String,
+    pub private_key_pem_path: Option<String>,
+    pub certificate_pem_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
 pub struct NotarySigningKeyProperties {
     pub private_key_pem_path: String,
     pub public_key_pem_path: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
 pub struct LoggingProperties {
     /// Log verbosity level of the default filtering logic, which is
     /// notary_server=<level>,tlsn_verifier=<level>,tls_mpc=<level> Must be either of <https://docs.rs/tracing/latest/tracing/struct.Level.html#implementations>

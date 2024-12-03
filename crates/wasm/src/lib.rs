@@ -12,6 +12,7 @@ pub mod types;
 pub mod verifier;
 
 use log::LoggingConfig;
+pub use log::LoggingLevel;
 use tlsn_core::{transcript::Direction, CryptoProvider};
 use tracing::error;
 use tracing_subscriber::{

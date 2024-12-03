@@ -1,7 +1,16 @@
-name: Run Benchmarks
+name: Run Benchmarks (Native or Browser)
 on:
   # manual trigger
   workflow_dispatch:
+    inputs:
+      bench_type:
+        description: "Specify the benchmark type (native or browser)"
+        required: true
+        default: "native"
+        type: choice
+        options:
+          - native
+          - browser
 
 jobs:
   run-benchmarks:
@@ -12,16 +21,17 @@ jobs:
 
     - name: Build Docker Image
       run: |
-        docker build -t tlsn-bench . -f ./crates/benches/benches.Dockerfile
+        docker build -t tlsn-bench . -f ./crates/benches/binary/benches.Dockerfile --build-arg BENCH_TYPE=${{ github.event.inputs.bench_type }}
 
     - name: Run Benchmarks
       run: |
-        docker run --privileged -v ${{ github.workspace }}/crates/benches/:/benches tlsn-bench
+        docker run --privileged -v ${{ github.workspace }}/crates/benches/binary:/benches tlsn-bench
 
-    - name: Upload runtime_vs_latency.html
+    - name: Upload graphs
       uses: actions/upload-artifact@v4
       with:
         name: benchmark_graphs
         path: |
-          ./crates/benches/runtime_vs_latency.html
-          ./crates/benches/runtime_vs_bandwidth.html
+          ./crates/benches/binary/runtime_vs_latency.html
+          ./crates/benches/binary/runtime_vs_bandwidth.html
+          ./crates/benches/binary/download_size_vs_memory.html

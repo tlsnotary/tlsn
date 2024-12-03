@@ -5,7 +5,10 @@ mod middleware;
 mod server;
 mod server_tracing;
 mod service;
+mod settings;
 mod signing;
+#[cfg(feature = "tee_quote")]
+mod tee;
 mod util;
 
 pub use config::{
@@ -19,4 +22,5 @@ pub use domain::{
 pub use error::NotaryServerError;
 pub use server::{read_pem_file, run_server};
 pub use server_tracing::init_tracing;
+pub use settings::Settings;
 pub use util::parse_config_file;

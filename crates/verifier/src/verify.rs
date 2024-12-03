@@ -19,19 +19,19 @@ impl Verifier<VerifyState> {
     ///
     /// # Warning
     ///
-    /// The content of the received transcripts can not be considered authentic
+    /// The content of the received transcript can not be considered authentic
     /// until after finalization.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn receive(&mut self) -> Result<PartialTranscript, VerifierError> {
         self.state
             .mux_fut
             .poll_with(async {
-                // Receive partial transcript from the prover
+                // Receive partial transcript from the prover.
                 let partial_transcript: PartialTranscript = self.state.io.expect_next().await?;
 
                 info!("Received partial transcript from prover");
 
-                // Check ranges
+                // Check ranges.
                 if partial_transcript.len_sent()
                     != self.state.connection_info.transcript_length.sent as usize
                     || partial_transcript.len_received()
@@ -42,7 +42,7 @@ impl Verifier<VerifyState> {
                     ));
                 }
 
-                // Now verify the transcript parts which the prover wants to reveal
+                // Now verify the transcript parts which the prover wants to reveal.
                 let sent_value_ids =
                     get_value_ids(Direction::Sent, partial_transcript.sent_authed());
                 let recv_value_ids =
@@ -64,10 +64,10 @@ impl Verifier<VerifyState> {
                     .map(Value::U8)
                     .collect::<Vec<_>>();
 
-                // Check that purported values are correct
+                // Check that purported values are correct.
                 self.state.vm.verify(&value_refs, &values).await?;
 
-                info!("Successfully verified purported cleartext");
+                info!("Successfully verified purported transcript");
 
                 Ok::<_, VerifierError>(partial_transcript)
             })
