@@ -121,13 +121,9 @@ where
         .try_into()
         .map_err(|_| serde::de::Error::custom("the amount of bytes is not 32"))?;
 
-    let res = Fr::from_bytes(&bytes);
-    if res.is_none().into() {
-        return Err(serde::de::Error::custom(
-            "the bytes are not a valid field element",
-        ));
-    }
-    Ok(res.unwrap())
+    Fr::from_bytes(&bytes)
+        .into_option()
+        .ok_or_else(|| serde::de::Error::custom("the bytes are not a valid field element"))
 }
 
 /// Prepares instance columns.

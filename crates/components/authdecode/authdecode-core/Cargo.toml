@@ -21,23 +21,23 @@ tracing = ["dep:tracing"]
 poseidon-bn256-pad14 = { workspace = true }
 poseidon-circomlib = { workspace = true }
 
-bincode = { workspace = true, optional = true}
-blake3 = { workspace = true, optional = true}
-cfg-if = "1"
+bincode = { workspace = true, optional = true }
+blake3 = { workspace = true, optional = true }
+cfg-if = { version = "1" }
 enum-try-as-inner = { workspace = true }
-ff = "0.13"
-getset = "0.1.2"
-group = "0.13"
+ff = { version = "0.13" }
+getset = { version = "0.1.2" }
+group = { version = "0.13" }
 # Change to upstream when https://github.com/privacy-scaling-explorations/poseidon-gadget/pull/5
 # is merged.
 halo2_poseidon = { git = "https://github.com/themighty1/poseidon-gadget" }
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false }
-itybity = "0.2"
-lazy_static = "1.4"
-num = { version = "0.4.1", optional = true}
+itybity = { version = "0.2" }
+lazy_static = { version = "1.4" }
+num = { version = "0.4.1", optional = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
-rand_chacha = { workspace = true, optional = true}
+rand_chacha = { workspace = true, optional = true }
 serde =  { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
@@ -47,7 +47,7 @@ bincode = { workspace = true }
 blake3 = { workspace = true }
 criterion = { workspace = true }
 hex = { workspace = true }
-num = "0.4.1" 
+num = { version = "0.4.1" }
 rand_chacha = { workspace = true }
 rand_core = { workspace = true }
 rstest = { workspace = true }
