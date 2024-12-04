@@ -13,6 +13,9 @@ toml_edit = "0.22.22"
 walkdir = "2.5.0"
 ---
 
+// This scripts sets the TLSNotary version in all relevant files. Run it with:
+// ./set_tlsn_version <version>
+
 use clap::Parser;
 use serde_yaml::Value;
 use std::fs::{self, read_to_string};
@@ -24,7 +27,7 @@ use walkdir::WalkDir;
 #[command(name = "set_tlsn_version")]
 #[command(about = "Sets the TLSNotary version in all relevant files", long_about = None)]
 struct Args {
-    /// Version number to set
+    /// Version number to set (example: 0.1.0-alpha.8)
     version: String,
 
     /// Workspace path (default is current directory)
