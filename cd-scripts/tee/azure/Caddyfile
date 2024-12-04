@@ -28,7 +28,7 @@
 
 notary.codes {
     handle_path /v0.1.0-alpha.8* {
-        reverse_proxy :4002 :3333 {
+        reverse_proxy :4003 :3333 {
             lb_try_duration 4s
             fail_duration 10s
             lb_policy header X-Upstream {
