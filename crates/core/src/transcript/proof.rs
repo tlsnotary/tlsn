@@ -208,17 +208,37 @@ impl<'a> TranscriptProofBuilder<'a> {
 
                 let dir_idx = (direction, idx);
 
-                if !encoding_tree.contains(&dir_idx) {
-                    return Err(TranscriptProofBuilderError::new(
-                        BuilderErrorKind::MissingCommitment,
-                        format!(
-                            "encoding commitment is missing for ranges in {} transcript",
-                            direction
-                        ),
-                    ));
+                // Insert the range if it's in the encoding tree (which means it's a committed
+                // range).
+                if encoding_tree.contains(&dir_idx) {
+                    self.encoding_proof_idxs.insert(dir_idx);
+                } else {
+                    let mut missing_commitment = true;
+                    // Check if there is any committed range in the encoding tree that is a
+                    // subset of the range — if yes, insert them.
+                    for committed_dir_idx in encoding_tree
+                        .transcript_indices()
+                        .into_iter()
+                        .filter(|(dir, _)| *dir == dir_idx.0)
+                    {
+                        if committed_dir_idx.1.is_subset(&dir_idx.1) {
+                            self.encoding_proof_idxs.insert(committed_dir_idx.clone());
+                            missing_commitment = false;
+                        }
+                    }
+                    // If no committed range is a subset, that means the range is missing
+                    // fully or partially in the encoding tree (which means it has not been
+                    // committed).
+                    if missing_commitment {
+                        return Err(TranscriptProofBuilderError::new(
+                            BuilderErrorKind::MissingCommitment,
+                            format!(
+                                "encoding commitment is missing for ranges in {} transcript",
+                                direction
+                            ),
+                        ));
+                    }
                 }
-
-                self.encoding_proof_idxs.insert(dir_idx);
             }
             TranscriptCommitmentKind::Hash { .. } => {
                 let Some(PlaintextHashSecret {
@@ -281,22 +301,6 @@ impl<'a> TranscriptProofBuilder<'a> {
         self.reveal(ranges, Direction::Sent)
     }
 
-    /// Reveals multiple groups of ranges given in the sent transcript using the
-    /// default kind of commitment.
-    ///
-    /// # Arguments
-    ///
-    /// * `ranges_groups` - Groups of ranges to reveal.
-    pub fn reveal_sent_multi(
-        &mut self,
-        ranges_groups: &[&dyn ToRangeSet<usize>],
-    ) -> Result<&mut Self, TranscriptProofBuilderError> {
-        for ranges in ranges_groups.iter() {
-            self.reveal(*ranges, Direction::Sent)?;
-        }
-        Ok(self)
-    }
-
     /// Reveals the given ranges in the received transcript using the default
     /// kind of commitment.
     ///
@@ -308,22 +312,6 @@ impl<'a> TranscriptProofBuilder<'a> {
         ranges: &dyn ToRangeSet<usize>,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
         self.reveal(ranges, Direction::Received)
-    }
-
-    /// Reveals multiple groups of ranges given in the received transcript using
-    /// the default kind of commitment.
-    ///
-    /// # Arguments
-    ///
-    /// * `ranges_groups` - Groups of ranges to reveal.
-    pub fn reveal_recv_multi(
-        &mut self,
-        ranges_groups: &[&dyn ToRangeSet<usize>],
-    ) -> Result<&mut Self, TranscriptProofBuilderError> {
-        for ranges in ranges_groups.iter() {
-            self.reveal(*ranges, Direction::Received)?;
-        }
-        Ok(self)
     }
 
     /// Builds the transcript proof.
@@ -389,7 +377,9 @@ impl fmt::Display for TranscriptProofBuilderError {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+    use utils::range::RangeSet;
 
     use crate::{
         fixtures::{
@@ -398,11 +388,12 @@ mod tests {
         },
         hash::Blake3,
         signing::SignatureAlgId,
+        transcript::TranscriptCommitConfigBuilder,
     };
 
     use super::*;
 
-    #[test]
+    #[rstest]
     fn test_reveal_range_out_of_bounds() {
         let transcript = Transcript::new(
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -421,7 +412,7 @@ mod tests {
         assert!(matches!(err.kind, BuilderErrorKind::Index));
     }
 
-    #[test]
+    #[rstest]
     fn test_reveal_missing_encoding_tree() {
         let transcript = Transcript::new(
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -434,7 +425,7 @@ mod tests {
         assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
     }
 
-    #[test]
+    #[rstest]
     fn test_reveal_missing_encoding_commitment_range() {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
@@ -453,7 +444,7 @@ mod tests {
         assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
     }
 
-    #[test]
+    #[rstest]
     fn test_verify_missing_encoding_commitment() {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
@@ -489,5 +480,59 @@ mod tests {
             .err()
             .unwrap();
         assert!(matches!(err.kind, ErrorKind::Encoding));
+    }
+
+    #[rstest]
+    #[case::multiple_ranges_success(
+        RangeSet::from([0..10, 12..30]),
+        RangeSet::from([0..20, 20..30]),
+        true,
+    )]
+    #[case::single_range_success(
+        RangeSet::from([0..20, 45..56, 80..100]),
+        RangeSet::from([0..120]),
+        true,
+    )]
+    #[case::multiple_ranges_failure(
+        RangeSet::from([0..10, 15..40, 75..110]),
+        RangeSet::from([0..41, 44..50, 74..100]),
+        false,
+    )]
+    #[case::single_range_failure(
+        RangeSet::from([2..50, 75..119]),
+        RangeSet::from([33..120]),
+        false,
+    )]
+    #[allow(clippy::single_range_in_vec_init)]
+    fn test_reveal_mutliple_commitment_ranges_with_one_rangeset(
+        #[case] commit_recv_range: RangeSet<usize>,
+        #[case] reveal_recv_range: RangeSet<usize>,
+        #[case] success: bool,
+    ) {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+
+        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
+        transcript_commitment_builder
+            .commit_recv(&commit_recv_range)
+            .unwrap();
+        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
+
+        let encoding_tree = EncodingTree::new(
+            &Blake3::default(),
+            transcripts_commitment_config.iter_encoding(),
+            &encoding_provider(GET_WITH_HEADER, OK_JSON),
+            &transcript.length(),
+        )
+        .unwrap();
+
+        let index = Index::default();
+        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
+
+        if success {
+            assert!(builder.reveal_recv(&reveal_recv_range).is_ok());
+        } else {
+            let err = builder.reveal_recv(&reveal_recv_range).err().unwrap();
+            assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
+        }
     }
 }

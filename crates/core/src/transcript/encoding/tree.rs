@@ -192,6 +192,11 @@ impl EncodingTree {
     pub fn contains(&self, idx: &(Direction, Idx)) -> bool {
         self.idxs.contains_right(idx)
     }
+
+    /// Returns the committed transcript indices.
+    pub(crate) fn transcript_indices(&self) -> impl IntoIterator<Item = &(Direction, Idx)> {
+        self.idxs.right_values()
+    }
 }
 
 #[cfg(test)]

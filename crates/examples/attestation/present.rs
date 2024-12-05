@@ -8,7 +8,7 @@ use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
 
 use clap::Parser;
-use utils::range::ToRangeSet;
+use utils::range::{ToRangeSet, Union};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -39,13 +39,22 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let transcript = HttpTranscript::parse(secrets.transcript())?;
 
     // Build a transcript proof.
+    // Here is where we reveal all or some of the ranges we committed in prove.rs
+    // via `commit_transcript`.
     let mut builder = secrets.transcript_proof_builder();
 
     let request = &transcript.requests[0];
 
-    // Reveal multiple parts of the request: (1) its structure without the headers
-    // or body, (2) the request target.
-    builder.reveal_sent_multi(&[&request.without_data(), &request.request.target])?;
+    // Reveal the following committed ranges using one range (R):
+    // (1) request.without_data(): request structure without target, headers and
+    // body. (2) request target.
+    //
+    // R is constructed via the union of ranges of (1) and (2).
+    builder.reveal_sent(
+        &request
+            .without_data()
+            .union(&request.request.target.to_range_set()),
+    )?;
 
     // Reveal all headers except the values of User-Agent and Authorization.
     for header in &request.headers {
@@ -64,39 +73,42 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         }
     }
 
-    // Reveal only parts of the response
-    // Use a vector to collect the ranges of all these parts before calling
-    // `reveal_recv_multi`
-    let mut recv_ranges: Vec<&dyn ToRangeSet<usize>> = Vec::new();
-
+    // Reveal only parts of the response.
     let response = &transcript.responses[0];
-    let response_without_data = &response.without_data();
-    recv_ranges.push(response_without_data);
-
-    for header in &response.headers {
-        recv_ranges.push(header);
-    }
-
     let content = &response.body.as_ref().unwrap().content;
+
+    // Reveal the following committed ranges using one range (R):
+    // (1) response.without_data(): response structure without headers and body.
+    // (2) all headers.
+    //
+    // R is constructed by assigning
+    //   start: <first index of response.without_data()>.
+    //   end: <first index of body>, which is equal to the final index
+    // (non-inclusive) of headers.
+    //
+    // This is because (1), (2) and <body> are adjacent ranges.
+    builder.reveal_recv(
+        &(response.without_data().to_range_set().min().unwrap()
+            ..content.to_range_set().min().unwrap()),
+    )?;
+
     match content {
         tlsn_formats::http::BodyContent::Json(json) => {
-            // For experimentation, reveal the entire response or just a selection
+            // For experimentation, reveal the entire response or just a selection.
             let reveal_all = false;
             if reveal_all {
-                recv_ranges.push(response);
+                builder.reveal_recv(response)?;
             } else {
-                recv_ranges.push(json.get("id").unwrap());
-                recv_ranges.push(json.get("information.name").unwrap());
-                recv_ranges.push(json.get("meta.version").unwrap());
+                builder.reveal_recv(json.get("id").unwrap())?;
+                builder.reveal_recv(json.get("information.name").unwrap())?;
+                builder.reveal_recv(json.get("meta.version").unwrap())?;
             }
         }
         tlsn_formats::http::BodyContent::Unknown(span) => {
-            recv_ranges.push(span);
+            builder.reveal_recv(span)?;
         }
         _ => {}
     }
-
-    builder.reveal_recv_multi(&recv_ranges)?;
 
     let transcript_proof = builder.build()?;
 

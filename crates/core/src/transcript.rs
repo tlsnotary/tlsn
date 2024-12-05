@@ -40,7 +40,7 @@ mod proof;
 use std::{fmt, ops::Range};
 
 use serde::{Deserialize, Serialize};
-use utils::range::{Difference, IndexRanges, RangeSet, ToRangeSet, Union};
+use utils::range::{Difference, IndexRanges, RangeSet, Subset, ToRangeSet, Union};
 
 use crate::connection::TranscriptLength;
 
@@ -440,6 +440,11 @@ impl Idx {
     /// Returns the union of this index with another.
     pub fn union(&self, other: &Idx) -> Idx {
         Idx(self.0.union(&other.0))
+    }
+
+    /// Checks if this index is a subset of another.
+    pub fn is_subset(&self, other: &Idx) -> bool {
+        self.0.is_subset(&other.0)
     }
 }
 
