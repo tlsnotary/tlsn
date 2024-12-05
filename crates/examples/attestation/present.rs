@@ -40,7 +40,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
 
     // Build a transcript proof.
     // Here is where we reveal all or some of the ranges we committed in prove.rs
-    // via `commit_transcript`.
+    // via `commit_transcript` previously.
     let mut builder = secrets.transcript_proof_builder();
 
     let request = &transcript.requests[0];
