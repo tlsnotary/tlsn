@@ -37,7 +37,4 @@ jobs:
         - name: get emulated measurement (call gramine.sh without the sgx arg)
           working-directory: ${{ github.workspace }}/crates/notary/server/tee
           run: |
-             ls -la 
-             pwd
-             ls -la ${{ github.workspace }}/.github/scripts
-             bash ${{ github.workspace }}/.github/scripts/gramine.sh
+             bash ../../../../.github/scripts/gramine.sh
