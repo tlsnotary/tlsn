@@ -83,10 +83,10 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     //
     // R is constructed by assigning
     //   start: <first index of response.without_data()>.
-    //   end: <first index of body>, which is equal to the final index
+    //   end: <first index of response.body>, which is equal to the final index
     // (non-inclusive) of headers.
     //
-    // This is because (1), (2) and <body> are adjacent ranges.
+    // This is because (1), (2) and <response.body> are adjacent ranges.
     builder.reveal_recv(
         &(response.without_data().to_range_set().min().unwrap()
             ..content.to_range_set().min().unwrap()),
