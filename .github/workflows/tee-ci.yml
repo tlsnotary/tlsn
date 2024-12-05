@@ -39,6 +39,5 @@ jobs:
           run: |
              ls -la 
              pwd
-             git log
              ls -la ${{ github.workspace }}/.github/scripts
              bash ${{ github.workspace }}/.github/scripts/gramine.sh
