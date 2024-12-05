@@ -34,9 +34,7 @@ jobs:
           run: |
             echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
             echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-    
         - name: get emulated measurement (call gramine.sh without the sgx arg)
           working-directory: ${{ github.workspace }}/crates/notary/server/tee
           run: |
-             # this fails current ci because gramine.sh is part of this pr so the file doesnt exist
-             # bash .github/scripts/gramine.sh
+             bash ${{ github.workspace }}/.github/scripts/gramine.sh
