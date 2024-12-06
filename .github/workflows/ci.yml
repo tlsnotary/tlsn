@@ -137,9 +137,3 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
-   trigger-deployment:
-    # doing this here due to feedback @ https://github.com/tlsnotary/tlsn/pull/631#issuecomment-2415806267
-     needs: tests-integration
-     uses: tlsnotary/tlsn/.github/workflows/tee-cd.yml@dev
-     with:
-      ref: ${{  github.ref_name }}
