@@ -393,10 +393,14 @@ mod tests {
     use utils::range::RangeSet;
 
     use crate::{
-        attestation::FieldId, fixtures::{
+        attestation::FieldId,
+        fixtures::{
             attestation_fixture, encoder_seed, encoding_provider, request_fixture,
             ConnectionFixture, RequestFixture,
-        }, hash::{Blake3, HashAlgId}, signing::SignatureAlgId, transcript::TranscriptCommitConfigBuilder
+        },
+        hash::{Blake3, HashAlgId},
+        signing::SignatureAlgId,
+        transcript::TranscriptCommitConfigBuilder,
     };
 
     use super::*;
@@ -557,7 +561,9 @@ mod tests {
 
         // Hash commitment kind
         let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
-        transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash { alg: HashAlgId::SHA256 });
+        transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash {
+            alg: HashAlgId::SHA256,
+        });
         for rangeset in commit_recv_rangesets.iter() {
             transcript_commitment_builder.commit_recv(rangeset).unwrap();
         }
@@ -565,11 +571,18 @@ mod tests {
 
         let plaintext_hash_secrets: Index<PlaintextHashSecret> = transcripts_commitment_config
             .iter_hash()
-            .map(|(&(direction, ref idx), _)| PlaintextHashSecret { direction, idx: idx.clone(), commitment: FieldId::default(), blinder: rand::random() })
+            .map(|(&(direction, ref idx), _)| PlaintextHashSecret {
+                direction,
+                idx: idx.clone(),
+                commitment: FieldId::default(),
+                blinder: rand::random(),
+            })
             .collect::<Vec<PlaintextHashSecret>>()
             .into();
         let mut builder = TranscriptProofBuilder::new(&transcript, None, &plaintext_hash_secrets);
-        builder.default_kind(TranscriptCommitmentKind::Hash { alg: HashAlgId::SHA256 });
+        builder.default_kind(TranscriptCommitmentKind::Hash {
+            alg: HashAlgId::SHA256,
+        });
 
         if success {
             assert!(builder.reveal_recv(&reveal_recv_rangeset).is_ok());
