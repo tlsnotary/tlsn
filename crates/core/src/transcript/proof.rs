@@ -242,11 +242,11 @@ impl<'a> TranscriptProofBuilder<'a> {
             }
             TranscriptCommitmentKind::Hash { .. } => {
                 let plaintext_hash_secrets =
-                    // Get the secret if the rangeset (idx) is in the index (self.plaintext_hashes), i.e. it's committed
+                    // Get the secret if idx is in self.plaintext_hashes, i.e. it's committed.
                     if let Some(secret) = self.plaintext_hashes.get_by_transcript_idx(&idx) {
                         vec![secret]
                     } else {
-                        // Collect any secret whose rangeset is a subset of the rangeset (idx)
+                        // Collect any secret whose rangeset is a subset of idx.
                         self.plaintext_hashes
                             .iter()
                             .filter(|secret| secret.idx.is_subset(&idx))
