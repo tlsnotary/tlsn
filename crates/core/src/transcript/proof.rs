@@ -241,13 +241,18 @@ impl<'a> TranscriptProofBuilder<'a> {
                 }
             }
             TranscriptCommitmentKind::Hash { .. } => {
-                let Some(PlaintextHashSecret {
-                    direction,
-                    commitment,
-                    blinder,
-                    ..
-                }) = self.plaintext_hashes.get_by_transcript_idx(&idx)
-                else {
+                let plaintext_hash_secrets =
+                    // Get the secret if the rangeset (idx) is in the index (self.plaintext_hashes), i.e. it's committed
+                    if let Some(secret) = self.plaintext_hashes.get_by_transcript_idx(&idx) {
+                        vec![secret]
+                    } else {
+                        // Collect any secret whose rangeset is a subset of the rangeset (idx)
+                        self.plaintext_hashes
+                            .iter()
+                            .filter(|secret| secret.idx.is_subset(&idx))
+                            .collect()
+                    };
+                if plaintext_hash_secrets.is_empty() {
                     return Err(TranscriptProofBuilderError::new(
                         BuilderErrorKind::MissingCommitment,
                         format!(
@@ -255,21 +260,27 @@ impl<'a> TranscriptProofBuilder<'a> {
                             direction
                         ),
                     ));
-                };
+                }
+                for secret in plaintext_hash_secrets.into_iter() {
+                    let PlaintextHashSecret {
+                        direction,
+                        commitment,
+                        blinder,
+                        ..
+                    } = secret;
+                    let (_, data) = self
+                        .transcript
+                        .get(*direction, &idx)
+                        .expect("subsequence was checked to be in transcript")
+                        .into_parts();
 
-                let (_, data) = self
-                    .transcript
-                    .get(*direction, &idx)
-                    .expect("subsequence was checked to be in transcript")
-                    .into_parts();
-
-                self.hash_proofs.push(PlaintextHashProof::new(
-                    Blinded::new_with_blinder(data, blinder.clone()),
-                    *commitment,
-                ));
+                    self.hash_proofs.push(PlaintextHashProof::new(
+                        Blinded::new_with_blinder(data, blinder.clone()),
+                        *commitment,
+                    ));
+                }
             }
         }
-
         Ok(self)
     }
 
@@ -382,13 +393,10 @@ mod tests {
     use utils::range::RangeSet;
 
     use crate::{
-        fixtures::{
+        attestation::FieldId, fixtures::{
             attestation_fixture, encoder_seed, encoding_provider, request_fixture,
             ConnectionFixture, RequestFixture,
-        },
-        hash::Blake3,
-        signing::SignatureAlgId,
-        transcript::TranscriptCommitConfigBuilder,
+        }, hash::{Blake3, HashAlgId}, signing::SignatureAlgId, transcript::TranscriptCommitConfigBuilder
     };
 
     use super::*;
@@ -521,6 +529,7 @@ mod tests {
     ) {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
 
+        // Encoding commitment kind
         let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
         for rangeset in commit_recv_rangesets.iter() {
             transcript_commitment_builder.commit_recv(rangeset).unwrap();
@@ -538,6 +547,29 @@ mod tests {
 
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
+
+        if success {
+            assert!(builder.reveal_recv(&reveal_recv_rangeset).is_ok());
+        } else {
+            let err = builder.reveal_recv(&reveal_recv_rangeset).err().unwrap();
+            assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
+        }
+
+        // Hash commitment kind
+        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
+        transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash { alg: HashAlgId::SHA256 });
+        for rangeset in commit_recv_rangesets.iter() {
+            transcript_commitment_builder.commit_recv(rangeset).unwrap();
+        }
+        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
+
+        let plaintext_hash_secrets: Index<PlaintextHashSecret> = transcripts_commitment_config
+            .iter_hash()
+            .map(|(&(direction, ref idx), _)| PlaintextHashSecret { direction, idx: idx.clone(), commitment: FieldId::default(), blinder: rand::random() })
+            .collect::<Vec<PlaintextHashSecret>>()
+            .into();
+        let mut builder = TranscriptProofBuilder::new(&transcript, None, &plaintext_hash_secrets);
+        builder.default_kind(TranscriptCommitmentKind::Hash { alg: HashAlgId::SHA256 });
 
         if success {
             assert!(builder.reveal_recv(&reveal_recv_rangeset).is_ok());
