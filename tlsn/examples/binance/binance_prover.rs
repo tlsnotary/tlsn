@@ -478,8 +478,10 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>, api_key: &str
     let (_, recv_private_ranges) = find_ranges_regex(
         prover.recv_transcript().data(),
         &[r#""ETH","free":"(\d+\.\d\d)"#]
-
     );
+    if recv_private_ranges.len() == 0 {
+        panic!("No ETH balance found");
+    }
     println!("Received private ranges: {:?}", recv_private_ranges);
 
     let builder = prover.commitment_builder();
