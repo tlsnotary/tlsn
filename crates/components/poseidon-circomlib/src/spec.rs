@@ -37,6 +37,7 @@ impl<const WIDTH: usize, const RATE: usize> Spec<F, WIDTH, RATE> for CircomlibSp
     }
 
     fn secure_mds() -> usize {
+        // This method will not be used since we are hard-coding the constants.
         unimplemented!()
     }
 
