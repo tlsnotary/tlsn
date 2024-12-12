@@ -17,9 +17,7 @@ const PAD_LENGTH: usize = 14;
 ///
 /// Panics if the plaintext or salt lengths are not correct.
 pub fn hash(plaintext: &[u8], salt: &[u8]) -> Vec<u8> {
-    let mut out = hash_to_field(plaintext, salt).to_bytes();
-    out.reverse();
-    out.to_vec()
+    hash_to_field(plaintext, salt).to_bytes().to_vec()
 }
 
 /// Hashes the given `plaintext` (padding it) and `salt`, returning the digest
@@ -52,4 +50,26 @@ fn bytes_to_f(bytes: &[u8]) -> F {
     raw[0..bytes.len()].copy_from_slice(bytes);
 
     F::from_bytes(&raw).expect("Conversion should never fail")
+}
+
+#[cfg(test)]
+mod test {
+    // Tests that the digest equals that of the reference implementation.
+    #[test]
+    fn test_reference() {
+        use super::*;
+        use poseidon_circomlib::hash as reference_hash;
+
+        let plaintext = 1u8;
+        let salt = 2u8;
+
+        let mut input: Vec<F> = Vec::with_capacity(15);
+        input.push((plaintext as u64).into());
+        input.extend(std::iter::repeat(F::zero()).take(13));
+        input.push((salt as u64).into());
+
+        let expected = reference_hash(&input);
+
+        assert_eq!(expected.to_bytes().to_vec(), hash(&[plaintext], &[salt]));
+    }
 }

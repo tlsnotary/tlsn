@@ -11,4 +11,4 @@ edition = "2021"
 name = "poseidon_bn256_pad14"
 
 [dependencies]
-poseidon-circomlib = { workspace = true}
+poseidon-circomlib = { workspace = true }
