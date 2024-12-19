@@ -211,7 +211,9 @@ impl<'a> TranscriptProofBuilder<'a> {
                 // Insert the rangeset if it's in the encoding tree (which means it's a
                 // committed rangeset).
                 if encoding_tree.contains(&dir_idx) {
-                    self.encoding_proof_idxs.insert(dir_idx);
+                    if !self.is_revealed(&dir_idx) && !self.is_subset_of_revealed(&dir_idx) {
+                        self.encoding_proof_idxs.insert(dir_idx);
+                    }
                 } else {
                     let mut missing_commitment = true;
                     // Check if there is any committed rangeset in the encoding tree that is a
@@ -221,9 +223,10 @@ impl<'a> TranscriptProofBuilder<'a> {
                         .into_iter()
                         .filter(|(dir, _)| *dir == dir_idx.0)
                     {
-                        if committed_dir_idx.1.is_subset(&dir_idx.1) {
+                        // TODO: optimise is_subset to do boundary check first
+                        if !self.is_revealed(&committed_dir_idx) && committed_dir_idx.1.is_subset(&dir_idx.1) && !self.is_subset_of_revealed(&committed_dir_idx) {
                             self.encoding_proof_idxs.insert(committed_dir_idx.clone());
-                            missing_commitment = false;
+                            missing_commitment = false; 
                         }
                     }
                     // If no committed rangeset is a subset, that means the rangeset is missing
@@ -282,6 +285,20 @@ impl<'a> TranscriptProofBuilder<'a> {
             }
         }
         Ok(self)
+    }
+
+    fn is_revealed(&self, dir_idx: &(Direction, Idx)) -> bool {
+        self.encoding_proof_idxs.contains(&dir_idx)
+    }
+
+    fn is_subset_of_revealed(&self, dir_idx: &(Direction, Idx)) -> bool {
+        let (dir , idx) = dir_idx;
+        for (_, revealed_idx) in self.encoding_proof_idxs.iter().filter(|(revealed_dir, _)| revealed_dir == dir) {
+            if idx.is_subset(revealed_idx) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Reveals the given ranges in the transcript using the default kind of
