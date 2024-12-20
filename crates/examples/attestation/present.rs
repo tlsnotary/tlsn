@@ -45,11 +45,18 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
 
     let request = &transcript.requests[0];
 
-    // Reveal the following committed ranges using one range (R):
+    // Reveal the following committed ranges using one superset range (R):
     // (1) request.without_data(): request structure without target, headers and
     // body. (2) request target.
     //
     // R is constructed via the union of ranges of (1) and (2).
+    //
+    // NOTE: Ideally, one should NOT call any `reveal` function more than once
+    // for these superset ranges to avoid unnecessary computation time.
+    //
+    // Instead of `reveal` on 'superset range A', and then `reveal` again
+    // on 'superset range B', one should union all these superset ranges,
+    // and then `reveal` at once.
     builder.reveal_sent(
         &request
             .without_data()
@@ -77,7 +84,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let response = &transcript.responses[0];
     let content = &response.body.as_ref().unwrap().content;
 
-    // Reveal the following committed ranges using one range (R):
+    // Reveal the following committed ranges using one superset range (R):
     // (1) response.without_data(): response structure without headers and body.
     // (2) all headers.
     //
@@ -87,6 +94,13 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     // (non-inclusive) of headers.
     //
     // This is because (1), (2) and <response.body> are adjacent ranges.
+    //
+    // NOTE: Ideally, one should NOT call any `reveal` function more than once
+    // for these superset ranges to avoid unnecessary computation time.
+    //
+    // Instead of `reveal` on 'superset range A', and then `reveal` again
+    // on 'superset range B', one should union all these superset ranges,
+    // and then `reveal` at once.
     builder.reveal_recv(
         &(response.without_data().to_range_set().min().unwrap()
             ..content.to_range_set().min().unwrap()),
