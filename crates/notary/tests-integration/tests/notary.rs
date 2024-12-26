@@ -52,8 +52,8 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
         },
         tls: TLSProperties {
             enabled: tls_enabled,
-            private_key_pem_path: "../server/fixture/tls/notary.key".to_string(),
-            certificate_pem_path: "../server/fixture/tls/notary.crt".to_string(),
+            private_key_pem_path: Some("../server/fixture/tls/notary.key".to_string()),
+            certificate_pem_path: Some("../server/fixture/tls/notary.crt".to_string()),
         },
         notary_key: NotarySigningKeyProperties {
             private_key_pem_path: "../server/fixture/notary/notary.key".to_string(),
@@ -65,7 +65,7 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
         },
         authorization: AuthorizationProperties {
             enabled: auth_enabled,
-            whitelist_csv_path: "../server/fixture/auth/whitelist.csv".to_string(),
+            whitelist_csv_path: Some("../server/fixture/auth/whitelist.csv".to_string()),
         },
     }
 }

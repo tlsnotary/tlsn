@@ -62,8 +62,8 @@ jobs:
 
       - name: Test
         run: cargo test
-  build-wasm:
-    name: Build and test wasm
+  wasm:
+    name: Build and Test wasm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -97,6 +97,25 @@ jobs:
         run: |
           cd crates/wasm-test-runner
           ./run.sh
+
+      - name: Run build
+        run: |
+          cd crates/wasm
+          ./build.sh
+
+      - name: Dry Run NPM Publish
+        run: |
+          cd crates/wasm/pkg
+          npm publish --dry-run
+
+      - name: Save tlsn-wasm package for tagged builds
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.ref_name }}-tlsn-wasm-pkg
+          path: ./crates/wasm/pkg
+          if-no-files-found: error
+
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
@@ -137,3 +156,10 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
+  # trigger-deployment:
+    # doing this here due to feedback @ https://github.com/tlsnotary/tlsn/pull/631#issuecomment-2415806267
+    # needs: tests-integration
+    # uses: ./.github/workflows/tee-cd.yml
+    # with:
+    #  # what this is supposed to do -> $ref is the tag: e.g., v0.1.0-alpha.7; pass the $ref string to the cd script and update reverse proxy / deploy 
+    #  ref: ${{  github.ref_name }}	

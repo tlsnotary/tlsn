@@ -245,64 +245,18 @@ mod test {
 
     use crate::{
         connection::{HandshakeData, HandshakeDataV1_2},
-        fixtures::{encoder_seed, encoding_provider, ConnectionFixture},
+        fixtures::{
+            encoder_seed, encoding_provider, request_fixture, ConnectionFixture, RequestFixture,
+        },
         hash::Blake3,
-        request::RequestConfig,
-        transcript::{encoding::EncodingTree, Transcript, TranscriptCommitConfigBuilder},
+        transcript::Transcript,
     };
 
     use super::*;
 
-    fn request_and_connection() -> (Request, ConnectionFixture) {
-        let provider = CryptoProvider::default();
-
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let (sent_len, recv_len) = transcript.len();
-        // Plaintext encodings which the Prover obtained from GC evaluation
-        let encodings_provider = encoding_provider(GET_WITH_HEADER, OK_JSON);
-
-        // At the end of the TLS connection the Prover holds the:
-        let ConnectionFixture {
-            server_name,
-            server_cert_data,
-            ..
-        } = ConnectionFixture::tlsnotary(transcript.length());
-
-        // Prover specifies the ranges it wants to commit to.
-        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
-        transcript_commitment_builder
-            .commit_sent(&(0..sent_len))
-            .unwrap()
-            .commit_recv(&(0..recv_len))
-            .unwrap();
-
-        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        // Prover constructs encoding tree.
-        let encoding_tree = EncodingTree::new(
-            &Blake3::default(),
-            transcripts_commitment_config.iter_encoding(),
-            &encodings_provider,
-            &transcript.length(),
-        )
-        .unwrap();
-
-        let request_config = RequestConfig::default();
-        let mut request_builder = Request::builder(&request_config);
-
-        request_builder
-            .server_name(server_name.clone())
-            .server_cert_data(server_cert_data)
-            .transcript(transcript.clone())
-            .encoding_tree(encoding_tree);
-        let (request, _) = request_builder.build(&provider).unwrap();
-
-        (request, ConnectionFixture::tlsnotary(transcript.length()))
-    }
-
     #[fixture]
     #[once]
-    fn default_attestation_config() -> AttestationConfig {
+    fn attestation_config() -> AttestationConfig {
         AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
             .build()
@@ -319,7 +273,16 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_accept_unsupported_signer() {
-        let (request, _) = request_and_connection();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
+
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256R1])
             .build()
@@ -334,7 +297,15 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_accept_unsupported_hasher() {
-        let (request, _) = request_and_connection();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -351,7 +322,15 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_accept_unsupported_encoding_commitment() {
-        let (request, _) = request_and_connection();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -371,13 +350,19 @@ mod test {
     }
 
     #[rstest]
-    fn test_attestation_builder_sign_missing_signer(
-        default_attestation_config: &AttestationConfig,
-    ) {
-        let (request, _) = request_and_connection();
+    fn test_attestation_builder_sign_missing_signer(attestation_config: &AttestationConfig) {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection,
+            Blake3::default(),
+        );
+
+        let attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         let mut provider = CryptoProvider::default();
@@ -389,13 +374,21 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_sign_missing_encoding_seed(
-        default_attestation_config: &AttestationConfig,
+        attestation_config: &AttestationConfig,
         crypto_provider: &CryptoProvider,
     ) {
-        let (request, connection) = request_and_connection();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let mut attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let mut attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         let ConnectionFixture {
@@ -407,10 +400,10 @@ mod test {
         let HandshakeData::V1_2(HandshakeDataV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake.clone();
+        }) = server_cert_data.handshake;
 
         attestation_builder
-            .connection_info(connection_info.clone())
+            .connection_info(connection_info)
             .server_ephemeral_key(server_ephemeral_key);
 
         let err = attestation_builder.build(crypto_provider).err().unwrap();
@@ -419,13 +412,21 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_sign_missing_server_ephemeral_key(
-        default_attestation_config: &AttestationConfig,
+        attestation_config: &AttestationConfig,
         crypto_provider: &CryptoProvider,
     ) {
-        let (request, connection) = request_and_connection();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let mut attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let mut attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         let ConnectionFixture {
@@ -433,7 +434,7 @@ mod test {
         } = connection;
 
         attestation_builder
-            .connection_info(connection_info.clone())
+            .connection_info(connection_info)
             .encoding_seed(encoder_seed().to_vec());
 
         let err = attestation_builder.build(crypto_provider).err().unwrap();
@@ -442,13 +443,21 @@ mod test {
 
     #[rstest]
     fn test_attestation_builder_sign_missing_connection_info(
-        default_attestation_config: &AttestationConfig,
+        attestation_config: &AttestationConfig,
         crypto_provider: &CryptoProvider,
     ) {
-        let (request, connection) = request_and_connection();
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let mut attestation_builder = Attestation::builder(default_attestation_config)
-            .accept_request(request.clone())
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+        );
+
+        let mut attestation_builder = Attestation::builder(attestation_config)
+            .accept_request(request)
             .unwrap();
 
         let ConnectionFixture {
@@ -458,7 +467,7 @@ mod test {
         let HandshakeData::V1_2(HandshakeDataV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake.clone();
+        }) = server_cert_data.handshake;
 
         attestation_builder
             .server_ephemeral_key(server_ephemeral_key)

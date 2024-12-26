@@ -27,6 +27,8 @@ pub struct Bench {
     pub download_size: Field<usize>,
     #[serde(rename = "defer-decryption")]
     pub defer_decryption: Field<bool>,
+    #[serde(rename = "memory-profile")]
+    pub memory_profile: Field<bool>,
 }
 
 impl Bench {
@@ -69,6 +71,11 @@ impl Bench {
             Field::Multiple(u) => u,
         };
 
+        let memory_profile = match self.memory_profile {
+            Field::Single(u) => vec![u],
+            Field::Multiple(u) => u,
+        };
+
         for u in upload {
             for ul in &upload_delay {
                 for d in &download {
@@ -76,16 +83,19 @@ impl Bench {
                         for us in &upload_size {
                             for ds in &download_size {
                                 for dd in &defer_decryption {
-                                    instances.push(BenchInstance {
-                                        name: self.name.clone(),
-                                        upload: u,
-                                        upload_delay: *ul,
-                                        download: *d,
-                                        download_delay: *dl,
-                                        upload_size: *us,
-                                        download_size: *ds,
-                                        defer_decryption: *dd,
-                                    });
+                                    for mp in &memory_profile {
+                                        instances.push(BenchInstance {
+                                            name: self.name.clone(),
+                                            upload: u,
+                                            upload_delay: *ul,
+                                            download: *d,
+                                            download_delay: *dl,
+                                            upload_size: *us,
+                                            download_size: *ds,
+                                            defer_decryption: *dd,
+                                            memory_profile: *mp,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -108,4 +118,6 @@ pub struct BenchInstance {
     pub upload_size: usize,
     pub download_size: usize,
     pub defer_decryption: bool,
+    /// Whether this instance should be used for memory profiling.
+    pub memory_profile: bool,
 }
