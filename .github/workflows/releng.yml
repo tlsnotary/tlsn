@@ -1,0 +1,27 @@
+name: Publish tlsn-wasm to NPM
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish to NPM'
+        required: true
+        default: '0.1.0-alpha.8-pre'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
+        path: tlsn-wasm-pkg
+
+    - name: NPM Publish for tlsn-wasm
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: |
+        cd tlsn-wasm-pkg
+        npm publish
