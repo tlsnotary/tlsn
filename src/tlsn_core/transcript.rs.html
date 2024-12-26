@@ -835,7 +835,156 @@
 <a href="#834" id="834">834</a>
 <a href="#835" id="835">835</a>
 <a href="#836" id="836">836</a>
-<a href="#837" id="837">837</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript types.
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript types.
 //!
 //! All application data communicated over a TLS connection is referred to as a
 //! [`Transcript`]. A transcript is essentially just two vectors of bytes, each
@@ -989,8 +1138,8 @@
         PartialTranscript {
             sent,
             received,
-            sent_authed: sent_idx,
-            received_authed: recv_idx,
+            sent_authed_idx: sent_idx,
+            received_authed_idx: recv_idx,
         }
     }
 }
@@ -1000,16 +1149,83 @@
 /// A partial transcript is a transcript which may not have all the data
 /// authenticated.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(try_from = <span class="string">"validation::PartialTranscriptUnchecked"</span>)]
+#[serde(try_from = <span class="string">"CompressedPartialTranscript"</span>)]
+#[serde(into = <span class="string">"CompressedPartialTranscript"</span>)]
+#[cfg_attr(test, derive(PartialEq))]
 </span><span class="kw">pub struct </span>PartialTranscript {
     <span class="doccomment">/// Data sent from the Prover to the Server.
     </span>sent: Vec&lt;u8&gt;,
     <span class="doccomment">/// Data received by the Prover from the Server.
     </span>received: Vec&lt;u8&gt;,
     <span class="doccomment">/// Index of `sent` which have been authenticated.
-    </span>sent_authed: Idx,
+    </span>sent_authed_idx: Idx,
     <span class="doccomment">/// Index of `received` which have been authenticated.
-    </span>received_authed: Idx,
+    </span>received_authed_idx: Idx,
+}
+
+<span class="doccomment">/// `PartialTranscript` in a compressed form.
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = <span class="string">"validation::CompressedPartialTranscriptUnchecked"</span>)]
+</span><span class="kw">pub struct </span>CompressedPartialTranscript {
+    <span class="doccomment">/// Sent data which has been authenticated.
+    </span>sent_authed: Vec&lt;u8&gt;,
+    <span class="doccomment">/// Received data which has been authenticated.
+    </span>received_authed: Vec&lt;u8&gt;,
+    <span class="doccomment">/// Index of `sent_authed`.
+    </span>sent_idx: Idx,
+    <span class="doccomment">/// Index of `received_authed`.
+    </span>recv_idx: Idx,
+    <span class="doccomment">/// Total bytelength of sent data in the original partial transcript.
+    </span>sent_total: usize,
+    <span class="doccomment">/// Total bytelength of received data in the original partial transcript.
+    </span>recv_total: usize,
+}
+
+<span class="kw">impl </span>From&lt;PartialTranscript&gt; <span class="kw">for </span>CompressedPartialTranscript {
+    <span class="kw">fn </span>from(uncompressed: PartialTranscript) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            sent_authed: uncompressed
+                .sent
+                .index_ranges(<span class="kw-2">&amp;</span>uncompressed.sent_authed_idx.<span class="number">0</span>),
+            received_authed: uncompressed
+                .received
+                .index_ranges(<span class="kw-2">&amp;</span>uncompressed.received_authed_idx.<span class="number">0</span>),
+            sent_idx: uncompressed.sent_authed_idx,
+            recv_idx: uncompressed.received_authed_idx,
+            sent_total: uncompressed.sent.len(),
+            recv_total: uncompressed.received.len(),
+        }
+    }
+}
+
+<span class="kw">impl </span>From&lt;CompressedPartialTranscript&gt; <span class="kw">for </span>PartialTranscript {
+    <span class="kw">fn </span>from(compressed: CompressedPartialTranscript) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>sent = <span class="macro">vec!</span>[<span class="number">0</span>; compressed.sent_total];
+        <span class="kw">let </span><span class="kw-2">mut </span>received = <span class="macro">vec!</span>[<span class="number">0</span>; compressed.recv_total];
+
+        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
+
+        <span class="kw">for </span>range <span class="kw">in </span>compressed.sent_idx.iter_ranges() {
+            sent[range.clone()]
+                .copy_from_slice(<span class="kw-2">&amp;</span>compressed.sent_authed[offset..offset + range.len()]);
+            offset += range.len();
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
+
+        <span class="kw">for </span>range <span class="kw">in </span>compressed.recv_idx.iter_ranges() {
+            received[range.clone()]
+                .copy_from_slice(<span class="kw-2">&amp;</span>compressed.received_authed[offset..offset + range.len()]);
+            offset += range.len();
+        }
+
+        <span class="self">Self </span>{
+            sent,
+            received,
+            sent_authed_idx: compressed.sent_idx,
+            received_authed_idx: compressed.recv_idx,
+        }
+    }
 }
 
 <span class="kw">impl </span>PartialTranscript {
@@ -1023,8 +1239,8 @@
         <span class="self">Self </span>{
             sent: <span class="macro">vec!</span>[<span class="number">0</span>; sent_len],
             received: <span class="macro">vec!</span>[<span class="number">0</span>; received_len],
-            sent_authed: Idx::default(),
-            received_authed: Idx::default(),
+            sent_authed_idx: Idx::default(),
+            received_authed_idx: Idx::default(),
         }
     }
 
@@ -1040,8 +1256,8 @@
 
     <span class="doccomment">/// Returns whether the transcript is complete.
     </span><span class="kw">pub fn </span>is_complete(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.sent_authed.len() == <span class="self">self</span>.sent.len()
-            &amp;&amp; <span class="self">self</span>.received_authed.len() == <span class="self">self</span>.received.len()
+        <span class="self">self</span>.sent_authed_idx.len() == <span class="self">self</span>.sent.len()
+            &amp;&amp; <span class="self">self</span>.received_authed_idx.len() == <span class="self">self</span>.received.len()
     }
 
     <span class="doccomment">/// Returns whether the index is in bounds of the transcript.
@@ -1076,29 +1292,29 @@
 
     <span class="doccomment">/// Returns the index of sent data which have been authenticated.
     </span><span class="kw">pub fn </span>sent_authed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Idx {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed
+        <span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed_idx
     }
 
     <span class="doccomment">/// Returns the index of received data which have been authenticated.
     </span><span class="kw">pub fn </span>received_authed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Idx {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.received_authed
+        <span class="kw-2">&amp;</span><span class="self">self</span>.received_authed_idx
     }
 
     <span class="doccomment">/// Returns the index of sent data which haven't been authenticated.
     </span><span class="kw">pub fn </span>sent_unauthed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Idx {
-        Idx(RangeSet::from(<span class="number">0</span>..<span class="self">self</span>.sent.len()).difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed.<span class="number">0</span>))
+        Idx(RangeSet::from(<span class="number">0</span>..<span class="self">self</span>.sent.len()).difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed_idx.<span class="number">0</span>))
     }
 
     <span class="doccomment">/// Returns the index of received data which haven't been authenticated.
     </span><span class="kw">pub fn </span>received_unauthed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Idx {
-        Idx(RangeSet::from(<span class="number">0</span>..<span class="self">self</span>.received.len()).difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed.<span class="number">0</span>))
+        Idx(RangeSet::from(<span class="number">0</span>..<span class="self">self</span>.received.len()).difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed_idx.<span class="number">0</span>))
     }
 
     <span class="doccomment">/// Returns an iterator over the authenticated data in the transcript.
     </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction) -&gt; <span class="kw">impl </span>Iterator&lt;Item = u8&gt; + <span class="lifetime">'_ </span>{
         <span class="kw">let </span>(data, authed) = <span class="kw">match </span>direction {
-            Direction::Sent =&gt; (<span class="kw-2">&amp;</span><span class="self">self</span>.sent, <span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed),
-            Direction::Received =&gt; (<span class="kw-2">&amp;</span><span class="self">self</span>.received, <span class="kw-2">&amp;</span><span class="self">self</span>.received_authed),
+            Direction::Sent =&gt; (<span class="kw-2">&amp;</span><span class="self">self</span>.sent, <span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed_idx),
+            Direction::Received =&gt; (<span class="kw-2">&amp;</span><span class="self">self</span>.received, <span class="kw-2">&amp;</span><span class="self">self</span>.received_authed_idx),
         };
 
         authed.<span class="number">0</span>.iter().map(|i| data[i])
@@ -1122,25 +1338,25 @@
         </span>);
 
         <span class="kw">for </span>range <span class="kw">in </span>other
-            .sent_authed
+            .sent_authed_idx
             .<span class="number">0
-            </span>.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed.<span class="number">0</span>)
+            </span>.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed_idx.<span class="number">0</span>)
             .iter_ranges()
         {
             <span class="self">self</span>.sent[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>other.sent[range]);
         }
 
         <span class="kw">for </span>range <span class="kw">in </span>other
-            .received_authed
+            .received_authed_idx
             .<span class="number">0
-            </span>.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed.<span class="number">0</span>)
+            </span>.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed_idx.<span class="number">0</span>)
             .iter_ranges()
         {
             <span class="self">self</span>.received[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>other.received[range]);
         }
 
-        <span class="self">self</span>.sent_authed = <span class="self">self</span>.sent_authed.union(<span class="kw-2">&amp;</span>other.sent_authed);
-        <span class="self">self</span>.received_authed = <span class="self">self</span>.received_authed.union(<span class="kw-2">&amp;</span>other.received_authed);
+        <span class="self">self</span>.sent_authed_idx = <span class="self">self</span>.sent_authed_idx.union(<span class="kw-2">&amp;</span>other.sent_authed_idx);
+        <span class="self">self</span>.received_authed_idx = <span class="self">self</span>.received_authed_idx.union(<span class="kw-2">&amp;</span>other.received_authed_idx);
     }
 
     <span class="doccomment">/// Unions an authenticated subsequence into this transcript.
@@ -1152,11 +1368,11 @@
         <span class="kw">match </span>direction {
             Direction::Sent =&gt; {
                 seq.copy_to(<span class="kw-2">&amp;mut </span><span class="self">self</span>.sent);
-                <span class="self">self</span>.sent_authed = <span class="self">self</span>.sent_authed.union(<span class="kw-2">&amp;</span>seq.idx);
+                <span class="self">self</span>.sent_authed_idx = <span class="self">self</span>.sent_authed_idx.union(<span class="kw-2">&amp;</span>seq.idx);
             }
             Direction::Received =&gt; {
                 seq.copy_to(<span class="kw-2">&amp;mut </span><span class="self">self</span>.received);
-                <span class="self">self</span>.received_authed = <span class="self">self</span>.received_authed.union(<span class="kw-2">&amp;</span>seq.idx);
+                <span class="self">self</span>.received_authed_idx = <span class="self">self</span>.received_authed_idx.union(<span class="kw-2">&amp;</span>seq.idx);
             }
         }
     }
@@ -1185,12 +1401,12 @@
     </span><span class="kw">pub fn </span>set_unauthed_range(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: u8, direction: Direction, range: Range&lt;usize&gt;) {
         <span class="kw">match </span>direction {
             Direction::Sent =&gt; {
-                <span class="kw">for </span>range <span class="kw">in </span>range.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed.<span class="number">0</span>).iter_ranges() {
+                <span class="kw">for </span>range <span class="kw">in </span>range.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.sent_authed_idx.<span class="number">0</span>).iter_ranges() {
                     <span class="self">self</span>.sent[range].fill(value);
                 }
             }
             Direction::Received =&gt; {
-                <span class="kw">for </span>range <span class="kw">in </span>range.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed.<span class="number">0</span>).iter_ranges() {
+                <span class="kw">for </span>range <span class="kw">in </span>range.difference(<span class="kw-2">&amp;</span><span class="self">self</span>.received_authed_idx.<span class="number">0</span>).iter_ranges() {
                     <span class="self">self</span>.received[range].fill(value);
                 }
             }
@@ -1386,49 +1602,116 @@
         }
     }
 
-    <span class="doccomment">/// Invalid partial transcript error.
+    <span class="doccomment">/// Invalid compressed partial transcript error.
     </span><span class="attr">#[derive(Debug, thiserror::Error)]
-    #[error(<span class="string">"invalid partial transcript: {0}"</span>)]
-    </span><span class="kw">pub struct </span>InvalidPartialTranscript(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str);
+    #[error(<span class="string">"invalid compressed partial transcript: {0}"</span>)]
+    </span><span class="kw">pub struct </span>InvalidCompressedPartialTranscript(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str);
 
     <span class="attr">#[derive(Debug, Deserialize)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>PartialTranscriptUnchecked {
-        sent: Vec&lt;u8&gt;,
-        received: Vec&lt;u8&gt;,
-        sent_authed: Idx,
-        received_authed: Idx,
+    #[cfg_attr(test, derive(Serialize))]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>CompressedPartialTranscriptUnchecked {
+        sent_authed: Vec&lt;u8&gt;,
+        received_authed: Vec&lt;u8&gt;,
+        sent_idx: Idx,
+        recv_idx: Idx,
+        sent_total: usize,
+        recv_total: usize,
     }
 
-    <span class="kw">impl </span>TryFrom&lt;PartialTranscriptUnchecked&gt; <span class="kw">for </span>PartialTranscript {
-        <span class="kw">type </span>Error = InvalidPartialTranscript;
+    <span class="kw">impl </span>TryFrom&lt;CompressedPartialTranscriptUnchecked&gt; <span class="kw">for </span>CompressedPartialTranscript {
+        <span class="kw">type </span>Error = InvalidCompressedPartialTranscript;
 
-        <span class="kw">fn </span>try_from(unchecked: PartialTranscriptUnchecked) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
-            <span class="kw">if </span>unchecked.sent_authed.end() &gt; unchecked.sent.len()
-                || unchecked.received_authed.end() &gt; unchecked.received.len()
+        <span class="kw">fn </span>try_from(unchecked: CompressedPartialTranscriptUnchecked) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+            <span class="kw">if </span>unchecked.sent_authed.len() != unchecked.sent_idx.len()
+                || unchecked.received_authed.len() != unchecked.recv_idx.len()
             {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidPartialTranscript(
-                    <span class="string">"authenticated ranges are not in bounds of the data"</span>,
+                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidCompressedPartialTranscript(
+                    <span class="string">"lengths of index and data don't match"</span>,
                 ));
             }
 
-            <span class="comment">// Rewrite the data to ensure that unauthenticated data is zeroed out.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>sent = <span class="macro">vec!</span>[<span class="number">0</span>; unchecked.sent.len()];
-            <span class="kw">let </span><span class="kw-2">mut </span>received = <span class="macro">vec!</span>[<span class="number">0</span>; unchecked.received.len()];
-
-            <span class="kw">for </span>range <span class="kw">in </span>unchecked.sent_authed.iter_ranges() {
-                sent[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>unchecked.sent[range]);
-            }
-
-            <span class="kw">for </span>range <span class="kw">in </span>unchecked.received_authed.iter_ranges() {
-                received[range.clone()].copy_from_slice(<span class="kw-2">&amp;</span>unchecked.received[range]);
+            <span class="kw">if </span>unchecked.sent_idx.end() &gt; unchecked.sent_total
+                || unchecked.recv_idx.end() &gt; unchecked.recv_total
+            {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidCompressedPartialTranscript(
+                    <span class="string">"ranges are not in bounds of the data"</span>,
+                ));
             }
 
             <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-                sent,
-                received,
-                sent_authed: unchecked.sent_authed,
                 received_authed: unchecked.received_authed,
+                recv_idx: unchecked.recv_idx,
+                recv_total: unchecked.recv_total,
+                sent_authed: unchecked.sent_authed,
+                sent_idx: unchecked.sent_idx,
+                sent_total: unchecked.sent_total,
             })
+        }
+    }
+
+    <span class="attr">#[cfg(test)]
+    </span><span class="kw">mod </span>tests {
+        <span class="kw">use </span>rstest::{fixture, rstest};
+
+        <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+        <span class="attr">#[fixture]
+        </span><span class="kw">fn </span>partial_transcript() -&gt; CompressedPartialTranscriptUnchecked {
+            CompressedPartialTranscriptUnchecked {
+                received_authed: <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>],
+                sent_authed: <span class="macro">vec!</span>[<span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>],
+                recv_idx: Idx(RangeSet::new(<span class="kw-2">&amp;</span>[<span class="number">1</span>..<span class="number">4</span>, <span class="number">11</span>..<span class="number">14</span>])),
+                sent_idx: Idx(RangeSet::new(<span class="kw-2">&amp;</span>[<span class="number">4</span>..<span class="number">7</span>, <span class="number">14</span>..<span class="number">17</span>])),
+                sent_total: <span class="number">20</span>,
+                recv_total: <span class="number">20</span>,
+            }
+        }
+
+        <span class="attr">#[rstest]
+        </span><span class="kw">fn </span>test_partial_transcript_valid(partial_transcript: CompressedPartialTranscriptUnchecked) {
+            <span class="kw">let </span>bytes = bincode::serialize(<span class="kw-2">&amp;</span>partial_transcript).unwrap();
+            <span class="kw">let </span>transcript: <span class="prelude-ty">Result</span>&lt;CompressedPartialTranscript, Box&lt;bincode::ErrorKind&gt;&gt; =
+                bincode::deserialize(<span class="kw-2">&amp;</span>bytes);
+            <span class="macro">assert!</span>(transcript.is_ok());
+        }
+
+        <span class="attr">#[rstest]
+        </span><span class="comment">// Expect to fail since the length of data and the length of the index do not
+        // match.
+        </span><span class="kw">fn </span>test_partial_transcript_invalid_lengths(
+            <span class="kw-2">mut </span>partial_transcript: CompressedPartialTranscriptUnchecked,
+        ) {
+            <span class="comment">// Add an extra byte to the data.
+            </span><span class="kw">let </span><span class="kw-2">mut </span>old = partial_transcript.sent_authed;
+            old.extend([<span class="number">1</span>]);
+            partial_transcript.sent_authed = old;
+
+            <span class="kw">let </span>bytes = bincode::serialize(<span class="kw-2">&amp;</span>partial_transcript).unwrap();
+            <span class="kw">let </span>transcript: <span class="prelude-ty">Result</span>&lt;CompressedPartialTranscript, Box&lt;bincode::ErrorKind&gt;&gt; =
+                bincode::deserialize(<span class="kw-2">&amp;</span>bytes);
+            <span class="macro">assert!</span>(transcript.is_err());
+        }
+
+        <span class="attr">#[rstest]
+        </span><span class="comment">// Expect to fail since the index is out of bounds.
+        </span><span class="kw">fn </span>test_partial_transcript_invalid_ranges(
+            <span class="kw-2">mut </span>partial_transcript: CompressedPartialTranscriptUnchecked,
+        ) {
+            <span class="comment">// Change the total to be less than the last range's end bound.
+            </span><span class="kw">let </span>end = partial_transcript
+                .sent_idx
+                .<span class="number">0
+                </span>.iter_ranges()
+                .last()
+                .unwrap()
+                .end;
+
+            partial_transcript.sent_total = end - <span class="number">1</span>;
+
+            <span class="kw">let </span>bytes = bincode::serialize(<span class="kw-2">&amp;</span>partial_transcript).unwrap();
+            <span class="kw">let </span>transcript: <span class="prelude-ty">Result</span>&lt;CompressedPartialTranscript, Box&lt;bincode::ErrorKind&gt;&gt; =
+                bincode::deserialize(<span class="kw-2">&amp;</span>bytes);
+            <span class="macro">assert!</span>(transcript.is_err());
         }
     }
 }
@@ -1444,6 +1727,14 @@
         Transcript::new(
             [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>],
             [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>],
+        )
+    }
+
+    <span class="attr">#[fixture]
+    </span><span class="kw">fn </span>partial_transcript() -&gt; PartialTranscript {
+        transcript().to_partial(
+            Idx::new(RangeSet::new(<span class="kw-2">&amp;</span>[<span class="number">1</span>..<span class="number">4</span>, <span class="number">6</span>..<span class="number">9</span>])),
+            Idx::new(RangeSet::new(<span class="kw-2">&amp;</span>[<span class="number">2</span>..<span class="number">5</span>, <span class="number">7</span>..<span class="number">10</span>])),
         )
     }
 
@@ -1467,6 +1758,13 @@
 
         <span class="kw">let </span>subseq = transcript.get(Direction::Sent, <span class="kw-2">&amp;</span>Idx(RangeSet::from([<span class="number">0</span>..<span class="number">4</span>, <span class="number">7</span>..<span class="number">10</span>, <span class="number">11</span>..<span class="number">13</span>])));
         <span class="macro">assert_eq!</span>(subseq, <span class="prelude-val">None</span>);
+    }
+
+    <span class="attr">#[rstest]
+    </span><span class="kw">fn </span>test_partial_transcript_serialization_ok(partial_transcript: PartialTranscript) {
+        <span class="kw">let </span>bytes = bincode::serialize(<span class="kw-2">&amp;</span>partial_transcript).unwrap();
+        <span class="kw">let </span>deserialized_transcript: PartialTranscript = bincode::deserialize(<span class="kw-2">&amp;</span>bytes).unwrap();
+        <span class="macro">assert_eq!</span>(partial_transcript, deserialized_transcript);
     }
 
     <span class="attr">#[rstest]
