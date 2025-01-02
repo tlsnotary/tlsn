@@ -2,7 +2,6 @@ pub mod axum_websocket;
 pub mod tcp;
 pub mod websocket;
 
-use async_trait::async_trait;
 use axum::{
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
     http::{header, request::Parts, StatusCode},
@@ -43,7 +42,6 @@ pub enum ProtocolUpgrade {
     Ws(WebSocketUpgrade),
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for ProtocolUpgrade
 where
     S: Send + Sync,
@@ -56,17 +54,17 @@ where
             let extractor = WebSocketUpgrade::from_request_parts(parts, state)
                 .await
                 .map_err(|err| NotaryServerError::BadProverRequest(err.to_string()))?;
-            return Ok(Self::Ws(extractor));
+            Ok(Self::Ws(extractor))
         // Extract tcp connection for tcp client
         } else if header_eq(&parts.headers, header::UPGRADE, "tcp") {
             let extractor = TcpUpgrade::from_request_parts(parts, state)
                 .await
                 .map_err(|err| NotaryServerError::BadProverRequest(err.to_string()))?;
-            return Ok(Self::Tcp(extractor));
+            Ok(Self::Tcp(extractor))
         } else {
-            return Err(NotaryServerError::BadProverRequest(
+            Err(NotaryServerError::BadProverRequest(
                 "Upgrade header is not set for client".to_string(),
-            ));
+            ))
         }
     }
 }

@@ -431,7 +431,6 @@ impl OnFailedUpgrade for DefaultOnFailedUpgrade {
     fn call(self, _error: Error) {}
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for WebSocketUpgrade<DefaultOnFailedUpgrade>
 where
     S: Send + Sync,

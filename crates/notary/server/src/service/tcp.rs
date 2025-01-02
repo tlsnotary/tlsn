@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use axum::{
     extract::FromRequestParts,
     http::{header, request::Parts, HeaderValue, StatusCode},
@@ -22,7 +21,6 @@ pub struct TcpUpgrade {
     pub on_upgrade: OnUpgrade,
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for TcpUpgrade
 where
     S: Send + Sync,

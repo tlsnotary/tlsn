@@ -89,7 +89,7 @@ aes-gcm = { version = "0.9" }
 anyhow = { version = "1.0" }
 async-trait = { version = "0.1" }
 async-tungstenite = { version = "0.25" }
-axum = { version = "0.7" }
+axum = { version = "0.8" }
 bcs = { version = "0.1" }
 bincode = { version = "1.3" }
 blake3 = { version = "1.5" }
