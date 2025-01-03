@@ -431,6 +431,7 @@ impl fmt::Display for TranscriptProofBuilderError {
     }
 }
 
+#[allow(clippy::single_range_in_vec_init)]
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
