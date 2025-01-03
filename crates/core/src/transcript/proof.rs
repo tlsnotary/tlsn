@@ -199,6 +199,8 @@ impl<'a> TranscriptProofBuilder<'a> {
             ));
         }
 
+        let dir_idx = (direction, idx);
+
         match kind {
             TranscriptCommitmentKind::Encoding => {
                 let Some(encoding_tree) = self.encoding_tree else {
@@ -207,8 +209,6 @@ impl<'a> TranscriptProofBuilder<'a> {
                         "encoding tree is missing",
                     ));
                 };
-
-                let dir_idx = (direction, idx);
 
                 // Insert the rangeset if it's in the encoding tree (which means it's a
                 // committed rangeset).
@@ -245,13 +245,13 @@ impl<'a> TranscriptProofBuilder<'a> {
             TranscriptCommitmentKind::Hash { .. } => {
                 let plaintext_hash_secrets =
                     // Get the secret if idx is in self.plaintext_hashes, i.e. it's committed.
-                    if let Some(secret) = self.plaintext_hashes.get_by_transcript_idx(&idx) {
+                    if let Some(secret) = self.plaintext_hashes.get_by_transcript_idx(&dir_idx) {
                         vec![secret]
                     } else {
                         // Collect any secret whose rangeset is a subset of idx.
                         self.plaintext_hashes
                             .iter()
-                            .filter(|secret| secret.idx.is_subset(&idx))
+                            .filter(|secret| secret.idx.is_subset(&dir_idx.1))
                             .collect()
                     };
                 if plaintext_hash_secrets.is_empty() {
@@ -265,14 +265,13 @@ impl<'a> TranscriptProofBuilder<'a> {
                 }
                 for secret in plaintext_hash_secrets.into_iter() {
                     let PlaintextHashSecret {
-                        direction,
                         commitment,
                         blinder,
                         ..
                     } = secret;
                     let (_, data) = self
                         .transcript
-                        .get(*direction, &idx)
+                        .get(dir_idx.0, &dir_idx.1)
                         .expect("subsequence was checked to be in transcript")
                         .into_parts();
 
