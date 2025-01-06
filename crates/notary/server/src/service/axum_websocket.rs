@@ -818,9 +818,9 @@ impl Message {
     fn into_tungstenite(self) -> ts::Message {
         match self {
             Self::Text(text) => ts::Message::Text(text.into_tungstenite().to_string()), /* NOTARY_MODIFICATION */
-            Self::Binary(binary) => ts::Message::Binary(binary.to_vec()), // NOTARY_MODIFICATION
-            Self::Ping(ping) => ts::Message::Ping(ping.to_vec()),         // NOTARY_MODIFICATION
-            Self::Pong(pong) => ts::Message::Pong(pong.to_vec()),         // NOTARY_MODIFICATION
+            Self::Binary(binary) => ts::Message::Binary(binary.to_vec()), /* NOTARY_MODIFICATION */
+            Self::Ping(ping) => ts::Message::Ping(ping.to_vec()),         /* NOTARY_MODIFICATION */
+            Self::Pong(pong) => ts::Message::Pong(pong.to_vec()),         /* NOTARY_MODIFICATION */
             Self::Close(Some(close)) => ts::Message::Close(Some(ts::protocol::CloseFrame {
                 code: ts::protocol::frame::coding::CloseCode::from(close.code),
                 reason: Cow::Owned(close.reason.into_tungstenite().to_string()), /* NOTARY_MODIFICATION */
@@ -833,11 +833,11 @@ impl Message {
         match message {
             ts::Message::Text(text) => Some(Self::Text(Utf8Bytes(text.into()))), /* NOTARY_MODIFICATION */
             ts::Message::Binary(binary) => Some(Self::Binary(binary.into())), /* NOTARY_MODIFICATION */
-            ts::Message::Ping(ping) => Some(Self::Ping(ping.into())),         // NOTARY_MODIFICATION
-            ts::Message::Pong(pong) => Some(Self::Pong(pong.into())),         // NOTARY_MODIFICATION
+            ts::Message::Ping(ping) => Some(Self::Ping(ping.into())), /* NOTARY_MODIFICATION */
+            ts::Message::Pong(pong) => Some(Self::Pong(pong.into())), /* NOTARY_MODIFICATION */
             ts::Message::Close(Some(close)) => Some(Self::Close(Some(CloseFrame {
                 code: close.code.into(),
-                reason: Utf8Bytes(close.reason.to_string().into()), // NOTARY_MODIFICATION
+                reason: Utf8Bytes(close.reason.to_string().into()), /* NOTARY_MODIFICATION */
             }))),
             ts::Message::Close(None) => Some(Self::Close(None)),
             // we can ignore `Frame` frames as recommended by the tungstenite maintainers
