@@ -19,7 +19,6 @@ tlsn-core = { workspace = true }
 tlsn-common = { workspace = true }
 tlsn-verifier = { workspace = true }
 
-async-trait = { workspace = true }
 async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
 axum = { workspace = true, features = ["ws"] }
 axum-core = { version = "0.5" }
