@@ -1,4 +1,4 @@
-//! The following code is adapted from https://github.com/tokio-rs/axum/blob/axum-v0.7.3/axum/src/extract/ws.rs
+//! The following code is adapted from https://github.com/tokio-rs/axum/blob/axum-v0.8.0/axum/src/extract/ws.rs
 //! where we swapped out tokio_tungstenite (https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/)
 //! with async_tungstenite (https://docs.rs/async-tungstenite/latest/async_tungstenite/) so that we can use
 //! ws_stream_tungstenite (https://docs.rs/ws_stream_tungstenite/latest/ws_stream_tungstenite/index.html)
@@ -620,6 +620,10 @@ impl Sink<Message> for WebSocket {
 /// UTF-8 wrapper for [Bytes].
 ///
 /// An [Utf8Bytes] is always guaranteed to contain valid UTF-8.
+/// The following NOTARY_MODIFICATION(s) are required because
+/// `async_tungstenite` (v0.28.2) is using an older version of `tungstenite`
+/// than `tokio_tungstenite` (v0.26.1). This older version of `tungstenite`
+/// (v0.26.0) doesn't have `Utf8Bytes`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Utf8Bytes(axum::extract::ws::Utf8Bytes); // NOTARY_MODIFICATION
 
@@ -814,6 +818,9 @@ pub enum Message {
     Close(Option<CloseFrame>),
 }
 
+/// The following NOTARY_MODIFICATION(s) are required because
+/// `async_tungstenite` (v0.28.2) is using an older version of `tungstenite`
+/// than `tokio_tungstenite` (v0.26.1).
 impl Message {
     fn into_tungstenite(self) -> ts::Message {
         match self {
