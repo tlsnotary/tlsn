@@ -822,6 +822,7 @@ pub enum Message {
 /// The following NOTARY_MODIFICATION(s) are required because
 /// `async_tungstenite` (v0.28.2) is using an older version of `tungstenite`
 /// than `tokio_tungstenite` (v0.26.1).
+/// The following NOTARY_MODIFICATION(s) are required because `async_tungstenite` (v0.28.2) is using an older version of `tungstenite` than `tokio_tungstenite` (v0.26.1).
 impl Message {
     fn into_tungstenite(self) -> ts::Message {
         match self {
