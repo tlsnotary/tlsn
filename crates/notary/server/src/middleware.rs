@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use axum::http::{header, request::Parts};
 use axum_core::extract::{FromRef, FromRequestParts};
 use std::collections::HashMap;
@@ -12,7 +11,6 @@ use crate::{
 /// Auth middleware to prevent DOS
 pub struct AuthorizationMiddleware;
 
-#[async_trait]
 impl<S> FromRequestParts<S> for AuthorizationMiddleware
 where
     NotaryGlobals: FromRef<S>,
