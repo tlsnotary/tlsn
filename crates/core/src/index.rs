@@ -5,11 +5,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     attestation::{Field, FieldId},
     transcript::{
-        hash::{PlaintextHash, PlaintextHashSecret}, Direction, Idx
+        hash::{PlaintextHash, PlaintextHashSecret},
+        Direction, Idx,
     },
 };
 
-/// Index for items which can be looked up by transcript's (direction and index) or field id.
+/// Index for items which can be looked up by transcript's (direction and index)
+/// or field id.
 #[derive(Debug, Clone)]
 pub(crate) struct Index<T> {
     items: Vec<T>,
@@ -119,7 +121,9 @@ mod test {
 
     impl From<Vec<Stub>> for Index<Stub> {
         fn from(items: Vec<Stub>) -> Self {
-            Self::new(items, |item: &Stub| (&item.field_index, item.direction, &item.index))
+            Self::new(items, |item: &Stub| {
+                (&item.field_index, item.direction, &item.index)
+            })
         }
     }
 
@@ -176,6 +180,9 @@ mod test {
         let wrong_field_index = FieldId(200);
 
         assert_eq!(stubs_index.get_by_field_id(&wrong_field_index), None);
-        assert_eq!(stubs_index.get_by_transcript_idx(&(Direction::Sent, wrong_index)), None);
+        assert_eq!(
+            stubs_index.get_by_transcript_idx(&(Direction::Sent, wrong_index)),
+            None
+        );
     }
 }

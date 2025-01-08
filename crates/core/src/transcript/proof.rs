@@ -1,10 +1,7 @@
 //! Transcript proofs.
 
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashSet},
-    fmt,
-};
+use std::{collections::HashSet, fmt};
 use utils::range::ToRangeSet;
 
 use crate::{
@@ -145,7 +142,7 @@ pub struct TranscriptProofBuilder<'a> {
     encoding_tree: Option<&'a EncodingTree>,
     plaintext_hashes: &'a Index<PlaintextHashSecret>,
     encoding_proof_idxs: HashSet<(Direction, Idx)>,
-    hash_proofs: Vec<PlaintextHashProof>,
+    hash_proof_idxs: HashSet<(Direction, Idx)>,
 }
 
 impl<'a> TranscriptProofBuilder<'a> {
@@ -161,7 +158,7 @@ impl<'a> TranscriptProofBuilder<'a> {
             encoding_tree,
             plaintext_hashes,
             encoding_proof_idxs: HashSet::default(),
-            hash_proofs: Vec::new(),
+            hash_proof_idxs: HashSet::default(),
         }
     }
 
@@ -243,42 +240,41 @@ impl<'a> TranscriptProofBuilder<'a> {
                 }
             }
             TranscriptCommitmentKind::Hash { .. } => {
-                let plaintext_hash_secrets =
-                    // Get the secret if idx is in self.plaintext_hashes, i.e. it's committed.
-                    if let Some(secret) = self.plaintext_hashes.get_by_transcript_idx(&dir_idx) {
-                        vec![secret]
-                    } else {
-                        // Collect any secret whose rangeset is a subset of idx.
-                        self.plaintext_hashes
-                            .iter()
-                            .filter(|secret| secret.idx.is_subset(&dir_idx.1))
-                            .collect()
-                    };
-                if plaintext_hash_secrets.is_empty() {
-                    return Err(TranscriptProofBuilderError::new(
-                        BuilderErrorKind::MissingCommitment,
-                        format!(
-                            "hash commitment is missing for ranges in {} transcript",
-                            direction
-                        ),
-                    ));
-                }
-                for secret in plaintext_hash_secrets.into_iter() {
-                    let PlaintextHashSecret {
-                        commitment,
-                        blinder,
-                        ..
-                    } = secret;
-                    let (_, data) = self
-                        .transcript
-                        .get(dir_idx.0, &dir_idx.1)
-                        .expect("subsequence was checked to be in transcript")
-                        .into_parts();
-
-                    self.hash_proofs.push(PlaintextHashProof::new(
-                        Blinded::new_with_blinder(data, blinder.clone()),
-                        *commitment,
-                    ));
+                // Insert the rangeset if dir_idx is in self.plaintext_hashes, i.e. it's
+                // committed.
+                if self
+                    .plaintext_hashes
+                    .get_by_transcript_idx(&dir_idx)
+                    .is_some()
+                {
+                    self.hash_proof_idxs.insert(dir_idx);
+                } else {
+                    let mut missing_commitment = true;
+                    // Check if there is any committed rangeset in self.plaintext_hashes that is a
+                    // subset of the rangeset — if yes, insert them.
+                    for committed_secret in self
+                        .plaintext_hashes
+                        .iter()
+                        .filter(|secret| secret.direction == dir_idx.0)
+                    {
+                        if committed_secret.idx.is_subset(&dir_idx.1) {
+                            self.hash_proof_idxs
+                                .insert((committed_secret.direction, committed_secret.idx.clone()));
+                            missing_commitment = false;
+                        }
+                    }
+                    // If no committed rangeset is a subset, that means the rangeset is missing
+                    // fully or partially in self.plaintext_hashes (which means it has not been
+                    // committed).
+                    if missing_commitment {
+                        return Err(TranscriptProofBuilderError::new(
+                            BuilderErrorKind::MissingCommitment,
+                            format!(
+                                "hash commitment is missing for ranges in {} transcript",
+                                direction
+                            ),
+                        ));
+                    }
                 }
             }
         }
@@ -329,63 +325,107 @@ impl<'a> TranscriptProofBuilder<'a> {
     /// Builds the transcript proof.
     pub fn build(mut self) -> Result<TranscriptProof, TranscriptProofBuilderError> {
         let encoding_proof = if !self.encoding_proof_idxs.is_empty() {
+            prune_proof_idxs(&mut self.encoding_proof_idxs);
+
             let encoding_tree = self.encoding_tree.expect("encoding tree is present");
-            self.prune_encoding_proof_idxs();
+
             let proof = encoding_tree
                 .proof(self.transcript, self.encoding_proof_idxs.iter())
                 .expect("subsequences were checked to be in tree");
+
             Some(proof)
         } else {
             None
         };
 
+        let mut hash_proofs = Vec::new();
+        if !self.hash_proof_idxs.is_empty() {
+            prune_proof_idxs(&mut self.hash_proof_idxs);
+
+            for dir_idx in self.hash_proof_idxs.iter() {
+                let PlaintextHashSecret {
+                    commitment,
+                    blinder,
+                    ..
+                } = self
+                    .plaintext_hashes
+                    .get_by_transcript_idx(dir_idx)
+                    .expect("idx was checked to be committed");
+
+                let (_, data) = self
+                    .transcript
+                    .get(dir_idx.0, &dir_idx.1)
+                    .expect("subsequence was checked to be in transcript")
+                    .into_parts();
+
+                hash_proofs.push(PlaintextHashProof::new(
+                    Blinded::new_with_blinder(data, blinder.clone()),
+                    *commitment,
+                ));
+            }
+        }
+
         Ok(TranscriptProof {
             encoding_proof,
-            hash_proofs: self.hash_proofs,
+            hash_proofs,
         })
     }
+}
 
-    /// Prune any rangeset (idx) that is a subset of another rangeset in the
-    /// encoding proof idx collection to reduce unnecessary proof
-    /// size, and proving + verifying time.
-    ///
-    /// This is because any subset rangeset would also be revealed by its
-    /// superset rangeset.
-    fn prune_encoding_proof_idxs(&mut self) {
-        self.prune_encoding_proof_idxs_with_direction(Direction::Sent);
-        self.prune_encoding_proof_idxs_with_direction(Direction::Received);
-    }
+/// Prune any rangeset (idx) that is a subset of another rangeset in the
+/// proof idx collection to reduce unnecessary proof
+/// size, and proving + verifying time.
+///
+/// This is because any subset rangeset would also be revealed by its
+/// superset rangeset.
+fn prune_proof_idxs(proof_idxs: &mut HashSet<(Direction, Idx)>) {
+    prune_proof_idxs_with_direction(Direction::Sent, proof_idxs);
+    prune_proof_idxs_with_direction(Direction::Received, proof_idxs);
+}
 
-    fn prune_encoding_proof_idxs_with_direction(&mut self, direction: Direction) {
-        // Use a B-tree to reduce the search space for subset rangeset.
-        let mut idxs_tree = BTreeMap::new();
+fn prune_proof_idxs_with_direction(
+    direction: Direction,
+    proof_idxs: &mut HashSet<(Direction, Idx)>,
+) {
+    // Collect [Idx] given a specific [Direction].
+    let mut idxs_to_prune = proof_idxs
+        .iter()
+        .filter(|(dir, _)| *dir == direction)
+        .map(|(_, idx)| idx.clone())
+        .collect::<Vec<_>>();
 
-        self.encoding_proof_idxs
-            .iter()
-            .filter(|(dir, _)| *dir == direction)
-            // Use the rangeset's minimum value as the key for search.
-            .for_each(|(_, idx)| {
-                idxs_tree.insert(idx.start(), idx.clone());
-            });
+    // Sort the collection according to the custom ordering described in [Ord]
+    // implementation of [super::transcript::Idx] — which reduces subset search
+    // time complexity.
+    idxs_to_prune.sort_unstable();
 
-        // Check for every idx if it is a subset of any other rangeset.
-        for idx in idxs_tree.values() {
-            // Only query for rangeset that has start <= idx.start (else idx is not a
-            // subset).
-            for (_, other_idx) in idxs_tree.range(..=idx.start()) {
-                // Skip when other_idx is itself.
-                // P/S: No duplicate in the collection for a given `Direction`.
-                if other_idx == idx {
-                    continue;
-                }
-                // Remove idx if it's a subset — `is_subset` also has a loop, which is why
-                // B-tree is used to minimise the no. of iteration of the current loop.
-                if idx.is_subset(other_idx) {
-                    self.encoding_proof_idxs.remove(&(direction, idx.clone()));
-                }
+    // Reverse the order so that subset check of each [Idx] is done with the most
+    // likely superset first.
+    idxs_to_prune.reverse();
+
+    let mut idxs_to_remove = HashSet::new();
+
+    // Start from the second [Idx], as the first is guaranteed to not be a subset of
+    // any.
+    for i in 1..idxs_to_prune.len() {
+        let idx = &idxs_to_prune[i];
+
+        // Perform subset check of [idx] with [other_idx] on its left, as [idx] is only
+        // likely to be their subset (guaranteed by the custom-ordering sort
+        // above).
+        for other_idx in idxs_to_prune.iter().take(i) {
+            // Remove idx if it's a subset — `is_subset` also has a loop, which is why
+            // custom -ordering sort is used to minimise the no. of iteration of
+            // the current loop.
+            if !idxs_to_remove.contains(other_idx) && idx.is_subset(other_idx) {
+                idxs_to_remove.insert(idx);
             }
         }
     }
+
+    idxs_to_remove.into_iter().for_each(|idx| {
+        proof_idxs.remove(&(direction, idx.clone()));
+    });
 }
 
 /// Error for [`TranscriptProofBuilder`].
@@ -540,6 +580,11 @@ mod tests {
     }
 
     #[rstest]
+    #[case::reveal_committed_rangeset(
+        vec![RangeSet::from([0..10]), RangeSet::from([12..30])],
+        RangeSet::from([0..10, 12..30]),
+        true,
+    )]
     #[case::multiple_reveal_ranges_all_committed_subset(
         vec![RangeSet::from([0..10]), RangeSet::from([12..30])],
         RangeSet::from([0..20, 20..30]),
@@ -639,22 +684,22 @@ mod tests {
 
     #[rstest]
     #[case::no_subset_range(
-        vec![RangeSet::from([10..40, 99..105]), RangeSet::from([1..8]), RangeSet::from([106..117])],
+        vec![RangeSet::from([10..40, 99..105]), RangeSet::from([1..18]), RangeSet::from([103..117])],
         None
     )]
     #[case::contains_single_subset_range(
-        vec![RangeSet::from([10..40, 99..105]), RangeSet::from([11..20]), RangeSet::from([106..117])],
+        vec![RangeSet::from([10..40, 99..105]), RangeSet::from([11..20]), RangeSet::from([78..104])],
         Some(vec![RangeSet::from([11..20])])
     )]
     #[case::contains_multiple_subset_ranges(
-        vec![RangeSet::from([23..51, 69..95]), RangeSet::from([30..51, 69..70])],
-        Some(vec![RangeSet::from([30..51, 69..70])])
+        vec![RangeSet::from([23..51, 69..95]), RangeSet::from([23..49, 69..70]), RangeSet::from([24..120])],
+        Some(vec![RangeSet::from([23..49, 69..70])])
     )]
     #[case::contains_multiple_subset_rangesets(
-        vec![RangeSet::from([1..7, 13..31, 49..85]), RangeSet::from([2..5, 50..70]), RangeSet::from([15..25, 60..62])],
-        Some(vec![RangeSet::from([2..5, 50..70]), RangeSet::from([15..25, 60..62])])
+        vec![RangeSet::from([1..7, 13..31, 49..85]), RangeSet::from([1..7, 14..30]), RangeSet::from([1..7, 13..29]), RangeSet::from([1..7, 13..31, 50..70]), RangeSet::from([1..7, 13..31])],
+        Some(vec![RangeSet::from([1..7, 14..30]), RangeSet::from([1..7, 13..29]), RangeSet::from([1..7, 13..31, 50..70]), RangeSet::from([1..7, 13..31])])
     )]
-    fn test_prune_encoding_proof_idxs_direction(
+    fn test_prune_proof_idxs_direction(
         #[case] commit_recv_rangesets: Vec<RangeSet<usize>>,
         #[case] expected_pruned_subsets: Option<Vec<RangeSet<usize>>>,
     ) {
@@ -682,7 +727,7 @@ mod tests {
         builder.reveal_recv(&RangeSet::from([0..145])).unwrap();
 
         let commit_recv_rangesets: HashSet<_> = commit_recv_rangesets.into_iter().collect();
-        let initial_encoding_proof_idxs = builder
+        let initial_proof_idxs = builder
             .encoding_proof_idxs
             .iter()
             .filter(|(dir, _)| *dir == Direction::Received)
@@ -690,13 +735,13 @@ mod tests {
             .collect::<HashSet<_>>();
 
         // Since all committed rangesets are revealed, before pruning,
-        // encoding_proof_idxs should contain all committed rangesets.
-        assert_eq!(commit_recv_rangesets, initial_encoding_proof_idxs);
+        // proof_idxs should contain all committed rangesets.
+        assert_eq!(commit_recv_rangesets, initial_proof_idxs);
 
         // Prune any subset.
-        builder.prune_encoding_proof_idxs_with_direction(Direction::Received);
+        prune_proof_idxs_with_direction(Direction::Received, &mut builder.encoding_proof_idxs);
 
-        let pruned_encoding_proof_idxs = builder
+        let pruned_proof_idxs = builder
             .encoding_proof_idxs
             .iter()
             .filter(|(dir, _)| *dir == Direction::Received)
@@ -705,11 +750,11 @@ mod tests {
 
         if let Some(subsets) = expected_pruned_subsets {
             let pruned_subsets: HashSet<_> = commit_recv_rangesets
-                .difference(&pruned_encoding_proof_idxs)
+                .difference(&pruned_proof_idxs)
                 .collect();
             assert_eq!(pruned_subsets, subsets.iter().collect());
         } else {
-            assert_eq!(commit_recv_rangesets, pruned_encoding_proof_idxs);
+            assert_eq!(commit_recv_rangesets, pruned_proof_idxs);
         };
     }
 }

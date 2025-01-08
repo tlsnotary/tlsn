@@ -37,7 +37,7 @@ pub mod encoding;
 pub(crate) mod hash;
 mod proof;
 
-use std::{fmt, ops::Range};
+use std::{cmp::Ordering, fmt, ops::Range};
 
 use serde::{Deserialize, Serialize};
 use utils::range::{Difference, IndexRanges, RangeSet, Subset, ToRangeSet, Union};
@@ -386,6 +386,85 @@ impl fmt::Display for Direction {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Idx(RangeSet<usize>);
 
+/// Custom ordering for [Idx].
+///
+/// [Idx] is ordered in terms of its likelihood to be a subset of other, where
+/// [Idx] with higher likelihood to be a subset of other, is smaller. For
+/// example,
+///
+/// (a) [4..5, 7..9] is smaller than [1..5, 6..10].
+/// (b) [7..9, 10..13] is smaller than [7..10, 12..15].
+/// (c) [1..3, 5..9] is smaller than [1..3, 4..10].
+///
+/// Instead of a full on subset check, a cheaper 'subset likelihood' check is
+/// used for this. Note that this doesn't guarantee that the smaller [Idx] is
+/// always a subset, e.g. example (b).
+///
+/// This is purely used for
+/// [super::transcript::proof::prune_proof_idxs_with_direction]. An effective
+/// sort is needed there to reduce the time complexity to prune subset(s) from a
+/// collection of [Idx].
+///
+/// As a result, for each [Idx] in the sorted collection (sorted using this
+/// custom ordering), the full on subset check only needs to be done with other
+/// [Idx] that are bigger than itself (instead of checking with every other
+/// [Idx]).
+impl Ord for Idx {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut self_ranges_iter = self.iter_ranges();
+        let mut other_ranges_iter = other.iter_ranges();
+
+        let mut self_range_option = self_ranges_iter.next();
+        let mut other_range_option = other_ranges_iter.next();
+
+        // Iterate from the respective first range of [self] and [other], return
+        // immediately if their start or end are different.
+        while self_range_option.is_some() && other_range_option.is_some() {
+            let self_range = self_range_option.unwrap();
+            let other_range = other_range_option.unwrap();
+
+            // Compare the start of the range (start..end) between the nth range of [self]
+            // and [other], where bigger start = higher likelihood to be a
+            // subset. For example, 4..x is likely to be a subset of 1..y, but
+            // 1..y cannot be a subset of 4..x.
+            if self_range.start != other_range.start {
+                // reverse() as bigger start = more likely to be subset = smaller [Idx].
+                return self_range.start.cmp(&other_range.start).reverse();
+            }
+
+            // If start is the same, then the end of the range (start..end) is compared.
+            // Smaller end = higher likelihood to be a subset. For example, x..4 is likely
+            // to be a subset of x..5, but x..5 cannot be a subset of x..4.
+            if self_range.end != other_range.end {
+                return self_range.end.cmp(&other_range.end);
+            }
+
+            self_range_option = self_ranges_iter.next();
+            other_range_option = other_ranges_iter.next();
+        }
+
+        match (self_range_option, other_range_option) {
+            // All N ranges of [other] are the same as the first N ranges of [self],
+            // i.e. [other] is a subset of [self].
+            (Some(_), None) => Ordering::Greater,
+            // All N ranges of [self] are the same as the first N ranges of [other],
+            // i.e. [self] is a subset of [other].
+            (None, Some(_)) => Ordering::Less,
+            // All ranges of [self] are the same as all ranges of [other].
+            (None, None) => Ordering::Equal,
+            (Some(_), Some(_)) => {
+                unreachable!("self_range_option and other_range_option cannot be both some")
+            }
+        }
+    }
+}
+
+impl PartialOrd for Idx {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Idx {
     /// Creates a new index builder.
     pub fn builder() -> IdxBuilder {
@@ -425,6 +504,11 @@ impl Idx {
     /// Returns the number of values in the index.
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Returns the number of ranges in the index.
+    pub fn len_ranges(&self) -> usize {
+        self.0.len_ranges()
     }
 
     /// Returns whether the index is empty.
