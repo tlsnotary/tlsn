@@ -1,7 +1,10 @@
 //! Transcript proofs.
 
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, fmt};
+use std::{
+    collections::{hash_set::Iter, HashSet},
+    fmt,
+};
 use utils::range::ToRangeSet;
 
 use crate::{
@@ -134,6 +137,81 @@ impl From<PlaintextHashProofError> for TranscriptProofError {
     }
 }
 
+/// Wrapper to store and process ([Idx], [Direction]) to be revealed.
+#[derive(Debug)]
+struct ProofIdxs(HashSet<(Direction, Idx)>);
+
+impl ProofIdxs {
+    fn new() -> Self {
+        Self(HashSet::default())
+    }
+
+    fn insert(&mut self, dir_idx: (Direction, Idx)) -> bool {
+        self.0.insert(dir_idx)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn iter(&self) -> Iter<'_, (Direction, Idx)> {
+        self.0.iter()
+    }
+
+    /// Prune any rangeset [Idx] that is a subset of another rangeset before
+    /// constructing [EncodingProof] or [PlaintextHashProof] to reduce
+    /// unnecessary proof size, and proving + verifying time later.
+    ///
+    /// This is because any subset rangeset would also be revealed by its
+    /// superset rangeset.
+    fn prune_subset(&mut self) {
+        self.prune_subset_with_direction(Direction::Sent);
+        self.prune_subset_with_direction(Direction::Received);
+    }
+
+    fn prune_subset_with_direction(&mut self, direction: Direction) {
+        // Collect [Idx] given a specific [Direction].
+        let mut idxs_to_prune = self
+            .iter()
+            .filter(|(dir, _)| *dir == direction)
+            .map(|(_, idx)| idx.clone())
+            .collect::<Vec<_>>();
+
+        // Sort the collection according to the custom ordering described in [Ord]
+        // implementation of [super::transcript::Idx] — which reduces subset search
+        // time complexity.
+        idxs_to_prune.sort_unstable();
+
+        // Reverse the order so that subset check of each [Idx] is done with the most
+        // likely superset first.
+        idxs_to_prune.reverse();
+
+        let mut idxs_to_remove = HashSet::new();
+
+        // Start from the second [Idx], as the first is guaranteed to not be a subset of
+        // any.
+        for i in 1..idxs_to_prune.len() {
+            let idx = &idxs_to_prune[i];
+
+            // Perform subset check of [idx] with [other_idx] on its left, as [idx] is only
+            // likely to be their subset (guaranteed by the custom-ordering sort
+            // above).
+            for other_idx in idxs_to_prune.iter().take(i) {
+                // Remove idx if it's a subset — `is_subset` also has a loop, which is why
+                // custom-ordering sort is used to minimise the no. of iteration of
+                // the current loop.
+                if !idxs_to_remove.contains(other_idx) && idx.is_subset(other_idx) {
+                    idxs_to_remove.insert(idx);
+                }
+            }
+        }
+
+        idxs_to_remove.into_iter().for_each(|idx| {
+            self.0.remove(&(direction, idx.clone()));
+        });
+    }
+}
+
 /// Builder for [`TranscriptProof`].
 #[derive(Debug)]
 pub struct TranscriptProofBuilder<'a> {
@@ -141,8 +219,8 @@ pub struct TranscriptProofBuilder<'a> {
     transcript: &'a Transcript,
     encoding_tree: Option<&'a EncodingTree>,
     plaintext_hashes: &'a Index<PlaintextHashSecret>,
-    encoding_proof_idxs: HashSet<(Direction, Idx)>,
-    hash_proof_idxs: HashSet<(Direction, Idx)>,
+    encoding_proof_idxs: ProofIdxs,
+    hash_proof_idxs: ProofIdxs,
 }
 
 impl<'a> TranscriptProofBuilder<'a> {
@@ -157,8 +235,8 @@ impl<'a> TranscriptProofBuilder<'a> {
             transcript,
             encoding_tree,
             plaintext_hashes,
-            encoding_proof_idxs: HashSet::default(),
-            hash_proof_idxs: HashSet::default(),
+            encoding_proof_idxs: ProofIdxs::new(),
+            hash_proof_idxs: ProofIdxs::new(),
         }
     }
 
@@ -325,7 +403,7 @@ impl<'a> TranscriptProofBuilder<'a> {
     /// Builds the transcript proof.
     pub fn build(mut self) -> Result<TranscriptProof, TranscriptProofBuilderError> {
         let encoding_proof = if !self.encoding_proof_idxs.is_empty() {
-            prune_proof_idxs(&mut self.encoding_proof_idxs);
+            self.encoding_proof_idxs.prune_subset();
 
             let encoding_tree = self.encoding_tree.expect("encoding tree is present");
 
@@ -340,7 +418,7 @@ impl<'a> TranscriptProofBuilder<'a> {
 
         let mut hash_proofs = Vec::new();
         if !self.hash_proof_idxs.is_empty() {
-            prune_proof_idxs(&mut self.hash_proof_idxs);
+            self.hash_proof_idxs.prune_subset();
 
             for dir_idx in self.hash_proof_idxs.iter() {
                 let PlaintextHashSecret {
@@ -370,62 +448,6 @@ impl<'a> TranscriptProofBuilder<'a> {
             hash_proofs,
         })
     }
-}
-
-/// Prune any rangeset (idx) that is a subset of another rangeset in the
-/// proof idx collection to reduce unnecessary proof
-/// size, and proving + verifying time.
-///
-/// This is because any subset rangeset would also be revealed by its
-/// superset rangeset.
-fn prune_proof_idxs(proof_idxs: &mut HashSet<(Direction, Idx)>) {
-    prune_proof_idxs_with_direction(Direction::Sent, proof_idxs);
-    prune_proof_idxs_with_direction(Direction::Received, proof_idxs);
-}
-
-fn prune_proof_idxs_with_direction(
-    direction: Direction,
-    proof_idxs: &mut HashSet<(Direction, Idx)>,
-) {
-    // Collect [Idx] given a specific [Direction].
-    let mut idxs_to_prune = proof_idxs
-        .iter()
-        .filter(|(dir, _)| *dir == direction)
-        .map(|(_, idx)| idx.clone())
-        .collect::<Vec<_>>();
-
-    // Sort the collection according to the custom ordering described in [Ord]
-    // implementation of [super::transcript::Idx] — which reduces subset search
-    // time complexity.
-    idxs_to_prune.sort_unstable();
-
-    // Reverse the order so that subset check of each [Idx] is done with the most
-    // likely superset first.
-    idxs_to_prune.reverse();
-
-    let mut idxs_to_remove = HashSet::new();
-
-    // Start from the second [Idx], as the first is guaranteed to not be a subset of
-    // any.
-    for i in 1..idxs_to_prune.len() {
-        let idx = &idxs_to_prune[i];
-
-        // Perform subset check of [idx] with [other_idx] on its left, as [idx] is only
-        // likely to be their subset (guaranteed by the custom-ordering sort
-        // above).
-        for other_idx in idxs_to_prune.iter().take(i) {
-            // Remove idx if it's a subset — `is_subset` also has a loop, which is why
-            // custom -ordering sort is used to minimise the no. of iteration of
-            // the current loop.
-            if !idxs_to_remove.contains(other_idx) && idx.is_subset(other_idx) {
-                idxs_to_remove.insert(idx);
-            }
-        }
-    }
-
-    idxs_to_remove.into_iter().for_each(|idx| {
-        proof_idxs.remove(&(direction, idx.clone()));
-    });
 }
 
 /// Error for [`TranscriptProofBuilder`].
@@ -739,7 +761,7 @@ mod tests {
         assert_eq!(commit_recv_rangesets, initial_proof_idxs);
 
         // Prune any subset.
-        prune_proof_idxs_with_direction(Direction::Received, &mut builder.encoding_proof_idxs);
+        builder.encoding_proof_idxs.prune_subset();
 
         let pruned_proof_idxs = builder
             .encoding_proof_idxs
