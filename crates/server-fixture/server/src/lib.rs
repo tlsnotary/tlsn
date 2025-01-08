@@ -26,7 +26,7 @@ use serde_json::Value;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tower_service::Service;
 
-use axum::{async_trait, extract::FromRequest};
+use axum::extract::FromRequest;
 use hyper::header;
 
 use tlsn_server_fixture_certs::*;
@@ -143,10 +143,9 @@ async fn html(
 
 struct AuthenticatedUser;
 
-#[async_trait]
 impl<B> FromRequest<B> for AuthenticatedUser
 where
-    B: Send,
+    B: Send + Sync,
 {
     type Rejection = (StatusCode, &'static str);
 

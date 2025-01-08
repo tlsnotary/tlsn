@@ -88,8 +88,8 @@ aes = { version = "0.8" }
 aes-gcm = { version = "0.9" }
 anyhow = { version = "1.0" }
 async-trait = { version = "0.1" }
-async-tungstenite = { version = "0.25" }
-axum = { version = "0.7" }
+async-tungstenite = { version = "0.28.2" }
+axum = { version = "0.8" }
 bcs = { version = "0.1" }
 bincode = { version = "1.3" }
 blake3 = { version = "1.5" }
@@ -144,5 +144,5 @@ uuid = { version = "1.4" }
 web-time = { version = "0.2" }
 webpki = { version = "0.22" }
 webpki-roots = { version = "0.26" }
-ws_stream_tungstenite = { version = "0.13" }
+ws_stream_tungstenite = { version = "0.14" }
 zeroize = { version = "1.8" }
