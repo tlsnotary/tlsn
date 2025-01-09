@@ -468,7 +468,7 @@ pub struct Idx(RangeSet<usize>);
 /// always a subset, e.g. example (b).
 ///
 /// This is purely used for
-/// [super::transcript::proof::prune_proof_idxs_with_direction]. An effective
+/// [super::transcript::proof::ProofIdxs::prune_subset]. An effective
 /// sort is needed there to reduce the time complexity to prune subset(s) from a
 /// collection of [Idx].
 ///
