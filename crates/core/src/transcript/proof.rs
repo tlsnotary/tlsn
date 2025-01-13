@@ -316,9 +316,10 @@ impl<'a> TranscriptProofBuilder<'a> {
                         staged_subsets.into_iter().for_each(|commited_dir_idx| {
                             self.encoding_proof_idxs.insert(commited_dir_idx.clone());
                         });
-                    // If no, there means either 
+                    // If no, there means either
                     // (1) No subset found.
-                    // (2) There are ranges in [dir_idx] that are not covered by the staged subsets, hence
+                    // (2) There are ranges in [dir_idx] that are not covered by
+                    // the staged subsets, hence
                     //     [dir_idx] cannot be revealed.
                     } else {
                         return Err(TranscriptProofBuilderError::new(
@@ -369,9 +370,10 @@ impl<'a> TranscriptProofBuilder<'a> {
                             self.hash_proof_idxs
                                 .insert((commited_dir_idx.0, commited_dir_idx.1.clone()));
                         });
-                    // If no, there means either 
+                    // If no, there means either
                     // (1) No subset found.
-                    // (2) There are ranges in [dir_idx] that are not covered by the staged subsets, hence
+                    // (2) There are ranges in [dir_idx] that are not covered by
+                    // the staged subsets, hence
                     //     [dir_idx] cannot be revealed.
                     } else {
                         return Err(TranscriptProofBuilderError::new(
