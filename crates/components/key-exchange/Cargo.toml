@@ -16,28 +16,25 @@ default = ["mock"]
 mock = []
 
 [dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
-    "ideal",
-] }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }
+mpz-vm-core = { workspace = true  }
+mpz-memory-core = { workspace = true }
+mpz-common = { workspace = true }
+mpz-fields = { workspace = true }
+mpz-share-conversion = { workspace = true, features = ["test-utils"] }
+mpz-circuits = { workspace = true }
+mpz-core = { workspace = true }
 
 p256 = { workspace = true, features = ["ecdh", "serde"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
-serde = { workspace = true }
-futures = { workspace = true }
 serio = { workspace = true }
 derive_builder = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
 
 [dev-dependencies]
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac", features = [
-    "ideal",
-] }
+mpz-ot = {  workspace = true , features = ["ideal"] }
+mpz-garble = { workspace = true }
 
 rand_chacha = { workspace = true }
 rand_core = { workspace = true }

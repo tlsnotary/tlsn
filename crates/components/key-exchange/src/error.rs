@@ -1,120 +1,112 @@
-use core::fmt;
-use std::error::Error;
+use std::{error::Error, fmt::Display};
 
-/// A key exchange error.
+/// MPC-TLS protocol error.
 #[derive(Debug, thiserror::Error)]
-pub struct KeyExchangeError {
-    kind: ErrorKind,
-    #[source]
-    source: Option<Box<dyn Error + Send + Sync>>,
+#[error(transparent)]
+pub struct KeyExchangeError(#[from] ErrorRepr);
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ErrorRepr {
+    /// An unexpected state was encountered
+    State(Box<dyn Error + Send + Sync + 'static>),
+    /// Context error.
+    Ctx(Box<dyn Error + Send + Sync + 'static>),
+    /// IO related error
+    Io(Box<dyn Error + Send + Sync + 'static>),
+    /// Virtual machine error
+    Vm(Box<dyn Error + Send + Sync + 'static>),
+    /// Share conversion error
+    ShareConversion(Box<dyn Error + Send + Sync + 'static>),
+    /// Role error
+    Role(Box<dyn Error + Send + Sync + 'static>),
+    /// Key error
+    Key(Box<dyn Error + Send + Sync + 'static>),
+}
+
+impl Display for ErrorRepr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorRepr::State(error) => write!(f, "{error}"),
+            ErrorRepr::Ctx(error) => write!(f, "{error}"),
+            ErrorRepr::Io(error) => write!(f, "{error}"),
+            ErrorRepr::Vm(error) => write!(f, "{error}"),
+            ErrorRepr::ShareConversion(error) => write!(f, "{error}"),
+            ErrorRepr::Role(error) => write!(f, "{error}"),
+            ErrorRepr::Key(error) => write!(f, "{error}"),
+        }
+    }
 }
 
 impl KeyExchangeError {
-    pub(crate) fn new<E>(kind: ErrorKind, source: E) -> Self
+    pub(crate) fn state<E>(err: E) -> KeyExchangeError
     where
-        E: Into<Box<dyn Error + Send + Sync>>,
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
     {
-        Self {
-            kind,
-            source: Some(source.into()),
-        }
+        Self(ErrorRepr::State(err.into()))
+    }
+
+    pub(crate) fn ctx<E>(err: E) -> KeyExchangeError
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self(ErrorRepr::Ctx(err.into()))
+    }
+
+    pub(crate) fn io<E>(err: E) -> KeyExchangeError
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self(ErrorRepr::Io(err.into()))
+    }
+
+    pub(crate) fn vm<E>(err: E) -> KeyExchangeError
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self(ErrorRepr::Vm(err.into()))
+    }
+
+    pub(crate) fn share_conversion<E>(err: E) -> KeyExchangeError
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self(ErrorRepr::ShareConversion(err.into()))
+    }
+
+    pub(crate) fn role<E>(err: E) -> KeyExchangeError
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self(ErrorRepr::Role(err.into()))
+    }
+
+    pub(crate) fn key<E>(err: E) -> KeyExchangeError
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self(ErrorRepr::Key(err.into()))
     }
 
     #[cfg(test)]
-    pub(crate) fn kind(&self) -> &ErrorKind {
-        &self.kind
-    }
-
-    pub(crate) fn state(msg: impl Into<String>) -> Self {
-        Self {
-            kind: ErrorKind::State,
-            source: Some(msg.into().into()),
-        }
-    }
-
-    pub(crate) fn role(msg: impl Into<String>) -> Self {
-        Self {
-            kind: ErrorKind::Role,
-            source: Some(msg.into().into()),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum ErrorKind {
-    Io,
-    Context,
-    Vm,
-    ShareConversion,
-    Key,
-    State,
-    Role,
-}
-
-impl fmt::Display for KeyExchangeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind {
-            ErrorKind::Io => write!(f, "io error")?,
-            ErrorKind::Context => write!(f, "context error")?,
-            ErrorKind::Vm => write!(f, "vm error")?,
-            ErrorKind::ShareConversion => write!(f, "share conversion error")?,
-            ErrorKind::Key => write!(f, "key error")?,
-            ErrorKind::State => write!(f, "state error")?,
-            ErrorKind::Role => write!(f, "role error")?,
-        }
-
-        if let Some(ref source) = self.source {
-            write!(f, " caused by: {}", source)?;
-        }
-
-        Ok(())
+    pub(crate) fn kind(&self) -> &ErrorRepr {
+        &self.0
     }
 }
 
 impl From<mpz_common::ContextError> for KeyExchangeError {
-    fn from(error: mpz_common::ContextError) -> Self {
-        Self::new(ErrorKind::Context, error)
-    }
-}
-
-impl From<mpz_garble::MemoryError> for KeyExchangeError {
-    fn from(error: mpz_garble::MemoryError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}
-
-impl From<mpz_garble::LoadError> for KeyExchangeError {
-    fn from(error: mpz_garble::LoadError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}
-
-impl From<mpz_garble::ExecutionError> for KeyExchangeError {
-    fn from(error: mpz_garble::ExecutionError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}
-
-impl From<mpz_garble::DecodeError> for KeyExchangeError {
-    fn from(error: mpz_garble::DecodeError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}
-
-impl From<mpz_share_conversion::ShareConversionError> for KeyExchangeError {
-    fn from(error: mpz_share_conversion::ShareConversionError) -> Self {
-        Self::new(ErrorKind::ShareConversion, error)
+    fn from(value: mpz_common::ContextError) -> Self {
+        Self::ctx(value)
     }
 }
 
 impl From<p256::elliptic_curve::Error> for KeyExchangeError {
-    fn from(error: p256::elliptic_curve::Error) -> Self {
-        Self::new(ErrorKind::Key, error)
+    fn from(value: p256::elliptic_curve::Error) -> Self {
+        Self::key(value)
     }
 }
 
 impl From<std::io::Error> for KeyExchangeError {
-    fn from(error: std::io::Error) -> Self {
-        Self::new(ErrorKind::Io, error)
+    fn from(value: std::io::Error) -> Self {
+        Self::io(value)
     }
 }
