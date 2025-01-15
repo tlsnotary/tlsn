@@ -33,6 +33,10 @@ impl PrfError {
             source: Some(msg.into().into()),
         }
     }
+
+    pub(crate) fn vm<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> Self {
+        Self::new(ErrorKind::Vm, err)
+    }
 }
 
 #[derive(Debug)]
@@ -58,26 +62,8 @@ impl fmt::Display for PrfError {
     }
 }
 
-impl From<mpz_garble::MemoryError> for PrfError {
-    fn from(error: mpz_garble::MemoryError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}
-
-impl From<mpz_garble::LoadError> for PrfError {
-    fn from(error: mpz_garble::LoadError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}
-
-impl From<mpz_garble::ExecutionError> for PrfError {
-    fn from(error: mpz_garble::ExecutionError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}
-
-impl From<mpz_garble::DecodeError> for PrfError {
-    fn from(error: mpz_garble::DecodeError) -> Self {
+impl From<mpz_common::ContextError> for PrfError {
+    fn from(error: mpz_common::ContextError) -> Self {
         Self::new(ErrorKind::Vm, error)
     }
 }

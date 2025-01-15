@@ -12,84 +12,101 @@ pub use config::{PrfConfig, PrfConfigBuilder, PrfConfigBuilderError, Role};
 pub use error::PrfError;
 pub use prf::MpcPrf;
 
-use async_trait::async_trait;
-
-use mpz_garble::value::ValueRef;
+use mpz_vm_core::memory::{binary::U8, Array};
 
 pub(crate) static CF_LABEL: &[u8] = b"client finished";
 pub(crate) static SF_LABEL: &[u8] = b"server finished";
 
+/// Builds the circuits for the PRF.
+///
+/// This function can be used ahead of time to build the circuits for the PRF,
+/// which at the moment is CPU and memory intensive.
+pub async fn build_circuits() {
+    prf::Circuits::get().await;
+}
+
+/// PRF output.
+#[derive(Debug, Clone, Copy)]
+pub struct PrfOutput {
+    /// TLS session keys.
+    pub keys: SessionKeys,
+    /// Client finished verify data.
+    pub cf_vd: Array<U8, 12>,
+    /// Server finished verify data.
+    pub sf_vd: Array<U8, 12>,
+}
+
 /// Session keys computed by the PRF.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SessionKeys {
     /// Client write key.
-    pub client_write_key: ValueRef,
+    pub client_write_key: Array<U8, 16>,
     /// Server write key.
-    pub server_write_key: ValueRef,
+    pub server_write_key: Array<U8, 16>,
     /// Client IV.
-    pub client_iv: ValueRef,
+    pub client_iv: Array<U8, 4>,
     /// Server IV.
-    pub server_iv: ValueRef,
+    pub server_iv: Array<U8, 4>,
 }
 
 /// PRF trait for computing TLS PRF.
-#[async_trait]
-pub trait Prf {
+pub trait Prf<Vm> {
     /// Sets up the PRF.
     ///
     /// # Arguments
     ///
+    /// * `vm` - Virtual machine.
     /// * `pms` - The pre-master secret.
-    async fn setup(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError>;
+    fn setup(&mut self, vm: &mut Vm, pms: Array<U8, 32>) -> Result<PrfOutput, PrfError>;
 
     /// Sets the client random.
     ///
-    /// This must be set after calling [`Prf::setup`].
-    ///
     /// Only the leader can provide the client random.
-    async fn set_client_random(&mut self, client_random: Option<[u8; 32]>) -> Result<(), PrfError>;
-
-    /// Preprocesses the PRF.
-    async fn preprocess(&mut self) -> Result<(), PrfError>;
-
-    /// Computes the client finished verify data.
     ///
     /// # Arguments
     ///
-    /// * `handshake_hash` - The handshake transcript hash.
-    async fn compute_client_finished_vd(
+    /// * `vm` - Virtual machine.
+    /// * `client_random` - The client random.
+    fn set_client_random(
         &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError>;
+        vm: &mut Vm,
+        client_random: Option<[u8; 32]>,
+    ) -> Result<(), PrfError>;
 
-    /// Computes the server finished verify data.
+    /// Sets the server random.
     ///
     /// # Arguments
     ///
-    /// * `handshake_hash` - The handshake transcript hash.
-    async fn compute_server_finished_vd(
-        &mut self,
-        handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PrfError>;
-
-    /// Computes the session keys.
-    ///
-    /// # Arguments
-    ///
+    /// * `vm` - Virtual machine.
     /// * `server_random` - The server random.
-    async fn compute_session_keys(
-        &mut self,
-        server_random: [u8; 32],
-    ) -> Result<SessionKeys, PrfError>;
+    fn set_server_random(&mut self, vm: &mut Vm, server_random: [u8; 32]) -> Result<(), PrfError>;
+
+    /// Sets the client finished handshake hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `handshake_hash` - The handshake transcript hash.
+    fn set_cf_hash(&mut self, vm: &mut Vm, handshake_hash: [u8; 32]) -> Result<(), PrfError>;
+
+    /// Sets the server finished handshake hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `handshake_hash` - The handshake transcript hash.
+    fn set_sf_hash(&mut self, vm: &mut Vm, handshake_hash: [u8; 32]) -> Result<(), PrfError>;
 }
 
 #[cfg(test)]
 mod tests {
     use mpz_common::executor::test_st_executor;
-    use mpz_garble::{config::Role as DEAPRole, protocol::deap::DEAPThread, Decode, Memory};
+    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
 
     use hmac_sha256_circuits::{hmac_sha256_partial, prf, session_keys};
-    use mpz_ot::ideal::ot::ideal_ot;
+    use mpz_ot::ideal::cot::ideal_cot;
+    use mpz_vm_core::{memory::correlated::Delta, prelude::*};
+    use rand::{rngs::StdRng, SeedableRng};
 
     use super::*;
 
@@ -113,120 +130,89 @@ mod tests {
     #[ignore = "expensive"]
     #[tokio::test]
     async fn test_prf() {
+        let mut rng = StdRng::seed_from_u64(0);
+
         let pms = [42u8; 32];
         let client_random = [69u8; 32];
         let server_random: [u8; 32] = [96u8; 32];
         let ms = compute_ms(pms, client_random, server_random);
 
-        let (leader_ctx_0, follower_ctx_0) = test_st_executor(128);
-        let (leader_ctx_1, follower_ctx_1) = test_st_executor(128);
+        let (mut leader_ctx, mut follower_ctx) = test_st_executor(128);
 
-        let (leader_ot_send_0, follower_ot_recv_0) = ideal_ot();
-        let (follower_ot_send_0, leader_ot_recv_0) = ideal_ot();
-        let (leader_ot_send_1, follower_ot_recv_1) = ideal_ot();
-        let (follower_ot_send_1, leader_ot_recv_1) = ideal_ot();
+        let delta = Delta::random(&mut rng);
+        let (ot_send, ot_recv) = ideal_cot(delta.into_inner());
 
-        let leader_thread_0 = DEAPThread::new(
-            DEAPRole::Leader,
-            [0u8; 32],
-            leader_ctx_0,
-            leader_ot_send_0,
-            leader_ot_recv_0,
-        );
-        let leader_thread_1 = leader_thread_0
-            .new_thread(leader_ctx_1, leader_ot_send_1, leader_ot_recv_1)
+        let mut leader_vm = Generator::new(ot_send, [0u8; 16], delta);
+        let mut follower_vm = Evaluator::new(ot_recv);
+
+        let leader_pms: Array<U8, 32> = leader_vm.alloc().unwrap();
+        leader_vm.mark_public(leader_pms).unwrap();
+        leader_vm.assign(leader_pms, pms).unwrap();
+        leader_vm.commit(leader_pms).unwrap();
+
+        let follower_pms: Array<U8, 32> = follower_vm.alloc().unwrap();
+        follower_vm.mark_public(follower_pms).unwrap();
+        follower_vm.assign(follower_pms, pms).unwrap();
+        follower_vm.commit(follower_pms).unwrap();
+
+        let mut leader = MpcPrf::new(PrfConfig::builder().role(Role::Leader).build().unwrap());
+        let mut follower = MpcPrf::new(PrfConfig::builder().role(Role::Follower).build().unwrap());
+
+        let leader_output = leader.setup(&mut leader_vm, leader_pms).unwrap();
+        let follower_output = follower.setup(&mut follower_vm, follower_pms).unwrap();
+
+        leader
+            .set_client_random(&mut leader_vm, Some(client_random))
+            .unwrap();
+        follower.set_client_random(&mut follower_vm, None).unwrap();
+
+        leader
+            .set_server_random(&mut leader_vm, server_random)
+            .unwrap();
+        follower
+            .set_server_random(&mut follower_vm, server_random)
             .unwrap();
 
-        let follower_thread_0 = DEAPThread::new(
-            DEAPRole::Follower,
-            [0u8; 32],
-            follower_ctx_0,
-            follower_ot_send_0,
-            follower_ot_recv_0,
-        );
-        let follower_thread_1 = follower_thread_0
-            .new_thread(follower_ctx_1, follower_ot_send_1, follower_ot_recv_1)
+        let leader_cwk = leader_vm
+            .decode(leader_output.keys.client_write_key)
             .unwrap();
-
-        // Set up public PMS for testing.
-        let leader_pms = leader_thread_0.new_public_input::<[u8; 32]>("pms").unwrap();
-        let follower_pms = follower_thread_0
-            .new_public_input::<[u8; 32]>("pms")
+        let leader_swk = leader_vm
+            .decode(leader_output.keys.server_write_key)
             .unwrap();
+        let leader_civ = leader_vm.decode(leader_output.keys.client_iv).unwrap();
+        let leader_siv = leader_vm.decode(leader_output.keys.server_iv).unwrap();
 
-        leader_thread_0.assign(&leader_pms, pms).unwrap();
-        follower_thread_0.assign(&follower_pms, pms).unwrap();
-
-        let mut leader = MpcPrf::new(
-            PrfConfig::builder().role(Role::Leader).build().unwrap(),
-            leader_thread_0,
-            leader_thread_1,
-        );
-        let mut follower = MpcPrf::new(
-            PrfConfig::builder().role(Role::Follower).build().unwrap(),
-            follower_thread_0,
-            follower_thread_1,
-        );
+        let follower_cwk = follower_vm
+            .decode(follower_output.keys.client_write_key)
+            .unwrap();
+        let follower_swk = follower_vm
+            .decode(follower_output.keys.server_write_key)
+            .unwrap();
+        let follower_civ = follower_vm.decode(follower_output.keys.client_iv).unwrap();
+        let follower_siv = follower_vm.decode(follower_output.keys.server_iv).unwrap();
 
         futures::join!(
             async {
-                leader.setup(leader_pms).await.unwrap();
-                leader.set_client_random(Some(client_random)).await.unwrap();
-                leader.preprocess().await.unwrap();
+                leader_vm.flush(&mut leader_ctx).await.unwrap();
+                leader_vm.execute(&mut leader_ctx).await.unwrap();
+                leader_vm.flush(&mut leader_ctx).await.unwrap();
             },
             async {
-                follower.setup(follower_pms).await.unwrap();
-                follower.set_client_random(None).await.unwrap();
-                follower.preprocess().await.unwrap();
+                follower_vm.flush(&mut follower_ctx).await.unwrap();
+                follower_vm.execute(&mut follower_ctx).await.unwrap();
+                follower_vm.flush(&mut follower_ctx).await.unwrap();
             }
         );
 
-        let (leader_session_keys, follower_session_keys) = futures::try_join!(
-            leader.compute_session_keys(server_random),
-            follower.compute_session_keys(server_random)
-        )
-        .unwrap();
+        let leader_cwk = leader_cwk.await.unwrap();
+        let leader_swk = leader_swk.await.unwrap();
+        let leader_civ = leader_civ.await.unwrap();
+        let leader_siv = leader_siv.await.unwrap();
 
-        let SessionKeys {
-            client_write_key: leader_cwk,
-            server_write_key: leader_swk,
-            client_iv: leader_civ,
-            server_iv: leader_siv,
-        } = leader_session_keys;
-
-        let SessionKeys {
-            client_write_key: follower_cwk,
-            server_write_key: follower_swk,
-            client_iv: follower_civ,
-            server_iv: follower_siv,
-        } = follower_session_keys;
-
-        // Decode session keys
-        let (leader_session_keys, follower_session_keys) = futures::try_join!(
-            async {
-                leader
-                    .thread_mut()
-                    .decode(&[leader_cwk, leader_swk, leader_civ, leader_siv])
-                    .await
-            },
-            async {
-                follower
-                    .thread_mut()
-                    .decode(&[follower_cwk, follower_swk, follower_civ, follower_siv])
-                    .await
-            }
-        )
-        .unwrap();
-
-        let leader_cwk: [u8; 16] = leader_session_keys[0].clone().try_into().unwrap();
-        let leader_swk: [u8; 16] = leader_session_keys[1].clone().try_into().unwrap();
-        let leader_civ: [u8; 4] = leader_session_keys[2].clone().try_into().unwrap();
-        let leader_siv: [u8; 4] = leader_session_keys[3].clone().try_into().unwrap();
-
-        let follower_cwk: [u8; 16] = follower_session_keys[0].clone().try_into().unwrap();
-        let follower_swk: [u8; 16] = follower_session_keys[1].clone().try_into().unwrap();
-        let follower_civ: [u8; 4] = follower_session_keys[2].clone().try_into().unwrap();
-        let follower_siv: [u8; 4] = follower_session_keys[3].clone().try_into().unwrap();
+        let follower_cwk = follower_cwk.await.unwrap();
+        let follower_swk = follower_swk.await.unwrap();
+        let follower_civ = follower_civ.await.unwrap();
+        let follower_siv = follower_siv.await.unwrap();
 
         let (expected_cwk, expected_swk, expected_civ, expected_siv) =
             session_keys(pms, client_random, server_random);
@@ -244,24 +230,43 @@ mod tests {
         let cf_hs_hash = [1u8; 32];
         let sf_hs_hash = [2u8; 32];
 
-        let (cf_vd, _) = futures::try_join!(
-            leader.compute_client_finished_vd(cf_hs_hash),
-            follower.compute_client_finished_vd(cf_hs_hash)
-        )
-        .unwrap();
+        leader.set_cf_hash(&mut leader_vm, cf_hs_hash).unwrap();
+        leader.set_sf_hash(&mut leader_vm, sf_hs_hash).unwrap();
+
+        follower.set_cf_hash(&mut follower_vm, cf_hs_hash).unwrap();
+        follower.set_sf_hash(&mut follower_vm, sf_hs_hash).unwrap();
+
+        let leader_cf_vd = leader_vm.decode(leader_output.cf_vd).unwrap();
+        let leader_sf_vd = leader_vm.decode(leader_output.sf_vd).unwrap();
+
+        let follower_cf_vd = follower_vm.decode(follower_output.cf_vd).unwrap();
+        let follower_sf_vd = follower_vm.decode(follower_output.sf_vd).unwrap();
+
+        futures::join!(
+            async {
+                leader_vm.flush(&mut leader_ctx).await.unwrap();
+                leader_vm.execute(&mut leader_ctx).await.unwrap();
+                leader_vm.flush(&mut leader_ctx).await.unwrap();
+            },
+            async {
+                follower_vm.flush(&mut follower_ctx).await.unwrap();
+                follower_vm.execute(&mut follower_ctx).await.unwrap();
+                follower_vm.flush(&mut follower_ctx).await.unwrap();
+            }
+        );
+
+        let leader_cf_vd = leader_cf_vd.await.unwrap();
+        let leader_sf_vd = leader_sf_vd.await.unwrap();
+
+        let follower_cf_vd = follower_cf_vd.await.unwrap();
+        let follower_sf_vd = follower_sf_vd.await.unwrap();
 
         let expected_cf_vd = compute_vd(ms, b"client finished", cf_hs_hash);
-
-        assert_eq!(cf_vd, expected_cf_vd);
-
-        let (sf_vd, _) = futures::try_join!(
-            leader.compute_server_finished_vd(sf_hs_hash),
-            follower.compute_server_finished_vd(sf_hs_hash)
-        )
-        .unwrap();
-
         let expected_sf_vd = compute_vd(ms, b"server finished", sf_hs_hash);
 
-        assert_eq!(sf_vd, expected_sf_vd);
+        assert_eq!(leader_cf_vd, expected_cf_vd);
+        assert_eq!(leader_sf_vd, expected_sf_vd);
+        assert_eq!(follower_cf_vd, expected_cf_vd);
+        assert_eq!(follower_sf_vd, expected_sf_vd);
     }
 }
