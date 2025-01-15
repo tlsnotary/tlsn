@@ -16,80 +16,11 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    //group.bench_function("prf_preprocess", |b| b.to_async(&rt).iter(preprocess));
     group.bench_function("prf", |b| b.to_async(&rt).iter(prf));
 }
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
-
-// async fn preprocess() {
-//     let (mut leader_exec, mut follower_exec) = test_mt_executor(128);
-
-//     let (leader_ot_send_0, follower_ot_recv_0) = ideal_ot();
-//     let (follower_ot_send_0, leader_ot_recv_0) = ideal_ot();
-//     let (leader_ot_send_1, follower_ot_recv_1) = ideal_ot();
-//     let (follower_ot_send_1, leader_ot_recv_1) = ideal_ot();
-
-//     let leader_thread_0 = DEAPThread::new(
-//         DEAPRole::Leader,
-//         [0u8; 32],
-//         leader_exec.new_thread().await.unwrap(),
-//         leader_ot_send_0,
-//         leader_ot_recv_0,
-//     );
-//     let leader_thread_1 = leader_thread_0
-//         .new_thread(
-//             leader_exec.new_thread().await.unwrap(),
-//             leader_ot_send_1,
-//             leader_ot_recv_1,
-//         )
-//         .unwrap();
-
-//     let follower_thread_0 = DEAPThread::new(
-//         DEAPRole::Follower,
-//         [0u8; 32],
-//         follower_exec.new_thread().await.unwrap(),
-//         follower_ot_send_0,
-//         follower_ot_recv_0,
-//     );
-//     let follower_thread_1 = follower_thread_0
-//         .new_thread(
-//             follower_exec.new_thread().await.unwrap(),
-//             follower_ot_send_1,
-//             follower_ot_recv_1,
-//         )
-//         .unwrap();
-
-//     let leader_pms = leader_thread_0.new_public_input::<[u8;
-// 32]>("pms").unwrap();     let follower_pms = follower_thread_0
-//         .new_public_input::<[u8; 32]>("pms")
-//         .unwrap();
-
-//     let mut leader = MpcPrf::new(
-//         PrfConfig::builder().role(Role::Leader).build().unwrap(),
-//         leader_thread_0,
-//         leader_thread_1,
-//     );
-//     let mut follower = MpcPrf::new(
-//         PrfConfig::builder().role(Role::Follower).build().unwrap(),
-//         follower_thread_0,
-//         follower_thread_1,
-//     );
-
-//     futures::join!(
-//         async {
-//             leader.setup(leader_pms).await.unwrap();
-//             leader.set_client_random(Some([0u8; 32])).await.unwrap();
-//             leader.preprocess().await.unwrap();
-//         },
-//         async {
-//             follower.setup(follower_pms).await.unwrap();
-//             follower.set_client_random(None).await.unwrap();
-//             follower.preprocess().await.unwrap();
-//         }
-//     );
-// }
 
 async fn prf() {
     let mut rng = StdRng::seed_from_u64(0);
