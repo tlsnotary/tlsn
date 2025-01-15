@@ -1,0 +1,31 @@
+[package]
+name = "tlsn-cipher"
+authors = ["TLSNotary Team"]
+description = "This crate provides implementations of ciphers for two parties"
+keywords = ["tls", "mpc", "2pc", "aes"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.8-pre"
+edition = "2021"
+
+[lib]
+name = "cipher"
+
+[dependencies]
+mpz-circuits = { workspace = true }
+mpz-vm-core = { workspace = true }
+mpz-memory-core = { workspace = true }
+
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+aes = { workspace = true }
+
+[dev-dependencies]
+mpz-garble = { workspace = true }
+mpz-common = { workspace = true }
+mpz-ot = { workspace = true }
+
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+rand = { workspace = true }
+ctr = { workspace = true }
+cipher = { workspace = true }
