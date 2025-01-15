@@ -2,8 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Ordering,
     collections::{hash_set::Iter, HashSet},
     fmt,
+    ops::Range,
 };
 use utils::range::ToRangeSet;
 
@@ -137,7 +139,112 @@ impl From<PlaintextHashProofError> for TranscriptProofError {
     }
 }
 
-/// Wrapper to store and process ([Direction], [Idx]) to be revealed.
+/// A wrapper on [Idx].
+///
+/// This is purely used for [ProofIdxs::prune_subset]. An effective sort of
+/// [Idx] is needed there to reduce the time complexity to prune subset(s) from
+/// a collection of [Idx].
+///
+/// A custom ordering logic is implemented for [OrderedIdx] to achieve that (see
+/// [Ord] implementation below). As a result, for each [OrderedIdx] in this
+/// sorted collection, a full on subset check only needs to be done with other
+/// [OrderedIdx] that are bigger than itself. This is faster than
+/// conducting the check with every other [OrderedIdx] in the collection.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct OrderedIdx(Idx);
+
+impl OrderedIdx {
+    fn new(idx: Idx) -> Self {
+        Self(idx)
+    }
+
+    fn inner(&self) -> &Idx {
+        &self.0
+    }
+
+    fn into_inner(self) -> Idx {
+        self.0
+    }
+
+    fn is_subset(&self, other: &OrderedIdx) -> bool {
+        self.0.is_subset(other.inner())
+    }
+
+    fn iter_ranges(&self) -> impl Iterator<Item = Range<usize>> + '_ {
+        self.0.iter_ranges()
+    }
+}
+
+/// Custom ordering for [OrderedIdx].
+///
+/// [OrderedIdx] is ordered in terms of its likelihood to be a subset of other,
+/// where [OrderedIdx] with higher likelihood to be a subset of other, is
+/// smaller. For example,
+///
+/// (a) [4..5, 7..9] is smaller than [1..5, 6..10].
+/// (b) [7..9, 10..13] is smaller than [7..10, 12..15].
+/// (c) [1..3, 5..9] is smaller than [1..3, 4..10].
+///
+/// Instead of a full on subset check, a cheaper 'subset likelihood' check is
+/// used for this. Note that this doesn't guarantee that the smaller
+/// [OrderedIdx] is always a subset, e.g. example (b).
+impl Ord for OrderedIdx {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut self_ranges_iter = self.iter_ranges();
+        let mut other_ranges_iter = other.iter_ranges();
+
+        let mut self_range_option = self_ranges_iter.next();
+        let mut other_range_option = other_ranges_iter.next();
+
+        // Iterate from the respective first range of [self] and [other], return
+        // immediately if their start or end are different.
+        while self_range_option.is_some() && other_range_option.is_some() {
+            let self_range = self_range_option.unwrap();
+            let other_range = other_range_option.unwrap();
+
+            // Compare the start of the range (start..end) between the nth range of [self]
+            // and [other], where bigger start = higher likelihood to be a
+            // subset. For example, 4..x is likely to be a subset of 1..y, but
+            // 1..y cannot be a subset of 4..x.
+            if self_range.start != other_range.start {
+                // reverse() as bigger start = more likely to be subset = smaller [OrderedIdx].
+                return self_range.start.cmp(&other_range.start).reverse();
+            }
+
+            // If start is the same, then the end of the range (start..end) is compared.
+            // Smaller end = higher likelihood to be a subset. For example, x..4 is likely
+            // to be a subset of x..5, but x..5 cannot be a subset of x..4.
+            if self_range.end != other_range.end {
+                return self_range.end.cmp(&other_range.end);
+            }
+
+            self_range_option = self_ranges_iter.next();
+            other_range_option = other_ranges_iter.next();
+        }
+
+        match (self_range_option, other_range_option) {
+            // All N ranges of [other] are the same as the first N ranges of [self],
+            // i.e. [other] is a subset of [self].
+            (Some(_), None) => Ordering::Greater,
+            // All N ranges of [self] are the same as the first N ranges of [other],
+            // i.e. [self] is a subset of [other].
+            (None, Some(_)) => Ordering::Less,
+            // All ranges of [self] are the same as all ranges of [other].
+            (None, None) => Ordering::Equal,
+            (Some(_), Some(_)) => {
+                unreachable!("self_range_option and other_range_option cannot be both some")
+            }
+        }
+    }
+}
+
+impl PartialOrd for OrderedIdx {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// A wrapper to store and process ([Direction], [Idx]) to be revealed.
 #[derive(Debug)]
 struct ProofIdxs(HashSet<(Direction, Idx)>);
 
@@ -170,44 +277,43 @@ impl ProofIdxs {
     }
 
     fn prune_subset_with_direction(&mut self, direction: Direction) {
-        // Collect [Idx] given a specific [Direction].
+        // Given a specific [Direction], collect relevant [Idx] and build [OrderedIdx].
         let mut idxs_to_prune = self
             .iter()
             .filter(|(dir, _)| *dir == direction)
-            .map(|(_, idx)| idx.clone())
+            .map(|(_, idx)| OrderedIdx::new(idx.clone()))
             .collect::<Vec<_>>();
 
         // Sort the collection according to the custom ordering described in [Ord]
-        // implementation of [super::transcript::Idx] — which reduces subset search
+        // implementation of [OrderedIdx] — which reduces subset search
         // time complexity.
         idxs_to_prune.sort_unstable();
 
-        // Reverse the order so that subset check of each [Idx] is done with the most
-        // likely superset first.
+        // Reverse the order so that subset check of each [OrderedIdx] is done with the
+        // most likely superset (the biggest) first.
         idxs_to_prune.reverse();
 
-        let mut idxs_to_remove = HashSet::new();
+        let mut pruned_idxs = HashSet::new();
 
-        // Start from the second [Idx], as the first is guaranteed to not be a subset of
-        // any.
+        // Start from the second [OrderedIdx], as the first is guaranteed to not be a
+        // subset of any.
         for i in 1..idxs_to_prune.len() {
             let idx = &idxs_to_prune[i];
 
-            // Perform subset check of [idx] with [other_idx] on its left, as [idx] is only
-            // likely to be their subset (guaranteed by the custom-ordering sort
-            // above).
+            // Perform subset check of [idx] with [other_idx] that are bigger, as [idx]
+            // is only likely to be their subset.
             for other_idx in idxs_to_prune.iter().take(i) {
-                // Remove idx if it's a subset — `is_subset` also has a loop, which is why
-                // custom-ordering sort is used to minimise the no. of iteration of
+                // Remove [idx] if it's a subset — this check contains an inner loop, which is
+                // why the custom-ordering sort is used to minimise the no. of iteration of
                 // the current loop.
-                if !idxs_to_remove.contains(other_idx) && idx.is_subset(other_idx) {
-                    idxs_to_remove.insert(idx);
+                if !pruned_idxs.contains(other_idx) && idx.is_subset(other_idx) {
+                    pruned_idxs.insert(idx);
                 }
             }
         }
 
-        idxs_to_remove.into_iter().for_each(|idx| {
-            self.0.remove(&(direction, idx.clone()));
+        pruned_idxs.into_iter().for_each(|idx| {
+            self.0.remove(&(direction, idx.clone().into_inner()));
         });
     }
 }
@@ -316,7 +422,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                         staged_subsets.into_iter().for_each(|commited_dir_idx| {
                             self.encoding_proof_idxs.insert(commited_dir_idx.clone());
                         });
-                    // If no, there means either
+                    // If no, that means either
                     // (1) No subset found.
                     // (2) There are ranges in [dir_idx] that are not covered by
                     // the staged subsets, hence
@@ -370,7 +476,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                             self.hash_proof_idxs
                                 .insert((commited_dir_idx.0, commited_dir_idx.1.clone()));
                         });
-                    // If no, there means either
+                    // If no, that means either
                     // (1) No subset found.
                     // (2) There are ranges in [dir_idx] that are not covered by
                     // the staged subsets, hence
