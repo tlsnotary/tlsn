@@ -37,4 +37,5 @@ jobs:
           working-directory: ${{ github.workspace }}/crates/notary/server/tee
           run: |
              # this fails current ci because gramine.sh is part of this pr so the file doesnt exist
+             # gramine.sh needs to exists in the main branch to work. Once merge uncomment the line below
              # bash .github/scripts/gramine.sh
