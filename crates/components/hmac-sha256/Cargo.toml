@@ -21,7 +21,7 @@ tlsn-hmac-sha256-circuits = { workspace = true }
 
 mpz-vm-core = { workspace = true }
 mpz-circuits = { workspace = true }
-mpz-common = { workspace = true }
+mpz-common = { workspace = true, features = ["cpu"] }
 
 derive_builder = { workspace = true }
 thiserror = { workspace = true }
