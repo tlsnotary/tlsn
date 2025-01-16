@@ -13,14 +13,14 @@ name = "key_exchange"
 
 [features]
 default = ["mock"]
-mock = []
+mock = ["mpz-share-conversion/test-utils", "mpz-common/ideal"]
 
 [dependencies]
 mpz-vm-core = { workspace = true  }
 mpz-memory-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-fields = { workspace = true }
-mpz-share-conversion = { workspace = true, features = ["test-utils"] }
+mpz-share-conversion = { workspace = true }
 mpz-circuits = { workspace = true }
 mpz-core = { workspace = true }
 
