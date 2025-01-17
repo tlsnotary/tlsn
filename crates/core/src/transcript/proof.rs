@@ -439,7 +439,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                 }
             }
             TranscriptCommitmentKind::Hash { .. } => {
-                // Insert the rangeset [dir_idx] if it's is in [plaintext_hashes], i.e. it's
+                // Insert the rangeset [dir_idx] if it's in [plaintext_hashes], i.e. it's
                 // committed.
                 if self
                     .plaintext_hashes
