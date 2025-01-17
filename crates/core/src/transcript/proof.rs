@@ -293,6 +293,7 @@ impl ProofIdxs {
         // most likely superset (the biggest) first.
         idxs_to_prune.reverse();
 
+        // [OrderedIdx] to be pruned and excluded.
         let mut pruned_idxs = HashSet::new();
 
         // Start from the second [OrderedIdx], as the first is guaranteed to not be a

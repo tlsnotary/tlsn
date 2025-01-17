@@ -39,31 +39,14 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let transcript = HttpTranscript::parse(secrets.transcript())?;
 
     // Build a transcript proof.
-    // Here is where we reveal all or some of the ranges we committed in prove.rs
-    // via `commit_transcript` previously.
     let mut builder = secrets.transcript_proof_builder();
 
+    // Here is where we reveal all or some of the parts we committed in `prove.rs`
+    // via `commit_transcript` previously.
     let request = &transcript.requests[0];
 
-    // Reveal the following committed ranges using one superset range (R):
-    // (1) request.without_data(): request structure without target, headers and
-    // body. (2) request target.
-    //
-    // R is constructed via the union of ranges of (1) and (2).
-    //
-    // NOTE: Ideally, one should NOT call any `reveal` function more than once
-    // for these superset ranges to avoid unnecessary computation time.
-    //
-    // Instead of `reveal` on 'superset range A', and then `reveal` again
-    // on 'superset range B', one should union all these superset ranges,
-    // and then `reveal` at once.
-    builder.reveal_sent(
-        &request
-            .without_data()
-            .union(&request.request.target.to_range_set()),
-    )?;
-
-    // Reveal all headers except the values of User-Agent and Authorization.
+    // Reveal all committed request headers (key + value) except for the values of
+    // `User-Agent` and `Authorization`.
     for header in &request.headers {
         if !(header
             .name
@@ -80,35 +63,74 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         }
     }
 
-    // Reveal only parts of the response.
+    // Reveal the following committed parts using one superset range (`R1`):
+    // (1) `request.without_data` (parts excluding target, headers and body).
+    // (2) `request.target`.
+    //
+    // `R1` is constructed via the union of ranges of (1) and (2).
+    builder.reveal_sent(
+        &request
+            .without_data()
+            .union(&request.request.target.to_range_set()),
+    )?;
+
+    /*
+    SIDE NOTE:
+
+    In the code above, we demonstrated how `reveal_sent` can be used on
+    (1) exact range (i.e. each header).
+    (2) superset range (i.e. `without_data` + `target` (`R1`)).
+
+    If we want to reveal the entire header section instead (because there is no header
+    value to be hidden), then the superset range approach should be used, where superset
+    range (`R2`) == `(headers.start..headers.end)` (see `reveal_recv` below).
+
+    However, instead of calling `reveal_sent` again on `R2`, ideally we should union `R1`
+    and `R2` (and other superset ranges in `Sent` direction), then call `reveal_sent` on them
+    at once.
+
+    This prevents processing multiple reveals of superset ranges separately, as
+    processing the reveal of a single union of superset ranges is more efficient.
+
+    Note that exact range can still be revealed separately without any efficiency issue.
+
+    P/S: The guide above also applies to `reveal_recv`.
+    **/
+
     let response = &transcript.responses[0];
     let content = &response.body.as_ref().unwrap().content;
 
-    // Reveal the following committed ranges using one superset range (R):
-    // (1) response.without_data(): response structure without headers and body.
-    // (2) all headers.
+    // Reveal the following committed part of response:
+    // `without_data`: parts excluding headers and body.
+    builder.reveal_recv(&response.without_data()).unwrap();
+
+    // Reveal all response headers using one superset range (`R`).
     //
-    // R is constructed by assigning
-    //   start: <first index of response.without_data()>.
-    //   end: <first index of response.body>, which is equal to the final index
-    // (non-inclusive) of headers.
-    //
-    // This is because (1), (2) and <response.body> are adjacent ranges.
-    //
-    // NOTE: Ideally, one should NOT call any `reveal` function more than once
-    // for these superset ranges to avoid unnecessary computation time.
-    //
-    // Instead of `reveal` on 'superset range A', and then `reveal` again
-    // on 'superset range B', one should union all these superset ranges,
-    // and then `reveal` at once.
+    // `R` is constructed by assigning the following `start` and `end`, as the
+    // header section is a continuous range.
+    //   start: <first index of `response.headers`>.
+    //   end: <last index of `response.headers`>.
     builder.reveal_recv(
-        &(response.without_data().to_range_set().min().unwrap()
-            ..content.to_range_set().min().unwrap()),
+        &(response
+            .headers
+            .first()
+            .unwrap()
+            .to_range_set()
+            .min()
+            .unwrap()
+            ..response
+                .headers
+                .last()
+                .unwrap()
+                .to_range_set()
+                .end()
+                .unwrap()),
     )?;
 
     match content {
         tlsn_formats::http::BodyContent::Json(json) => {
-            // For experimentation, reveal the entire response or just a selection.
+            // For experimentation, reveal the entire committed response or just a selection
+            // of committed parts.
             let reveal_all = false;
             if reveal_all {
                 builder.reveal_recv(response)?;
