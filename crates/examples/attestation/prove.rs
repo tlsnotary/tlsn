@@ -183,8 +183,8 @@ async fn notarize(
     // Commit to the transcript.
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
-    // This commits to different parts of the transcript separately (e.g. request
-    // headers, response body).
+    // This commits to various parts of the transcript separately (e.g. request
+    // headers, response headers, response body and more).
     DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
 
     prover.transcript_commit(builder.build()?);

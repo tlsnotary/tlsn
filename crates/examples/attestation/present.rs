@@ -92,7 +92,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     This prevents processing multiple reveals of superset ranges separately, as
     processing the reveal of a single union of superset ranges is more efficient.
 
-    Note that exact range can still be revealed separately without any efficiency issue.
+    Note that multiple exact ranges can still be revealed separately without any efficiency issue.
 
     P/S: The guide above also applies to `reveal_recv`.
     **/
