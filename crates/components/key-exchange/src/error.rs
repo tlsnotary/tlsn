@@ -12,7 +12,7 @@ pub(crate) enum ErrorRepr {
     /// Context error.
     Ctx(Box<dyn Error + Send + Sync + 'static>),
     /// IO related error
-    Io(Box<dyn Error + Send + Sync + 'static>),
+    Io(std::io::Error),
     /// Virtual machine error
     Vm(Box<dyn Error + Send + Sync + 'static>),
     /// Share conversion error
@@ -50,13 +50,6 @@ impl KeyExchangeError {
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
     {
         Self(ErrorRepr::Ctx(err.into()))
-    }
-
-    pub(crate) fn io<E>(err: E) -> KeyExchangeError
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self(ErrorRepr::Io(err.into()))
     }
 
     pub(crate) fn vm<E>(err: E) -> KeyExchangeError
@@ -106,7 +99,7 @@ impl From<p256::elliptic_curve::Error> for KeyExchangeError {
 }
 
 impl From<std::io::Error> for KeyExchangeError {
-    fn from(value: std::io::Error) -> Self {
-        Self::io(value)
+    fn from(err: std::io::Error) -> Self {
+        Self(ErrorRepr::Io(err))
     }
 }

@@ -55,7 +55,7 @@ mod tests {
     fn test_mock_is_ke() {
         let (leader, follower) = create_mock_key_exchange_pair();
 
-        fn is_key_exchange<T: KeyExchange<V>, Ctx, V>(_: T) {}
+        fn is_key_exchange<T: KeyExchange, Ctx, V>(_: T) {}
 
         is_key_exchange::<
             MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>,

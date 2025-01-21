@@ -16,7 +16,7 @@ default = ["mock"]
 mock = ["mpz-share-conversion/test-utils", "mpz-common/ideal"]
 
 [dependencies]
-mpz-vm-core = { workspace = true  }
+mpz-vm-core = { workspace = true }
 mpz-memory-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-fields = { workspace = true }
@@ -31,9 +31,10 @@ serio = { workspace = true }
 derive_builder = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
-mpz-ot = {  workspace = true , features = ["ideal"] }
+mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-garble = { workspace = true }
 
 rand_chacha = { workspace = true }

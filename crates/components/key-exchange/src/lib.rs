@@ -28,8 +28,11 @@ pub use config::{
 pub use error::KeyExchangeError;
 pub use exchange::MpcKeyExchange;
 
-use mpz_core::bitvec::BitVec;
-use mpz_memory_core::{binary::U8, Array, DecodeFutureTyped};
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Array, Memory, View,
+};
+use mpz_vm_core::Vm;
 use p256::PublicKey;
 
 /// Pre-master secret.
@@ -48,28 +51,8 @@ impl Pms {
     }
 }
 
-/// Checks that both parties behaved honestly.
-#[must_use]
-#[derive(Debug)]
-pub struct EqualityCheck(DecodeFutureTyped<BitVec, [u8; 32]>);
-
-impl EqualityCheck {
-    /// Checks that the PMS computation succeeded and that both parties agree on the PMS value.
-    ///
-    /// This MUST be called to ensure that no party cheated.
-    pub async fn check(self) -> Result<(), KeyExchangeError> {
-        let eq = self.0.await.map_err(KeyExchangeError::vm)?;
-
-        // Eq should be all zeros if pms_1 == pms_2.
-        if eq != [0u8; 32] {
-            return Err(KeyExchangeError::share_conversion("PMS values not equal"));
-        }
-        Ok(())
-    }
-}
-
 /// A trait for the 3-party key exchange protocol.
-pub trait KeyExchange<V> {
+pub trait KeyExchange {
     /// Allocate necessary computational resources.
     fn alloc(&mut self) -> Result<(), KeyExchangeError>;
 
@@ -87,11 +70,15 @@ pub trait KeyExchange<V> {
     fn client_key(&self) -> Result<PublicKey, KeyExchangeError>;
 
     /// Performs any necessary one-time setup, returning a reference to the PMS.
-    fn setup(&mut self, vm: &mut V) -> Result<Pms, KeyExchangeError>;
+    fn setup<V>(&mut self, vm: &mut V) -> Result<Pms, KeyExchangeError>
+    where
+        V: Vm<Binary> + Memory<Binary> + View<Binary>;
 
     /// Computes the PMS, and returns an equality check.
     ///
-    /// The equality check makes sure that both parties arrived at the same result. This MUST be
-    /// called to prevent malicious behavior!
-    fn compute_pms(&mut self, vm: &mut V) -> Result<EqualityCheck, KeyExchangeError>;
+    /// The equality check makes sure that both parties arrived at the same
+    /// result. This MUST be called to prevent malicious behavior!
+    fn compute_pms<V>(&mut self, vm: &mut V) -> Result<(), KeyExchangeError>
+    where
+        V: Vm<Binary> + Memory<Binary> + View<Binary>;
 }
