@@ -140,7 +140,7 @@ async fn main() {
         .port(notary_port)
         // WARNING: Always use TLS to connect to notary server, except if notary is running locally
         // e.g. this example, hence `enable_tls` is set to False (else it always defaults to True).
-        .enable_tls(true)
+        .enable_tls(false)
         .build()
         .unwrap();
 
