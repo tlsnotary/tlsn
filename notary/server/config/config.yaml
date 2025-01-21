@@ -15,7 +15,7 @@ notarization:
   max-transcript-size: 100000
 
 tls:
-  enabled: true
+  enabled: false
   private-key-pem-path: "./keys/cert_privkey.pem"
   certificate-pem-path: "./fixture/tls/notary.crt"
 
