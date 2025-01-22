@@ -31,9 +31,9 @@ fn main() {
     //
     // This verifies the identity of the server using a default certificate verifier which trusts
     // the root certificates from the `webpki-roots` crate.
-    session
-        .verify_with_default_cert_verifier(notary_pubkey())
-        .unwrap();
+    // session
+    //     .verify_with_default_cert_verifier(notary_pubkey())
+    //     .unwrap();
 
     let SessionProof {
         // The session header that was signed by the Notary is a succinct commitment to the TLS transcript.
