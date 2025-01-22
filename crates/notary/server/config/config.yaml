@@ -8,7 +8,7 @@ server:
     <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{git_commit_hash}">{git_commit_hash}</a></li>
     <li>public key: <pre>{public_key}</pre></li>
     </ul>
-    <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
+    <a href="healthcheck">health check</a> - <a href="info">info</a><br/>
 
 notarization:
   max_sent_data: 4096
