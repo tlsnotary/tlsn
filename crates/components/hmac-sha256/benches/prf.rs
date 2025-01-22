@@ -1,3 +1,5 @@
+#![allow(clippy::let_underscore_future)]
+
 use criterion::{criterion_group, criterion_main, Criterion};
 
 use hmac_sha256::{MpcPrf, Prf, PrfConfig, Role};
@@ -67,30 +69,22 @@ async fn prf() {
         .set_server_random(&mut follower_vm, server_random)
         .unwrap();
 
-    #[allow(clippy::let_underscore_future)]
     let _ = leader_vm
         .decode(leader_output.keys.client_write_key)
         .unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = leader_vm
         .decode(leader_output.keys.server_write_key)
         .unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = leader_vm.decode(leader_output.keys.client_iv).unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = leader_vm.decode(leader_output.keys.server_iv).unwrap();
 
-    #[allow(clippy::let_underscore_future)]
     let _ = follower_vm
         .decode(follower_output.keys.client_write_key)
         .unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = follower_vm
         .decode(follower_output.keys.server_write_key)
         .unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = follower_vm.decode(follower_output.keys.client_iv).unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = follower_vm.decode(follower_output.keys.server_iv).unwrap();
 
     futures::join!(
@@ -115,14 +109,10 @@ async fn prf() {
     follower.set_cf_hash(&mut follower_vm, cf_hs_hash).unwrap();
     follower.set_sf_hash(&mut follower_vm, sf_hs_hash).unwrap();
 
-    #[allow(clippy::let_underscore_future)]
     let _ = leader_vm.decode(leader_output.cf_vd).unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = leader_vm.decode(leader_output.sf_vd).unwrap();
 
-    #[allow(clippy::let_underscore_future)]
     let _ = follower_vm.decode(follower_output.cf_vd).unwrap();
-    #[allow(clippy::let_underscore_future)]
     let _ = follower_vm.decode(follower_output.sf_vd).unwrap();
 
     futures::join!(
