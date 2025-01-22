@@ -23,7 +23,7 @@ impl KeyExchangeConfig {
     }
 
     /// Get the role of this instance.
-    pub fn role(&self) -> &Role {
-        &self.role
+    pub fn role(&self) -> Role {
+        self.role
     }
 }

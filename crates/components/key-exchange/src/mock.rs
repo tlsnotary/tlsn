@@ -2,24 +2,20 @@
 //! function to create such a pair.
 
 use crate::{KeyExchangeConfig, MpcKeyExchange, Role};
-
-use mpz_common::executor::{test_st_executor, STExecutor};
-use mpz_garble::{Decode, Execute, Memory};
-use mpz_share_conversion::ideal::{ideal_share_converter, IdealShareConverter};
-use serio::channel::MemoryDuplex;
+use mpz_core::Block;
+use mpz_fields::p256::P256;
+use mpz_share_conversion::ideal::{
+    ideal_share_convert, IdealShareConvertReceiver, IdealShareConvertSender,
+};
 
 /// A mock key exchange instance.
-pub type MockKeyExchange<E> =
-    MpcKeyExchange<STExecutor<MemoryDuplex>, IdealShareConverter, IdealShareConverter, E>;
+pub type MockKeyExchange =
+    MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>;
 
 /// Creates a mock pair of key exchange leader and follower.
-pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
-    leader_executor: E,
-    follower_executor: E,
-) -> (MockKeyExchange<E>, MockKeyExchange<E>) {
-    let (leader_ctx, follower_ctx) = test_st_executor(8);
-    let (leader_converter_0, follower_converter_0) = ideal_share_converter();
-    let (leader_converter_1, follower_converter_1) = ideal_share_converter();
+pub fn create_mock_key_exchange_pair() -> (MockKeyExchange, MockKeyExchange) {
+    let (leader_converter_0, follower_converter_0) = ideal_share_convert(Block::ZERO);
+    let (follower_converter_1, leader_converter_1) = ideal_share_convert(Block::ZERO);
 
     let key_exchange_config_leader = KeyExchangeConfig::builder()
         .role(Role::Leader)
@@ -33,18 +29,14 @@ pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
 
     let leader = MpcKeyExchange::new(
         key_exchange_config_leader,
-        leader_ctx,
         leader_converter_0,
         leader_converter_1,
-        leader_executor,
     );
 
     let follower = MpcKeyExchange::new(
         key_exchange_config_follower,
-        follower_ctx,
-        follower_converter_0,
         follower_converter_1,
-        follower_executor,
+        follower_converter_0,
     );
 
     (leader, follower)
@@ -52,20 +44,29 @@ pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
 
 #[cfg(test)]
 mod tests {
-    use mpz_garble::protocol::deap::mock::create_mock_deap_vm;
-
-    use crate::KeyExchange;
+    use mpz_common::executor::TestSTExecutor;
+    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_ot::ideal::cot::{IdealCOTReceiver, IdealCOTSender};
 
     use super::*;
+    use crate::KeyExchange;
 
     #[test]
     fn test_mock_is_ke() {
-        let (leader_vm, follower_vm) = create_mock_deap_vm();
-        let (leader, follower) = create_mock_key_exchange_pair(leader_vm, follower_vm);
+        let (leader, follower) = create_mock_key_exchange_pair();
 
-        fn is_key_exchange<T: KeyExchange>(_: T) {}
+        fn is_key_exchange<T: KeyExchange, Ctx, V>(_: T) {}
 
-        is_key_exchange(leader);
-        is_key_exchange(follower);
+        is_key_exchange::<
+            MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>,
+            TestSTExecutor,
+            Generator<IdealCOTSender>,
+        >(leader);
+
+        is_key_exchange::<
+            MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>,
+            TestSTExecutor,
+            Evaluator<IdealCOTReceiver>,
+        >(follower);
     }
 }

@@ -1,8 +1,7 @@
 //! This module provides the circuits used in the key exchange protocol.
 
-use std::sync::Arc;
-
 use mpz_circuits::{circuits::big_num::nbyte_add_mod_trace, Circuit, CircuitBuilder};
+use std::sync::Arc;
 
 /// NIST P-256 prime big-endian.
 static P: [u8; 32] = [
