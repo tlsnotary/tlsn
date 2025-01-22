@@ -380,5 +380,26 @@ fn default_root_store() -> RootCertStore {
         )
     }));
 
+    use std::fs::File;
+    use std::io::BufReader;
+    //use webpki::certs;
+    use rustls::Certificate;
+    use rustls_pemfile::certs;
+
+    if let Ok(cert_file) = File::open("/etc/ssl/certs/notary.pem") {
+        let mut reader = BufReader::new(cert_file);
+        if let Ok(parsed_certs) = certs(&mut reader) {
+            for cert in parsed_certs {
+                if let Err(err) = root_store.add(&Certificate(cert)) {
+                    eprintln!("Warning: Failed to add self-signed certificate: {}", err);
+                }
+            }
+        } else {
+            eprintln!("Error: Failed to parse certificates from /etc/ssl/certs/notary.pem");
+        }
+    } else {
+        eprintln!("Error: Could not open /etc/ssl/certs/notary.pem");
+
+    }
     root_store
 }
