@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display};
+use std::error::Error;
 
 /// MPC-TLS protocol error.
 #[derive(Debug, thiserror::Error)]
@@ -6,35 +6,22 @@ use std::{error::Error, fmt::Display};
 pub struct KeyExchangeError(#[from] ErrorRepr);
 
 #[derive(Debug, thiserror::Error)]
+#[error("key exchange error: {0}")]
 pub(crate) enum ErrorRepr {
-    /// An unexpected state was encountered
+    #[error("state error: {0}")]
     State(Box<dyn Error + Send + Sync + 'static>),
-    /// Context error.
+    #[error("context error: {0}")]
     Ctx(Box<dyn Error + Send + Sync + 'static>),
-    /// IO related error
+    #[error("io error: {0}")]
     Io(std::io::Error),
-    /// Virtual machine error
+    #[error("vm error: {0}")]
     Vm(Box<dyn Error + Send + Sync + 'static>),
-    /// Share conversion error
+    #[error("share conversion error: {0}")]
     ShareConversion(Box<dyn Error + Send + Sync + 'static>),
-    /// Role error
+    #[error("role error: {0}")]
     Role(Box<dyn Error + Send + Sync + 'static>),
-    /// Key error
+    #[error("key error: {0}")]
     Key(Box<dyn Error + Send + Sync + 'static>),
-}
-
-impl Display for ErrorRepr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ErrorRepr::State(error) => write!(f, "{error}"),
-            ErrorRepr::Ctx(error) => write!(f, "{error}"),
-            ErrorRepr::Io(error) => write!(f, "{error}"),
-            ErrorRepr::Vm(error) => write!(f, "{error}"),
-            ErrorRepr::ShareConversion(error) => write!(f, "{error}"),
-            ErrorRepr::Role(error) => write!(f, "{error}"),
-            ErrorRepr::Key(error) => write!(f, "{error}"),
-        }
-    }
 }
 
 impl KeyExchangeError {
