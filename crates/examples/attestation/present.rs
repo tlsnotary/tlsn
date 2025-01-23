@@ -84,7 +84,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     If we want to reveal the entire header section instead (because there is no header
     value to be hidden), then the superset range approach should be used, where superset
     range (`R2`) == `(headers.start..headers.end)` (see `reveal_recv` below).
-    **/
+    */
 
     let response = &transcript.responses[0];
     let content = &response.body.as_ref().unwrap().content;
