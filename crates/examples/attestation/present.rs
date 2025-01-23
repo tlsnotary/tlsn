@@ -84,17 +84,6 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     If we want to reveal the entire header section instead (because there is no header
     value to be hidden), then the superset range approach should be used, where superset
     range (`R2`) == `(headers.start..headers.end)` (see `reveal_recv` below).
-
-    However, instead of calling `reveal_sent` again on `R2`, ideally we should union `R1`
-    and `R2` (and other superset ranges in `Sent` direction), then call `reveal_sent` on them
-    at once.
-
-    This prevents processing multiple reveals of superset ranges separately, as
-    processing the reveal of a single union of superset ranges is more efficient.
-
-    Note that multiple exact ranges can still be revealed separately without any efficiency issue.
-
-    P/S: The guide above also applies to `reveal_recv`.
     **/
 
     let response = &transcript.responses[0];
