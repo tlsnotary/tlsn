@@ -78,7 +78,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     SIDE NOTE:
 
     In the code above, we demonstrated how `reveal_sent` can be used on
-    (1) exact range (i.e. each header).
+    (1) exact range (i.e. selected headers).
     (2) superset range (i.e. `without_data` + `target` (`R1`)).
 
     If we want to reveal the entire header section instead (because there is no header
