@@ -386,7 +386,8 @@ fn default_root_store() -> RootCertStore {
     use rustls::Certificate;
     use rustls_pemfile::certs;
 
-    if let Ok(cert_file) = File::open("/etc/ssl/certs/notary.pem") {
+    if let Ok(cert_file) = File::open("/Users/m/repos/tlsn/notary/server/fixture/tls/notary.crt") {
+      debug!("Opened notary.pem");
         let mut reader = BufReader::new(cert_file);
         if let Ok(parsed_certs) = certs(&mut reader) {
             for cert in parsed_certs {
@@ -394,11 +395,12 @@ fn default_root_store() -> RootCertStore {
                     eprintln!("Warning: Failed to add self-signed certificate: {}", err);
                 }
             }
+            debug!("Added notary.pem");
         } else {
-            eprintln!("Error: Failed to parse certificates from /etc/ssl/certs/notary.pem");
+            eprintln!("Error: Failed to parse certificates from notary.pem");
         }
     } else {
-        eprintln!("Error: Could not open /etc/ssl/certs/notary.pem");
+        eprintln!("Error: Could not open notary.pem");
 
     }
     root_store

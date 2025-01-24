@@ -31,9 +31,9 @@ fn main() {
     //
     // This verifies the identity of the server using a default certificate verifier which trusts
     // the root certificates from the `webpki-roots` crate.
-    // session
-    //     .verify_with_default_cert_verifier(notary_pubkey())
-    //     .unwrap();
+    session
+        .verify(notary_pubkey(), &build_cert_verifier())
+        .unwrap();
 
     let SessionProof {
         // The session header that was signed by the Notary is a succinct commitment to the TLS transcript.
@@ -86,4 +86,32 @@ fn notary_pubkey() -> p256::PublicKey {
     println!("{}", pem_file);
 
     p256::PublicKey::from_public_key_pem(pem_file).unwrap()
+}
+
+use tls_core::{
+  verify::WebPkiVerifier,
+  anchors::{OwnedTrustAnchor, RootCertStore},
+};
+
+pub fn build_cert_verifier() -> WebPkiVerifier {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject.as_ref(),
+            ta.subject_public_key_info.as_ref(),
+            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+        )
+    }));
+
+    use std::fs::File;
+    use std::io::BufReader;
+
+    if let Ok(cert_file) = File::open("/Users/m/repos/tlsn/notary/server/fixture/tls/notary.crt") {
+        let reader = BufReader::new(cert_file);
+        root_store.add_parsable_certificates(&[reader.buffer().to_vec()]);
+    } else {
+        eprintln!("Error: Could not open notary.pem");
+    }
+
+    WebPkiVerifier::new(root_store, None)
 }
