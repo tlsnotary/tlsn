@@ -31,9 +31,11 @@ fn main() {
     //
     // This verifies the identity of the server using a default certificate verifier which trusts
     // the root certificates from the `webpki-roots` crate.
+    println!("Verifying session proof...");
     session
         .verify(notary_pubkey(), &build_cert_verifier())
         .unwrap();
+    println!("Verified");
 
     let SessionProof {
         // The session header that was signed by the Notary is a succinct commitment to the TLS transcript.
@@ -50,7 +52,9 @@ fn main() {
     // Verify the substrings proof against the session header.
     //
     // This returns the redacted transcripts
+    println!("Verifying substrings proof...");
     let (mut sent, mut recv) = substrings.verify(&header).unwrap();
+    println!("Verified");
 
     // Replace the bytes which the Prover chose not to disclose with 'X'
     sent.set_redacted(b'X');
