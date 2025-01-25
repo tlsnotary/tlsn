@@ -4,8 +4,8 @@
 
 use crate::{circuit::CipherCircuit, Cipher, Keystream};
 use async_trait::async_trait;
-use mpz_memory_core::{binary::Binary, MemoryExt, Repr, StaticSize, View, ViewExt};
-use mpz_vm_core::{CallBuilder, Vm, VmExt};
+use mpz_memory_core::{binary::Binary, Repr, StaticSize};
+use mpz_vm_core::{prelude::*, CallBuilder, Vm};
 use std::{collections::VecDeque, fmt::Debug};
 
 mod circuit;
@@ -31,10 +31,9 @@ impl Debug for MpcAes {
 }
 
 impl MpcAes {
-    fn alloc_public<R, V>(vm: &mut V) -> Result<R, AesError>
+    fn alloc_public<R>(vm: &mut dyn Vm<Binary>) -> Result<R, AesError>
     where
         R: Repr<Binary> + StaticSize<Binary> + Copy,
-        V: View<Binary> + Vm<Binary>,
     {
         let value = vm
             .alloc()
@@ -48,10 +47,7 @@ impl MpcAes {
 }
 
 #[async_trait]
-impl<V> Cipher<Aes128, V> for MpcAes
-where
-    V: Vm<Binary> + View<Binary>,
-{
+impl Cipher<Aes128> for MpcAes {
     type Error = AesError;
 
     fn set_key(&mut self, key: <Aes128 as CipherCircuit>::Key) {
@@ -72,9 +68,13 @@ where
             .ok_or_else(|| AesError::new(ErrorKind::Iv, "iv not set"))
     }
 
-    fn alloc(&self, vm: &mut V, block_count: usize) -> Result<Keystream<Aes128>, Self::Error> {
-        let key = <Self as Cipher<Aes128, V>>::key(self)?;
-        let iv = <Self as Cipher<Aes128, V>>::iv(self)?;
+    fn alloc(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+        block_count: usize,
+    ) -> Result<Keystream<Aes128>, Self::Error> {
+        let key = <Self as Cipher<Aes128>>::key(self)?;
+        let iv = <Self as Cipher<Aes128>>::iv(self)?;
 
         let mut keystream = Keystream::<Aes128>::default();
         let mut circuits = VecDeque::with_capacity(block_count);
@@ -113,11 +113,11 @@ where
 
     fn assign_block(
         &self,
-        vm: &mut V,
+        vm: &mut dyn Vm<Binary>,
         input_ref: <Aes128 as CipherCircuit>::Block,
         input: <<Aes128 as CipherCircuit>::Block as Repr<Binary>>::Clear,
     ) -> Result<<Aes128 as CipherCircuit>::Block, Self::Error> {
-        let key = <Self as Cipher<Aes128, V>>::key(self)?;
+        let key = <Self as Cipher<Aes128>>::key(self)?;
 
         vm.assign(input_ref, input)
             .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
@@ -144,15 +144,12 @@ mod tests {
         aes::{Aes128, MpcAes},
         Cipher, Input,
     };
-    use mpz_common::{
-        executor::{test_st_executor, TestSTExecutor},
-        Context,
-    };
+    use mpz_common::context::test_st_context;
     use mpz_garble::protocol::semihonest::{Evaluator, Generator};
     use mpz_memory_core::{
         binary::{Binary, U8},
         correlated::Delta,
-        Array, Memory, MemoryExt, Vector, View, ViewExt,
+        Array, MemoryExt, Vector, ViewExt,
     };
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_vm_core::{Execute, Vm};
@@ -165,8 +162,8 @@ mod tests {
         let nonce = [5_u8; 8];
         let start_counter = 3;
 
-        let (mut ctx_a, mut ctx_b) = test_st_executor(8);
-        let (mut gen, mut ev) = mock_vm::<TestSTExecutor>();
+        let (mut ctx_a, mut ctx_b) = test_st_context(8);
+        let (mut gen, mut ev) = mock_vm();
 
         let aes_gen = setup_ctr(key, iv, &mut gen);
         let aes_ev = setup_ctr(key, iv, &mut ev);
@@ -222,8 +219,8 @@ mod tests {
         let key = [1_u8; 16];
         let input = [5_u8; 16];
 
-        let (mut ctx_a, mut ctx_b) = test_st_executor(8);
-        let (mut gen, mut ev) = mock_vm::<TestSTExecutor>();
+        let (mut ctx_a, mut ctx_b) = test_st_context(8);
+        let (mut gen, mut ev) = mock_vm();
 
         let aes_gen = setup_block(key, &mut gen);
         let aes_ev = setup_block(key, &mut ev);
@@ -263,13 +260,7 @@ mod tests {
         assert_eq!(ciphertext_gen, expected);
     }
 
-    fn mock_vm<Ctx>() -> (
-        impl Vm<Binary> + View<Binary> + Execute<Ctx>,
-        impl Vm<Binary> + View<Binary> + Execute<Ctx>,
-    )
-    where
-        Ctx: Context + 'static,
-    {
+    fn mock_vm() -> (impl Vm<Binary> + Execute, impl Vm<Binary> + Execute) {
         let mut rng = StdRng::seed_from_u64(0);
         let delta = Delta::random(&mut rng);
 
@@ -281,11 +272,7 @@ mod tests {
         (gen, ev)
     }
 
-    fn setup_ctr<V, Ctx>(key: [u8; 16], iv: [u8; 4], vm: &mut V) -> MpcAes
-    where
-        V: Vm<Binary> + Memory<Binary> + View<Binary> + Execute<Ctx>,
-        Ctx: Context,
-    {
+    fn setup_ctr(key: [u8; 16], iv: [u8; 4], vm: &mut dyn Vm<Binary>) -> MpcAes {
         let key_ref: Array<U8, 16> = vm.alloc().unwrap();
         vm.mark_public(key_ref).unwrap();
         vm.assign(key_ref, key).unwrap();
@@ -298,24 +285,20 @@ mod tests {
 
         let mut aes = MpcAes::default();
 
-        Cipher::<Aes128, V>::set_key(&mut aes, key_ref);
-        Cipher::<Aes128, V>::set_iv(&mut aes, iv_ref);
+        Cipher::<Aes128>::set_key(&mut aes, key_ref);
+        Cipher::<Aes128>::set_iv(&mut aes, iv_ref);
 
         aes
     }
 
-    fn setup_block<V, Ctx>(key: [u8; 16], vm: &mut V) -> MpcAes
-    where
-        V: Vm<Binary> + Memory<Binary> + View<Binary> + Execute<Ctx>,
-        Ctx: Context,
-    {
+    fn setup_block(key: [u8; 16], vm: &mut dyn Vm<Binary>) -> MpcAes {
         let key_ref: Array<U8, 16> = vm.alloc().unwrap();
         vm.mark_public(key_ref).unwrap();
         vm.assign(key_ref, key).unwrap();
         vm.commit(key_ref).unwrap();
 
         let mut aes = MpcAes::default();
-        Cipher::<Aes128, V>::set_key(&mut aes, key_ref);
+        Cipher::<Aes128>::set_key(&mut aes, key_ref);
 
         aes
     }

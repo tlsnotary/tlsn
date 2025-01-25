@@ -1,7 +1,9 @@
-//! This crate provides implementations of 2PC ciphers for encryption with a shared key.
+//! This crate provides implementations of 2PC ciphers for encryption with a
+//! shared key.
 //!
-//! Both parties can work together to encrypt and decrypt messages with different visibility
-//! configurations. See [`Cipher`] and [`Keystream`] for more information on the interface.
+//! Both parties can work together to encrypt and decrypt messages with
+//! different visibility configurations. See [`Cipher`] and [`Keystream`] for
+//! more information on the interface.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -19,16 +21,17 @@ use mpz_memory_core::{
     binary::{Binary, U8},
     FromRaw, MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
 };
-use mpz_vm_core::{CallBuilder, CallError, Vm, VmExt};
+use mpz_vm_core::{prelude::*, CallBuilder, CallError, Vm};
 use std::collections::VecDeque;
 
 /// Provides computation of 2PC ciphers in counter and ECB mode.
 ///
-/// After setting `key` and `iv` allows to compute the keystream via [`Cipher::alloc`] or a single
-/// block in ECB mode via [`Cipher::assign_block`]. [`Keystream`] provides more tooling to compute
-/// the final cipher output in counter mode.
+/// After setting `key` and `iv` allows to compute the keystream via
+/// [`Cipher::alloc`] or a single block in ECB mode via
+/// [`Cipher::assign_block`]. [`Keystream`] provides more tooling to compute the
+/// final cipher output in counter mode.
 #[async_trait]
-pub trait Cipher<C: CipherCircuit, V: Vm<Binary>> {
+pub trait Cipher<C: CipherCircuit> {
     /// The error type for the cipher.
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -50,7 +53,11 @@ pub trait Cipher<C: CipherCircuit, V: Vm<Binary>> {
     ///
     /// * `vm` - The necessary virtual machine.
     /// * `block_count` - The number of keystream blocks.
-    fn alloc(&self, vm: &mut V, block_count: usize) -> Result<Keystream<C>, Self::Error>;
+    fn alloc(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+        block_count: usize,
+    ) -> Result<Keystream<C>, Self::Error>;
 
     /// Computes a single cipher block in ECB mode.
     ///
@@ -61,7 +68,7 @@ pub trait Cipher<C: CipherCircuit, V: Vm<Binary>> {
     /// * `input` - The input value.
     fn assign_block(
         &self,
-        vm: &mut V,
+        vm: &mut dyn Vm<Binary>,
         input_ref: <C as CipherCircuit>::Block,
         input: <<C as CipherCircuit>::Block as Repr<Binary>>::Clear,
     ) -> Result<<C as CipherCircuit>::Block, Self::Error>;
@@ -69,7 +76,8 @@ pub trait Cipher<C: CipherCircuit, V: Vm<Binary>> {
 
 /// The keystream of the cipher.
 ///
-/// Can be used to XOR with the cipher input to operate the cipher in counter mode.
+/// Can be used to XOR with the cipher input to operate the cipher in counter
+/// mode.
 pub struct Keystream<C: CipherCircuit> {
     pub(crate) explicit_nonces: VecDeque<C::Nonce>,
     pub(crate) counters: VecDeque<C::Counter>,
@@ -92,10 +100,11 @@ impl<C: CipherCircuit> Keystream<C> {
     /// # Arguments
     /// * `vm` - The necessary virtual machine.
     /// * `input` - The VM reference for the cipher input.
-    pub fn apply<V>(self, vm: &mut V, input: Vector<U8>) -> Result<CipherOutput<C>, CipherError>
-    where
-        V: Vm<Binary>,
-    {
+    pub fn apply(
+        self,
+        vm: &mut dyn Vm<Binary>,
+        input: Vector<U8>,
+    ) -> Result<CipherOutput<C>, CipherError> {
         if self.block_len() * <C::Block as StaticSize<Binary>>::SIZE < 8 * input.len() {
             return Err(CipherError::new("input is too long for keystream"));
         }
@@ -126,11 +135,10 @@ impl<C: CipherCircuit> Keystream<C> {
     /// * `explicit_nonce` - The TLS explicit nonce.
     pub fn j0<V>(
         &mut self,
-        vm: &mut V,
+        vm: &mut dyn Vm<Binary>,
         explicit_nonce: <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear,
     ) -> Result<<C as CipherCircuit>::Block, CipherError>
     where
-        V: Vm<Binary>,
         <<C as CipherCircuit>::Counter as Repr<Binary>>::Clear: From<[u8; 4]>,
     {
         if self.block_len() == 0 {
@@ -223,15 +231,14 @@ impl<C: CipherCircuit> CipherOutput<C> {
     /// * `explicit_nonce` - The TLS explicit nonce.
     /// * `start_ctr` - The TLS counter number to start with.
     /// * `message` - The message to en-/decrypt.
-    pub fn assign<V>(
+    pub fn assign(
         self,
-        vm: &mut V,
+        vm: &mut dyn Vm<Binary>,
         explicit_nonce: <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear,
         start_ctr: u32,
         message: Input,
     ) -> Result<Vector<U8>, CipherError>
     where
-        V: Vm<Binary>,
         <<C as CipherCircuit>::Counter as Repr<Binary>>::Clear: From<[u8; 4]>,
         <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear: Copy,
     {
@@ -250,8 +257,8 @@ impl<C: CipherCircuit> CipherOutput<C> {
         Ok(self.output)
     }
 
-    /// Assigns nonces and counters but reuses already assigned references for the message
-    /// inputs.
+    /// Assigns nonces and counters but reuses already assigned references for
+    /// the message inputs.
     ///
     /// # Arguments
     ///
@@ -259,15 +266,14 @@ impl<C: CipherCircuit> CipherOutput<C> {
     /// * `explicit_nonce` - The TLS explicit nonce.
     /// * `start_ctr` - The TLS counter number to start with.
     /// * `len` - The length of the message to en-/decrypt.
-    pub fn assign_reuse<V>(
+    pub fn assign_reuse(
         self,
-        vm: &mut V,
+        vm: &mut dyn Vm<Binary>,
         explicit_nonce: <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear,
         start_ctr: u32,
         len: usize,
     ) -> Result<Vector<U8>, CipherError>
     where
-        V: Vm<Binary>,
         <<C as CipherCircuit>::Counter as Repr<Binary>>::Clear: From<[u8; 4]>,
         <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear: Copy,
     {
@@ -281,15 +287,14 @@ impl<C: CipherCircuit> CipherOutput<C> {
         self.input.len()
     }
 
-    fn assign_nonce_and_ctr<V>(
+    fn assign_nonce_and_ctr(
         &self,
-        vm: &mut V,
+        vm: &mut dyn Vm<Binary>,
         explicit_nonce: <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear,
         start_ctr: u32,
         len: usize,
     ) -> Result<(), CipherError>
     where
-        V: Vm<Binary>,
         <<C as CipherCircuit>::Counter as Repr<Binary>>::Clear: From<[u8; 4]>,
         <<C as CipherCircuit>::Nonce as Repr<Binary>>::Clear: Copy,
     {
@@ -358,7 +363,8 @@ impl From<CallError> for CipherError {
 
 // # Safety
 
-// This is only safe to call, if the provided vm values have been sequentially allocated.
+// This is only safe to call, if the provided vm values have been sequentially
+// allocated.
 fn transmute<T>(values: VecDeque<T>) -> Vector<U8>
 where
     T: StaticSize<Binary> + ToRaw,
