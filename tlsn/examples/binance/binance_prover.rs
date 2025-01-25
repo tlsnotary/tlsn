@@ -141,7 +141,7 @@ async fn main() {
         // WARNING: Always use TLS to connect to notary server, except if notary is running locally
         // e.g. this example, hence `enable_tls` is set to False (else it always defaults to True).
         .enable_tls(true)
-        .root_cert_store(build_root_store())
+        //.root_cert_store(build_root_store())
         .build()
         .unwrap();
 
