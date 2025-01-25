@@ -33,7 +33,7 @@ fn main() {
     // the root certificates from the `webpki-roots` crate.
     println!("Verifying session proof...");
     session
-        .verify(notary_pubkey(), &build_cert_verifier())
+        .verify_with_default_cert_verifier(notary_pubkey())
         .unwrap();
     println!("Verified");
 
@@ -114,7 +114,7 @@ pub fn build_cert_verifier() -> WebPkiVerifier {
         let reader = BufReader::new(cert_file);
         root_store.add_parsable_certificates(&[reader.buffer().to_vec()]);
     } else {
-        eprintln!("Error: Could not open notary.pem");
+        eprintln!("Error: Could not open notary.crt");
     }
 
     WebPkiVerifier::new(root_store, None)
