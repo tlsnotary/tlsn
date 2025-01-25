@@ -37,6 +37,6 @@ tokio = { workspace = true, features = ["sync"] }
 mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-garble = { workspace = true }
 
-rand_chacha = { workspace = true }
 rand_core = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+rstest = { workspace = true }
