@@ -1,6 +1,7 @@
-//! This module implements a secure two-party computation protocol for adding two private EC points
-//! and secret-sharing the resulting x coordinate (the shares are field elements of the field
-//! underlying the elliptic curve). This protocol has semi-honest security.
+//! This module implements a secure two-party computation protocol for adding
+//! two private EC points and secret-sharing the resulting x coordinate (the
+//! shares are field elements of the field underlying the elliptic curve). This
+//! protocol has semi-honest security.
 //!
 //! The protocol is described in
 //! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>
@@ -12,15 +13,14 @@ use mpz_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive, S
 use p256::EncodedPoint;
 
 /// Derives the x-coordinate share of an elliptic curve point.
-pub(crate) async fn derive_x_coord_share<Ctx, C>(
-    ctx: &mut Ctx,
+pub(crate) async fn derive_x_coord_share<C>(
+    ctx: &mut Context,
     role: Role,
     converter: &mut C,
     share: EncodedPoint,
 ) -> Result<P256, KeyExchangeError>
 where
-    Ctx: Context,
-    C: ShareConvert<P256> + Flush<Ctx> + Send,
+    C: ShareConvert<P256> + Flush + Send,
     <C as AdditiveToMultiplicative<P256>>::Future: Send,
     <C as MultiplicativeToAdditive<P256>>::Future: Send,
 {
@@ -98,7 +98,7 @@ fn decompose_point(point: EncodedPoint) -> Result<[P256; 2], KeyExchangeError> {
 mod tests {
     use super::*;
 
-    use mpz_common::executor::test_st_executor;
+    use mpz_common::context::test_st_context;
     use mpz_core::Block;
     use mpz_fields::{p256::P256, Field};
     use mpz_share_conversion::ideal::ideal_share_convert;
@@ -106,13 +106,12 @@ mod tests {
         elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
         EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
     };
-    use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha12Rng;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
 
     #[tokio::test]
     async fn test_point_addition() {
-        let (mut ctx_a, mut ctx_b) = test_st_executor(8);
-        let mut rng = ChaCha12Rng::from_seed([0u8; 32]);
+        let (mut ctx_a, mut ctx_b) = test_st_context(8);
+        let mut rng = StdRng::seed_from_u64(0);
 
         let p1: [u8; 32] = rng.gen();
         let p2: [u8; 32] = rng.gen();
@@ -137,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_decompose_point() {
-        let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
+        let mut rng = StdRng::seed_from_u64(0);
 
         let p_expected: [u8; 32] = rng.gen();
         let p_expected = curve_point_from_be_bytes(p_expected);

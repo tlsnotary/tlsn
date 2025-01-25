@@ -44,7 +44,6 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchange, MockKeyExchange) {
 
 #[cfg(test)]
 mod tests {
-    use mpz_common::executor::TestSTExecutor;
     use mpz_garble::protocol::semihonest::{Evaluator, Generator};
     use mpz_ot::ideal::cot::{IdealCOTReceiver, IdealCOTSender};
 
@@ -55,17 +54,15 @@ mod tests {
     fn test_mock_is_ke() {
         let (leader, follower) = create_mock_key_exchange_pair();
 
-        fn is_key_exchange<T: KeyExchange, Ctx, V>(_: T) {}
+        fn is_key_exchange<T: KeyExchange, V>(_: T) {}
 
         is_key_exchange::<
             MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>,
-            TestSTExecutor,
             Generator<IdealCOTSender>,
         >(leader);
 
         is_key_exchange::<
             MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>,
-            TestSTExecutor,
             Evaluator<IdealCOTReceiver>,
         >(follower);
     }
