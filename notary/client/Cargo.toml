@@ -26,6 +26,3 @@ tracing.workspace = true
 derive_builder = "0.12"
 futures = "0.3"
 webpki-roots = "0.26"
-
-rustls = "0.21"
-rustls-pemfile = "1.0.2"
