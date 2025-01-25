@@ -110,7 +110,7 @@ pub fn build_cert_verifier() -> WebPkiVerifier {
     use std::fs::File;
     use std::io::BufReader;
 
-    if let Ok(cert_file) = File::open("/Users/m/repos/tlsn/notary/server/fixture/tls/notary.crt") {
+    if let Ok(cert_file) = File::open("/root/notary.crt") {
         let reader = BufReader::new(cert_file);
         root_store.add_parsable_certificates(&[reader.buffer().to_vec()]);
     } else {
