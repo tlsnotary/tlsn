@@ -3,7 +3,7 @@ use std::error::Error;
 /// MPC-TLS protocol error.
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct KeyExchangeError(#[from] ErrorRepr);
+pub struct KeyExchangeError(#[from] pub(crate) ErrorRepr);
 
 #[derive(Debug, thiserror::Error)]
 #[error("key exchange error: {0}")]
@@ -65,11 +65,6 @@ impl KeyExchangeError {
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
     {
         Self(ErrorRepr::Key(err.into()))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn kind(&self) -> &ErrorRepr {
-        &self.0
     }
 }
 

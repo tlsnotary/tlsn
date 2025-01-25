@@ -22,39 +22,29 @@ mod exchange;
 pub mod mock;
 pub(crate) mod point_addition;
 
+use async_trait::async_trait;
 pub use config::{
     KeyExchangeConfig, KeyExchangeConfigBuilder, KeyExchangeConfigBuilderError, Role,
 };
 pub use error::KeyExchangeError;
 pub use exchange::MpcKeyExchange;
 
+use mpz_common::Context;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    Array, Memory, View,
+    Array,
 };
 use mpz_vm_core::Vm;
 use p256::PublicKey;
 
 /// Pre-master secret.
-#[derive(Debug, Clone, Copy)]
-pub struct Pms(Array<U8, 32>);
-
-impl Pms {
-    /// Creates a new PMS.
-    pub fn new(pms: Array<U8, 32>) -> Self {
-        Self(pms)
-    }
-
-    /// Gets the value of the PMS.
-    pub fn into_value(self) -> Array<U8, 32> {
-        self.0
-    }
-}
+pub type Pms = Array<U8, 32>;
 
 /// A trait for the 3-party key exchange protocol.
+#[async_trait]
 pub trait KeyExchange {
     /// Allocate necessary computational resources.
-    fn alloc(&mut self) -> Result<(), KeyExchangeError>;
+    fn alloc(&mut self, vm: &mut dyn Vm<Binary>) -> Result<Pms, KeyExchangeError>;
 
     /// Sets the server's public key.
     fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
@@ -69,16 +59,15 @@ pub trait KeyExchange {
     /// key.
     fn client_key(&self) -> Result<PublicKey, KeyExchangeError>;
 
-    /// Performs any necessary one-time setup, returning a reference to the PMS.
-    fn setup<V>(&mut self, vm: &mut V) -> Result<Pms, KeyExchangeError>
-    where
-        V: Vm<Binary> + Memory<Binary> + View<Binary>;
+    /// Performs one-time setup for the key exchange protocol.
+    async fn setup(&mut self, ctx: &mut Context) -> Result<(), KeyExchangeError>;
 
-    /// Computes the PMS, and returns an equality check.
-    ///
-    /// The equality check makes sure that both parties arrived at the same
-    /// result. This MUST be called to prevent malicious behavior!
-    fn compute_pms<V>(&mut self, vm: &mut V) -> Result<(), KeyExchangeError>
-    where
-        V: Vm<Binary> + Memory<Binary> + View<Binary>;
+    /// Computes the shares of the PMS.
+    async fn compute_shares(&mut self, ctx: &mut Context) -> Result<(), KeyExchangeError>;
+
+    /// Assigns the PMS shares to the VM.
+    fn assign(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), KeyExchangeError>;
+
+    /// Finalizes the key exchange protocol.
+    async fn finalize(&mut self) -> Result<(), KeyExchangeError>;
 }
