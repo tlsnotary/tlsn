@@ -9,14 +9,14 @@ use mpz_common::cpu::CpuBackend;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, View,
+        Array,
     },
     prelude::*,
-    Call, Vm as VmTrait,
+    Call, Vm,
 };
 use tracing::instrument;
 
-use crate::{Prf, PrfConfig, PrfError, PrfOutput, Role, SessionKeys, CF_LABEL, SF_LABEL};
+use crate::{PrfConfig, PrfError, PrfOutput, Role, SessionKeys, CF_LABEL, SF_LABEL};
 
 pub(crate) struct Circuits {
     session_keys: Arc<Circuit>,
@@ -96,14 +96,19 @@ impl MpcPrf {
             state: State::Initialized,
         }
     }
-}
 
-impl<Vm> Prf<Vm> for MpcPrf
-where
-    Vm: VmTrait<Binary> + View<Binary>,
-{
+    /// Sets up the PRF.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `pms` - The pre-master secret.
     #[instrument(level = "debug", skip_all, err)]
-    fn setup(&mut self, vm: &mut Vm, pms: Array<U8, 32>) -> Result<PrfOutput, PrfError> {
+    pub fn setup(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        pms: Array<U8, 32>,
+    ) -> Result<PrfOutput, PrfError> {
         let State::Initialized = self.state.take() else {
             return Err(PrfError::state("PRF not in initialized state"));
         };
@@ -194,8 +199,20 @@ where
         Ok(PrfOutput { keys, cf_vd, sf_vd })
     }
 
+    /// Sets the client random.
+    ///
+    /// Only the leader can provide the client random.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `client_random` - The client random.
     #[instrument(level = "debug", skip_all, err)]
-    fn set_client_random(&mut self, vm: &mut Vm, random: Option<[u8; 32]>) -> Result<(), PrfError> {
+    pub fn set_client_random(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        random: Option<[u8; 32]>,
+    ) -> Result<(), PrfError> {
         let State::SessionKeys { client_random, .. } = &self.state else {
             return Err(PrfError::state("PRF not set up"));
         };
@@ -215,8 +232,18 @@ where
         Ok(())
     }
 
+    /// Sets the server random.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `server_random` - The server random.
     #[instrument(level = "debug", skip_all, err)]
-    fn set_server_random(&mut self, vm: &mut Vm, random: [u8; 32]) -> Result<(), PrfError> {
+    pub fn set_server_random(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        random: [u8; 32],
+    ) -> Result<(), PrfError> {
         let State::SessionKeys {
             server_random,
             cf_hash,
@@ -235,8 +262,18 @@ where
         Ok(())
     }
 
+    /// Sets the client finished handshake hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
-    fn set_cf_hash(&mut self, vm: &mut Vm, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
+    pub fn set_cf_hash(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        handshake_hash: [u8; 32],
+    ) -> Result<(), PrfError> {
         let State::ClientFinished { cf_hash, sf_hash } = self.state.take() else {
             return Err(PrfError::state("PRF not in client finished state"));
         };
@@ -249,8 +286,18 @@ where
         Ok(())
     }
 
+    /// Sets the server finished handshake hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
-    fn set_sf_hash(&mut self, vm: &mut Vm, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
+    pub fn set_sf_hash(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        handshake_hash: [u8; 32],
+    ) -> Result<(), PrfError> {
         let State::ServerFinished { sf_hash } = self.state.take() else {
             return Err(PrfError::state("PRF not in server finished state"));
         };
