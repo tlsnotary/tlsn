@@ -2,8 +2,8 @@
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use hmac_sha256::{MpcPrf, Prf, PrfConfig, Role};
-use mpz_common::executor::{mt::MTConfig, test_mt_executor};
+use hmac_sha256::{MpcPrf, PrfConfig, Role};
+use mpz_common::context::test_mt_context;
 use mpz_garble::protocol::semihonest::{Evaluator, Generator};
 use mpz_ot::ideal::cot::ideal_cot;
 use mpz_vm_core::{
@@ -31,9 +31,9 @@ async fn prf() {
     let client_random = [69u8; 32];
     let server_random: [u8; 32] = [96u8; 32];
 
-    let (mut leader_exec, mut follower_exec) = test_mt_executor(128, MTConfig::default());
-    let mut leader_ctx = leader_exec.new_thread().await.unwrap();
-    let mut follower_ctx = follower_exec.new_thread().await.unwrap();
+    let (mut leader_exec, mut follower_exec) = test_mt_context(8);
+    let mut leader_ctx = leader_exec.new_context().await.unwrap();
+    let mut follower_ctx = follower_exec.new_context().await.unwrap();
 
     let delta = Delta::random(&mut rng);
     let (ot_send, ot_recv) = ideal_cot(delta.into_inner());

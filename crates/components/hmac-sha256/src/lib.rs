@@ -49,58 +49,9 @@ pub struct SessionKeys {
     pub server_iv: Array<U8, 4>,
 }
 
-/// PRF trait for computing TLS PRF.
-pub trait Prf<Vm> {
-    /// Sets up the PRF.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    /// * `pms` - The pre-master secret.
-    fn setup(&mut self, vm: &mut Vm, pms: Array<U8, 32>) -> Result<PrfOutput, PrfError>;
-
-    /// Sets the client random.
-    ///
-    /// Only the leader can provide the client random.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    /// * `client_random` - The client random.
-    fn set_client_random(
-        &mut self,
-        vm: &mut Vm,
-        client_random: Option<[u8; 32]>,
-    ) -> Result<(), PrfError>;
-
-    /// Sets the server random.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    /// * `server_random` - The server random.
-    fn set_server_random(&mut self, vm: &mut Vm, server_random: [u8; 32]) -> Result<(), PrfError>;
-
-    /// Sets the client finished handshake hash.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    /// * `handshake_hash` - The handshake transcript hash.
-    fn set_cf_hash(&mut self, vm: &mut Vm, handshake_hash: [u8; 32]) -> Result<(), PrfError>;
-
-    /// Sets the server finished handshake hash.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    /// * `handshake_hash` - The handshake transcript hash.
-    fn set_sf_hash(&mut self, vm: &mut Vm, handshake_hash: [u8; 32]) -> Result<(), PrfError>;
-}
-
 #[cfg(test)]
 mod tests {
-    use mpz_common::executor::test_st_executor;
+    use mpz_common::context::test_st_context;
     use mpz_garble::protocol::semihonest::{Evaluator, Generator};
 
     use hmac_sha256_circuits::{hmac_sha256_partial, prf, session_keys};
@@ -137,7 +88,7 @@ mod tests {
         let server_random: [u8; 32] = [96u8; 32];
         let ms = compute_ms(pms, client_random, server_random);
 
-        let (mut leader_ctx, mut follower_ctx) = test_st_executor(128);
+        let (mut leader_ctx, mut follower_ctx) = test_st_context(128);
 
         let delta = Delta::random(&mut rng);
         let (ot_send, ot_recv) = ideal_cot(delta.into_inner());
