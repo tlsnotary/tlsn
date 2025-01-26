@@ -570,7 +570,7 @@ fn build_root_store(notary_crt_path: &Option<&String>) -> RootCertStore {
                 panic!("Failed to load certificates from file");
             }
         } else {
-            panic!("Failed to open file");
+            panic!("Failed to open file: {}", notary_crt_path);
         }
     }
     root_store
