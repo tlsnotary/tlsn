@@ -133,6 +133,8 @@ async fn main() {
     // Get API credentials from command line arguments
     let api_key = args.get(3).expect("Please provide API key as third argument");
     let api_secret = args.get(4).expect("Please provide API secret as fourth argument");
+    // args 5 and 6 will be used later in the code
+    let notary_crt_path = args.get(7); // optional
 
     // Build a client to connect to the notary server.
     let notary_client = NotaryClient::builder()
@@ -141,6 +143,7 @@ async fn main() {
         // WARNING: Always use TLS to connect to notary server, except if notary is running locally
         // e.g. this example, hence `enable_tls` is set to False (else it always defaults to True).
         .enable_tls(true)
+        .root_cert_store(build_root_store(&notary_crt_path))
         .build()
         .unwrap();
 
@@ -537,4 +540,41 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>, api_key: &str
         substrings: substrings_proof,
         encodings: received_private_encodings,
     }, Some(nonce))
+}
+
+use std::{
+  fs::File,
+  io::BufReader,
+};
+use rustls::{Certificate, OwnedTrustAnchor, RootCertStore};
+use rustls_pemfile::certs;
+
+fn build_root_store(notary_crt_path: &Option<&String>) -> RootCertStore {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject.as_ref(),
+            ta.subject_public_key_info.as_ref(),
+            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+        )
+    }));
+
+    if let Some(notary_crt_path) = notary_crt_path {
+        if let Ok(f) = File::open(notary_crt_path) {
+            let mut reader = BufReader::new(f);
+            if let Ok(xs) = certs(&mut reader) {
+                for x in xs {
+                    match root_store.add(&Certificate(x.clone())) {
+                      Ok(_) => print!("Added cert: {:?}", x),
+                      Err(err) => panic!("Failed load cert: {}", err),
+                    }
+                }
+            } else {
+                panic!("Failed to load certificates from file");
+            }
+        } else {
+            panic!("Failed to open file: {}", notary_crt_path);
+        }
+    }
+    root_store
 }
