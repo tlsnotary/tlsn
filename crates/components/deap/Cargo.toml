@@ -1,0 +1,24 @@
+[package]
+name = "deap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mpz-core = { workspace = true }
+mpz-common = { workspace = true }
+mpz-vm-core = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+mpz-circuits = { workspace = true }
+mpz-garble = { workspace = true }
+mpz-ot = { workspace = true }
+mpz-zk = { workspace = true }
+
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+rand = { workspace = true }
