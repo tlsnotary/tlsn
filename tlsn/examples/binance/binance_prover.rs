@@ -133,7 +133,8 @@ async fn main() {
     // Get API credentials from command line arguments
     let api_key = args.get(3).expect("Please provide API key as third argument");
     let api_secret = args.get(4).expect("Please provide API secret as fourth argument");
-    let notary_crt_path = args.get(5); // optional
+    // args 5 and 6 will be used later in the code
+    let notary_crt_path = args.get(7); // optional
 
     // Build a client to connect to the notary server.
     let notary_client = NotaryClient::builder()
