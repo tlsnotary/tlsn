@@ -133,6 +133,7 @@ async fn main() {
     // Get API credentials from command line arguments
     let api_key = args.get(3).expect("Please provide API key as third argument");
     let api_secret = args.get(4).expect("Please provide API secret as fourth argument");
+    let notary_crt_path = args.get(5); // optional
 
     // Build a client to connect to the notary server.
     let notary_client = NotaryClient::builder()
@@ -141,7 +142,7 @@ async fn main() {
         // WARNING: Always use TLS to connect to notary server, except if notary is running locally
         // e.g. this example, hence `enable_tls` is set to False (else it always defaults to True).
         .enable_tls(true)
-        .root_cert_store(build_root_store())
+        .root_cert_store(build_root_store(&notary_crt_path))
         .build()
         .unwrap();
 
@@ -538,9 +539,14 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>, api_key: &str
     }, Some(nonce))
 }
 
-use rustls::{OwnedTrustAnchor, RootCertStore};
+use std::{
+  fs::File,
+  io::BufReader,
+};
+use rustls::{Certificate, OwnedTrustAnchor, RootCertStore};
+use rustls_pemfile::certs;
 
-fn build_root_store() -> RootCertStore {
+fn build_root_store(notary_crt_path: &Option<&String>) -> RootCertStore {
     let mut root_store = RootCertStore::empty();
     root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
         OwnedTrustAnchor::from_subject_spki_name_constraints(
@@ -550,26 +556,18 @@ fn build_root_store() -> RootCertStore {
         )
     }));
 
-    use std::fs::File;
-    use std::io::BufReader;
-    //use webpki::certs;
-    use rustls::Certificate;
-    use rustls_pemfile::certs;
-
-    if let Ok(cert_file) = File::open("/Users/m/repos/tlsn/notary/server/fixture/tls/notary.crt") {
-        let mut reader = BufReader::new(cert_file);
-        if let Ok(parsed_certs) = certs(&mut reader) {
-            for cert in parsed_certs {
-                if let Err(err) = root_store.add(&Certificate(cert)) {
-                    eprintln!("Warning: Failed to add self-signed certificate: {}", err);
+    if let Some(notary_crt_path) = notary_crt_path {
+        if let Ok(f) = File::open(notary_crt_path) {
+            let mut reader = BufReader::new(f);
+            if let Ok(xs) = certs(&mut reader) {
+                for x in xs {
+                    match root_store.add(&Certificate(x.clone())) {
+                      Ok(_) => print!("Added cert: {:?}", x),
+                      Err(err) => panic!("Failed load cert: {}", err),
+                    }
                 }
             }
-        } else {
-            eprintln!("Error: Failed to parse certificates from notary.pem");
         }
-    } else {
-        eprintln!("Error: Could not open notary.pem");
-
     }
     root_store
 }
