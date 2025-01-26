@@ -4,4 +4,4 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment
 subjectAltName = @alt_names
 
 [ alt_names ]
-IP.1 = 100.86.11.154
+DNS.1 = tlsnotaryserver.io
