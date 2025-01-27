@@ -42,7 +42,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let mut builder = secrets.transcript_proof_builder();
 
     // Here is where we reveal all or some of the parts we committed in `prove.rs`
-    // via `commit_transcript` previously.
+    // via `transcript_commit` previously.
     let request = &transcript.requests[0];
 
     // Reveal all committed request headers (key + value) except for the values of

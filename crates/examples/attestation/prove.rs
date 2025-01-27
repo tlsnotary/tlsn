@@ -184,7 +184,8 @@ async fn notarize(
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
     // This commits to various parts of the transcript separately (e.g. request
-    // headers, response headers, response body and more).
+    // headers, response headers, response body and more). See https://docs.tlsnotary.org//protocol/commit_strategy.html
+    // for other strategies that can be used to generate commitments.
     DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
 
     prover.transcript_commit(builder.build()?);
