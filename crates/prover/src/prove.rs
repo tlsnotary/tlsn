@@ -1,7 +1,7 @@
 //! This module handles the proving phase of the prover.
 //!
-//! Here the prover deals with a verifier directly, so there is no notary
-//! involved. Instead the verifier directly verifies parts of the transcript.
+//! The prover interacts with a TLS verifier directly, without involving a
+//! Notary. The verifier verifies transcript data.
 
 use super::{state::Prove as ProveState, Prover, ProverError};
 use mpz_garble::{Memory, Prove};
@@ -18,7 +18,7 @@ impl Prover<ProveState> {
         &self.state.transcript
     }
 
-    /// Prove subsequences in the transcript to the verifier.
+    /// Proves subsequences in the transcript to the verifier.
     ///
     /// # Arguments
     ///
@@ -61,7 +61,7 @@ impl Prover<ProveState> {
         Ok(())
     }
 
-    /// Finalize the proving
+    /// Finalizes the proving.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn finalize(self) -> Result<(), ProverError> {
         let ProveState {
@@ -81,7 +81,7 @@ impl Prover<ProveState> {
 
                 vm.finalize().await?;
 
-                // Send identity proof to the verifier
+                // Send identity proof to the verifier.
                 io.send(ServerIdentityProof {
                     name: self.config.server_name().clone(),
                     data: server_cert_data,

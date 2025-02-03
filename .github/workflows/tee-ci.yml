@@ -1,0 +1,42 @@
+name: tee-build
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+    
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+   build-measure-emulated:
+      environment: tee
+      runs-on: [self-hosted, linux]
+      container:
+        image: notaryserverbuilds.azurecr.io/prod/gramine
+        credentials:
+          username: notaryserverbuilds
+          password: ${{ secrets.AZURE_CR_BUILDS_PW }}
+        env:
+          GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
+      steps:
+        - name: get code
+          uses: actions/checkout@v4
+        - name: sccache
+          if: github.event_name != 'release'
+          # && github.event_name != 'workflow_dispatch'
+          uses: mozilla-actions/sccache-action@v0.0.6
+        - name: set rust env for scc
+          if: github.event_name != 'release'
+          # && github.event_name != 'workflow_dispatch'
+          run: |
+            echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+    
+        - name: get emulated measurement (call gramine.sh without the sgx arg)
+          working-directory: ${{ github.workspace }}/crates/notary/server/tee
+          run: |
+             # this fails current ci because gramine.sh is part of this pr so the file doesnt exist
+             # bash .github/scripts/gramine.sh

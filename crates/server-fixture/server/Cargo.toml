@@ -1,6 +1,7 @@
 [package]
 name = "tlsn-server-fixture"
-version = "0.1.0"
+publish = false
+version = "0.0.0"
 edition = "2021"
 
 [dependencies]
@@ -13,9 +14,14 @@ hyper-util = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat", "io"] }
 tower-service = { version = "0.3" }
-
+serde_json = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 
 [[bin]]
-name = "main"
+name = "tlsn-server-fixture"
 path = "src/main.rs"
+
+[dev-dependencies]
+axum-test = { version = "16.2.0" }
+http-body-util = { workspace = true }
+tower = { version = "0.5.1" }

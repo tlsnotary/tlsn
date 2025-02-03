@@ -1,13 +1,11 @@
-# TLSNotary WASM bindings
+# TLSNotary WASM Bindings
 
-## Build
+This crate provides a WebAssembly package for TLSNotary, offering core functionality for the TLSNotary attestation protocol along with useful TypeScript types.
 
-This crate must be built using the nightly rust compiler with the following flags:
+For most use cases, you may prefer to use the `tlsn-js` package instead: [tlsn-js on npm](https://www.npmjs.com/package/tlsn-js).
 
-```bash
-RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-    rustup run nightly \
-    wasm-pack build --target web . -- -Zbuild-std=panic_abort,std
-```
+## Links
 
-
+- [Website](https://tlsnotary.org)
+- [Documentation](https://docs.tlsnotary.org)
+- [API Docs](https://tlsnotary.github.io/tlsn)

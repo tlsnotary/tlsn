@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use axum::{
     extract::FromRequestParts,
     http::{header, request::Parts, HeaderValue, StatusCode},
@@ -22,7 +21,6 @@ pub struct TcpUpgrade {
     pub on_upgrade: OnUpgrade,
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for TcpUpgrade
 where
     S: Send + Sync,
@@ -87,15 +85,7 @@ pub async fn tcp_notarize(
     session_id: String,
 ) {
     debug!(?session_id, "Upgraded to tcp connection");
-    match notary_service(
-        stream,
-        notary_globals.crypto_provider.clone(),
-        &session_id,
-        notary_globals.notarization_config.max_sent_data,
-        notary_globals.notarization_config.max_recv_data,
-    )
-    .await
-    {
+    match notary_service(stream, notary_globals, &session_id).await {
         Ok(_) => {
             info!(?session_id, "Successful notarization using tcp!");
         }

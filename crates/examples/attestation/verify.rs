@@ -7,15 +7,33 @@ use std::time::Duration;
 use tlsn_core::{
     presentation::{Presentation, PresentationOutput},
     signing::VerifyingKey,
-    CryptoProvider,
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Read the presentation from disk.
-    let presentation: Presentation =
-        bincode::deserialize(&std::fs::read("example.presentation.tlsn")?)?;
+use clap::Parser;
+use tlsn_examples::ExampleType;
 
-    let provider = CryptoProvider::default();
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// What data to notarize
+    #[clap(default_value_t, value_enum)]
+    example_type: ExampleType,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+
+    verify_presentation(&args.example_type).await
+}
+
+async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn std::error::Error>> {
+    // Read the presentation from disk.
+    let presentation_path = tlsn_examples::get_file_path(example_type, "presentation");
+
+    let presentation: Presentation = bincode::deserialize(&std::fs::read(presentation_path)?)?;
+
+    let provider = tlsn_examples::get_crypto_provider_with_server_fixture();
 
     let VerifyingKey {
         alg,

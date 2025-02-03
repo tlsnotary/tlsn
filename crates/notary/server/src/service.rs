@@ -2,19 +2,21 @@ pub mod axum_websocket;
 pub mod tcp;
 pub mod websocket;
 
-use std::sync::Arc;
-
-use async_trait::async_trait;
 use axum::{
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
     http::{header, request::Parts, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
+use eyre::eyre;
+use std::time::Duration;
 use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::{attestation::AttestationConfig, CryptoProvider};
+use tlsn_core::attestation::AttestationConfig;
 use tlsn_verifier::{Verifier, VerifierConfig};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    time::timeout,
+};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, trace};
 use uuid::Uuid;
@@ -40,7 +42,6 @@ pub enum ProtocolUpgrade {
     Ws(WebSocketUpgrade),
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for ProtocolUpgrade
 where
     S: Send + Sync,
@@ -53,17 +54,17 @@ where
             let extractor = WebSocketUpgrade::from_request_parts(parts, state)
                 .await
                 .map_err(|err| NotaryServerError::BadProverRequest(err.to_string()))?;
-            return Ok(Self::Ws(extractor));
+            Ok(Self::Ws(extractor))
         // Extract tcp connection for tcp client
         } else if header_eq(&parts.headers, header::UPGRADE, "tcp") {
             let extractor = TcpUpgrade::from_request_parts(parts, state)
                 .await
                 .map_err(|err| NotaryServerError::BadProverRequest(err.to_string()))?;
-            return Ok(Self::Tcp(extractor));
+            Ok(Self::Tcp(extractor))
         } else {
-            return Err(NotaryServerError::BadProverRequest(
+            Err(NotaryServerError::BadProverRequest(
                 "Upgrade header is not set for client".to_string(),
-            ));
+            ))
         }
     }
 }
@@ -180,12 +181,12 @@ pub async fn initialize(
 /// Run the notarization
 pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     socket: T,
-    crypto_provider: Arc<CryptoProvider>,
+    notary_globals: NotaryGlobals,
     session_id: &str,
-    max_sent_data: usize,
-    max_recv_data: usize,
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
+
+    let crypto_provider = notary_globals.crypto_provider.clone();
 
     let att_config = AttestationConfig::builder()
         .supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()))
@@ -195,16 +196,19 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let config = VerifierConfig::builder()
         .protocol_config_validator(
             ProtocolConfigValidator::builder()
-                .max_sent_data(max_sent_data)
-                .max_recv_data(max_recv_data)
+                .max_sent_data(notary_globals.notarization_config.max_sent_data)
+                .max_recv_data(notary_globals.notarization_config.max_recv_data)
                 .build()?,
         )
         .crypto_provider(crypto_provider)
         .build()?;
 
-    Verifier::new(config)
-        .notarize(socket.compat(), &att_config)
-        .await?;
+    timeout(
+        Duration::from_secs(notary_globals.notarization_config.timeout),
+        Verifier::new(config).notarize(socket.compat(), &att_config),
+    )
+    .await
+    .map_err(|_| eyre!("Timeout reached before notarization completes"))??;
 
     Ok(())
 }

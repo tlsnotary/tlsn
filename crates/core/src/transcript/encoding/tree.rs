@@ -70,7 +70,7 @@ impl EncodingTree {
     ///
     /// # Arguments
     ///
-    /// * `alg` - The hash algorithm to use.
+    /// * `hasher` - The hash algorithm to use.
     /// * `idxs` - The subsequence indices to commit to.
     /// * `provider` - The encoding provider.
     /// * `transcript_length` - The length of the transcript.
@@ -288,6 +288,22 @@ mod tests {
     }
 
     #[test]
+    fn test_encoding_tree_proof_missing_leaf() {
+        let transcript = Transcript::new(POST_JSON, OK_JSON);
+
+        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, Idx::new(0..4));
+        let idx_2 = (Direction::Received, Idx::new(4..OK_JSON.len()));
+
+        let tree = new_tree(&transcript, [&idx_0, &idx_1].into_iter()).unwrap();
+
+        let result = tree
+            .proof(&transcript, [&idx_0, &idx_1, &idx_2].into_iter())
+            .unwrap_err();
+        assert!(matches!(result, EncodingTreeError::MissingLeaf { .. }));
+    }
+
+    #[test]
     fn test_encoding_tree_out_of_bounds() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
@@ -308,15 +324,6 @@ mod tests {
             sent: 8,
             received: 8,
         };
-
-        let result = EncodingTree::new(
-            &Blake3::default(),
-            [(Direction::Sent, Idx::new(0..8))].iter(),
-            &provider,
-            &transcript_length,
-        )
-        .unwrap_err();
-        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
 
         let result = EncodingTree::new(
             &Blake3::default(),

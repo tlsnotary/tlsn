@@ -6,7 +6,7 @@ pub struct Reader<'a> {
     offs: usize,
 }
 
-impl<'a> Reader<'a> {
+impl Reader<'_> {
     pub fn init(bytes: &[u8]) -> Reader {
         Reader {
             buf: bytes,
