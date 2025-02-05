@@ -279,7 +279,6 @@ async fn main() {
     if let Some(eth) = balances.as_array().and_then(|assets| {
         assets.iter().find(|asset| asset["asset"] == "ETH")
     }) {
-        // Extract the "free" amount of TON
         eth_free = eth["free"].as_str().expect("Failed to get ETH free amount");
         println!("The free amount of ETH is: {}", eth_free);
     } else {
@@ -290,7 +289,7 @@ async fn main() {
     let num_eth_free: f32 = eth_free.parse().unwrap();
     // Format the float to two decimal points
     let two_dec_eth_free = &format!("{:.2}", num_eth_free);
-    println!("2-decimal free ETH: {}", two_dec_eth_free);  // Output: "0.12"
+    println!("2-decimal free ETH: {}", two_dec_eth_free);  
 
     // The Prover task should be done now, so we can grab the Prover.
     let prover = prover_task.await.unwrap().unwrap();

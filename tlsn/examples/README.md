@@ -1,10 +1,10 @@
-# Examples
+# Examples of TLSN usage that works with MP-SPDZ
 
-This folder contains examples showing how to use the TLSNotary protocol. 
+Here, we provide example of notarization that can generate the proof with sha3 commitment of private part in order to use with MP-SPDZ
 
-* [simple](./simple/README.md) shows how to perform a simple notarization.
-* [interactive](./interactive/README.md) interactive Prover and Verifier, without a trusted notary.
-* [twitter](./twitter/README.md) shows how to notarize a Twitter DM.
-* [discord](./discord/README.md) shows how to notarize a Discord DM.
+- [simple](./simple/README.md) shows how to perform a simple notarization for plain html page.
 
-Refer to <https://docs.tlsnotary.org/quick_start/index.html> for a quick start with TLSNotary using these examples.
+  This folder is run with automated notary in background, good for testing the logic itself, but we recommend users to use binance folder below as template for better integration with end-to-end-flow.
+
+- [binance](./binance/README.md) shows how to perform notarization of free ETH balance in Binance SPOT account.
+  Since this folder is modified to be compatible with whole MPCStats flow using remote notary server, we recommend people to use this folder as a template for those wanting to create TLSNotary proof that not only just contains redacted data (like in original TLSNotary) but also private data that are accompanied with its commitment to be used to prove its property later.
