@@ -1,11 +1,29 @@
-use mpz_circuits::types::ValueType;
-use mpz_core::serialize::CanonicalSerialize;
-use mpz_garble_core::ChaChaEncoder;
+use itybity::ToBits;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha12Rng;
 
-use crate::transcript::{Direction, Subsequence, RX_TRANSCRIPT_ID, TX_TRANSCRIPT_ID};
+use crate::transcript::{Direction, Subsequence};
 
-pub(crate) fn new_encoder(seed: [u8; 32]) -> impl Encoder {
-    ChaChaEncoder::new(seed)
+pub(crate) fn new_encoder(seed: [u8; 32], delta: [u8; 16]) -> impl Encoder {
+    ChaChaEncoder::new(seed, delta)
+}
+
+pub struct ChaChaEncoder {
+    seed: [u8; 32],
+    delta: [u8; 16],
+}
+
+impl ChaChaEncoder {
+    pub fn new(seed: [u8; 32], delta: [u8; 16]) -> Self {
+        Self { seed, delta }
+    }
+
+    pub fn prg(&self, id: u64) -> ChaCha12Rng {
+        let mut prg = ChaCha12Rng::from_seed(self.seed);
+        prg.set_word_pos(0);
+        prg.set_stream(id);
+        prg
+    }
 }
 
 /// A transcript encoder.
@@ -23,27 +41,27 @@ pub(crate) trait Encoder {
 
 impl Encoder for ChaChaEncoder {
     fn encode_subsequence(&self, direction: Direction, seq: &Subsequence) -> Vec<u8> {
-        let id = match direction {
-            Direction::Sent => TX_TRANSCRIPT_ID,
-            Direction::Received => RX_TRANSCRIPT_ID,
+        let end = seq.index().end() as u64;
+        assert!(end < u64::MAX >> 1, "Index too big to encode");
+
+        let mask: u64 = match direction {
+            Direction::Sent => 0,
+            Direction::Received => 1 << 63,
         };
 
-        let mut encoding = Vec::with_capacity(seq.len() * 16);
-        for (byte_id, &byte) in seq.index().iter().zip(seq.data()) {
-            let id_hash = mpz_core::utils::blake3(format!("{}/{}", id, byte_id).as_bytes());
-            let id = u64::from_be_bytes(id_hash[..8].try_into().unwrap());
+        let delta = u128::from_le_bytes(self.delta);
+        let mut encodings: Vec<u8> = Vec::with_capacity(seq.len() * 128);
 
-            encoding.extend(
-                <ChaChaEncoder as mpz_garble_core::Encoder>::encode_by_type(
-                    self,
-                    id,
-                    &ValueType::U8,
-                )
-                .select(byte)
-                .expect("encoding is a byte encoding")
-                .to_bytes(),
-            )
+        for (id, &byte) in seq.index().iter().zip(seq.data()) {
+            let mut prg = self.prg(id as u64 | mask);
+            let bits = byte.iter_lsb0();
+
+            for bit in bits {
+                let enc = prg.gen::<u128>() + bit as u128 * delta;
+                encodings.extend_from_slice(&enc.to_le_bytes());
+            }
         }
-        encoding
+
+        encodings
     }
 }

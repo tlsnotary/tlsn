@@ -1,5 +1,3 @@
-use mpz_garble_core::ChaChaEncoder;
-
 use crate::transcript::{
     encoding::{Encoder, EncodingProvider},
     Direction, Idx, Transcript,
