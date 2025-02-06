@@ -26,6 +26,7 @@ pub struct Sign {
     cert_commitment: ServerCertCommitment,
     encoding_commitment_root: Option<TypedHash>,
     encoding_seed: Option<Vec<u8>>,
+    delta: Option<Vec<u8>>,
 }
 
 /// An attestation builder.
@@ -92,6 +93,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
                 cert_commitment,
                 encoding_commitment_root,
                 encoding_seed: None,
+                delta: None,
             },
         })
     }
@@ -116,6 +118,12 @@ impl AttestationBuilder<'_, Sign> {
         self
     }
 
+    /// Sets delta.
+    pub fn delta(&mut self, delta: Vec<u8>) -> &mut Self {
+        self.state.delta = Some(delta);
+        self
+    }
+
     /// Builds the attestation.
     pub fn build(self, provider: &CryptoProvider) -> Result<Attestation, AttestationBuilderError> {
         let Sign {
@@ -126,6 +134,7 @@ impl AttestationBuilder<'_, Sign> {
             cert_commitment,
             encoding_commitment_root,
             encoding_seed,
+            delta,
         } = self.state;
 
         let hasher = provider.hash.get(&hash_alg).map_err(|_| {
@@ -151,7 +160,14 @@ impl AttestationBuilder<'_, Sign> {
                 ));
             };
 
-            Some(EncodingCommitment { root, seed })
+            let Some(delta) = delta else {
+                return Err(AttestationBuilderError::new(
+                    ErrorKind::Field,
+                    "encoding commitment requested but delta was not set",
+                ));
+            };
+
+            Some(EncodingCommitment { root, seed, delta })
         } else {
             None
         };

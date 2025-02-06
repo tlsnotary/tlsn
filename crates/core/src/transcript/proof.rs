@@ -361,7 +361,7 @@ mod tests {
 
     use crate::{
         fixtures::{
-            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            attestation_fixture, delta, encoder_seed, encoding_provider, request_fixture,
             ConnectionFixture, RequestFixture,
         },
         hash::Blake3,
@@ -449,6 +449,7 @@ mod tests {
             connection,
             SignatureAlgId::SECP256K1,
             encoder_seed().to_vec(),
+            delta().to_vec(),
         );
 
         let provider = CryptoProvider::default();

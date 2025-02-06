@@ -55,7 +55,12 @@ impl EncodingProof {
             EncodingProofError::new(ErrorKind::Commitment, "encoding seed not 32 bytes")
         })?;
 
-        let encoder = new_encoder(seed);
+        let delta: [u8; 16] =
+            commitment.delta.clone().try_into().map_err(|_| {
+                EncodingProofError::new(ErrorKind::Commitment, "delta not 16 bytes")
+            })?;
+
+        let encoder = new_encoder(seed, delta);
         let Self {
             inclusion_proof,
             openings,
@@ -188,7 +193,7 @@ mod test {
     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
     use crate::{
-        fixtures::{encoder_seed, encoding_provider},
+        fixtures::{delta, encoder_seed, encoding_provider},
         hash::Blake3,
         transcript::{encoding::EncodingTree, Idx, Transcript},
     };
@@ -201,7 +206,7 @@ mod test {
         commitment: EncodingCommitment,
     }
 
-    fn new_encoding_fixture(seed: Vec<u8>) -> EncodingFixture {
+    fn new_encoding_fixture(seed: Vec<u8>, delta: Vec<u8>) -> EncodingFixture {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
         let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
@@ -227,6 +232,7 @@ mod test {
         let commitment = EncodingCommitment {
             root: tree.root(),
             seed,
+            delta,
         };
 
         EncodingFixture {
@@ -242,7 +248,7 @@ mod test {
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec().split_off(1));
+        } = new_encoding_fixture(encoder_seed().to_vec().split_off(1), delta().to_vec());
 
         let err = proof
             .verify_with_provider(
@@ -261,7 +267,7 @@ mod test {
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_seed().to_vec(), delta().to_vec());
 
         let err = proof
             .verify_with_provider(
@@ -283,7 +289,7 @@ mod test {
             transcript,
             mut proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_seed().to_vec(), delta().to_vec());
 
         let Opening { seq, .. } = proof.openings.values_mut().next().unwrap();
 
@@ -306,7 +312,7 @@ mod test {
             transcript,
             mut proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_seed().to_vec(), delta().to_vec());
 
         let Opening { blinder, .. } = proof.openings.values_mut().next().unwrap();
 

@@ -1,7 +1,7 @@
 use tlsn_core::{
     attestation::{Attestation, AttestationConfig},
     connection::{HandshakeData, HandshakeDataV1_2},
-    fixtures::{self, encoder_seed, ConnectionFixture},
+    fixtures::{self, delta, encoder_seed, ConnectionFixture},
     hash::Blake3,
     presentation::PresentationOutput,
     request::{Request, RequestConfig},
@@ -84,7 +84,8 @@ fn test_api() {
         .connection_info(connection_info.clone())
         // Server key Notary received during handshake
         .server_ephemeral_key(server_ephemeral_key)
-        .encoding_seed(encoder_seed().to_vec());
+        .encoding_seed(encoder_seed().to_vec())
+        .delta(delta().to_vec());
 
     let attestation = attestation_builder.build(&provider).unwrap();
 

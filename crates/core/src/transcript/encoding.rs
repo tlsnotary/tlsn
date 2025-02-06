@@ -33,6 +33,8 @@ pub struct EncodingCommitment {
     pub root: TypedHash,
     /// Seed used to generate the encodings.
     pub seed: Vec<u8>,
+    /// Delta to generate the 1-encodings from the 0-encodings
+    pub delta: Vec<u8>,
 }
 
 impl_domain_separator!(EncodingCommitment);

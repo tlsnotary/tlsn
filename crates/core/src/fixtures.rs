@@ -2,7 +2,7 @@
 
 mod provider;
 
-pub use provider::ChaChaProvider;
+pub use provider::FixtureEncodingProvider;
 
 use hex::FromHex;
 use p256::ecdsa::SigningKey;
@@ -131,12 +131,17 @@ impl ConnectionFixture {
 
 /// Returns an encoding provider fixture.
 pub fn encoding_provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
-    ChaChaProvider::new(encoder_seed(), Transcript::new(tx, rx))
+    FixtureEncodingProvider::new(encoder_seed(), delta(), Transcript::new(tx, rx))
 }
 
 /// Returns an encoder seed fixture.
 pub fn encoder_seed() -> [u8; 32] {
     [0u8; 32]
+}
+
+/// Returns a delta fixture.
+pub fn delta() -> [u8; 16] {
+    [42_u8; 16]
 }
 
 /// Returns a notary signing key fixture.
@@ -206,6 +211,7 @@ pub fn attestation_fixture(
     connection: ConnectionFixture,
     signature_alg: SignatureAlgId,
     encoding_seed: Vec<u8>,
+    delta: Vec<u8>,
 ) -> Attestation {
     let ConnectionFixture {
         connection_info,
@@ -237,7 +243,8 @@ pub fn attestation_fixture(
     attestation_builder
         .connection_info(connection_info)
         .server_ephemeral_key(server_ephemeral_key)
-        .encoding_seed(encoding_seed);
+        .encoding_seed(encoding_seed)
+        .delta(delta);
 
     attestation_builder.build(&provider).unwrap()
 }
