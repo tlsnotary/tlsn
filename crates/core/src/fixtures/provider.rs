@@ -1,5 +1,5 @@
 use crate::transcript::{
-    encoding::{new_encoder, Encoder, EncodingProvider},
+    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider},
     Direction, Idx, Transcript,
 };
 
@@ -11,9 +11,9 @@ pub struct FixtureEncodingProvider {
 
 impl FixtureEncodingProvider {
     /// Creates a new encoding provider fixture.
-    pub(crate) fn new(seed: [u8; 32], delta: [u8; 16], transcript: Transcript) -> Self {
+    pub(crate) fn new(secret: &EncoderSecret, transcript: Transcript) -> Self {
         Self {
-            encoder: Box::new(new_encoder(seed, delta)),
+            encoder: Box::new(new_encoder(secret)),
             transcript,
         }
     }
