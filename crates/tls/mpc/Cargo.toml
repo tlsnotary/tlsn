@@ -16,14 +16,10 @@ name = "tls_mpc"
 default = []
 
 [dependencies]
-tlsn-aead = { workspace = true }
-tlsn-block-cipher = { workspace = true }
 tlsn-hmac-sha256 = { workspace = true }
 tlsn-key-exchange = { workspace = true }
-tlsn-stream-cipher = { workspace = true }
 tlsn-tls-backend = { workspace = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
-tlsn-universal-hash = { workspace = true }
 tlsn-utils-aio = { workspace = true }
 
 mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "b8ae7ac" }

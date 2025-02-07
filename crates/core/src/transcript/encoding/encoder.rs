@@ -28,13 +28,19 @@ impl EncoderSecret {
     }
 
     /// Returns the seed.
-    pub fn seed(&self) -> [u8; 32] {
-        self.seed.clone().try_into().unwrap()
+    pub fn to_seed(&self) -> [u8; 32] {
+        self.seed
+            .clone()
+            .try_into()
+            .expect("Seed should be 32 bytes")
     }
 
     /// Returns the delta.
-    pub fn delta(&self) -> [u8; 16] {
-        self.delta.clone().try_into().unwrap()
+    pub fn to_delta(&self) -> [u8; 16] {
+        self.delta
+            .clone()
+            .try_into()
+            .expect("Delta should be 16 bytes")
     }
 }
 
@@ -49,8 +55,8 @@ pub(crate) struct ChaChaEncoder {
 
 impl ChaChaEncoder {
     pub(crate) fn new(secret: &EncoderSecret) -> Self {
-        let seed = secret.seed();
-        let delta = u128::from_le_bytes(secret.delta());
+        let seed = secret.to_seed();
+        let delta = u128::from_le_bytes(secret.to_delta());
 
         Self { seed, delta }
     }
