@@ -12,6 +12,7 @@ use crate::{
     request::Request,
     serialize::CanonicalSerialize,
     signing::SignatureAlgId,
+    transcript::encoding::EncoderSecret,
     CryptoProvider,
 };
 
@@ -25,7 +26,7 @@ pub struct Sign {
     server_ephemeral_key: Option<ServerEphemKey>,
     cert_commitment: ServerCertCommitment,
     encoding_commitment_root: Option<TypedHash>,
-    encoding_seed: Option<Vec<u8>>,
+    encoder_secret: Option<EncoderSecret>,
 }
 
 /// An attestation builder.
@@ -91,7 +92,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
                 server_ephemeral_key: None,
                 cert_commitment,
                 encoding_commitment_root,
-                encoding_seed: None,
+                encoder_secret: None,
             },
         })
     }
@@ -110,9 +111,9 @@ impl AttestationBuilder<'_, Sign> {
         self
     }
 
-    /// Sets the encoding seed.
-    pub fn encoding_seed(&mut self, seed: Vec<u8>) -> &mut Self {
-        self.state.encoding_seed = Some(seed);
+    /// Sets the encoder secret.
+    pub fn encoder_secret(&mut self, secret: EncoderSecret) -> &mut Self {
+        self.state.encoder_secret = Some(secret);
         self
     }
 
@@ -125,7 +126,7 @@ impl AttestationBuilder<'_, Sign> {
             server_ephemeral_key,
             cert_commitment,
             encoding_commitment_root,
-            encoding_seed,
+            encoder_secret,
         } = self.state;
 
         let hasher = provider.hash.get(&hash_alg).map_err(|_| {
@@ -144,14 +145,14 @@ impl AttestationBuilder<'_, Sign> {
         })?;
 
         let encoding_commitment = if let Some(root) = encoding_commitment_root {
-            let Some(seed) = encoding_seed else {
+            let Some(secret) = encoder_secret else {
                 return Err(AttestationBuilderError::new(
                     ErrorKind::Field,
-                    "encoding commitment requested but seed was not set",
+                    "encoding commitment requested but encoder_secret was not set",
                 ));
             };
 
-            Some(EncodingCommitment { root, seed })
+            Some(EncodingCommitment { root, secret })
         } else {
             None
         };
@@ -246,7 +247,7 @@ mod test {
     use crate::{
         connection::{HandshakeData, HandshakeDataV1_2},
         fixtures::{
-            encoder_seed, encoding_provider, request_fixture, ConnectionFixture, RequestFixture,
+            encoder_secret, encoding_provider, request_fixture, ConnectionFixture, RequestFixture,
         },
         hash::Blake3,
         transcript::Transcript,
@@ -435,7 +436,7 @@ mod test {
 
         attestation_builder
             .connection_info(connection_info)
-            .encoding_seed(encoder_seed().to_vec());
+            .encoder_secret(encoder_secret());
 
         let err = attestation_builder.build(crypto_provider).err().unwrap();
         assert!(matches!(err.kind, ErrorKind::Field));
@@ -471,7 +472,7 @@ mod test {
 
         attestation_builder
             .server_ephemeral_key(server_ephemeral_key)
-            .encoding_seed(encoder_seed().to_vec());
+            .encoder_secret(encoder_secret());
 
         let err = attestation_builder.build(crypto_provider).err().unwrap();
         assert!(matches!(err.kind, ErrorKind::Field));

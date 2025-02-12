@@ -97,7 +97,7 @@ mod test {
     use crate::{
         connection::{ServerCertOpening, TranscriptLength},
         fixtures::{
-            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            attestation_fixture, encoder_secret, encoding_provider, request_fixture,
             ConnectionFixture, RequestFixture,
         },
         hash::{Blake3, Hash, HashAlgId},
@@ -122,7 +122,7 @@ mod test {
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         assert!(request.validate(&attestation).is_ok())
@@ -144,7 +144,7 @@ mod test {
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         request.signature_alg = SignatureAlgId::SECP256R1;
@@ -169,7 +169,7 @@ mod test {
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         request.hash_alg = HashAlgId::SHA256;
@@ -194,7 +194,7 @@ mod test {
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         let ConnectionFixture {
@@ -229,7 +229,7 @@ mod test {
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         request.encoding_commitment_root = Some(TypedHash {

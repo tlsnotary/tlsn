@@ -51,11 +51,7 @@ impl EncodingProof {
     ) -> Result<PartialTranscript, EncodingProofError> {
         let hasher = provider.hash.get(&commitment.root.alg)?;
 
-        let seed: [u8; 32] = commitment.seed.clone().try_into().map_err(|_| {
-            EncodingProofError::new(ErrorKind::Commitment, "encoding seed not 32 bytes")
-        })?;
-
-        let encoder = new_encoder(seed);
+        let encoder = new_encoder(&commitment.secret);
         let Self {
             inclusion_proof,
             openings,
@@ -149,7 +145,6 @@ impl EncodingProofError {
 #[derive(Debug)]
 enum ErrorKind {
     Provider,
-    Commitment,
     Proof,
 }
 
@@ -159,7 +154,6 @@ impl fmt::Display for EncodingProofError {
 
         match self.kind {
             ErrorKind::Provider => f.write_str("provider error")?,
-            ErrorKind::Commitment => f.write_str("commitment error")?,
             ErrorKind::Proof => f.write_str("proof error")?,
         }
 
@@ -188,9 +182,12 @@ mod test {
     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
     use crate::{
-        fixtures::{encoder_seed, encoding_provider},
+        fixtures::{encoder_secret, encoder_secret_tampered_seed, encoding_provider},
         hash::Blake3,
-        transcript::{encoding::EncodingTree, Idx, Transcript},
+        transcript::{
+            encoding::{EncoderSecret, EncodingTree},
+            Idx, Transcript,
+        },
     };
 
     use super::*;
@@ -201,7 +198,7 @@ mod test {
         commitment: EncodingCommitment,
     }
 
-    fn new_encoding_fixture(seed: Vec<u8>) -> EncodingFixture {
+    fn new_encoding_fixture(secret: EncoderSecret) -> EncodingFixture {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
         let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
@@ -226,7 +223,7 @@ mod test {
 
         let commitment = EncodingCommitment {
             root: tree.root(),
-            seed,
+            secret,
         };
 
         EncodingFixture {
@@ -237,12 +234,12 @@ mod test {
     }
 
     #[test]
-    fn test_verify_encoding_proof_invalid_seed() {
+    fn test_verify_encoding_proof_tampered_seed() {
         let EncodingFixture {
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec().split_off(1));
+        } = new_encoding_fixture(encoder_secret_tampered_seed());
 
         let err = proof
             .verify_with_provider(
@@ -252,7 +249,7 @@ mod test {
             )
             .unwrap_err();
 
-        assert!(matches!(err.kind, ErrorKind::Commitment));
+        assert!(matches!(err.kind, ErrorKind::Proof));
     }
 
     #[test]
@@ -261,7 +258,7 @@ mod test {
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_secret());
 
         let err = proof
             .verify_with_provider(
@@ -283,7 +280,7 @@ mod test {
             transcript,
             mut proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_secret());
 
         let Opening { seq, .. } = proof.openings.values_mut().next().unwrap();
 
@@ -306,7 +303,7 @@ mod test {
             transcript,
             mut proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_secret());
 
         let Opening { blinder, .. } = proof.openings.values_mut().next().unwrap();
 
