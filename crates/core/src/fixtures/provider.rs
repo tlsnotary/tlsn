@@ -1,27 +1,25 @@
-use mpz_garble_core::ChaChaEncoder;
-
 use crate::transcript::{
-    encoding::{Encoder, EncodingProvider},
+    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider},
     Direction, Idx, Transcript,
 };
 
-/// A ChaCha encoding provider fixture.
-pub struct ChaChaProvider {
-    encoder: ChaChaEncoder,
+/// A encoding provider fixture.
+pub struct FixtureEncodingProvider {
+    encoder: Box<dyn Encoder>,
     transcript: Transcript,
 }
 
-impl ChaChaProvider {
-    /// Creates a new ChaCha encoding provider.
-    pub(crate) fn new(seed: [u8; 32], transcript: Transcript) -> Self {
+impl FixtureEncodingProvider {
+    /// Creates a new encoding provider fixture.
+    pub(crate) fn new(secret: &EncoderSecret, transcript: Transcript) -> Self {
         Self {
-            encoder: ChaChaEncoder::new(seed),
+            encoder: Box::new(new_encoder(secret)),
             transcript,
         }
     }
 }
 
-impl EncodingProvider for ChaChaProvider {
+impl EncodingProvider for FixtureEncodingProvider {
     fn provide_encoding(&self, direction: Direction, idx: &Idx) -> Option<Vec<u8>> {
         let seq = self.transcript.get(direction, idx)?;
         Some(self.encoder.encode_subsequence(direction, &seq))

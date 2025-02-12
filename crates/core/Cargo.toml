@@ -30,6 +30,7 @@ opaque-debug = { workspace = true }
 p256 = { workspace = true, features = ["serde"] }
 rand = { workspace = true }
 rand_core = { workspace = true }
+rand_chacha = { workspace = true }
 rs_merkle = { workspace = true, features = ["serde"] }
 rstest = { workspace = true, optional = true }
 serde = { workspace = true }
@@ -38,6 +39,7 @@ thiserror = { workspace = true }
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 web-time = { workspace = true }
 webpki-roots = { workspace = true }
+itybity = { workspace = true }
 
 [dev-dependencies]
 bincode = { workspace = true }
