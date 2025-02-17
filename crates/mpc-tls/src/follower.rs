@@ -3,7 +3,7 @@ use crate::{
     record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, FollowerData, MpcTlsError, Role, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
+use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput, SessionKeys};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{scoped_futures::ScopedFutureExt, Context, Flush};
@@ -110,7 +110,7 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in init state to allocate"));
         };
 
-        let (cf_vd, sf_vd) = {
+        let (keys, cf_vd, sf_vd) = {
             let vm = &mut (*vm
                 .try_lock()
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?);
@@ -137,11 +137,12 @@ impl MpcTlsFollower {
                 self.config.max_recv_online,
             )?;
 
-            (cf_vd, sf_vd)
+            (keys, cf_vd, sf_vd)
         };
 
         self.state = State::Setup {
             vm,
+            keys,
             ke,
             prf,
             record_layer,
@@ -157,6 +158,7 @@ impl MpcTlsFollower {
     pub async fn preprocess(&mut self) -> Result<(), MpcTlsError> {
         let State::Setup {
             vm,
+            keys,
             mut ke,
             prf,
             mut record_layer,
@@ -210,6 +212,7 @@ impl MpcTlsFollower {
 
         self.state = State::Ready {
             vm,
+            keys,
             ke,
             prf,
             record_layer,
@@ -225,6 +228,7 @@ impl MpcTlsFollower {
     pub async fn run(mut self) -> Result<(Context, FollowerData), MpcTlsError> {
         let State::Ready {
             vm,
+            keys,
             mut ke,
             mut prf,
             mut record_layer,
@@ -382,6 +386,10 @@ impl MpcTlsFollower {
             FollowerData {
                 server_key,
                 transcript,
+                client_write_key: keys.client_write_key,
+                client_write_iv: keys.client_iv,
+                server_write_key: keys.server_write_key,
+                server_write_iv: keys.server_iv,
             },
         ))
     }
@@ -396,6 +404,7 @@ enum State {
     },
     Setup {
         vm: Vm,
+        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -404,6 +413,7 @@ enum State {
     },
     Ready {
         vm: Vm,
+        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,

@@ -20,7 +20,10 @@ pub use leader::{LeaderCtrl, MpcTlsLeader};
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use mpz_memory_core::binary::Binary;
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Array,
+};
 use mpz_vm_core::Vm as VmTrait;
 use tls_core::{
     cert::ServerCertDetails,
@@ -63,6 +66,14 @@ pub struct LeaderOutput {
     pub server_random: Random,
     /// TLS transcript.
     pub transcript: TlsTranscript,
+    /// Client write key.
+    pub client_write_key: Array<U8, 16>,
+    /// Client write IV.
+    pub client_write_iv: Array<U8, 4>,
+    /// Server write key.
+    pub server_write_key: Array<U8, 16>,
+    /// Server write IV.
+    pub server_write_iv: Array<U8, 4>,
 }
 
 /// MPC-TLS Follower output.
@@ -72,4 +83,12 @@ pub struct FollowerData {
     pub server_key: PublicKey,
     /// TLS transcript.
     pub transcript: TlsTranscript,
+    /// Client write key.
+    pub client_write_key: Array<U8, 16>,
+    /// Client write IV.
+    pub client_write_iv: Array<U8, 4>,
+    /// Server write key.
+    pub server_write_key: Array<U8, 16>,
+    /// Server write IV.
+    pub server_write_iv: Array<U8, 4>,
 }

@@ -11,7 +11,7 @@ use crate::{
     Config, LeaderOutput, Role, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
+use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput, SessionKeys};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use ludi::Context as LudiContext;
@@ -174,6 +174,7 @@ impl MpcTlsLeader {
         self.state = State::Setup {
             ctx,
             vm,
+            keys,
             ke,
             prf,
             record_layer,
@@ -191,6 +192,7 @@ impl MpcTlsLeader {
         let State::Setup {
             mut ctx,
             vm,
+            keys,
             mut ke,
             prf,
             mut record_layer,
@@ -248,6 +250,7 @@ impl MpcTlsLeader {
         self.state = State::Handshake {
             ctx,
             vm,
+            keys,
             ke,
             prf,
             record_layer,
@@ -271,6 +274,7 @@ impl MpcTlsLeader {
         let State::Active {
             mut ctx,
             vm,
+            keys,
             mut record_layer,
             protocol_version,
             cipher_suite,
@@ -315,6 +319,10 @@ impl MpcTlsLeader {
                 client_random,
                 server_random,
                 transcript,
+                client_write_key: keys.client_write_key,
+                client_write_iv: keys.client_iv,
+                server_write_key: keys.server_write_key,
+                server_write_iv: keys.server_iv,
             },
         };
 
@@ -607,6 +615,7 @@ impl Backend for MpcTlsLeader {
         let State::Handshake {
             mut ctx,
             vm,
+            keys,
             mut ke,
             prf,
             mut record_layer,
@@ -666,6 +675,7 @@ impl Backend for MpcTlsLeader {
         self.state = State::Active {
             ctx,
             vm,
+            keys,
             _ke: ke,
             prf,
             record_layer,
@@ -926,6 +936,7 @@ enum State {
     Setup {
         ctx: Context,
         vm: Vm,
+        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -936,6 +947,7 @@ enum State {
     Handshake {
         ctx: Context,
         vm: Vm,
+        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -952,6 +964,7 @@ enum State {
     Active {
         ctx: Context,
         vm: Vm,
+        keys: SessionKeys,
         _ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
