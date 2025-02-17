@@ -4,7 +4,13 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use std::{mem, ops::DerefMut, sync::Arc};
+use std::{
+    mem,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use async_trait::async_trait;
 use mpz_common::{scoped_futures::ScopedFutureExt as _, Context};
@@ -13,7 +19,8 @@ use mpz_vm_core::{
     memory::{binary::Binary, DecodeFuture, Memory, Slice, View},
     Call, Callable, Execute, Vm, VmError,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
+use utils::range::{Difference, RangeSet, UnionMut};
 
 type Error = DeapError;
 
@@ -32,8 +39,10 @@ pub struct Deap<Mpc, Zk> {
     mpc: Arc<Mutex<Mpc>>,
     zk: Arc<Mutex<Zk>>,
     /// Private inputs of the follower.
-    follower_inputs: Vec<Slice>,
+    follower_inputs: RangeSet<usize>,
     outputs: Vec<(Slice, DecodeFuture<BitVec>)>,
+    /// Whether the memories of the two VMs are potentially desynchronized.
+    desync: AtomicBool,
 }
 
 impl<Mpc, Zk> Deap<Mpc, Zk> {
@@ -43,8 +52,9 @@ impl<Mpc, Zk> Deap<Mpc, Zk> {
             role,
             mpc: Arc::new(Mutex::new(mpc)),
             zk: Arc::new(Mutex::new(zk)),
-            follower_inputs: Vec::default(),
+            follower_inputs: RangeSet::default(),
             outputs: Vec::default(),
+            desync: AtomicBool::new(false),
         }
     }
 
@@ -57,27 +67,52 @@ impl<Mpc, Zk> Deap<Mpc, Zk> {
     }
 
     /// Returns a mutable reference to the ZK VM.
-    pub fn zk(&self) -> impl DerefMut<Target = Zk> + '_ {
+    ///
+    /// # Note
+    ///
+    /// After calling this method, allocations will no longer be allowed in the
+    /// DEAP VM as the memory will potentially be desynchronized.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex locked by another thread.
+    pub fn zk(&self) -> MutexGuard<'_, Zk> {
+        self.desync.store(true, Ordering::Relaxed);
         self.zk.try_lock().unwrap()
     }
 
-    /// Returns a mutable reference to the MPC VM.
-    pub fn mpc(&self) -> impl DerefMut<Target = Mpc> + '_ {
+    /// Returns an owned mutex guard to the ZK VM.
+    ///
+    /// # Note
+    ///
+    /// After calling this method, allocations will no longer be allowed in the
+    /// DEAP VM as the memory will potentially be desynchronized.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex locked by another thread.
+    pub fn zk_owned(&self) -> OwnedMutexGuard<Zk> {
+        self.desync.store(true, Ordering::Relaxed);
+        self.zk.clone().try_lock_owned().unwrap()
+    }
+
+    #[cfg(test)]
+    fn mpc(&self) -> MutexGuard<'_, Mpc> {
         self.mpc.try_lock().unwrap()
     }
 }
 
 impl<Mpc, Zk> Deap<Mpc, Zk>
 where
-    Mpc: Vm<Binary>,
-    Zk: Vm<Binary>,
+    Mpc: Vm<Binary> + Send + 'static,
+    Zk: Vm<Binary> + Send + 'static,
 {
     /// Finalize the DEAP Vm.
     ///
     /// This reveals all private inputs of the follower.
     pub async fn finalize(&mut self, ctx: &mut Context) -> Result<(), VmError> {
-        let mut mpc = self.mpc.try_lock().unwrap();
-        let mut zk = self.zk.try_lock().unwrap();
+        let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
+        let mut zk = self.zk.clone().try_lock_owned().unwrap();
 
         // Decode the private inputs of the follower.
         //
@@ -89,16 +124,19 @@ where
         // MACs.
         let input_futs = self
             .follower_inputs
-            .iter()
-            .map(|input| mpc.decode_raw(*input))
+            .iter_ranges()
+            .map(|input| mpc.decode_raw(Slice::from_range_unchecked(input)))
             .collect::<Result<Vec<_>, _>>()?;
+
         mpc.flush(ctx).await?;
 
         // Assign inputs to the ZK VM.
         for (mut decode, input) in input_futs
             .into_iter()
-            .zip(mem::take(&mut self.follower_inputs))
+            .zip(self.follower_inputs.iter_ranges())
         {
+            let input = Slice::from_range_unchecked(input);
+
             // Follower has already assigned the inputs.
             if let Role::Leader = self.role {
                 let value = decode
@@ -112,22 +150,31 @@ where
             zk.commit_raw(input)?;
         }
 
-        zk.flush(ctx).await?;
-        zk.execute(ctx).await?;
-        zk.flush(ctx).await?;
+        ctx.try_join(
+            |ctx| async move { mpc.execute_all(ctx).await }.scope_boxed(),
+            |ctx| async move { zk.execute_all(ctx).await }.scope_boxed(),
+        )
+        .await
+        .map_err(VmError::execute)??;
 
         // Follower verifies the outputs are consistent.
+        let mpc = self.mpc.try_lock().unwrap();
         if let Role::Follower = self.role {
             for (output, mut value) in mem::take(&mut self.outputs) {
-                let zk_output = value
-                    .try_recv()
-                    .map_err(VmError::memory)?
-                    .expect("output should be decoded");
-                let mpc_output = mpc.get_raw(output)?.expect("output should be decoded");
+                // If the output is not available in the MPC VM, we did not execute and decode
+                // it. Therefore, we do not need to check for equality.
+                //
+                // This can occur if some function was preprocessed but ultimately not used.
+                if let Some(mpc_output) = mpc.get_raw(output)? {
+                    let zk_output = value
+                        .try_recv()
+                        .map_err(VmError::memory)?
+                        .expect("output should be decoded");
 
-                // Asserts equality of all the output values from both VMs.
-                if zk_output != mpc_output {
-                    return Err(VmError::execute(Error::from(ErrorRepr::EqualityCheck)));
+                    // Asserts equality of all the output values from both VMs.
+                    if zk_output != mpc_output {
+                        return Err(VmError::execute(Error::from(ErrorRepr::EqualityCheck)));
+                    }
                 }
             }
         }
@@ -144,33 +191,44 @@ where
     type Error = VmError;
 
     fn alloc_raw(&mut self, size: usize) -> Result<Slice, VmError> {
-        self.zk().alloc_raw(size)?;
-        self.mpc().alloc_raw(size)
+        if self.desync.load(Ordering::Relaxed) {
+            return Err(VmError::memory(
+                "DEAP VM memories are potentially desynchronized",
+            ));
+        }
+
+        self.zk.try_lock().unwrap().alloc_raw(size)?;
+        self.mpc.try_lock().unwrap().alloc_raw(size)
     }
 
     fn assign_raw(&mut self, slice: Slice, data: BitVec) -> Result<(), VmError> {
-        self.zk().assign_raw(slice, data.clone())?;
-        self.mpc().assign_raw(slice, data)
+        self.zk
+            .try_lock()
+            .unwrap()
+            .assign_raw(slice, data.clone())?;
+        self.mpc.try_lock().unwrap().assign_raw(slice, data)
     }
 
     fn commit_raw(&mut self, slice: Slice) -> Result<(), VmError> {
         // Follower's private inputs are not committed in the ZK VM until finalization.
-        if !self.follower_inputs.contains(&slice) {
-            self.zk().commit_raw(slice)?;
+        let input_minus_follower = slice.to_range().difference(&self.follower_inputs);
+        let mut zk = self.zk.try_lock().unwrap();
+        for input in input_minus_follower.iter_ranges() {
+            zk.commit_raw(Slice::from_range_unchecked(input))?;
         }
 
-        self.mpc().commit_raw(slice)
+        self.mpc.try_lock().unwrap().commit_raw(slice)
     }
 
     fn get_raw(&self, slice: Slice) -> Result<Option<BitVec>, VmError> {
-        self.mpc().get_raw(slice)
+        self.mpc.try_lock().unwrap().get_raw(slice)
     }
 
     fn decode_raw(&mut self, slice: Slice) -> Result<DecodeFuture<BitVec>, VmError> {
-        let fut = self.zk().decode_raw(slice)?;
+        let fut = self.zk.try_lock().unwrap().decode_raw(slice)?;
         self.outputs.push((slice, fut));
 
-        self.mpc().decode_raw(slice)
+        self.mpc.try_lock().unwrap().decode_raw(slice)
     }
 }
 
@@ -182,8 +240,8 @@ where
     type Error = VmError;
 
     fn mark_public_raw(&mut self, slice: Slice) -> Result<(), VmError> {
-        self.zk().mark_public_raw(slice)?;
-        self.mpc().mark_public_raw(slice)
+        self.zk.try_lock().unwrap().mark_public_raw(slice)?;
+        self.mpc.try_lock().unwrap().mark_public_raw(slice)
     }
 
     fn mark_private_raw(&mut self, slice: Slice) -> Result<(), VmError> {
@@ -198,7 +256,7 @@ where
                 // Follower's private inputs will become public during finalization.
                 zk.mark_public_raw(slice)?;
                 mpc.mark_private_raw(slice)?;
-                self.follower_inputs.push(slice);
+                self.follower_inputs.union_mut(&slice.to_range());
             }
         }
 
@@ -213,7 +271,7 @@ where
                 // Follower's private inputs will become public during finalization.
                 zk.mark_public_raw(slice)?;
                 mpc.mark_blind_raw(slice)?;
-                self.follower_inputs.push(slice);
+                self.follower_inputs.union_mut(&slice.to_range());
             }
             Role::Follower => {
                 zk.mark_blind_raw(slice)?;
@@ -231,8 +289,14 @@ where
     Zk: Vm<Binary>,
 {
     fn call_raw(&mut self, call: Call) -> Result<Slice, VmError> {
-        self.zk().call_raw(call.clone())?;
-        self.mpc().call_raw(call)
+        if self.desync.load(Ordering::Relaxed) {
+            return Err(VmError::memory(
+                "DEAP VM memories are potentially desynchronized",
+            ));
+        }
+
+        self.zk.try_lock().unwrap().call_raw(call.clone())?;
+        self.mpc.try_lock().unwrap().call_raw(call)
     }
 }
 
@@ -242,6 +306,10 @@ where
     Mpc: Execute + Send + 'static,
     Zk: Execute + Send + 'static,
 {
+    fn wants_flush(&self) -> bool {
+        self.mpc.try_lock().unwrap().wants_flush() || self.zk.try_lock().unwrap().wants_flush()
+    }
+
     async fn flush(&mut self, ctx: &mut Context) -> Result<(), VmError> {
         let mut zk = self.zk.clone().try_lock_owned().unwrap();
         let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
@@ -253,6 +321,11 @@ where
         .map_err(VmError::execute)??;
 
         Ok(())
+    }
+
+    fn wants_preprocess(&self) -> bool {
+        self.mpc.try_lock().unwrap().wants_preprocess()
+            || self.zk.try_lock().unwrap().wants_preprocess()
     }
 
     async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), VmError> {
@@ -268,9 +341,13 @@ where
         Ok(())
     }
 
+    fn wants_execute(&self) -> bool {
+        self.mpc.try_lock().unwrap().wants_execute()
+    }
+
     async fn execute(&mut self, ctx: &mut Context) -> Result<(), VmError> {
         // Only MPC VM is executed until finalization.
-        self.mpc().execute(ctx).await
+        self.mpc.try_lock().unwrap().execute(ctx).await
     }
 }
 
@@ -396,7 +473,12 @@ mod tests {
 
                 // Use different inputs in each VM.
                 leader.mpc().assign(key, [42u8; 16]).unwrap();
-                leader.zk().assign(key, [69u8; 16]).unwrap();
+                leader
+                    .zk
+                    .try_lock()
+                    .unwrap()
+                    .assign(key, [69u8; 16])
+                    .unwrap();
 
                 leader.commit(key).unwrap();
                 leader.commit(msg).unwrap();
