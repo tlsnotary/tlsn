@@ -9,13 +9,20 @@ default = []
 
 [dependencies]
 tlsn-core = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tlsn-cipher = { workspace = true }
+mpz-core = { workspace = true }
 mpz-common = { workspace = true }
-mpz-garble = { workspace = true }
+mpz-memory-core = { workspace = true }
 mpz-ot = { workspace = true }
+mpz-vm-core = { workspace = true }
+mpz-zk = { workspace = true }
 
+async-trait = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
 once_cell = { workspace = true }
+opaque-debug = { workspace = true }
 serio = { workspace = true, features = ["codec", "bincode"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }

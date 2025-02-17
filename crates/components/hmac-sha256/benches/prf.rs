@@ -54,8 +54,8 @@ async fn prf() {
     let mut leader = MpcPrf::new(PrfConfig::builder().role(Role::Leader).build().unwrap());
     let mut follower = MpcPrf::new(PrfConfig::builder().role(Role::Follower).build().unwrap());
 
-    let leader_output = leader.setup(&mut leader_vm, leader_pms).unwrap();
-    let follower_output = follower.setup(&mut follower_vm, follower_pms).unwrap();
+    let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
+    let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();
 
     leader
         .set_client_random(&mut leader_vm, Some(client_random))

@@ -1,30 +1,8 @@
-use crate::circuit::CipherCircuit;
 use mpz_circuits::{circuits::aes128_trace, once_cell::sync::Lazy, trace, Circuit, CircuitBuilder};
-use mpz_memory_core::{binary::U8, Array};
 use std::sync::Arc;
 
-/// A circuit for AES-128.
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Aes128;
-
-impl CipherCircuit for Aes128 {
-    type Key = Array<U8, 16>;
-    type Iv = Array<U8, 4>;
-    type Nonce = Array<U8, 8>;
-    type Counter = Array<U8, 4>;
-    type Block = Array<U8, 16>;
-
-    fn ecb() -> Arc<Circuit> {
-        AES128_ECB.clone()
-    }
-
-    fn ctr() -> Arc<Circuit> {
-        AES128_CTR.clone()
-    }
-}
-
 /// `fn(key: [u8; 16], iv: [u8; 4], nonce: [u8; 8], ctr: [u8; 4]) -> [u8; 16]`
-static AES128_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
+pub(crate) static AES128_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let builder = CircuitBuilder::new();
 
     let key = builder.add_array_input::<u8, 16>();
@@ -40,7 +18,7 @@ static AES128_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
 });
 
 /// `fn(key: [u8; 16], msg: [u8; 16]) -> [u8; 16]`
-static AES128_ECB: Lazy<Arc<Circuit>> = Lazy::new(|| {
+pub(crate) static AES128_ECB: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let builder = CircuitBuilder::new();
 
     let key = builder.add_array_input::<u8, 16>();
