@@ -9,7 +9,7 @@ use std::ops::Range;
 use tlsn_core::{proof::TlsProof, transcript::get_value_ids};
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
-
+use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 
@@ -17,13 +17,27 @@ use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 const SERVER_DOMAIN: &str = "jernkunpittaya.github.io";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
+// P/S: If the following limits are increased, please ensure max-transcript-size of
+// the notary server's config (../../../notary/server) is increased too, where
+// max-transcript-size = MAX_SENT_DATA + MAX_RECV_DATA
+//
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 12;
+// Maximum number of bytes that can be received by prover from server
+const MAX_RECV_DATA: usize = 1 << 14;
 use std::{env, str};
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
     // Get party index from command line argument
-    let party_index = match env::args().nth(1) {
+    let args: Vec<String> = env::args().collect();
+    let notary_host = args.get(1).expect("Please provide notary host as first argument");
+    let notary_port = args.get(2)
+        .expect("Please provide notary port as second argument")
+        .parse::<u16>()
+        .expect("Port must be a valid number");
+    let party_index = match args.get(3) {
         Some(index) => match index.as_str() {
             "0" | "1" | "2" => index,
             _ => {
@@ -42,19 +56,46 @@ async fn main() {
     // Start a local simple notary service
     tokio::spawn(run_notary(notary_socket.compat()));
 
-    // A Prover configuration
-    let config = ProverConfig::builder()
-        .id("example")
-        .server_dns(SERVER_DOMAIN)
+    // Build a client to connect to the notary server.
+    let notary_client = NotaryClient::builder()
+        .host(notary_host)
+        .port(notary_port)
+        // WARNING: Always use TLS to connect to notary server, except if notary is running locally
+        .enable_tls(true)
         .build()
         .unwrap();
 
-    // Create a Prover and set it up with the Notary
-    // This will set up the MPC backend prior to connecting to the server.
-    let prover = Prover::new(config)
-        .setup(prover_socket.compat())
+    // Send requests for configuration and notarization to the notary server.
+    let notarization_request = NotarizationRequest::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    let Accepted {
+        io: notary_connection,
+        id: session_id,
+        ..
+    } = notary_client
+        .request_notarization(notarization_request)
         .await
         .unwrap();
+
+    // Configure a new prover with the unique session id returned from notary client.
+    let prover_config = ProverConfig::builder()
+        .id(session_id)
+        .server_dns(SERVER_DOMAIN)
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .build()
+        .unwrap();
+
+    // Create a new prover and set up the MPC backend.
+    let prover = Prover::new(prover_config)
+        .setup(notary_connection.compat())
+        .await
+        .unwrap();
+
 
     // Connect to the Server via TCP. This is the TLS client socket.
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
@@ -136,8 +177,7 @@ async fn main() {
     };
 
     // Write the proof to a file
-    let args: Vec<String> = std::env::args().collect();
-    let file_dest = args.get(2).expect("Please provide a file destination as the second argument");
+    let file_dest = args.get(4).expect("Please provide a file destination as the second argument");
     let mut file = tokio::fs::File::create(file_dest).await.unwrap();
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
