@@ -12,6 +12,8 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
+use mpz_core::commit::Nonce;
+use serde_json::json;
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "jernkunpittaya.github.io";
@@ -170,8 +172,8 @@ async fn main() {
 
     // Build proof (with or without redactions)
     let redact = true;
-    let proof = if !redact {
-        build_proof_without_redactions(prover).await
+    let (proof, nonce) = if !redact {
+        (build_proof_without_redactions(prover).await, None)
     } else {
         build_proof_with_redactions(prover).await
     };
@@ -182,9 +184,22 @@ async fn main() {
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
         .unwrap();
+    if nonce.is_none(){
+        println!("No redaction, no need to write to secret file");
+    }
+    else{
+        let secret_file_dest = args.get(5).expect("Please provide a file destination for secret values as the third argument");
+        let mut secret_file = tokio::fs::File::create(secret_file_dest).await.unwrap();
+        let data = json!({
+            "follower": followers_count,
+            "nonce": nonce.unwrap()
+        });
+        let json_string = serde_json::to_string_pretty(&data).unwrap();
 
+        // Write the JSON string to a secret file
+        secret_file.write_all(json_string.as_bytes()).await.unwrap();
+    }
     println!("Notarization completed successfully!");
-    println!("The proof has been written to {}", file_dest);
 }
 
 /// Find the ranges of the public and private parts of a sequence.
@@ -280,7 +295,7 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     }
 }
 
-async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
+async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> (TlsProof, Option<Nonce>) {
     // Identify the ranges in the outbound data which contain data which we want to disclose
     let (sent_public_ranges, _) = find_ranges(
         prover.sent_transcript().data(),
@@ -333,11 +348,15 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         proof_builder.reveal_by_id(commitment_id).unwrap();
     }
 
-    for commitment_id in recv_private_commitments {
-        println!("Revealing private commitment {:?}", commitment_id);
-        proof_builder.reveal_private_by_id(commitment_id).await.unwrap();
-    }
+    // for commitment_id in recv_private_commitments {
+    //     println!("Revealing private commitment {:?}", commitment_id);
+    //     proof_builder.reveal_private_by_id(commitment_id).await.unwrap();
+    // }
 
+    // Here only support revealing one private_commitment (if multiple can modify to use for-loop as shown above)
+    let commitment_id = recv_private_commitments[0];
+    println!("Revealing private commitment {:?}", commitment_id);
+    let nonce = proof_builder.reveal_private_by_id(commitment_id).await.unwrap();
     let substrings_proof = proof_builder.build().unwrap();
     // [712..724]
     println!("Received private ranges: {:?}", recv_private_ranges);
@@ -349,9 +368,9 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
             .map(|id| notarized_session.header().encode(&id))
             .collect::<Vec<_>>();
 
-    TlsProof {
+    (TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
         encodings: received_private_encodings,
-    }
+    }, Some(nonce))
 }
