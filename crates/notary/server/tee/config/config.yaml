@@ -27,6 +27,7 @@ server:
 notarization:
   max_sent_data: 4096
   max_recv_data: 16384
+  timeout: 1800
 
 tls:
   enabled: false
