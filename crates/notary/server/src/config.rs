@@ -21,7 +21,7 @@ pub struct AuthorizationProperties {
     /// Switch to turn on or off auth middleware
     pub enabled: bool,
     /// File path of the whitelist API key csv
-    pub whitelist_csv_path: String,
+    pub whitelist_csv_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
@@ -53,8 +53,8 @@ pub struct TLSProperties {
     /// turned on unless TLS is handled by external setup e.g. reverse proxy,
     /// cloud)
     pub enabled: bool,
-    pub private_key_pem_path: String,
-    pub certificate_pem_path: String,
+    pub private_key_pem_path: Option<String>,
+    pub certificate_pem_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]

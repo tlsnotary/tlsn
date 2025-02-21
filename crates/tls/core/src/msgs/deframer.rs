@@ -194,7 +194,7 @@ mod tests {
         }
     }
 
-    impl<'a> io::Read for ByteRead<'a> {
+    impl io::Read for ByteRead<'_> {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             let mut len = 0;
 

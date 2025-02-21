@@ -5,9 +5,9 @@ use std::{
 
 use axum::{
     extract::{Query, State},
-    response::{Html, Json},
+    response::Html,
     routing::get,
-    Router,
+    Json, Router,
 };
 use futures::{channel::oneshot, AsyncRead, AsyncWrite};
 use futures_rustls::{
@@ -22,10 +22,16 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 
+use serde_json::Value;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tower_service::Service;
 
+use axum::extract::FromRequest;
+use hyper::header;
+
 use tlsn_server_fixture_certs::*;
+
+pub const DEFAULT_FIXTURE_PORT: u16 = 3000;
 
 struct AppState {
     shutdown: Option<oneshot::Sender<()>>,
@@ -37,6 +43,7 @@ fn app(state: AppState) -> Router {
         .route("/bytes", get(bytes))
         .route("/formats/json", get(json))
         .route("/formats/html", get(html))
+        .route("/protected", get(protected_route))
         .with_state(Arc::new(Mutex::new(state)))
 }
 
@@ -94,10 +101,18 @@ async fn bytes(
     Ok(Bytes::from(vec![0x42u8; size]))
 }
 
+/// parse the JSON data from the file content
+fn get_json_value(filecontent: &str) -> Result<Json<Value>, StatusCode> {
+    Ok(Json(serde_json::from_str(filecontent).map_err(|e| {
+        eprintln!("Failed to parse JSON data: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?))
+}
+
 async fn json(
     State(state): State<Arc<Mutex<AppState>>>,
     Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<&'static str>, StatusCode> {
+) -> Result<Json<Value>, StatusCode> {
     let size = params
         .get("size")
         .and_then(|size| size.parse::<usize>().ok())
@@ -108,9 +123,9 @@ async fn json(
     }
 
     match size {
-        1 => Ok(Json(include_str!("data/1kb.json"))),
-        4 => Ok(Json(include_str!("data/4kb.json"))),
-        8 => Ok(Json(include_str!("data/8kb.json"))),
+        1 => get_json_value(include_str!("data/1kb.json")),
+        4 => get_json_value(include_str!("data/4kb.json")),
+        8 => get_json_value(include_str!("data/8kb.json")),
         _ => Err(StatusCode::NOT_FOUND),
     }
 }
@@ -124,4 +139,95 @@ async fn html(
     }
 
     Html(include_str!("data/4kb.html"))
+}
+
+struct AuthenticatedUser;
+
+impl<B> FromRequest<B> for AuthenticatedUser
+where
+    B: Send + Sync,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request(
+        req: axum::extract::Request,
+        _state: &B,
+    ) -> Result<Self, Self::Rejection> {
+        // Expected token (hardcoded for simplicity in the demo)
+        let expected_token = "random_auth_token";
+
+        let auth_header = req
+            .headers()
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok());
+
+        if let Some(auth_token) = auth_header {
+            let token = auth_token.trim_start_matches("Bearer ");
+            if token == expected_token {
+                return Ok(AuthenticatedUser);
+            }
+        }
+
+        Err((StatusCode::UNAUTHORIZED, "Invalid or missing token"))
+    }
+}
+
+async fn protected_route(_: AuthenticatedUser) -> Result<Json<Value>, StatusCode> {
+    get_json_value(include_str!("data/protected_data.json"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{self, Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use tower::ServiceExt;
+
+    fn get_app() -> Router {
+        let (sender, _) = oneshot::channel();
+        let state = AppState {
+            shutdown: Some(sender),
+        };
+        app(state)
+    }
+
+    #[tokio::test]
+    async fn hello_world() {
+        let response = get_app()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], b"Hello, World!");
+    }
+
+    #[tokio::test]
+    async fn json() {
+        let response = get_app()
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri("/formats/json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            body.get("id").unwrap().as_number().unwrap().as_u64(),
+            Some(1234567890)
+        );
+    }
 }

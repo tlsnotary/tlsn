@@ -13,7 +13,7 @@ tlsn-server-fixture-certs = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-verifier = { workspace = true }
 
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "73a6be1" }
+websocket-relay = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

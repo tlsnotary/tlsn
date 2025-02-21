@@ -2,6 +2,11 @@
 name = "tlsn-wasm"
 version = "0.1.0-alpha.8-pre"
 edition = "2021"
+repository = "https://github.com/tlsnotary/tlsn.git"
+description = "A core WebAssembly package for TLSNotary."
+license = "MIT OR Apache-2.0"
+keywords = ["tls", "tlsn", "tlsnotary"]
+homepage = "https://tlsnotary.org"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
