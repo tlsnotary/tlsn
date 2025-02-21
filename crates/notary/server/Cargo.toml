@@ -10,7 +10,7 @@ tee_quote = [
 	"dep:rand_chacha", 
 	"dep:once_cell",
 	"dep:simple_asn1",
-        "dep:pem",
+	"dep:pem",
 	"dep:lazy_static",
 ]
 
