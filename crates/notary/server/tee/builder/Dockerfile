@@ -4,9 +4,9 @@ FROM --platform=linux/amd64 ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ADD intel-sgx-deb.asc /etc/apt/keyrings/intelsgx-keyring.asc 
+ADD intel-sgx-deb.asc /etc/apt/keyrings/intel-sgx-keyring.asc
 
-RUN echo deb [arch=amd64 signed-by=/etc/apt/keyrings/intel-sgx-deb.asc] https://download.01.org/intel-sgx/sgx_repo/ubuntu noble  main > /etc/apt/sources.list.d/intel-sgx.list
+RUN echo deb [trusted=yes arch=amd64 signed-by=/etc/apt/keyrings/intel-sgx-keyring.asc] https://download.01.org/intel-sgx/sgx_repo/ubuntu noble  main > /etc/apt/sources.list.d/intel-sgx.list
 
 RUN apt-get update && apt-get satisfy -y \
 	'libcurl4 (>= 7.58)' \
