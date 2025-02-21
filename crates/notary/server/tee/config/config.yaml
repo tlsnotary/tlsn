@@ -19,9 +19,8 @@ server:
       <ul>
         <li>public key: <pre>{public_key}</pre></li>
         <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{git_commit_hash}">{git_commit_hash}</a></li>
-        <li><a href="/v{version}/info">remote attestation</a></li>
         <li><a href="healthcheck">health check</a></li>
-        <li><a href="info">info</a></li>
+        <li><a href="info">info</a> (includes the remote attestation)</li>
       </ul>
     </body>
 
