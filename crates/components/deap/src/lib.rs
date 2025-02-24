@@ -111,8 +111,8 @@ where
     ///
     /// This reveals all private inputs of the follower.
     pub async fn finalize(&mut self, ctx: &mut Context) -> Result<(), VmError> {
-        let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
-        let mut zk = self.zk.clone().try_lock_owned().unwrap();
+        let mut mpc = self.mpc.try_lock().unwrap();
+        let mut zk = self.zk.try_lock().unwrap();
 
         // Decode the private inputs of the follower.
         //
@@ -128,7 +128,7 @@ where
             .map(|input| mpc.decode_raw(Slice::from_range_unchecked(input)))
             .collect::<Result<Vec<_>, _>>()?;
 
-        mpc.flush(ctx).await?;
+        mpc.execute_all(ctx).await?;
 
         // Assign inputs to the ZK VM.
         for (mut decode, input) in input_futs
@@ -150,15 +150,9 @@ where
             zk.commit_raw(input)?;
         }
 
-        ctx.try_join(
-            |ctx| async move { mpc.execute_all(ctx).await }.scope_boxed(),
-            |ctx| async move { zk.execute_all(ctx).await }.scope_boxed(),
-        )
-        .await
-        .map_err(VmError::execute)??;
+        zk.execute_all(ctx).await.map_err(VmError::execute)?;
 
         // Follower verifies the outputs are consistent.
-        let mpc = self.mpc.try_lock().unwrap();
         if let Role::Follower = self.role {
             for (output, mut value) in mem::take(&mut self.outputs) {
                 // If the output is not available in the MPC VM, we did not execute and decode
