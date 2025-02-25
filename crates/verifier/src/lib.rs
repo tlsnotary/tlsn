@@ -107,7 +107,7 @@ impl Verifier<state::Initialized> {
             .await?;
 
         let delta = Delta::random(&mut thread_rng());
-        let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta.clone(), ctx);
+        let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta, ctx);
 
         // Allocate resources for MPC-TLS in VM.
         let keys = mpc_tls.alloc()?;

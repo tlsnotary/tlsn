@@ -650,8 +650,8 @@ mod tests {
         let aes = Aes128Gcm::new(&key.into());
 
         let mut nonce = [0u8; 12];
-        nonce[..4].copy_from_slice(&iv);
-        nonce[4..].copy_from_slice(&explicit_nonce);
+        nonce[..4].copy_from_slice(iv);
+        nonce[4..].copy_from_slice(explicit_nonce);
 
         let mut payload = msg.to_vec();
         let tag = aes

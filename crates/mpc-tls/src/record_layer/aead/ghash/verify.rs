@@ -111,9 +111,9 @@ impl Task for VerifyTags {
                 // Verify decommitment.
                 decommitment.verify(&commitment).map_err(AeadError::tag)?;
 
-                let leader_tag_shares = decommitment.into_inner();
+                
 
-                leader_tag_shares
+                decommitment.into_inner()
             }
         };
 

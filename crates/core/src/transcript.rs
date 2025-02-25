@@ -700,7 +700,7 @@ mod validation {
                 .sent_idx
                 .0
                 .iter_ranges()
-                .last()
+                .next_back()
                 .unwrap()
                 .end;
 

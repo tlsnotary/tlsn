@@ -39,7 +39,7 @@ impl<const N: usize> OneTimePadShared<[u8; N]> {
         let otp: [u8; N] = from_fn(|_| rng.gen());
         match role {
             Role::Leader => {
-                let masked = vm.mask_private(value, otp.clone())?;
+                let masked = vm.mask_private(value, otp)?;
                 let masked = vm.mask_blind(masked)?;
                 _ = vm.decode(masked)?;
 
@@ -47,7 +47,7 @@ impl<const N: usize> OneTimePadShared<[u8; N]> {
             }
             Role::Follower => {
                 let masked = vm.mask_blind(value)?;
-                let masked = vm.mask_private(masked, otp.clone())?;
+                let masked = vm.mask_private(masked, otp)?;
                 let value = vm.decode(masked)?;
 
                 Ok(Self::Follower { value, otp })
@@ -61,7 +61,7 @@ impl Future for OneTimePadShared<[u8; 16]> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.project() {
-            OneTimePadSharedProj::Leader { otp } => Poll::Ready(Ok(otp.clone())),
+            OneTimePadSharedProj::Leader { otp } => Poll::Ready(Ok(*otp)),
             OneTimePadSharedProj::Follower { value, otp } => {
                 let mut value = ready!(value.poll(cx))?;
                 value.iter_mut().zip(otp).for_each(|(a, b)| *a ^= *b);

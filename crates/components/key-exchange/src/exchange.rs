@@ -651,7 +651,7 @@ mod tests {
 
                 // Replace the leader's share with a different value.
                 if let Malicious::Leader = malicious {
-                    leader.set_pms_0(bad_pms_share.clone());
+                    leader.set_pms_0(bad_pms_share);
                 }
 
                 leader.assign(&mut gen).unwrap();
@@ -669,7 +669,7 @@ mod tests {
 
                 // Replace the follower's share with a different value.
                 if let Malicious::Follower = malicious {
-                    follower.set_pms_0(bad_pms_share.clone());
+                    follower.set_pms_0(bad_pms_share);
                 }
 
                 follower.assign(&mut ev).unwrap();
