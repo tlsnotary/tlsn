@@ -129,19 +129,19 @@
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
 <a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the verification phase of the verifier.
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the verification phase of the verifier.
 //!
 //! The TLS verifier is an application-specific verifier.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::SessionInfo;
 
 <span class="kw">use super</span>::{state::Verify <span class="kw">as </span>VerifyState, Verifier, VerifierError};
-<span class="kw">use </span>mpz_circuits::types::Value;
-<span class="kw">use </span>mpz_garble::{Memory, Verify};
-<span class="kw">use </span>mpz_ot::CommittedOTSender;
+<span class="kw">use </span>mpz_memory_core::MemoryExt;
+<span class="kw">use </span>mpz_vm_core::Execute;
 <span class="kw">use </span>serio::stream::IoStreamExt;
 <span class="kw">use </span>tlsn_common::msg::ServerIdentityProof;
-<span class="kw">use </span>tlsn_core::transcript::{get_value_ids, Direction, PartialTranscript};
+<span class="kw">use </span>tlsn_core::transcript::{Direction, PartialTranscript};
 
 <span class="kw">use </span>tracing::{info, instrument};
 
@@ -158,7 +158,8 @@
             .mux_fut
             .poll_with(<span class="kw">async </span>{
                 <span class="comment">// Receive partial transcript from the prover.
-                </span><span class="kw">let </span>partial_transcript: PartialTranscript = <span class="self">self</span>.state.io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
+                </span><span class="kw">let </span>partial_transcript: PartialTranscript =
+                    <span class="self">self</span>.state.ctx.io_mut().expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
 
                 <span class="macro">info!</span>(<span class="string">"Received partial transcript from prover"</span>);
 
@@ -174,29 +175,46 @@
                 }
 
                 <span class="comment">// Now verify the transcript parts which the prover wants to reveal.
-                </span><span class="kw">let </span>sent_value_ids =
-                    get_value_ids(Direction::Sent, partial_transcript.sent_authed());
-                <span class="kw">let </span>recv_value_ids =
-                    get_value_ids(Direction::Received, partial_transcript.received_authed());
+                </span><span class="kw">let </span>sent_refs = <span class="self">self
+                    </span>.state
+                    .transcript_refs
+                    .get(Direction::Sent, partial_transcript.sent_authed())
+                    .expect(<span class="string">"index is in bounds"</span>);
+                <span class="kw">let </span>recv_refs = <span class="self">self
+                    </span>.state
+                    .transcript_refs
+                    .get(Direction::Received, partial_transcript.received_authed())
+                    .expect(<span class="string">"index is in bounds"</span>);
 
-                <span class="kw">let </span>value_refs = sent_value_ids
-                    .chain(recv_value_ids)
-                    .map(|id| {
-                        <span class="self">self</span>.state
-                            .vm
-                            .get_value(id.as_str())
-                            .expect(<span class="string">"Byte should be in VM memory"</span>)
-                    })
-                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="kw">let </span>plaintext_futs = sent_refs
+                    .into_iter()
+                    .chain(recv_refs)
+                    .map(|slice| <span class="self">self</span>.state.vm.decode(slice).map_err(VerifierError::zk))
+                    .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
 
-                <span class="kw">let </span>values = partial_transcript
-                    .iter(Direction::Sent)
-                    .chain(partial_transcript.iter(Direction::Received))
-                    .map(Value::U8)
-                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="self">self</span>.state.vm.flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>.state.ctx).<span class="kw">await</span>.unwrap();
+
+                <span class="kw">let </span><span class="kw-2">mut </span>purported_data = Vec::new();
+                <span class="kw">for </span><span class="kw-2">mut </span>fut <span class="kw">in </span>plaintext_futs {
+                    <span class="kw">let </span>plaintext = fut
+                        .try_recv()
+                        .map_err(VerifierError::zk)<span class="question-mark">?
+                        </span>.expect(<span class="string">"plaintext should be decoded"</span>);
+                    purported_data.extend_from_slice(<span class="kw-2">&amp;</span>plaintext);
+                }
 
                 <span class="comment">// Check that purported values are correct.
-                </span><span class="self">self</span>.state.vm.verify(<span class="kw-2">&amp;</span>value_refs, <span class="kw-2">&amp;</span>values).<span class="kw">await</span><span class="question-mark">?</span>;
+                </span><span class="kw">if </span>purported_data
+                    .into_iter()
+                    .zip(
+                        partial_transcript
+                            .iter(Direction::Sent)
+                            .chain(partial_transcript.iter(Direction::Received)),
+                    )
+                    .any(|(a, b)| a != b)
+                {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(VerifierError::verify(<span class="string">"purported transcript is incorrect"</span>));
+                }
 
                 <span class="macro">info!</span>(<span class="string">"Successfully verified purported transcript"</span>);
 
@@ -209,11 +227,8 @@
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"info"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SessionInfo, VerifierError&gt; {
         <span class="kw">let </span>VerifyState {
-            <span class="kw-2">mut </span>io,
             mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
-            <span class="kw-2">mut </span>vm,
-            <span class="kw-2">mut </span>ot_send,
             <span class="kw-2">mut </span>ctx,
             server_ephemeral_key,
             connection_info,
@@ -223,20 +238,7 @@
         <span class="kw">let </span>ServerIdentityProof {
             name: server_name,
             data,
-        } = mux_fut
-            .poll_with(<span class="kw">async </span>{
-                <span class="comment">// Finalize all MPC
-                </span>ot_send.reveal(<span class="kw-2">&amp;mut </span>ctx).<span class="kw">await</span><span class="question-mark">?</span>;
-
-                vm.finalize().<span class="kw">await</span><span class="question-mark">?</span>;
-
-                <span class="macro">info!</span>(<span class="string">"Finalized all MPC"</span>);
-
-                <span class="kw">let </span>identity_proof: ServerIdentityProof = io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
-
-                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(identity_proof)
-            })
-            .<span class="kw">await</span><span class="question-mark">?</span>;
+        } = mux_fut.poll_with(ctx.io_mut().expect_next()).<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="comment">// Verify the server identity data.
         </span>data.verify_with_provider(
@@ -250,7 +252,7 @@
         <span class="macro">info!</span>(<span class="string">"Successfully verified session"</span>);
 
         <span class="kw">if </span>!mux_fut.is_complete() {
-            mux_ctrl.mux().close();
+            mux_ctrl.close();
             mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
         }
 

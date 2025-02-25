@@ -46,7 +46,7 @@
 <span class="kw">mod </span>provider;
 <span class="kw">mod </span>tree;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>encoder::{new_encoder, Encoder};
+<span class="kw">pub use </span>encoder::{new_encoder, Encoder, EncoderSecret};
 <span class="kw">pub use </span>proof::{EncodingProof, EncodingProofError};
 <span class="kw">pub use </span>provider::EncodingProvider;
 <span class="kw">pub use </span>tree::EncodingTree;
@@ -70,7 +70,7 @@
     <span class="doccomment">/// Merkle root of the encoding commitments.
     </span><span class="kw">pub </span>root: TypedHash,
     <span class="doccomment">/// Seed used to generate the encodings.
-    </span><span class="kw">pub </span>seed: Vec&lt;u8&gt;,
+    </span><span class="kw">pub </span>secret: EncoderSecret,
 }
 
 <span class="macro">impl_domain_separator!</span>(EncodingCommitment);

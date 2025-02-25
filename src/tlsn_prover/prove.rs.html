@@ -101,19 +101,20 @@
 <a href="#100" id="100">100</a>
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the proving phase of the prover.
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the proving phase of the prover.
 //!
 //! The prover interacts with a TLS verifier directly, without involving a
 //! Notary. The verifier verifies transcript data.
 
-</span><span class="kw">use super</span>::{state::Prove <span class="kw">as </span>ProveState, Prover, ProverError};
-<span class="kw">use </span>mpz_garble::{Memory, Prove};
-<span class="kw">use </span>mpz_ot::VerifiableOTReceiver;
+</span><span class="kw">use </span>mpz_memory_core::MemoryExt;
+<span class="kw">use </span>mpz_vm_core::Execute;
 <span class="kw">use </span>serio::SinkExt <span class="kw">as _</span>;
 <span class="kw">use </span>tlsn_common::msg::ServerIdentityProof;
-<span class="kw">use </span>tlsn_core::transcript::{get_value_ids, Direction, Idx, Transcript};
-
+<span class="kw">use </span>tlsn_core::transcript::{Direction, Idx, Transcript};
 <span class="kw">use </span>tracing::{info, instrument};
+
+<span class="kw">use crate</span>::{state::Prove <span class="kw">as </span>ProveState, Prover, ProverError};
 
 <span class="kw">impl </span>Prover&lt;ProveState&gt; {
     <span class="doccomment">/// Returns the transcript.
@@ -131,29 +132,36 @@
     </span><span class="kw">pub async fn </span>prove_transcript(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sent: Idx, recv: Idx) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
         <span class="kw">let </span>partial_transcript = <span class="self">self</span>.transcript().to_partial(sent.clone(), recv.clone());
 
-        <span class="kw">let </span>sent_value_ids = get_value_ids(Direction::Sent, <span class="kw-2">&amp;</span>sent);
-        <span class="kw">let </span>recv_value_ids = get_value_ids(Direction::Received, <span class="kw-2">&amp;</span>recv);
+        <span class="kw">let </span>sent_refs = <span class="self">self
+            </span>.state
+            .transcript_refs
+            .get(Direction::Sent, <span class="kw-2">&amp;</span>sent)
+            .expect(<span class="string">"index is in bounds"</span>);
+        <span class="kw">let </span>recv_refs = <span class="self">self
+            </span>.state
+            .transcript_refs
+            .get(Direction::Received, <span class="kw-2">&amp;</span>recv)
+            .expect(<span class="string">"index is in bounds"</span>);
 
-        <span class="kw">let </span>value_refs = sent_value_ids
-            .chain(recv_value_ids)
-            .map(|id| {
-                <span class="self">self</span>.state
-                    .vm
-                    .get_value(id.as_str())
-                    .expect(<span class="string">"Byte should be in VM memory"</span>)
-            })
-            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">for </span>slice <span class="kw">in </span>sent_refs.into_iter().chain(recv_refs) {
+            <span class="comment">// Drop the future, we don't need it.
+            </span>drop(<span class="self">self</span>.state.vm.decode(slice).map_err(ProverError::zk)<span class="question-mark">?</span>);
+        }
 
         <span class="self">self</span>.state
             .mux_fut
             .poll_with(<span class="kw">async </span>{
                 <span class="comment">// Send the partial transcript to the verifier.
-                </span><span class="self">self</span>.state.io.send(partial_transcript).<span class="kw">await</span><span class="question-mark">?</span>;
+                </span><span class="self">self</span>.state.ctx.io_mut().send(partial_transcript).<span class="kw">await</span><span class="question-mark">?</span>;
 
                 <span class="macro">info!</span>(<span class="string">"Sent partial transcript"</span>);
 
                 <span class="comment">// Prove the partial transcript to the verifier.
-                </span><span class="self">self</span>.state.vm.prove(value_refs.as_slice()).<span class="kw">await</span><span class="question-mark">?</span>;
+                </span><span class="self">self</span>.state
+                    .vm
+                    .flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>.state.ctx)
+                    .<span class="kw">await
+                    </span>.map_err(ProverError::zk)<span class="question-mark">?</span>;
 
                 <span class="macro">info!</span>(<span class="string">"Proved partial transcript"</span>);
 
@@ -168,11 +176,8 @@
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
         <span class="kw">let </span>ProveState {
-            <span class="kw-2">mut </span>io,
             mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
-            <span class="kw-2">mut </span>vm,
-            <span class="kw-2">mut </span>ot_recv,
             <span class="kw-2">mut </span>ctx,
             server_cert_data,
             ..
@@ -180,16 +185,13 @@
 
         mux_fut
             .poll_with(<span class="kw">async move </span>{
-                ot_recv.accept_reveal(<span class="kw-2">&amp;mut </span>ctx).<span class="kw">await</span><span class="question-mark">?</span>;
-
-                vm.finalize().<span class="kw">await</span><span class="question-mark">?</span>;
-
                 <span class="comment">// Send identity proof to the verifier.
-                </span>io.send(ServerIdentityProof {
-                    name: <span class="self">self</span>.config.server_name().clone(),
-                    data: server_cert_data,
-                })
-                .<span class="kw">await</span><span class="question-mark">?</span>;
+                </span>ctx.io_mut()
+                    .send(ServerIdentityProof {
+                        name: <span class="self">self</span>.config.server_name().clone(),
+                        data: server_cert_data,
+                    })
+                    .<span class="kw">await</span><span class="question-mark">?</span>;
 
                 <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;(())
             })
@@ -197,7 +199,7 @@
 
         <span class="comment">// Wait for the verifier to correctly close the connection.
         </span><span class="kw">if </span>!mux_fut.is_complete() {
-            mux_ctrl.mux().close();
+            mux_ctrl.close();
             mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
         }
 

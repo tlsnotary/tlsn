@@ -320,10 +320,7 @@
 <a href="#319" id="319">319</a>
 <a href="#320" id="320">320</a>
 <a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::HashMap, fmt};
+<a href="#322" id="322">322</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::HashMap, fmt};
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -376,11 +373,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;PartialTranscript, EncodingProofError&gt; {
         <span class="kw">let </span>hasher = provider.hash.get(<span class="kw-2">&amp;</span>commitment.root.alg)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>seed: [u8; <span class="number">32</span>] = commitment.seed.clone().try_into().map_err(|<span class="kw">_</span>| {
-            EncodingProofError::new(ErrorKind::Commitment, <span class="string">"encoding seed not 32 bytes"</span>)
-        })<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>encoder = new_encoder(seed);
+        <span class="kw">let </span>encoder = new_encoder(<span class="kw-2">&amp;</span>commitment.secret);
         <span class="kw">let </span><span class="self">Self </span>{
             inclusion_proof,
             openings,
@@ -474,7 +467,6 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>ErrorKind {
     Provider,
-    Commitment,
     Proof,
 }
 
@@ -484,7 +476,6 @@
 
         <span class="kw">match </span><span class="self">self</span>.kind {
             ErrorKind::Provider =&gt; f.write_str(<span class="string">"provider error"</span>)<span class="question-mark">?</span>,
-            ErrorKind::Commitment =&gt; f.write_str(<span class="string">"commitment error"</span>)<span class="question-mark">?</span>,
             ErrorKind::Proof =&gt; f.write_str(<span class="string">"proof error"</span>)<span class="question-mark">?</span>,
         }
 
@@ -513,9 +504,12 @@
     <span class="kw">use </span>tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
     <span class="kw">use crate</span>::{
-        fixtures::{encoder_seed, encoding_provider},
+        fixtures::{encoder_secret, encoder_secret_tampered_seed, encoding_provider},
         hash::Blake3,
-        transcript::{encoding::EncodingTree, Idx, Transcript},
+        transcript::{
+            encoding::{EncoderSecret, EncodingTree},
+            Idx, Transcript,
+        },
     };
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -526,7 +520,7 @@
         commitment: EncodingCommitment,
     }
 
-    <span class="kw">fn </span>new_encoding_fixture(seed: Vec&lt;u8&gt;) -&gt; EncodingFixture {
+    <span class="kw">fn </span>new_encoding_fixture(secret: EncoderSecret) -&gt; EncodingFixture {
         <span class="kw">let </span>transcript = Transcript::new(POST_JSON, OK_JSON);
 
         <span class="kw">let </span>idx_0 = (Direction::Sent, Idx::new(<span class="number">0</span>..POST_JSON.len()));
@@ -551,7 +545,7 @@
 
         <span class="kw">let </span>commitment = EncodingCommitment {
             root: tree.root(),
-            seed,
+            secret,
         };
 
         EncodingFixture {
@@ -562,12 +556,12 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_verify_encoding_proof_invalid_seed() {
+    </span><span class="kw">fn </span>test_verify_encoding_proof_tampered_seed() {
         <span class="kw">let </span>EncodingFixture {
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec().split_off(<span class="number">1</span>));
+        } = new_encoding_fixture(encoder_secret_tampered_seed());
 
         <span class="kw">let </span>err = proof
             .verify_with_provider(
@@ -577,7 +571,7 @@
             )
             .unwrap_err();
 
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err.kind, ErrorKind::Commitment));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err.kind, ErrorKind::Proof));
     }
 
     <span class="attr">#[test]
@@ -586,7 +580,7 @@
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_secret());
 
         <span class="kw">let </span>err = proof
             .verify_with_provider(
@@ -608,7 +602,7 @@
             transcript,
             <span class="kw-2">mut </span>proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_secret());
 
         <span class="kw">let </span>Opening { seq, .. } = proof.openings.values_mut().next().unwrap();
 
@@ -631,7 +625,7 @@
             transcript,
             <span class="kw-2">mut </span>proof,
             commitment,
-        } = new_encoding_fixture(encoder_seed().to_vec());
+        } = new_encoding_fixture(encoder_secret());
 
         <span class="kw">let </span>Opening { blinder, .. } = proof.openings.values_mut().next().unwrap();
 

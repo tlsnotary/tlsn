@@ -340,7 +340,7 @@
     <span class="kw">use crate</span>::{
         connection::{ServerCertOpening, TranscriptLength},
         fixtures::{
-            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            attestation_fixture, encoder_secret, encoding_provider, request_fixture,
             ConnectionFixture, RequestFixture,
         },
         hash::{Blake3, Hash, HashAlgId},
@@ -365,7 +365,7 @@
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         <span class="macro">assert!</span>(request.validate(<span class="kw-2">&amp;</span>attestation).is_ok())
@@ -387,7 +387,7 @@
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         request.signature_alg = SignatureAlgId::SECP256R1;
@@ -412,7 +412,7 @@
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         request.hash_alg = HashAlgId::SHA256;
@@ -437,7 +437,7 @@
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         <span class="kw">let </span>ConnectionFixture {
@@ -472,7 +472,7 @@
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         request.encoding_commitment_root = <span class="prelude-val">Some</span>(TypedHash {

@@ -128,18 +128,9 @@
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{error::Error, fmt};
-<span class="kw">use </span>tls_mpc::MpcTlsError;
+<a href="#130" id="130">130</a></pre></div><pre class="rust"><code><span class="kw">use </span>mpc_tls::MpcTlsError;
+<span class="kw">use </span>std::{error::Error, fmt};
+<span class="kw">use </span>tlsn_common::{encoding::EncodingError, zk_aes::ZkAesCtrError};
 
 <span class="doccomment">/// Error for [`Prover`](crate::Prover).
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -166,6 +157,27 @@
         <span class="self">Self</span>::new(ErrorKind::Config, source)
     }
 
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mpc&lt;E&gt;(source: E) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>E: Into&lt;Box&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">'static</span>&gt;&gt;,
+    {
+        <span class="self">Self</span>::new(ErrorKind::Mpc, source)
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>zk&lt;E&gt;(source: E) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>E: Into&lt;Box&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">'static</span>&gt;&gt;,
+    {
+        <span class="self">Self</span>::new(ErrorKind::Zk, source)
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>commit&lt;E&gt;(source: E) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>E: Into&lt;Box&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">'static</span>&gt;&gt;,
+    {
+        <span class="self">Self</span>::new(ErrorKind::Commit, source)
+    }
+
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>attestation&lt;E&gt;(source: E) -&gt; <span class="self">Self
     </span><span class="kw">where
         </span>E: Into&lt;Box&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">'static</span>&gt;&gt;,
@@ -178,7 +190,9 @@
 </span><span class="kw">enum </span>ErrorKind {
     Io,
     Mpc,
+    Zk,
     Config,
+    Commit,
     Attestation,
 }
 
@@ -189,7 +203,9 @@
         <span class="kw">match </span><span class="self">self</span>.kind {
             ErrorKind::Io =&gt; f.write_str(<span class="string">"io error"</span>)<span class="question-mark">?</span>,
             ErrorKind::Mpc =&gt; f.write_str(<span class="string">"mpc error"</span>)<span class="question-mark">?</span>,
+            ErrorKind::Zk =&gt; f.write_str(<span class="string">"zk error"</span>)<span class="question-mark">?</span>,
             ErrorKind::Config =&gt; f.write_str(<span class="string">"config error"</span>)<span class="question-mark">?</span>,
+            ErrorKind::Commit =&gt; f.write_str(<span class="string">"commit error"</span>)<span class="question-mark">?</span>,
             ErrorKind::Attestation =&gt; f.write_str(<span class="string">"attestation error"</span>)<span class="question-mark">?</span>,
         }
 
@@ -231,51 +247,15 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;mpz_ot::OTError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_ot::OTError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
+<span class="kw">impl </span>From&lt;ZkAesCtrError&gt; <span class="kw">for </span>ProverError {
+    <span class="kw">fn </span>from(e: ZkAesCtrError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new(ErrorKind::Zk, e)
     }
 }
 
-<span class="kw">impl </span>From&lt;mpz_ot::kos::SenderError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_ot::kos::SenderError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;mpz_ole::OLEError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_ole::OLEError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;mpz_ot::kos::ReceiverError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_ot::kos::ReceiverError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;mpz_garble::VmError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_garble::VmError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;mpz_garble::protocol::deap::DEAPError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_garble::protocol::deap::DEAPError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;mpz_garble::MemoryError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_garble::MemoryError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;mpz_garble::ProveError&gt; <span class="kw">for </span>ProverError {
-    <span class="kw">fn </span>from(e: mpz_garble::ProveError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(ErrorKind::Mpc, e)
+<span class="kw">impl </span>From&lt;EncodingError&gt; <span class="kw">for </span>ProverError {
+    <span class="kw">fn </span>from(e: EncodingError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new(ErrorKind::Commit, e)
     }
 }
 </code></pre></div></section></main></body></html>

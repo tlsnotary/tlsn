@@ -535,7 +535,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use crate</span>::{
-        fixtures::{encoder_seed, encoding_provider},
+        fixtures::{encoder_secret, encoding_provider},
         hash::Blake3,
         transcript::encoding::EncodingCommitment,
         CryptoProvider,
@@ -572,7 +572,7 @@
 
         <span class="kw">let </span>commitment = EncodingCommitment {
             root: tree.root(),
-            seed: encoder_seed().to_vec(),
+            secret: encoder_secret(),
         };
 
         <span class="kw">let </span>partial_transcript = proof
@@ -609,7 +609,7 @@
 
         <span class="kw">let </span>commitment = EncodingCommitment {
             root: tree.root(),
-            seed: encoder_seed().to_vec(),
+            secret: encoder_secret(),
         };
 
         <span class="kw">let </span>partial_transcript = proof

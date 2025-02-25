@@ -124,14 +124,27 @@
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a></pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier state.
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a></pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier state.
 
-</span><span class="kw">use </span>tls_mpc::MpcTlsFollower;
+</span><span class="kw">use </span>std::sync::Arc;
+
+<span class="kw">use crate</span>::{Mpc, Zk};
+<span class="kw">use </span>mpc_tls::{MpcTlsFollower, SessionKeys};
+<span class="kw">use </span>mpz_common::{context::Multithread, Context};
+<span class="kw">use </span>mpz_memory_core::correlated::Delta;
 <span class="kw">use </span>tlsn_common::{
     mux::{MuxControl, MuxFuture},
-    Context, DEAPThread, Io, OTSender,
+    transcript::TranscriptRefs,
+    zk_aes::ZkAesCtr,
 };
 <span class="kw">use </span>tlsn_core::connection::{ConnectionInfo, ServerEphemKey};
+<span class="kw">use </span>tlsn_deap::Deap;
+<span class="kw">use </span>tokio::sync::Mutex;
 
 <span class="doccomment">/// TLS Verifier state.
 </span><span class="kw">pub trait </span>VerifierState: sealed::Sealed {}
@@ -143,48 +156,44 @@
 
 <span class="doccomment">/// State after MPC setup has completed.
 </span><span class="kw">pub struct </span>Setup {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
-
+    <span class="kw">pub</span>(<span class="kw">crate</span>) mt: Multithread,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) delta: Delta,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mpc_tls: MpcTlsFollower,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) encoder_seed: [u8; <span class="number">32</span>],
+    <span class="kw">pub</span>(<span class="kw">crate</span>) zk_aes: ZkAesCtr,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) _keys: SessionKeys,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: Arc&lt;Mutex&lt;Deap&lt;Mpc, Zk&gt;&gt;&gt;,
 }
 
 <span class="doccomment">/// State after the TLS connection has been closed.
 </span><span class="kw">pub struct </span>Closed {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) mt: Multithread,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) delta: Delta,
     <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) encoder_seed: [u8; <span class="number">32</span>],
+    <span class="kw">pub</span>(<span class="kw">crate</span>) keys: SessionKeys,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: Zk,
     <span class="kw">pub</span>(<span class="kw">crate</span>) server_ephemeral_key: ServerEphemKey,
     <span class="kw">pub</span>(<span class="kw">crate</span>) connection_info: ConnectionInfo,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) transcript_refs: TranscriptRefs,
 }
 
 <span class="macro">opaque_debug::implement!</span>(Closed);
 
 <span class="doccomment">/// Notarizing state.
 </span><span class="kw">pub struct </span>Notarize {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) _mt: Multithread,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) delta: Delta,
     <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) encoder_seed: [u8; <span class="number">32</span>],
+    <span class="kw">pub</span>(<span class="kw">crate</span>) _keys: SessionKeys,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: Zk,
     <span class="kw">pub</span>(<span class="kw">crate</span>) server_ephemeral_key: ServerEphemKey,
     <span class="kw">pub</span>(<span class="kw">crate</span>) connection_info: ConnectionInfo,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) transcript_refs: TranscriptRefs,
 }
 
 <span class="macro">opaque_debug::implement!</span>(Notarize);
@@ -192,31 +201,31 @@
 <span class="kw">impl </span>From&lt;Closed&gt; <span class="kw">for </span>Notarize {
     <span class="kw">fn </span>from(value: Closed) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
-            vm: value.vm,
-            ot_send: value.ot_send,
+            _mt: value.mt,
+            delta: value.delta,
             ctx: value.ctx,
-            encoder_seed: value.encoder_seed,
+            _keys: value.keys,
+            vm: value.vm,
             server_ephemeral_key: value.server_ephemeral_key,
             connection_info: value.connection_info,
+            transcript_refs: value.transcript_refs,
         }
     }
 }
 
 <span class="doccomment">/// Verifying state.
 </span><span class="kw">pub struct </span>Verify {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) io: Io,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_ctrl: MuxControl,
     <span class="kw">pub</span>(<span class="kw">crate</span>) mux_fut: MuxFuture,
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: DEAPThread,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) ot_send: OTSender,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) _mt: Multithread,
     <span class="kw">pub</span>(<span class="kw">crate</span>) ctx: Context,
-
+    <span class="kw">pub</span>(<span class="kw">crate</span>) _keys: SessionKeys,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) vm: Zk,
     <span class="kw">pub</span>(<span class="kw">crate</span>) server_ephemeral_key: ServerEphemKey,
     <span class="kw">pub</span>(<span class="kw">crate</span>) connection_info: ConnectionInfo,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) transcript_refs: TranscriptRefs,
 }
 
 <span class="macro">opaque_debug::implement!</span>(Verify);
@@ -224,14 +233,15 @@
 <span class="kw">impl </span>From&lt;Closed&gt; <span class="kw">for </span>Verify {
     <span class="kw">fn </span>from(value: Closed) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
-            vm: value.vm,
-            ot_send: value.ot_send,
+            _mt: value.mt,
             ctx: value.ctx,
+            _keys: value.keys,
+            vm: value.vm,
             server_ephemeral_key: value.server_ephemeral_key,
             connection_info: value.connection_info,
+            transcript_refs: value.transcript_refs,
         }
     }
 }

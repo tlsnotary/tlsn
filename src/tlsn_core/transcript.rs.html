@@ -968,23 +968,7 @@
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript types.
+<a href="#970" id="970">970</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript types.
 //!
 //! All application data communicated over a TLS connection is referred to as a
 //! [`Transcript`]. A transcript is essentially just two vectors of bytes, each
@@ -1037,11 +1021,6 @@
 <span class="kw">pub use </span>proof::{
     TranscriptProof, TranscriptProofBuilder, TranscriptProofBuilderError, TranscriptProofError,
 };
-
-<span class="doccomment">/// Sent data transcript ID.
-</span><span class="kw">pub static </span>TX_TRANSCRIPT_ID: <span class="kw-2">&amp;</span>str = <span class="string">"tx"</span>;
-<span class="doccomment">/// Received data transcript ID.
-</span><span class="kw">pub static </span>RX_TRANSCRIPT_ID: <span class="kw-2">&amp;</span>str = <span class="string">"rx"</span>;
 
 <span class="doccomment">/// A transcript contains all the data communicated over a TLS connection.
 </span><span class="attr">#[derive(Clone, Serialize, Deserialize)]
@@ -1574,17 +1553,6 @@
 #[error(<span class="string">"invalid subsequence: {0}"</span>)]
 </span><span class="kw">pub struct </span>InvalidSubsequence(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str);
 
-<span class="doccomment">/// Returns the value ID for each byte in the provided range set.
-</span><span class="attr">#[doc(hidden)]
-</span><span class="kw">pub fn </span>get_value_ids(direction: Direction, idx: <span class="kw-2">&amp;</span>Idx) -&gt; <span class="kw">impl </span>Iterator&lt;Item = String&gt; + <span class="lifetime">'_ </span>{
-    <span class="kw">let </span>id = <span class="kw">match </span>direction {
-        Direction::Sent =&gt; TX_TRANSCRIPT_ID,
-        Direction::Received =&gt; RX_TRANSCRIPT_ID,
-    };
-
-    idx.iter().map(<span class="kw">move </span>|idx| <span class="macro">format!</span>(<span class="string">"{}/{}"</span>, id, idx))
-}
-
 <span class="kw">mod </span>validation {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -1702,7 +1670,7 @@
                 .sent_idx
                 .<span class="number">0
                 </span>.iter_ranges()
-                .last()
+                .next_back()
                 .unwrap()
                 .end;
 

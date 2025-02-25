@@ -25,32 +25,28 @@
 <a href="#24" id="24">24</a>
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a></pre></div><pre class="rust"><code><span class="kw">use </span>mpz_garble_core::ChaChaEncoder;
-
-<span class="kw">use </span><span class="kw">crate</span>::transcript::{
-    encoding::{Encoder, EncodingProvider},
+<a href="#27" id="27">27</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::transcript::{
+    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider},
     Direction, Idx, Transcript,
 };
 
-<span class="doccomment">/// A ChaCha encoding provider fixture.
-</span><span class="kw">pub struct </span>ChaChaProvider {
-    encoder: ChaChaEncoder,
+<span class="doccomment">/// A encoding provider fixture.
+</span><span class="kw">pub struct </span>FixtureEncodingProvider {
+    encoder: Box&lt;<span class="kw">dyn </span>Encoder&gt;,
     transcript: Transcript,
 }
 
-<span class="kw">impl </span>ChaChaProvider {
-    <span class="doccomment">/// Creates a new ChaCha encoding provider.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(seed: [u8; <span class="number">32</span>], transcript: Transcript) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>FixtureEncodingProvider {
+    <span class="doccomment">/// Creates a new encoding provider fixture.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(secret: <span class="kw-2">&amp;</span>EncoderSecret, transcript: Transcript) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            encoder: ChaChaEncoder::new(seed),
+            encoder: Box::new(new_encoder(secret)),
             transcript,
         }
     }
 }
 
-<span class="kw">impl </span>EncodingProvider <span class="kw">for </span>ChaChaProvider {
+<span class="kw">impl </span>EncodingProvider <span class="kw">for </span>FixtureEncodingProvider {
     <span class="kw">fn </span>provide_encoding(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction, idx: <span class="kw-2">&amp;</span>Idx) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; {
         <span class="kw">let </span>seq = <span class="self">self</span>.transcript.get(direction, idx)<span class="question-mark">?</span>;
         <span class="prelude-val">Some</span>(<span class="self">self</span>.encoder.encode_subsequence(direction, <span class="kw-2">&amp;</span>seq))

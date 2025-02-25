@@ -57,54 +57,9 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#59" id="59">59</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>mpz_ot::{chou_orlandi, kos};
-<span class="kw">use </span>tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig, TranscriptConfig};
+<span class="kw">use </span>mpc_tls::Config;
 <span class="kw">use </span>tlsn_common::config::ProtocolConfig;
 <span class="kw">use </span>tlsn_core::{connection::ServerName, CryptoProvider};
 
@@ -118,8 +73,6 @@
     </span>protocol_config: ProtocolConfig,
     <span class="doccomment">/// Whether the `deferred decryption` feature is toggled on from the start
     /// of the MPC-TLS connection.
-    ///
-    /// See `defer_decryption_from_start` in [tls_mpc::MpcTlsLeaderConfig].
     </span><span class="attr">#[builder(default = <span class="string">"true"</span>)]
     </span>defer_decryption_from_start: bool,
     <span class="doccomment">/// Cryptography provider.
@@ -154,52 +107,11 @@
         <span class="self">self</span>.defer_decryption_from_start
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_mpc_tls_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MpcTlsLeaderConfig {
-        MpcTlsLeaderConfig::builder()
-            .common(
-                MpcTlsCommonConfig::builder()
-                    .tx_config(
-                        TranscriptConfig::default_tx()
-                            .max_online_size(<span class="self">self</span>.protocol_config.max_sent_data())
-                            .build()
-                            .unwrap(),
-                    )
-                    .rx_config(
-                        TranscriptConfig::default_rx()
-                            .max_online_size(<span class="self">self</span>.protocol_config.max_recv_data_online())
-                            .max_offline_size(
-                                <span class="self">self</span>.protocol_config.max_recv_data()
-                                    - <span class="self">self</span>.protocol_config.max_recv_data_online(),
-                            )
-                            .build()
-                            .unwrap(),
-                    )
-                    .handshake_commit(<span class="bool-val">true</span>)
-                    .build()
-                    .unwrap(),
-            )
-            .build()
-            .unwrap()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_base_ot_sender_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; chou_orlandi::SenderConfig {
-        chou_orlandi::SenderConfig::builder()
-            .receiver_commit()
-            .build()
-            .unwrap()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_base_ot_receiver_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; chou_orlandi::ReceiverConfig {
-        chou_orlandi::ReceiverConfig::default()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_ot_sender_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; kos::SenderConfig {
-        kos::SenderConfig::default()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_ot_receiver_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; kos::ReceiverConfig {
-        kos::ReceiverConfig::builder()
-            .sender_commit()
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_mpc_tls_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Config {
+        Config::builder()
+            .defer_decryption(<span class="self">self</span>.defer_decryption_from_start)
+            .max_sent(<span class="self">self</span>.protocol_config.max_sent_data())
+            .max_recv_online(<span class="self">self</span>.protocol_config.max_recv_data_online())
             .build()
             .unwrap()
     }

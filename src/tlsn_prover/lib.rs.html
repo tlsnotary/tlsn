@@ -417,13 +417,7 @@
 <a href="#416" id="416">416</a>
 <a href="#417" id="417">417</a>
 <a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a></pre></div><pre class="rust"><code><span class="doccomment">//! TLSNotary prover library.
+<a href="#419" id="419">419</a></pre></div><pre class="rust"><code><span class="doccomment">//! TLSNotary prover library.
 
 </span><span class="attr">#![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -439,21 +433,20 @@
 <span class="kw">pub use </span>config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 <span class="kw">pub use </span>error::ProverError;
 <span class="kw">pub use </span>future::ProverFuture;
+<span class="kw">use </span>mpz_common::Context;
+<span class="kw">use </span>mpz_garble_core::Delta;
 <span class="kw">use </span>state::{Notarize, Prove};
 
 <span class="kw">use </span>futures::{AsyncRead, AsyncWrite, TryFutureExt};
-<span class="kw">use </span>mpz_common::Allocate;
-<span class="kw">use </span>mpz_garble::config::Role <span class="kw">as </span>DEAPRole;
-<span class="kw">use </span>mpz_ot::{chou_orlandi, kos};
-<span class="kw">use </span>rand::Rng;
-<span class="kw">use </span>serio::{SinkExt, StreamExt};
+<span class="kw">use </span>mpc_tls::{LeaderCtrl, MpcTlsLeader};
+<span class="kw">use </span>rand::{thread_rng, Rng};
+<span class="kw">use </span>serio::SinkExt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>tls_client::{ClientConnection, ServerName <span class="kw">as </span>TlsServerName};
-<span class="kw">use </span>tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-<span class="kw">use </span>tls_mpc::{build_components, LeaderCtrl, MpcTlsLeader, TlsRole};
+<span class="kw">use </span>tls_client_async::{bind_client, TlsConnection};
+<span class="kw">use </span>tls_core::msgs::enums::ContentType;
 <span class="kw">use </span>tlsn_common::{
-    mux::{attach_mux, MuxControl},
-    DEAPThread, Executor, OTReceiver, OTSender, Role,
+    commit::commit_records, context::build_mt_context, mux::attach_mux, zk_aes::ZkAesCtr, Role,
 };
 <span class="kw">use </span>tlsn_core::{
     connection::{
@@ -462,9 +455,23 @@
     },
     transcript::Transcript,
 };
-<span class="kw">use </span>uid_mux::FramedUidMux <span class="kw">as _</span>;
+<span class="kw">use </span>tlsn_deap::Deap;
+<span class="kw">use </span>tokio::sync::Mutex;
 
 <span class="kw">use </span>tracing::{debug, info_span, instrument, Instrument, Span};
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender&lt;
+    mpz_ot::kos::Sender&lt;mpz_ot::chou_orlandi::Receiver&gt;,
+    mpz_core::Block,
+&gt;;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver&lt;
+    mpz_ot::ferret::Receiver&lt;mpz_ot::kos::Receiver&lt;mpz_ot::chou_orlandi::Sender&gt;&gt;,
+    bool,
+    mpz_core::Block,
+&gt;;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>Mpc =
+    mpz_garble::protocol::semihonest::Generator&lt;mpz_ot::cot::DerandCOTSender&lt;RCOTSender&gt;&gt;;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>Zk = mpz_zk::Prover&lt;RCOTReceiver&gt;;
 
 <span class="doccomment">/// A prover instance.
 </span><span class="attr">#[derive(Debug)]
@@ -503,37 +510,43 @@
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Prover&lt;state::Setup&gt;, ProverError&gt; {
         <span class="kw">let </span>(<span class="kw-2">mut </span>mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>io = mux_fut
-            .poll_with(mux_ctrl.open_framed(<span class="string">b"tlsnotary"</span>))
-            .<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>mt = build_mt_context(mux_ctrl.clone());
+        <span class="kw">let </span><span class="kw-2">mut </span>ctx = mux_fut.poll_with(mt.new_context()).<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="comment">// Sends protocol configuration to verifier for compatibility check.
         </span>mux_fut
-            .poll_with(io.send(<span class="self">self</span>.config.protocol_config().clone()))
+            .poll_with(ctx.io_mut().send(<span class="self">self</span>.config.protocol_config().clone()))
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="comment">// Maximum thread forking concurrency of 8.
-        // TODO: Determine the optimal number of threads.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>exec = Executor::new(mux_ctrl.clone(), <span class="number">8</span>);
+        <span class="kw">let </span>(vm, <span class="kw-2">mut </span>mpc_tls) = build_mpc_tls(<span class="kw-2">&amp;</span><span class="self">self</span>.config, ctx);
 
-        <span class="kw">let </span>(mpc_tls, vm, ot_recv) = mux_fut
-            .poll_with(setup_mpc_backend(<span class="kw-2">&amp;</span><span class="self">self</span>.config, <span class="kw-2">&amp;</span>mux_ctrl, <span class="kw-2">&amp;mut </span>exec))
-            .<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="comment">// Allocate resources for MPC-TLS in VM.
+        </span><span class="kw">let </span>keys = mpc_tls.alloc()<span class="question-mark">?</span>;
+        <span class="comment">// Allocate for committing to plaintext.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>zk_aes = ZkAesCtr::new(Role::Prover);
+        zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes.alloc(
+            <span class="kw-2">&amp;mut </span>(<span class="kw-2">*</span>vm.try_lock().expect(<span class="string">"VM is not locked"</span>).zk()),
+            <span class="self">self</span>.config.protocol_config().max_recv_data(),
+        )<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>ctx = mux_fut.poll_with(exec.new_thread()).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="macro">debug!</span>(<span class="string">"setting up mpc-tls"</span>);
+
+        mux_fut.poll_with(mpc_tls.preprocess()).<span class="kw">await</span><span class="question-mark">?</span>;
+
+        <span class="macro">debug!</span>(<span class="string">"mpc-tls setup complete"</span>);
 
         <span class="prelude-val">Ok</span>(Prover {
             config: <span class="self">self</span>.config,
             span: <span class="self">self</span>.span,
             state: state::Setup {
-                io,
                 mux_ctrl,
                 mux_fut,
+                mt,
                 mpc_tls,
+                zk_aes,
+                keys,
                 vm,
-                ot_recv,
-                ctx,
             },
         })
     }
@@ -554,13 +567,13 @@
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(TlsConnection, ProverFuture), ProverError&gt; {
         <span class="kw">let </span>state::Setup {
-            io,
             mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
+            mt,
             mpc_tls,
+            <span class="kw-2">mut </span>zk_aes,
+            keys,
             vm,
-            ot_recv,
-            ctx,
         } = <span class="self">self</span>.state;
 
         <span class="kw">let </span>(mpc_ctrl, mpc_fut) = mpc_tls.run();
@@ -583,79 +596,122 @@
 
         <span class="kw">let </span>(conn, conn_fut) = bind_client(socket, client);
 
-        <span class="kw">let </span>start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+        <span class="kw">let </span>start_time = web_time::UNIX_EPOCH
+            .elapsed()
+            .expect(<span class="string">"system time is available"</span>)
+            .as_secs();
 
         <span class="kw">let </span>fut = Box::pin({
             <span class="kw">let </span>span = <span class="self">self</span>.span.clone();
             <span class="kw">let </span>mpc_ctrl = mpc_ctrl.clone();
             <span class="kw">async move </span>{
                 <span class="kw">let </span>conn_fut = <span class="kw">async </span>{
-                    <span class="kw">let </span>ClosedConnection { sent, recv, .. } = mux_fut
+                    mux_fut
                         .poll_with(conn_fut.map_err(ProverError::from))
                         .<span class="kw">await</span><span class="question-mark">?</span>;
 
-                    mpc_ctrl.close_connection().<span class="kw">await</span><span class="question-mark">?</span>;
+                    mpc_ctrl.stop().<span class="kw">await</span><span class="question-mark">?</span>;
 
-                    <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;((sent, recv))
+                    <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;(())
                 };
 
-                <span class="kw">let </span>((sent, recv), mpc_tls_data) = <span class="macro">futures::try_join!</span>(
+                <span class="kw">let </span>(<span class="kw">_</span>, (<span class="kw-2">mut </span>ctx, <span class="kw-2">mut </span>data)) = <span class="macro">futures::try_join!</span>(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )<span class="question-mark">?</span>;
 
+                {
+                    <span class="kw">let </span><span class="kw-2">mut </span>vm = vm.try_lock().expect(<span class="string">"VM should not be locked"</span>);
+
+                    <span class="comment">// Prove received plaintext. Prover drops the proof output, as they trust
+                    // themselves.
+                    </span><span class="kw">_ </span>= commit_records(
+                        <span class="kw-2">&amp;mut </span>(<span class="kw-2">*</span>vm.zk()),
+                        <span class="kw-2">&amp;mut </span>zk_aes,
+                        data.transcript
+                            .recv
+                            .iter_mut()
+                            .filter(|record| record.typ == ContentType::ApplicationData),
+                    )
+                    .map_err(ProverError::zk)<span class="question-mark">?</span>;
+
+                    <span class="macro">debug!</span>(<span class="string">"finalizing mpc"</span>);
+
+                    <span class="comment">// Finalize DEAP and execute the plaintext proofs.
+                    </span>mux_fut
+                        .poll_with(vm.finalize(<span class="kw-2">&amp;mut </span>ctx))
+                        .<span class="kw">await
+                        </span>.map_err(ProverError::mpc)<span class="question-mark">?</span>;
+
+                    <span class="macro">debug!</span>(<span class="string">"mpc finalized"</span>);
+                }
+
+                <span class="kw">let </span>transcript = data
+                    .transcript
+                    .to_transcript()
+                    .expect(<span class="string">"transcript is complete"</span>);
+                <span class="kw">let </span>transcript_refs = data
+                    .transcript
+                    .to_transcript_refs()
+                    .expect(<span class="string">"transcript is complete"</span>);
+
                 <span class="kw">let </span>connection_info = ConnectionInfo {
                     time: start_time,
-                    version: mpc_tls_data
+                    version: data
                         .protocol_version
                         .try_into()
                         .expect(<span class="string">"only supported version should have been accepted"</span>),
                     transcript_length: TranscriptLength {
-                        sent: sent.len() <span class="kw">as </span>u32,
-                        received: recv.len() <span class="kw">as </span>u32,
+                        sent: transcript.sent().len() <span class="kw">as </span>u32,
+                        received: transcript.received().len() <span class="kw">as </span>u32,
                     },
                 };
 
-                <span class="kw">let </span>server_cert_data = ServerCertData {
-                    certs: mpc_tls_data
-                        .server_cert_details
-                        .cert_chain()
-                        .iter()
-                        .cloned()
-                        .map(|c| c.into())
-                        .collect(),
-                    sig: ServerSignature {
-                        scheme: mpc_tls_data
-                            .server_kx_details
-                            .kx_sig()
-                            .scheme
-                            .try_into()
-                            .expect(<span class="string">"only supported signature scheme should have been accepted"</span>),
-                        sig: mpc_tls_data.server_kx_details.kx_sig().sig.<span class="number">0</span>.clone(),
-                    },
-                    handshake: HandshakeData::V1_2(HandshakeDataV1_2 {
-                        client_random: mpc_tls_data.client_random.<span class="number">0</span>,
-                        server_random: mpc_tls_data.server_random.<span class="number">0</span>,
-                        server_ephemeral_key: mpc_tls_data
-                            .server_public_key
-                            .try_into()
-                            .expect(<span class="string">"only supported key scheme should have been accepted"</span>),
-                    }),
-                };
+                <span class="kw">let </span>server_cert_data =
+                    ServerCertData {
+                        certs: data
+                            .server_cert_details
+                            .cert_chain()
+                            .iter()
+                            .cloned()
+                            .map(|c| c.into())
+                            .collect(),
+                        sig: ServerSignature {
+                            scheme: data.server_kx_details.kx_sig().scheme.try_into().expect(
+                                <span class="string">"only supported signature scheme should have been accepted"</span>,
+                            ),
+                            sig: data.server_kx_details.kx_sig().sig.<span class="number">0</span>.clone(),
+                        },
+                        handshake: HandshakeData::V1_2(HandshakeDataV1_2 {
+                            client_random: data.client_random.<span class="number">0</span>,
+                            server_random: data.server_random.<span class="number">0</span>,
+                            server_ephemeral_key: data
+                                .server_key
+                                .try_into()
+                                .expect(<span class="string">"only supported key scheme should have been accepted"</span>),
+                        }),
+                    };
+
+                <span class="comment">// Pull out ZK VM
+                </span><span class="kw">let </span>(<span class="kw">_</span>, vm) = Arc::into_inner(vm)
+                    .expect(<span class="string">"vm should have only 1 reference"</span>)
+                    .into_inner()
+                    .into_inner();
 
                 <span class="prelude-val">Ok</span>(Prover {
                     config: <span class="self">self</span>.config,
                     span: <span class="self">self</span>.span,
                     state: state::Closed {
-                        io,
                         mux_ctrl,
                         mux_fut,
-                        vm,
-                        ot_recv,
+                        mt,
                         ctx,
+                        _keys: keys,
+                        vm,
                         connection_info,
                         server_cert_data,
-                        transcript: Transcript::new(sent, recv),
+                        transcript,
+                        transcript_refs,
                     },
                 })
             }
@@ -704,123 +760,55 @@
     }
 }
 
-<span class="doccomment">/// Performs a setup of the various MPC subprotocols.
-</span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip_all, err)]
-</span><span class="kw">async fn </span>setup_mpc_backend(
-    config: <span class="kw-2">&amp;</span>ProverConfig,
-    mux: <span class="kw-2">&amp;</span>MuxControl,
-    exec: <span class="kw-2">&amp;mut </span>Executor,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(MpcTlsLeader, DEAPThread, OTReceiver), ProverError&gt; {
-    <span class="macro">debug!</span>(<span class="string">"starting MPC backend setup"</span>);
+<span class="kw">fn </span>build_mpc_tls(config: <span class="kw-2">&amp;</span>ProverConfig, ctx: Context) -&gt; (Arc&lt;Mutex&lt;Deap&lt;Mpc, Zk&gt;&gt;&gt;, MpcTlsLeader) {
+    <span class="kw">let </span><span class="kw-2">mut </span>rng = thread_rng();
+    <span class="kw">let </span>delta = Delta::new(rng.gen());
 
-    <span class="kw">let </span><span class="kw-2">mut </span>ot_sender = kos::Sender::new(
-        config.build_ot_sender_config(),
-        chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
+    <span class="kw">let </span>base_ot_send = mpz_ot::chou_orlandi::Sender::default();
+    <span class="kw">let </span>base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
+    <span class="kw">let </span>rcot_send = mpz_ot::kos::Sender::new(
+        mpz_ot::kos::SenderConfig::default(),
+        delta.into_inner(),
+        base_ot_recv,
     );
-    ot_sender.alloc(config.protocol_config().ot_sender_setup_count(Role::Prover));
-
-    <span class="kw">let </span><span class="kw-2">mut </span>ot_receiver = kos::Receiver::new(
-        config.build_ot_receiver_config(),
-        chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
-    );
-    ot_receiver.alloc(
-        config
-            .protocol_config()
-            .ot_receiver_setup_count(Role::Prover),
+    <span class="kw">let </span>rcot_recv =
+        mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
+    <span class="kw">let </span>rcot_recv = mpz_ot::ferret::Receiver::new(
+        mpz_ot::ferret::FerretConfig::builder()
+            .lpn_type(mpz_ot::ferret::LpnType::Regular)
+            .build()
+            .expect(<span class="string">"ferret config is valid"</span>),
+        rng.gen(),
+        rcot_recv,
     );
 
-    <span class="kw">let </span>ot_sender = OTSender::new(ot_sender);
-    <span class="kw">let </span>ot_receiver = OTReceiver::new(ot_receiver);
+    <span class="kw">let </span><span class="kw-2">mut </span>rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(<span class="number">4</span>, rcot_send);
+    <span class="kw">let </span><span class="kw-2">mut </span>rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(<span class="number">2</span>, rcot_recv);
 
-    <span class="kw">let </span>(
-        ctx_vm,
-        ctx_ke_0,
-        ctx_ke_1,
-        ctx_prf_0,
-        ctx_prf_1,
-        ctx_encrypter_block_cipher,
-        ctx_encrypter_stream_cipher,
-        ctx_encrypter_ghash,
-        ctx_encrypter,
-        ctx_decrypter_block_cipher,
-        ctx_decrypter_stream_cipher,
-        ctx_decrypter_ghash,
-        ctx_decrypter,
-    ) = <span class="macro">futures::try_join!</span>(
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-    )<span class="question-mark">?</span>;
-
-    <span class="kw">let </span>vm = DEAPThread::new(
-        DEAPRole::Leader,
-        rand::rngs::OsRng.gen(),
-        ctx_vm,
-        ot_sender.clone(),
-        ot_receiver.clone(),
+    <span class="kw">let </span>mpc = Mpc::new(
+        mpz_ot::cot::DerandCOTSender::new(rcot_send.next().expect(<span class="string">"enough senders are available"</span>)),
+        rng.gen(),
+        delta,
     );
 
-    <span class="kw">let </span>mpc_tls_config = config.build_mpc_tls_config();
-    <span class="kw">let </span>(ke, prf, encrypter, decrypter) = build_components(
-        TlsRole::Leader,
-        mpc_tls_config.common(),
-        ctx_ke_0,
-        ctx_encrypter,
-        ctx_decrypter,
-        ctx_encrypter_ghash,
-        ctx_decrypter_ghash,
-        vm.new_thread(ctx_ke_1, ot_sender.clone(), ot_receiver.clone())<span class="question-mark">?</span>,
-        vm.new_thread(ctx_prf_0, ot_sender.clone(), ot_receiver.clone())<span class="question-mark">?</span>,
-        vm.new_thread(ctx_prf_1, ot_sender.clone(), ot_receiver.clone())<span class="question-mark">?</span>,
-        vm.new_thread(
-            ctx_encrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )<span class="question-mark">?</span>,
-        vm.new_thread(
-            ctx_decrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )<span class="question-mark">?</span>,
-        vm.new_thread(
-            ctx_encrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )<span class="question-mark">?</span>,
-        vm.new_thread(
-            ctx_decrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )<span class="question-mark">?</span>,
-        ot_sender.clone(),
-        ot_receiver.clone(),
-    );
+    <span class="kw">let </span>zk = Zk::new(rcot_recv.next().expect(<span class="string">"enough receivers are available"</span>));
 
-    <span class="kw">let </span>channel = mux.open_framed(<span class="string">b"mpc_tls"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>mpc_tls = MpcTlsLeader::new(
-        mpc_tls_config,
-        Box::new(StreamExt::compat_stream(channel)),
-        ke,
-        prf,
-        encrypter,
-        decrypter,
-    );
+    <span class="kw">let </span>vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
 
-    mpc_tls.setup().<span class="kw">await</span><span class="question-mark">?</span>;
-
-    <span class="macro">debug!</span>(<span class="string">"MPC backend setup complete"</span>);
-
-    <span class="prelude-val">Ok</span>((mpc_tls, vm, ot_receiver))
+    (
+        vm.clone(),
+        MpcTlsLeader::new(
+            config.build_mpc_tls_config(),
+            ctx,
+            vm,
+            (
+                rcot_send.next().expect(<span class="string">"enough senders are available"</span>),
+                rcot_send.next().expect(<span class="string">"enough senders are available"</span>),
+                rcot_send.next().expect(<span class="string">"enough senders are available"</span>),
+            ),
+            rcot_recv.next().expect(<span class="string">"enough receivers are available"</span>),
+        ),
+    )
 }
 
 <span class="doccomment">/// A controller for the prover.

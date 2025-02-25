@@ -477,7 +477,8 @@
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 
 <span class="kw">use </span>rand::{thread_rng, Rng};
 
@@ -491,6 +492,7 @@
     request::Request,
     serialize::CanonicalSerialize,
     signing::SignatureAlgId,
+    transcript::encoding::EncoderSecret,
     CryptoProvider,
 };
 
@@ -504,7 +506,7 @@
     server_ephemeral_key: <span class="prelude-ty">Option</span>&lt;ServerEphemKey&gt;,
     cert_commitment: ServerCertCommitment,
     encoding_commitment_root: <span class="prelude-ty">Option</span>&lt;TypedHash&gt;,
-    encoding_seed: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;,
+    encoder_secret: <span class="prelude-ty">Option</span>&lt;EncoderSecret&gt;,
 }
 
 <span class="doccomment">/// An attestation builder.
@@ -570,7 +572,7 @@
                 server_ephemeral_key: <span class="prelude-val">None</span>,
                 cert_commitment,
                 encoding_commitment_root,
-                encoding_seed: <span class="prelude-val">None</span>,
+                encoder_secret: <span class="prelude-val">None</span>,
             },
         })
     }
@@ -589,9 +591,9 @@
         <span class="self">self
     </span>}
 
-    <span class="doccomment">/// Sets the encoding seed.
-    </span><span class="kw">pub fn </span>encoding_seed(<span class="kw-2">&amp;mut </span><span class="self">self</span>, seed: Vec&lt;u8&gt;) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.state.encoding_seed = <span class="prelude-val">Some</span>(seed);
+    <span class="doccomment">/// Sets the encoder secret.
+    </span><span class="kw">pub fn </span>encoder_secret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, secret: EncoderSecret) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="self">self</span>.state.encoder_secret = <span class="prelude-val">Some</span>(secret);
         <span class="self">self
     </span>}
 
@@ -604,7 +606,7 @@
             server_ephemeral_key,
             cert_commitment,
             encoding_commitment_root,
-            encoding_seed,
+            encoder_secret,
         } = <span class="self">self</span>.state;
 
         <span class="kw">let </span>hasher = provider.hash.get(<span class="kw-2">&amp;</span>hash_alg).map_err(|<span class="kw">_</span>| {
@@ -623,14 +625,14 @@
         })<span class="question-mark">?</span>;
 
         <span class="kw">let </span>encoding_commitment = <span class="kw">if let </span><span class="prelude-val">Some</span>(root) = encoding_commitment_root {
-            <span class="kw">let </span><span class="prelude-val">Some</span>(seed) = encoding_seed <span class="kw">else </span>{
+            <span class="kw">let </span><span class="prelude-val">Some</span>(secret) = encoder_secret <span class="kw">else </span>{
                 <span class="kw">return </span><span class="prelude-val">Err</span>(AttestationBuilderError::new(
                     ErrorKind::Field,
-                    <span class="string">"encoding commitment requested but seed was not set"</span>,
+                    <span class="string">"encoding commitment requested but encoder_secret was not set"</span>,
                 ));
             };
 
-            <span class="prelude-val">Some</span>(EncodingCommitment { root, seed })
+            <span class="prelude-val">Some</span>(EncodingCommitment { root, secret })
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>};
@@ -725,7 +727,7 @@
     <span class="kw">use crate</span>::{
         connection::{HandshakeData, HandshakeDataV1_2},
         fixtures::{
-            encoder_seed, encoding_provider, request_fixture, ConnectionFixture, RequestFixture,
+            encoder_secret, encoding_provider, request_fixture, ConnectionFixture, RequestFixture,
         },
         hash::Blake3,
         transcript::Transcript,
@@ -914,7 +916,7 @@
 
         attestation_builder
             .connection_info(connection_info)
-            .encoding_seed(encoder_seed().to_vec());
+            .encoder_secret(encoder_secret());
 
         <span class="kw">let </span>err = attestation_builder.build(crypto_provider).err().unwrap();
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(err.kind, ErrorKind::Field));
@@ -950,7 +952,7 @@
 
         attestation_builder
             .server_ephemeral_key(server_ephemeral_key)
-            .encoding_seed(encoder_seed().to_vec());
+            .encoder_secret(encoder_secret());
 
         <span class="kw">let </span>err = attestation_builder.build(crypto_provider).err().unwrap();
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(err.kind, ErrorKind::Field));

@@ -822,7 +822,7 @@
 
     <span class="kw">use crate</span>::{
         fixtures::{
-            attestation_fixture, encoder_seed, encoding_provider, request_fixture,
+            attestation_fixture, encoder_secret, encoding_provider, request_fixture,
             ConnectionFixture, RequestFixture,
         },
         hash::Blake3,
@@ -909,7 +909,7 @@
             request,
             connection,
             SignatureAlgId::SECP256K1,
-            encoder_seed().to_vec(),
+            encoder_secret(),
         );
 
         <span class="kw">let </span>provider = CryptoProvider::default();

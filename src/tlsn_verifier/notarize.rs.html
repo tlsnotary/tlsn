@@ -77,20 +77,30 @@
 <a href="#76" id="76">76</a>
 <a href="#77" id="77">77</a>
 <a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the notarization phase of the verifier.
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module handles the notarization phase of the verifier.
 //!
 //! The TLS verifier acts as a Notary, i.e. the verifier produces an
 //! attestation but does not verify transcript data.
 
 </span><span class="kw">use super</span>::{state::Notarize, Verifier, VerifierError};
-<span class="kw">use </span>mpz_ot::CommittedOTSender;
+<span class="kw">use </span>rand::{thread_rng, Rng};
 <span class="kw">use </span>serio::{stream::IoStreamExt, SinkExt <span class="kw">as _</span>};
 
+<span class="kw">use </span>tlsn_common::encoding;
 <span class="kw">use </span>tlsn_core::{
     attestation::{Attestation, AttestationConfig},
     request::Request,
+    transcript::encoding::EncoderSecret,
 };
-<span class="kw">use </span>tracing::{debug, info, instrument};
+<span class="kw">use </span>tracing::{info, instrument};
 
 <span class="kw">impl </span>Verifier&lt;Notarize&gt; {
     <span class="doccomment">/// Notarizes the TLS session.
@@ -101,31 +111,37 @@
     </span><span class="attr">#[instrument(parent = <span class="kw-2">&amp;</span><span class="self">self</span>.span, level = <span class="string">"debug"</span>, skip_all, err)]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>, config: <span class="kw-2">&amp;</span>AttestationConfig) -&gt; <span class="prelude-ty">Result</span>&lt;Attestation, VerifierError&gt; {
         <span class="kw">let </span>Notarize {
-            <span class="kw-2">mut </span>io,
             mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
-            <span class="kw-2">mut </span>vm,
-            <span class="kw-2">mut </span>ot_send,
+            delta,
             <span class="kw-2">mut </span>ctx,
-            encoder_seed,
+            vm,
             server_ephemeral_key,
             connection_info,
+            transcript_refs,
+            ..
         } = <span class="self">self</span>.state;
+
+        <span class="kw">let </span>encoder_secret = EncoderSecret::new(thread_rng().gen(), delta.as_block().to_bytes());
 
         <span class="kw">let </span>attestation = mux_fut
             .poll_with(<span class="kw">async </span>{
+                <span class="kw">let </span>sent_keys = transcript_refs
+                    .sent()
+                    .iter()
+                    .flat_map(|plaintext| vm.get_keys(<span class="kw-2">*</span>plaintext).expect(<span class="string">"reference is valid"</span>))
+                    .map(|mac| mac.as_block());
+                <span class="kw">let </span>recv_keys = transcript_refs
+                    .recv()
+                    .iter()
+                    .flat_map(|plaintext| vm.get_keys(<span class="kw-2">*</span>plaintext).expect(<span class="string">"reference is valid"</span>))
+                    .map(|mac| mac.as_block());
+
+                encoding::transfer(<span class="kw-2">&amp;mut </span>ctx, <span class="kw-2">&amp;</span>encoder_secret, sent_keys, recv_keys).<span class="kw">await</span><span class="question-mark">?</span>;
+
                 <span class="comment">// Receive attestation request, which also contains commitments required before
                 // finalization.
-                </span><span class="kw">let </span>request: Request = io.expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
-
-                <span class="comment">// Finalize all MPC before attesting.
-                </span>ot_send.reveal(<span class="kw-2">&amp;mut </span>ctx).<span class="kw">await</span><span class="question-mark">?</span>;
-
-                <span class="macro">debug!</span>(<span class="string">"revealed OT secret"</span>);
-
-                vm.finalize().<span class="kw">await</span><span class="question-mark">?</span>;
-
-                <span class="macro">info!</span>(<span class="string">"Finalized all MPC"</span>);
+                </span><span class="kw">let </span>request: Request = ctx.io_mut().expect_next().<span class="kw">await</span><span class="question-mark">?</span>;
 
                 <span class="kw">let </span><span class="kw-2">mut </span>builder = Attestation::builder(config)
                     .accept_request(request)
@@ -134,13 +150,13 @@
                 builder
                     .connection_info(connection_info)
                     .server_ephemeral_key(server_ephemeral_key)
-                    .encoding_seed(encoder_seed.to_vec());
+                    .encoder_secret(encoder_secret);
 
                 <span class="kw">let </span>attestation = builder
                     .build(<span class="self">self</span>.config.crypto_provider())
                     .map_err(VerifierError::attestation)<span class="question-mark">?</span>;
 
-                io.send(attestation.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
+                ctx.io_mut().send(attestation.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
 
                 <span class="macro">info!</span>(<span class="string">"Sent attestation"</span>);
 
@@ -149,7 +165,7 @@
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="kw">if </span>!mux_fut.is_complete() {
-            mux_ctrl.mux().close();
+            mux_ctrl.close();
             mux_fut.<span class="kw">await</span><span class="question-mark">?</span>;
         }
 
