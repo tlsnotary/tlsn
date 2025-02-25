@@ -1,9 +1,9 @@
 use crate::{
     msg::Message,
     record_layer::{aead::MpcAesGcm, RecordLayer},
-    Config, FollowerData, MpcTlsError, Role, Vm,
+    Config, FollowerData, MpcTlsError, Role, SessionKeys, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput, SessionKeys};
+use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{scoped_futures::ScopedFutureExt, Context, Flush};
@@ -99,7 +99,7 @@ impl MpcTlsFollower {
     }
 
     /// Allocates resources for the connection.
-    pub fn alloc(&mut self) -> Result<(), MpcTlsError> {
+    pub fn alloc(&mut self) -> Result<SessionKeys, MpcTlsError> {
         let State::Init {
             vm,
             mut ke,
@@ -142,7 +142,7 @@ impl MpcTlsFollower {
 
         self.state = State::Setup {
             vm,
-            keys,
+            keys: keys.clone().into(),
             ke,
             prf,
             record_layer,
@@ -150,7 +150,7 @@ impl MpcTlsFollower {
             sf_vd,
         };
 
-        Ok(())
+        Ok(keys.into())
     }
 
     /// Preprocesses the connection.
@@ -386,10 +386,7 @@ impl MpcTlsFollower {
             FollowerData {
                 server_key,
                 transcript,
-                client_write_key: keys.client_write_key,
-                client_write_iv: keys.client_iv,
-                server_write_key: keys.server_write_key,
-                server_write_iv: keys.server_iv,
+                keys: keys.into(),
             },
         ))
     }

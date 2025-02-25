@@ -6,7 +6,7 @@ use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use futures::{future::join, AsyncReadExt as _, AsyncWriteExt as _};
+use futures::{future::try_join, AsyncReadExt as _, AsyncWriteExt as _, TryFutureExt};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -106,12 +106,14 @@ pub async fn run_prover(
         let mut response = vec![];
         mpc_tls_connection.read_to_end(&mut response).await?;
 
+        dbg!(response.len());
+
         Ok::<(), anyhow::Error>(())
     };
 
-    let (prover_task, _) = join(prover_fut, tls_fut).await;
+    let (prover_task, _) = try_join(prover_fut.map_err(anyhow::Error::from), tls_fut).await?;
 
-    let mut prover = prover_task?.start_prove();
+    let mut prover = prover_task.start_prove();
 
     let (sent_len, recv_len) = prover.transcript().len();
     prover

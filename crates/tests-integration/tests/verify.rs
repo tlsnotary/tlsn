@@ -18,9 +18,9 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 // Maximum number of bytes that can be sent from prover to server
-const MAX_SENT_DATA: usize = 1 << 12;
+const MAX_SENT_DATA: usize = 1 << 11;
 // Maximum number of bytes that can be received by prover from server
-const MAX_RECV_DATA: usize = 1 << 14;
+const MAX_RECV_DATA: usize = 1 << 11;
 
 #[tokio::test]
 #[ignore]
@@ -61,12 +61,11 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let prover = Prover::new(
         ProverConfig::builder()
             .server_name(SERVER_DOMAIN)
-            .defer_decryption_from_start(false)
+            .defer_decryption_from_start(true)
             .protocol_config(
                 ProtocolConfig::builder()
                     .max_sent_data(MAX_SENT_DATA)
                     .max_recv_data(MAX_RECV_DATA)
-                    .max_recv_data_online(MAX_RECV_DATA)
                     .build()
                     .unwrap(),
             )

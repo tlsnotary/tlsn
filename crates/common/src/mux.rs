@@ -72,7 +72,7 @@ pub fn attach_mux<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     role: Role,
 ) -> (MuxFuture, MuxControl) {
     let mut mux_config = yamux::Config::default();
-    mux_config.set_max_num_streams(16);
+    mux_config.set_max_num_streams(32);
 
     let mux_role = match role {
         Role::Prover => yamux::Mode::Client,
@@ -83,7 +83,7 @@ pub fn attach_mux<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let ctrl = mux.control();
 
     if let Role::Prover = role {
-        ctrl.alloc(16);
+        ctrl.alloc(32);
     }
 
     (MuxFuture(Box::new(mux.into_future().fuse())), ctrl)

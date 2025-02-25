@@ -50,6 +50,7 @@ pub fn commit_records<'record>(
 
 /// Proof of encryption.
 #[derive(Debug)]
+#[must_use]
 pub struct RecordProof {
     ciphertexts: Vec<(DecodeFutureTyped<BitVec, Vec<u8>>, Vec<u8>)>,
 }

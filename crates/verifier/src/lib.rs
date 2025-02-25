@@ -10,32 +10,46 @@ mod notarize;
 pub mod state;
 mod verify;
 
+use std::sync::Arc;
+
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
-use mpz_common::Allocate;
-use serio::{stream::IoStreamExt, StreamExt};
-use uid_mux::FramedUidMux;
-
-use web_time::{SystemTime, UNIX_EPOCH};
 
 use futures::{AsyncRead, AsyncWrite};
-use mpz_garble::config::Role as DEAPRole;
-use mpz_ot::{chou_orlandi, kos};
-use rand::Rng;
+use mpc_tls::{FollowerData, MpcTlsFollower};
+use mpz_common::Context;
+use mpz_garble_core::Delta;
+use rand::{thread_rng, Rng};
+use serio::stream::IoStreamExt;
 use state::{Notarize, Verify};
-use tls_mpc::{build_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
+use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
-    config::ProtocolConfig,
-    mux::{attach_mux, MuxControl},
-    DEAPThread, Executor, OTReceiver, OTSender, Role,
+    commit::commit_records, config::ProtocolConfig, context::build_mt_context, mux::attach_mux,
+    zk_aes::ZkAesCtr, Role,
 };
 use tlsn_core::{
     attestation::{Attestation, AttestationConfig},
     connection::{ConnectionInfo, ServerName, TlsVersion, TranscriptLength},
     transcript::PartialTranscript,
 };
+use tlsn_deap::Deap;
+use tokio::sync::Mutex;
+use web_time::{SystemTime, UNIX_EPOCH};
 
 use tracing::{debug, info, info_span, instrument, Span};
+
+pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
+    mpz_ot::ferret::Sender<mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>>,
+    mpz_core::Block,
+>;
+pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
+    mpz_ot::kos::Receiver<mpz_ot::chou_orlandi::Sender>,
+    bool,
+    mpz_core::Block,
+>;
+pub(crate) type Mpc =
+    mpz_garble::protocol::semihonest::Evaluator<mpz_ot::cot::DerandCOTReceiver<RCOTReceiver>>;
+pub(crate) type Zk = mpz_zk::Verifier<RCOTSender>;
 
 /// Information about the TLS session.
 #[derive(Debug)]
@@ -77,19 +91,13 @@ impl Verifier<state::Initialized> {
         socket: S,
     ) -> Result<Verifier<state::Setup>, VerifierError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
-
-        // Maximum thread forking concurrency of 8.
-        // TODO: Determine the optimal number of threads.
-        let mut exec = Executor::new(mux_ctrl.clone(), 8);
-
-        let mut io = mux_fut
-            .poll_with(mux_ctrl.open_framed(b"tlsnotary"))
-            .await?;
+        let mut mt = build_mt_context(mux_ctrl.clone());
+        let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Receives protocol configuration from prover to perform compatibility check.
         let protocol_config = mux_fut
             .poll_with(async {
-                let peer_configuration: ProtocolConfig = io.expect_next().await?;
+                let peer_configuration: ProtocolConfig = ctx.io_mut().expect_next().await?;
                 self.config
                     .protocol_config_validator()
                     .validate(&peer_configuration)?;
@@ -98,31 +106,37 @@ impl Verifier<state::Initialized> {
             })
             .await?;
 
-        let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
-        let (mpc_tls, vm, ot_send) = mux_fut
-            .poll_with(setup_mpc_backend(
-                &self.config,
-                protocol_config,
-                &mux_ctrl,
-                &mut exec,
-                encoder_seed,
-            ))
-            .await?;
+        let delta = Delta::random(&mut thread_rng());
+        let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta.clone(), ctx);
 
-        let ctx = mux_fut.poll_with(exec.new_thread()).await?;
+        // Allocate resources for MPC-TLS in VM.
+        let keys = mpc_tls.alloc()?;
+        // Allocate for committing to plaintext.
+        let mut zk_aes = ZkAesCtr::new(Role::Verifier);
+        zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes.alloc(
+            &mut (*vm.try_lock().expect("VM is not locked").zk()),
+            protocol_config.max_recv_data(),
+        )?;
+
+        debug!("setting up mpc-tls");
+
+        mux_fut.poll_with(mpc_tls.preprocess()).await?;
+
+        debug!("mpc-tls setup complete");
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
             state: state::Setup {
-                io,
                 mux_ctrl,
                 mux_fut,
+                mt,
+                delta,
                 mpc_tls,
+                zk_aes,
+                _keys: keys,
                 vm,
-                ot_send,
-                ctx,
-                encoder_seed,
             },
         })
     }
@@ -177,54 +191,108 @@ impl Verifier<state::Setup> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
         let state::Setup {
-            io,
             mux_ctrl,
             mut mux_fut,
+            mt,
+            delta,
             mpc_tls,
+            mut zk_aes,
             vm,
-            ot_send,
-            ctx,
-            encoder_seed,
+            ..
         } = self.state;
 
         let start_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system time should be available")
             .as_secs();
 
-        let MpcTlsFollowerData {
-            server_key,
-            bytes_sent,
-            bytes_recv,
-            ..
-        } = mux_fut.poll_with(mpc_tls.run().1).await?;
+        info!("starting MPC-TLS");
 
-        info!("Finished TLS session");
+        let (
+            mut ctx,
+            FollowerData {
+                server_key,
+                mut transcript,
+                keys,
+            },
+        ) = mux_fut.poll_with(mpc_tls.run()).await?;
+
+        info!("finished MPC-TLS");
+
+        {
+            let mut vm = vm.try_lock().expect("VM should not be locked");
+
+            // Prove received plaintext. Prover drops the proof output, as they trust
+            // themselves.
+            let proof = commit_records(
+                &mut (*vm.zk()),
+                &mut zk_aes,
+                transcript
+                    .recv
+                    .iter_mut()
+                    .filter(|record| record.typ == ContentType::ApplicationData),
+            )
+            .map_err(VerifierError::zk)?;
+
+            debug!("finalizing mpc");
+
+            // Finalize DEAP and execute the plaintext proofs.
+            mux_fut
+                .poll_with(vm.finalize(&mut ctx))
+                .await
+                .map_err(VerifierError::mpc)?;
+
+            debug!("mpc finalized");
+
+            // Verify the plaintext proofs.
+            proof.verify().map_err(VerifierError::zk)?;
+        }
+
+        let sent = transcript
+            .sent
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData)
+            .map(|record| record.ciphertext.len())
+            .sum::<usize>() as u32;
+        let received = transcript
+            .recv
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData)
+            .map(|record| record.ciphertext.len())
+            .sum::<usize>() as u32;
+
+        let transcript_refs = transcript
+            .to_transcript_refs()
+            .expect("transcript should be complete");
 
         let connection_info = ConnectionInfo {
             time: start_time,
             version: TlsVersion::V1_2,
-            transcript_length: TranscriptLength {
-                sent: bytes_sent as u32,
-                received: bytes_recv as u32,
-            },
+            transcript_length: TranscriptLength { sent, received },
         };
+
+        // Pull out ZK VM
+        let (_, vm) = Arc::into_inner(vm)
+            .expect("vm should have only 1 reference")
+            .into_inner()
+            .into_inner();
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
             state: state::Closed {
-                io,
                 mux_ctrl,
                 mux_fut,
-                vm,
-                ot_send,
+                mt,
+                delta,
                 ctx,
-                encoder_seed,
+                keys,
+                vm,
                 server_ephemeral_key: server_key
                     .try_into()
                     .expect("only supported key type should have been accepted"),
                 connection_info,
+                transcript_refs,
             },
         })
     }
@@ -257,119 +325,58 @@ impl Verifier<state::Closed> {
     }
 }
 
-/// Performs a setup of the various MPC subprotocols.
-#[instrument(level = "debug", skip_all, err)]
-async fn setup_mpc_backend(
+fn build_mpc_tls(
     config: &VerifierConfig,
-    protocol_config: ProtocolConfig,
-    mux: &MuxControl,
-    exec: &mut Executor,
-    encoder_seed: [u8; 32],
-) -> Result<(MpcTlsFollower, DEAPThread, OTSender), VerifierError> {
-    debug!("starting MPC backend setup");
+    protocol_config: &ProtocolConfig,
+    delta: Delta,
+    ctx: Context,
+) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsFollower) {
+    let mut rng = thread_rng();
 
-    let mut ot_sender = kos::Sender::new(
-        config.build_ot_sender_config(),
-        chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
+    let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
+    let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
+    let rcot_send = mpz_ot::kos::Sender::new(
+        mpz_ot::kos::SenderConfig::default(),
+        delta.into_inner(),
+        base_ot_recv,
     );
-    ot_sender.alloc(protocol_config.ot_sender_setup_count(Role::Verifier));
-
-    let mut ot_receiver = kos::Receiver::new(
-        config.build_ot_receiver_config(),
-        chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
+    let rcot_send = mpz_ot::ferret::Sender::new(
+        mpz_ot::ferret::FerretConfig::builder()
+            .lpn_type(mpz_ot::ferret::LpnType::Regular)
+            .build()
+            .expect("ferret config is valid"),
+        rng.gen(),
+        rcot_send,
     );
-    ot_receiver.alloc(protocol_config.ot_receiver_setup_count(Role::Verifier));
+    let rcot_recv =
+        mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
 
-    let ot_sender = OTSender::new(ot_sender);
-    let ot_receiver = OTReceiver::new(ot_receiver);
+    let mut rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(2, rcot_send);
+    let mut rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(4, rcot_recv);
 
-    let (
-        ctx_vm,
-        ctx_ke_0,
-        ctx_ke_1,
-        ctx_prf_0,
-        ctx_prf_1,
-        ctx_encrypter_block_cipher,
-        ctx_encrypter_stream_cipher,
-        ctx_encrypter_ghash,
-        ctx_encrypter,
-        ctx_decrypter_block_cipher,
-        ctx_decrypter_stream_cipher,
-        ctx_decrypter_ghash,
-        ctx_decrypter,
-    ) = futures::try_join!(
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-    )?;
+    let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(
+        rcot_recv.next().expect("receivers should be available"),
+    ));
 
-    let vm = DEAPThread::new(
-        DEAPRole::Follower,
-        encoder_seed,
-        ctx_vm,
-        ot_sender.clone(),
-        ot_receiver.clone(),
+    let zk = Zk::new(
+        delta,
+        rcot_send.next().expect("senders should be available"),
     );
 
-    let mpc_tls_config = config.build_mpc_tls_config(&protocol_config);
-    let (ke, prf, encrypter, decrypter) = build_components(
-        TlsRole::Follower,
-        mpc_tls_config.common(),
-        ctx_ke_0,
-        ctx_encrypter,
-        ctx_decrypter,
-        ctx_encrypter_ghash,
-        ctx_decrypter_ghash,
-        vm.new_thread(ctx_ke_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_0, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(
-            ctx_encrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_encrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        ot_sender.clone(),
-        ot_receiver.clone(),
-    );
+    let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
 
-    let channel = mux.open_framed(b"mpc_tls").await?;
-    let mut mpc_tls = MpcTlsFollower::new(
-        mpc_tls_config,
-        Box::new(StreamExt::compat_stream(channel)),
-        ke,
-        prf,
-        encrypter,
-        decrypter,
-    );
-
-    mpc_tls.setup().await?;
-
-    debug!("MPC backend setup complete");
-
-    Ok((mpc_tls, vm, ot_sender))
+    (
+        vm.clone(),
+        MpcTlsFollower::new(
+            config.build_mpc_tls_config(protocol_config),
+            ctx,
+            vm,
+            rcot_send.next().expect("senders should be available"),
+            (
+                rcot_recv.next().expect("receivers should be available"),
+                rcot_recv.next().expect("receivers should be available"),
+                rcot_recv.next().expect("receivers should be available"),
+            ),
+        ),
+    )
 }
