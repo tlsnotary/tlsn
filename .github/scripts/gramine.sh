@@ -26,7 +26,8 @@ echo "gramine-sgx-gen-private-key"
 gramine-sgx-gen-private-key
 ls -als
 echo "make"
-SGX=1 make -p
+SGX=1 make clean
+SGX=1 make
 gramine-sgx-sign -m notary-server.manifest -o notary-server.sgx
 mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig |jq .mr_enclave)
 echo "mrenclave=$mr_enclave" >> "$GITHUB_OUTPUT"
