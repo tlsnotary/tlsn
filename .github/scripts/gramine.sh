@@ -8,6 +8,8 @@
 # ./gramine.sh
 ##
 
+set -e
+
 if [ -z "$1" ]; then
   run='gramine-direct  notary-server &'
 

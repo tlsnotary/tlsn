@@ -45,4 +45,9 @@ RUN git clone -b master https://github.com/gramineproject/gramine && cd gramine 
         -Ddirect=enabled \
         -Dsgx=enabled \
         && ninja -C build/ && ninja -C build/ install
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+RUN apt install libssl-dev
+
 CMD ["bash"]
