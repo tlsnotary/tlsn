@@ -67,3 +67,14 @@ az acr login --name notaryserverbuilds
 ### publish the builder docker container to Azure registry
 
 Note: Make sure you are logged in with the "Pay-As-You-go" subscription, and not "pse". Otherwise you can not write to the registry.
+
+```
+az login
+az acr login --name notaryserverbuilds
+az acr show --name notaryserverbuilds
+
+docker build -t tee_hendrik .
+docker tag tee_hendrik notaryserverbuilds/tee_hendrik
+docker images
+docker push notaryserverbuilds.azurecr.io/tee_hendrik
+```

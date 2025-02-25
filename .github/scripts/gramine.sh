@@ -23,7 +23,7 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 apt install libssl-dev
 
 gramine-sgx-gen-private-key
-SGX=1 make
+SGX=1 make -p
 gramine-sgx-sign -m notary-server.manifest -o notary-server.sgx
 mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig |jq .mr_enclave)
 echo "mrenclave=$mr_enclave" >> "$GITHUB_OUTPUT"
