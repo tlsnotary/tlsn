@@ -257,6 +257,7 @@ async fn send_close_notify(
     #[cfg(feature = "tracing")]
     trace!("sending close_notify to server");
     client.send_close_notify().await?;
+    client.process_new_packets().await?;
 
     // Flush all remaining plaintext
     while client.wants_write() {
