@@ -6,7 +6,7 @@
 //! The protocol is described in
 //! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>
 
-use crate::{config::Role, KeyExchangeError};
+use crate::{KeyExchangeError, Role};
 use mpz_common::{Context, Flush};
 use mpz_fields::{p256::P256, Field};
 use mpz_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConvert};

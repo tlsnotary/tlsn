@@ -1,149 +1,176 @@
 //! The AES-128 block cipher.
-//!
-//! [`MpcAes`] implements [`crate::Cipher`] for AES-128 using [`Aes128`].
 
-use crate::{circuit::CipherCircuit, Cipher, Keystream};
+use crate::{Cipher, CtrBlock, Keystream};
 use async_trait::async_trait;
-use mpz_memory_core::{binary::Binary, Repr, StaticSize};
-use mpz_vm_core::{prelude::*, CallBuilder, Vm};
-use std::{collections::VecDeque, fmt::Debug};
+use mpz_memory_core::binary::{Binary, U8};
+use mpz_vm_core::{prelude::*, Call, Vm};
+use std::fmt::Debug;
 
 mod circuit;
 mod error;
 
-pub use circuit::Aes128;
-use error::{AesError, ErrorKind};
+pub use error::AesError;
+use error::ErrorKind;
 
 /// Computes AES-128.
-#[derive(Default)]
-pub struct MpcAes {
-    key: Option<<Aes128 as CipherCircuit>::Key>,
-    iv: Option<<Aes128 as CipherCircuit>::Iv>,
-}
-
-impl Debug for MpcAes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MpcAes")
-            .field("key", &"{{...}}")
-            .field("iv", &"{{...}}")
-            .finish()
-    }
-}
-
-impl MpcAes {
-    fn alloc_public<R>(vm: &mut dyn Vm<Binary>) -> Result<R, AesError>
-    where
-        R: Repr<Binary> + StaticSize<Binary> + Copy,
-    {
-        let value = vm
-            .alloc()
-            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-
-        vm.mark_public(value)
-            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-
-        Ok(value)
-    }
+#[derive(Default, Debug)]
+pub struct Aes128 {
+    key: Option<Array<U8, 16>>,
+    iv: Option<Array<U8, 4>>,
 }
 
 #[async_trait]
-impl Cipher<Aes128> for MpcAes {
+impl Cipher for Aes128 {
     type Error = AesError;
+    type Key = Array<U8, 16>;
+    type Iv = Array<U8, 4>;
+    type Nonce = Array<U8, 8>;
+    type Counter = Array<U8, 4>;
+    type Block = Array<U8, 16>;
 
-    fn set_key(&mut self, key: <Aes128 as CipherCircuit>::Key) {
+    fn set_key(&mut self, key: Array<U8, 16>) {
         self.key = Some(key);
     }
 
-    fn set_iv(&mut self, iv: <Aes128 as CipherCircuit>::Iv) {
+    fn set_iv(&mut self, iv: Array<U8, 4>) {
         self.iv = Some(iv);
     }
 
-    fn key(&self) -> Result<<Aes128 as CipherCircuit>::Key, Self::Error> {
-        self.key
-            .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))
+    fn key(&self) -> Option<&Array<U8, 16>> {
+        self.key.as_ref()
     }
 
-    fn iv(&self) -> Result<<Aes128 as CipherCircuit>::Iv, Self::Error> {
-        self.iv
-            .ok_or_else(|| AesError::new(ErrorKind::Iv, "iv not set"))
+    fn iv(&self) -> Option<&Array<U8, 4>> {
+        self.iv.as_ref()
     }
 
-    fn alloc(
+    fn alloc_block(
         &self,
         vm: &mut dyn Vm<Binary>,
-        block_count: usize,
-    ) -> Result<Keystream<Aes128>, Self::Error> {
-        let key = <Self as Cipher<Aes128>>::key(self)?;
-        let iv = <Self as Cipher<Aes128>>::iv(self)?;
+        input: Array<U8, 16>,
+    ) -> Result<Self::Block, Self::Error> {
+        let key = self
+            .key
+            .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))?;
 
-        let mut keystream = Keystream::<Aes128>::default();
-        let mut circuits = VecDeque::with_capacity(block_count);
-
-        // outputs need to be allocated sequentially so we do two separate for loops.
-        for _ in 0..block_count {
-            let explicit_nonce: <Aes128 as CipherCircuit>::Nonce = MpcAes::alloc_public(vm)?;
-            let counter: <Aes128 as CipherCircuit>::Counter = MpcAes::alloc_public(vm)?;
-
-            let aes_ctr = CallBuilder::new(<Aes128 as CipherCircuit>::ctr())
-                .arg(key)
-                .arg(iv)
-                .arg(explicit_nonce)
-                .arg(counter)
-                .build()
-                .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-
-            keystream.explicit_nonces.push_back(explicit_nonce);
-            keystream.counters.push_back(counter);
-            circuits.push_back(aes_ctr);
-        }
-
-        for _ in 0..block_count {
-            let aes_ctr = circuits
-                .pop_front()
-                .expect("Enough aes-ctr circuits should be available");
-            let output: <Aes128 as CipherCircuit>::Block = vm
-                .call(aes_ctr)
-                .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-
-            keystream.outputs.push_back(output);
-        }
-
-        Ok(keystream)
-    }
-
-    fn assign_block(
-        &self,
-        vm: &mut dyn Vm<Binary>,
-        input_ref: <Aes128 as CipherCircuit>::Block,
-        input: <<Aes128 as CipherCircuit>::Block as Repr<Binary>>::Clear,
-    ) -> Result<<Aes128 as CipherCircuit>::Block, Self::Error> {
-        let key = <Self as Cipher<Aes128>>::key(self)?;
-
-        vm.assign(input_ref, input)
-            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-        vm.commit(input_ref)
-            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-
-        let aes_ecb = CallBuilder::new(<Aes128 as CipherCircuit>::ecb())
-            .arg(key)
-            .arg(input_ref)
-            .build()
-            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
-
-        let output: <Aes128 as CipherCircuit>::Block = vm
-            .call(aes_ecb)
+        let output = vm
+            .call(
+                Call::new(circuit::AES128_ECB.clone())
+                    .arg(key)
+                    .arg(input)
+                    .build()
+                    .expect("call should be valid"),
+            )
             .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
         Ok(output)
+    }
+
+    fn alloc_ctr_block(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+    ) -> Result<CtrBlock<Self::Nonce, Self::Counter, Self::Block>, Self::Error> {
+        let key = self
+            .key
+            .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))?;
+        let iv = self
+            .iv
+            .ok_or_else(|| AesError::new(ErrorKind::Iv, "iv not set"))?;
+
+        let explicit_nonce: Array<U8, 8> = vm
+            .alloc()
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+        vm.mark_public(explicit_nonce)
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+        let counter: Array<U8, 4> = vm
+            .alloc()
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+        vm.mark_public(counter)
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+        let output = vm
+            .call(
+                Call::new(circuit::AES128_CTR.clone())
+                    .arg(key)
+                    .arg(iv)
+                    .arg(explicit_nonce)
+                    .arg(counter)
+                    .build()
+                    .expect("call should be valid"),
+            )
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+        Ok(CtrBlock {
+            explicit_nonce,
+            counter,
+            output,
+        })
+    }
+
+    fn alloc_keystream(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+        len: usize,
+    ) -> Result<Keystream<Self::Nonce, Self::Counter, Self::Block>, Self::Error> {
+        let key = self
+            .key
+            .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))?;
+        let iv = self
+            .iv
+            .ok_or_else(|| AesError::new(ErrorKind::Iv, "iv not set"))?;
+
+        let block_count = len.div_ceil(16);
+
+        let inputs = (0..block_count)
+            .map(|_| {
+                let explicit_nonce: Array<U8, 8> = vm
+                    .alloc()
+                    .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+                let counter: Array<U8, 4> = vm
+                    .alloc()
+                    .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+                vm.mark_public(explicit_nonce)
+                    .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+                vm.mark_public(counter)
+                    .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+                Ok((explicit_nonce, counter))
+            })
+            .collect::<Result<Vec<_>, AesError>>()?;
+
+        let blocks = inputs
+            .into_iter()
+            .map(|(explicit_nonce, counter)| {
+                let output = vm
+                    .call(
+                        Call::new(circuit::AES128_CTR.clone())
+                            .arg(key)
+                            .arg(iv)
+                            .arg(explicit_nonce)
+                            .arg(counter)
+                            .build()
+                            .expect("call should be valid"),
+                    )
+                    .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+                Ok(CtrBlock {
+                    explicit_nonce,
+                    counter,
+                    output,
+                })
+            })
+            .collect::<Result<Vec<_>, AesError>>()?;
+
+        Ok(Keystream::new(&blocks))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        aes::{Aes128, MpcAes},
-        Cipher, Input,
-    };
+    use super::*;
+    use crate::Cipher;
     use mpz_common::context::test_st_context;
     use mpz_garble::protocol::semihonest::{Evaluator, Generator};
     use mpz_memory_core::{
@@ -160,7 +187,7 @@ mod tests {
         let key = [42_u8; 16];
         let iv = [3_u8; 4];
         let nonce = [5_u8; 8];
-        let start_counter = 3;
+        let start_counter = 3u32;
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut gen, mut ev) = mock_vm();
@@ -169,37 +196,42 @@ mod tests {
         let aes_ev = setup_ctr(key, iv, &mut ev);
 
         let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
-        let block_count = (msg.len() / 16) + (msg.len() % 16 != 0) as usize;
 
-        let keystream_gen = aes_gen.alloc(&mut gen, block_count).unwrap();
-        let keystream_ev = aes_ev.alloc(&mut ev, block_count).unwrap();
+        let keystream_gen = aes_gen.alloc_keystream(&mut gen, msg.len()).unwrap();
+        let keystream_ev = aes_ev.alloc_keystream(&mut ev, msg.len()).unwrap();
 
         let msg_ref_gen: Vector<U8> = gen.alloc_vec(msg.len()).unwrap();
         gen.mark_public(msg_ref_gen).unwrap();
+        gen.assign(msg_ref_gen, msg.clone()).unwrap();
+        gen.commit(msg_ref_gen).unwrap();
 
         let msg_ref_ev: Vector<U8> = ev.alloc_vec(msg.len()).unwrap();
         ev.mark_public(msg_ref_ev).unwrap();
+        ev.assign(msg_ref_ev, msg.clone()).unwrap();
+        ev.commit(msg_ref_ev).unwrap();
+
+        let mut ctr = start_counter..;
+        keystream_gen
+            .assign(&mut gen, nonce, move || ctr.next().unwrap().to_be_bytes())
+            .unwrap();
+        let mut ctr = start_counter..;
+        keystream_ev
+            .assign(&mut ev, nonce, move || ctr.next().unwrap().to_be_bytes())
+            .unwrap();
 
         let cipher_out_gen = keystream_gen.apply(&mut gen, msg_ref_gen).unwrap();
         let cipher_out_ev = keystream_ev.apply(&mut ev, msg_ref_ev).unwrap();
 
-        let out_gen = cipher_out_gen
-            .assign(&mut gen, nonce, start_counter, Input::Message(msg.clone()))
-            .unwrap();
-        let out_ev = cipher_out_ev
-            .assign(&mut ev, nonce, start_counter, Input::Message(msg.clone()))
-            .unwrap();
-
-        let (ciphertext_gen, ciphetext_ev) = tokio::try_join!(
+        let (ct_gen, ct_ev) = tokio::try_join!(
             async {
-                let out = gen.decode(out_gen).unwrap();
+                let out = gen.decode(cipher_out_gen).unwrap();
                 gen.flush(&mut ctx_a).await.unwrap();
                 gen.execute(&mut ctx_a).await.unwrap();
                 gen.flush(&mut ctx_a).await.unwrap();
                 out.await
             },
             async {
-                let out = ev.decode(out_ev).unwrap();
+                let out = ev.decode(cipher_out_ev).unwrap();
                 ev.flush(&mut ctx_b).await.unwrap();
                 ev.execute(&mut ctx_b).await.unwrap();
                 ev.flush(&mut ctx_b).await.unwrap();
@@ -208,10 +240,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(ciphertext_gen, ciphetext_ev);
+        assert_eq!(ct_gen, ct_ev);
 
         let expected = aes_apply_keystream(key, iv, nonce, start_counter as usize, msg);
-        assert_eq!(ciphertext_gen, expected);
+        assert_eq!(ct_gen, expected);
     }
 
     #[tokio::test]
@@ -227,14 +259,16 @@ mod tests {
 
         let block_ref_gen: Array<U8, 16> = gen.alloc().unwrap();
         gen.mark_public(block_ref_gen).unwrap();
+        gen.assign(block_ref_gen, input).unwrap();
+        gen.commit(block_ref_gen).unwrap();
 
         let block_ref_ev: Array<U8, 16> = ev.alloc().unwrap();
         ev.mark_public(block_ref_ev).unwrap();
+        ev.assign(block_ref_ev, input).unwrap();
+        ev.commit(block_ref_ev).unwrap();
 
-        let block_gen = aes_gen
-            .assign_block(&mut gen, block_ref_gen, input)
-            .unwrap();
-        let block_ev = aes_ev.assign_block(&mut ev, block_ref_ev, input).unwrap();
+        let block_gen = aes_gen.alloc_block(&mut gen, block_ref_gen).unwrap();
+        let block_ev = aes_ev.alloc_block(&mut ev, block_ref_ev).unwrap();
 
         let (ciphertext_gen, ciphetext_ev) = tokio::try_join!(
             async {
@@ -272,7 +306,7 @@ mod tests {
         (gen, ev)
     }
 
-    fn setup_ctr(key: [u8; 16], iv: [u8; 4], vm: &mut dyn Vm<Binary>) -> MpcAes {
+    fn setup_ctr(key: [u8; 16], iv: [u8; 4], vm: &mut dyn Vm<Binary>) -> Aes128 {
         let key_ref: Array<U8, 16> = vm.alloc().unwrap();
         vm.mark_public(key_ref).unwrap();
         vm.assign(key_ref, key).unwrap();
@@ -283,22 +317,22 @@ mod tests {
         vm.assign(iv_ref, iv).unwrap();
         vm.commit(iv_ref).unwrap();
 
-        let mut aes = MpcAes::default();
+        let mut aes = Aes128::default();
 
-        Cipher::<Aes128>::set_key(&mut aes, key_ref);
-        Cipher::<Aes128>::set_iv(&mut aes, iv_ref);
+        aes.set_key(key_ref);
+        aes.set_iv(iv_ref);
 
         aes
     }
 
-    fn setup_block(key: [u8; 16], vm: &mut dyn Vm<Binary>) -> MpcAes {
+    fn setup_block(key: [u8; 16], vm: &mut dyn Vm<Binary>) -> Aes128 {
         let key_ref: Array<U8, 16> = vm.alloc().unwrap();
         vm.mark_public(key_ref).unwrap();
         vm.assign(key_ref, key).unwrap();
         vm.commit(key_ref).unwrap();
 
-        let mut aes = MpcAes::default();
-        Cipher::<Aes128>::set_key(&mut aes, key_ref);
+        let mut aes = Aes128::default();
+        aes.set_key(key_ref);
 
         aes
     }

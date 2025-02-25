@@ -97,14 +97,14 @@ impl MpcPrf {
         }
     }
 
-    /// Sets up the PRF.
+    /// Allocates resources for the PRF.
     ///
     /// # Arguments
     ///
     /// * `vm` - Virtual machine.
     /// * `pms` - The pre-master secret.
     #[instrument(level = "debug", skip_all, err)]
-    pub fn setup(
+    pub fn alloc(
         &mut self,
         vm: &mut dyn Vm<Binary>,
         pms: Array<U8, 32>,

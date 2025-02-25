@@ -38,7 +38,7 @@ pub struct Ghash<C, Ctx> {
 
 impl<C, Ctx> Ghash<C, Ctx>
 where
-    Ctx: Context,
+    
     C: ShareConvert<Ctx, Gf2_128>,
 {
     /// Creates a new instance.
@@ -91,7 +91,7 @@ impl<C, Ctx> Debug for Ghash<C, Ctx> {
 #[async_trait]
 impl<Ctx, C> UniversalHash for Ghash<C, Ctx>
 where
-    Ctx: Context,
+    
     C: Preprocess<Ctx, Error = ShareConversionError> + ShareConvert<Ctx, Gf2_128> + Send,
 {
     #[instrument(level = "info", fields(thread = %self.context.id()), skip_all, err)]

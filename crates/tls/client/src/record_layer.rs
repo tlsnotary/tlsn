@@ -60,15 +60,15 @@ impl RecordLayer {
         }
     }
 
-    /// Prepare to use the given `MessageEncrypter` for future message encryption.
-    /// It is not used until you call `start_encrypting`.
+    /// Prepare to use the given `MessageEncrypter` for future message
+    /// encryption. It is not used until you call `start_encrypting`.
     pub(crate) fn prepare_message_encrypter(&mut self) {
         self.write_seq = 0;
         self.encrypt_state = DirectionState::Prepared;
     }
 
-    /// Prepare to use the given `MessageDecrypter` for future message decryption.
-    /// It is not used until you call `start_decrypting`.
+    /// Prepare to use the given `MessageDecrypter` for future message
+    /// decryption. It is not used until you call `start_decrypting`.
     pub(crate) fn prepare_message_decrypter(&mut self) {
         self.read_seq = 0;
         self.decrypt_state = DirectionState::Prepared;
@@ -147,14 +147,13 @@ impl RecordLayer {
     /// an error is returned.
     pub(crate) async fn decrypt_incoming(
         &mut self,
-        cipher: &mut dyn Backend,
+        backend: &mut dyn Backend,
         encr: OpaqueMessage,
-    ) -> Result<PlainMessage, Error> {
+    ) -> Result<(), Error> {
         debug_assert!(self.is_decrypting());
-        let seq = self.read_seq;
-        let msg = cipher.decrypt(encr, seq).await?;
+        backend.push_incoming(encr).await?;
         self.read_seq += 1;
-        Ok(msg)
+        Ok(())
     }
 
     /// Encrypt a TLS message.
@@ -163,13 +162,13 @@ impl RecordLayer {
     /// panics if the requisite keying material hasn't been established yet.
     pub(crate) async fn encrypt_outgoing(
         &mut self,
-        cipher: &mut dyn Backend,
+        backend: &mut dyn Backend,
         plain: PlainMessage,
-    ) -> Result<OpaqueMessage, Error> {
+    ) -> Result<(), Error> {
         debug_assert!(self.encrypt_state == DirectionState::Active);
         assert!(!self.encrypt_exhausted());
-        let seq = self.write_seq;
+        backend.push_outgoing(plain).await?;
         self.write_seq += 1;
-        Ok(cipher.encrypt(plain, seq).await?)
+        Ok(())
     }
 }

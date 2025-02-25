@@ -19,10 +19,8 @@ use mpz_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive, S
 use mpz_vm_core::{CallBuilder, CallableExt, Vm};
 
 use crate::{
-    circuit::build_pms_circuit,
-    config::{KeyExchangeConfig, Role},
-    point_addition::derive_x_coord_share,
-    KeyExchange, KeyExchangeError, Pms,
+    circuit::build_pms_circuit, point_addition::derive_x_coord_share, KeyExchange,
+    KeyExchangeError, Pms, Role,
 };
 
 #[derive(Debug)]
@@ -75,8 +73,7 @@ pub struct MpcKeyExchange<C0, C1> {
     converter_0: Arc<Mutex<C0>>,
     /// Share conversion protocol 1.
     converter_1: Arc<Mutex<C1>>,
-    /// The config used for the key exchange protocol.
-    config: KeyExchangeConfig,
+    role: Role,
     /// The state of the protocol.
     state: State,
     /// This party's private key.
@@ -93,13 +90,13 @@ impl<C0, C1> MpcKeyExchange<C0, C1> {
     /// * `config` - Key exchange configuration.
     /// * `converter_0` - Share conversion protocol instance 0.
     /// * `converter_1` - Share conversion protocol instance 1.
-    pub fn new(config: KeyExchangeConfig, converter_0: C0, converter_1: C1) -> Self {
+    pub fn new(role: Role, converter_0: C0, converter_1: C1) -> Self {
         let private_key = SecretKey::random(&mut rand::rngs::OsRng);
 
         Self {
             converter_0: Arc::new(Mutex::new(converter_0)),
             converter_1: Arc::new(Mutex::new(converter_1)),
-            config,
+            role,
             state: State::Initialized,
             private_key,
             server_key: None,
@@ -133,7 +130,7 @@ where
         AdditiveToMultiplicative::alloc(&mut *converter_1, 2)
             .map_err(KeyExchangeError::share_conversion)?;
 
-        let (share_a0, share_b0, share_a1, share_b1) = match self.config.role() {
+        let (share_a0, share_b0, share_a1, share_b1) = match self.role {
             Role::Leader => {
                 let share_a0: Array<U8, 32> = vm.alloc().map_err(KeyExchangeError::vm)?;
                 vm.mark_private(share_a0).map_err(KeyExchangeError::vm)?;
@@ -191,10 +188,6 @@ where
 
     #[instrument(level = "debug", skip_all, err)]
     fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError> {
-        let Role::Leader = self.config.role() else {
-            return Err(KeyExchangeError::role("follower cannot set server key"));
-        };
-
         self.server_key = Some(server_key);
 
         Ok(())
@@ -206,7 +199,7 @@ where
 
     #[instrument(level = "debug", skip_all, err)]
     fn client_key(&self) -> Result<PublicKey, KeyExchangeError> {
-        let Role::Leader = self.config.role() else {
+        let Role::Leader = self.role else {
             return Err(KeyExchangeError::role("follower does not learn client key"));
         };
 
@@ -239,14 +232,45 @@ where
             return Err(KeyExchangeError::state("should be in setup state"));
         };
 
-        let follower_key = match self.config.role() {
-            Role::Leader => ctx.io_mut().expect_next().await?,
-            Role::Follower => {
-                let follower_key = self.private_key.public_key();
-                ctx.io_mut().send(follower_key).await?;
-                follower_key
-            }
-        };
+        let public_key = self.private_key.public_key();
+        let role = self.role;
+        let mut converter_0 = self.converter_0.clone().try_lock_owned().unwrap();
+        let mut converter_1 = self.converter_1.clone().try_lock_owned().unwrap();
+
+        let (follower_key, _, _) = ctx
+            .try_join3(
+                move |ctx| {
+                    async move {
+                        Ok(match role {
+                            Role::Leader => ctx.io_mut().expect_next().await?,
+                            Role::Follower => {
+                                ctx.io_mut().send(public_key).await?;
+                                public_key
+                            }
+                        })
+                    }
+                    .scope_boxed()
+                },
+                move |ctx| {
+                    async move {
+                        converter_0
+                            .flush(ctx)
+                            .await
+                            .map_err(KeyExchangeError::share_conversion)
+                    }
+                    .scope_boxed()
+                },
+                move |ctx| {
+                    async move {
+                        converter_1
+                            .flush(ctx)
+                            .await
+                            .map_err(KeyExchangeError::share_conversion)
+                    }
+                    .scope_boxed()
+                },
+            )
+            .await??;
 
         self.state = State::FollowerKey {
             follower_key,
@@ -276,22 +300,13 @@ where
             ));
         };
 
-        let server_key = match self.config.role() {
-            Role::Leader => {
-                let server_key = self
-                    .server_key
-                    .ok_or_else(|| KeyExchangeError::role("server key is not set"))?;
-
-                ctx.io_mut().send(server_key).await?;
-
-                server_key
-            }
-            Role::Follower => ctx.io_mut().expect_next().await?,
-        };
+        let server_key = self
+            .server_key
+            .ok_or_else(|| KeyExchangeError::role("server key is not set"))?;
 
         let (pms_0, pms_1) = compute_ec_shares(
             ctx,
-            self.config.role(),
+            self.role,
             self.converter_0.clone(),
             self.converter_1.clone(),
             self.private_key.clone(),
@@ -339,7 +354,7 @@ where
             .try_into()
             .expect("pms share is 32 bytes");
 
-        match self.config.role() {
+        match self.role {
             Role::Leader => {
                 vm.assign(share_a0, share_0_bytes)
                     .map_err(KeyExchangeError::vm)?;
@@ -511,6 +526,7 @@ mod tests {
             },
             async {
                 follower.setup(&mut ctx_b).await.unwrap();
+                follower.set_server_key(server_public_key).unwrap();
                 follower.compute_shares(&mut ctx_b).await.unwrap();
                 follower.assign(&mut ev).unwrap();
 
@@ -648,6 +664,7 @@ mod tests {
             },
             async {
                 follower.setup(&mut ctx_b).await.unwrap();
+                follower.set_server_key(server_public_key).unwrap();
                 follower.compute_shares(&mut ctx_b).await.unwrap();
 
                 // Replace the follower's share with a different value.
@@ -790,23 +807,10 @@ mod tests {
         let (leader_converter_0, follower_converter_0) = ideal_share_convert(Block::ZERO);
         let (follower_converter_1, leader_converter_1) = ideal_share_convert(Block::ZERO);
 
-        let leader = MpcKeyExchange::new(
-            KeyExchangeConfig::builder()
-                .role(Role::Leader)
-                .build()
-                .unwrap(),
-            leader_converter_0,
-            leader_converter_1,
-        );
+        let leader = MpcKeyExchange::new(Role::Leader, leader_converter_0, leader_converter_1);
 
-        let follower = MpcKeyExchange::new(
-            KeyExchangeConfig::builder()
-                .role(Role::Follower)
-                .build()
-                .unwrap(),
-            follower_converter_0,
-            follower_converter_1,
-        );
+        let follower =
+            MpcKeyExchange::new(Role::Follower, follower_converter_0, follower_converter_1);
 
         (leader, follower)
     }
