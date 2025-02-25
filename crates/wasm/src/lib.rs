@@ -1,5 +1,6 @@
 //! TLSNotary WASM bindings.
 
+#![cfg(target_arch = "wasm32")]
 #![deny(unreachable_pub, unused_must_use, clippy::all)]
 #![allow(non_snake_case)]
 
@@ -11,58 +12,39 @@ pub mod tests;
 pub mod types;
 pub mod verifier;
 
-use log::LoggingConfig;
-pub use log::LoggingLevel;
+pub use log::{LoggingConfig, LoggingLevel};
+
 use tlsn_core::{transcript::Direction, CryptoProvider};
-use tracing::error;
-use tracing_subscriber::{
-    filter::FilterFn,
-    fmt::{format::FmtSpan, time::UtcTime},
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-};
-use tracing_web::MakeWebConsoleWriter;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 
 use crate::types::{Attestation, Presentation, Reveal, Secrets};
 
 #[cfg(feature = "test")]
 pub use tests::*;
 
-#[cfg(target_arch = "wasm32")]
-pub use wasm_bindgen_rayon::init_thread_pool;
-
-/// Initializes logging.
+/// Initializes the module.
 #[wasm_bindgen]
-pub fn init_logging(config: Option<LoggingConfig>) {
-    let mut config = config.unwrap_or_default();
+pub async fn initialize(
+    logging_config: Option<LoggingConfig>,
+    thread_count: usize,
+) -> Result<(), JsValue> {
+    log::init_logging(logging_config);
 
-    // Default is NONE
-    let fmt_span = config
-        .span_events
-        .take()
-        .unwrap_or_default()
-        .into_iter()
-        .map(FmtSpan::from)
-        .fold(FmtSpan::NONE, |acc, span| acc | span);
+    JsFuture::from(web_spawn::start_spawner()).await?;
 
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_ansi(false) // Only partially supported across browsers
-        .with_timer(UtcTime::rfc_3339()) // std::time is not available in browsers
-        .with_span_events(fmt_span)
-        .without_time()
-        .with_writer(MakeWebConsoleWriter::new()); // write events to the console
+    // Initialize rayon global thread pool.
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(thread_count)
+        .spawn_handler(|thread| {
+            // Drop join handle.
+            let _ = web_spawn::spawn(move || thread.run());
+            Ok(())
+        })
+        .build_global()
+        .unwrap_throw();
 
-    tracing_subscriber::registry()
-        .with(FilterFn::new(log::filter(config)))
-        .with(fmt_layer)
-        .init();
-
-    // https://github.com/rustwasm/console_error_panic_hook
-    std::panic::set_hook(Box::new(|info| {
-        error!("panic occurred: {:?}", info);
-        console_error_panic_hook::hook(info);
-    }));
+    Ok(())
 }
 
 /// Builds a presentation.

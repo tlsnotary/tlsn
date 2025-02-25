@@ -2,7 +2,7 @@
 
 mod provider;
 
-pub use provider::ChaChaProvider;
+pub use provider::FixtureEncodingProvider;
 
 use hex::FromHex;
 use p256::ecdsa::SigningKey;
@@ -17,7 +17,7 @@ use crate::{
     request::{Request, RequestConfig},
     signing::SignatureAlgId,
     transcript::{
-        encoding::{EncodingProvider, EncodingTree},
+        encoding::{EncoderSecret, EncodingProvider, EncodingTree},
         Transcript, TranscriptCommitConfigBuilder,
     },
     CryptoProvider,
@@ -131,12 +131,26 @@ impl ConnectionFixture {
 
 /// Returns an encoding provider fixture.
 pub fn encoding_provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
-    ChaChaProvider::new(encoder_seed(), Transcript::new(tx, rx))
+    let secret = encoder_secret();
+    FixtureEncodingProvider::new(&secret, Transcript::new(tx, rx))
 }
 
-/// Returns an encoder seed fixture.
-pub fn encoder_seed() -> [u8; 32] {
-    [0u8; 32]
+/// Seed fixture.
+const SEED: [u8; 32] = [0; 32];
+
+/// Delta fixture.
+const DELTA: [u8; 16] = [1; 16];
+
+/// Returns an encoder secret fixture.
+pub fn encoder_secret() -> EncoderSecret {
+    EncoderSecret::new(SEED, DELTA)
+}
+
+/// Returns a tampered encoder secret fixture.
+pub fn encoder_secret_tampered_seed() -> EncoderSecret {
+    let mut seed = SEED;
+    seed[0] += 1;
+    EncoderSecret::new(seed, DELTA)
 }
 
 /// Returns a notary signing key fixture.
@@ -205,7 +219,7 @@ pub fn attestation_fixture(
     request: Request,
     connection: ConnectionFixture,
     signature_alg: SignatureAlgId,
-    encoding_seed: Vec<u8>,
+    secret: EncoderSecret,
 ) -> Attestation {
     let ConnectionFixture {
         connection_info,
@@ -237,7 +251,7 @@ pub fn attestation_fixture(
     attestation_builder
         .connection_info(connection_info)
         .server_ephemeral_key(server_ephemeral_key)
-        .encoding_seed(encoding_seed);
+        .encoder_secret(secret);
 
     attestation_builder.build(&provider).unwrap()
 }

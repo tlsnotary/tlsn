@@ -52,11 +52,6 @@ pub use proof::{
     TranscriptProof, TranscriptProofBuilder, TranscriptProofBuilderError, TranscriptProofError,
 };
 
-/// Sent data transcript ID.
-pub static TX_TRANSCRIPT_ID: &str = "tx";
-/// Received data transcript ID.
-pub static RX_TRANSCRIPT_ID: &str = "rx";
-
 /// A transcript contains all the data communicated over a TLS connection.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Transcript {
@@ -588,17 +583,6 @@ impl Subsequence {
 #[error("invalid subsequence: {0}")]
 pub struct InvalidSubsequence(&'static str);
 
-/// Returns the value ID for each byte in the provided range set.
-#[doc(hidden)]
-pub fn get_value_ids(direction: Direction, idx: &Idx) -> impl Iterator<Item = String> + '_ {
-    let id = match direction {
-        Direction::Sent => TX_TRANSCRIPT_ID,
-        Direction::Received => RX_TRANSCRIPT_ID,
-    };
-
-    idx.iter().map(move |idx| format!("{}/{}", id, idx))
-}
-
 mod validation {
     use super::*;
 
@@ -716,7 +700,7 @@ mod validation {
                 .sent_idx
                 .0
                 .iter_ranges()
-                .last()
+                .next_back()
                 .unwrap()
                 .end;
 

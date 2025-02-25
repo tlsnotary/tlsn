@@ -198,7 +198,7 @@ impl EncodingTree {
 mod tests {
     use super::*;
     use crate::{
-        fixtures::{encoder_seed, encoding_provider},
+        fixtures::{encoder_secret, encoding_provider},
         hash::Blake3,
         transcript::encoding::EncodingCommitment,
         CryptoProvider,
@@ -235,7 +235,7 @@ mod tests {
 
         let commitment = EncodingCommitment {
             root: tree.root(),
-            seed: encoder_seed().to_vec(),
+            secret: encoder_secret(),
         };
 
         let partial_transcript = proof
@@ -272,7 +272,7 @@ mod tests {
 
         let commitment = EncodingCommitment {
             root: tree.root(),
-            seed: encoder_seed().to_vec(),
+            secret: encoder_secret(),
         };
 
         let partial_transcript = proof

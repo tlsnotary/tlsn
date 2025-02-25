@@ -19,7 +19,7 @@ const MAX_SENT_DATA: usize = 1 << 12;
 // Maximum number of bytes that can be received by prover from server
 const MAX_RECV_DATA: usize = 1 << 14;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
 async fn test_defer_decryption() {
     tracing_subscriber::fmt::init();
