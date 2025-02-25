@@ -3,6 +3,7 @@ use crate::MpcTlsError;
 /// Split an opaque message into its constituent parts.
 ///
 /// Returns the explicit nonce, ciphertext, and tag, respectively.
+#[allow(clippy::type_complexity)]
 pub(crate) fn opaque_into_parts(
     mut msg: Vec<u8>,
 ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), MpcTlsError> {

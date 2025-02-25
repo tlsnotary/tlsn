@@ -7,17 +7,17 @@
 use std::{
     mem,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
 };
 
 use async_trait::async_trait;
-use mpz_common::{scoped_futures::ScopedFutureExt as _, Context};
+use mpz_common::{Context, scoped_futures::ScopedFutureExt as _};
 use mpz_core::bitvec::BitVec;
 use mpz_vm_core::{
-    memory::{binary::Binary, DecodeFuture, Memory, Slice, View},
     Call, Callable, Execute, Vm, VmError,
+    memory::{DecodeFuture, Memory, Slice, View, binary::Binary},
 };
 use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
 use utils::range::{Difference, RangeSet, UnionMut};
@@ -363,11 +363,11 @@ mod tests {
     use mpz_garble::protocol::semihonest::{Evaluator, Generator};
     use mpz_ot::ideal::{cot::ideal_cot, rcot::ideal_rcot};
     use mpz_vm_core::{
-        memory::{binary::U8, correlated::Delta, Array},
+        memory::{Array, binary::U8, correlated::Delta},
         prelude::*,
     };
     use mpz_zk::{Prover, Verifier};
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::*;
 
@@ -502,7 +502,7 @@ mod tests {
                 let ct: Array<U8, 16> = follower
                     .call(Call::new(AES128.clone()).arg(key).arg(msg).build().unwrap())
                     .unwrap();
-                let _ = follower.decode(ct).unwrap();
+                drop(follower.decode(ct).unwrap());
 
                 follower.flush(&mut ctx_b).await.unwrap();
                 follower.execute(&mut ctx_b).await.unwrap();

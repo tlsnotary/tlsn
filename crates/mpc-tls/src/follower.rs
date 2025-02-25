@@ -463,7 +463,7 @@ fn validate_transcript(
             ));
         };
 
-        if &cf_vd != actual_cf_vd.0.as_slice() {
+        if cf_vd != actual_cf_vd.0.as_slice() {
             return Err(MpcTlsError::record_layer(format!(
                 "client finished verify data does not match output from PRF: {:?} != {:?}",
                 cf_vd, actual_cf_vd
@@ -491,7 +491,7 @@ fn validate_transcript(
             ));
         };
 
-        if &sf_vd != actual_sf_vd.0.as_slice() {
+        if sf_vd != actual_sf_vd.0.as_slice() {
             return Err(MpcTlsError::record_layer(format!(
                 "server finished verify data does not match output from PRF: {:?} != {:?}",
                 sf_vd, actual_sf_vd

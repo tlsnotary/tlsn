@@ -24,6 +24,7 @@ use tracing::instrument;
 
 const START_CTR: u32 = 2;
 
+#[allow(clippy::type_complexity)]
 enum State {
     Init {
         ghash: Box<dyn Ghash + Send + Sync>,
