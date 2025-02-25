@@ -8,10 +8,10 @@ use crate::{
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
-    Config, LeaderOutput, Role, Vm,
+    Config, LeaderOutput, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput, SessionKeys};
+use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use ludi::Context as LudiContext;
@@ -129,7 +129,7 @@ impl MpcTlsLeader {
     }
 
     /// Allocates resources for the connection.
-    pub fn alloc(&mut self) -> Result<(), MpcTlsError> {
+    pub fn alloc(&mut self) -> Result<SessionKeys, MpcTlsError> {
         let State::Init {
             ctx,
             vm,
@@ -174,7 +174,7 @@ impl MpcTlsLeader {
         self.state = State::Setup {
             ctx,
             vm,
-            keys,
+            keys: keys.clone().into(),
             ke,
             prf,
             record_layer,
@@ -183,7 +183,7 @@ impl MpcTlsLeader {
             client_random,
         };
 
-        Ok(())
+        Ok(keys.into())
     }
 
     /// Preprocesses the connection.
@@ -319,10 +319,7 @@ impl MpcTlsLeader {
                 client_random,
                 server_random,
                 transcript,
-                client_write_key: keys.client_write_key,
-                client_write_iv: keys.client_iv,
-                server_write_key: keys.server_write_key,
-                server_write_iv: keys.server_iv,
+                keys,
             },
         };
 

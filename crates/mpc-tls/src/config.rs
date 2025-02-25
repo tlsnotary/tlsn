@@ -25,8 +25,7 @@ pub struct Config {
     pub(crate) max_recv_records: usize,
     /// Maximum number of received bytes which will be decrypted while
     /// the TLS connection is active. Data which can be decrypted after the TLS
-    /// connection will be decrypted for free. If `defer_decryption` is set to
-    /// `false` this field must be specified.
+    /// connection will be decrypted for free.
     pub(crate) max_recv_online: usize,
 }
 
@@ -45,12 +44,10 @@ impl ConfigBuilder {
             + self
                 .max_sent
                 .ok_or_else(|| ConfigBuilderError::UninitializedField("max_sent"))?;
-        let max_recv_online = if defer_decryption {
-            MIN_RECV
-        } else {
-            self.max_recv_online
-                .ok_or(ConfigBuilderError::UninitializedField("max_recv_online"))?
-        };
+        let max_recv_online = MIN_RECV
+            + self
+                .max_recv_online
+                .ok_or_else(|| ConfigBuilderError::UninitializedField("max_recv_online"))?;
 
         let max_sent_records = self
             .max_sent_records

@@ -105,7 +105,7 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
             .build()?,
     );
 
-    _ = verifier.verify(io.compat()).await?;
+    verifier.verify(io.compat()).await?;
 
     println!("verifier done");
 

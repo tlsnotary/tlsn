@@ -1,11 +1,19 @@
 //! TLS Verifier state.
 
-use tls_mpc::MpcTlsFollower;
+use std::sync::Arc;
+
+use crate::{Mpc, Zk};
+use mpc_tls::{MpcTlsFollower, SessionKeys};
+use mpz_common::{context::Multithread, Context};
+use mpz_memory_core::correlated::Delta;
 use tlsn_common::{
     mux::{MuxControl, MuxFuture},
-    Context, DEAPThread, Io, OTSender,
+    transcript::TranscriptRefs,
+    zk_aes::ZkAesCtr,
 };
 use tlsn_core::connection::{ConnectionInfo, ServerEphemKey};
+use tlsn_deap::Deap;
+use tokio::sync::Mutex;
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -17,48 +25,44 @@ opaque_debug::implement!(Initialized);
 
 /// State after MPC setup has completed.
 pub struct Setup {
-    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-
+    pub(crate) mt: Multithread,
+    pub(crate) delta: Delta,
     pub(crate) mpc_tls: MpcTlsFollower,
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
-    pub(crate) ctx: Context,
-
-    pub(crate) encoder_seed: [u8; 32],
+    pub(crate) zk_aes: ZkAesCtr,
+    pub(crate) _keys: SessionKeys,
+    pub(crate) vm: Arc<Mutex<Deap<Mpc, Zk>>>,
 }
 
 /// State after the TLS connection has been closed.
 pub struct Closed {
-    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
+    pub(crate) mt: Multithread,
+    pub(crate) delta: Delta,
     pub(crate) ctx: Context,
-
-    pub(crate) encoder_seed: [u8; 32],
+    pub(crate) keys: SessionKeys,
+    pub(crate) vm: Zk,
     pub(crate) server_ephemeral_key: ServerEphemKey,
     pub(crate) connection_info: ConnectionInfo,
+    pub(crate) transcript_refs: TranscriptRefs,
 }
 
 opaque_debug::implement!(Closed);
 
 /// Notarizing state.
 pub struct Notarize {
-    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
+    pub(crate) _mt: Multithread,
+    pub(crate) delta: Delta,
     pub(crate) ctx: Context,
-
-    pub(crate) encoder_seed: [u8; 32],
+    pub(crate) _keys: SessionKeys,
+    pub(crate) vm: Zk,
     pub(crate) server_ephemeral_key: ServerEphemKey,
     pub(crate) connection_info: ConnectionInfo,
+    pub(crate) transcript_refs: TranscriptRefs,
 }
 
 opaque_debug::implement!(Notarize);
@@ -66,31 +70,31 @@ opaque_debug::implement!(Notarize);
 impl From<Closed> for Notarize {
     fn from(value: Closed) -> Self {
         Self {
-            io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
-            vm: value.vm,
-            ot_send: value.ot_send,
+            _mt: value.mt,
+            delta: value.delta,
             ctx: value.ctx,
-            encoder_seed: value.encoder_seed,
+            _keys: value.keys,
+            vm: value.vm,
             server_ephemeral_key: value.server_ephemeral_key,
             connection_info: value.connection_info,
+            transcript_refs: value.transcript_refs,
         }
     }
 }
 
 /// Verifying state.
 pub struct Verify {
-    pub(crate) io: Io,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-
-    pub(crate) vm: DEAPThread,
-    pub(crate) ot_send: OTSender,
+    pub(crate) _mt: Multithread,
     pub(crate) ctx: Context,
-
+    pub(crate) _keys: SessionKeys,
+    pub(crate) vm: Zk,
     pub(crate) server_ephemeral_key: ServerEphemKey,
     pub(crate) connection_info: ConnectionInfo,
+    pub(crate) transcript_refs: TranscriptRefs,
 }
 
 opaque_debug::implement!(Verify);
@@ -98,14 +102,15 @@ opaque_debug::implement!(Verify);
 impl From<Closed> for Verify {
     fn from(value: Closed) -> Self {
         Self {
-            io: value.io,
             mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
-            vm: value.vm,
-            ot_send: value.ot_send,
+            _mt: value.mt,
             ctx: value.ctx,
+            _keys: value.keys,
+            vm: value.vm,
             server_ephemeral_key: value.server_ephemeral_key,
             connection_info: value.connection_info,
+            transcript_refs: value.transcript_refs,
         }
     }
 }

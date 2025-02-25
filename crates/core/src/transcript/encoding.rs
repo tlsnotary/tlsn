@@ -8,8 +8,7 @@ mod proof;
 mod provider;
 mod tree;
 
-pub use encoder::EncoderSecret;
-pub(crate) use encoder::{new_encoder, Encoder};
+pub use encoder::{new_encoder, Encoder, EncoderSecret};
 pub use proof::{EncodingProof, EncodingProofError};
 pub use provider::EncodingProvider;
 pub use tree::EncodingTree;
