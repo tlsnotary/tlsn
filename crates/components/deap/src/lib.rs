@@ -7,17 +7,17 @@
 use std::{
     mem,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
 };
 
 use async_trait::async_trait;
-use mpz_common::{Context, scoped_futures::ScopedFutureExt as _};
+use mpz_common::{scoped_futures::ScopedFutureExt as _, Context};
 use mpz_core::bitvec::BitVec;
 use mpz_vm_core::{
+    memory::{binary::Binary, DecodeFuture, Memory, Slice, View},
     Call, Callable, Execute, Vm, VmError,
-    memory::{DecodeFuture, Memory, Slice, View, binary::Binary},
 };
 use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
 use utils::range::{Difference, RangeSet, UnionMut};
@@ -363,11 +363,11 @@ mod tests {
     use mpz_garble::protocol::semihonest::{Evaluator, Generator};
     use mpz_ot::ideal::{cot::ideal_cot, rcot::ideal_rcot};
     use mpz_vm_core::{
-        memory::{Array, binary::U8, correlated::Delta},
+        memory::{binary::U8, correlated::Delta, Array},
         prelude::*,
     };
     use mpz_zk::{Prover, Verifier};
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{rngs::StdRng, SeedableRng};
 
     use super::*;
 

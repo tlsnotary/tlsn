@@ -1,16 +1,16 @@
 use mpz_core::bitvec::BitVec;
-use mpz_memory_core::{DecodeFutureTyped, binary::Binary};
-use mpz_vm_core::{Vm, prelude::*};
+use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
+use mpz_vm_core::{prelude::*, Vm};
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 
 use crate::{
-    MpcTlsError, Role,
     record_layer::{
-        TagData,
         aead::{MpcAesGcm, VerifyTags},
         aes_ctr::AesCtr,
+        TagData,
     },
+    MpcTlsError, Role,
 };
 
 pub(crate) fn private_mpc(
