@@ -17,8 +17,9 @@ else
   run='gramine-sgx  notary-server &'
 fi
 
-curl https://sh.rustup.rs -sSf | sh -s -- -y
-. "$HOME/.cargo/env"
+export RUSTUP_HOME=/root/.rustup
+export CARGO_HOME=/root/.cargo
+rustup update
 apt install libssl-dev
 
 echo "gramine-sgx-gen-private-key"
