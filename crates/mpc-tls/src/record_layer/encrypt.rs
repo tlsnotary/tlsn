@@ -1,19 +1,19 @@
 use futures::TryFutureExt as _;
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     DecodeFutureTyped, Vector,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_vm_core::{Vm, prelude::*};
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 
 use crate::{
-    record_layer::{
-        aead::{AeadError, ComputeTags, MpcAesGcm},
-        TagData,
-    },
     BoxFut, MpcTlsError,
+    record_layer::{
+        TagData,
+        aead::{AeadError, ComputeTags, MpcAesGcm},
+    },
 };
 
 #[allow(clippy::type_complexity)]
@@ -54,6 +54,7 @@ fn private(
     ))
 }
 
+#[allow(clippy::type_complexity)]
 fn public(
     vm: &mut dyn Vm<Binary>,
     encrypter: &mut MpcAesGcm,
