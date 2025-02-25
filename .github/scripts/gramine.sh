@@ -35,16 +35,7 @@ gramine-sgx-gen-private-key
 ls -als
 echo "make"
 
-cargo build --bin notary-server --release --features tee_quote
-
-echo "copy notary-server binary"
-cp ../../../../target/release/notary-server .
-gramine-manifest -Dlog_level=info \
-  -Darch_libdir=/lib/x86_64-linux-gnu \
-  -Dself_exe=notary-server \
-  notary-server.manifest.template \
-  notary-server.manifest
-gramine-sgx-sign -m notary-server.manifest -o notary-server.sgx
+SGX=1 make
 
 mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig | jq .mr_enclave)
 echo "mrenclave=$mr_enclave" >>"$GITHUB_OUTPUT"
