@@ -195,7 +195,7 @@ mod tests {
         let aes_gen = setup_ctr(key, iv, &mut gen);
         let aes_ev = setup_ctr(key, iv, &mut ev);
 
-        let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
+        let msg = vec![42u8; 128];
 
         let keystream_gen = aes_gen.alloc_keystream(&mut gen, msg.len()).unwrap();
         let keystream_ev = aes_ev.alloc_keystream(&mut ev, msg.len()).unwrap();
