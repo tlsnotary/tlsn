@@ -354,7 +354,7 @@ impl RecordLayer {
             self.decrypt_buffer
                 .iter()
                 .position(|op| op.typ == ContentType::ApplicationData)
-                .unwrap_or_else(|| self.decrypt_buffer.len())
+                .unwrap_or(self.decrypt_buffer.len())
         };
 
         let decrypt_ops: Vec<_> = self.decrypt_buffer.drain(..decrypt_end).collect();

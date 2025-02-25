@@ -294,7 +294,7 @@ mod tests {
         assert_eq!(ciphertext_gen, expected);
     }
 
-    fn mock_vm() -> (impl Vm<Binary> + Execute, impl Vm<Binary> + Execute) {
+    fn mock_vm() -> (impl Vm<Binary>, impl Vm<Binary>) {
         let mut rng = StdRng::seed_from_u64(0);
         let delta = Delta::random(&mut rng);
 

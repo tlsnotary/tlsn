@@ -174,7 +174,7 @@ impl MpcTlsLeader {
         self.state = State::Setup {
             ctx,
             vm,
-            keys: keys.clone().into(),
+            keys: keys.into(),
             ke,
             prf,
             record_layer,

@@ -142,7 +142,7 @@ impl MpcTlsFollower {
 
         self.state = State::Setup {
             vm,
-            keys: keys.clone().into(),
+            keys: keys.into(),
             ke,
             prf,
             record_layer,
@@ -386,7 +386,7 @@ impl MpcTlsFollower {
             FollowerData {
                 server_key,
                 transcript,
-                keys: keys.into(),
+                keys,
             },
         ))
     }

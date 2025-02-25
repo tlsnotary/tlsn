@@ -16,10 +16,10 @@ use async_trait::async_trait;
 use circuit::build_xor_circuit;
 use mpz_circuits::types::ValueType;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     FromRaw, MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, CallBuilder, CallError, Vm};
+use mpz_vm_core::{CallBuilder, CallError, Vm, prelude::*};
 use std::collections::VecDeque;
 
 /// Provides computation of 2PC ciphers in counter and ECB mode.
@@ -63,6 +63,7 @@ pub trait Cipher {
     ) -> Result<Self::Block, Self::Error>;
 
     /// Allocates a single block in counter mode.
+    #[allow(clippy::type_complexity)]
     fn alloc_ctr_block(
         &self,
         vm: &mut dyn Vm<Binary>,
@@ -74,6 +75,7 @@ pub trait Cipher {
     ///
     /// * `vm` - Virtual machine to allocate into.
     /// * `len` - Length of the stream in bytes.
+    #[allow(clippy::type_complexity)]
     fn alloc_keystream(
         &self,
         vm: &mut dyn Vm<Binary>,
