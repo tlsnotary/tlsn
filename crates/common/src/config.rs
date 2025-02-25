@@ -5,16 +5,8 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-use crate::Role;
-
-// Extra cushion room, eg. for sharing J0 blocks.
-const EXTRA_OTS: usize = 16384;
-
-const OTS_PER_BYTE_SENT: usize = 8;
-
-// Without deferred decryption we use 16, with it we use 8.
-const OTS_PER_BYTE_RECV_ONLINE: usize = 16;
-const OTS_PER_BYTE_RECV_DEFER: usize = 8;
+// Default is 32 bytes to decrypt the TLS protocol messages.
+const DEFAULT_MAX_RECV_ONLINE: usize = 32;
 
 // Current version that is running.
 static VERSION: Lazy<Version> = Lazy::new(|| {
@@ -31,7 +23,7 @@ pub struct ProtocolConfig {
     max_sent_data: usize,
     /// Maximum number of bytes that can be decrypted online, i.e. while the
     /// MPC-TLS connection is active.
-    #[builder(default = "0")]
+    #[builder(default = "DEFAULT_MAX_RECV_ONLINE")]
     max_recv_data_online: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
@@ -70,26 +62,6 @@ impl ProtocolConfig {
     /// Returns the maximum number of bytes that can be received.
     pub fn max_recv_data(&self) -> usize {
         self.max_recv_data
-    }
-
-    /// Returns OT sender setup count.
-    pub fn ot_sender_setup_count(&self, role: Role) -> usize {
-        ot_send_estimate(
-            role,
-            self.max_sent_data,
-            self.max_recv_data_online,
-            self.max_recv_data,
-        )
-    }
-
-    /// Returns OT receiver setup count.
-    pub fn ot_receiver_setup_count(&self, role: Role) -> usize {
-        ot_recv_estimate(
-            role,
-            self.max_sent_data,
-            self.max_recv_data_online,
-            self.max_recv_data,
-        )
     }
 }
 
@@ -220,42 +192,6 @@ impl fmt::Display for ProtocolConfigError {
 enum ErrorKind {
     MaxTranscriptSize,
     Version,
-}
-
-/// Returns an estimate of the number of OTs that will be sent.
-pub fn ot_send_estimate(
-    role: Role,
-    max_sent_data: usize,
-    max_recv_data_online: usize,
-    max_recv_data: usize,
-) -> usize {
-    match role {
-        Role::Prover => EXTRA_OTS,
-        Role::Verifier => {
-            EXTRA_OTS
-                + (max_sent_data * OTS_PER_BYTE_SENT)
-                + (max_recv_data_online * OTS_PER_BYTE_RECV_ONLINE)
-                + ((max_recv_data - max_recv_data_online) * OTS_PER_BYTE_RECV_DEFER)
-        }
-    }
-}
-
-/// Returns an estimate of the number of OTs that will be received.
-pub fn ot_recv_estimate(
-    role: Role,
-    max_sent_data: usize,
-    max_recv_data_online: usize,
-    max_recv_data: usize,
-) -> usize {
-    match role {
-        Role::Prover => {
-            EXTRA_OTS
-                + (max_sent_data * OTS_PER_BYTE_SENT)
-                + (max_recv_data_online * OTS_PER_BYTE_RECV_ONLINE)
-                + ((max_recv_data - max_recv_data_online) * OTS_PER_BYTE_RECV_DEFER)
-        }
-        Role::Verifier => EXTRA_OTS,
-    }
 }
 
 #[cfg(test)]

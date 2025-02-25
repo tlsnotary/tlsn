@@ -15,20 +15,16 @@
 #![forbid(unsafe_code)]
 
 mod circuit;
-mod config;
 pub(crate) mod error;
 mod exchange;
 #[cfg(feature = "mock")]
 pub mod mock;
 pub(crate) mod point_addition;
 
-use async_trait::async_trait;
-pub use config::{
-    KeyExchangeConfig, KeyExchangeConfigBuilder, KeyExchangeConfigBuilderError, Role,
-};
 pub use error::KeyExchangeError;
 pub use exchange::MpcKeyExchange;
 
+use async_trait::async_trait;
 use mpz_common::Context;
 use mpz_memory_core::{
     binary::{Binary, U8},
@@ -39,6 +35,15 @@ use p256::PublicKey;
 
 /// Pre-master secret.
 pub type Pms = Array<U8, 32>;
+
+/// Role in the key exchange protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    /// Leader.
+    Leader,
+    /// Follower.
+    Follower,
+}
 
 /// A trait for the 3-party key exchange protocol.
 #[async_trait]

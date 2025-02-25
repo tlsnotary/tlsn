@@ -4,34 +4,20 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+pub mod commit;
 pub mod config;
+mod context;
 pub mod msg;
 pub mod mux;
+pub mod transcript;
+pub mod zk_aes;
 
-use serio::codec::Codec;
-
-use crate::mux::MuxControl;
-
-/// IO type.
-pub type Io = <serio::codec::Bincode as Codec<uid_mux::yamux::Stream>>::Framed;
-/// Base OT sender.
-pub type BaseOTSender = mpz_ot::chou_orlandi::Sender;
-/// Base OT receiver.
-pub type BaseOTReceiver = mpz_ot::chou_orlandi::Receiver;
-/// OT sender.
-pub type OTSender = mpz_ot::kos::SharedSender<BaseOTReceiver>;
-/// OT receiver.
-pub type OTReceiver = mpz_ot::kos::SharedReceiver<BaseOTSender>;
-/// MPC executor.
-pub type Executor = mpz_common::executor::MTExecutor<MuxControl>;
-/// MPC thread context.
-pub type Context = mpz_common::executor::MTContext<MuxControl, Io>;
-/// DEAP thread.
-pub type DEAPThread = mpz_garble::protocol::deap::DEAPThread<Context, OTSender, OTReceiver>;
+pub use context::build_mt_context;
 
 /// The party's role in the TLSN protocol.
 ///
 /// A Notary is classified as a Verifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     /// The prover.
     Prover,

@@ -1,7 +1,7 @@
 //! This module provides mock types for key exchange leader and follower and a
 //! function to create such a pair.
 
-use crate::{KeyExchangeConfig, MpcKeyExchange, Role};
+use crate::{MpcKeyExchange, Role};
 use mpz_core::Block;
 use mpz_fields::p256::P256;
 use mpz_share_conversion::ideal::{
@@ -17,27 +17,9 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchange, MockKeyExchange) {
     let (leader_converter_0, follower_converter_0) = ideal_share_convert(Block::ZERO);
     let (follower_converter_1, leader_converter_1) = ideal_share_convert(Block::ZERO);
 
-    let key_exchange_config_leader = KeyExchangeConfig::builder()
-        .role(Role::Leader)
-        .build()
-        .unwrap();
+    let leader = MpcKeyExchange::new(Role::Leader, leader_converter_0, leader_converter_1);
 
-    let key_exchange_config_follower = KeyExchangeConfig::builder()
-        .role(Role::Follower)
-        .build()
-        .unwrap();
-
-    let leader = MpcKeyExchange::new(
-        key_exchange_config_leader,
-        leader_converter_0,
-        leader_converter_1,
-    );
-
-    let follower = MpcKeyExchange::new(
-        key_exchange_config_follower,
-        follower_converter_1,
-        follower_converter_0,
-    );
+    let follower = MpcKeyExchange::new(Role::Follower, follower_converter_1, follower_converter_0);
 
     (leader, follower)
 }

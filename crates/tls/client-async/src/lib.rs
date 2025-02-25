@@ -146,7 +146,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 tx_recv_fut = tx_receiver.next().fuse();
             }
 
-            if server_closed && client.plaintext_is_empty() && client.buffer_len().await? == 0 {
+            if server_closed && client.plaintext_is_empty() && client.is_empty().await? {
                 break 'conn;
             }
 

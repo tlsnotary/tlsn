@@ -115,7 +115,7 @@ String
 ## Logging
 The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic:
 
-`notary_server=DEBUG,tlsn_verifier=DEBUG,tls_mpc=DEBUG,tls_client_async=DEBUG`
+`notary_server=DEBUG,tlsn_verifier=DEBUG,mpc_tls=DEBUG,tls_client_async=DEBUG`
 
 In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field under `logging`.
 
