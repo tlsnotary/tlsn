@@ -9,7 +9,5 @@ fi
 # Run the benchmark binary.
 ../../../target/release/bench
 
-
-
 # Plot the results.
 ../../../target/release/plot metrics.csv

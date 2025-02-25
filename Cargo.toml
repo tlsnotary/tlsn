@@ -3,7 +3,7 @@ members = [
     "crates/benches/binary",
     "crates/benches/browser/core",
     "crates/benches/browser/native",
-    #"crates/benches/browser/wasm",
+    "crates/benches/browser/wasm",
     "crates/benches/library",
     "crates/common",
     "crates/components/deap",
@@ -29,8 +29,8 @@ members = [
     "crates/mpc-tls",
     "crates/tls/server-fixture",
     "crates/verifier",
-    #"crates/wasm",
-    #"crates/wasm-test-runner",
+    "crates/wasm",
+    "crates/wasm-test-runner",
 ]
 resolver = "2"
 
