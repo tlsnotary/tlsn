@@ -4,8 +4,8 @@
 //! verifier produces an attestation but does not verify transcript data.
 
 use super::{state::Notarize, Prover, ProverError};
-use mpz_ot::VerifiableOTReceiver;
 use serio::{stream::IoStreamExt as _, SinkExt as _};
+use tlsn_common::encoding;
 use tlsn_core::{
     attestation::Attestation,
     request::{Request, RequestConfig},
@@ -32,22 +32,39 @@ impl Prover<Notarize> {
         config: &RequestConfig,
     ) -> Result<(Attestation, Secrets), ProverError> {
         let Notarize {
-            mut io,
             mux_ctrl,
             mut mux_fut,
-            mut vm,
-            mut ot_recv,
             mut ctx,
+            vm,
             connection_info,
             server_cert_data,
             transcript,
-            encoding_provider,
+            transcript_refs,
             transcript_commit_config,
+            ..
         } = self.state;
+
+        let sent_macs = transcript_refs
+            .sent()
+            .iter()
+            .flat_map(|plaintext| vm.get_macs(*plaintext).expect("reference is valid"))
+            .map(|mac| mac.as_block());
+        let recv_macs = transcript_refs
+            .recv()
+            .iter()
+            .flat_map(|plaintext| vm.get_macs(*plaintext).expect("reference is valid"))
+            .map(|mac| mac.as_block());
+
+        let encoding_provider = mux_fut
+            .poll_with(encoding::receive(&mut ctx, sent_macs, recv_macs))
+            .await?;
 
         let provider = self.config.crypto_provider();
 
-        let hasher = provider.hash.get(config.hash_alg()).unwrap();
+        let hasher = provider
+            .hash
+            .get(config.hash_alg())
+            .map_err(ProverError::config)?;
 
         let mut builder = Request::builder(config);
 
@@ -62,10 +79,10 @@ impl Prover<Notarize> {
                     EncodingTree::new(
                         hasher,
                         config.iter_encoding(),
-                        &*encoding_provider,
+                        &encoding_provider,
                         &connection_info.transcript_length,
                     )
-                    .unwrap(),
+                    .map_err(ProverError::commit)?,
                 );
             }
         }
@@ -76,15 +93,9 @@ impl Prover<Notarize> {
             .poll_with(async {
                 debug!("starting finalization");
 
-                io.send(request.clone()).await?;
+                ctx.io_mut().send(request.clone()).await?;
 
-                ot_recv.accept_reveal(&mut ctx).await?;
-
-                debug!("received OT secret");
-
-                vm.finalize().await?;
-
-                let attestation: Attestation = io.expect_next().await?;
+                let attestation: Attestation = ctx.io_mut().expect_next().await?;
 
                 Ok::<_, ProverError>(attestation)
             })
@@ -92,7 +103,7 @@ impl Prover<Notarize> {
 
         // Wait for the notary to correctly close the connection.
         if !mux_fut.is_complete() {
-            mux_ctrl.mux().close();
+            mux_ctrl.close();
             mux_fut.await?;
         }
 

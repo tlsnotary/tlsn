@@ -1,5 +1,6 @@
+use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
-use tls_mpc::MpcTlsError;
+use tlsn_common::{encoding::EncodingError, zk_aes::ZkAesCtrError};
 
 /// Error for [`Verifier`](crate::Verifier).
 #[derive(Debug, thiserror::Error)]
@@ -17,6 +18,20 @@ impl VerifierError {
             kind,
             source: Some(source.into()),
         }
+    }
+
+    pub(crate) fn mpc<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Mpc, source)
+    }
+
+    pub(crate) fn zk<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Zk, source)
     }
 
     pub(crate) fn attestation<E>(source: E) -> Self
@@ -39,6 +54,8 @@ enum ErrorKind {
     Io,
     Config,
     Mpc,
+    Zk,
+    Commit,
     Attestation,
     Verify,
 }
@@ -51,6 +68,8 @@ impl fmt::Display for VerifierError {
             ErrorKind::Io => f.write_str("io error")?,
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Mpc => f.write_str("mpc error")?,
+            ErrorKind::Zk => f.write_str("zk error")?,
+            ErrorKind::Commit => f.write_str("commit error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
             ErrorKind::Verify => f.write_str("verification error")?,
         }
@@ -93,50 +112,14 @@ impl From<MpcTlsError> for VerifierError {
     }
 }
 
-impl From<mpz_ot::OTError> for VerifierError {
-    fn from(e: mpz_ot::OTError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
+impl From<ZkAesCtrError> for VerifierError {
+    fn from(e: ZkAesCtrError) -> Self {
+        Self::new(ErrorKind::Zk, e)
     }
 }
 
-impl From<mpz_ot::kos::SenderError> for VerifierError {
-    fn from(e: mpz_ot::kos::SenderError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_ole::OLEError> for VerifierError {
-    fn from(e: mpz_ole::OLEError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_ot::kos::ReceiverError> for VerifierError {
-    fn from(e: mpz_ot::kos::ReceiverError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::VmError> for VerifierError {
-    fn from(e: mpz_garble::VmError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::protocol::deap::DEAPError> for VerifierError {
-    fn from(e: mpz_garble::protocol::deap::DEAPError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::MemoryError> for VerifierError {
-    fn from(e: mpz_garble::MemoryError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::VerifyError> for VerifierError {
-    fn from(e: mpz_garble::VerifyError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
+impl From<EncodingError> for VerifierError {
+    fn from(e: EncodingError) -> Self {
+        Self::new(ErrorKind::Commit, e)
     }
 }

@@ -47,6 +47,30 @@ pub(crate) enum Role {
     Follower,
 }
 
+/// TLS session keys.
+#[derive(Debug, Clone)]
+pub struct SessionKeys {
+    /// Client write key.
+    pub client_write_key: Array<U8, 16>,
+    /// Client write IV.
+    pub client_write_iv: Array<U8, 4>,
+    /// Server write key.
+    pub server_write_key: Array<U8, 16>,
+    /// Server write IV.
+    pub server_write_iv: Array<U8, 4>,
+}
+
+impl From<hmac_sha256::SessionKeys> for SessionKeys {
+    fn from(keys: hmac_sha256::SessionKeys) -> Self {
+        Self {
+            client_write_key: keys.client_write_key,
+            client_write_iv: keys.client_iv,
+            server_write_key: keys.server_write_key,
+            server_write_iv: keys.server_iv,
+        }
+    }
+}
+
 /// MPC-TLS Leader output.
 #[derive(Debug)]
 pub struct LeaderOutput {
@@ -66,14 +90,8 @@ pub struct LeaderOutput {
     pub server_random: Random,
     /// TLS transcript.
     pub transcript: TlsTranscript,
-    /// Client write key.
-    pub client_write_key: Array<U8, 16>,
-    /// Client write IV.
-    pub client_write_iv: Array<U8, 4>,
-    /// Server write key.
-    pub server_write_key: Array<U8, 16>,
-    /// Server write IV.
-    pub server_write_iv: Array<U8, 4>,
+    /// TLS session keys.
+    pub keys: SessionKeys,
 }
 
 /// MPC-TLS Follower output.
@@ -83,12 +101,6 @@ pub struct FollowerData {
     pub server_key: PublicKey,
     /// TLS transcript.
     pub transcript: TlsTranscript,
-    /// Client write key.
-    pub client_write_key: Array<U8, 16>,
-    /// Client write IV.
-    pub client_write_iv: Array<U8, 4>,
-    /// Server write key.
-    pub server_write_key: Array<U8, 16>,
-    /// Server write IV.
-    pub server_write_iv: Array<U8, 4>,
+    /// TLS session keys.
+    pub keys: SessionKeys,
 }

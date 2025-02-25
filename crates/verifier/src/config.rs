@@ -1,9 +1,9 @@
-use mpz_ot::{chou_orlandi, kos};
 use std::{
     fmt::{Debug, Formatter, Result},
     sync::Arc,
 };
-use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig, TranscriptConfig};
+
+use mpc_tls::Config;
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 
@@ -42,55 +42,10 @@ impl VerifierConfig {
         &self.crypto_provider
     }
 
-    pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
-        chou_orlandi::SenderConfig::default()
-    }
-
-    pub(crate) fn build_base_ot_receiver_config(&self) -> chou_orlandi::ReceiverConfig {
-        chou_orlandi::ReceiverConfig::builder()
-            .receiver_commit()
-            .build()
-            .unwrap()
-    }
-
-    pub(crate) fn build_ot_sender_config(&self) -> kos::SenderConfig {
-        kos::SenderConfig::builder()
-            .sender_commit()
-            .build()
-            .unwrap()
-    }
-
-    pub(crate) fn build_ot_receiver_config(&self) -> kos::ReceiverConfig {
-        kos::ReceiverConfig::default()
-    }
-
-    pub(crate) fn build_mpc_tls_config(
-        &self,
-        protocol_config: &ProtocolConfig,
-    ) -> MpcTlsFollowerConfig {
-        MpcTlsFollowerConfig::builder()
-            .common(
-                MpcTlsCommonConfig::builder()
-                    .tx_config(
-                        TranscriptConfig::default_tx()
-                            .max_online_size(protocol_config.max_sent_data())
-                            .build()
-                            .unwrap(),
-                    )
-                    .rx_config(
-                        TranscriptConfig::default_rx()
-                            .max_online_size(protocol_config.max_recv_data_online())
-                            .max_offline_size(
-                                protocol_config.max_recv_data()
-                                    - protocol_config.max_recv_data_online(),
-                            )
-                            .build()
-                            .unwrap(),
-                    )
-                    .handshake_commit(true)
-                    .build()
-                    .unwrap(),
-            )
+    pub(crate) fn build_mpc_tls_config(&self, protocol_config: &ProtocolConfig) -> Config {
+        Config::builder()
+            .max_sent(protocol_config.max_sent_data())
+            .max_recv_online(protocol_config.max_recv_data_online())
             .build()
             .unwrap()
     }

@@ -11,6 +11,7 @@ default = []
 tlsn-core = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-cipher = { workspace = true }
+tlsn-utils = { workspace = true }
 mpz-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-memory-core = { workspace = true }
@@ -29,6 +30,10 @@ tracing = { workspace = true }
 uid-mux = { workspace = true, features = ["serio"] }
 serde = { workspace = true, features = ["derive"] }
 semver = { version = "1.0", features = ["serde"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2" }
+web-spawn = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
