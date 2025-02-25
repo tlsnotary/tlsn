@@ -494,25 +494,25 @@ mod tests {
         .unwrap();
 
         let (mut leader, mut follower) = create_pair();
+        leader.private_key = leader_private_key.clone();
+        follower.private_key = follower_private_key.clone();
 
         let leader_pms = leader.alloc(&mut gen).unwrap();
         let follower_pms = follower.alloc(&mut ev).unwrap();
 
+        tokio::try_join!(leader.setup(&mut ctx_a), follower.setup(&mut ctx_b)).unwrap();
+
+        let client_public_key = leader.client_key().unwrap();
+        assert_eq!(client_public_key, expected_client_public_key);
+
         let mut leader_pms = gen.decode(leader_pms).unwrap();
         let mut follower_pms = ev.decode(follower_pms).unwrap();
 
-        leader.private_key = leader_private_key.clone();
-        follower.private_key = follower_private_key.clone();
+        leader.set_server_key(server_public_key).unwrap();
+        follower.set_server_key(server_public_key).unwrap();
 
         let (leader_pms, follower_pms) = tokio::join!(
             async {
-                leader.setup(&mut ctx_a).await.unwrap();
-
-                let client_public_key = leader.client_key().unwrap();
-
-                assert_eq!(client_public_key, expected_client_public_key);
-
-                leader.set_server_key(server_public_key).unwrap();
                 leader.compute_shares(&mut ctx_a).await.unwrap();
                 leader.assign(&mut gen).unwrap();
 
@@ -525,8 +525,6 @@ mod tests {
                 leader_pms.try_recv().unwrap().unwrap()
             },
             async {
-                follower.setup(&mut ctx_b).await.unwrap();
-                follower.set_server_key(server_public_key).unwrap();
                 follower.compute_shares(&mut ctx_b).await.unwrap();
                 follower.assign(&mut ev).unwrap();
 
@@ -629,23 +627,21 @@ mod tests {
         .unwrap();
 
         let (mut leader, mut follower) = create_pair();
+        leader.private_key = leader_private_key.clone();
+        follower.private_key = follower_private_key.clone();
 
         leader.alloc(&mut gen).unwrap();
         follower.alloc(&mut ev).unwrap();
 
-        leader.private_key = leader_private_key.clone();
-        follower.private_key = follower_private_key.clone();
+        tokio::try_join!(leader.setup(&mut ctx_a), follower.setup(&mut ctx_b)).unwrap();
+
+        let client_public_key = leader.client_key().unwrap();
+        assert_eq!(client_public_key, expected_client_public_key);
 
         let bad_pms_share: P256 = rng.gen();
 
         let (leader_err, follower_err) = tokio::join!(
             async {
-                leader.setup(&mut ctx_a).await.unwrap();
-
-                let client_public_key = leader.client_key().unwrap();
-
-                assert_eq!(client_public_key, expected_client_public_key);
-
                 leader.set_server_key(server_public_key).unwrap();
                 leader.compute_shares(&mut ctx_a).await.unwrap();
 
@@ -663,7 +659,6 @@ mod tests {
                 leader.finalize().await
             },
             async {
-                follower.setup(&mut ctx_b).await.unwrap();
                 follower.set_server_key(server_public_key).unwrap();
                 follower.compute_shares(&mut ctx_b).await.unwrap();
 
