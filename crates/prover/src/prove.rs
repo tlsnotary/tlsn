@@ -40,7 +40,8 @@ impl Prover<ProveState> {
             .expect("index is in bounds");
 
         for slice in sent_refs.into_iter().chain(recv_refs) {
-            let _ = self.state.vm.decode(slice).map_err(ProverError::zk)?;
+            // Drop the future, we don't need it.
+            drop(self.state.vm.decode(slice).map_err(ProverError::zk)?);
         }
 
         self.state
