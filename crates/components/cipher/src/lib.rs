@@ -16,10 +16,10 @@ use async_trait::async_trait;
 use circuit::build_xor_circuit;
 use mpz_circuits::types::ValueType;
 use mpz_memory_core::{
-    FromRaw, MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
     binary::{Binary, U8},
+    FromRaw, MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
 };
-use mpz_vm_core::{CallBuilder, CallError, Vm, prelude::*};
+use mpz_vm_core::{prelude::*, CallBuilder, CallError, Vm};
 use std::collections::VecDeque;
 
 /// Provides computation of 2PC ciphers in counter and ECB mode.
