@@ -22,7 +22,10 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 . "$HOME/.cargo/env"
 apt install libssl-dev
 
+echo "gramine-sgx-gen-private-key"
 gramine-sgx-gen-private-key
+ls -als
+echo "make"
 SGX=1 make -p
 gramine-sgx-sign -m notary-server.manifest -o notary-server.sgx
 mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig |jq .mr_enclave)
