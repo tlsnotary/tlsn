@@ -9,6 +9,7 @@
 ##
 
 set -e
+set -x
 
 if [ -z "$1" ]; then
   run='gramine-direct  notary-server &'
@@ -35,12 +36,14 @@ ls -als
 echo "make"
 
 cargo build --bin notary-server --release --features tee_quote
-cp ../../../../target/release/notary-server . &&
-  gramine-manifest -Dlog_level=info \
-    -Darch_libdir=/lib/x86_64-linux-gnu \
-    -Dself_exe=notary-server \
-    notary-server.manifest.template \
-    notary-server.manifest
+
+echo "copy notary-server binary"
+cp ../../../../target/release/notary-server .
+gramine-manifest -Dlog_level=info \
+  -Darch_libdir=/lib/x86_64-linux-gnu \
+  -Dself_exe=notary-server \
+  notary-server.manifest.template \
+  notary-server.manifest
 gramine-sgx-sign -m notary-server.manifest -o notary-server.sgx
 
 mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig | jq .mr_enclave)
