@@ -33,7 +33,8 @@ RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release --ex
 If notarization is successful, you should see the following output in the console:
 ```log
 Starting an MPC TLS connection with the server
-Got a response from the server
+Got a response from the server: 200 OK
+Notarization complete!
 Notarization completed successfully!
 The attestation has been written to `example-json.attestation.tlsn` and the corresponding secrets to `example-json.secrets.tlsn`.
 ```
@@ -74,7 +75,7 @@ Verifying presentation with {key algorithm} key: { hex encoded key }
 **Ask yourself, do you trust this key?**
 
 -------------------------------------------------------------------
-Successfully verified that the data below came from a session with test-server.io at 2024-10-03 03:01:40 UTC.
+Successfully verified that the data below came from a session with test-server.io at { time }.
 Note that the data which the Prover chose not to disclose are shown as X.
 
 Data sent:
