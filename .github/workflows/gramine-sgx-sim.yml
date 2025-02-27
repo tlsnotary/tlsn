@@ -28,6 +28,7 @@ jobs:
 
   gramine_sim:
     runs-on: ubuntu-latest
+    needs: rust_build
     container:
       image: gramineproject/gramine:latest
       # options: --privileged                         # Required for enclaves in Docker
