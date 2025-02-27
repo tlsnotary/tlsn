@@ -64,7 +64,7 @@ jobs:
           mkdir -p "${HOME}/.config/gramine/"
           echo "${{ secrets.SGX_SIGNING_KEY }}" > "${HOME}/.config/gramine/enclave-key.pem"
           # verify key
-          file "${HOME}/.config/gramine/enclave-key.pem"
+          ls -als "${HOME}/.config/gramine/enclave-key.pem"
           openssl rsa -in "${HOME}/.config/gramine/enclave-key.pem" -check -noout
 
       - name: Download notary-server binary
