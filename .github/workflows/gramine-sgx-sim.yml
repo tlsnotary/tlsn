@@ -5,25 +5,58 @@ on:
   pull_request:
 
 jobs:
-  gramine_sim:
+  rust_build:
     runs-on: ubuntu-latest
     container:
-      image: gramineproject/gramine:latest  # Use the latest Gramine Docker image
-      options: --privileged                         # Required for enclaves in Docker
+      image: rust:latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set SGX Simulation Mode
-        run: echo "SGX_MODE=SIM" >> $GITHUB_ENV
-
-      - name: Run Hello World in Gramine
+      - name: Build Rust Binary
         run: |
-          apt-get update
-          apt-get install git build-essential -y
+          cd $GITHUB_WORKSPACE
+          cargo build --bin notary-server  --release --features tee_quote
+          cp target/release/notary-server $GITHUB_WORKSPACE/notary-server
+
+      - name: Upload Binary for Next Job
+        uses: actions/upload-artifact@v4
+        with:
+          name: notary-server
+          path: $GITHUB_WORKSPACE/notary-server
+
+  gramine_sim:
+    runs-on: ubuntu-latest
+    container:
+      image: gramineproject/gramine:latest
+      # options: --privileged                         # Required for enclaves in Docker
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download notary-server binary
+        uses: actions/download-artifact@v4
+        with:
+          name: notary-server
+          path: $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee
+
+      - name: Run notary-server in Gramine
+        run: |          
           gramine-sgx-gen-private-key
-          git clone https://github.com/gramineproject/gramine.git
-          cd gramine/CI-Examples/helloworld
-          make SGX=0
-          gramine-sgx ./helloworld
+
+          cd $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee
+
+          gramine-manifest \
+            -Dlog_level=debug \
+            -Darch_libdir=/lib/x86_64-linux-gnu \
+            -Dself_exe=notary-server \
+            notary-server.manifest.template \
+            notary-server.manifest
+
+          gramine-sgx-sign \
+            --manifest notary-server.manifest \
+            --output notary-server.manifest.sgx
+
+          # gramine-sgx $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee/notary-server
