@@ -24,7 +24,7 @@ endif
 $(SELF_EXE): $(ROOT_DIR)../Cargo.toml
 	cargo build --bin notary-server  --release --features tee_quote
 
-notary-server.manifest: notary-server.manifest.template
+notary-server.manifest: notary-server.manifest.template $(SELF_EXE)
 	cp ../../../../target/release/notary-server . && \
 	gramine-manifest \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \

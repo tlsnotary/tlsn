@@ -24,7 +24,7 @@ get_last_port() {
     grep -Po "reverse_proxy :([0-9]+)" "$CADDYFILE" | awk -F: '{print $2}' | sort -n | tail -1
 }
 
-# Function to add a new handle_path block with incremented port inside notary.codes block
+# Function to add a new handle_path block with incremented port inside notary.pse.dev block
 add_new_handle_path() {
     local new_port=$1
     local commit_hash=$2
@@ -32,9 +32,9 @@ add_new_handle_path() {
     # Use a temporary file for inserting the handle_path block
     tmp_file=$(mktemp)
 
-    # Add the new handle_path in the notary.codes block
+    # Add the new handle_path in the notary.pse.dev block
     awk -v port="$new_port" -v hash="$commit_hash" '
-        /notary\.codes \{/ {
+        /notary\.pse\.dev \{/ {
             print;
             print "    handle_path /" hash "* {";
             print "        reverse_proxy :" port " :3333 {";
@@ -70,7 +70,7 @@ else
     fi
     new_port=$((last_port + 1))
 
-    # Add the new handle_path block inside notary.codes block
+    # Add the new handle_path block inside notary.pse.dev block
     add_new_handle_path "$new_port" "$GIT_COMMIT_HASH"
     echo $new_port
     # commit the changes
