@@ -1,0 +1,33 @@
+name: Test Gramine in SGX Simulation Mode
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gramine_sim:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential python3 libssl-dev gdb
+
+      - name: Install Gramine
+        run: |
+          git clone --depth=1 https://github.com/gramineproject/gramine.git
+          cd gramine
+          pip3 install --user .
+
+      - name: Set SGX Simulation Mode
+        run: echo "SGX_MODE=SIM" >> $GITHUB_ENV
+
+      - name: Run Hello World Enclave
+        run: |
+          cd gramine/CI-Examples/helloworld
+          make SGX=1
+          gramine-sgx ./helloworld
