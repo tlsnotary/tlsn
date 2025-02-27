@@ -46,6 +46,7 @@ jobs:
           name: notary-server
           path: notary-server
           if-no-files-found: error
+          retention-days: 1  # Auto-delete after 1 day, no need to keep it around because it is part of the zipfile b
 
   gramine_sim:
     runs-on: ubuntu-latest
