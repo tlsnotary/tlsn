@@ -1,5 +1,5 @@
 server:
-  name: "notary.codes"
+  name: "notary.pse.dev"
   host: "0.0.0.0"
   port: 7047
   html_info: |

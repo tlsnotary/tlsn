@@ -5,7 +5,7 @@
 
 {
   key_type p256
-  email mac@pse.dev # for acme
+  email hendrik@pse.dev # for acme
   servers {
     metrics
   }
@@ -26,18 +26,9 @@
 #    will always deliver to :4000 if its up, but if :4000 is down for more than 4s it trys the next one
 # # # #
 
-notary.codes {
-    handle_path /v0.1.0-alpha.8* {
-        reverse_proxy :4003 :3333 {
-            lb_try_duration 4s
-            fail_duration 10s
-            lb_policy header X-Upstream {
-                fallback first
-            }
-        }
-    }
+notary.pse.dev {
     handle_path /v0.1.0-alpha.7* {
-        reverse_proxy :4002 :3333 {
+        reverse_proxy :4007 :3333 {
             lb_try_duration 4s
             fail_duration 10s
             lb_policy header X-Upstream {
@@ -66,7 +57,7 @@ notary.codes {
     }
 
     handle_path /proxy* {
-     reverse_proxy :55688 proxy.notary.codes:443 {
+     reverse_proxy :55688 {
      lb_try_duration 4s
      fail_duration 10s
      lb_policy header X-Upstream {

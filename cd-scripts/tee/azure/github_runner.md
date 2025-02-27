@@ -78,3 +78,36 @@ docker tag tee_hendrik notaryserverbuilds/tee_hendrik
 docker images
 docker push notaryserverbuilds.azurecr.io/tee_hendrik
 ```
+
+
+## Install Intel SGX software
+
+https://download.01.org/intel-sgx/latest/dcap-latest/linux/docs/Intel_SGX_SW_Installation_Guide_for_Linux.pdf
+
+```
+wget https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key
+cat intel-sgx-deb.key | sudo tee /etc/apt/keyrings/intel-sgx-keyring.asc > /dev/null
+
+# Add the following repository to your sources:
+echo 'deb [signed-by=/etc/apt/keyrings/intel-sgx-keyring.asc arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu noble main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
+
+
+sudo apt-get update
+sudo apt-get install libsgx-epid libsgx-quote-ex libsgx-dcap-ql -y
+```
+
+Note: when I first got it working I also installed this: (not sure if this is necessary)
+# sudo apt-get install build-essential ocaml automake autoconf libtool wget python-is-python3 libssl-dev -y
+
+
+## Install Caddy
+
+https://caddyserver.com/docs/install#debian-ubuntu-raspbian
+
+```
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install caddy
+```
