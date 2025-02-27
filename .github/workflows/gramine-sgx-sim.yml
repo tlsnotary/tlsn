@@ -25,5 +25,5 @@ jobs:
           gramine-sgx-gen-private-key
           git clone https://github.com/gramineproject/gramine.git
           cd gramine/CI-Examples/helloworld
-          make SGX=1
+          make SGX=0
           gramine-sgx ./helloworld
