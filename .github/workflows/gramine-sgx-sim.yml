@@ -39,13 +39,13 @@ jobs:
           pwd
           cargo build --bin notary-server  --release --features tee_quote
           find . -iname "notary-server"
-          cp --verbose target/release/notary-server .
+          cp --verbose target/release/notary-server $GITHUB_WORKSPACE
 
       - name: Upload Binary for Next Job
         uses: actions/upload-artifact@v4
         with:
           name: notary-server
-          path: $GITHUB_WORKSPACE/tlsn/notary-server
+          path: $GITHUB_WORKSPACE/notary-server
           if-no-files-found: error
 
   gramine_sim:
