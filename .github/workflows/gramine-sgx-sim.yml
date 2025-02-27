@@ -20,6 +20,9 @@ jobs:
 
       - name: Run Hello World in Gramine
         run: |
+          apt-get update
+          apt-get install git build-essential -y
+          gramine-sgx-gen-private-key
           git clone https://github.com/gramineproject/gramine.git
           cd gramine/CI-Examples/helloworld
           make SGX=1
