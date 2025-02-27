@@ -38,6 +38,7 @@ jobs:
         run: |
           pwd
           cargo build --bin notary-server  --release --features tee_quote
+          find . -iname "notary-server"
           cp --verbose target/release/notary-server .
 
       - name: Upload Binary for Next Job
