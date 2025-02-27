@@ -1,11 +1,10 @@
-name: Test Gramine in SGX Simulation Mode
+name: Calculate SGX measurement
 
 on:
   pull_request:
 
 env:
   GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
-  GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
 
 jobs:
   rust_build:
@@ -35,12 +34,10 @@ jobs:
 
       - name: Build Rust Binary
         run: |
-          pwd
           cargo build --bin notary-server  --release --features tee_quote
-          find . -iname "notary-server"
           cp --verbose target/release/notary-server $GITHUB_WORKSPACE
 
-      - name: Upload Binary for Next Job
+      - name: Upload Binary for use in the Gramine Job
         uses: actions/upload-artifact@v4
         with:
           name: notary-server
@@ -59,15 +56,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Restore SGX signing key
+      - name: Restore SGX signing key from secrets
         run: |
           mkdir -p "${HOME}/.config/gramine/"
           echo "${{ secrets.SGX_SIGNING_KEY }}" > "${HOME}/.config/gramine/enclave-key.pem"
           # verify key
-          ls -als "${HOME}/.config/gramine/enclave-key.pem"
           openssl rsa -in "${HOME}/.config/gramine/enclave-key.pem" -check -noout
 
-      - name: Download notary-server binary
+      - name: Download notary-server binary from build job
         uses: actions/download-artifact@v4
         with:
           name: notary-server
@@ -101,7 +97,7 @@ jobs:
           echo "\`\`\`${mr_enclave}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
 
           # gramine-sgx $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee/notary-server
-      - name: Upload Binary for Next Job
+      - name: Upload notary-server and signatures
         uses: actions/upload-artifact@v4
         with:
           name: notary-server-sgx.zip
