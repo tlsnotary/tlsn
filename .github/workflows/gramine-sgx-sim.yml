@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+env:
+  GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
+  GIT_COMMIT_TIMESTAMP: ${{ github.event.repository.updated_at}}
+
 jobs:
   rust_build:
     runs-on: ubuntu-latest
