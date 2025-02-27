@@ -52,7 +52,6 @@ jobs:
     needs: rust_build
     container:
       image: gramineproject/gramine:latest
-      # options: --privileged                         # Required for enclaves in Docker
 
     steps:
       - name: Checkout repository
@@ -63,6 +62,11 @@ jobs:
         with:
           name: notary-server
           path: crates/notary/server/tee
+
+      - name: Install jq
+        run: |
+          apt update
+          apt install -y jq
 
       - name: Run notary-server in Gramine
         run: |
@@ -82,4 +86,17 @@ jobs:
             --manifest notary-server.manifest \
             --output notary-server.manifest.sgx
 
+          gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig | tee >> notary-server.sigstruct.json
+
+          mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig | jq .mr_enclave)
+          echo "mrenclave=$mr_enclave" >>"$GITHUB_OUTPUT"
+          echo "#### sgx mrenclave" | tee >>$GITHUB_STEP_SUMMARY
+          echo "\`\`\`${mr_enclave}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
+
           # gramine-sgx $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee/notary-server
+      - name: Upload Binary for Next Job
+        uses: actions/upload-artifact@v4
+        with:
+          name: notary-server-sgx
+          path: crates/notary/server/tee/notary-server.*
+          if-no-files-found: error
