@@ -20,7 +20,7 @@ jobs:
 
       - name: Run Hello World in Gramine
         run: |
-          find $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE/gramine/CI-Examples/helloworld
+          git clone https://github.com/gramineproject/gramine.git
+          cd gramine/CI-Examples/helloworld
           make SGX=1
           gramine-sgx ./helloworld
