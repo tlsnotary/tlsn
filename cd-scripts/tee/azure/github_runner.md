@@ -111,3 +111,15 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo 
 sudo apt update
 sudo apt install caddy
 ```
+
+
+
+
+Download notary-server and others from GitHub build artifacts, next run:
+
+
+docker run --rm -v "$(pwd):/work" -w /work gramineproject/gramine:latest "gramine-sgx-sigstruct-view notary-server.sig"
+
+Run notary on machine with sgx:
+
+docker run -it --device /dev/sgx_enclave --device /dev/sgx_provision --volume=/var/run/aesmd/aesm.socket:/var/run/aesmd/aesm.socket -p 7047:7047 --rm -v "$(pwd):/work" -w /work gramineproject/gramine:latest bash
