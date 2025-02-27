@@ -44,7 +44,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: notary-server
-          path: $GITHUB_WORKSPACE/notary-server
+          path: $GITHUB_WORKSPACE/tlsn/notary-server
+          if-no-files-found: error
 
   gramine_sim:
     runs-on: ubuntu-latest
