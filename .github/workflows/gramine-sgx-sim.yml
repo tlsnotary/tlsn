@@ -62,7 +62,10 @@ jobs:
       - name: Restore SGX signing key
         run: |
           mkdir -p /root/.config/gramine
-          echo "${{ secrets.SGX_SIGNING_KEY }}" > /root/.config/gramine/enclave-key.pem
+          echo "${{ secrets.SGX_SIGNING_KEY }}" > "${HOME}/.config/gramine/enclave-key.pem"
+          # verify key
+          file "${HOME}/.config/gramine/enclave-key.pem"
+          openssl rsa -in "${HOME}/.config/gramine/enclave-key.pem" -check -noout
 
       - name: Download notary-server binary
         uses: actions/download-artifact@v4
@@ -77,8 +80,6 @@ jobs:
 
       - name: Run notary-server in Gramine
         run: |
-          openssl rsa -in /root/.config/gramine/enclave-key.pem -check -noout
-
           cd crates/notary/server/tee
 
           gramine-manifest \
