@@ -14,6 +14,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Clang
+        run: |
+          apt update
+          apt install -y clang
+
+      - name: Cache Cargo Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-cache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-cache-${{ runner.os }}-
+
       - name: Build Rust Binary
         run: |
           cd $GITHUB_WORKSPACE
