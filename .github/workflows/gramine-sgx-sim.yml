@@ -43,7 +43,7 @@ jobs:
       - name: Upload Binary for Next Job
         uses: actions/upload-artifact@v4
         with:
-          name: notary-server-${{ env.GIT_COMMIT_HASH }}
+          name: notary-server
           path: notary-server
           if-no-files-found: error
 
@@ -61,7 +61,7 @@ jobs:
       - name: Download notary-server binary
         uses: actions/download-artifact@v4
         with:
-          name: notary-server
+          name: notary-server-${{ env.GIT_COMMIT_HASH }}
           path: $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee
 
       - name: Run notary-server in Gramine
