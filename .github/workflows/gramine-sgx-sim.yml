@@ -60,7 +60,9 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Restore SGX signing key
-        run: echo "${{ secrets.SGX_SIGNING_KEY }}" > /root/.config/gramine/enclave-key.pem
+        run: |
+          mkdir -p /root/.config/gramine
+          echo "${{ secrets.SGX_SIGNING_KEY }}" > /root/.config/gramine/enclave-key.pem
 
       - name: Download notary-server binary
         uses: actions/download-artifact@v4
