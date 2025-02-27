@@ -62,7 +62,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: notary-server
-          path: $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee
+          path: crates/notary/server/tee
 
       - name: Run notary-server in Gramine
         run: |
