@@ -36,9 +36,9 @@ jobs:
 
       - name: Build Rust Binary
         run: |
-          cd $GITHUB_WORKSPACE
+          pwd
           cargo build --bin notary-server  --release --features tee_quote
-          cp target/release/notary-server $GITHUB_WORKSPACE/notary-server
+          cp --verbose target/release/notary-server .
 
       - name: Upload Binary for Next Job
         uses: actions/upload-artifact@v4
@@ -64,7 +64,8 @@ jobs:
           path: $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee
 
       - name: Run notary-server in Gramine
-        run: |          
+        run: |
+          find
           gramine-sgx-gen-private-key
 
           cd $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee
