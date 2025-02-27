@@ -61,7 +61,7 @@ jobs:
       
       - name: Restore SGX signing key
         run: |
-          mkdir -p /root/.config/gramine
+          mkdir -p "${HOME}/.config/gramine/"
           echo "${{ secrets.SGX_SIGNING_KEY }}" > "${HOME}/.config/gramine/enclave-key.pem"
           # verify key
           file "${HOME}/.config/gramine/enclave-key.pem"
