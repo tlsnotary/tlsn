@@ -51,12 +51,16 @@ jobs:
   gramine_sim:
     runs-on: ubuntu-latest
     needs: rust_build
+    environment: tee
     container:
       image: gramineproject/gramine:latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      
+      - name: Restore SGX signing key
+        run: echo "${{ secrets.SGX_SIGNING_KEY }}" > /root/.config/gramine/enclave-key.pem
 
       - name: Download notary-server binary
         uses: actions/download-artifact@v4
@@ -71,8 +75,7 @@ jobs:
 
       - name: Run notary-server in Gramine
         run: |
-          # find
-          gramine-sgx-gen-private-key
+          openssl rsa -in /root/.config/gramine/enclave-key.pem -check -noout
 
           cd crates/notary/server/tee
 
