@@ -66,10 +66,10 @@ jobs:
 
       - name: Run notary-server in Gramine
         run: |
-          find
+          # find
           gramine-sgx-gen-private-key
 
-          cd $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee
+          cd crates/notary/server/tee
 
           gramine-manifest \
             -Dlog_level=debug \
