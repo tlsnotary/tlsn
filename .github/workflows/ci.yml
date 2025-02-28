@@ -207,6 +207,9 @@ jobs:
           echo "${{ secrets.SGX_SIGNING_KEY }}" > "${HOME}/.config/gramine/enclave-key.pem"
           # verify key
           openssl rsa -in "${HOME}/.config/gramine/enclave-key.pem" -check -noout
+          # mr_signer?
+          echo "mr_signer?"
+          openssl rsa -in enclave-key.pem -pubout -outform DER | sha256sum
 
       - name: Download notary-server binary from build job
         uses: actions/download-artifact@v4
@@ -236,10 +239,15 @@ jobs:
 
           gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig | tee >> notary-server-sigstruct.json
 
-          mr_enclave=$(gramine-sgx-sigstruct-view --verbose --output-format=json notary-server.sig | jq .mr_enclave)
+          cat notary-server-sigstruct.json
+
+          mr_enclave=$(jq -r '.mr_enclave' notary-server-sigstruct.json)
+          mr_signer=$(jq -r '.mr_signer' notary-server-sigstruct.json)
+
           echo "mrenclave=$mr_enclave" >>"$GITHUB_OUTPUT"
           echo "#### sgx mrenclave" | tee >>$GITHUB_STEP_SUMMARY
-          echo "\`\`\`${mr_enclave}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
+          echo "\`\`\`mr_enclave: ${mr_enclave}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
+          echo "\`\`\`mr_signer: ${mr_signer}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
 
           # gramine-sgx $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee/notary-server
       - name: Upload notary-server and signatures
@@ -250,7 +258,7 @@ jobs:
             crates/notary/server/tee/notary-server
             crates/notary/server/tee/notary-server-sigstruct.json
             crates/notary/server/tee/notary-server.*
-            crates/notary/server/tee/notary-server/config/config.yaml
+            crates/notary/server/tee/config
           if-no-files-found: error
       - uses: geekyeggo/delete-artifact@v5 # Delete notary-server from the build job, It is part of the zipfile with the signature
         with:
