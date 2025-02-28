@@ -46,7 +46,7 @@ docker run --detach \
   --volume="$(pwd):/work" \
   --workdir=/work \
   gramineproject/gramine:latest \
-  "bash -c \"chmod u+x notary-server && gramine-sgx notary-server\""
+  "gramine-sgx notary-server"
 ```
 
 Notes:
@@ -62,4 +62,7 @@ The Notary Server runs inside an **Intel SGX enclave**, which supports **remote 
 - **MR_SIGNER** (ensures the enclave was signed by the expected key).
 - **Quote Freshness** (prevents replay attacks).
 
-To retrieve the SGX attestation quote, navigate to `<your notary server>:7047/info`
+To retrieve the SGX attestation quote, navigate to `<your notary server>:7047/info`:
+```
+curl localhost:7047/info | jq
+```

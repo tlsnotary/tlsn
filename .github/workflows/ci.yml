@@ -248,7 +248,6 @@ jobs:
           echo "\`\`\`mr_enclave: ${mr_enclave}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
           echo "\`\`\`mr_signer: ${mr_signer}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
 
-          # gramine-sgx $GITHUB_WORKSPACE/tlsn/crates/notary/server/tee/notary-server
       - name: Upload notary-server and signatures
         uses: actions/upload-artifact@v4
         with:
