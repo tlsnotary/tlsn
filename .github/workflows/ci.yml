@@ -207,9 +207,6 @@ jobs:
           echo "${{ secrets.SGX_SIGNING_KEY }}" > "${HOME}/.config/gramine/enclave-key.pem"
           # verify key
           openssl rsa -in "${HOME}/.config/gramine/enclave-key.pem" -check -noout
-          # mr_signer?
-          echo "mr_signer?"
-          openssl rsa -in enclave-key.pem -pubout -outform DER | sha256sum
 
       - name: Download notary-server binary from build job
         uses: actions/download-artifact@v4
@@ -225,6 +222,8 @@ jobs:
       - name: Run notary-server in Gramine
         run: |
           cd crates/notary/server/tee
+
+          chmod +x notary-server
 
           gramine-manifest \
             -Dlog_level=debug \
@@ -257,8 +256,11 @@ jobs:
           path: |
             crates/notary/server/tee/notary-server
             crates/notary/server/tee/notary-server-sigstruct.json
-            crates/notary/server/tee/notary-server.*
+            crates/notary/server/tee/notary-server.sig
+            crates/notary/server/tee/notary-server.manifest
+            crates/notary/server/tee/notary-server.manifest.sgx
             crates/notary/server/tee/config
+            crates/notary/server/tee/notary-server-sgx.md
           if-no-files-found: error
       - uses: geekyeggo/delete-artifact@v5 # Delete notary-server from the build job, It is part of the zipfile with the signature
         with:
