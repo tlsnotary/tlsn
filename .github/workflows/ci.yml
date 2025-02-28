@@ -175,16 +175,8 @@ jobs:
           apt update
           apt install -y clang
 
-      - name: Cache Cargo Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: rust-cache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            rust-cache-${{ runner.os }}-
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.7.3
 
       - name: Build Rust Binary
         run: |
@@ -197,7 +189,6 @@ jobs:
           name: notary-server
           path: notary-server
           if-no-files-found: error
-          retention-days: 1  # Auto-delete after 1 day, no need to keep it around because it is part of the zipfile b
 
   gramine-sgx:
     runs-on: ubuntu-latest
@@ -261,3 +252,6 @@ jobs:
             crates/notary/server/tee/notary-server.*
             crates/notary/server/tee/notary-server/config
           if-no-files-found: error
+      - uses: geekyeggo/delete-artifact@v5 # Delete notary-server from the build job, It is part of the zipfile with the signature
+        with:
+          name: notary-server
