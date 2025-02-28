@@ -250,7 +250,7 @@ jobs:
             crates/notary/server/tee/notary-server
             crates/notary/server/tee/notary-server-sigstruct.json
             crates/notary/server/tee/notary-server.*
-            crates/notary/server/tee/notary-server/config
+            crates/notary/server/tee/notary-server/config/config.yaml
           if-no-files-found: error
       - uses: geekyeggo/delete-artifact@v5 # Delete notary-server from the build job, It is part of the zipfile with the signature
         with:
