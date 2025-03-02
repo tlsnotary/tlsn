@@ -8,6 +8,11 @@ on:
       - "[v]?[0-9]+.[0-9]+.[0-9]+*"
   pull_request:
 
+permissions:
+  id-token: write
+  contents: read
+  attestations: write
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
@@ -249,6 +254,7 @@ jobs:
           echo "\`\`\`mr_signer: ${mr_signer}\`\`\`" | tee >>$GITHUB_STEP_SUMMARY
 
       - name: Upload notary-server and signatures
+        id: upload-notary-server-sgx
         uses: actions/upload-artifact@v4
         with:
           name: notary-server-sgx.zip
@@ -261,6 +267,14 @@ jobs:
             crates/notary/server/tee/config
             crates/notary/server/tee/notary-server-sgx.md
           if-no-files-found: error
+
+      - name: Attest Build Provenance
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/dev'
+        uses: actions/attest-build-provenance@v2
+        with:
+            subject-name: notary-server-sgx.zip
+            subject-digest: sha256:${{ steps.upload-notary-server-sgx.outputs.artifact-digest }}
+
       - uses: geekyeggo/delete-artifact@v5 # Delete notary-server from the build job, It is part of the zipfile with the signature
         with:
           name: notary-server
