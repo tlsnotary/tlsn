@@ -42,4 +42,4 @@ sys.disallow_subprocesses = true
 #### tlsn rev
 sgx.isvprodid = 7
 #### F
-sgx.isvsvn = 46
+sgx.isvsvn = 1
