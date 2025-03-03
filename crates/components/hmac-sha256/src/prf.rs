@@ -145,7 +145,7 @@ impl MpcPrf {
             Array<U32, 8>,
         ) = vm
             .call(
-                Call::new(circuits.session_keys.clone())
+                Call::builder(circuits.session_keys.clone())
                     .arg(pms)
                     .arg(client_random)
                     .arg(server_random)
@@ -166,7 +166,7 @@ impl MpcPrf {
 
         let cf_vd = vm
             .call(
-                Call::new(circuits.client_vd.clone())
+                Call::builder(circuits.client_vd.clone())
                     .arg(ms_outer_hash_state)
                     .arg(ms_inner_hash_state)
                     .arg(cf_hash)
@@ -180,7 +180,7 @@ impl MpcPrf {
 
         let sf_vd = vm
             .call(
-                Call::new(circuits.server_vd.clone())
+                Call::builder(circuits.server_vd.clone())
                     .arg(ms_outer_hash_state)
                     .arg(ms_inner_hash_state)
                     .arg(sf_hash)

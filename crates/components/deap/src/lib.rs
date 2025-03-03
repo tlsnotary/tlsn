@@ -400,7 +400,13 @@ mod tests {
                 leader.commit(msg).unwrap();
 
                 let ct: Array<U8, 16> = leader
-                    .call(Call::new(AES128.clone()).arg(key).arg(msg).build().unwrap())
+                    .call(
+                        Call::builder(AES128.clone())
+                            .arg(key)
+                            .arg(msg)
+                            .build()
+                            .unwrap(),
+                    )
                     .unwrap();
                 let ct = leader.decode(ct).unwrap();
 
@@ -422,7 +428,13 @@ mod tests {
                 follower.commit(msg).unwrap();
 
                 let ct: Array<U8, 16> = follower
-                    .call(Call::new(AES128.clone()).arg(key).arg(msg).build().unwrap())
+                    .call(
+                        Call::builder(AES128.clone())
+                            .arg(key)
+                            .arg(msg)
+                            .build()
+                            .unwrap(),
+                    )
                     .unwrap();
                 let ct = follower.decode(ct).unwrap();
 
@@ -478,7 +490,13 @@ mod tests {
                 leader.commit(msg).unwrap();
 
                 let ct: Array<U8, 16> = leader
-                    .call(Call::new(AES128.clone()).arg(key).arg(msg).build().unwrap())
+                    .call(
+                        Call::builder(AES128.clone())
+                            .arg(key)
+                            .arg(msg)
+                            .build()
+                            .unwrap(),
+                    )
                     .unwrap();
                 let ct = leader.decode(ct).unwrap();
 
@@ -500,7 +518,13 @@ mod tests {
                 follower.commit(msg).unwrap();
 
                 let ct: Array<U8, 16> = follower
-                    .call(Call::new(AES128.clone()).arg(key).arg(msg).build().unwrap())
+                    .call(
+                        Call::builder(AES128.clone())
+                            .arg(key)
+                            .arg(msg)
+                            .build()
+                            .unwrap(),
+                    )
                     .unwrap();
                 drop(follower.decode(ct).unwrap());
 
