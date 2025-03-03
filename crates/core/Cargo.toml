@@ -17,10 +17,6 @@ tlsn-data-fixtures = { workspace = true, optional = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
 
-mpz-core = { workspace = true }
-mpz-garble-core = { workspace = true }
-mpz-circuits = { workspace = true }
-
 bcs = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }

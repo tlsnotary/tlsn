@@ -15,7 +15,6 @@ tlsn-utils = { workspace = true }
 mpz-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-memory-core = { workspace = true }
-mpz-ot = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-zk = { workspace = true }
 
