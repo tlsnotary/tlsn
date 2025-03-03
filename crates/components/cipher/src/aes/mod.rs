@@ -55,7 +55,7 @@ impl Cipher for Aes128 {
 
         let output = vm
             .call(
-                Call::new(circuit::AES128_ECB.clone())
+                Call::builder(circuit::AES128_ECB.clone())
                     .arg(key)
                     .arg(input)
                     .build()
@@ -91,7 +91,7 @@ impl Cipher for Aes128 {
 
         let output = vm
             .call(
-                Call::new(circuit::AES128_CTR.clone())
+                Call::builder(circuit::AES128_CTR.clone())
                     .arg(key)
                     .arg(iv)
                     .arg(explicit_nonce)
@@ -145,7 +145,7 @@ impl Cipher for Aes128 {
             .map(|(explicit_nonce, counter)| {
                 let output = vm
                     .call(
-                        Call::new(circuit::AES128_CTR.clone())
+                        Call::builder(circuit::AES128_CTR.clone())
                             .arg(key)
                             .arg(iv)
                             .arg(explicit_nonce)
