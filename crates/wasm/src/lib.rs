@@ -7,8 +7,6 @@
 pub(crate) mod io;
 mod log;
 pub mod prover;
-#[cfg(feature = "test")]
-pub mod tests;
 pub mod types;
 pub mod verifier;
 
@@ -19,9 +17,6 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 use crate::types::{Attestation, Presentation, Reveal, Secrets};
-
-#[cfg(feature = "test")]
-pub use tests::*;
 
 /// Initializes the module.
 #[wasm_bindgen]
@@ -43,6 +38,8 @@ pub async fn initialize(
         })
         .build_global()
         .unwrap_throw();
+
+    hmac_sha256::build_circuits().await;
 
     Ok(())
 }

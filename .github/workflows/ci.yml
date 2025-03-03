@@ -102,7 +102,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cd crates/wasm-test-runner
+          cd crates/harness
           ./run.sh
 
       - name: Run build

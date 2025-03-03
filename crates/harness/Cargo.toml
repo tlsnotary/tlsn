@@ -1,0 +1,76 @@
+[package]
+name = "tlsn-harness"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["runner"]
+runner = [
+    "dep:axum",
+    "dep:chromiumoxide",
+    "dep:clap",
+    "dep:csv",
+    "dep:tlsn-server-fixture",
+    "dep:tokio",
+    "dep:tokio-util",
+    "dep:toml",
+    "dep:tower",
+    "dep:tower-http",
+    "dep:websocket-relay",
+]
+
+[dependencies]
+tlsn-common = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-hmac-sha256 = { workspace = true }
+tlsn-prover = { workspace = true }
+tlsn-server-fixture = { workspace = true, optional = true }
+tlsn-server-fixture-certs = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tlsn-wasm = { workspace = true }
+tlsn-verifier = { workspace = true }
+futures-limit = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "1a511ab" }
+
+websocket-relay = { workspace = true, optional = true }
+
+anyhow = { workspace = true }
+axum = { workspace = true, optional = true }
+cfg-if = { workspace = true }
+chromiumoxide = { version = "0.6", features = [
+    "tokio-runtime",
+], optional = true }
+clap = { workspace = true, features = ["derive"], optional = true }
+csv = { version = "1.3", optional = true }
+futures = { workspace = true }
+inventory = { workspace = true }
+pin-project-lite = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"], optional = true }
+tokio-util = { workspace = true, features = ["compat"], optional = true }
+toml = { version = "0.8", optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = [
+    "fs",
+    "set-header",
+], optional = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+web-time = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }
+tlsn-wasm = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-spawn = { workspace = true }
+ws_stream_wasm = { workspace = true }
+gloo-utils = { version = "0.2", features = ["serde"] }
+
+[[bin]]
+name = "main"
+path = "bin/main.rs"
+required-features = ["runner"]

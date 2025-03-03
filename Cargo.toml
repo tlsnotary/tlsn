@@ -1,10 +1,5 @@
 [workspace]
 members = [
-    "crates/benches/binary",
-    "crates/benches/browser/core",
-    "crates/benches/browser/native",
-    "crates/benches/browser/wasm",
-    "crates/benches/library",
     "crates/common",
     "crates/components/deap",
     "crates/components/cipher",
@@ -21,7 +16,6 @@ members = [
     "crates/prover",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",
-    "crates/tests-integration",
     "crates/tls/backend",
     "crates/tls/client",
     "crates/tls/client-async",
@@ -30,22 +24,15 @@ members = [
     "crates/tls/server-fixture",
     "crates/verifier",
     "crates/wasm",
-    "crates/wasm-test-runner",
+    "crates/harness",
 ]
 resolver = "2"
-
-[profile.tests-integration]
-inherits = "release"
-opt-level = 1
 
 [workspace.dependencies]
 notary-client = { path = "crates/notary/client" }
 notary-server = { path = "crates/notary/server" }
 tls-server-fixture = { path = "crates/tls/server-fixture" }
 tlsn-cipher = { path = "crates/components/cipher" }
-tlsn-benches-browser-core = { path = "crates/benches/browser/core" }
-tlsn-benches-browser-native = { path = "crates/benches/browser/native" }
-tlsn-benches-library = { path = "crates/benches/library" }
 tlsn-common = { path = "crates/common" }
 tlsn-core = { path = "crates/core" }
 tlsn-data-fixtures = { path = "crates/data-fixtures" }
@@ -64,6 +51,8 @@ tlsn-tls-client-async = { path = "crates/tls/client-async" }
 tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8555275" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8555275" }
+tlsn-harness = { path = "crates/harness" }
+tlsn-wasm = { path = "crates/wasm" }
 tlsn-verifier = { path = "crates/verifier" }
 
 mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.1" }
@@ -94,8 +83,10 @@ bcs = { version = "0.1" }
 bincode = { version = "1.3" }
 blake3 = { version = "1.5" }
 bytes = { version = "1.4" }
+cfg-if = { version = "1" }
 chrono = { version = "0.4" }
 cipher = { version = "0.4" }
+clap = { version = "4.5" }
 criterion = { version = "0.5" }
 ctr = { version = "0.9" }
 derive_builder = { version = "0.12" }
@@ -113,6 +104,7 @@ http = { version = "1.1" }
 http-body-util = { version = "0.1" }
 hyper = { version = "1.1" }
 hyper-util = { version = "0.1" }
+inventory = { version = "0.3" }
 itybity = { version = "0.2" }
 k256 = { version = "0.13" }
 log = { version = "0.4" }
@@ -121,6 +113,7 @@ opaque-debug = { version = "0.3" }
 p256 = { version = "0.13" }
 pkcs8 = { version = "0.10" }
 pin-project-lite = { version = "0.2" }
+pollster = { version = "0.4" }
 rand = { version = "0.8" }
 rand_chacha = { version = "0.3" }
 rand_core = { version = "0.6" }
@@ -143,9 +136,13 @@ tokio-util = { version = "0.7" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 uuid = { version = "1.4" }
+wasm-bindgen = { version = "0.2" }
+wasm-bindgen-futures = { version = "0.4" }
 web-spawn = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "2d93c56" }
 web-time = { version = "0.2" }
 webpki = { version = "0.22" }
 webpki-roots = { version = "0.26" }
 ws_stream_tungstenite = { version = "0.14" }
+# Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
+ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51" }
 zeroize = { version = "1.8" }
