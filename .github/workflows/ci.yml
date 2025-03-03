@@ -224,7 +224,7 @@ jobs:
           apt update
           apt install -y jq
 
-      - name: Run notary-server in Gramine
+      - name: Use Gramine to calculate measurements
         run: |
           cd crates/notary/server/tee
 
