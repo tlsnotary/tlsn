@@ -185,7 +185,7 @@ jobs:
 
       - name: Build Rust Binary
         run: |
-          cargo build --bin notary-server  --release --features tee_quote
+          cargo build --bin notary-server --release --features tee_quote
           cp --verbose target/release/notary-server $GITHUB_WORKSPACE
 
       - name: Upload Binary for use in the Gramine Job
