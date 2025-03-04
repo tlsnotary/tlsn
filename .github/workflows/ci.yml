@@ -297,7 +297,7 @@ jobs:
           name: notary-server-sgx.zip
 
       - name: Unzip notary-server-sgx.zip
-        run: pwd; unzip ./notary-server-sgx.zip -d ./dev
+        run: pwd; find .; unzip ./notary-server-sgx.zip -d ./dev
 
       - name: Create Dockerfile
         run: |
