@@ -287,12 +287,12 @@ jobs:
   gramine-sgx-docker:
     runs-on: ubuntu-latest
     needs: gramine-sgx
+    permissions:
+      contents: read
+      packages: write
     env:
       CONTAINER_REGISTRY: ghcr.io
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Download notary-server-sgx.zip from gramine-sgx job
         uses: actions/download-artifact@v4
         with:
