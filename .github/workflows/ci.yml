@@ -278,3 +278,53 @@ jobs:
       - uses: geekyeggo/delete-artifact@v5 # Delete notary-server from the build job, It is part of the zipfile with the signature
         with:
           name: notary-server
+
+  gramine-sgx-docker:
+    runs-on: ubuntu-latest
+    needs: gramine-sgx
+    env:
+      CONTAINER_REGISTRY: ghcr.io
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download notary-server-sgx.zip from gramine-sgx job
+        uses: actions/download-artifact@v4
+        with:
+          name: notary-server-sgx.zip
+          path: .
+
+      - name: Unzip notary-server-sgx.zip
+        run: unzip ./notary-server-sgx.zip -d ./dev
+
+      - name: Create Dockerfile
+        run: |
+          cat <<EOF > ./Dockerfile
+          FROM gramineproject/gramine:latest
+          WORKDIR /work
+          COPY ./dev /work
+          ENTRYPOINT ["gramine-sgx", "notary-server"]
+          EOF
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker image of notary server
+        id: meta-notary-server
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.CONTAINER_REGISTRY }}/${{ github.repository }}/notary-server-sgx
+
+      - name: Build and push Docker image of notary server
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta-notary-server.outputs.tags }}
+          labels: ${{ steps.meta-notary-server.outputs.labels }}
+          file: ./Dockerfile
+
