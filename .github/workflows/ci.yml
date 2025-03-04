@@ -292,19 +292,20 @@ jobs:
       packages: write
     env:
       CONTAINER_REGISTRY: ghcr.io
+    # if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/dev'
     steps:
       - name: Download notary-server-sgx.zip from gramine-sgx job
         uses: actions/download-artifact@v4
         with:
           name: notary-server-sgx.zip
-          path: ./dev
+          path: ./notary-server-sgx
 
       - name: Create Dockerfile
         run: |
           cat <<EOF > ./Dockerfile
           FROM gramineproject/gramine:latest
           WORKDIR /work
-          COPY ./dev /work
+          COPY ./notary-server-sgx /work
           RUN chmod +x /work/notary-server
           LABEL org.opencontainers.image.source=https://github.com/tlsnotary/tlsn
           LABEL org.opencontainers.image.description="TLSNotary server SGX/Gramine."
@@ -319,7 +320,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker image of notary server
-        id: meta-notary-server
+        id: meta-notary-server-sgx
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.CONTAINER_REGISTRY }}/${{ github.repository }}/notary-server-sgx
@@ -329,7 +330,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.meta-notary-server.outputs.tags }}
-          labels: ${{ steps.meta-notary-server.outputs.labels }}
+          tags: ${{ steps.meta-notary-server-sgx.outputs.tags }}
+          labels: ${{ steps.meta-notary-server-sgx.outputs.labels }}
           file: ./Dockerfile
 
