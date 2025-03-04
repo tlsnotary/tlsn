@@ -290,14 +290,14 @@ jobs:
     env:
       CONTAINER_REGISTRY: ghcr.io
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Download notary-server-sgx.zip from gramine-sgx job
         uses: actions/download-artifact@v4
         with:
           name: notary-server-sgx.zip
-
-      - name: Unzip notary-server-sgx.zip
-        run: pwd; find .; unzip ./notary-server-sgx.zip -d ./dev
+          path: ./dev
 
       - name: Create Dockerfile
         run: |
