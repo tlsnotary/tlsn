@@ -27,7 +27,6 @@ jobs:
   fmt:
     name: Check formatting
     runs-on: ubuntu-latest
-    if: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,7 +47,6 @@ jobs:
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
-    if: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -74,7 +72,6 @@ jobs:
   wasm:
     name: Build and Test wasm
     runs-on: ubuntu-latest
-    if: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -129,7 +126,6 @@ jobs:
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
-    if: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -150,7 +146,6 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    if: false
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -172,7 +167,7 @@ jobs:
 
   build-sgx:
     runs-on: ubuntu-latest
-    # needs: build-and-test # TODO Revert this line before merging
+    needs: build-and-test
     container:
       image: rust:latest
 
