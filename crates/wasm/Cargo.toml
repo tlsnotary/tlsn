@@ -43,7 +43,7 @@ pin-project-lite = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1.0" }
-time = { version = "0.3", features = ["wasm-bindgen"] }
+time = { version = "=0.3.37", features = ["wasm-bindgen"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["time"] }
 tracing-web = { version = "0.1" }
