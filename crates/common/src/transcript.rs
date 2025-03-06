@@ -183,21 +183,16 @@ mod tests {
     // 240..288 -> 6 slots
     // 352..392 -> 5 slots
     // 440..480 -> 5 slots
-    //
-    //
-    // Now use IDXS:
-    //
+    const TRANSCRIPT_REFS: &[Range<usize>] = &[48..96, 112..176, 240..288, 352..392, 440..480];
+
+    const IDXS: &[Range<usize>] = &[0..4, 5..10, 14..16, 16..28];
+
     // 1. Take slots 0..4,   4  slots -> 48..80 (4)
     // 2. Take slots 5..10,  5  slots -> 88..96 (1) + 112..144 (4)
     // 3. Take slots 14..16, 2  slots -> 240..256 (2)
     // 4. Take slots 16..28, 12 slots -> 256..288 (4) + 352..392 (5) + 440..464 (3)
     //
-    // 5. Merge slots 240..256 and 256..288 => 240..288
-    //
-    // EXPECTED: 48..80, 88..96, 112..144, 240..288, 352..392, 440..464
-
-    const TRANSCRIPT_REFS: &[Range<usize>] = &[48..96, 112..176, 240..288, 352..392, 440..480];
-    const TEST_IDXS: &[Range<usize>] = &[0..4, 5..10, 14..16, 16..28];
+    // 5. Merge slots 240..256 and 256..288 => 240..288 and get EXPECTED_REFS
     const EXPECTED_REFS: &[Range<usize>] =
         &[48..80, 88..96, 112..144, 240..288, 352..392, 440..464];
 
@@ -236,7 +231,7 @@ mod tests {
     }
 
     fn idx_fixture() -> Idx {
-        let set = RangeSet::from(TEST_IDXS);
+        let set = RangeSet::from(IDXS);
         Idx::builder().union(&set).build()
     }
 }
