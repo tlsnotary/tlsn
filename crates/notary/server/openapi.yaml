@@ -206,7 +206,7 @@ components:
               description: Hex bytes representing the signed-by-intel quote
               type: string
             mrsigner:
-              description: The key bound to the enclave, which is ephemeral and not used
+              description: Represents the public key of the enclave signer
               type: string
             mrenclave:
               description: The enclave image hash, including gramine and the notary server itself
