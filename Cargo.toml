@@ -66,18 +66,18 @@ tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "425614e" 
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "425614e" }
 tlsn-verifier = { path = "crates/verifier" }
 
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
-mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.1" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
+mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
 
 serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "425614e" }
