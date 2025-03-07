@@ -21,6 +21,7 @@ wasm-opt = true
 [features]
 default = []
 test = []
+no-bundler = ["web-spawn/no-bundler"]
 
 [dependencies]
 tlsn-common = { path = "../common" }

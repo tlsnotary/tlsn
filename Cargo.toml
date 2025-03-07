@@ -143,7 +143,7 @@ tokio-util = { version = "0.7" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 uuid = { version = "1.4" }
-web-spawn = { version = "0.1" }
+web-spawn = { version = "0.2" }
 web-time = { version = "0.2" }
 webpki = { version = "0.22" }
 webpki-roots = { version = "0.26" }
