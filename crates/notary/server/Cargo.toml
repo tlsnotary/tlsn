@@ -1,13 +1,13 @@
 [package]
 name = "notary-server"
-version = "0.1.0-alpha.8-pre"
+version = "0.1.0-alpha.8"
 edition = "2021"
 
 [features]
 tee_quote = [
-	"dep:mc-sgx-dcap-types", 
-	"dep:hex", 
-	"dep:rand_chacha", 
+	"dep:mc-sgx-dcap-types",
+	"dep:hex",
+	"dep:rand_chacha",
 	"dep:once_cell",
 	"dep:simple_asn1",
 	"dep:pem",
@@ -34,7 +34,7 @@ hyper = { workspace = true, features = ["client", "http1", "server"] }
 hyper-util = { workspace = true, features = ["full"] }
 k256 = { workspace = true }
 notify = { version = "6.1.1", default-features = false, features = [
-    "macos_kqueue",
+	"macos_kqueue",
 ] }
 p256 = { workspace = true }
 pkcs8 = { workspace = true, features = ["pem"] }
@@ -60,12 +60,11 @@ zeroize = { workspace = true }
 mc-sgx-dcap-types = { version = "0.11.0", optional = true }
 hex = { workspace = true, optional = true }
 rand_chacha = { workspace = true, optional = true }
-once_cell = { workspace = true, optional =true }
-simple_asn1 = {version = "0.6.2", optional = true }
-pem = { version =  "1.1.0", optional = true }
+once_cell = { workspace = true, optional = true }
+simple_asn1 = { version = "0.6.2", optional = true }
+pem = { version = "1.1.0", optional = true }
 lazy_static = { version = "1.4", optional = true }
 
 [build-dependencies]
 git2 = "0.19.0"
 chrono.workspace = true
-
