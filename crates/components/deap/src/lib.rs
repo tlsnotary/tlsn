@@ -32,7 +32,7 @@ pub enum Role {
     Follower,
 }
 
-/// DEAP Vm.
+/// DEAP VM.
 #[derive(Debug)]
 pub struct Deap<Mpc, Zk> {
     role: Role,
@@ -46,7 +46,7 @@ pub struct Deap<Mpc, Zk> {
 }
 
 impl<Mpc, Zk> Deap<Mpc, Zk> {
-    /// Create a new DEAP Vm.
+    /// Creates a new DEAP VM.
     pub fn new(role: Role, mpc: Mpc, zk: Zk) -> Self {
         Self {
             role,
@@ -75,7 +75,7 @@ impl<Mpc, Zk> Deap<Mpc, Zk> {
     ///
     /// # Panics
     ///
-    /// Panics if the mutex locked by another thread.
+    /// Panics if the mutex is locked by another thread.
     pub fn zk(&self) -> MutexGuard<'_, Zk> {
         self.desync.store(true, Ordering::Relaxed);
         self.zk.try_lock().unwrap()
@@ -90,7 +90,7 @@ impl<Mpc, Zk> Deap<Mpc, Zk> {
     ///
     /// # Panics
     ///
-    /// Panics if the mutex locked by another thread.
+    /// Panics if the mutex is locked by another thread.
     pub fn zk_owned(&self) -> OwnedMutexGuard<Zk> {
         self.desync.store(true, Ordering::Relaxed);
         self.zk.clone().try_lock_owned().unwrap()
@@ -107,7 +107,7 @@ where
     Mpc: Vm<Binary> + Send + 'static,
     Zk: Vm<Binary> + Send + 'static,
 {
-    /// Finalize the DEAP Vm.
+    /// Finalizes the DEAP VM.
     ///
     /// This reveals all private inputs of the follower.
     pub async fn finalize(&mut self, ctx: &mut Context) -> Result<(), VmError> {
@@ -374,16 +374,17 @@ mod tests {
     #[tokio::test]
     async fn test_deap() {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
+        let delta_mpc = Delta::random(&mut rng);
+        let delta_zk = Delta::random(&mut rng);
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta.into_inner());
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
+        let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
+        let (cot_send, cot_recv) = ideal_cot(delta_mpc.into_inner());
 
-        let gb = Generator::new(cot_send, [0u8; 16], delta);
+        let gb = Generator::new(cot_send, [0u8; 16], delta_mpc);
         let ev = Evaluator::new(cot_recv);
         let prover = Prover::new(rcot_recv);
-        let verifier = Verifier::new(delta, rcot_send);
+        let verifier = Verifier::new(delta_zk, rcot_send);
 
         let mut leader = Deap::new(Role::Leader, gb, prover);
         let mut follower = Deap::new(Role::Follower, ev, verifier);
@@ -455,16 +456,17 @@ mod tests {
     #[tokio::test]
     async fn test_malicious() {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
+        let delta_mpc = Delta::random(&mut rng);
+        let delta_zk = Delta::random(&mut rng);
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta.into_inner());
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
+        let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
+        let (cot_send, cot_recv) = ideal_cot(delta_mpc.into_inner());
 
-        let gb = Generator::new(cot_send, [0u8; 16], delta);
+        let gb = Generator::new(cot_send, [0u8; 16], delta_mpc);
         let ev = Evaluator::new(cot_recv);
         let prover = Prover::new(rcot_recv);
-        let verifier = Verifier::new(delta, rcot_send);
+        let verifier = Verifier::new(delta_zk, rcot_send);
 
         let mut leader = Deap::new(Role::Leader, gb, prover);
         let mut follower = Deap::new(Role::Follower, ev, verifier);
