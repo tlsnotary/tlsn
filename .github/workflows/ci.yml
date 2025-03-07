@@ -24,6 +24,25 @@ env:
   RAYON_NUM_THREADS: 32
   GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
 jobs:
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install stable rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.7.3
+
+      - name: Clippy
+        run: cargo clippy --keep-going --all-features --all-targets -- -D warnings
+
   fmt:
     name: Check formatting
     runs-on: ubuntu-latest
@@ -55,19 +74,15 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          components: clippy
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.3
-
-      - name: Clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
 
       - name: Build
         run: cargo build --all-targets
 
       - name: Test
-        run: cargo test
+        run: cargo test --no-fail-fast
 
   wasm:
     name: Build and Test wasm
@@ -142,7 +157,7 @@ jobs:
         run: echo "127.0.0.1 tlsnotaryserver.io" | sudo tee -a /etc/hosts
 
       - name: Run integration tests
-        run: cargo test --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored
+        run: cargo test --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core --no-fail-fast -- --include-ignored
 
   coverage:
     runs-on: ubuntu-latest
