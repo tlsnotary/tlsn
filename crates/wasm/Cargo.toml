@@ -1,6 +1,6 @@
 [package]
 name = "tlsn-wasm"
-version = "0.1.0-alpha.8-pre"
+version = "0.1.0-alpha.9-pre"
 edition = "2021"
 repository = "https://github.com/tlsnotary/tlsn.git"
 description = "A core WebAssembly package for TLSNotary."
@@ -21,6 +21,7 @@ wasm-opt = true
 [features]
 default = []
 test = []
+no-bundler = ["web-spawn/no-bundler"]
 
 [dependencies]
 tlsn-common = { path = "../common" }
@@ -43,7 +44,7 @@ pin-project-lite = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1.0" }
-time = { version = "0.3", features = ["wasm-bindgen"] }
+time = { version = "=0.3.37", features = ["wasm-bindgen"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["time"] }
 tracing-web = { version = "0.1" }

@@ -1,14 +1,12 @@
 import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
-import init_wasm, { initialize } from "./generated/tlsn_wasm.js";
-
-const module = await import("./generated/tlsn_wasm.js");
+import init_wasm, * as wasm from "./generated/tlsn_wasm.js";
 
 class TestWorker {
     async init() {
         try {
             console.log("initializing wasm");
             await init_wasm();
-            await initialize({ thread_count: navigator.hardwareConcurrency });
+            await wasm.initialize({ level: "Debug" }, navigator.hardwareConcurrency);
         } catch (e) {
             console.error(e);
             throw e;
@@ -17,9 +15,10 @@ class TestWorker {
 
     async run() {
         let promises = [];
-        for (const [name, func] of Object.entries(module)) {
+        for (const [name, func] of Object.entries(wasm)) {
             if (name.startsWith("test_") && (typeof func === 'function')) {
                 promises.push((async () => {
+                    console.log("running test", name);
                     const start = performance.now();
                     try {
                         await func();
