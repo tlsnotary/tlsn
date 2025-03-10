@@ -71,4 +71,15 @@ pub struct LoggingProperties {
     /// Custom filtering logic, refer to the syntax here https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax
     /// This will override the default filtering logic above
     pub filter: Option<String>,
+    /// Log format. Available options are "compact" and "json". Default is "compact"
+    #[serde(default)]
+    pub format: LogFormat,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum LogFormat {
+    #[default]
+    Compact,
+    Json,
 }
