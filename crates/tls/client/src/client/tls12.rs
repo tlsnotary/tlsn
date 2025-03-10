@@ -16,6 +16,7 @@ use crate::{
     verify,
 };
 use async_trait::async_trait;
+#[allow(deprecated)]
 use ring::constant_time;
 use std::sync::Arc;
 use tls_core::{
@@ -1100,6 +1101,7 @@ impl State<ClientConnectionData> for ExpectFinished {
 
         // Constant-time verification of this is relatively unimportant: they only
         // get one chance.  But it can't hurt.
+        #[allow(deprecated)]
         let _fin_verified =
             match constant_time::verify_slices_are_equal(&expect_verify_data, &finished.0) {
                 Ok(()) => verify::FinishedMessageVerified::assertion(),
