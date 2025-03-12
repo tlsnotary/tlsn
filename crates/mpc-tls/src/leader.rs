@@ -839,17 +839,16 @@ impl Backend for MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
-        let record_layer = match &mut self.state {
-            State::Active { record_layer, .. } => record_layer,
-            State::Closed { record_layer, .. } => record_layer,
-            State::Handshake { record_layer, .. } => record_layer,
-            _ => {
-                return Err(MpcTlsError::state(
-                    "must be in active, closed or hanshake state to pull next outgoing message",
+        let record_layer =
+            match &mut self.state {
+                State::Active { record_layer, .. } => record_layer,
+                State::Closed { record_layer, .. } => record_layer,
+                State::Handshake { record_layer, .. } => record_layer,
+                _ => return Err(MpcTlsError::state(
+                    "must be in active, closed or handshake state to pull next outgoing message",
                 )
-                .into())
-            }
-        };
+                .into()),
+            };
 
         let record = record_layer.next_encrypted().map(|record| {
             let mut payload = record.explicit_nonce;
