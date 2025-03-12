@@ -692,13 +692,19 @@ impl Backend for MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
-        let State::Active {
-            ctx, record_layer, ..
-        } = &mut self.state
-        else {
-            return Err(
-                MpcTlsError::state("must be in active state to push incoming message").into(),
-            );
+        let (ctx, record_layer) = match &mut self.state {
+            State::Active {
+                record_layer, ctx, ..
+            } => (ctx, record_layer),
+            State::Handshake {
+                record_layer, ctx, ..
+            } => (ctx, record_layer),
+            _ => {
+                return Err(MpcTlsError::state(
+                    "must be in active or handshake state to push incoming message",
+                )
+                .into())
+            }
         };
 
         let OpaqueMessage {
@@ -745,16 +751,16 @@ impl Backend for MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, BackendError> {
-        let record_layer = match &mut self.state {
-            State::Active { record_layer, .. } => record_layer,
-            State::Closed { record_layer, .. } => record_layer,
-            _ => {
-                return Err(MpcTlsError::state(
-                    "must be in active or closed state to pull next incoming message",
+        let record_layer =
+            match &mut self.state {
+                State::Active { record_layer, .. } => record_layer,
+                State::Closed { record_layer, .. } => record_layer,
+                State::Handshake { record_layer, .. } => record_layer,
+                _ => return Err(MpcTlsError::state(
+                    "must be in active, closed or handshake state to pull next incoming message",
                 )
-                .into())
-            }
-        };
+                .into()),
+            };
 
         let record = record_layer.next_decrypted().map(|record| PlainMessage {
             typ: record.typ,
@@ -779,13 +785,19 @@ impl Backend for MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError> {
-        let State::Active {
-            ctx, record_layer, ..
-        } = &mut self.state
-        else {
-            return Err(
-                MpcTlsError::state("must be in active state to push outgoing message").into(),
-            );
+        let (ctx, record_layer) = match &mut self.state {
+            State::Active {
+                record_layer, ctx, ..
+            } => (ctx, record_layer),
+            State::Handshake {
+                record_layer, ctx, ..
+            } => (ctx, record_layer),
+            _ => {
+                return Err(MpcTlsError::state(
+                    "must be in active or handshake state to push outgoing message",
+                )
+                .into())
+            }
         };
 
         debug!(
@@ -830,9 +842,10 @@ impl Backend for MpcTlsLeader {
         let record_layer = match &mut self.state {
             State::Active { record_layer, .. } => record_layer,
             State::Closed { record_layer, .. } => record_layer,
+            State::Handshake { record_layer, .. } => record_layer,
             _ => {
                 return Err(MpcTlsError::state(
-                    "must be in active or closed state to pull next outgoing message",
+                    "must be in active, closed or hanshake state to pull next outgoing message",
                 )
                 .into())
             }
@@ -862,6 +875,16 @@ impl Backend for MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn flush(&mut self) -> Result<(), BackendError> {
+        if !self
+            .state
+            .record_layer()
+            .expect("record layer should be present")
+            .wants_flush()
+        {
+            debug!("record layer is empty, skipping flush");
+            return Ok(());
+        }
+
         let (ctx, vm, record_layer) = match &mut self.state {
             State::Active {
                 ctx,
@@ -884,11 +907,6 @@ impl Backend for MpcTlsLeader {
         };
 
         debug!("flushing record layer");
-
-        if !record_layer.wants_flush() {
-            debug!("record layer is empty, skipping flush");
-            return Ok(());
-        }
 
         ctx.io_mut()
             .send(Message::Flush {
@@ -987,6 +1005,17 @@ enum State {
 impl State {
     fn take(&mut self) -> Self {
         std::mem::replace(self, State::Error)
+    }
+
+    fn record_layer(&self) -> Option<&RecordLayer> {
+        match self {
+            State::Init { record_layer, .. } => Some(record_layer),
+            State::Setup { record_layer, .. } => Some(record_layer),
+            State::Handshake { record_layer, .. } => Some(record_layer),
+            State::Active { record_layer, .. } => Some(record_layer),
+            State::Closed { record_layer, .. } => Some(record_layer),
+            State::Error => None,
+        }
     }
 }
 
