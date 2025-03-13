@@ -20,6 +20,7 @@ mock = []
 tlsn-hmac-sha256-circuits = { workspace = true }
 
 mpz-vm-core = { workspace = true }
+mpz-core = { workspace = true }
 mpz-circuits = { workspace = true }
 mpz-common = { workspace = true, features = ["cpu"] }
 

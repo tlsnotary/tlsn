@@ -24,12 +24,14 @@ impl Sha256 {
         Self::default()
     }
 
-    pub(crate) fn set_state(&mut self, state: Array<U32, 8>) {
+    pub(crate) fn set_state(&mut self, state: Array<U32, 8>) -> &mut Self {
         self.state = Some(state);
+        self
     }
 
-    pub(crate) fn set_chunk_count(&mut self, count: u32) {
+    pub(crate) fn set_chunk_count(&mut self, count: u32) -> &mut Self {
         self.chunk_count = count;
+        self
     }
 
     pub(crate) fn update(
@@ -51,7 +53,11 @@ impl Sha256 {
         Ok(self)
     }
 
-    pub(crate) fn finalize(self, vm: &mut dyn Vm<Binary>, data: Vector<U8>) -> Array<U8, 32> {
+    pub(crate) fn finalize(
+        self,
+        vm: &mut dyn Vm<Binary>,
+        data: Vector<U8>,
+    ) -> Result<Array<U8, 32>, PrfError> {
         let padded = self.pad_data(data);
 
         todo!()
