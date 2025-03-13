@@ -3,14 +3,14 @@
 //! The prover interacts with a TLS verifier directly, without involving a
 //! Notary. The verifier verifies transcript data.
 
-use super::{state::Prove as ProveState, Prover, ProverError};
-use mpz_garble::{Memory, Prove};
-use mpz_ot::VerifiableOTReceiver;
+use mpz_memory_core::MemoryExt;
+use mpz_vm_core::Execute;
 use serio::SinkExt as _;
 use tlsn_common::msg::ServerIdentityProof;
-use tlsn_core::transcript::{get_value_ids, Direction, Idx, Transcript};
-
+use tlsn_core::transcript::{Direction, Idx, Transcript};
 use tracing::{info, instrument};
+
+use crate::{state::Prove as ProveState, Prover, ProverError};
 
 impl Prover<ProveState> {
     /// Returns the transcript.
@@ -28,29 +28,36 @@ impl Prover<ProveState> {
     pub async fn prove_transcript(&mut self, sent: Idx, recv: Idx) -> Result<(), ProverError> {
         let partial_transcript = self.transcript().to_partial(sent.clone(), recv.clone());
 
-        let sent_value_ids = get_value_ids(Direction::Sent, &sent);
-        let recv_value_ids = get_value_ids(Direction::Received, &recv);
+        let sent_refs = self
+            .state
+            .transcript_refs
+            .get(Direction::Sent, &sent)
+            .expect("index is in bounds");
+        let recv_refs = self
+            .state
+            .transcript_refs
+            .get(Direction::Received, &recv)
+            .expect("index is in bounds");
 
-        let value_refs = sent_value_ids
-            .chain(recv_value_ids)
-            .map(|id| {
-                self.state
-                    .vm
-                    .get_value(id.as_str())
-                    .expect("Byte should be in VM memory")
-            })
-            .collect::<Vec<_>>();
+        for slice in sent_refs.into_iter().chain(recv_refs) {
+            // Drop the future, we don't need it.
+            drop(self.state.vm.decode(slice).map_err(ProverError::zk)?);
+        }
 
         self.state
             .mux_fut
             .poll_with(async {
                 // Send the partial transcript to the verifier.
-                self.state.io.send(partial_transcript).await?;
+                self.state.ctx.io_mut().send(partial_transcript).await?;
 
                 info!("Sent partial transcript");
 
                 // Prove the partial transcript to the verifier.
-                self.state.vm.prove(value_refs.as_slice()).await?;
+                self.state
+                    .vm
+                    .flush(&mut self.state.ctx)
+                    .await
+                    .map_err(ProverError::zk)?;
 
                 info!("Proved partial transcript");
 
@@ -65,11 +72,8 @@ impl Prover<ProveState> {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn finalize(self) -> Result<(), ProverError> {
         let ProveState {
-            mut io,
             mux_ctrl,
             mut mux_fut,
-            mut vm,
-            mut ot_recv,
             mut ctx,
             server_cert_data,
             ..
@@ -77,16 +81,13 @@ impl Prover<ProveState> {
 
         mux_fut
             .poll_with(async move {
-                ot_recv.accept_reveal(&mut ctx).await?;
-
-                vm.finalize().await?;
-
                 // Send identity proof to the verifier.
-                io.send(ServerIdentityProof {
-                    name: self.config.server_name().clone(),
-                    data: server_cert_data,
-                })
-                .await?;
+                ctx.io_mut()
+                    .send(ServerIdentityProof {
+                        name: self.config.server_name().clone(),
+                        data: server_cert_data,
+                    })
+                    .await?;
 
                 Ok::<_, ProverError>(())
             })
@@ -94,7 +95,7 @@ impl Prover<ProveState> {
 
         // Wait for the verifier to correctly close the connection.
         if !mux_fut.is_complete() {
-            mux_ctrl.mux().close();
+            mux_ctrl.close();
             mux_fut.await?;
         }
 

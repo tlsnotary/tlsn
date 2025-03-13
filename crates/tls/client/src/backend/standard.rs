@@ -9,7 +9,7 @@ use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
 use rand::{rngs::OsRng, thread_rng, Rng};
 
 use digest::Digest;
-use std::{any::Any, collections::VecDeque, convert::TryInto};
+use std::{any::Any, collections::VecDeque, convert::TryInto, mem::take};
 use tls_core::{
     cert::ServerCertDetails,
     ke::ServerKxDetails,
@@ -43,7 +43,12 @@ pub struct RustCryptoBackend {
     encrypter: Option<Encrypter>,
     decrypter: Option<Decrypter>,
 
-    buffer_incoming: VecDeque<OpaqueMessage>,
+    write_seq: u64,
+    read_seq: u64,
+    incoming_encrypted: VecDeque<OpaqueMessage>,
+    incoming_plain: VecDeque<PlainMessage>,
+    outgoing_encrypted: VecDeque<OpaqueMessage>,
+    outgoing_plain: VecDeque<PlainMessage>,
 }
 
 impl RustCryptoBackend {
@@ -66,7 +71,12 @@ impl RustCryptoBackend {
             ],
             encrypter: None,
             decrypter: None,
-            buffer_incoming: VecDeque::new(),
+            write_seq: 0,
+            read_seq: 0,
+            incoming_encrypted: VecDeque::new(),
+            incoming_plain: VecDeque::new(),
+            outgoing_encrypted: VecDeque::new(),
+            outgoing_plain: VecDeque::new(),
         }
     }
 
@@ -168,6 +178,54 @@ impl RustCryptoBackend {
             suite => return Err(BackendError::UnsupportedCiphersuite(suite)),
         }
         Ok(())
+    }
+
+    fn encrypt(&mut self, msg: PlainMessage, seq: u64) -> Result<OpaqueMessage, BackendError> {
+        let enc = self
+            .encrypter
+            .as_mut()
+            .ok_or(BackendError::EncryptionError(
+                "Encrypter not ready".to_string(),
+            ))?;
+
+        match enc.cipher_suite {
+            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => match msg.version {
+                ProtocolVersion::TLSv1_2 => {
+                    return enc.encrypt_aes128gcm(&msg, seq, &seq.to_be_bytes());
+                }
+                version => {
+                    return Err(BackendError::UnsupportedProtocolVersion(version));
+                }
+            },
+            suite => {
+                return Err(BackendError::UnsupportedCiphersuite(suite));
+            }
+        }
+    }
+
+    fn decrypt(&mut self, msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, BackendError> {
+        let dec = self
+            .decrypter
+            .as_mut()
+            .ok_or(BackendError::DecryptionError(
+                "Decrypter not ready".to_string(),
+            ))?;
+
+        match dec.cipher_suite {
+            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => match msg.version {
+                ProtocolVersion::TLSv1_2 => {
+                    return dec.decrypt_aes128gcm(&msg, seq);
+                }
+                version => {
+                    return Err(BackendError::UnsupportedProtocolVersion(version));
+                }
+            },
+            suite => {
+                return Err(BackendError::UnsupportedCiphersuite(suite));
+            }
+        }
     }
 }
 
@@ -351,73 +409,47 @@ impl Backend for RustCryptoBackend {
         Ok(())
     }
 
-    async fn encrypt(
-        &mut self,
-        msg: PlainMessage,
-        seq: u64,
-    ) -> Result<OpaqueMessage, BackendError> {
-        let enc = self
-            .encrypter
-            .as_mut()
-            .ok_or(BackendError::EncryptionError(
-                "Encrypter not ready".to_string(),
-            ))?;
-
-        match enc.cipher_suite {
-            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => match msg.version {
-                ProtocolVersion::TLSv1_2 => {
-                    return enc.encrypt_aes128gcm(&msg, seq, &seq.to_be_bytes());
-                }
-                version => {
-                    return Err(BackendError::UnsupportedProtocolVersion(version));
-                }
-            },
-            suite => {
-                return Err(BackendError::UnsupportedCiphersuite(suite));
-            }
-        }
-    }
-
-    async fn decrypt(
-        &mut self,
-        msg: OpaqueMessage,
-        seq: u64,
-    ) -> Result<PlainMessage, BackendError> {
-        let dec = self
-            .decrypter
-            .as_mut()
-            .ok_or(BackendError::DecryptionError(
-                "Decrypter not ready".to_string(),
-            ))?;
-
-        match dec.cipher_suite {
-            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => match msg.version {
-                ProtocolVersion::TLSv1_2 => {
-                    return dec.decrypt_aes128gcm(&msg, seq);
-                }
-                version => {
-                    return Err(BackendError::UnsupportedProtocolVersion(version));
-                }
-            },
-            suite => {
-                return Err(BackendError::UnsupportedCiphersuite(suite));
-            }
-        }
-    }
-
-    async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
-        self.buffer_incoming.push_back(msg);
+    async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError> {
+        self.outgoing_plain.push_back(msg);
         Ok(())
     }
 
-    async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
-        Ok(self.buffer_incoming.pop_front())
+    async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
+        Ok(self.outgoing_encrypted.pop_front())
     }
 
-    async fn buffer_len(&mut self) -> Result<usize, BackendError> {
-        Ok(self.buffer_incoming.len())
+    async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
+        self.incoming_encrypted.push_back(msg);
+        Ok(())
+    }
+
+    async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, BackendError> {
+        Ok(self.incoming_plain.pop_front())
+    }
+
+    async fn flush(&mut self) -> Result<(), BackendError> {
+        for incoming in take(&mut self.incoming_encrypted) {
+            let seq = self.read_seq;
+            let decrypted = self.decrypt(incoming, seq)?;
+            self.incoming_plain.push_back(decrypted);
+            self.read_seq += 1;
+        }
+
+        for outgoing in take(&mut self.outgoing_plain) {
+            let seq = self.write_seq;
+            let encrypted = self.encrypt(outgoing, seq)?;
+            self.outgoing_encrypted.push_back(encrypted);
+            self.write_seq += 1;
+        }
+
+        Ok(())
+    }
+
+    async fn is_empty(&mut self) -> Result<bool, BackendError> {
+        Ok(self.incoming_plain.is_empty()
+            && self.outgoing_plain.is_empty()
+            && self.incoming_encrypted.is_empty()
+            && self.outgoing_encrypted.is_empty())
     }
 }
 
@@ -425,7 +457,8 @@ impl Backend for RustCryptoBackend {
 ///
 /// # Panics
 ///
-/// Panics if the size of the output array is not equal to the sum of the sizes of the input slices.
+/// Panics if the size of the output array is not equal to the sum of the sizes
+/// of the input slices.
 fn concat<const O: usize>(left: &[u8], right: &[u8]) -> [u8; O] {
     assert_eq!(left.len() + right.len(), O);
     let mut out = [0u8; O];

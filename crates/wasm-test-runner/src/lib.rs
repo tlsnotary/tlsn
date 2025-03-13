@@ -18,13 +18,15 @@ pub static DEFAULT_PROVER_PORT: u16 = 8012;
 pub struct TestResult {
     pub name: String,
     pub passed: bool,
+    #[serde(default)]
+    pub duration_secs: f64,
     pub error: Option<String>,
 }
 
 impl Display for TestResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.passed {
-            write!(f, "{}: passed", self.name)?;
+            write!(f, "{}: passed in {} seconds", self.name, self.duration_secs)?;
         } else {
             write!(f, "{}: failed", self.name)?;
             if let Some(error) = &self.error {

@@ -14,6 +14,8 @@ use crate::{
     msgs::persist,
     sign, verify, KeyLog,
 };
+#[allow(deprecated)]
+use ring::constant_time;
 use tls_core::{
     key::PublicKey,
     msgs::{
@@ -33,8 +35,6 @@ use tls_core::{
     },
     suites::Tls13CipherSuite,
 };
-
-use ring::constant_time;
 
 use crate::sign::{CertifiedKey, Signer};
 use async_trait::async_trait;
@@ -771,6 +771,7 @@ impl State<ClientConnectionData> for ExpectFinished {
             .get_server_finished_vd(handshake_hash.as_ref().to_vec())
             .await?;
 
+        #[allow(deprecated)]
         let fin = match constant_time::verify_slices_are_equal(
             expect_verify_data.as_ref(),
             &finished.0,

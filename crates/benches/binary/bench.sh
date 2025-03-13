@@ -9,8 +9,5 @@ fi
 # Run the benchmark binary.
 ../../../target/release/bench
 
-# Run the benchmark binary in memory profiling mode.
-../../../target/release/bench --memory-profiling
-
 # Plot the results.
 ../../../target/release/plot metrics.csv

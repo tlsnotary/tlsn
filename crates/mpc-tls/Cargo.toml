@@ -1,0 +1,72 @@
+[package]
+name = "tlsn-mpc-tls"
+authors = ["TLSNotary Team"]
+description = "TLSNotary MPC-TLS protocol"
+keywords = ["tls", "mpc", "2pc"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0-alpha.8"
+publish = false
+edition = "2021"
+
+[lib]
+name = "mpc_tls"
+
+[features]
+default = []
+
+[dependencies]
+tlsn-cipher = { workspace = true }
+tlsn-common = { workspace = true }
+tlsn-hmac-sha256 = { workspace = true }
+tlsn-key-exchange = { workspace = true }
+tlsn-tls-backend = { workspace = true }
+tlsn-tls-core = { workspace = true, features = ["serde"] }
+tlsn-utils-aio = { workspace = true }
+
+mpz-common = { workspace = true }
+mpz-core = { workspace = true }
+mpz-fields = { workspace = true }
+mpz-ot = { workspace = true }
+mpz-ole = { workspace = true }
+mpz-share-conversion = { workspace = true }
+mpz-vm-core = { workspace = true }
+mpz-memory-core = { workspace = true }
+mpz-circuits = { workspace = true }
+
+ludi = { git = "https://github.com/sinui0/ludi", rev = "e511c3b", default-features = false }
+serio = { workspace = true }
+
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+enum-try-as-inner = { workspace = true }
+futures = { workspace = true }
+p256 = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+opaque-debug = { workspace = true }
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+ctr = { workspace = true }
+ghash_rc = { package = "ghash", version = "0.5" }
+cipher-crate = { package = "cipher", version = "0.4" }
+tokio = { workspace = true, features = ["sync"] }
+pin-project-lite = { workspace = true }
+
+[dev-dependencies]
+mpz-ole = { workspace = true, features = ["test-utils"] }
+mpz-ot = { workspace = true }
+mpz-garble = { workspace = true }
+
+tls-server-fixture = { workspace = true }
+tlsn-tls-client = { workspace = true }
+tlsn-tls-client-async = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+tokio-util = { workspace = true, features = ["compat"] }
+tracing-subscriber = { workspace = true }
+rand_chacha = { workspace = true }
+generic-array = { workspace = true }
+uid-mux = { workspace = true, features = ["serio", "test-utils"] }
+rstest = { workspace = true }

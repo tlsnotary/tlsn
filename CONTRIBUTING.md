@@ -16,6 +16,8 @@ keywords.
 
 Try to do one pull request per change.
 
+**Disclaimer**: While we appreciate all contributions, we do not prioritize minor grammatical fixes (e.g., correcting typos, rewording sentences) unless they significantly improve clarity in technical documentation. These contributions can be a distraction for the team. If you notice a grammatical error, please let us know on our Discord.
+
 ## Linting
 
 Before a Pull Request (PR) can be merged, the Continuous Integration (CI) pipeline automatically lints all code using [Clippy](https://doc.rust-lang.org/stable/clippy/usage.html). To ensure your code is free of linting issues before creating a PR, run the following command:

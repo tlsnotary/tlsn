@@ -1,6 +1,6 @@
 [package]
 name = "tlsn-wasm"
-version = "0.1.0-alpha.8-pre"
+version = "0.1.0-alpha.9-pre"
 edition = "2021"
 repository = "https://github.com/tlsnotary/tlsn.git"
 description = "A core WebAssembly package for TLSNotary."
@@ -21,7 +21,7 @@ wasm-opt = true
 [features]
 default = []
 test = []
-no-bundler = ["wasm-bindgen-rayon/no-bundler"]
+no-bundler = ["web-spawn/no-bundler"]
 
 [dependencies]
 tlsn-common = { path = "../common" }
@@ -38,20 +38,22 @@ enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
 http-body-util = { version = "0.1" }
 hyper = { workspace = true, features = ["client", "http1"] }
+js-sys = { version = "0.3" }
 parking_lot = { version = "0.12", features = ["nightly"] }
 pin-project-lite = { workspace = true }
+rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1.0" }
-time = { version = "0.3", features = ["wasm-bindgen"] }
+time = { version = "=0.3.37", features = ["wasm-bindgen"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["time"] }
 tracing-web = { version = "0.1" }
 tsify-next = { version = "0.5", default-features = false, features = ["js"] }
-wasm-bindgen = { version = "=0.2.92" }
+wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
+web-spawn = { workspace = true }
 # Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
 ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-rayon = { version = "1.0" }
 getrandom = { version = "0.2", features = ["js"] }

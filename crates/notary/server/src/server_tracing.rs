@@ -13,7 +13,7 @@ pub fn init_tracing(config: &NotaryServerProperties) -> Result<()> {
         // Use the default filter when only verbosity level is provided
         None => {
             let level = Level::from_str(&config.logging.level)?;
-            format!("notary_server={level},tlsn_verifier={level},tls_mpc={level}")
+            format!("notary_server={level},tlsn_verifier={level},mpc_tls={level}")
         }
     };
     let filter_layer = EnvFilter::builder().parse(directives)?;

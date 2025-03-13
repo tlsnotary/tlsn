@@ -15,63 +15,64 @@
 #![forbid(unsafe_code)]
 
 mod circuit;
-mod config;
 pub(crate) mod error;
 mod exchange;
 #[cfg(feature = "mock")]
 pub mod mock;
 pub(crate) mod point_addition;
 
-pub use config::{
-    KeyExchangeConfig, KeyExchangeConfigBuilder, KeyExchangeConfigBuilderError, Role,
-};
 pub use error::KeyExchangeError;
 pub use exchange::MpcKeyExchange;
 
 use async_trait::async_trait;
-use mpz_garble::value::ValueRef;
+use mpz_common::Context;
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Array,
+};
+use mpz_vm_core::Vm;
 use p256::PublicKey;
 
 /// Pre-master secret.
-#[derive(Debug, Clone)]
-pub struct Pms(ValueRef);
+pub type Pms = Array<U8, 32>;
 
-impl Pms {
-    /// Creates a new PMS.
-    pub fn new(value: ValueRef) -> Self {
-        Self(value)
-    }
-
-    /// Gets the value of the PMS.
-    pub fn into_value(self) -> ValueRef {
-        self.0
-    }
+/// Role in the key exchange protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    /// Leader.
+    Leader,
+    /// Follower.
+    Follower,
 }
 
 /// A trait for the 3-party key exchange protocol.
 #[async_trait]
 pub trait KeyExchange {
-    /// Gets the server's public key.
-    fn server_key(&self) -> Option<PublicKey>;
+    /// Allocate necessary computational resources.
+    fn alloc(&mut self, vm: &mut dyn Vm<Binary>) -> Result<Pms, KeyExchangeError>;
 
     /// Sets the server's public key.
-    async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
+    fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
+
+    /// Gets the server's public key.
+    fn server_key(&self) -> Option<PublicKey>;
 
     /// Computes the client's public key.
     ///
     /// The client's public key in this context is the combined public key (EC
     /// point addition) of the leader's public key and the follower's public
     /// key.
-    async fn client_key(&mut self) -> Result<PublicKey, KeyExchangeError>;
+    fn client_key(&self) -> Result<PublicKey, KeyExchangeError>;
 
-    /// Performs any necessary one-time setup, returning a reference to the PMS.
-    ///
-    /// The PMS will not be assigned until `compute_pms` is called.
-    async fn setup(&mut self) -> Result<Pms, KeyExchangeError>;
+    /// Performs one-time setup for the key exchange protocol.
+    async fn setup(&mut self, ctx: &mut Context) -> Result<(), KeyExchangeError>;
 
-    /// Preprocesses the key exchange.
-    async fn preprocess(&mut self) -> Result<(), KeyExchangeError>;
+    /// Computes the shares of the PMS.
+    async fn compute_shares(&mut self, ctx: &mut Context) -> Result<(), KeyExchangeError>;
 
-    /// Computes the PMS.
-    async fn compute_pms(&mut self) -> Result<Pms, KeyExchangeError>;
+    /// Assigns the PMS shares to the VM.
+    fn assign(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), KeyExchangeError>;
+
+    /// Finalizes the key exchange protocol.
+    async fn finalize(&mut self) -> Result<(), KeyExchangeError>;
 }

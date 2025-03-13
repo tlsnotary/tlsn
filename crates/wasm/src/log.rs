@@ -1,7 +1,44 @@
 use serde::Deserialize;
-use tracing::{Level, Metadata};
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing::{error, Level, Metadata};
+use tracing_subscriber::{
+    filter::FilterFn,
+    fmt::{format::FmtSpan, time::UtcTime},
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+};
+use tracing_web::MakeWebConsoleWriter;
 use tsify_next::Tsify;
+
+pub(crate) fn init_logging(config: Option<LoggingConfig>) {
+    let mut config = config.unwrap_or_default();
+
+    // Default is NONE
+    let fmt_span = config
+        .span_events
+        .take()
+        .unwrap_or_default()
+        .into_iter()
+        .map(FmtSpan::from)
+        .fold(FmtSpan::NONE, |acc, span| acc | span);
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false) // Only partially supported across browsers
+        .with_timer(UtcTime::rfc_3339()) // std::time is not available in browsers
+        .with_span_events(fmt_span)
+        .without_time()
+        .with_writer(MakeWebConsoleWriter::new()); // write events to the console
+
+    tracing_subscriber::registry()
+        .with(FilterFn::new(filter(config.clone())))
+        .with(fmt_layer)
+        .init();
+
+    // https://github.com/rustwasm/console_error_panic_hook
+    std::panic::set_hook(Box::new(|info| {
+        error!("panic occurred: {:?}", info);
+        console_error_panic_hook::hook(info);
+    }));
+}
 
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
@@ -43,7 +80,7 @@ impl From<SpanEvent> for FmtSpan {
     }
 }
 
-#[derive(Debug, Default, Tsify, Deserialize)]
+#[derive(Debug, Default, Clone, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct LoggingConfig {
     pub level: Option<LoggingLevel>,
@@ -51,7 +88,7 @@ pub struct LoggingConfig {
     pub span_events: Option<Vec<SpanEvent>>,
 }
 
-#[derive(Debug, Tsify, Deserialize)]
+#[derive(Debug, Clone, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct CrateLogFilter {
     pub level: LoggingLevel,
