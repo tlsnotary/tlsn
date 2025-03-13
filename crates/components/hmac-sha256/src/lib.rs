@@ -4,10 +4,11 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-mod circuit;
 mod config;
 mod error;
+pub(crate) mod hmac;
 mod prf;
+pub(crate) mod sha256;
 
 pub use config::{PrfConfig, PrfConfigBuilder, PrfConfigBuilderError, Role};
 pub use error::PrfError;
