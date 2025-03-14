@@ -4,28 +4,15 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-mod config;
 mod error;
 pub(crate) mod hmac;
 mod prf;
 pub(crate) mod sha256;
 
-pub use config::{PrfConfig, PrfConfigBuilder, PrfConfigBuilderError, Role};
 pub use error::PrfError;
-pub use prf::MpcPrf;
+pub use prf::{MpcPrf, PrfConfig, PrfConfigBuilder, Role};
 
 use mpz_vm_core::memory::{binary::U8, Array};
-
-pub(crate) static CF_LABEL: &[u8] = b"client finished";
-pub(crate) static SF_LABEL: &[u8] = b"server finished";
-
-/// Builds the circuits for the PRF.
-///
-/// This function can be used ahead of time to build the circuits for the PRF,
-/// which at the moment is CPU and memory intensive.
-pub async fn build_circuits() {
-    prf::Circuits::get().await;
-}
 
 /// PRF output.
 #[derive(Debug, Clone, Copy)]

@@ -74,7 +74,10 @@ impl HmacSha256 {
         todo!()
     }
 
-    fn compute_outer_partial(&self) -> Result<Array<U8, 32>, PrfError> {
+    pub(crate) fn compute_outer_partial(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+    ) -> Result<Array<U8, 32>, PrfError> {
         todo!()
     }
 }
