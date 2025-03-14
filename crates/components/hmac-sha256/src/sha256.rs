@@ -34,7 +34,17 @@ impl Sha256 {
         self
     }
 
-    pub(crate) fn update(
+    pub(crate) fn finalize(
+        self,
+        vm: &mut dyn Vm<Binary>,
+        data: Vector<U8>,
+    ) -> Result<Array<U8, 32>, PrfError> {
+        let padded = self.pad_data(data);
+
+        todo!()
+    }
+
+    fn update(
         &mut self,
         vm: &mut dyn Vm<Binary>,
         data: Array<U8, 64>,
@@ -51,16 +61,6 @@ impl Sha256 {
         self.chunk_count += 1;
 
         Ok(self)
-    }
-
-    pub(crate) fn finalize(
-        self,
-        vm: &mut dyn Vm<Binary>,
-        data: Vector<U8>,
-    ) -> Result<Array<U8, 32>, PrfError> {
-        let padded = self.pad_data(data);
-
-        todo!()
     }
 
     fn assign_iv(vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {

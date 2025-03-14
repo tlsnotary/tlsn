@@ -1,17 +1,17 @@
 use crate::{sha256::Sha256, PrfError};
-use mpz_core::bitvec::BitVec;
+use mpz_circuits::circuits::sha256;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, DecodeFutureTyped, FromRaw, MemoryExt, ToRaw, Vector, ViewExt,
+        Array, FromRaw, MemoryExt, ToRaw, Vector, ViewExt,
     },
     Vm,
 };
 
 pub(crate) struct HmacSha256 {
     key: Array<U8, 64>,
+    inner_local: Option<Array<U8, 32>>,
     outer_partial: Option<Array<U8, 32>>,
-    inner_local: [u8; 32],
 }
 
 impl HmacSha256 {
@@ -22,56 +22,69 @@ impl HmacSha256 {
         Self {
             key,
             outer_partial: None,
+            inner_local: None,
         }
     }
 
-    fn set_outer_partial(&mut self, outer_partial: Array<U8, 32>) {
+    pub(crate) fn set_inner_local(&mut self, inner_local: Array<U8, 32>) {
+        self.inner_local = Some(inner_local);
+    }
+
+    pub(crate) fn set_outer_partial(&mut self, outer_partial: Array<U8, 32>) {
         self.outer_partial = Some(outer_partial);
     }
 
-    fn outer_partial(&self) -> Option<Array<U8, 32>> {
-        self.outer_partial
+    pub(crate) fn finalize(&self, vm: &mut dyn Vm<Binary>) -> Result<Array<U8, 32>, PrfError> {
+        let Some(inner_local) = self.inner_local else {
+            return Err(PrfError::state("Inner local hash not set"));
+        };
+
+        let Some(outer_partial) = self.outer_partial else {
+            return Err(PrfError::state("Outer partial hash not set"));
+        };
+
+        let outer_partial: Array<U32, 8> =
+            <Array<U32, 8> as FromRaw<Binary>>::from_raw(outer_partial.to_raw());
+
+        let mut outer = Sha256::new();
+        outer.set_state(outer_partial).set_chunk_count(1);
+        outer.finalize(vm, Vector::from_raw(inner_local.to_raw()))
     }
 
     pub(crate) fn compute_inner_local(
-        &self,
         vm: &mut dyn Vm<Binary>,
         inner_partial: [u8; 32],
-        message: Vector<U8>,
+        message: Vec<u8>,
     ) -> Result<Array<U8, 32>, PrfError> {
-        let inner_partial: [u32; 8] = inner_partial.tob.unwrap();
+        let inner_partial: [u32; 8] = convert(inner_partial);
+        let inner = sha256(inner_partial, 64, &message);
 
-        let inner_partial_ref: Array<U32, 8> = vm.alloc().map_err(PrfError::vm)?;
-        vm.mark_public(inner_partial_ref).map_err(PrfError::vm)?;
-        vm.assign(inner_partial_ref, inner_partial)
-            .map_err(PrfError::vm)?;
-        vm.commit(inner_partial_ref).map_err(PrfError::vm)?;
+        let inner_ref: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
+        vm.mark_public(inner_ref).map_err(PrfError::vm)?;
+        vm.assign(inner_ref, inner).map_err(PrfError::vm)?;
+        vm.commit(inner_ref).map_err(PrfError::vm)?;
 
-        let inner = Sha256::new()
-            .set_state(inner_partial_ref)
-            .set_chunk_count(1);
-        let inner = inner.finalize(vm, message)?;
+        Ok(inner_ref)
     }
 
-    pub fn finalize(&self) -> Result<Array<U8, 32>, PrfError> {
-        let outer_partial = if let Some(outer_partial) = self.outer_partial {
-            outer_partial
-        } else {
-            self.compute_outer_partial()?
-        };
-
-        let outer_partial: Array<U32, 8> = Array::from_raw(outer_partial.to_raw());
-        let outer = Sha256::new().set_state(outer_partial).set_chunk_count(1);
-        let outer = outer.finalize(vm, Vector::from_raw(inner.to_raw()))?;
-
-        todo!()
-    }
-
-    fn compute_inner_partial(&self) -> Result<Array<U8, 32>, PrfError> {
+    pub(crate) fn compute_inner_partial(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+    ) -> Result<Array<U8, 32>, PrfError> {
         todo!()
     }
 
     fn compute_outer_partial(&self) -> Result<Array<U8, 32>, PrfError> {
         todo!()
     }
+}
+
+fn convert(input: [u8; 32]) -> [u32; 8] {
+    let mut output = [0_u32; 8];
+    for (k, byte_chunk) in input.chunks_exact(4).enumerate() {
+        let byte_chunk: [u8; 4] = byte_chunk.try_into().unwrap();
+        let value = u32::from_be_bytes(byte_chunk);
+        output[k] = value;
+    }
+    output
 }
