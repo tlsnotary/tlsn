@@ -8,6 +8,7 @@ use mpz_vm_core::{
     Vm,
 };
 
+#[derive(Debug)]
 pub(crate) struct HmacSha256 {
     key: Array<U8, 64>,
     inner_local: Option<Array<U8, 32>>,

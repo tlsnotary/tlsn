@@ -10,27 +10,30 @@ use mpz_vm_core::{
 use std::fmt::Debug;
 use tracing::instrument;
 
+mod config;
+pub use config::{PrfConfig, PrfConfigBuilder, Role};
+
+mod state;
+use state::State;
+
 mod function;
-pub use function::config::{PrfConfig, PrfConfigBuilder, Role};
-use function::{Prf, State};
+use function::Prf;
 
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
+#[derive(Debug)]
 pub struct MpcPrf {
-    prf: Prf,
-}
-
-impl Debug for MpcPrf {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MpcPrf").field("prf", &self.prf).finish()
-    }
+    config: PrfConfig,
+    state: State,
+    master_secret: Prf,
+    key_expansion: Prf,
+    cf_vd: Prf,
+    sf_vd: Prf,
 }
 
 impl MpcPrf {
     /// Creates a new instance of the PRF.
     pub fn new(config: PrfConfig) -> MpcPrf {
-        MpcPrf {
-            prf: Prf::new(config),
-        }
+        todo!()
     }
 
     /// Allocates resources for the PRF.
@@ -45,7 +48,7 @@ impl MpcPrf {
         vm: &mut dyn Vm<Binary>,
         pms: Array<U8, 32>,
     ) -> Result<PrfOutput, PrfError> {
-        let State::Initialized = self.prf.state.take() else {
+        let State::Initialized = self.state.take() else {
             return Err(PrfError::state("PRF not in initialized state"));
         };
         todo!()
@@ -65,11 +68,11 @@ impl MpcPrf {
         vm: &mut dyn Vm<Binary>,
         random: Option<[u8; 32]>,
     ) -> Result<(), PrfError> {
-        let State::SessionKeys { client_random, .. } = &self.prf.state else {
+        let State::SessionKeys { client_random, .. } = &self.state else {
             return Err(PrfError::state("PRF not set up"));
         };
 
-        if self.prf.config.role == Role::Leader {
+        if self.config.role == Role::Leader {
             let Some(random) = random else {
                 return Err(PrfError::role("leader must provide client random"));
             };
@@ -101,7 +104,7 @@ impl MpcPrf {
             cf_hash,
             sf_hash,
             ..
-        } = self.prf.state.take()
+        } = self.state.take()
         else {
             return Err(PrfError::state("PRF not set up"));
         };
@@ -109,7 +112,7 @@ impl MpcPrf {
         vm.assign(server_random, random).map_err(PrfError::vm)?;
         vm.commit(server_random).map_err(PrfError::vm)?;
 
-        self.prf.state = State::ClientFinished { cf_hash, sf_hash };
+        self.state = State::ClientFinished { cf_hash, sf_hash };
 
         Ok(())
     }
@@ -126,14 +129,14 @@ impl MpcPrf {
         vm: &mut dyn Vm<Binary>,
         handshake_hash: [u8; 32],
     ) -> Result<(), PrfError> {
-        let State::ClientFinished { cf_hash, sf_hash } = self.prf.state.take() else {
+        let State::ClientFinished { cf_hash, sf_hash } = self.state.take() else {
             return Err(PrfError::state("PRF not in client finished state"));
         };
 
         vm.assign(cf_hash, handshake_hash).map_err(PrfError::vm)?;
         vm.commit(cf_hash).map_err(PrfError::vm)?;
 
-        self.prf.state = State::ServerFinished { sf_hash };
+        self.state = State::ServerFinished { sf_hash };
 
         Ok(())
     }
@@ -150,14 +153,14 @@ impl MpcPrf {
         vm: &mut dyn Vm<Binary>,
         handshake_hash: [u8; 32],
     ) -> Result<(), PrfError> {
-        let State::ServerFinished { sf_hash } = self.prf.state.take() else {
+        let State::ServerFinished { sf_hash } = self.state.take() else {
             return Err(PrfError::state("PRF not in server finished state"));
         };
 
         vm.assign(sf_hash, handshake_hash).map_err(PrfError::vm)?;
         vm.commit(sf_hash).map_err(PrfError::vm)?;
 
-        self.prf.state = State::Complete;
+        self.state = State::Complete;
 
         Ok(())
     }
