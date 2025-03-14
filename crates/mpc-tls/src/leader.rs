@@ -43,7 +43,7 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
-use tracing::{debug, instrument, trace};
+use tracing::{debug, instrument, trace, warn};
 
 /// Controller for MPC-TLS leader.
 pub type LeaderCtrl = actor::MpcTlsLeaderCtrl;
@@ -692,13 +692,20 @@ impl Backend for MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
-        let State::Active {
-            ctx, record_layer, ..
-        } = &mut self.state
-        else {
-            return Err(
-                MpcTlsError::state("must be in active state to push incoming message").into(),
-            );
+        let (ctx, record_layer) = match &mut self.state {
+            State::Handshake {
+                ctx, record_layer, ..
+            } => (ctx, record_layer),
+            State::Active {
+                ctx, record_layer, ..
+            } => (ctx, record_layer),
+            _ => {
+                return Err(MpcTlsError::state(format!(
+                    "can not push incoming message in state: {}",
+                    self.state
+                ))
+                .into())
+            }
         };
 
         let OpaqueMessage {
@@ -746,12 +753,14 @@ impl Backend for MpcTlsLeader {
     #[instrument(level = "debug", skip_all, err)]
     async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, BackendError> {
         let record_layer = match &mut self.state {
+            State::Handshake { record_layer, .. } => record_layer,
             State::Active { record_layer, .. } => record_layer,
             State::Closed { record_layer, .. } => record_layer,
             _ => {
-                return Err(MpcTlsError::state(
-                    "must be in active or closed state to pull next incoming message",
-                )
+                return Err(MpcTlsError::state(format!(
+                    "can not pull next incoming message in state: {}",
+                    self.state
+                ))
                 .into())
             }
         };
@@ -779,13 +788,20 @@ impl Backend for MpcTlsLeader {
 
     #[instrument(level = "debug", skip_all, err)]
     async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError> {
-        let State::Active {
-            ctx, record_layer, ..
-        } = &mut self.state
-        else {
-            return Err(
-                MpcTlsError::state("must be in active state to push outgoing message").into(),
-            );
+        let (ctx, record_layer) = match &mut self.state {
+            State::Handshake {
+                ctx, record_layer, ..
+            } => (ctx, record_layer),
+            State::Active {
+                ctx, record_layer, ..
+            } => (ctx, record_layer),
+            _ => {
+                return Err(MpcTlsError::state(format!(
+                    "can not push outgoing message in state: {}",
+                    self.state
+                ))
+                .into())
+            }
         };
 
         debug!(
@@ -828,12 +844,14 @@ impl Backend for MpcTlsLeader {
     #[instrument(level = "debug", skip_all, err)]
     async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
         let record_layer = match &mut self.state {
+            State::Handshake { record_layer, .. } => record_layer,
             State::Active { record_layer, .. } => record_layer,
             State::Closed { record_layer, .. } => record_layer,
             _ => {
-                return Err(MpcTlsError::state(
-                    "must be in active or closed state to pull next outgoing message",
-                )
+                return Err(MpcTlsError::state(format!(
+                    "can not pull next outgoing message in state: {}",
+                    self.state
+                ))
                 .into())
             }
         };
@@ -860,9 +878,36 @@ impl Backend for MpcTlsLeader {
         Ok(record)
     }
 
+    async fn start_traffic(&mut self) -> Result<(), BackendError> {
+        match &mut self.state {
+            State::Active {
+                ctx, record_layer, ..
+            } => {
+                record_layer.start_traffic();
+                ctx.io_mut()
+                    .send(Message::StartTraffic)
+                    .await
+                    .map_err(MpcTlsError::from)?;
+            }
+            _ => {
+                return Err(MpcTlsError::state(format!(
+                    "can not start traffic in state: {}",
+                    self.state
+                ))
+                .into())
+            }
+        }
+
+        Ok(())
+    }
+
     #[instrument(level = "debug", skip_all, err)]
     async fn flush(&mut self) -> Result<(), BackendError> {
         let (ctx, vm, record_layer) = match &mut self.state {
+            State::Handshake { .. } => {
+                warn!("record layer is not ready, skipping flush");
+                return Ok(());
+            }
             State::Active {
                 ctx,
                 vm,
@@ -876,19 +921,20 @@ impl Backend for MpcTlsLeader {
                 ..
             } => (ctx, vm, record_layer),
             _ => {
-                return Err(MpcTlsError::state(
-                    "must be in active or closed state to flush record layer",
-                )
+                return Err(MpcTlsError::state(format!(
+                    "can not flush record layer in state: {}",
+                    self.state
+                ))
                 .into())
             }
         };
-
-        debug!("flushing record layer");
 
         if !record_layer.wants_flush() {
             debug!("record layer is empty, skipping flush");
             return Ok(());
         }
+
+        debug!("flushing record layer");
 
         ctx.io_mut()
             .send(Message::Flush {
@@ -998,6 +1044,19 @@ impl std::fmt::Debug for State {
             Self::Handshake { .. } => f.debug_struct("Handshake").finish_non_exhaustive(),
             Self::Active { .. } => f.debug_struct("Active").finish_non_exhaustive(),
             Self::Closed { .. } => f.debug_struct("Closed").finish_non_exhaustive(),
+            Self::Error => write!(f, "Error"),
+        }
+    }
+}
+
+impl std::fmt::Display for State {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Init { .. } => write!(f, "Init"),
+            Self::Setup { .. } => write!(f, "Setup"),
+            Self::Handshake { .. } => write!(f, "Handshake"),
+            Self::Active { .. } => write!(f, "Active"),
+            Self::Closed { .. } => write!(f, "Closed"),
             Self::Error => write!(f, "Error"),
         }
     }

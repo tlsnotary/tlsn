@@ -224,6 +224,12 @@ impl Dispatch<MpcTlsLeader> for MpcTlsLeaderMsg {
                 })
                 .await;
             }
+            MpcTlsLeaderMsg::BackendMsgStartTraffic(msg) => {
+                msg.dispatch(actor, ctx, |value| {
+                    ret(Self::Return::BackendMsgStartTraffic(value))
+                })
+                .await;
+            }
             MpcTlsLeaderMsg::BackendMsgFlush(msg) => {
                 msg.dispatch(actor, ctx, |value| {
                     ret(Self::Return::BackendMsgFlush(value))
@@ -406,6 +412,13 @@ impl Backend for MpcTlsLeaderCtrl {
     async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
         self.address
             .send(BackendMsgNextOutgoing)
+            .await
+            .map_err(|err| BackendError::InternalError(err.to_string()))?
+    }
+
+    async fn start_traffic(&mut self) -> Result<(), BackendError> {
+        self.address
+            .send(BackendMsgStartTraffic)
             .await
             .map_err(|err| BackendError::InternalError(err.to_string()))?
     }
@@ -859,6 +872,27 @@ impl Handler<BackendMsgNextOutgoing> for MpcTlsLeader {
     }
 }
 
+impl Dispatch<MpcTlsLeader> for BackendMsgStartTraffic {
+    fn dispatch<R: FnOnce(Self::Return) + Send>(
+        self,
+        actor: &mut MpcTlsLeader,
+        ctx: &mut LudiCtx<MpcTlsLeader>,
+        ret: R,
+    ) -> impl Future<Output = ()> + Send {
+        actor.process(self, ctx, ret)
+    }
+}
+
+impl Handler<BackendMsgStartTraffic> for MpcTlsLeader {
+    async fn handle(
+        &mut self,
+        _msg: BackendMsgStartTraffic,
+        _ctx: &mut LudiCtx<Self>,
+    ) -> <BackendMsgStartTraffic as Message>::Return {
+        self.start_traffic().await
+    }
+}
+
 impl Dispatch<MpcTlsLeader> for BackendMsgFlush {
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
@@ -1005,6 +1039,7 @@ pub enum MpcTlsLeaderMsg {
     BackendMsgPushIncoming(BackendMsgPushIncoming),
     BackendMsgNextOutgoing(BackendMsgNextOutgoing),
     BackendMsgPushOutgoing(BackendMsgPushOutgoing),
+    BackendMsgStartTraffic(BackendMsgStartTraffic),
     BackendMsgFlush(BackendMsgFlush),
     BackendMsgGetNotify(BackendMsgGetNotify),
     BackendMsgIsEmpty(BackendMsgIsEmpty),
@@ -1039,6 +1074,7 @@ pub enum MpcTlsLeaderMsgReturn {
     BackendMsgPushIncoming(<BackendMsgPushIncoming as Message>::Return),
     BackendMsgNextOutgoing(<BackendMsgNextOutgoing as Message>::Return),
     BackendMsgPushOutgoing(<BackendMsgPushOutgoing as Message>::Return),
+    BackendMsgStartTraffic(<BackendMsgStartTraffic as Message>::Return),
     BackendMsgFlush(<BackendMsgFlush as Message>::Return),
     BackendMsgGetNotify(<BackendMsgGetNotify as Message>::Return),
     BackendMsgIsEmpty(<BackendMsgIsEmpty as Message>::Return),
@@ -1568,6 +1604,31 @@ impl Wrap<BackendMsgNextOutgoing> for MpcTlsLeaderMsg {
     ) -> Result<<BackendMsgNextOutgoing as Message>::Return, Error> {
         match ret {
             Self::Return::BackendMsgNextOutgoing(value) => Ok(value),
+            _ => Err(Error::Wrapper),
+        }
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug)]
+pub struct BackendMsgStartTraffic;
+
+impl Message for BackendMsgStartTraffic {
+    type Return = Result<(), BackendError>;
+}
+
+impl From<BackendMsgStartTraffic> for MpcTlsLeaderMsg {
+    fn from(value: BackendMsgStartTraffic) -> Self {
+        MpcTlsLeaderMsg::BackendMsgStartTraffic(value)
+    }
+}
+
+impl Wrap<BackendMsgStartTraffic> for MpcTlsLeaderMsg {
+    fn unwrap_return(
+        ret: Self::Return,
+    ) -> Result<<BackendMsgStartTraffic as Message>::Return, Error> {
+        match ret {
+            Self::Return::BackendMsgStartTraffic(value) => Ok(value),
             _ => Err(Error::Wrapper),
         }
     }
