@@ -61,6 +61,10 @@ pub struct EncodingTree {
     /// Mapping between the index of a leaf and the transcript index it
     /// corresponds to.
     idxs: BiMap<usize, (Direction, Idx)>,
+    /// Union of all transcript indices in the sent direction.
+    sent_idx: Idx,
+    /// Union of all transcript indices in the received direction.
+    received_idx: Idx,
 }
 
 opaque_debug::implement!(EncodingTree);
@@ -84,6 +88,8 @@ impl EncodingTree {
             tree: MerkleTree::new(hasher.id()),
             nonces: Vec::new(),
             idxs: BiMap::new(),
+            sent_idx: Idx::empty(),
+            received_idx: Idx::empty(),
         };
 
         let mut leaves = Vec::new();
@@ -122,6 +128,10 @@ impl EncodingTree {
             leaves.push(hasher.hash(&CanonicalSerialize::serialize(&leaf)));
             this.nonces.push(leaf.into_parts().1);
             this.idxs.insert(this.idxs.len(), dir_idx.clone());
+            match direction {
+                Direction::Sent => this.sent_idx = this.sent_idx.union(idx),
+                Direction::Received => this.received_idx = this.received_idx.union(idx),
+            }
         }
 
         this.tree.insert(hasher, leaves);
@@ -194,8 +204,17 @@ impl EncodingTree {
     }
 
     /// Returns the committed transcript indices.
-    pub(crate) fn transcript_indices(&self) -> impl IntoIterator<Item = &(Direction, Idx)> {
+    pub(crate) fn transcript_indices(&self) -> impl Iterator<Item = &(Direction, Idx)> {
         self.idxs.right_values()
+    }
+
+    /// Returns the union of all committed transcript indices in the given
+    /// direction.
+    pub(crate) fn aggregated_idx(&self, direction: &Direction) -> &Idx {
+        match direction {
+            Direction::Sent => &self.sent_idx,
+            Direction::Received => &self.received_idx,
+        }
     }
 }
 

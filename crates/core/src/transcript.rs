@@ -40,7 +40,9 @@ mod proof;
 use std::{fmt, ops::Range};
 
 use serde::{Deserialize, Serialize};
-use utils::range::{Difference, IndexRanges, RangeSet, Subset, ToRangeSet, Union};
+use utils::range::{
+    Cover, Difference, IndexRanges, RangeSet, RangeSetCoverError, Subset, ToRangeSet, Union,
+};
 
 use crate::connection::TranscriptLength;
 
@@ -489,11 +491,6 @@ impl Idx {
         self.0.len()
     }
 
-    /// Returns the number of ranges in the index.
-    pub fn len_ranges(&self) -> usize {
-        self.0.len_ranges()
-    }
-
     /// Returns whether the index is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -512,6 +509,20 @@ impl Idx {
     /// Checks if this index is a subset of another.
     pub fn is_subset(&self, other: &Idx) -> bool {
         self.0.is_subset(&other.0)
+    }
+
+    /// Returns subsets from others that can exactly cover self.
+    pub fn cover<'a>(
+        &self,
+        others: impl IntoIterator<Item = &'a Idx>,
+    ) -> Result<impl Iterator<Item = Idx>, RangeSetCoverError> {
+        let cover_subsets = self
+            .0
+            .cover(others.into_iter().map(|idx| &idx.0))?
+            .map(Idx::new)
+            .collect::<Vec<_>>();
+
+        Ok(cover_subsets.into_iter())
     }
 }
 
