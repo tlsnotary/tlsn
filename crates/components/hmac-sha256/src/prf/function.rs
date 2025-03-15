@@ -23,33 +23,33 @@ impl PrfFunction {
     pub(crate) fn new_master_secret(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
-        inner_partial: Array<U8, 32>,
+        inner_local: Array<U8, 32>,
     ) -> Vector<U8> {
-        Self::alloc(Self::MS_LABEL, seed, outer_partial, inner_partial, 48)
+        Self::alloc(Self::MS_LABEL, seed, outer_partial, inner_local, 48)
     }
 
     pub(crate) fn new_key_expansion(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
-        inner_partial: Array<U8, 32>,
+        inner_local: Array<U8, 32>,
     ) -> Vector<U8> {
-        Self::alloc(Self::KEY_LABEL, seed, outer_partial, inner_partial, 40)
+        Self::alloc(Self::KEY_LABEL, seed, outer_partial, inner_local, 40)
     }
 
     pub(crate) fn new_client_finished(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
-        inner_partial: Array<U8, 32>,
+        inner_local: Array<U8, 32>,
     ) -> Vector<U8> {
-        Self::alloc(Self::CF_LABEL, seed, outer_partial, inner_partial, 12)
+        Self::alloc(Self::CF_LABEL, seed, outer_partial, inner_local, 12)
     }
 
     pub(crate) fn new_server_finished(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
-        inner_partial: Array<U8, 32>,
+        inner_local: Array<U8, 32>,
     ) -> Vector<U8> {
-        Self::alloc(Self::SF_LABEL, seed, outer_partial, inner_partial, 12)
+        Self::alloc(Self::SF_LABEL, seed, outer_partial, inner_local, 12)
     }
 
     pub(crate) fn compute_inner_partial(
@@ -86,7 +86,7 @@ impl PrfFunction {
         label: &[u8],
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
-        inner_partial: Array<U8, 32>,
+        inner_local: Array<U8, 32>,
         len: usize,
     ) -> Vector<U8> {
         todo!()
