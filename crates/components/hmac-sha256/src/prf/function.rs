@@ -9,9 +9,9 @@ use mpz_vm_core::{
 };
 
 #[derive(Debug)]
-pub(crate) struct Prf;
+pub(crate) struct PrfFunction;
 
-impl Prf {
+impl PrfFunction {
     const IPAD: [u8; 64] = [0x36; 64];
     const OPAD: [u8; 64] = [0x5c; 64];
 
@@ -24,32 +24,32 @@ impl Prf {
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_partial: Array<U8, 32>,
-    ) -> Self {
-        Self::new_inner(Self::MS_LABEL, seed, outer_partial, inner_partial, 48)
+    ) -> Vector<U8> {
+        Self::alloc(Self::MS_LABEL, seed, outer_partial, inner_partial, 48)
     }
 
     pub(crate) fn new_key_expansion(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_partial: Array<U8, 32>,
-    ) -> Self {
-        Self::new_inner(Self::KEY_LABEL, seed, outer_partial, inner_partial, 40)
+    ) -> Vector<U8> {
+        Self::alloc(Self::KEY_LABEL, seed, outer_partial, inner_partial, 40)
     }
 
     pub(crate) fn new_client_finished(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_partial: Array<U8, 32>,
-    ) -> Self {
-        Self::new_inner(Self::CF_LABEL, seed, outer_partial, inner_partial, 12)
+    ) -> Vector<U8> {
+        Self::alloc(Self::CF_LABEL, seed, outer_partial, inner_partial, 12)
     }
 
     pub(crate) fn new_server_finished(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_partial: Array<U8, 32>,
-    ) -> Self {
-        Self::new_inner(Self::SF_LABEL, seed, outer_partial, inner_partial, 12)
+    ) -> Vector<U8> {
+        Self::alloc(Self::SF_LABEL, seed, outer_partial, inner_partial, 12)
     }
 
     pub(crate) fn compute_inner_partial(
@@ -82,13 +82,13 @@ impl Prf {
         Ok(inner_ref)
     }
 
-    fn new_inner(
+    fn alloc(
         label: &[u8],
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_partial: Array<U8, 32>,
         len: usize,
-    ) -> Self {
+    ) -> Vector<U8> {
         todo!()
     }
 }

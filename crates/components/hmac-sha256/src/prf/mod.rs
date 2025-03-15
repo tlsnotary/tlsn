@@ -17,20 +17,24 @@ mod state;
 use state::State;
 
 mod function;
-use function::Prf;
+use function::PrfFunction;
 
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
 #[derive(Debug)]
 pub struct MpcPrf {
     config: PrfConfig,
     state: State,
-    prf: Prf,
+    prf: PrfFunction,
 }
 
 impl MpcPrf {
     /// Creates a new instance of the PRF.
     pub fn new(config: PrfConfig) -> MpcPrf {
-        todo!()
+        Self {
+            config,
+            state: State::Initialized,
+            prf: PrfFunction,
+        }
     }
 
     /// Allocates resources for the PRF.
