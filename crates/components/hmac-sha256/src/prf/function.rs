@@ -20,7 +20,7 @@ impl PrfFunction {
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
 
-    pub(crate) fn new_master_secret(
+    pub(crate) fn alloc_master_secret(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_local: Array<U8, 32>,
@@ -28,7 +28,7 @@ impl PrfFunction {
         Self::alloc(Self::MS_LABEL, seed, outer_partial, inner_local, 48)
     }
 
-    pub(crate) fn new_key_expansion(
+    pub(crate) fn alloc_key_expansion(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_local: Array<U8, 32>,
@@ -36,7 +36,7 @@ impl PrfFunction {
         Self::alloc(Self::KEY_LABEL, seed, outer_partial, inner_local, 40)
     }
 
-    pub(crate) fn new_client_finished(
+    pub(crate) fn alloc_client_finished(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_local: Array<U8, 32>,
@@ -44,7 +44,7 @@ impl PrfFunction {
         Self::alloc(Self::CF_LABEL, seed, outer_partial, inner_local, 12)
     }
 
-    pub(crate) fn new_server_finished(
+    pub(crate) fn alloc_server_finished(
         seed: Vector<U8>,
         outer_partial: Array<U8, 32>,
         inner_local: Array<U8, 32>,
