@@ -1,58 +1,104 @@
-use crate::hmac::HmacSha256;
-use mpz_circuits::types::U8;
-use mpz_vm_core::memory::{Array, Vector};
+use crate::PrfError;
+use mpz_circuits::circuits::sha256;
+use mpz_vm_core::{
+    memory::{
+        binary::{Binary, U8},
+        Array, MemoryExt, Vector, ViewExt,
+    },
+    Vm,
+};
 
 #[derive(Debug)]
-pub(crate) struct Prf {
-    a: Vec<A>,
-    p: Vec<P>,
-}
+pub(crate) struct Prf;
 
 impl Prf {
+    const IPAD: [u8; 64] = [0x36; 64];
+    const OPAD: [u8; 64] = [0x5c; 64];
+
     const MS_LABEL: &[u8] = b"master secret";
     const KEY_LABEL: &[u8] = b"key expansion";
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
 
-    pub(crate) fn new_master_secret(key: Vector<U8>, seed: Vector<U8>) -> Self {
+    pub(crate) fn new_master_secret(
+        seed: Vector<U8>,
+        outer_partial: Array<U8, 32>,
+        inner_partial: Array<U8, 32>,
+    ) -> Self {
+        Self::new_inner(Self::MS_LABEL, seed, outer_partial, inner_partial, 48)
+    }
+
+    pub(crate) fn new_key_expansion(
+        seed: Vector<U8>,
+        outer_partial: Array<U8, 32>,
+        inner_partial: Array<U8, 32>,
+    ) -> Self {
+        Self::new_inner(Self::KEY_LABEL, seed, outer_partial, inner_partial, 40)
+    }
+
+    pub(crate) fn new_client_finished(
+        seed: Vector<U8>,
+        outer_partial: Array<U8, 32>,
+        inner_partial: Array<U8, 32>,
+    ) -> Self {
+        Self::new_inner(Self::CF_LABEL, seed, outer_partial, inner_partial, 12)
+    }
+
+    pub(crate) fn new_server_finished(
+        seed: Vector<U8>,
+        outer_partial: Array<U8, 32>,
+        inner_partial: Array<U8, 32>,
+    ) -> Self {
+        Self::new_inner(Self::SF_LABEL, seed, outer_partial, inner_partial, 12)
+    }
+
+    pub(crate) fn compute_inner_partial(
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+    ) -> Result<Array<U8, 32>, PrfError> {
         todo!()
     }
 
-    pub(crate) fn new_key_expansion(key: Vector<U8>, seed: Vector<U8>) -> Self {
+    pub(crate) fn compute_outer_partial(
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+    ) -> Result<Array<U8, 32>, PrfError> {
         todo!()
     }
 
-    pub(crate) fn new_client_finished(key: Vector<U8>, seed: Vector<U8>) -> Self {
-        todo!()
+    pub(crate) fn compute_inner_local(
+        vm: &mut dyn Vm<Binary>,
+        inner_partial: [u8; 32],
+        message: Vec<u8>,
+    ) -> Result<Array<U8, 32>, PrfError> {
+        let inner_partial: [u32; 8] = convert(inner_partial);
+        let inner = sha256(inner_partial, 64, &message);
+
+        let inner_ref: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
+        vm.mark_public(inner_ref).map_err(PrfError::vm)?;
+        vm.assign(inner_ref, inner).map_err(PrfError::vm)?;
+        vm.commit(inner_ref).map_err(PrfError::vm)?;
+
+        Ok(inner_ref)
     }
 
-    pub(crate) fn new_server_finished(key: Vector<U8>, seed: Vector<U8>) -> Self {
+    fn new_inner(
+        label: &[u8],
+        seed: Vector<U8>,
+        outer_partial: Array<U8, 32>,
+        inner_partial: Array<U8, 32>,
+        len: usize,
+    ) -> Self {
         todo!()
     }
 }
 
-#[derive(Debug)]
-struct A {
-    index: usize,
-    hmac: HmacSha256,
-    output: Array<U8, 32>,
-}
-
-impl A {
-    pub(crate) fn compute(&mut self) {
-        todo!()
+fn convert(input: [u8; 32]) -> [u32; 8] {
+    let mut output = [0_u32; 8];
+    for (k, byte_chunk) in input.chunks_exact(4).enumerate() {
+        let byte_chunk: [u8; 4] = byte_chunk.try_into().unwrap();
+        let value = u32::from_be_bytes(byte_chunk);
+        output[k] = value;
     }
-}
-
-#[derive(Debug)]
-struct P {
-    index: usize,
-    hmac: HmacSha256,
-    output: Array<U8, 32>,
-}
-
-impl P {
-    pub(crate) fn compute(&mut self) {
-        todo!()
-    }
+    output
 }

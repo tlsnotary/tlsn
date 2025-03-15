@@ -91,12 +91,3 @@ impl Sha256 {
         todo!()
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Sha256Output(Array<U8, 32>);
-
-impl From<Sha256Output> for Array<U8, 32> {
-    fn from(value: Sha256Output) -> Self {
-        value.0
-    }
-}

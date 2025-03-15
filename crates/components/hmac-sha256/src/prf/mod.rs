@@ -24,10 +24,7 @@ use function::Prf;
 pub struct MpcPrf {
     config: PrfConfig,
     state: State,
-    master_secret: Prf,
-    key_expansion: Prf,
-    cf_vd: Prf,
-    sf_vd: Prf,
+    prf: Prf,
 }
 
 impl MpcPrf {
