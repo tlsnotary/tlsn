@@ -3,7 +3,7 @@ use mpz_circuits::circuits::SHA256_COMPRESS;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, MemoryExt, Vector, ViewExt,
+        Array, FromRaw, MemoryExt, ToRaw, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
 };
@@ -11,7 +11,7 @@ use mpz_vm_core::{
 #[derive(Debug, Default)]
 pub(crate) struct Sha256 {
     state: Option<Array<U32, 8>>,
-    chunks: Vec<Array<U8, 64>>,
+    chunks: Vec<Vector<U8>>,
     processed: u32,
 }
 
@@ -35,29 +35,32 @@ impl Sha256 {
         self
     }
 
-    pub(crate) fn update(&mut self, data: Array<U8, 64>) -> &mut Self {
+    pub(crate) fn update(&mut self, data: Vector<U8>) -> &mut Self {
         self.chunks.push(data);
         self
     }
 
-    pub(crate) fn alloc(
-        self,
-        vm: &mut dyn Vm<Binary>,
-        data: Vector<U8>,
-    ) -> Result<Array<U32, 8>, PrfError> {
+    pub(crate) fn alloc(mut self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
+        assert!(
+            self.chunks.len() >= 1,
+            "Cannnot compute Sha256 on empty data"
+        );
+
         let mut state = if let Some(state) = self.state {
             state
         } else {
             Self::assign_iv(vm)?
         };
 
-        let processed = self.processed + 64 * self.chunks.len() as u32;
+        self.repartition();
+        self.pad_data();
+
         for chunk in self.chunks {
+            let chunk = <Array<U8, 64> as FromRaw<Binary>>::from_raw(chunk.to_raw());
             state = Self::compute_state(vm, state, chunk)?;
         }
 
-        let padded = Self::pad_data(data, processed);
-        Self::compute_state(vm, state, padded)
+        Ok(state)
     }
 
     fn assign_iv(vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
@@ -84,7 +87,11 @@ impl Sha256 {
         vm.call(compress).map_err(PrfError::vm)
     }
 
-    fn pad_data(data: Vector<U8>, processed: u32) -> Array<U8, 64> {
+    fn repartition(&mut self) {
+        todo!()
+    }
+
+    fn pad_data(&mut self) {
         todo!()
     }
 }

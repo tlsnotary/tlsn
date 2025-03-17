@@ -2,7 +2,7 @@ use crate::{PrfError, PrfOutput};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U8},
-        Array,
+        Array, Vector,
     },
     prelude::*,
     Vm,
@@ -24,7 +24,7 @@ use function::PrfFunction;
 pub struct MpcPrf {
     config: PrfConfig,
     state: State,
-    prf: PrfFunction,
+    circuits: Option<Circuits>,
 }
 
 impl MpcPrf {
@@ -33,7 +33,7 @@ impl MpcPrf {
         Self {
             config,
             state: State::Initialized,
-            prf: PrfFunction::default(),
+            circuits: None,
         }
     }
 
@@ -52,39 +52,32 @@ impl MpcPrf {
         let State::Initialized = self.state.take() else {
             return Err(PrfError::state("PRF not in initialized state"));
         };
-        todo!()
+
+        let ms: Array<U8, 40> = vm.alloc().map_err(PrfError::vm)?;
+
+        let prf_output = PrfOutput::alloc(vm)?;
+        let circuits = Circuits::alloc(vm, pms.into(), ms.into())?;
+
+        self.circuits = Some(circuits);
+        self.state = State::SessionKeys {
+            client_random: None,
+        };
+
+        Ok(prf_output)
     }
 
     /// Sets the client random.
     ///
-    /// Only the leader can provide the client random.
-    ///
     /// # Arguments
     ///
-    /// * `vm` - Virtual machine.
-    /// * `client_random` - The client random.
+    /// * `random` - The client random.
     #[instrument(level = "debug", skip_all, err)]
-    pub fn set_client_random(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-        random: Option<[u8; 32]>,
-    ) -> Result<(), PrfError> {
-        let State::SessionKeys { client_random, .. } = &self.state else {
+    pub fn set_client_random(&mut self, random: Option<[u8; 32]>) -> Result<(), PrfError> {
+        let State::SessionKeys { client_random } = &mut self.state else {
             return Err(PrfError::state("PRF not set up"));
         };
 
-        if self.config.role == Role::Leader {
-            let Some(random) = random else {
-                return Err(PrfError::role("leader must provide client random"));
-            };
-
-            vm.assign(*client_random, random).map_err(PrfError::vm)?;
-        } else if random.is_some() {
-            return Err(PrfError::role("only leader can set client random"));
-        }
-
-        vm.commit(*client_random).map_err(PrfError::vm)?;
-
+        *client_random = random;
         Ok(())
     }
 
@@ -92,29 +85,29 @@ impl MpcPrf {
     ///
     /// # Arguments
     ///
-    /// * `vm` - Virtual machine.
-    /// * `server_random` - The server random.
+    /// * `random` - The server random.
     #[instrument(level = "debug", skip_all, err)]
-    pub fn set_server_random(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-        random: [u8; 32],
-    ) -> Result<(), PrfError> {
-        let State::SessionKeys {
-            server_random,
-            cf_hash,
-            sf_hash,
-            ..
-        } = self.state.take()
-        else {
+    pub fn set_server_random(&mut self, random: [u8; 32]) -> Result<(), PrfError> {
+        let State::SessionKeys { client_random } = self.state.take() else {
             return Err(PrfError::state("PRF not set up"));
         };
 
-        vm.assign(server_random, random).map_err(PrfError::vm)?;
-        vm.commit(server_random).map_err(PrfError::vm)?;
+        let Some(ref mut circuits) = self.circuits else {
+            return Err(PrfError::state("Circuits should have been set for PRF"));
+        };
 
-        self.state = State::ClientFinished { cf_hash, sf_hash };
+        let client_random = client_random.expect("Client random should have been set by now");
+        let server_random = random;
 
+        let mut seed_ms = client_random.to_vec();
+        seed_ms.extend_from_slice(&server_random);
+        circuits.master_secret.set_start_seed(seed_ms);
+
+        let mut seed_ke = server_random.to_vec();
+        seed_ke.extend_from_slice(&client_random);
+        circuits.key_expansion.set_start_seed(seed_ke);
+
+        self.state = State::ClientFinished;
         Ok(())
     }
 
@@ -122,23 +115,21 @@ impl MpcPrf {
     ///
     /// # Arguments
     ///
-    /// * `vm` - Virtual machine.
     /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
-    pub fn set_cf_hash(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-        handshake_hash: [u8; 32],
-    ) -> Result<(), PrfError> {
-        let State::ClientFinished { cf_hash, sf_hash } = self.state.take() else {
+    pub fn set_cf_hash(&mut self, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
+        let State::ClientFinished { .. } = self.state.take() else {
             return Err(PrfError::state("PRF not in client finished state"));
         };
 
-        vm.assign(cf_hash, handshake_hash).map_err(PrfError::vm)?;
-        vm.commit(cf_hash).map_err(PrfError::vm)?;
+        let Some(ref mut circuits) = self.circuits else {
+            return Err(PrfError::state("Circuits should have been set for PRF"));
+        };
 
-        self.state = State::ServerFinished { sf_hash };
+        let seed_cf = handshake_hash.to_vec();
+        circuits.client_finished.set_start_seed(seed_cf);
 
+        self.state = State::ServerFinished;
         Ok(())
     }
 
@@ -146,23 +137,41 @@ impl MpcPrf {
     ///
     /// # Arguments
     ///
-    /// * `vm` - Virtual machine.
     /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
-    pub fn set_sf_hash(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-        handshake_hash: [u8; 32],
-    ) -> Result<(), PrfError> {
-        let State::ServerFinished { sf_hash } = self.state.take() else {
+    pub fn set_sf_hash(&mut self, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
+        let State::ServerFinished = self.state.take() else {
             return Err(PrfError::state("PRF not in server finished state"));
         };
 
-        vm.assign(sf_hash, handshake_hash).map_err(PrfError::vm)?;
-        vm.commit(sf_hash).map_err(PrfError::vm)?;
+        let Some(ref mut circuits) = self.circuits else {
+            return Err(PrfError::state("Circuits should have been set for PRF"));
+        };
+
+        let seed_sf = handshake_hash.to_vec();
+        circuits.server_finished.set_start_seed(seed_sf);
 
         self.state = State::Complete;
-
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct Circuits {
+    pub(crate) master_secret: PrfFunction,
+    pub(crate) key_expansion: PrfFunction,
+    pub(crate) client_finished: PrfFunction,
+    pub(crate) server_finished: PrfFunction,
+}
+
+impl Circuits {
+    fn alloc(vm: &mut dyn Vm<Binary>, pms: Vector<U8>, ms: Vector<U8>) -> Result<Self, PrfError> {
+        let circuits = Self {
+            master_secret: PrfFunction::alloc_master_secret(vm, pms)?,
+            key_expansion: PrfFunction::alloc_key_expansion(vm, ms)?,
+            client_finished: PrfFunction::alloc_client_finished(vm, ms)?,
+            server_finished: PrfFunction::alloc_server_finished(vm, ms)?,
+        };
+        Ok(circuits)
     }
 }

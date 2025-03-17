@@ -22,8 +22,14 @@ impl HmacSha256 {
     }
 
     pub(crate) fn alloc(self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
+        let inner_local = Vector::from_raw(self.inner_local.to_raw());
+
         let mut outer = Sha256::new();
-        outer.set_state(self.outer_partial).set_processed(64);
-        outer.alloc(vm, Vector::from_raw(self.inner_local.to_raw()))
+        outer
+            .set_state(self.outer_partial)
+            .set_processed(64)
+            .update(inner_local);
+
+        outer.alloc(vm)
     }
 }
