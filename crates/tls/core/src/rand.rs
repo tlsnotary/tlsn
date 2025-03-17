@@ -1,11 +1,9 @@
 use crate::{msgs::codec, Error};
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
 
 /// Fill the whole slice with random material.
 pub fn fill_random(bytes: &mut [u8]) -> Result<(), Error> {
-    thread_rng()
-        .try_fill(bytes)
-        .map_err(|_| Error::General("failed to get random from system".to_string()))
+    Ok(rng().fill(bytes))
 }
 
 /// Make a Vec<u8> of the given size

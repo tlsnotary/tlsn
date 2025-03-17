@@ -376,20 +376,21 @@ pub use secp256r1::{Secp256r1Signer, Secp256r1Verifier};
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand_core::OsRng;
+    use rand::rng;
+    use rand06_compat::Rand0_6CompatExt;
     use rstest::{fixture, rstest};
 
     #[fixture]
     #[once]
     fn secp256k1_signer() -> Secp256k1Signer {
-        let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let signing_key = k256::ecdsa::SigningKey::random(&mut rng().compat());
         Secp256k1Signer::new(&signing_key.to_bytes()).unwrap()
     }
 
     #[fixture]
     #[once]
     fn secp256r1_signer() -> Secp256r1Signer {
-        let signing_key = p256::ecdsa::SigningKey::random(&mut OsRng);
+        let signing_key = p256::ecdsa::SigningKey::random(&mut rng().compat());
         Secp256r1Signer::new(&signing_key.to_bytes()).unwrap()
     }
 

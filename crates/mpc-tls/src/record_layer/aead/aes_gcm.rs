@@ -449,7 +449,8 @@ mod tests {
     use mpz_memory_core::{binary::U8, correlated::Delta};
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_share_conversion::ideal::ideal_share_convert;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{rngs::StdRng, SeedableRng};
+    use rand06_compat::Rand0_6CompatExt;
     use rstest::*;
 
     static SHORT_MSG: &[u8] = b"hello world";
@@ -563,7 +564,7 @@ mod tests {
     }
 
     fn create_vm(key: [u8; 16], iv: [u8; 4]) -> ((impl Vm<Binary>, Vars), (impl Vm<Binary>, Vars)) {
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = StdRng::seed_from_u64(0).compat();
         let block = Block::random(&mut rng);
         let (sender, receiver) = ideal_cot(block);
 
@@ -611,7 +612,7 @@ mod tests {
 
     fn create_pair(vars_0: Vars, vars_1: Vars) -> (MpcAesGcm, MpcAesGcm) {
         let mut rng = StdRng::seed_from_u64(0);
-        let (c_0, c_1) = ideal_share_convert(rng.gen());
+        let (c_0, c_1) = ideal_share_convert(Block::random(&mut rng.compat_by_ref()));
         let mut leader = MpcAesGcm::new(c_0, Role::Leader);
         let mut follower = MpcAesGcm::new(c_1, Role::Follower);
 

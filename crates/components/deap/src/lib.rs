@@ -368,14 +368,15 @@ mod tests {
     };
     use mpz_zk::{Prover, Verifier};
     use rand::{rngs::StdRng, SeedableRng};
+    use rand06_compat::Rand0_6CompatExt;
 
     use super::*;
 
     #[tokio::test]
     async fn test_deap() {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta_mpc = Delta::random(&mut rng);
-        let delta_zk = Delta::random(&mut rng);
+        let delta_mpc = Delta::random(&mut rng.compat_by_ref());
+        let delta_zk = Delta::random(&mut rng.compat_by_ref());
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
@@ -456,8 +457,8 @@ mod tests {
     #[tokio::test]
     async fn test_malicious() {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta_mpc = Delta::random(&mut rng);
-        let delta_zk = Delta::random(&mut rng);
+        let delta_mpc = Delta::random(&mut rng.compat_by_ref());
+        let delta_zk = Delta::random(&mut rng.compat_by_ref());
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());

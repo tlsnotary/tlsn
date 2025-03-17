@@ -42,6 +42,7 @@ bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
 tlsn-data-fixtures = { workspace = true }
+rand06-compat = { workspace = true }
 
 [[test]]
 name = "api"

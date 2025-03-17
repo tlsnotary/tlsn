@@ -18,8 +18,9 @@ pub use error::VerifierError;
 use futures::{AsyncRead, AsyncWrite};
 use mpc_tls::{FollowerData, MpcTlsFollower};
 use mpz_common::Context;
+use mpz_core::Block;
 use mpz_garble_core::Delta;
-use rand::{thread_rng, Rng};
+use rand06_compat::Rand0_6CompatExt;
 use serio::stream::IoStreamExt;
 use state::{Notarize, Verify};
 use tls_core::msgs::enums::ContentType;
@@ -106,7 +107,7 @@ impl Verifier<state::Initialized> {
             })
             .await?;
 
-        let delta = Delta::random(&mut thread_rng());
+        let delta = Delta::random(&mut rand::rng().compat());
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta, ctx);
 
         // Allocate resources for MPC-TLS in VM.
@@ -331,7 +332,7 @@ fn build_mpc_tls(
     delta: Delta,
     ctx: Context,
 ) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsFollower) {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
     let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
@@ -345,7 +346,7 @@ fn build_mpc_tls(
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect("ferret config is valid"),
-        rng.gen(),
+        Block::random(&mut rng.compat_by_ref()),
         rcot_send,
     );
     let rcot_recv =

@@ -31,6 +31,7 @@ serio = { workspace = true }
 derive_builder = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
+rand06-compat = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]

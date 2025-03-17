@@ -58,6 +58,7 @@ mod tests {
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_vm_core::{memory::correlated::Delta, prelude::*};
     use rand::{rngs::StdRng, SeedableRng};
+    use rand06_compat::Rand0_6CompatExt;
 
     use super::*;
 
@@ -90,7 +91,7 @@ mod tests {
 
         let (mut leader_ctx, mut follower_ctx) = test_st_context(128);
 
-        let delta = Delta::random(&mut rng);
+        let delta = Delta::random(&mut rng.compat_by_ref());
         let (ot_send, ot_recv) = ideal_cot(delta.into_inner());
 
         let mut leader_vm = Generator::new(ot_send, [0u8; 16], delta);

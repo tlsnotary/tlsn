@@ -28,7 +28,7 @@ use mpz_ot::{
 };
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use mpz_vm_core::prelude::*;
-use rand::{thread_rng, Rng};
+use rand06_compat::Rand0_6CompatExt;
 use serio::SinkExt;
 use tls_backend::{Backend, BackendError, BackendNotifier, BackendNotify};
 use tls_core::{
@@ -75,12 +75,12 @@ impl MpcTlsLeader {
         CS: RCOTSender<Block> + Flush + Send + Sync + 'static,
         CR: RCOTReceiver<bool, Block> + Flush + Send + Sync + 'static,
     {
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
         let ke = Box::new(MpcKeyExchange::new(
             key_exchange::Role::Leader,
             ShareConversionSender::new(OLESender::new(
-                rng.gen(),
+                Block::random(&mut rng.compat_by_ref()),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.0)),
             )),
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -97,14 +97,14 @@ impl MpcTlsLeader {
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
-                rng.gen(),
+                Block::random(&mut rng.compat_by_ref()),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.1)),
             )),
             Role::Leader,
         );
         let decrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
-                rng.gen(),
+                Block::random(&mut rng.compat_by_ref()),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.2)),
             )),
             Role::Leader,

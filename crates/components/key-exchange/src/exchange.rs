@@ -4,6 +4,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use p256::{EncodedPoint, PublicKey, SecretKey};
+use rand06_compat::Rand0_6CompatExt;
 use serio::{sink::SinkExt, stream::IoStreamExt};
 use tokio::sync::Mutex;
 use tracing::instrument;
@@ -91,7 +92,7 @@ impl<C0, C1> MpcKeyExchange<C0, C1> {
     /// * `converter_0` - Share conversion protocol instance 0.
     /// * `converter_1` - Share conversion protocol instance 1.
     pub fn new(role: Role, converter_0: C0, converter_1: C1) -> Self {
-        let private_key = SecretKey::random(&mut rand::rngs::OsRng);
+        let private_key = SecretKey::random(&mut rand::rng().compat());
 
         Self {
             converter_0: Arc::new(Mutex::new(converter_0)),
@@ -456,6 +457,7 @@ mod tests {
     use crate::error::ErrorRepr;
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
+    use mpz_fields::UniformRand;
     use mpz_garble::protocol::semihonest::{Evaluator, Generator};
     use mpz_memory_core::correlated::Delta;
     use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
@@ -464,7 +466,7 @@ mod tests {
     };
     use mpz_vm_core::Execute;
     use p256::{NonZeroScalar, PublicKey, SecretKey};
-    use rand::{rngs::StdRng, Rng};
+    use rand::rngs::StdRng;
     use rand_core::SeedableRng;
     use rstest::*;
 
@@ -479,7 +481,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_key_exchange() {
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = StdRng::seed_from_u64(0).compat();
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut gen, mut ev) = mock_vm();
 
@@ -543,7 +545,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_compute_ec_shares() {
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = StdRng::seed_from_u64(0).compat();
         let (mut ctx_leader, mut ctx_follower) = test_st_context(8);
         let (leader_converter_0, follower_converter_0) = ideal_share_convert(Block::ZERO);
         let (follower_converter_1, leader_converter_1) = ideal_share_convert(Block::ZERO);
@@ -612,7 +614,7 @@ mod tests {
     #[case::malicious_follower(Malicious::Follower)]
     #[tokio::test]
     async fn test_malicious_key_exchange(#[case] malicious: Malicious) {
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = StdRng::seed_from_u64(0).compat();
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut gen, mut ev) = mock_vm();
 
@@ -638,7 +640,7 @@ mod tests {
         let client_public_key = leader.client_key().unwrap();
         assert_eq!(client_public_key, expected_client_public_key);
 
-        let bad_pms_share: P256 = rng.gen();
+        let bad_pms_share = P256::rand(&mut rng);
 
         let (leader_err, follower_err) = tokio::join!(
             async {
@@ -811,7 +813,7 @@ mod tests {
     }
 
     fn mock_vm() -> (Generator<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = StdRng::seed_from_u64(0).compat();
         let delta = Delta::random(&mut rng);
 
         let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
