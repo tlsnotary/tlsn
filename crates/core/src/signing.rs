@@ -432,7 +432,17 @@ mod secp256k1eth {
                 .map_err(|_| SignatureError("error in sign_prehash_recoverable".to_string()))?;
 
             let mut sig = signature.to_vec();
-            sig.push(recid.to_byte());
+            let recid = recid.to_byte();
+
+            // Based on Ethereum Yellow Paper Appendix F, only values 0 and 1 are valid.
+            if recid > 1 {
+                return Err(SignatureError(format!(
+                    "expected recovery id 0 or 1, got {:?}",
+                    recid
+                )));
+            }
+            // `ecrecover` expects that 0 and 1 are mapped to 27 and 28.
+            sig.push(recid + 27);
 
             Ok(Signature {
                 alg: SignatureAlgId::SECP256K1ETH,
