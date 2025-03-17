@@ -1,15 +1,18 @@
-use crate::PrfError;
+use crate::{hmac::HmacSha256, PrfError};
 use mpz_circuits::circuits::sha256;
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U8},
-        Array, MemoryExt, Vector, ViewExt,
+        binary::{Binary, U32, U8},
+        Array, FromRaw, MemoryExt, ToRaw, Vector, ViewExt,
     },
     Vm,
 };
 
-#[derive(Debug)]
-pub(crate) struct PrfFunction;
+#[derive(Debug, Default)]
+pub(crate) struct PrfFunction {
+    a: Vec<PHash>,
+    p: Vec<PHash>,
+}
 
 impl PrfFunction {
     const IPAD: [u8; 64] = [0x36; 64];
@@ -20,76 +23,137 @@ impl PrfFunction {
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
 
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
     pub(crate) fn alloc_master_secret(
-        seed: Vector<U8>,
-        outer_partial: Array<U8, 32>,
-        inner_local: Array<U8, 32>,
-    ) -> Vector<U8> {
-        Self::alloc(Self::MS_LABEL, seed, outer_partial, inner_local, 48)
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+    ) -> Result<Vector<U8>, PrfError> {
+        self.alloc(vm, key, 48)
     }
 
     pub(crate) fn alloc_key_expansion(
-        seed: Vector<U8>,
-        outer_partial: Array<U8, 32>,
-        inner_local: Array<U8, 32>,
-    ) -> Vector<U8> {
-        Self::alloc(Self::KEY_LABEL, seed, outer_partial, inner_local, 40)
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+    ) -> Result<Vector<U8>, PrfError> {
+        self.alloc(vm, key, 40)
     }
 
     pub(crate) fn alloc_client_finished(
-        seed: Vector<U8>,
-        outer_partial: Array<U8, 32>,
-        inner_local: Array<U8, 32>,
-    ) -> Vector<U8> {
-        Self::alloc(Self::CF_LABEL, seed, outer_partial, inner_local, 12)
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+    ) -> Result<Vector<U8>, PrfError> {
+        self.alloc(vm, key, 12)
     }
 
     pub(crate) fn alloc_server_finished(
-        seed: Vector<U8>,
-        outer_partial: Array<U8, 32>,
-        inner_local: Array<U8, 32>,
-    ) -> Vector<U8> {
-        Self::alloc(Self::SF_LABEL, seed, outer_partial, inner_local, 12)
-    }
-
-    pub(crate) fn compute_inner_partial(
+        &mut self,
         vm: &mut dyn Vm<Binary>,
         key: Vector<U8>,
-    ) -> Result<Array<U8, 32>, PrfError> {
-        todo!()
-    }
-
-    pub(crate) fn compute_outer_partial(
-        vm: &mut dyn Vm<Binary>,
-        key: Vector<U8>,
-    ) -> Result<Array<U8, 32>, PrfError> {
-        todo!()
-    }
-
-    pub(crate) fn compute_inner_local(
-        vm: &mut dyn Vm<Binary>,
-        inner_partial: [u8; 32],
-        message: Vec<u8>,
-    ) -> Result<Array<U8, 32>, PrfError> {
-        let inner_partial: [u32; 8] = convert(inner_partial);
-        let inner = sha256(inner_partial, 64, &message);
-
-        let inner_ref: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
-        vm.mark_public(inner_ref).map_err(PrfError::vm)?;
-        vm.assign(inner_ref, inner).map_err(PrfError::vm)?;
-        vm.commit(inner_ref).map_err(PrfError::vm)?;
-
-        Ok(inner_ref)
+    ) -> Result<Vector<U8>, PrfError> {
+        self.alloc(vm, key, 12)
     }
 
     fn alloc(
-        label: &[u8],
-        seed: Vector<U8>,
-        outer_partial: Array<U8, 32>,
-        inner_local: Array<U8, 32>,
-        len: usize,
-    ) -> Vector<U8> {
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+        mut len: usize,
+    ) -> Result<Vector<U8>, PrfError> {
+        assert!(
+            key.len() <= 64,
+            "keys longer than 64 bits are not supported"
+        );
+
+        if len == 0 {
+            len += 1;
+        }
+
+        let iterations = len / 32 + ((len % 32) != 0) as usize;
+
+        let outer_partial = Self::compute_outer_partial(vm, key)?;
+        let inner_partial = Self::compute_inner_partial(vm, key)?;
+
+        for _ in 0..iterations {
+            let a = PHash::alloc(vm, outer_partial, inner_partial)?;
+            self.a.push(a);
+
+            let p = PHash::alloc(vm, outer_partial, inner_partial)?;
+            self.p.push(p);
+        }
+
+        let output = self.p.last().unwrap().output;
+        let output = Vector::from_raw(output.to_raw());
+
+        Ok(output.into())
+    }
+
+    fn compute_inner_partial(
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+    ) -> Result<Array<U32, 8>, PrfError> {
         todo!()
+    }
+
+    fn compute_outer_partial(
+        vm: &mut dyn Vm<Binary>,
+        key: Vector<U8>,
+    ) -> Result<Array<U32, 8>, PrfError> {
+        todo!()
+    }
+
+    fn compute_inner_local(inner_partial: [u32; 8], message: Vec<u8>) -> [u8; 32] {
+        sha256(inner_partial, 64, &message)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct PHash {
+    pub(crate) outer_partial: Array<U32, 8>,
+    pub(crate) inner_partial: Array<U32, 8>,
+    pub(crate) inner_local: Array<U32, 8>,
+    pub(crate) output: Array<U32, 8>,
+}
+
+impl PHash {
+    pub(crate) fn alloc(
+        vm: &mut dyn Vm<Binary>,
+        outer_partial: Array<U32, 8>,
+        inner_partial: Array<U32, 8>,
+    ) -> Result<Self, PrfError> {
+        let inner_local = vm.alloc().map_err(PrfError::vm)?;
+        let hmac = HmacSha256::new(outer_partial, inner_local);
+
+        let output = hmac.alloc(vm).map_err(PrfError::vm)?;
+
+        let p_hash = Self {
+            outer_partial,
+            inner_partial,
+            inner_local,
+            output,
+        };
+
+        Ok(p_hash)
+    }
+
+    pub(crate) fn assign_inner_local(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        inner_local: [u32; 8],
+    ) -> Result<(), PrfError> {
+        let inner_local_ref: Array<U32, 8> = self.inner_local;
+
+        vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
+        vm.assign(inner_local_ref, inner_local)
+            .map_err(PrfError::vm)?;
+        vm.commit(inner_local_ref).map_err(PrfError::vm)?;
+
+        Ok(())
     }
 }
 

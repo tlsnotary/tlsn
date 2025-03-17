@@ -33,7 +33,7 @@ impl MpcPrf {
         Self {
             config,
             state: State::Initialized,
-            prf: PrfFunction,
+            prf: PrfFunction::default(),
         }
     }
 
