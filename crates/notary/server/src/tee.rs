@@ -2,10 +2,7 @@ use k256::ecdsa::{SigningKey, VerifyingKey as PublicKey};
 use mc_sgx_dcap_types::{QlError, Quote3};
 use once_cell::sync::OnceCell;
 use pkcs8::{EncodePrivateKey, LineEnding};
-use rand_chacha::{
-    rand_core::{OsRng, SeedableRng},
-    ChaCha20Rng,
-};
+use rand06_compat::Rand0_6CompatExt;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -141,8 +138,7 @@ async fn gramine_quote() -> Result<Quote, QuoteError> {
 }
 
 pub fn generate_ephemeral_keypair(notary_private: &str, notary_public: &str) {
-    let mut rng = ChaCha20Rng::from_rng(OsRng).expect("os rng err!");
-    let signing_key = SigningKey::random(&mut rng);
+    let signing_key = SigningKey::random(&mut rand::rng().compat());
     let pem_string = signing_key
         .clone()
         .to_pkcs8_pem(LineEnding::LF)
