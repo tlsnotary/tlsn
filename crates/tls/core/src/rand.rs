@@ -3,7 +3,8 @@ use rand::{rng, Rng};
 
 /// Fill the whole slice with random material.
 pub fn fill_random(bytes: &mut [u8]) -> Result<(), Error> {
-    Ok(rng().fill(bytes))
+    rng().fill(bytes);
+    Ok(())
 }
 
 /// Make a Vec<u8> of the given size
