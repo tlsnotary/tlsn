@@ -61,7 +61,7 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
         },
         logging: LoggingProperties {
             level: "DEBUG".to_string(),
-            filter: None,
+            ..Default::default()
         },
         authorization: AuthorizationProperties {
             enabled: auth_enabled,
