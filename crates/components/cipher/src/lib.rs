@@ -10,17 +10,15 @@
 #![forbid(unsafe_code)]
 
 pub mod aes;
-mod circuit;
 
 use async_trait::async_trait;
-use circuit::build_xor_circuit;
-use mpz_circuits::types::ValueType;
+use mpz_circuits::circuits::xor;
 use mpz_memory_core::{
     binary::{Binary, U8},
     FromRaw, MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
 };
 use mpz_vm_core::{prelude::*, CallBuilder, CallError, Vm};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 /// Provides computation of 2PC ciphers in counter and ECB mode.
 ///
@@ -179,7 +177,7 @@ where
             return Err(CipherError::new("no keystream material available"));
         }
 
-        let xor = build_xor_circuit(&[ValueType::new_array::<u8>(self.block_size())]);
+        let xor = Arc::new(xor(8 * self.block_size()));
         let mut pos = 0;
         let mut outputs = Vec::with_capacity(self.blocks.len());
         for block in &self.blocks {
