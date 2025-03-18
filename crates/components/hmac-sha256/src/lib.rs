@@ -10,7 +10,7 @@ mod prf;
 pub(crate) mod sha256;
 
 pub use error::PrfError;
-pub use prf::{MpcPrf, PrfConfig, PrfConfigBuilder, Role};
+pub use prf::MpcPrf;
 
 use mpz_vm_core::memory::{binary::U8, Array};
 
@@ -41,13 +41,10 @@ pub struct SessionKeys {
 #[cfg(test)]
 mod tests {
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
-
-    use hmac_sha256_circuits::{hmac_sha256_partial, prf, session_keys};
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_vm_core::{memory::correlated::Delta, prelude::*};
     use rand::{rngs::StdRng, SeedableRng};
-    use rand06_compat::Rand0_6CompatExt;
 
     use super::*;
 
@@ -80,10 +77,10 @@ mod tests {
 
         let (mut leader_ctx, mut follower_ctx) = test_st_context(128);
 
-        let delta = Delta::random(&mut rng.compat_by_ref());
+        let delta = Delta::random(&mut rng);
         let (ot_send, ot_recv) = ideal_cot(delta.into_inner());
 
-        let mut leader_vm = Generator::new(ot_send, [0u8; 16], delta);
+        let mut leader_vm = Garbler::new(ot_send, [0u8; 16], delta);
         let mut follower_vm = Evaluator::new(ot_recv);
 
         let leader_pms: Array<U8, 32> = leader_vm.alloc().unwrap();
@@ -96,8 +93,8 @@ mod tests {
         follower_vm.assign(follower_pms, pms).unwrap();
         follower_vm.commit(follower_pms).unwrap();
 
-        let mut leader = MpcPrf::new(PrfConfig::builder().role(Role::Leader).build().unwrap());
-        let mut follower = MpcPrf::new(PrfConfig::builder().role(Role::Follower).build().unwrap());
+        let mut leader = MpcPrf::new();
+        let mut follower = MpcPrf::new();
 
         let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
         let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();

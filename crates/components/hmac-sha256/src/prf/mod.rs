@@ -11,9 +11,6 @@ use mpz_vm_core::{
 use std::{fmt::Debug, sync::Arc};
 use tracing::instrument;
 
-mod config;
-pub use config::{PrfConfig, PrfConfigBuilder, Role};
-
 mod state;
 use state::State;
 
@@ -23,16 +20,20 @@ use function::PrfFunction;
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
 #[derive(Debug)]
 pub struct MpcPrf {
-    config: PrfConfig,
     state: State,
     circuits: Option<Circuits>,
 }
 
+impl Default for MpcPrf {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MpcPrf {
     /// Creates a new instance of the PRF.
-    pub fn new(config: PrfConfig) -> MpcPrf {
+    pub fn new() -> MpcPrf {
         Self {
-            config,
             state: State::Initialized,
             circuits: None,
         }
