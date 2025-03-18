@@ -506,9 +506,13 @@ pub use secp256k1eth::{Secp256k1EthSigner, Secp256k1EthVerifier};
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use alloy_primitives::utils::eip191_message;
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
     use rand_core::OsRng;
     use rstest::{fixture, rstest};
+
+    use super::*;
 
     #[fixture]
     #[once]
@@ -603,5 +607,30 @@ mod test {
 
         let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
         assert!(result.is_err());
+    }
+
+    #[test]
+    // Tests secp256k1eth signatures against a reference implementation.
+    fn test_secp256k1eth_sig() {
+        // An arbitrary signing key.
+        let sk = vec![1; 32];
+        let mut msg = "test message".as_bytes().to_vec();
+
+        let signer: Secp256k1EthSigner = Secp256k1EthSigner::new(&sk).unwrap();
+
+        // Testing multiple signatures.
+        for i in 0..10 {
+            msg.push(i);
+            // Convert to EIP-191 since the reference signer can't sign raw bytes.
+            let sig = signer.sign(&eip191_message(&msg)).unwrap().data;
+
+            assert_eq!(sig, reference_eth_signature(&sk, &msg));
+        }
+    }
+
+    // Returns a reference Ethereum signature.
+    fn reference_eth_signature(sk: &[u8], msg: &[u8]) -> Vec<u8> {
+        let signer = PrivateKeySigner::from_slice(sk).unwrap();
+        signer.sign_message_sync(msg).unwrap().as_bytes().to_vec()
     }
 }
