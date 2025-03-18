@@ -1,5 +1,10 @@
+use std::sync::Arc;
+
 use crate::{hmac::HmacSha256, sha256::Sha256, PrfError};
-use mpz_circuits::{circuits::sha256, CircuitBuilder};
+use mpz_circuits::{
+    circuits::{sha256, xor},
+    CircuitBuilder,
+};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
@@ -197,8 +202,7 @@ impl PrfFunction {
         data: Vector<U8>,
         mask: [u8; 64],
     ) -> Result<Array<U32, 8>, PrfError> {
-        // TODO: Replace xor circuit with correct circuit!
-        let xor = std::sync::Arc::new(CircuitBuilder::new().build().unwrap());
+        let xor = Arc::new(xor(64));
 
         let additional_len = 64 - data.len();
         let padding = vec![0_u8; additional_len];
