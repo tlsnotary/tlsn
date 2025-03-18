@@ -47,7 +47,6 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
-rand06-compat = { workspace = true }
 opaque-debug = { workspace = true }
 aes = { workspace = true }
 aes-gcm = { workspace = true }
