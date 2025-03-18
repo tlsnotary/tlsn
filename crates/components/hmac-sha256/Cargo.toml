@@ -26,6 +26,7 @@ derive_builder = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 futures = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 mpz-ot = { workspace = true, features = ["ideal"] }

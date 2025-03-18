@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
-use crate::{hmac::HmacSha256, sha256::Sha256, PrfError};
-use mpz_circuits::{
-    circuits::{sha256, xor},
-    CircuitBuilder,
+use crate::{
+    hmac::HmacSha256,
+    sha256::{sha256, Sha256},
+    PrfError,
 };
+use mpz_circuits::circuits::xor;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, MemoryExt, Vector, ViewExt,
+        Array, FromRaw, MemoryExt, ToRaw, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
 };
@@ -59,29 +60,9 @@ impl PrfFunction {
         Self::alloc(vm, key, Self::SF_LABEL, 12)
     }
 
-    pub(crate) fn make_progress(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-    ) -> Result<Option<Vec<u8>>, PrfError> {
+    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         self.poll_a(vm)?;
-        self.poll_p(vm)?;
-
-        if self.p.last().is_none() {
-            return Ok(None);
-        }
-
-        let len = self.len;
-        let mut output = Vec::with_capacity(len);
-
-        for p_out in self.p.iter() {
-            output.extend_from_slice(
-                &p_out
-                    .final_output()
-                    .expect("final output for PRF should be ready"),
-            );
-        }
-        output.truncate(len);
-        Ok(Some(output))
+        self.poll_p(vm)
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
@@ -91,27 +72,36 @@ impl PrfFunction {
         self.start_seed_label = Some(start_seed_label);
     }
 
+    pub(crate) fn output(&self) -> Result<Vec<Array<U8, 32>>, PrfError> {
+        let output = self
+            .p
+            .iter()
+            .map(|p| <Array<U8, 32> as FromRaw<Binary>>::from_raw(p.output.to_raw()))
+            .collect();
+        Ok(output)
+    }
+
     fn poll_a(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         let Some(mut message) = self.start_seed_label.clone() else {
             return Err(PrfError::state("Starting seed not set for PRF"));
         };
 
         for a in self.a.iter_mut() {
-            if let Some(final_output) = a.final_output() {
-                message = final_output;
-                continue;
-            } else {
-                let Some(inner_partial) = a.try_recv_inner_partial(vm)? else {
-                    break;
-                };
+            let Some(inner_partial) = a.inner_partial_decoded else {
+                a.try_recv_inner_partial(vm)?;
+                break;
+            };
+
+            if !a.assigned_inner_local {
                 let inner_local = Self::compute_inner_local(inner_partial, &message);
                 a.assign_inner_local(vm, inner_local)?;
-
-                let Some(final_output) = a.finalize(vm)? else {
-                    break;
-                };
-                message = final_output;
+                a.assigned_inner_local = true;
             }
+            let Some(output) = a.output_decoded else {
+                a.try_recv_output(vm)?;
+                break;
+            };
+            message = convert_to_bytes(output).to_vec();
         }
 
         Ok(())
@@ -123,22 +113,22 @@ impl PrfFunction {
         };
 
         for (i, p) in self.p.iter_mut().enumerate() {
-            if p.final_output().is_some() {
-                continue;
-            }
-
-            let Some(mut message) = self.a[i].final_output() else {
+            let Some(message) = self.a[i].output_decoded else {
                 break;
             };
+            let mut message = convert_to_bytes(message).to_vec();
             message.extend_from_slice(&start_seed);
 
-            let Some(inner_partial) = p.try_recv_inner_partial(vm)? else {
+            let Some(inner_partial) = p.inner_partial_decoded else {
+                p.try_recv_inner_partial(vm)?;
                 break;
             };
 
-            let inner_local = Self::compute_inner_local(inner_partial, &message);
-            p.assign_inner_local(vm, inner_local)?;
-            p.finalize(vm)?;
+            if !p.assigned_inner_local {
+                let inner_local = Self::compute_inner_local(inner_partial, &message);
+                p.assign_inner_local(vm, inner_local)?;
+                p.assigned_inner_local = true;
+            }
         }
 
         Ok(())
@@ -242,8 +232,9 @@ struct PHash {
     pub(crate) inner_partial: Array<U32, 8>,
     pub(crate) inner_partial_decoded: Option<[u32; 8]>,
     pub(crate) inner_local: Array<U32, 8>,
+    pub(crate) assigned_inner_local: bool,
     pub(crate) output: Array<U32, 8>,
-    pub(crate) final_output: Option<Vec<u8>>,
+    pub(crate) output_decoded: Option<[u32; 8]>,
 }
 
 impl PHash {
@@ -262,8 +253,9 @@ impl PHash {
             inner_partial,
             inner_partial_decoded: None,
             inner_local,
+            assigned_inner_local: false,
             output,
-            final_output: None,
+            output_decoded: None,
         };
 
         Ok(p_hash)
@@ -272,14 +264,16 @@ impl PHash {
     pub(crate) fn try_recv_inner_partial(
         &mut self,
         vm: &mut dyn Vm<Binary>,
-    ) -> Result<Option<[u32; 8]>, PrfError> {
-        if let Some(inner_partial_decoded) = self.inner_partial_decoded {
-            return Ok(Some(inner_partial_decoded));
-        }
-
+    ) -> Result<(), PrfError> {
         let mut inner_partial_decoded = vm.decode(self.inner_partial).map_err(PrfError::vm)?;
         self.inner_partial_decoded = inner_partial_decoded.try_recv().map_err(PrfError::vm)?;
-        Ok(self.inner_partial_decoded)
+        Ok(())
+    }
+
+    pub(crate) fn try_recv_output(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
+        let mut output_decoded = vm.decode(self.output).map_err(PrfError::vm)?;
+        self.output_decoded = output_decoded.try_recv().map_err(PrfError::vm)?;
+        Ok(())
     }
 
     pub(crate) fn assign_inner_local(
@@ -296,17 +290,6 @@ impl PHash {
 
         Ok(())
     }
-
-    pub(crate) fn finalize(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-    ) -> Result<Option<Vec<u8>>, PrfError> {
-        todo!()
-    }
-
-    pub(crate) fn final_output(&self) -> Option<Vec<u8>> {
-        self.final_output.clone()
-    }
 }
 
 fn convert(input: [u8; 32]) -> [u32; 8] {
@@ -315,6 +298,15 @@ fn convert(input: [u8; 32]) -> [u32; 8] {
         let byte_chunk: [u8; 4] = byte_chunk.try_into().unwrap();
         let value = u32::from_be_bytes(byte_chunk);
         output[k] = value;
+    }
+    output
+}
+
+fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
+    let mut output = [0_u8; 32];
+    for (k, byte_chunk) in input.iter().enumerate() {
+        let byte_chunk = byte_chunk.to_be_bytes();
+        output[k..4 * (k + 1)].copy_from_slice(&byte_chunk);
     }
     output
 }
