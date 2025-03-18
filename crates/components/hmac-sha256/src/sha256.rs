@@ -42,7 +42,7 @@ impl Sha256 {
 
     pub(crate) fn alloc(mut self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
         assert!(
-            self.chunks.len() >= 1,
+            !self.chunks.is_empty(),
             "Cannnot compute Sha256 on empty data"
         );
 
@@ -103,7 +103,7 @@ impl Sha256 {
 /// * `state` - The SHA256 state.
 /// * `pos` - The number of bytes processed in the current state.
 /// * `msg` - The message to hash.
-pub(crate) fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u8; 32] {
+pub(crate) fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u32; 8] {
     use sha2::{
         compress256,
         digest::{
@@ -117,10 +117,5 @@ pub(crate) fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u8; 32] {
     buffer.digest_pad(0x80, &(((msg.len() + pos) * 8) as u64).to_be_bytes(), |b| {
         compress256(&mut state, &[*b])
     });
-
-    let mut out: [u8; 32] = [0; 32];
-    for (chunk, v) in out.chunks_exact_mut(4).zip(state.iter()) {
-        chunk.copy_from_slice(&v.to_be_bytes());
-    }
-    out
+    state
 }

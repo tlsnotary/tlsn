@@ -72,13 +72,13 @@ impl PrfFunction {
         self.start_seed_label = Some(start_seed_label);
     }
 
-    pub(crate) fn output(&self) -> Result<Vec<Array<U8, 32>>, PrfError> {
+    pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
         let output = self
             .p
             .iter()
             .map(|p| <Array<U8, 32> as FromRaw<Binary>>::from_raw(p.output.to_raw()))
             .collect();
-        Ok(output)
+        output
     }
 
     fn poll_a(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -221,8 +221,7 @@ impl PrfFunction {
     }
 
     fn compute_inner_local(inner_partial: [u32; 8], message: &[u8]) -> [u32; 8] {
-        let hash = sha256(inner_partial, 64, message);
-        convert(hash)
+        sha256(inner_partial, 64, message)
     }
 }
 
@@ -290,16 +289,6 @@ impl PHash {
 
         Ok(())
     }
-}
-
-fn convert(input: [u8; 32]) -> [u32; 8] {
-    let mut output = [0_u32; 8];
-    for (k, byte_chunk) in input.chunks_exact(4).enumerate() {
-        let byte_chunk: [u8; 4] = byte_chunk.try_into().unwrap();
-        let value = u32::from_be_bytes(byte_chunk);
-        output[k] = value;
-    }
-    output
 }
 
 fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {

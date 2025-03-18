@@ -1,13 +1,14 @@
 use crate::{PrfError, PrfOutput};
+use mpz_circuits::{Circuit, CircuitBuilder};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U8},
-        Array, Vector,
+        Array, FromRaw, ToRaw, Vector,
     },
     prelude::*,
-    Vm,
+    Call, Vm,
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 use tracing::instrument;
 
 mod config;
@@ -53,10 +54,8 @@ impl MpcPrf {
             return Err(PrfError::state("PRF not in initialized state"));
         };
 
-        let ms: Array<U8, 40> = vm.alloc().map_err(PrfError::vm)?;
-
         let prf_output = PrfOutput::alloc(vm)?;
-        let circuits = Circuits::alloc(vm, pms.into(), ms.into())?;
+        let circuits = Circuits::alloc(vm, pms.into())?;
 
         self.circuits = Some(circuits);
         self.state = State::SessionKeys {
@@ -165,13 +164,38 @@ struct Circuits {
 }
 
 impl Circuits {
-    fn alloc(vm: &mut dyn Vm<Binary>, pms: Vector<U8>, ms: Vector<U8>) -> Result<Self, PrfError> {
+    fn alloc(vm: &mut dyn Vm<Binary>, pms: Vector<U8>) -> Result<Self, PrfError> {
+        let master_secret = PrfFunction::alloc_master_secret(vm, pms)?;
+        let ms = master_secret.output();
+
+        let id_circ = identity_circuit(48);
+        let ms_call = Call::builder(id_circ)
+            .arg(ms[0])
+            .arg(ms[1])
+            .build()
+            .map_err(PrfError::vm)?;
+
+        let ms: Array<U8, 48> = vm.call(ms_call).map_err(PrfError::vm)?;
+        let ms = Vector::from_raw(ms.to_raw());
+
         let circuits = Self {
-            master_secret: PrfFunction::alloc_master_secret(vm, pms)?,
+            master_secret,
             key_expansion: PrfFunction::alloc_key_expansion(vm, ms)?,
             client_finished: PrfFunction::alloc_client_finished(vm, ms)?,
             server_finished: PrfFunction::alloc_server_finished(vm, ms)?,
         };
         Ok(circuits)
     }
+}
+
+fn identity_circuit(size: usize) -> Arc<Circuit> {
+    let mut builder = CircuitBuilder::new();
+    let inputs = (0..size).map(|_| builder.add_input()).collect::<Vec<_>>();
+
+    for input in inputs.into_iter() {
+        let output = builder.add_id_gate(input);
+        builder.add_output(output);
+    }
+
+    Arc::new(builder.build().expect("identity circuit is valid"))
 }
