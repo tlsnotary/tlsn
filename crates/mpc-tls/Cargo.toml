@@ -20,7 +20,7 @@ default = []
 [dependencies]
 tlsn-cipher = { workspace = true }
 tlsn-common = { workspace = true }
-tlsn-hmac-sha256 = { workspace = true }
+#tlsn-hmac-sha256 = { workspace = true }
 tlsn-key-exchange = { workspace = true }
 tlsn-tls-backend = { workspace = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }

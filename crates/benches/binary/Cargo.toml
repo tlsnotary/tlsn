@@ -21,7 +21,7 @@ tlsn-benches-library = { workspace = true }
 tlsn-benches-browser-native = { workspace = true, optional = true}
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
-tlsn-hmac-sha256 = { workspace = true }
+#tlsn-hmac-sha256 = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
