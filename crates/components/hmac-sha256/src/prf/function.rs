@@ -20,7 +20,6 @@ pub(crate) struct PrfFunction {
     start_seed_label: Option<Vec<u8>>,
     a: Vec<PHash>,
     p: Vec<PHash>,
-    len: usize,
 }
 
 impl PrfFunction {
@@ -145,7 +144,6 @@ impl PrfFunction {
             start_seed_label: None,
             a: vec![],
             p: vec![],
-            len,
         };
 
         assert!(

@@ -1,9 +1,9 @@
-use crate::{PrfError, PrfOutput};
+use crate::{PrfError, PrfOutput, SessionKeys};
 use mpz_circuits::{Circuit, CircuitBuilder};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U8},
-        Array, FromRaw, ToRaw, Vector,
+        Array, FromRaw, StaticSize, ToRaw, Vector,
     },
     prelude::*,
     Call, Vm,
@@ -54,8 +54,13 @@ impl MpcPrf {
             return Err(PrfError::state("PRF not in initialized state"));
         };
 
-        let prf_output = PrfOutput::alloc(vm)?;
         let circuits = Circuits::alloc(vm, pms.into())?;
+
+        let keys = circuits.get_session_keys(vm)?;
+        let cf_vd = circuits.get_client_finished_vd(vm)?;
+        let sf_vd = circuits.get_server_finished_vd(vm)?;
+
+        let prf_output = PrfOutput { keys, cf_vd, sf_vd };
 
         self.circuits = Some(circuits);
         self.state = State::SessionKeys {
@@ -168,15 +173,7 @@ impl Circuits {
         let master_secret = PrfFunction::alloc_master_secret(vm, pms)?;
         let ms = master_secret.output();
 
-        let id_circ = identity_circuit(48);
-        let ms_call = Call::builder(id_circ)
-            .arg(ms[0])
-            .arg(ms[1])
-            .build()
-            .map_err(PrfError::vm)?;
-
-        let ms: Array<U8, 48> = vm.call(ms_call).map_err(PrfError::vm)?;
-        let ms = Vector::from_raw(ms.to_raw());
+        let ms = merge_outputs(vm, ms, 48)?;
 
         let circuits = Self {
             master_secret,
@@ -186,6 +183,69 @@ impl Circuits {
         };
         Ok(circuits)
     }
+
+    fn get_session_keys(&self, vm: &mut dyn Vm<Binary>) -> Result<SessionKeys, PrfError> {
+        let key_expansion = &self.key_expansion;
+        let keys = key_expansion.output();
+
+        let mut keys = merge_outputs(vm, keys, 40)?;
+
+        let server_iv = <Array<U8, 4> as FromRaw<Binary>>::from_raw(keys.split_off(36).to_raw());
+        let client_iv = <Array<U8, 4> as FromRaw<Binary>>::from_raw(keys.split_off(32).to_raw());
+        let server_write_key =
+            <Array<U8, 16> as FromRaw<Binary>>::from_raw(keys.split_off(16).to_raw());
+        let client_write_key = <Array<U8, 16> as FromRaw<Binary>>::from_raw(keys.to_raw());
+
+        let session_keys = SessionKeys {
+            client_write_key,
+            server_write_key,
+            client_iv,
+            server_iv,
+        };
+
+        Ok(session_keys)
+    }
+
+    fn get_client_finished_vd(&self, vm: &mut dyn Vm<Binary>) -> Result<Array<U8, 12>, PrfError> {
+        let client_finished = &self.client_finished;
+        let cf_vd = client_finished.output();
+
+        let cf_vd = merge_outputs(vm, cf_vd, 12)?;
+        let cf_vd = <Array<U8, 12> as FromRaw<Binary>>::from_raw(cf_vd.to_raw());
+
+        Ok(cf_vd)
+    }
+
+    fn get_server_finished_vd(&self, vm: &mut dyn Vm<Binary>) -> Result<Array<U8, 12>, PrfError> {
+        let server_finished = &self.server_finished;
+        let sf_vd = server_finished.output();
+
+        let sf_vd = merge_outputs(vm, sf_vd, 12)?;
+        let sf_vd = <Array<U8, 12> as FromRaw<Binary>>::from_raw(sf_vd.to_raw());
+
+        Ok(sf_vd)
+    }
+}
+
+fn merge_outputs(
+    vm: &mut dyn Vm<Binary>,
+    inputs: Vec<Array<U8, 32>>,
+    output_bytes: usize,
+) -> Result<Vector<U8>, PrfError> {
+    assert!(output_bytes <= 32 * inputs.len());
+
+    let bits = Array::<U8, 32>::SIZE * inputs.len();
+    let id_circ = identity_circuit(bits);
+
+    let mut builder = Call::builder(id_circ);
+    for &input in inputs.iter() {
+        builder = builder.arg(input);
+    }
+    let call = builder.build().map_err(PrfError::vm)?;
+
+    let mut output: Vector<U8> = vm.call(call).map_err(PrfError::vm)?;
+    output.truncate(output_bytes);
+    Ok(output)
 }
 
 fn identity_circuit(size: usize) -> Arc<Circuit> {

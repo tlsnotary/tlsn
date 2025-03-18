@@ -12,13 +12,7 @@ pub(crate) mod sha256;
 pub use error::PrfError;
 pub use prf::{MpcPrf, PrfConfig, PrfConfigBuilder, Role};
 
-use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array, MemoryExt,
-    },
-    Vm,
-};
+use mpz_vm_core::memory::{binary::U8, Array};
 
 /// PRF output.
 #[derive(Debug, Clone, Copy)]
@@ -29,21 +23,6 @@ pub struct PrfOutput {
     pub cf_vd: Array<U8, 12>,
     /// Server finished verify data.
     pub sf_vd: Array<U8, 12>,
-}
-
-impl PrfOutput {
-    fn alloc(vm: &mut dyn Vm<Binary>) -> Result<Self, PrfError> {
-        let cf_vd = vm.alloc().map_err(PrfError::vm)?;
-        let sf_vd = vm.alloc().map_err(PrfError::vm)?;
-
-        let output = Self {
-            keys: SessionKeys::alloc(vm)?,
-            cf_vd,
-            sf_vd,
-        };
-
-        Ok(output)
-    }
 }
 
 /// Session keys computed by the PRF.
@@ -57,24 +36,6 @@ pub struct SessionKeys {
     pub client_iv: Array<U8, 4>,
     /// Server IV.
     pub server_iv: Array<U8, 4>,
-}
-
-impl SessionKeys {
-    fn alloc(vm: &mut dyn Vm<Binary>) -> Result<Self, PrfError> {
-        let client_write_key = vm.alloc().map_err(PrfError::vm)?;
-        let server_write_key = vm.alloc().map_err(PrfError::vm)?;
-        let client_iv = vm.alloc().map_err(PrfError::vm)?;
-        let server_iv = vm.alloc().map_err(PrfError::vm)?;
-
-        let keys = Self {
-            client_write_key,
-            server_write_key,
-            client_iv,
-            server_iv,
-        };
-
-        Ok(keys)
-    }
 }
 
 #[cfg(test)]
