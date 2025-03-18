@@ -13,7 +13,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use mpz_common::{scoped_futures::ScopedFutureExt as _, Context};
+use mpz_common::Context;
 use mpz_core::bitvec::BitVec;
 use mpz_vm_core::{
     memory::{binary::Binary, DecodeFuture, Memory, Slice, View},
@@ -308,8 +308,8 @@ where
         let mut zk = self.zk.clone().try_lock_owned().unwrap();
         let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
         ctx.try_join(
-            |ctx| async move { zk.flush(ctx).await }.scope_boxed(),
-            |ctx| async move { mpc.flush(ctx).await }.scope_boxed(),
+            async move |ctx| zk.flush(ctx).await,
+            async move |ctx| mpc.flush(ctx).await,
         )
         .await
         .map_err(VmError::execute)??;
@@ -326,8 +326,8 @@ where
         let mut zk = self.zk.clone().try_lock_owned().unwrap();
         let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
         ctx.try_join(
-            |ctx| async move { zk.preprocess(ctx).await }.scope_boxed(),
-            |ctx| async move { mpc.preprocess(ctx).await }.scope_boxed(),
+            async move |ctx| zk.preprocess(ctx).await,
+            async move |ctx| mpc.preprocess(ctx).await,
         )
         .await
         .map_err(VmError::execute)??;
@@ -360,7 +360,7 @@ mod tests {
     use mpz_circuits::circuits::AES128;
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
-    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_ot::ideal::{cot::ideal_cot, rcot::ideal_rcot};
     use mpz_vm_core::{
         memory::{binary::U8, correlated::Delta, Array},
@@ -375,14 +375,14 @@ mod tests {
     #[tokio::test]
     async fn test_deap() {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta_mpc = Delta::random(&mut rng.compat_by_ref());
-        let delta_zk = Delta::random(&mut rng.compat_by_ref());
+        let delta_mpc = Delta::random(&mut rng);
+        let delta_zk = Delta::random(&mut rng);
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
         let (cot_send, cot_recv) = ideal_cot(delta_mpc.into_inner());
 
-        let gb = Generator::new(cot_send, [0u8; 16], delta_mpc);
+        let gb = Garbler::new(cot_send, [0u8; 16], delta_mpc);
         let ev = Evaluator::new(cot_recv);
         let prover = Prover::new(rcot_recv);
         let verifier = Verifier::new(delta_zk, rcot_send);
@@ -457,14 +457,14 @@ mod tests {
     #[tokio::test]
     async fn test_malicious() {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta_mpc = Delta::random(&mut rng.compat_by_ref());
-        let delta_zk = Delta::random(&mut rng.compat_by_ref());
+        let delta_mpc = Delta::random(&mut rng);
+        let delta_zk = Delta::random(&mut rng);
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
         let (cot_send, cot_recv) = ideal_cot(delta_mpc.into_inner());
 
-        let gb = Generator::new(cot_send, [0u8; 16], delta_mpc);
+        let gb = Garbler::new(cot_send, [1u8; 16], delta_mpc);
         let ev = Evaluator::new(cot_recv);
         let prover = Prover::new(rcot_recv);
         let verifier = Verifier::new(delta_zk, rcot_send);

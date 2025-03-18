@@ -9,7 +9,7 @@ use serio::{sink::SinkExt, stream::IoStreamExt};
 use tokio::sync::Mutex;
 use tracing::instrument;
 
-use mpz_common::{scoped_futures::ScopedFutureExt, Context, Flush};
+use mpz_common::{Context, Flush};
 use mpz_core::bitvec::BitVec;
 use mpz_fields::{p256::P256, Field};
 use mpz_memory_core::{
@@ -23,6 +23,12 @@ use crate::{
     circuit::build_pms_circuit, point_addition::derive_x_coord_share, KeyExchange,
     KeyExchangeError, Pms, Role,
 };
+
+/// NIST P-256 prime big-endian.
+static P: [u8; 32] = [
+    0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+];
 
 #[derive(Debug)]
 enum State {
@@ -164,12 +170,18 @@ where
             }
         };
 
+        let p_constant: Array<U8, 32> = vm.alloc().map_err(KeyExchangeError::vm)?;
+        vm.mark_public(p_constant).map_err(KeyExchangeError::vm)?;
+        vm.assign(p_constant, P).map_err(KeyExchangeError::vm)?;
+        vm.commit(p_constant).map_err(KeyExchangeError::vm)?;
+
         let pms_circuit = build_pms_circuit();
         let pms_call = CallBuilder::new(pms_circuit)
             .arg(share_a0)
             .arg(share_b0)
             .arg(share_a1)
             .arg(share_b1)
+            .arg(p_constant)
             .build()
             .map_err(KeyExchangeError::vm)?;
 
@@ -240,35 +252,26 @@ where
 
         let (follower_key, _, _) = ctx
             .try_join3(
-                move |ctx| {
-                    async move {
-                        Ok(match role {
-                            Role::Leader => ctx.io_mut().expect_next().await?,
-                            Role::Follower => {
-                                ctx.io_mut().send(public_key).await?;
-                                public_key
-                            }
-                        })
-                    }
-                    .scope_boxed()
+                async move |ctx| {
+                    Ok(match role {
+                        Role::Leader => ctx.io_mut().expect_next().await?,
+                        Role::Follower => {
+                            ctx.io_mut().send(public_key).await?;
+                            public_key
+                        }
+                    })
                 },
-                move |ctx| {
-                    async move {
-                        converter_0
-                            .flush(ctx)
-                            .await
-                            .map_err(KeyExchangeError::share_conversion)
-                    }
-                    .scope_boxed()
+                async move |ctx| {
+                    converter_0
+                        .flush(ctx)
+                        .await
+                        .map_err(KeyExchangeError::share_conversion)
                 },
-                move |ctx| {
-                    async move {
-                        converter_1
-                            .flush(ctx)
-                            .await
-                            .map_err(KeyExchangeError::share_conversion)
-                    }
-                    .scope_boxed()
+                async move |ctx| {
+                    converter_1
+                        .flush(ctx)
+                        .await
+                        .map_err(KeyExchangeError::share_conversion)
                 },
             )
             .await??;
@@ -437,13 +440,11 @@ where
     let mut converter_1 = converter_1.try_lock_owned().unwrap();
     let (pms_share_0, pms_share_1) = ctx
         .try_join(
-            move |ctx| {
-                async move { derive_x_coord_share(ctx, role, &mut *converter_0, encoded_point).await }
-                    .scope_boxed()
+            async move |ctx| {
+                derive_x_coord_share(ctx, role, &mut *converter_0, encoded_point).await
             },
-            move |ctx| {
-                async move { derive_x_coord_share(ctx, role, &mut *converter_1, encoded_point).await }
-                    .scope_boxed()
+            async move |ctx| {
+                derive_x_coord_share(ctx, role, &mut *converter_1, encoded_point).await
             },
         )
         .await??;
@@ -458,7 +459,7 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
     use mpz_fields::UniformRand;
-    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_memory_core::correlated::Delta;
     use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
     use mpz_share_conversion::ideal::{
@@ -614,13 +615,14 @@ mod tests {
     #[case::malicious_follower(Malicious::Follower)]
     #[tokio::test]
     async fn test_malicious_key_exchange(#[case] malicious: Malicious) {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = StdRng::seed_from_u64(0);
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut gen, mut ev) = mock_vm();
 
-        let leader_private_key = SecretKey::random(&mut rng);
-        let follower_private_key = SecretKey::random(&mut rng);
-        let server_public_key = PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng));
+        let leader_private_key = SecretKey::random(&mut rng.compat_by_ref());
+        let follower_private_key = SecretKey::random(&mut rng.compat_by_ref());
+        let server_public_key =
+            PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng.compat_by_ref()));
         let expected_client_public_key = PublicKey::from_affine(
             (leader_private_key.public_key().to_projective()
                 + follower_private_key.public_key().to_projective())
@@ -705,6 +707,12 @@ mod tests {
         let (res_gen, res_ev) = tokio::join!(
             async move {
                 let mut vm = gen;
+
+                let p_constant: Array<U8, 32> = vm.alloc().unwrap();
+                vm.mark_public(p_constant).unwrap();
+                vm.assign(p_constant, P).unwrap();
+                vm.commit(p_constant).unwrap();
+
                 let share_a0: Array<U8, 32> = vm.alloc().unwrap();
                 vm.mark_private(share_a0).unwrap();
 
@@ -723,6 +731,7 @@ mod tests {
                     .arg(share_b0)
                     .arg(share_a1)
                     .arg(share_b1)
+                    .arg(p_constant)
                     .build()
                     .unwrap();
 
@@ -747,6 +756,11 @@ mod tests {
             },
             async {
                 let mut vm = ev;
+                let p_constant: Array<U8, 32> = vm.alloc().unwrap();
+                vm.mark_public(p_constant).unwrap();
+                vm.assign(p_constant, P).unwrap();
+                vm.commit(p_constant).unwrap();
+
                 let share_a0: Array<U8, 32> = vm.alloc().unwrap();
                 vm.mark_blind(share_a0).unwrap();
 
@@ -765,6 +779,7 @@ mod tests {
                     .arg(share_b0)
                     .arg(share_a1)
                     .arg(share_b1)
+                    .arg(p_constant)
                     .build()
                     .unwrap();
 
@@ -812,13 +827,13 @@ mod tests {
         (leader, follower)
     }
 
-    fn mock_vm() -> (Generator<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+    fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
+        let mut rng = StdRng::seed_from_u64(0);
         let delta = Delta::random(&mut rng);
 
         let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
 
-        let gen = Generator::new(cot_send, [0u8; 16], delta);
+        let gen = Garbler::new(cot_send, [0u8; 16], delta);
         let ev = Evaluator::new(cot_recv);
 
         (gen, ev)
