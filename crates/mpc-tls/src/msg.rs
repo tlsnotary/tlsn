@@ -15,6 +15,7 @@ pub(crate) enum Message {
     ServerFinishedVd(ServerFinishedVd),
     Encrypt(Encrypt),
     Decrypt(Decrypt),
+    StartTraffic,
     Flush { is_decrypting: bool },
     CloseConnection,
 }

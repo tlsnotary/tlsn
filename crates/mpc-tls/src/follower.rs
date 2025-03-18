@@ -357,6 +357,9 @@ impl MpcTlsFollower {
                         )
                         .map_err(MpcTlsError::record_layer)?;
                 }
+                Message::StartTraffic => {
+                    record_layer.start_traffic();
+                }
                 Message::Flush { is_decrypting } => {
                     record_layer
                         .flush(&mut self.ctx, vm.clone(), is_decrypting)

@@ -118,6 +118,8 @@ pub trait Backend: Send {
     async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError>;
     /// Returns next outgoing message.
     async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError>;
+    /// Starts processing application data traffic.
+    async fn start_traffic(&mut self) -> Result<(), BackendError>;
     /// Flushes the record layer.
     async fn flush(&mut self) -> Result<(), BackendError>;
     /// Returns a notification future which resolves when the backend is ready

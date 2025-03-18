@@ -964,6 +964,7 @@ impl CommonState {
 
     pub(crate) async fn start_traffic(&mut self) -> Result<(), Error> {
         self.may_receive_application_data = true;
+        self.backend.start_traffic().await?;
         self.start_outgoing_traffic().await
     }
 

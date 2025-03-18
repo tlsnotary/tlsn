@@ -427,6 +427,10 @@ impl Backend for RustCryptoBackend {
         Ok(self.incoming_plain.pop_front())
     }
 
+    async fn start_traffic(&mut self) -> Result<(), BackendError> {
+        Ok(())
+    }
+
     async fn flush(&mut self) -> Result<(), BackendError> {
         for incoming in take(&mut self.incoming_encrypted) {
             let seq = self.read_seq;
