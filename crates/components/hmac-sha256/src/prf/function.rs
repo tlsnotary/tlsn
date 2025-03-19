@@ -59,15 +59,15 @@ impl PrfFunction {
         Self::alloc(vm, key, Self::SF_LABEL, 12)
     }
 
-    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<usize, PrfError> {
+    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         self.poll_a(vm)?;
         self.poll_p(vm)?;
 
-        let mut finished = 0;
-        for p in self.p.iter() {
-            finished += p.assigned_inner_local as usize;
-        }
-
+        let finished = self
+            .p
+            .last()
+            .expect("prf should be allocated")
+            .assigned_inner_local;
         Ok(finished)
     }
 

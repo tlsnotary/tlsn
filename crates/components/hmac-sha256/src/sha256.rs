@@ -3,7 +3,7 @@ use mpz_circuits::circuits::SHA256_COMPRESS;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, FromRaw, MemoryExt, ToRaw, Vector, ViewExt,
+        Array, MemoryExt, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
 };
@@ -52,15 +52,42 @@ impl Sha256 {
             Self::assign_iv(vm)?
         };
 
-        self.repartition();
-        self.pad_data();
+        let mut remainder = None;
+        let mut block: Vec<Vector<U8>> = vec![];
+        let mut chunk_iter = self.chunks.iter().copied();
 
-        for chunk in self.chunks {
-            let chunk = <Array<U8, 64> as FromRaw<Binary>>::from_raw(chunk.to_raw());
-            state = Self::compute_state(vm, state, chunk)?;
+        loop {
+            if let Some(remainder) = remainder.take() {
+                block.push(remainder);
+            }
+            let Some(mut chunk) = chunk_iter.next() else {
+                break;
+            };
+
+            let len_before: usize = block.iter().map(|b| b.len()).sum();
+            let len_after = len_before + chunk.len();
+
+            if len_after <= 64 {
+                block.push(chunk);
+            } else {
+                let excess_len = len_after - 64;
+                remainder = Some(chunk.split_off(chunk.len() - excess_len));
+
+                block.push(chunk);
+                state = Self::compute_state(vm, state, &block)?;
+                block.clear();
+            }
         }
 
-        Ok(state)
+        let padding = self.compute_padding(&block);
+        let padding_ref: Vector<U8> = vm.alloc_vec(padding.len()).map_err(PrfError::vm)?;
+
+        vm.mark_public(padding_ref).map_err(PrfError::vm)?;
+        vm.assign(padding_ref, padding).map_err(PrfError::vm)?;
+        vm.commit(padding_ref).map_err(PrfError::vm)?;
+
+        block.push(padding_ref);
+        Self::compute_state(vm, state, &block)
     }
 
     fn assign_iv(vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
@@ -76,23 +103,45 @@ impl Sha256 {
     fn compute_state(
         vm: &mut dyn Vm<Binary>,
         state: Array<U32, 8>,
-        data: Array<U8, 64>,
+        data: &[Vector<U8>],
     ) -> Result<Array<U32, 8>, PrfError> {
-        let compress = Call::builder(SHA256_COMPRESS.clone())
-            .arg(state)
-            .arg(data)
-            .build()
-            .map_err(PrfError::vm)?;
+        let mut compress = Call::builder(SHA256_COMPRESS.clone()).arg(state);
+        for &block in data {
+            compress = compress.arg(block);
+        }
+        let compress = compress.build().map_err(PrfError::vm)?;
 
         vm.call(compress).map_err(PrfError::vm)
     }
 
-    fn repartition(&mut self) {
-        todo!()
-    }
+    fn compute_padding(&mut self, block: &[Vector<U8>]) -> Vec<u8> {
+        let msg_len: usize = block.iter().map(|b| b.len()).sum();
+        let pos: usize = self.processed as usize;
 
-    fn pad_data(&mut self) {
-        todo!()
+        let bit_len = msg_len * 8;
+        let processed_bit_len = (bit_len + (pos * 8)) as u64;
+
+        // minimum length of padded message in bytes
+        let min_padded_len = msg_len + 9;
+        // number of 64-byte blocks rounded up
+        let block_count = (min_padded_len / 64) + (min_padded_len % 64 != 0) as usize;
+        // message is padded to a multiple of 64 bytes
+        let padded_len = block_count * 64;
+        // number of bytes to pad
+        let pad_len = padded_len - msg_len;
+
+        // append a single '1' bit
+        // append K '0' bits, where K is the minimum number >= 0 such that (L + 1 + K +
+        // 64) is a multiple of 512 append L as a 64-bit big-endian integer, making
+        // the total post-processed length a multiple of 512 bits such that the bits
+        // in the message are: <original message of length L> 1 <K zeros> <L as 64 bit
+        // integer> , (the number of bits will be a multiple of 512)
+        let mut padding = Vec::new();
+        padding.push(128_u8);
+        padding.extend((0..pad_len - 9).map(|_| 0_u8));
+        padding.extend(processed_bit_len.to_be_bytes());
+
+        padding
     }
 }
 
