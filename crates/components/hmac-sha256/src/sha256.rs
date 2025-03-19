@@ -41,11 +41,6 @@ impl Sha256 {
     }
 
     pub(crate) fn alloc(mut self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
-        assert!(
-            !self.chunks.is_empty(),
-            "Cannnot compute Sha256 on empty data"
-        );
-
         let mut state = if let Some(state) = self.state {
             state
         } else {
