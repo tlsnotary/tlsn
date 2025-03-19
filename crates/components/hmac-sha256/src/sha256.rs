@@ -36,14 +36,49 @@ impl Sha256 {
         self
     }
 
-    pub(crate) fn alloc(mut self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
+    pub(crate) fn add_padding(&mut self, vm: &mut dyn Vm<Binary>) -> Result<&mut Self, PrfError> {
+        let msg_len: usize = self.chunks.iter().map(|b| b.len()).sum();
+        let pos = self.processed;
+
+        let bit_len = msg_len * 8;
+        let processed_bit_len = (bit_len + (pos * 8)) as u64;
+
+        // minimum length of padded message in bytes
+        let min_padded_len = msg_len + 9;
+        // number of 64-byte blocks rounded up
+        let block_count = (min_padded_len / 64) + (min_padded_len % 64 != 0) as usize;
+        // message is padded to a multiple of 64 bytes
+        let padded_len = block_count * 64;
+        // number of bytes to pad
+        let pad_len = padded_len - msg_len;
+
+        // append a single '1' bit
+        // append K '0' bits, where K is the minimum number >= 0 such that (L + 1 + K +
+        // 64) is a multiple of 512 append L as a 64-bit big-endian integer, making
+        // the total post-processed length a multiple of 512 bits such that the bits
+        // in the message are: <original message of length L> 1 <K zeros> <L as 64 bit
+        // integer> , (the number of bits will be a multiple of 512)
+        let mut padding = Vec::new();
+        padding.push(128_u8);
+        padding.extend((0..pad_len - 9).map(|_| 0_u8));
+        padding.extend(processed_bit_len.to_be_bytes());
+
+        let padding_ref: Vector<U8> = vm.alloc_vec(padding.len()).map_err(PrfError::vm)?;
+
+        vm.mark_public(padding_ref).map_err(PrfError::vm)?;
+        vm.assign(padding_ref, padding).map_err(PrfError::vm)?;
+        vm.commit(padding_ref).map_err(PrfError::vm)?;
+
+        self.chunks.push(padding_ref);
+        Ok(self)
+    }
+
+    pub(crate) fn alloc(self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
         let mut state = if let Some(state) = self.state {
             state
         } else {
             Self::assign_iv(vm)?
         };
-
-        self.compute_padding(vm)?;
 
         // Sha256 compression function takes 64 byte blocks as inputs but our blocks in
         // `self.chunks` can have arbitrary size to simplify the api. So we need to repartition
@@ -101,43 +136,6 @@ impl Sha256 {
 
         let compress = compress.arg(state).build().map_err(PrfError::vm)?;
         vm.call(compress).map_err(PrfError::vm)
-    }
-
-    fn compute_padding(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let msg_len: usize = self.chunks.iter().map(|b| b.len()).sum();
-        let pos = self.processed;
-
-        let bit_len = msg_len * 8;
-        let processed_bit_len = (bit_len + (pos * 8)) as u64;
-
-        // minimum length of padded message in bytes
-        let min_padded_len = msg_len + 9;
-        // number of 64-byte blocks rounded up
-        let block_count = (min_padded_len / 64) + (min_padded_len % 64 != 0) as usize;
-        // message is padded to a multiple of 64 bytes
-        let padded_len = block_count * 64;
-        // number of bytes to pad
-        let pad_len = padded_len - msg_len;
-
-        // append a single '1' bit
-        // append K '0' bits, where K is the minimum number >= 0 such that (L + 1 + K +
-        // 64) is a multiple of 512 append L as a 64-bit big-endian integer, making
-        // the total post-processed length a multiple of 512 bits such that the bits
-        // in the message are: <original message of length L> 1 <K zeros> <L as 64 bit
-        // integer> , (the number of bits will be a multiple of 512)
-        let mut padding = Vec::new();
-        padding.push(128_u8);
-        padding.extend((0..pad_len - 9).map(|_| 0_u8));
-        padding.extend(processed_bit_len.to_be_bytes());
-
-        let padding_ref: Vector<U8> = vm.alloc_vec(padding.len()).map_err(PrfError::vm)?;
-
-        vm.mark_public(padding_ref).map_err(PrfError::vm)?;
-        vm.assign(padding_ref, padding).map_err(PrfError::vm)?;
-        vm.commit(padding_ref).map_err(PrfError::vm)?;
-
-        self.chunks.push(padding_ref);
-        Ok(())
     }
 }
 
@@ -203,7 +201,10 @@ mod tests {
             generator.commit(input_ref_gen).unwrap();
 
             let mut sha_gen = Sha256::new();
-            sha_gen.update(input_ref_gen);
+            sha_gen
+                .update(input_ref_gen)
+                .add_padding(&mut generator)
+                .unwrap();
             let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
             let sha_out_gen = generator.decode(sha_out_gen).unwrap();
 
@@ -213,7 +214,10 @@ mod tests {
             evaluator.commit(input_ref_ev).unwrap();
 
             let mut sha_ev = Sha256::new();
-            sha_ev.update(input_ref_ev);
+            sha_ev
+                .update(input_ref_ev)
+                .add_padding(&mut evaluator)
+                .unwrap();
             let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
             let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
 
@@ -256,7 +260,11 @@ mod tests {
             generator.commit(state_ref_gen).unwrap();
 
             let mut sha_gen = Sha256::new();
-            sha_gen.set_state(state_ref_gen, skip).update(input_ref_gen);
+            sha_gen
+                .set_state(state_ref_gen, skip)
+                .update(input_ref_gen)
+                .add_padding(&mut generator)
+                .unwrap();
             let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
             let sha_out_gen = generator.decode(sha_out_gen).unwrap();
 
@@ -271,7 +279,11 @@ mod tests {
             evaluator.commit(state_ref_ev).unwrap();
 
             let mut sha_ev = Sha256::new();
-            sha_ev.set_state(state_ref_ev, skip).update(input_ref_ev);
+            sha_ev
+                .set_state(state_ref_ev, skip)
+                .update(input_ref_ev)
+                .add_padding(&mut evaluator)
+                .unwrap();
             let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
             let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
 
