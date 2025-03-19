@@ -115,6 +115,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_hmac_reference() {
+        let (inputs, references) = test_fixtures();
+
+        for (input, &reference) in inputs.iter().zip(references.iter()) {
+            let outer_partial = compute_outer_partial(input.0.clone());
+            let inner_local = compute_inner_local(input.0.clone(), &input.1);
+
+            let hmac = sha256(outer_partial, 64, &convert_to_bytes(inner_local));
+
+            assert_eq!(convert_to_bytes(hmac), reference);
+        }
+    }
+
     fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
         let mut rng = StdRng::seed_from_u64(0);
         let delta = Delta::random(&mut rng);
