@@ -12,5 +12,5 @@ rustflags = [
     # 4GB
     "link-arg=--max-memory=4294967296",
     "--cfg",
-    "getrandom_backend='wasm_js'",
+    'getrandom_backend="wasm_js"',
 ]
