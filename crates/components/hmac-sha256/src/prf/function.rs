@@ -59,9 +59,16 @@ impl PrfFunction {
         Self::alloc(vm, key, Self::SF_LABEL, 12)
     }
 
-    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
+    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<usize, PrfError> {
         self.poll_a(vm)?;
-        self.poll_p(vm)
+        self.poll_p(vm)?;
+
+        let mut finished = 0;
+        for p in self.p.iter() {
+            finished += p.assigned_inner_local as usize;
+        }
+
+        Ok(finished)
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
@@ -137,7 +144,7 @@ impl PrfFunction {
         vm: &mut dyn Vm<Binary>,
         key: Vector<U8>,
         label: &'static [u8],
-        mut len: usize,
+        len: usize,
     ) -> Result<Self, PrfError> {
         let mut prf = Self {
             label,
@@ -150,10 +157,7 @@ impl PrfFunction {
             key.len() <= 64,
             "keys longer than 64 bits are not supported"
         );
-
-        if len == 0 {
-            len = 1;
-        }
+        assert!(len > 0, "cannot compute 0 bytes for prf");
 
         let iterations = len / 32 + ((len % 32) != 0) as usize;
 
@@ -235,7 +239,7 @@ struct PHash {
 }
 
 impl PHash {
-    pub(crate) fn alloc(
+    fn alloc(
         vm: &mut dyn Vm<Binary>,
         outer_partial: Array<U32, 8>,
         inner_partial: Array<U32, 8>,
@@ -258,22 +262,19 @@ impl PHash {
         Ok(p_hash)
     }
 
-    pub(crate) fn try_recv_inner_partial(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-    ) -> Result<(), PrfError> {
+    fn try_recv_inner_partial(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         let mut inner_partial_decoded = vm.decode(self.inner_partial).map_err(PrfError::vm)?;
         self.inner_partial_decoded = inner_partial_decoded.try_recv().map_err(PrfError::vm)?;
         Ok(())
     }
 
-    pub(crate) fn try_recv_output(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
+    fn try_recv_output(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         let mut output_decoded = vm.decode(self.output).map_err(PrfError::vm)?;
         self.output_decoded = output_decoded.try_recv().map_err(PrfError::vm)?;
         Ok(())
     }
 
-    pub(crate) fn assign_inner_local(
+    fn assign_inner_local(
         &mut self,
         vm: &mut dyn Vm<Binary>,
         inner_local: [u32; 8],
