@@ -173,8 +173,23 @@ pub(crate) fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
 }
 
 #[cfg(test)]
+pub(crate) fn compress_256(mut state: [u32; 8], msg: &[u8]) -> [u32; 8] {
+    use sha2::{
+        compress256,
+        digest::{
+            block_buffer::{BlockBuffer, Eager},
+            generic_array::typenum::U64,
+        },
+    };
+
+    let mut buffer = BlockBuffer::<U64, Eager>::default();
+    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
+    state
+}
+
+#[cfg(test)]
 mod tests {
-    use crate::sha256::{convert_to_bytes, sha256, Sha256};
+    use crate::sha256::{compress_256, convert_to_bytes, sha256, Sha256};
     use mpz_common::context::test_st_context;
     use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
@@ -366,19 +381,5 @@ mod tests {
         ];
 
         (test_vectors, expected)
-    }
-
-    fn compress_256(mut state: [u32; 8], msg: &[u8]) -> [u32; 8] {
-        use sha2::{
-            compress256,
-            digest::{
-                block_buffer::{BlockBuffer, Eager},
-                generic_array::typenum::U64,
-            },
-        };
-
-        let mut buffer = BlockBuffer::<U64, Eager>::default();
-        buffer.digest_blocks(msg, |b| compress256(&mut state, b));
-        state
     }
 }
