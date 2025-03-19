@@ -2,7 +2,7 @@ use crate::{sha256::Sha256, PrfError};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, FromRaw, ToRaw, Vector,
+        Array,
     },
     Vm,
 };
@@ -22,7 +22,7 @@ impl HmacSha256 {
     }
 
     pub(crate) fn alloc(self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
-        let inner_local = Vector::from_raw(self.inner_local.to_raw());
+        let inner_local = self.inner_local.into();
 
         let mut outer = Sha256::new();
         outer
@@ -65,8 +65,6 @@ mod tests {
         for (input, &reference) in inputs.iter().zip(references.iter()) {
             let outer_partial = compute_outer_partial(input.0.clone());
             let inner_local = compute_inner_local(input.0.clone(), &input.1);
-            println!("original: {:?}", inner_local);
-            println!("converted: {:?}", convert_to_bytes(inner_local));
 
             let hmac = sha256(outer_partial, 64, &convert_to_bytes(inner_local));
 

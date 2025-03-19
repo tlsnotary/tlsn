@@ -2,7 +2,7 @@ use crate::{PrfError, PrfOutput, SessionKeys};
 use mpz_circuits::{Circuit, CircuitBuilder};
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U8},
+        binary::{Binary, U32, U8},
         Array, FromRaw, StaticSize, ToRaw, Vector,
     },
     prelude::*,
@@ -230,12 +230,12 @@ impl Circuits {
 
 fn merge_outputs(
     vm: &mut dyn Vm<Binary>,
-    inputs: Vec<Array<U8, 32>>,
+    inputs: Vec<Array<U32, 8>>,
     output_bytes: usize,
 ) -> Result<Vector<U8>, PrfError> {
     assert!(output_bytes <= 32 * inputs.len());
 
-    let bits = Array::<U8, 32>::SIZE * inputs.len();
+    let bits = Array::<U32, 8>::SIZE * inputs.len();
     let id_circ = identity_circuit(bits);
 
     let mut builder = Call::builder(id_circ);

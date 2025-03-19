@@ -9,7 +9,7 @@ use mpz_circuits::circuits::xor;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, FromRaw, MemoryExt, ToRaw, Vector, ViewExt,
+        Array, MemoryExt, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
 };
@@ -78,13 +78,8 @@ impl PrfFunction {
         self.start_seed_label = Some(start_seed_label);
     }
 
-    pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
-        let output = self
-            .p
-            .iter()
-            .map(|p| <Array<U8, 32> as FromRaw<Binary>>::from_raw(p.output.to_raw()))
-            .collect();
-        output
+    pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
+        self.p.iter().map(|p| p.output).collect()
     }
 
     fn poll_a(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -194,7 +189,7 @@ impl PrfFunction {
         data: Vector<U8>,
         mask: [u8; 64],
     ) -> Result<Array<U32, 8>, PrfError> {
-        let xor = Arc::new(xor(64));
+        let xor = Arc::new(xor(8 * 64));
 
         let additional_len = 64 - data.len();
         let padding = vec![0_u8; additional_len];
@@ -287,5 +282,176 @@ impl PHash {
         vm.commit(inner_local_ref).map_err(PrfError::vm)?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mpz_common::context::test_st_context;
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
+    use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
+    use mpz_vm_core::{
+        memory::{binary::U8, correlated::Delta, Array, MemoryExt, ViewExt},
+        Execute,
+    };
+    use rand::{rngs::StdRng, SeedableRng};
+
+    use crate::{
+        prf::function::PrfFunction,
+        sha256::{compress_256, convert_to_bytes, sha256},
+    };
+
+    const SHA256_IV: [u32; 8] = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
+    ];
+
+    #[tokio::test]
+    async fn test_prf() {
+        let (mut ctx_a, mut ctx_b) = test_st_context(8);
+        let (mut generator, mut evaluator) = mock_vm();
+
+        let key: [u8; 32] = std::array::from_fn(|i| i as u8);
+        let start_seed: Vec<u8> = vec![42; 12];
+
+        let mut label_seed = PrfFunction::MS_LABEL.to_vec();
+        label_seed.extend_from_slice(&start_seed);
+        let iterations = 2;
+
+        let key_ref_gen: Array<U8, 32> = generator.alloc().unwrap();
+        generator.mark_public(key_ref_gen).unwrap();
+        generator.assign(key_ref_gen, key).unwrap();
+        generator.commit(key_ref_gen).unwrap();
+
+        let mut prf_gen =
+            PrfFunction::alloc_master_secret(&mut generator, key_ref_gen.into()).unwrap();
+        prf_gen.set_start_seed(start_seed.clone());
+
+        let mut prf_out_gen = vec![];
+        for p in prf_gen.output() {
+            let p_out = generator.decode(p).unwrap();
+            prf_out_gen.push(p_out)
+        }
+
+        let key_ref_ev: Array<U8, 32> = evaluator.alloc().unwrap();
+        evaluator.mark_public(key_ref_ev).unwrap();
+        evaluator.assign(key_ref_ev, key).unwrap();
+        evaluator.commit(key_ref_ev).unwrap();
+
+        let mut prf_ev =
+            PrfFunction::alloc_master_secret(&mut evaluator, key_ref_ev.into()).unwrap();
+        prf_ev.set_start_seed(start_seed.clone());
+
+        let mut prf_out_ev = vec![];
+        for p in prf_ev.output() {
+            let p_out = evaluator.decode(p).unwrap();
+            prf_out_ev.push(p_out)
+        }
+
+        loop {
+            let gen_finished = prf_gen.make_progress(&mut generator).unwrap();
+            let ev_finished = prf_ev.make_progress(&mut evaluator).unwrap();
+
+            tokio::try_join!(
+                generator.execute_all(&mut ctx_a),
+                evaluator.execute_all(&mut ctx_b)
+            )
+            .unwrap();
+
+            if gen_finished && ev_finished {
+                break;
+            }
+        }
+
+        assert_eq!(prf_out_gen.len(), prf_out_ev.len());
+
+        let prf_result_gen: Vec<u8> = prf_out_gen
+            .iter_mut()
+            .flat_map(|p| convert_to_bytes(p.try_recv().unwrap().unwrap()))
+            .collect();
+        let prf_result_ev: Vec<u8> = prf_out_ev
+            .iter_mut()
+            .flat_map(|p| convert_to_bytes(p.try_recv().unwrap().unwrap()))
+            .collect();
+
+        let expected = prf_reference(key.to_vec(), &label_seed, iterations);
+
+        assert_eq!(prf_result_gen, prf_result_ev);
+        assert_eq!(prf_result_gen, expected)
+    }
+
+    fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
+        let mut rng = StdRng::seed_from_u64(0);
+        let delta = Delta::random(&mut rng);
+
+        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
+
+        let gen = Garbler::new(cot_send, [0u8; 16], delta);
+        let ev = Evaluator::new(cot_recv);
+
+        (gen, ev)
+    }
+
+    fn prf_reference(key: Vec<u8>, seed: &[u8], iterations: usize) -> Vec<u8> {
+        // A() is defined as:
+        //
+        // A(0) = seed
+        // A(i) = HMAC_hash(secret, A(i-1))
+        let mut a_cache: Vec<_> = Vec::with_capacity(iterations + 1);
+        a_cache.push(seed.to_vec());
+
+        for i in 0..iterations {
+            let a_i = hmac_sha256(key.clone(), &a_cache[i]);
+            a_cache.push(a_i.to_vec());
+        }
+
+        // HMAC_hash(secret, A(i) + seed)
+        let mut output: Vec<_> = Vec::with_capacity(iterations * 32);
+        for i in 0..iterations {
+            let mut a_i_seed = a_cache[i + 1].clone();
+            a_i_seed.extend_from_slice(seed);
+
+            let hash = hmac_sha256(key.clone(), &a_i_seed);
+            output.extend_from_slice(&hash);
+        }
+
+        output
+    }
+
+    fn hmac_sha256(key: Vec<u8>, msg: &[u8]) -> [u8; 32] {
+        let outer_partial = compute_outer_partial(key.clone());
+        let inner_local = compute_inner_local(key, msg);
+
+        let hmac = sha256(outer_partial, 64, &convert_to_bytes(inner_local));
+        convert_to_bytes(hmac)
+    }
+
+    fn compute_outer_partial(mut key: Vec<u8>) -> [u32; 8] {
+        assert!(key.len() <= 64);
+
+        key.resize(64, 0_u8);
+        let key_padded: [u8; 64] = key
+            .into_iter()
+            .map(|b| b ^ 0x5c)
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
+
+        compress_256(SHA256_IV, &key_padded)
+    }
+
+    fn compute_inner_local(mut key: Vec<u8>, msg: &[u8]) -> [u32; 8] {
+        assert!(key.len() <= 64);
+
+        key.resize(64, 0_u8);
+        let key_padded: [u8; 64] = key
+            .into_iter()
+            .map(|b| b ^ 0x36)
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
+
+        let state = compress_256(SHA256_IV, &key_padded);
+        sha256(state, 64, msg)
     }
 }
