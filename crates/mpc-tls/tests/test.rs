@@ -3,6 +3,7 @@ use std::sync::Arc;
 use futures::{AsyncReadExt, AsyncWriteExt};
 use mpc_tls::{Config, MpcTlsFollower, MpcTlsLeader};
 use mpz_common::context::test_mt_context;
+use mpz_core::Block;
 use mpz_garble::protocol::semihonest::{Evaluator, Generator};
 use mpz_memory_core::correlated::Delta;
 use mpz_ot::{
@@ -11,6 +12,7 @@ use mpz_ot::{
     rcot::shared::{SharedRCOTReceiver, SharedRCOTSender},
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand06_compat::Rand0_6CompatExt;
 use tls_client::Certificate;
 use tls_client_async::bind_client;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
@@ -114,18 +116,18 @@ async fn follower_task(mut follower: MpcTlsFollower) {
 }
 
 fn build_pair(config: Config) -> (MpcTlsLeader, MpcTlsFollower) {
-    let mut rng = StdRng::seed_from_u64(0);
+    let mut rng = StdRng::seed_from_u64(0).compat();
 
     let (mut mt_a, mut mt_b) = test_mt_context(8);
 
     let ctx_a = futures::executor::block_on(mt_a.new_context()).unwrap();
     let ctx_b = futures::executor::block_on(mt_b.new_context()).unwrap();
 
-    let delta_a = Delta::new(rng.gen());
-    let delta_b = Delta::new(rng.gen());
+    let delta_a = Delta::new(Block::random(&mut rng));
+    let delta_b = Delta::new(Block::random(&mut rng));
 
-    let (rcot_send_a, rcot_recv_b) = ideal_rcot(rng.gen(), delta_a.into_inner());
-    let (rcot_send_b, rcot_recv_a) = ideal_rcot(rng.gen(), delta_b.into_inner());
+    let (rcot_send_a, rcot_recv_b) = ideal_rcot(Block::random(&mut rng), delta_a.into_inner());
+    let (rcot_send_b, rcot_recv_a) = ideal_rcot(Block::random(&mut rng), delta_b.into_inner());
 
     let mut rcot_send_a = SharedRCOTSender::new(4, rcot_send_a);
     let mut rcot_send_b = SharedRCOTSender::new(1, rcot_send_b);
@@ -134,7 +136,7 @@ fn build_pair(config: Config) -> (MpcTlsLeader, MpcTlsFollower) {
 
     let mpc_a = Arc::new(Mutex::new(Generator::new(
         DerandCOTSender::new(rcot_send_a.next().unwrap()),
-        rng.gen(),
+        rand::rng().random(),
         delta_a,
     )));
     let mpc_b = Arc::new(Mutex::new(Evaluator::new(DerandCOTReceiver::new(

@@ -113,8 +113,8 @@ mod tests {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let mut rng = StdRng::seed_from_u64(0);
 
-        let p1: [u8; 32] = rng.gen();
-        let p2: [u8; 32] = rng.gen();
+        let p1: [u8; 32] = rng.random();
+        let p2: [u8; 32] = rng.random();
 
         let p1 = curve_point_from_be_bytes(p1);
         let p2 = curve_point_from_be_bytes(p2);
@@ -138,7 +138,7 @@ mod tests {
     fn test_decompose_point() {
         let mut rng = StdRng::seed_from_u64(0);
 
-        let p_expected: [u8; 32] = rng.gen();
+        let p_expected: [u8; 32] = rng.random();
         let p_expected = curve_point_from_be_bytes(p_expected);
 
         let p256: [P256; 2] = decompose_point(p_expected).unwrap();

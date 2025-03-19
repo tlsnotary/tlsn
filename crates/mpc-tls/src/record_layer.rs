@@ -15,7 +15,7 @@ use mpz_memory_core::{
     Array,
 };
 use mpz_vm_core::Vm as VmTrait;
-use rand::{thread_rng, RngCore};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tls_core::{
     cipher::make_tls12_aad,
@@ -148,7 +148,7 @@ impl RecordLayer {
         let recv_otp = match self.role {
             Role::Leader => {
                 let mut recv_otp = vec![0u8; recv_len];
-                thread_rng().fill_bytes(&mut recv_otp);
+                rand::rng().fill_bytes(&mut recv_otp);
 
                 Some(recv_otp)
             }

@@ -18,7 +18,7 @@ use mpz_ot::{
     },
 };
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
-use rand::{thread_rng, Rng};
+use rand06_compat::Rand0_6CompatExt;
 use serio::stream::IoStreamExt;
 use std::mem;
 use tls_core::msgs::{
@@ -51,7 +51,7 @@ impl MpcTlsFollower {
         CS: RCOTSender<Block> + Flush + Send + Sync + 'static,
         CR: RCOTReceiver<bool, Block> + Flush + Send + Sync + 'static,
     {
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
         let ke = Box::new(MpcKeyExchange::new(
             key_exchange::Role::Follower,
@@ -59,7 +59,7 @@ impl MpcTlsFollower {
                 RandomizeRCOTReceiver::new(cot_recv.0),
             ))),
             ShareConversionSender::new(OLESender::new(
-                rng.gen(),
+                Block::random(&mut rng.compat_by_ref()),
                 AnySender::new(RandomizeRCOTSender::new(cot_send)),
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;

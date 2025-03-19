@@ -24,6 +24,7 @@ webpki = { workspace = true, features = ["alloc", "std"] }
 aes-gcm = { workspace = true }
 p256 = { workspace = true, features = ["ecdh"] }
 rand = { workspace = true }
+rand06-compat = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true, features = ["compress"] }
 digest = { workspace = true }

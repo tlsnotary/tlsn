@@ -343,7 +343,7 @@ mod tests {
         ideal_share_convert, IdealShareConvertReceiver, IdealShareConvertSender,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
-
+    use rand06_compat::Rand0_6CompatExt;
     fn create_pair() -> (
         MpcGhash<IdealShareConvertSender<Gf2_128>>,
         MpcGhash<IdealShareConvertReceiver<Gf2_128>>,
@@ -359,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_compute_shares() {
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = StdRng::seed_from_u64(0).compat();
 
         let key = Gf2_128::rand(&mut rng);
         let expected_powers: Vec<_> = (0..MAX_POWER)
@@ -386,11 +386,11 @@ mod tests {
     async fn test_ghash_output() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let mut rng = StdRng::seed_from_u64(0);
-        let h: u128 = rng.gen();
-        let sender_key: u128 = rng.gen();
+        let h: u128 = rng.random();
+        let sender_key: u128 = rng.random();
         let receiver_key: u128 = h ^ sender_key;
 
-        let message: Vec<u8> = (0..16).map(|_| rng.gen()).collect();
+        let message: Vec<u8> = (0..16).map(|_| rng.random()).collect();
 
         let (mut sender, mut receiver) = create_pair();
         sender.set_key(sender_key.to_be_bytes().to_vec()).unwrap();
@@ -416,12 +416,12 @@ mod tests {
     async fn test_ghash_output_padded() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let mut rng = StdRng::seed_from_u64(0);
-        let h: u128 = rng.gen();
-        let sender_key: u128 = rng.gen();
+        let h: u128 = rng.random();
+        let sender_key: u128 = rng.random();
         let receiver_key: u128 = h ^ sender_key;
 
         // Message length is not a multiple of the block length
-        let message: Vec<u8> = (0..14).map(|_| rng.gen()).collect();
+        let message: Vec<u8> = (0..14).map(|_| rng.random()).collect();
 
         let (mut sender, mut receiver) = create_pair();
 
@@ -448,12 +448,12 @@ mod tests {
     async fn test_ghash_long_message() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let mut rng = StdRng::seed_from_u64(0);
-        let h: u128 = rng.gen();
-        let sender_key: u128 = rng.gen();
+        let h: u128 = rng.random();
+        let sender_key: u128 = rng.random();
         let receiver_key: u128 = h ^ sender_key;
 
         // A longer message.
-        let long_message: Vec<u8> = (0..30).map(|_| rng.gen()).collect();
+        let long_message: Vec<u8> = (0..30).map(|_| rng.random()).collect();
 
         let (mut sender, mut receiver) = create_pair();
 
@@ -480,13 +480,13 @@ mod tests {
     async fn test_ghash_repeated() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let mut rng = StdRng::seed_from_u64(0);
-        let h: u128 = rng.gen();
-        let sender_key: u128 = rng.gen();
+        let h: u128 = rng.random();
+        let sender_key: u128 = rng.random();
         let receiver_key: u128 = h ^ sender_key;
 
         // Two messages.
-        let first_message: Vec<u8> = (0..14).map(|_| rng.gen()).collect();
-        let second_message: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+        let first_message: Vec<u8> = (0..14).map(|_| rng.random()).collect();
+        let second_message: Vec<u8> = (0..32).map(|_| rng.random()).collect();
 
         let (mut sender, mut receiver) = create_pair();
 

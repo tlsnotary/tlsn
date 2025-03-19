@@ -4,7 +4,7 @@
 //! attestation but does not verify transcript data.
 
 use super::{state::Notarize, Verifier, VerifierError};
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use serio::{stream::IoStreamExt, SinkExt as _};
 
 use tlsn_common::encoding;
@@ -35,7 +35,7 @@ impl Verifier<Notarize> {
             ..
         } = self.state;
 
-        let encoder_secret = EncoderSecret::new(thread_rng().gen(), delta.as_block().to_bytes());
+        let encoder_secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
 
         let attestation = mux_fut
             .poll_with(async {

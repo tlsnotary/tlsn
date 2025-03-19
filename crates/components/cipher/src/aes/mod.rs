@@ -181,6 +181,7 @@ mod tests {
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_vm_core::{Execute, Vm};
     use rand::{rngs::StdRng, SeedableRng};
+    use rand06_compat::Rand0_6CompatExt;
 
     #[tokio::test]
     async fn test_aes_ctr() {
@@ -296,7 +297,7 @@ mod tests {
 
     fn mock_vm() -> (impl Vm<Binary>, impl Vm<Binary>) {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
+        let delta = Delta::random(&mut rng.compat_by_ref());
 
         let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
 

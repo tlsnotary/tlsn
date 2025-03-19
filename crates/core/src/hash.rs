@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, fmt::Display};
 
-use rand::{distributions::Standard, prelude::Distribution};
+use rand::{distr::StandardUniform, prelude::Distribution};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::serialize::CanonicalSerialize;
@@ -256,7 +256,7 @@ pub(crate) struct Blinder([u8; 16]);
 
 opaque_debug::implement!(Blinder);
 
-impl Distribution<Blinder> for Standard {
+impl Distribution<Blinder> for StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Blinder {
         let mut blinder = [0; 16];
         rng.fill(&mut blinder);

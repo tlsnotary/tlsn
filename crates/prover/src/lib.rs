@@ -15,12 +15,14 @@ pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 pub use future::ProverFuture;
 use mpz_common::Context;
+use mpz_core::Block;
 use mpz_garble_core::Delta;
+use rand06_compat::Rand0_6CompatExt;
 use state::{Notarize, Prove};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader};
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use serio::SinkExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
@@ -342,8 +344,8 @@ impl Prover<state::Closed> {
 }
 
 fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsLeader) {
-    let mut rng = thread_rng();
-    let delta = Delta::new(rng.gen());
+    let mut rng = rand::rng();
+    let delta = Delta::new(Block::random(&mut rng.compat_by_ref()));
 
     let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
     let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
@@ -359,7 +361,7 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect("ferret config is valid"),
-        rng.gen(),
+        Block::random(&mut rng.compat_by_ref()),
         rcot_recv,
     );
 
@@ -368,7 +370,7 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
 
     let mpc = Mpc::new(
         mpz_ot::cot::DerandCOTSender::new(rcot_send.next().expect("enough senders are available")),
-        rng.gen(),
+        rng.random(),
         delta,
     );
 
