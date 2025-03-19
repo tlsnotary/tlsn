@@ -193,11 +193,11 @@ mod tests {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut generator, mut evaluator) = mock_vm();
 
-        let (test_iter, expected_iter) = test_fixtures();
-        for (test, expected) in test_iter.zip(expected_iter) {
-            let input_ref_gen: Vector<U8> = generator.alloc_vec(test.len()).unwrap();
+        let (inputs, references) = test_fixtures();
+        for (input, &reference) in inputs.iter().zip(references.iter()) {
+            let input_ref_gen: Vector<U8> = generator.alloc_vec(input.len()).unwrap();
             generator.mark_public(input_ref_gen).unwrap();
-            generator.assign(input_ref_gen, test.clone()).unwrap();
+            generator.assign(input_ref_gen, input.clone()).unwrap();
             generator.commit(input_ref_gen).unwrap();
 
             let mut sha_gen = Sha256::new();
@@ -208,9 +208,9 @@ mod tests {
             let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
             let sha_out_gen = generator.decode(sha_out_gen).unwrap();
 
-            let input_ref_ev: Vector<U8> = evaluator.alloc_vec(test.len()).unwrap();
+            let input_ref_ev: Vector<U8> = evaluator.alloc_vec(input.len()).unwrap();
             evaluator.mark_public(input_ref_ev).unwrap();
-            evaluator.assign(input_ref_ev, test).unwrap();
+            evaluator.assign(input_ref_ev, input.clone()).unwrap();
             evaluator.commit(input_ref_ev).unwrap();
 
             let mut sha_ev = Sha256::new();
@@ -234,96 +234,102 @@ mod tests {
             .unwrap();
 
             assert_eq!(sha_gen, sha_ev);
-            assert_eq!(convert_to_bytes(sha_gen), expected);
+            assert_eq!(convert_to_bytes(sha_gen), reference);
         }
     }
 
     #[tokio::test]
     async fn test_sha256_circuit_set_state() {
-        let skip = 2;
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut generator, mut evaluator) = mock_vm();
 
-        let (test_iter, expected_iter) = test_fixtures();
-        for (test, expected) in test_iter.zip(expected_iter) {
-            let state = compress_256(Sha256::IV, &test[..skip]);
-            let test = test[skip..].to_vec();
+        let (inputs, references) = test_fixtures();
 
-            let input_ref_gen: Vector<U8> = generator.alloc_vec(test.len()).unwrap();
-            generator.mark_public(input_ref_gen).unwrap();
-            generator.assign(input_ref_gen, test.clone()).unwrap();
-            generator.commit(input_ref_gen).unwrap();
+        // only take 3rd example because we need minimum 64 bits.
+        let input = &inputs[2];
+        let reference = references[2];
+        let skip = 64;
 
-            let state_ref_gen: Array<U32, 8> = generator.alloc().unwrap();
-            generator.mark_public(state_ref_gen).unwrap();
-            generator.assign(state_ref_gen, state).unwrap();
-            generator.commit(state_ref_gen).unwrap();
+        let state = compress_256(Sha256::IV, &input[..skip]);
+        let test = input[skip..].to_vec();
 
-            let mut sha_gen = Sha256::new();
-            sha_gen
-                .set_state(state_ref_gen, skip)
-                .update(input_ref_gen)
-                .add_padding(&mut generator)
-                .unwrap();
-            let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
-            let sha_out_gen = generator.decode(sha_out_gen).unwrap();
+        let input_ref_gen: Vector<U8> = generator.alloc_vec(test.len()).unwrap();
+        generator.mark_public(input_ref_gen).unwrap();
+        generator.assign(input_ref_gen, test.clone()).unwrap();
+        generator.commit(input_ref_gen).unwrap();
 
-            let input_ref_ev: Vector<U8> = evaluator.alloc_vec(test.len()).unwrap();
-            evaluator.mark_public(input_ref_ev).unwrap();
-            evaluator.assign(input_ref_ev, test).unwrap();
-            evaluator.commit(input_ref_ev).unwrap();
+        let state_ref_gen: Array<U32, 8> = generator.alloc().unwrap();
+        generator.mark_public(state_ref_gen).unwrap();
+        generator.assign(state_ref_gen, state).unwrap();
+        generator.commit(state_ref_gen).unwrap();
 
-            let state_ref_ev: Array<U32, 8> = evaluator.alloc().unwrap();
-            evaluator.mark_public(state_ref_ev).unwrap();
-            evaluator.assign(state_ref_ev, state).unwrap();
-            evaluator.commit(state_ref_ev).unwrap();
-
-            let mut sha_ev = Sha256::new();
-            sha_ev
-                .set_state(state_ref_ev, skip)
-                .update(input_ref_ev)
-                .add_padding(&mut evaluator)
-                .unwrap();
-            let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
-            let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
-
-            let (sha_gen, sha_ev) = tokio::try_join!(
-                async {
-                    generator.execute_all(&mut ctx_a).await.unwrap();
-                    sha_out_gen.await
-                },
-                async {
-                    evaluator.execute_all(&mut ctx_b).await.unwrap();
-                    sha_out_ev.await
-                }
-            )
+        let mut sha_gen = Sha256::new();
+        sha_gen
+            .set_state(state_ref_gen, skip)
+            .update(input_ref_gen)
+            .add_padding(&mut generator)
             .unwrap();
+        let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
+        let sha_out_gen = generator.decode(sha_out_gen).unwrap();
 
-            assert_eq!(sha_gen, sha_ev);
-            assert_eq!(convert_to_bytes(sha_gen), expected);
-        }
+        let input_ref_ev: Vector<U8> = evaluator.alloc_vec(test.len()).unwrap();
+        evaluator.mark_public(input_ref_ev).unwrap();
+        evaluator.assign(input_ref_ev, test).unwrap();
+        evaluator.commit(input_ref_ev).unwrap();
+
+        let state_ref_ev: Array<U32, 8> = evaluator.alloc().unwrap();
+        evaluator.mark_public(state_ref_ev).unwrap();
+        evaluator.assign(state_ref_ev, state).unwrap();
+        evaluator.commit(state_ref_ev).unwrap();
+
+        let mut sha_ev = Sha256::new();
+        sha_ev
+            .set_state(state_ref_ev, skip)
+            .update(input_ref_ev)
+            .add_padding(&mut evaluator)
+            .unwrap();
+        let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
+        let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
+
+        let (sha_gen, sha_ev) = tokio::try_join!(
+            async {
+                generator.execute_all(&mut ctx_a).await.unwrap();
+                sha_out_gen.await
+            },
+            async {
+                evaluator.execute_all(&mut ctx_b).await.unwrap();
+                sha_out_ev.await
+            }
+        )
+        .unwrap();
+
+        assert_eq!(sha_gen, sha_ev);
+        assert_eq!(convert_to_bytes(sha_gen), reference);
     }
 
     #[test]
     fn test_sha256_reference() {
-        let (test_iter, expected_iter) = test_fixtures();
-        for (test, expected) in test_iter.zip(expected_iter) {
-            let sha = sha256(Sha256::IV, 0, &test);
-            assert_eq!(convert_to_bytes(sha), expected);
+        let (inputs, references) = test_fixtures();
+        for (input, &reference) in inputs.iter().zip(references.iter()) {
+            let sha = sha256(Sha256::IV, 0, input);
+            assert_eq!(convert_to_bytes(sha), reference);
         }
     }
 
     #[test]
     fn test_sha256_reference_set_state() {
-        let skip = 2;
-        let (test_iter, expected_iter) = test_fixtures();
-        for (test, expected) in test_iter.zip(expected_iter) {
-            let state = compress_256(Sha256::IV, &test[..skip]);
-            let test = test[skip..].to_vec();
+        let (inputs, references) = test_fixtures();
 
-            let sha = sha256(state, skip, &test);
-            assert_eq!(convert_to_bytes(sha), expected);
-        }
+        // only take 3rd example because we need minimum 64 bits.
+        let input = &inputs[2];
+        let reference = references[2];
+        let skip = 64;
+
+        let state = compress_256(Sha256::IV, &input[..skip]);
+        let test = input[skip..].to_vec();
+
+        let sha = sha256(state, skip, &test);
+        assert_eq!(convert_to_bytes(sha), reference);
     }
 
     fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
@@ -338,10 +344,7 @@ mod tests {
         (gen, ev)
     }
 
-    fn test_fixtures() -> (
-        impl Iterator<Item = Vec<u8>>,
-        impl Iterator<Item = [u8; 32]>,
-    ) {
+    fn test_fixtures() -> (Vec<Vec<u8>>, Vec<[u8; 32]>) {
         let test_vectors: Vec<Vec<u8>> = vec![
             b"abc".to_vec(),
             b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".to_vec(),
@@ -362,7 +365,7 @@ mod tests {
                 .unwrap(),
         ];
 
-        (test_vectors.into_iter(), expected.into_iter())
+        (test_vectors, expected)
     }
 
     fn compress_256(mut state: [u32; 8], msg: &[u8]) -> [u32; 8] {
