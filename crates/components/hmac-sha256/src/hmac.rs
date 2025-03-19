@@ -1,7 +1,7 @@
 use crate::{sha256::Sha256, PrfError};
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U32},
+        binary::{Binary, U32, U8},
         Array, FromRaw, ToRaw, Vector,
     },
     Vm,
@@ -10,11 +10,11 @@ use mpz_vm_core::{
 #[derive(Debug)]
 pub(crate) struct HmacSha256 {
     outer_partial: Array<U32, 8>,
-    inner_local: Array<U32, 8>,
+    inner_local: Array<U8, 32>,
 }
 
 impl HmacSha256 {
-    pub(crate) fn new(outer_partial: Array<U32, 8>, inner_local: Array<U32, 8>) -> Self {
+    pub(crate) fn new(outer_partial: Array<U32, 8>, inner_local: Array<U8, 32>) -> Self {
         Self {
             outer_partial,
             inner_local,
@@ -44,7 +44,11 @@ mod tests {
     use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
     use mpz_vm_core::{
-        memory::{binary::U32, correlated::Delta, Array, MemoryExt, ViewExt},
+        memory::{
+            binary::{U32, U8},
+            correlated::Delta,
+            Array, MemoryExt, ViewExt,
+        },
         Execute,
     };
     use rand::{rngs::StdRng, SeedableRng};
@@ -53,6 +57,22 @@ mod tests {
         0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
         0x5be0cd19,
     ];
+
+    #[test]
+    fn test_hmac_reference() {
+        let (inputs, references) = test_fixtures();
+
+        for (input, &reference) in inputs.iter().zip(references.iter()) {
+            let outer_partial = compute_outer_partial(input.0.clone());
+            let inner_local = compute_inner_local(input.0.clone(), &input.1);
+            println!("original: {:?}", inner_local);
+            println!("converted: {:?}", convert_to_bytes(inner_local));
+
+            let hmac = sha256(outer_partial, 64, &convert_to_bytes(inner_local));
+
+            assert_eq!(convert_to_bytes(hmac), reference);
+        }
+    }
 
     #[tokio::test]
     async fn test_hmac_circuit() {
@@ -71,9 +91,11 @@ mod tests {
                 .unwrap();
             generator.commit(outer_partial_ref_gen).unwrap();
 
-            let inner_local_ref_gen: Array<U32, 8> = generator.alloc().unwrap();
+            let inner_local_ref_gen: Array<U8, 32> = generator.alloc().unwrap();
             generator.mark_public(inner_local_ref_gen).unwrap();
-            generator.assign(inner_local_ref_gen, inner_local).unwrap();
+            generator
+                .assign(inner_local_ref_gen, convert_to_bytes(inner_local))
+                .unwrap();
             generator.commit(inner_local_ref_gen).unwrap();
 
             let hmac_gen = HmacSha256::new(outer_partial_ref_gen, inner_local_ref_gen)
@@ -88,9 +110,11 @@ mod tests {
                 .unwrap();
             evaluator.commit(outer_partial_ref_ev).unwrap();
 
-            let inner_local_ref_ev: Array<U32, 8> = evaluator.alloc().unwrap();
+            let inner_local_ref_ev: Array<U8, 32> = evaluator.alloc().unwrap();
             evaluator.mark_public(inner_local_ref_ev).unwrap();
-            evaluator.assign(inner_local_ref_ev, inner_local).unwrap();
+            evaluator
+                .assign(inner_local_ref_ev, convert_to_bytes(inner_local))
+                .unwrap();
             evaluator.commit(inner_local_ref_ev).unwrap();
 
             let hmac_ev = HmacSha256::new(outer_partial_ref_ev, inner_local_ref_ev)
@@ -112,20 +136,6 @@ mod tests {
 
             assert_eq!(hmac_gen, hmac_ev);
             assert_eq!(convert_to_bytes(hmac_gen), reference);
-        }
-    }
-
-    #[test]
-    fn test_hmac_reference() {
-        let (inputs, references) = test_fixtures();
-
-        for (input, &reference) in inputs.iter().zip(references.iter()) {
-            let outer_partial = compute_outer_partial(input.0.clone());
-            let inner_local = compute_inner_local(input.0.clone(), &input.1);
-
-            let hmac = sha256(outer_partial, 64, &convert_to_bytes(inner_local));
-
-            assert_eq!(convert_to_bytes(hmac), reference);
         }
     }
 

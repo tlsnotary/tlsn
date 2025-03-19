@@ -232,7 +232,7 @@ struct PHash {
     pub(crate) outer_partial: Array<U32, 8>,
     pub(crate) inner_partial: Array<U32, 8>,
     pub(crate) inner_partial_decoded: Option<[u32; 8]>,
-    pub(crate) inner_local: Array<U32, 8>,
+    pub(crate) inner_local: Array<U8, 32>,
     pub(crate) assigned_inner_local: bool,
     pub(crate) output: Array<U32, 8>,
     pub(crate) output_decoded: Option<[u32; 8]>,
@@ -279,10 +279,10 @@ impl PHash {
         vm: &mut dyn Vm<Binary>,
         inner_local: [u32; 8],
     ) -> Result<(), PrfError> {
-        let inner_local_ref: Array<U32, 8> = self.inner_local;
+        let inner_local_ref: Array<U8, 32> = self.inner_local;
 
         vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
-        vm.assign(inner_local_ref, inner_local)
+        vm.assign(inner_local_ref, convert_to_bytes(inner_local))
             .map_err(PrfError::vm)?;
         vm.commit(inner_local_ref).map_err(PrfError::vm)?;
 
