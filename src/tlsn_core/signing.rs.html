@@ -1145,7 +1145,7 @@
     <span class="kw">use </span>alloy_primitives::utils::eip191_message;
     <span class="kw">use </span>alloy_signer::SignerSync;
     <span class="kw">use </span>alloy_signer_local::PrivateKeySigner;
-    <span class="kw">use </span>rand_core::OsRng;
+    <span class="kw">use </span>rand06_compat::Rand0_6CompatExt;
     <span class="kw">use </span>rstest::{fixture, rstest};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -1153,7 +1153,7 @@
     <span class="attr">#[fixture]
     #[once]
     </span><span class="kw">fn </span>secp256k1_pair() -&gt; (Box&lt;<span class="kw">dyn </span>Signer&gt;, Box&lt;<span class="kw">dyn </span>SignatureVerifier&gt;) {
-        <span class="kw">let </span>signing_key = k256::ecdsa::SigningKey::random(<span class="kw-2">&amp;mut </span>OsRng);
+        <span class="kw">let </span>signing_key = k256::ecdsa::SigningKey::random(<span class="kw-2">&amp;mut </span>rand::rng().compat());
         (
             Box::new(Secp256k1Signer::new(<span class="kw-2">&amp;</span>signing_key.to_bytes()).unwrap()),
             Box::new(Secp256k1Verifier {}),
@@ -1163,7 +1163,7 @@
     <span class="attr">#[fixture]
     #[once]
     </span><span class="kw">fn </span>secp256r1_pair() -&gt; (Box&lt;<span class="kw">dyn </span>Signer&gt;, Box&lt;<span class="kw">dyn </span>SignatureVerifier&gt;) {
-        <span class="kw">let </span>signing_key = p256::ecdsa::SigningKey::random(<span class="kw-2">&amp;mut </span>OsRng);
+        <span class="kw">let </span>signing_key = p256::ecdsa::SigningKey::random(<span class="kw-2">&amp;mut </span>rand::rng().compat());
         (
             Box::new(Secp256r1Signer::new(<span class="kw-2">&amp;</span>signing_key.to_bytes()).unwrap()),
             Box::new(Secp256r1Verifier {}),
@@ -1173,7 +1173,7 @@
     <span class="attr">#[fixture]
     #[once]
     </span><span class="kw">fn </span>secp256k1eth_pair() -&gt; (Box&lt;<span class="kw">dyn </span>Signer&gt;, Box&lt;<span class="kw">dyn </span>SignatureVerifier&gt;) {
-        <span class="kw">let </span>signing_key = k256::ecdsa::SigningKey::random(<span class="kw-2">&amp;mut </span>OsRng);
+        <span class="kw">let </span>signing_key = k256::ecdsa::SigningKey::random(<span class="kw-2">&amp;mut </span>rand::rng().compat());
         (
             Box::new(Secp256k1EthSigner::new(<span class="kw-2">&amp;</span>signing_key.to_bytes()).unwrap()),
             Box::new(Secp256k1EthVerifier {}),

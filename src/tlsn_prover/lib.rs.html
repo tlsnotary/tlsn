@@ -417,7 +417,9 @@
 <a href="#416" id="416">416</a>
 <a href="#417" id="417">417</a>
 <a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a></pre></div><pre class="rust"><code><span class="doccomment">//! TLSNotary prover library.
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a></pre></div><pre class="rust"><code><span class="doccomment">//! TLSNotary prover library.
 
 </span><span class="attr">#![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -434,12 +436,14 @@
 <span class="kw">pub use </span>error::ProverError;
 <span class="kw">pub use </span>future::ProverFuture;
 <span class="kw">use </span>mpz_common::Context;
+<span class="kw">use </span>mpz_core::Block;
 <span class="kw">use </span>mpz_garble_core::Delta;
+<span class="kw">use </span>rand06_compat::Rand0_6CompatExt;
 <span class="kw">use </span>state::{Notarize, Prove};
 
 <span class="kw">use </span>futures::{AsyncRead, AsyncWrite, TryFutureExt};
 <span class="kw">use </span>mpc_tls::{LeaderCtrl, MpcTlsLeader};
-<span class="kw">use </span>rand::{thread_rng, Rng};
+<span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>serio::SinkExt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>tls_client::{ClientConnection, ServerName <span class="kw">as </span>TlsServerName};
@@ -761,8 +765,8 @@
 }
 
 <span class="kw">fn </span>build_mpc_tls(config: <span class="kw-2">&amp;</span>ProverConfig, ctx: Context) -&gt; (Arc&lt;Mutex&lt;Deap&lt;Mpc, Zk&gt;&gt;&gt;, MpcTlsLeader) {
-    <span class="kw">let </span><span class="kw-2">mut </span>rng = thread_rng();
-    <span class="kw">let </span>delta = Delta::new(rng.gen());
+    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::rng();
+    <span class="kw">let </span>delta = Delta::new(Block::random(<span class="kw-2">&amp;mut </span>rng.compat_by_ref()));
 
     <span class="kw">let </span>base_ot_send = mpz_ot::chou_orlandi::Sender::default();
     <span class="kw">let </span>base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
@@ -778,7 +782,7 @@
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect(<span class="string">"ferret config is valid"</span>),
-        rng.gen(),
+        Block::random(<span class="kw-2">&amp;mut </span>rng.compat_by_ref()),
         rcot_recv,
     );
 
@@ -787,7 +791,7 @@
 
     <span class="kw">let </span>mpc = Mpc::new(
         mpz_ot::cot::DerandCOTSender::new(rcot_send.next().expect(<span class="string">"enough senders are available"</span>)),
-        rng.gen(),
+        rng.random(),
         delta,
     );
 

@@ -91,7 +91,7 @@
 //! attestation but does not verify transcript data.
 
 </span><span class="kw">use super</span>::{state::Notarize, Verifier, VerifierError};
-<span class="kw">use </span>rand::{thread_rng, Rng};
+<span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>serio::{stream::IoStreamExt, SinkExt <span class="kw">as _</span>};
 
 <span class="kw">use </span>tlsn_common::encoding;
@@ -122,7 +122,7 @@
             ..
         } = <span class="self">self</span>.state;
 
-        <span class="kw">let </span>encoder_secret = EncoderSecret::new(thread_rng().gen(), delta.as_block().to_bytes());
+        <span class="kw">let </span>encoder_secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
 
         <span class="kw">let </span>attestation = mux_fut
             .poll_with(<span class="kw">async </span>{
