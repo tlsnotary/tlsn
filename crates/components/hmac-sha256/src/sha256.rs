@@ -12,7 +12,7 @@ use mpz_vm_core::{
 pub(crate) struct Sha256 {
     state: Option<Array<U32, 8>>,
     chunks: Vec<Vector<U8>>,
-    processed: u32,
+    processed: usize,
 }
 
 impl Sha256 {
@@ -25,12 +25,8 @@ impl Sha256 {
         Self::default()
     }
 
-    pub(crate) fn set_state(&mut self, state: Array<U32, 8>) -> &mut Self {
+    pub(crate) fn set_state(&mut self, state: Array<U32, 8>, processed: usize) -> &mut Self {
         self.state = Some(state);
-        self
-    }
-
-    pub(crate) fn set_processed(&mut self, processed: u32) -> &mut Self {
         self.processed = processed;
         self
     }
@@ -47,6 +43,11 @@ impl Sha256 {
             Self::assign_iv(vm)?
         };
 
+        self.compute_padding(vm)?;
+
+        // Sha256 compression function takes 64 byte blocks as inputs but our blocks in
+        // `self.chunks` can have arbitrary size to simplify the api. So we need to repartition
+        // them to 64 byte blocks and feed those into the compression function.
         let mut remainder = None;
         let mut block: Vec<Vector<U8>> = vec![];
         let mut chunk_iter = self.chunks.iter().copied();
@@ -74,14 +75,6 @@ impl Sha256 {
             }
         }
 
-        let padding = self.compute_padding(&block);
-        let padding_ref: Vector<U8> = vm.alloc_vec(padding.len()).map_err(PrfError::vm)?;
-
-        vm.mark_public(padding_ref).map_err(PrfError::vm)?;
-        vm.assign(padding_ref, padding).map_err(PrfError::vm)?;
-        vm.commit(padding_ref).map_err(PrfError::vm)?;
-
-        block.push(padding_ref);
         Self::compute_state(vm, state, &block)
     }
 
@@ -100,18 +93,19 @@ impl Sha256 {
         state: Array<U32, 8>,
         data: &[Vector<U8>],
     ) -> Result<Array<U32, 8>, PrfError> {
-        let mut compress = Call::builder(SHA256_COMPRESS.clone()).arg(state);
+        let mut compress = Call::builder(SHA256_COMPRESS.clone());
+
         for &block in data {
             compress = compress.arg(block);
         }
-        let compress = compress.build().map_err(PrfError::vm)?;
 
+        let compress = compress.arg(state).build().map_err(PrfError::vm)?;
         vm.call(compress).map_err(PrfError::vm)
     }
 
-    fn compute_padding(&mut self, block: &[Vector<U8>]) -> Vec<u8> {
-        let msg_len: usize = block.iter().map(|b| b.len()).sum();
-        let pos: usize = self.processed as usize;
+    fn compute_padding(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
+        let msg_len: usize = self.chunks.iter().map(|b| b.len()).sum();
+        let pos = self.processed;
 
         let bit_len = msg_len * 8;
         let processed_bit_len = (bit_len + (pos * 8)) as u64;
@@ -136,7 +130,14 @@ impl Sha256 {
         padding.extend((0..pad_len - 9).map(|_| 0_u8));
         padding.extend(processed_bit_len.to_be_bytes());
 
-        padding
+        let padding_ref: Vector<U8> = vm.alloc_vec(padding.len()).map_err(PrfError::vm)?;
+
+        vm.mark_public(padding_ref).map_err(PrfError::vm)?;
+        vm.assign(padding_ref, padding).map_err(PrfError::vm)?;
+        vm.commit(padding_ref).map_err(PrfError::vm)?;
+
+        self.chunks.push(padding_ref);
+        Ok(())
     }
 }
 
@@ -162,4 +163,207 @@ pub(crate) fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u32; 8] {
         compress256(&mut state, &[*b])
     });
     state
+}
+
+pub(crate) fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
+    let mut output = [0_u8; 32];
+    for (k, byte_chunk) in input.iter().enumerate() {
+        let byte_chunk = byte_chunk.to_be_bytes();
+        output[4 * k..4 * (k + 1)].copy_from_slice(&byte_chunk);
+    }
+    output
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::sha256::{convert_to_bytes, sha256, Sha256};
+    use mpz_common::context::test_st_context;
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
+    use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
+    use mpz_vm_core::{
+        memory::{
+            binary::{U32, U8},
+            correlated::Delta,
+            Array, MemoryExt, Vector, ViewExt,
+        },
+        Execute,
+    };
+    use rand::{rngs::StdRng, SeedableRng};
+
+    #[tokio::test]
+    async fn test_sha256_circuit() {
+        let (mut ctx_a, mut ctx_b) = test_st_context(8);
+        let (mut generator, mut evaluator) = mock_vm();
+
+        let (test_iter, expected_iter) = test_fixtures();
+        for (test, expected) in test_iter.zip(expected_iter) {
+            let input_ref_gen: Vector<U8> = generator.alloc_vec(test.len()).unwrap();
+            generator.mark_public(input_ref_gen).unwrap();
+            generator.assign(input_ref_gen, test.clone()).unwrap();
+            generator.commit(input_ref_gen).unwrap();
+
+            let mut sha_gen = Sha256::new();
+            sha_gen.update(input_ref_gen);
+            let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
+            let sha_out_gen = generator.decode(sha_out_gen).unwrap();
+
+            let input_ref_ev: Vector<U8> = evaluator.alloc_vec(test.len()).unwrap();
+            evaluator.mark_public(input_ref_ev).unwrap();
+            evaluator.assign(input_ref_ev, test).unwrap();
+            evaluator.commit(input_ref_ev).unwrap();
+
+            let mut sha_ev = Sha256::new();
+            sha_ev.update(input_ref_ev);
+            let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
+            let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
+
+            let (sha_gen, sha_ev) = tokio::try_join!(
+                async {
+                    generator.execute_all(&mut ctx_a).await.unwrap();
+                    sha_out_gen.await
+                },
+                async {
+                    evaluator.execute_all(&mut ctx_b).await.unwrap();
+                    sha_out_ev.await
+                }
+            )
+            .unwrap();
+
+            assert_eq!(sha_gen, sha_ev);
+            assert_eq!(convert_to_bytes(sha_gen), expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sha256_circuit_set_state() {
+        let skip = 2;
+        let (mut ctx_a, mut ctx_b) = test_st_context(8);
+        let (mut generator, mut evaluator) = mock_vm();
+
+        let (test_iter, expected_iter) = test_fixtures();
+        for (test, expected) in test_iter.zip(expected_iter) {
+            let state = compress_256(Sha256::IV, &test[..skip]);
+            let test = test[skip..].to_vec();
+
+            let input_ref_gen: Vector<U8> = generator.alloc_vec(test.len()).unwrap();
+            generator.mark_public(input_ref_gen).unwrap();
+            generator.assign(input_ref_gen, test.clone()).unwrap();
+            generator.commit(input_ref_gen).unwrap();
+
+            let state_ref_gen: Array<U32, 8> = generator.alloc().unwrap();
+            generator.mark_public(state_ref_gen).unwrap();
+            generator.assign(state_ref_gen, state).unwrap();
+            generator.commit(state_ref_gen).unwrap();
+
+            let mut sha_gen = Sha256::new();
+            sha_gen.set_state(state_ref_gen, skip).update(input_ref_gen);
+            let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
+            let sha_out_gen = generator.decode(sha_out_gen).unwrap();
+
+            let input_ref_ev: Vector<U8> = evaluator.alloc_vec(test.len()).unwrap();
+            evaluator.mark_public(input_ref_ev).unwrap();
+            evaluator.assign(input_ref_ev, test).unwrap();
+            evaluator.commit(input_ref_ev).unwrap();
+
+            let state_ref_ev: Array<U32, 8> = evaluator.alloc().unwrap();
+            evaluator.mark_public(state_ref_ev).unwrap();
+            evaluator.assign(state_ref_ev, state).unwrap();
+            evaluator.commit(state_ref_ev).unwrap();
+
+            let mut sha_ev = Sha256::new();
+            sha_ev.set_state(state_ref_ev, skip).update(input_ref_ev);
+            let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
+            let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
+
+            let (sha_gen, sha_ev) = tokio::try_join!(
+                async {
+                    generator.execute_all(&mut ctx_a).await.unwrap();
+                    sha_out_gen.await
+                },
+                async {
+                    evaluator.execute_all(&mut ctx_b).await.unwrap();
+                    sha_out_ev.await
+                }
+            )
+            .unwrap();
+
+            assert_eq!(sha_gen, sha_ev);
+            assert_eq!(convert_to_bytes(sha_gen), expected);
+        }
+    }
+
+    #[test]
+    fn test_sha256_reference() {
+        let (test_iter, expected_iter) = test_fixtures();
+        for (test, expected) in test_iter.zip(expected_iter) {
+            let sha = sha256(Sha256::IV, 0, &test);
+            assert_eq!(convert_to_bytes(sha), expected);
+        }
+    }
+
+    #[test]
+    fn test_sha256_reference_set_state() {
+        let skip = 2;
+        let (test_iter, expected_iter) = test_fixtures();
+        for (test, expected) in test_iter.zip(expected_iter) {
+            let state = compress_256(Sha256::IV, &test[..skip]);
+            let test = test[skip..].to_vec();
+
+            let sha = sha256(state, skip, &test);
+            assert_eq!(convert_to_bytes(sha), expected);
+        }
+    }
+
+    fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
+        let mut rng = StdRng::seed_from_u64(0);
+        let delta = Delta::random(&mut rng);
+
+        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
+
+        let gen = Garbler::new(cot_send, [0u8; 16], delta);
+        let ev = Evaluator::new(cot_recv);
+
+        (gen, ev)
+    }
+
+    fn test_fixtures() -> (
+        impl Iterator<Item = Vec<u8>>,
+        impl Iterator<Item = [u8; 32]>,
+    ) {
+        let test_vectors: Vec<Vec<u8>> = vec![
+            b"abc".to_vec(),
+            b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".to_vec(),
+            b"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".to_vec()
+        ];
+        let expected: Vec<[u8; 32]> = vec![
+            hex::decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            hex::decode("248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            hex::decode("cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1")
+                .unwrap()
+                .try_into()
+                .unwrap(),
+        ];
+
+        (test_vectors.into_iter(), expected.into_iter())
+    }
+
+    fn compress_256(mut state: [u32; 8], msg: &[u8]) -> [u32; 8] {
+        use sha2::{
+            compress256,
+            digest::{
+                block_buffer::{BlockBuffer, Eager},
+                generic_array::typenum::U64,
+            },
+        };
+
+        let mut buffer = BlockBuffer::<U64, Eager>::default();
+        buffer.digest_blocks(msg, |b| compress256(&mut state, b));
+        state
+    }
 }

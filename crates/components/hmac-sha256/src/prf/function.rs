@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     hmac::HmacSha256,
-    sha256::{sha256, Sha256},
+    sha256::{convert_to_bytes, sha256, Sha256},
     PrfError,
 };
 use mpz_circuits::circuits::xor;
@@ -288,13 +288,4 @@ impl PHash {
 
         Ok(())
     }
-}
-
-fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
-    let mut output = [0_u8; 32];
-    for (k, byte_chunk) in input.iter().enumerate() {
-        let byte_chunk = byte_chunk.to_be_bytes();
-        output[k..4 * (k + 1)].copy_from_slice(&byte_chunk);
-    }
-    output
 }

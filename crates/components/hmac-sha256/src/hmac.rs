@@ -25,10 +25,7 @@ impl HmacSha256 {
         let inner_local = Vector::from_raw(self.inner_local.to_raw());
 
         let mut outer = Sha256::new();
-        outer
-            .set_state(self.outer_partial)
-            .set_processed(64)
-            .update(inner_local);
+        outer.set_state(self.outer_partial, 64).update(inner_local);
 
         outer.alloc(vm)
     }
