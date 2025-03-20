@@ -167,3 +167,71 @@ impl TranscriptRefs {
 #[derive(Debug, thiserror::Error)]
 #[error("not all application plaintext was committed to in the TLS transcript")]
 pub struct IncompleteTranscript {}
+
+#[cfg(test)]
+mod tests {
+    use super::TranscriptRefs;
+    use mpz_memory_core::{binary::U8, FromRaw, Slice, Vector};
+    use std::ops::Range;
+    use tlsn_core::transcript::{Direction, Idx};
+    use utils::range::RangeSet;
+
+    // TRANSCRIPT_REFS:
+    //
+    // 48..96 -> 6 slots
+    // 112..176 -> 8 slots
+    // 240..288 -> 6 slots
+    // 352..392 -> 5 slots
+    // 440..480 -> 5 slots
+    const TRANSCRIPT_REFS: &[Range<usize>] = &[48..96, 112..176, 240..288, 352..392, 440..480];
+
+    const IDXS: &[Range<usize>] = &[0..4, 5..10, 14..16, 16..28];
+
+    // 1. Take slots 0..4,   4  slots -> 48..80 (4)
+    // 2. Take slots 5..10,  5  slots -> 88..96 (1) + 112..144 (4)
+    // 3. Take slots 14..16, 2  slots -> 240..256 (2)
+    // 4. Take slots 16..28, 12 slots -> 256..288 (4) + 352..392 (5) + 440..464 (3)
+    //
+    // 5. Merge slots 240..256 and 256..288 => 240..288 and get EXPECTED_REFS
+    const EXPECTED_REFS: &[Range<usize>] =
+        &[48..80, 88..96, 112..144, 240..288, 352..392, 440..464];
+
+    #[test]
+    fn test_transcript_refs_get() {
+        let transcript_refs: Vec<Vector<U8>> = TRANSCRIPT_REFS
+            .iter()
+            .cloned()
+            .map(|range| Vector::from_raw(Slice::from_range_unchecked(range)))
+            .collect();
+
+        let transcript_refs = TranscriptRefs {
+            sent: transcript_refs.clone(),
+            recv: transcript_refs,
+        };
+
+        let vm_refs = transcript_refs
+            .get(Direction::Sent, &idx_fixture())
+            .unwrap();
+
+        let expected_refs: Vec<Vector<U8>> = EXPECTED_REFS
+            .iter()
+            .cloned()
+            .map(|range| Vector::from_raw(Slice::from_range_unchecked(range)))
+            .collect();
+
+        assert_eq!(
+            vm_refs.len(),
+            expected_refs.len(),
+            "Length of actual and expected refs are not equal"
+        );
+
+        for (&expected, actual) in expected_refs.iter().zip(vm_refs) {
+            assert_eq!(expected, actual);
+        }
+    }
+
+    fn idx_fixture() -> Idx {
+        let set = RangeSet::from(IDXS);
+        Idx::builder().union(&set).build()
+    }
+}

@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
 
 use crate::{
     attestation::{
@@ -173,7 +173,7 @@ impl AttestationBuilder<'_, Sign> {
         };
 
         let header = Header {
-            id: thread_rng().gen(),
+            id: rng().random(),
             version: VERSION,
             root: body.root(hasher),
         };

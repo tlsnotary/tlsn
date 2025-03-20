@@ -27,5 +27,6 @@ mpz-ot = { workspace = true }
 
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 rand = { workspace = true }
+rand06-compat = { workspace = true }
 ctr = { workspace = true }
 cipher = { workspace = true }

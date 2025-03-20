@@ -1,9 +1,23 @@
 use eyre::Result;
 use std::str::FromStr;
-use tracing::Level;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
+use tracing::{Level, Subscriber};
+use tracing_subscriber::{
+    fmt, layer::SubscriberExt, registry::LookupSpan, util::SubscriberInitExt, EnvFilter, Layer,
+    Registry,
+};
 
-use crate::config::NotaryServerProperties;
+use crate::config::{LogFormat, NotaryServerProperties};
+
+fn format_layer<S>(format: LogFormat) -> Box<dyn Layer<S> + Send + Sync>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    let f = fmt::layer().with_thread_ids(true).with_thread_names(true);
+    match format {
+        LogFormat::Compact => f.compact().boxed(),
+        LogFormat::Json => f.json().boxed(),
+    }
+}
 
 pub fn init_tracing(config: &NotaryServerProperties) -> Result<()> {
     // Retrieve log filtering logic from config
@@ -18,16 +32,9 @@ pub fn init_tracing(config: &NotaryServerProperties) -> Result<()> {
     };
     let filter_layer = EnvFilter::builder().parse(directives)?;
 
-    // Format the log
-    let format_layer = tracing_subscriber::fmt::layer()
-        // Use a more compact, abbreviated log format
-        .compact()
-        .with_thread_ids(true)
-        .with_thread_names(true);
-
     Registry::default()
         .with(filter_layer)
-        .with(format_layer)
+        .with(format_layer(config.logging.format))
         .try_init()?;
 
     Ok(())

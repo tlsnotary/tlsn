@@ -36,6 +36,7 @@ mpz-common = { workspace = true, features = ["test-utils"] }
 criterion = { workspace = true, features = ["async_tokio"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 rand = { workspace = true }
+rand06-compat = { workspace = true }
 
 [[bench]]
 name = "prf"

@@ -5,7 +5,7 @@ use mpz_memory_core::{
     Array, DecodeFutureTyped,
 };
 use mpz_vm_core::{prelude::*, Vm};
-use rand::{thread_rng, RngCore};
+use rand::RngCore;
 
 use crate::{MpcTlsError, Role};
 
@@ -77,9 +77,9 @@ impl AesCtr {
         let (masked_key, key_otp, masked_iv, iv_otp) = match self.role {
             Role::Leader => {
                 let mut key_otp = [0u8; 16];
-                thread_rng().fill_bytes(&mut key_otp);
+                rand::rng().fill_bytes(&mut key_otp);
                 let mut iv_otp = [0u8; 4];
-                thread_rng().fill_bytes(&mut iv_otp);
+                rand::rng().fill_bytes(&mut iv_otp);
                 let masked_key = vm
                     .mask_private(key, key_otp)
                     .map_err(MpcTlsError::record_layer)?;

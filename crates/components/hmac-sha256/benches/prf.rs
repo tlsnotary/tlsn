@@ -11,6 +11,7 @@ use mpz_vm_core::{
     prelude::*,
 };
 use rand::{rngs::StdRng, SeedableRng};
+use rand06_compat::Rand0_6CompatExt;
 
 #[allow(clippy::unit_arg)]
 fn criterion_benchmark(c: &mut Criterion) {
@@ -35,7 +36,7 @@ async fn prf() {
     let mut leader_ctx = leader_exec.new_context().await.unwrap();
     let mut follower_ctx = follower_exec.new_context().await.unwrap();
 
-    let delta = Delta::random(&mut rng);
+    let delta = Delta::random(&mut rng.compat_by_ref());
     let (ot_send, ot_recv) = ideal_cot(delta.into_inner());
 
     let mut leader_vm = Generator::new(ot_send, [0u8; 16], delta);

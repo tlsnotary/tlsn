@@ -13,7 +13,7 @@ use mpz_memory_core::{
 };
 use mpz_vm_core::{prelude::*, Vm, VmError};
 use pin_project_lite::pin_project;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
 pin_project! {
     /// Supports decoding into additive shares.
@@ -35,8 +35,8 @@ impl<const N: usize> OneTimePadShared<[u8; N]> {
         value: Array<U8, N>,
         vm: &mut dyn Vm<Binary>,
     ) -> Result<Self, VmError> {
-        let mut rng = thread_rng();
-        let otp: [u8; N] = from_fn(|_| rng.gen());
+        let mut rng = rand::rng();
+        let otp: [u8; N] = from_fn(|_| rng.random());
         match role {
             Role::Leader => {
                 let masked = vm.mask_private(value, otp)?;

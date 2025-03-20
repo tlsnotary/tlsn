@@ -15,7 +15,7 @@ use mpz_memory_core::{
     Array,
 };
 use mpz_vm_core::Vm as VmTrait;
-use rand::{thread_rng, RngCore};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tls_core::{
     cipher::make_tls12_aad,
@@ -23,6 +23,7 @@ use tls_core::{
 };
 use tlsn_common::transcript::{Record, TlsTranscript};
 use tokio::sync::Mutex;
+use tracing::{debug, instrument};
 
 use crate::{
     record_layer::{aes_ctr::AesCtr, decrypt::DecryptOp, encrypt::EncryptOp},
@@ -77,6 +78,8 @@ pub(crate) struct RecordLayer {
     decrypt: Arc<Mutex<MpcAesGcm>>,
     aes_ctr: AesCtr,
     state: State,
+    /// Whether the record layer has started processing application data.
+    started: bool,
 
     encrypt_buffer: Vec<EncryptOp>,
     decrypt_buffer: Vec<DecryptOp>,
@@ -95,6 +98,7 @@ impl RecordLayer {
             decrypt: Arc::new(Mutex::new(decrypt)),
             aes_ctr: AesCtr::new(role),
             state: State::Init,
+            started: false,
             encrypt_buffer: Vec::new(),
             decrypt_buffer: Vec::new(),
             encrypted_buffer: VecDeque::new(),
@@ -144,7 +148,7 @@ impl RecordLayer {
         let recv_otp = match self.role {
             Role::Leader => {
                 let mut recv_otp = vec![0u8; recv_len];
-                thread_rng().fill_bytes(&mut recv_otp);
+                rand::rng().fill_bytes(&mut recv_otp);
 
                 Some(recv_otp)
             }
@@ -248,6 +252,11 @@ impl RecordLayer {
         !self.encrypt_buffer.is_empty() || !self.decrypt_buffer.is_empty()
     }
 
+    pub(crate) fn start_traffic(&mut self) {
+        self.started = true;
+        debug!("started processing application data");
+    }
+
     pub(crate) fn push_encrypt(
         &mut self,
         typ: ContentType,
@@ -305,14 +314,27 @@ impl RecordLayer {
 
     /// Returns the next encrypted record.
     pub(crate) fn next_encrypted(&mut self) -> Option<EncryptedRecord> {
-        self.encrypted_buffer.pop_front()
+        let typ = self.encrypted_buffer.front().map(|r| r.typ)?;
+        // If we haven't started processing application data we return None.
+        if !self.started && typ == ContentType::ApplicationData {
+            None
+        } else {
+            self.encrypted_buffer.pop_front()
+        }
     }
 
     /// Returns the next decrypted record.
     pub(crate) fn next_decrypted(&mut self) -> Option<PlainRecord> {
-        self.decrypted_buffer.pop_front()
+        let typ = self.decrypted_buffer.front().map(|r| r.typ)?;
+        // If we haven't started processing application data we return None.
+        if !self.started && typ == ContentType::ApplicationData {
+            None
+        } else {
+            self.decrypted_buffer.pop_front()
+        }
     }
 
+    #[instrument(level = "debug", skip(self, ctx, vm), err)]
     pub(crate) async fn flush(
         &mut self,
         ctx: &mut Context,
@@ -345,19 +367,30 @@ impl RecordLayer {
             .try_lock()
             .map_err(|_| MpcTlsError::record_layer("decrypt lock is held"))?;
 
-        let encrypt_ops = take(&mut self.encrypt_buffer);
-
-        let decrypt_end = if is_decrypting {
-            self.decrypt_buffer.len()
+        let encrypt_ops: Vec<_> = self.encrypt_buffer.drain(..).collect();
+        let decrypt_ops: Vec<_> = if is_decrypting {
+            self.decrypt_buffer.drain(..).collect()
         } else {
-            // Position of the first application data in the decrypt buffer.
-            self.decrypt_buffer
+            // Process non-application data even if we're not decrypting.
+            let decrypt_pos = self
+                .decrypt_buffer
                 .iter()
                 .position(|op| op.typ == ContentType::ApplicationData)
-                .unwrap_or(self.decrypt_buffer.len())
+                .unwrap_or(self.decrypt_buffer.len());
+
+            self.decrypt_buffer.drain(..decrypt_pos).collect()
         };
 
-        let decrypt_ops: Vec<_> = self.decrypt_buffer.drain(..decrypt_end).collect();
+        if encrypt_ops.is_empty() && decrypt_ops.is_empty() {
+            debug!("no operations to process, skipping");
+            return Ok(());
+        }
+
+        debug!(
+            "processing {} encrypt ops and {} decrypt ops",
+            encrypt_ops.len(),
+            decrypt_ops.len()
+        );
 
         let (pending_encrypt, compute_tags) =
             encrypt::encrypt(&mut (*vm), &mut encrypter, &encrypt_ops)?;
