@@ -78,8 +78,8 @@ impl<T> Index<T> {
             field_ids.insert(*id, i);
             transcript_idxs.insert((dir, idx.clone()), i);
             match dir {
-                Direction::Sent => sent.union_mut(&idx),
-                Direction::Received => recv.union_mut(&idx),
+                Direction::Sent => sent.union_mut(idx),
+                Direction::Received => recv.union_mut(idx),
             }
         }
 
