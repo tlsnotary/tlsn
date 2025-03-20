@@ -1,9 +1,9 @@
 //! TLS transcript.
 
 use mpz_memory_core::{binary::U8, Vector};
+use rangeset::Intersection;
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::transcript::{Direction, Idx, Transcript};
-use utils::range::Intersection;
 
 /// A transcript of sent and received TLS records.
 #[derive(Debug, Default, Clone)]
@@ -172,9 +172,9 @@ pub struct IncompleteTranscript {}
 mod tests {
     use super::TranscriptRefs;
     use mpz_memory_core::{binary::U8, FromRaw, Slice, Vector};
+    use rangeset::RangeSet;
     use std::ops::Range;
     use tlsn_core::transcript::{Direction, Idx};
-    use utils::range::RangeSet;
 
     // TRANSCRIPT_REFS:
     //

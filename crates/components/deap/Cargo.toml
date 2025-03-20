@@ -7,7 +7,7 @@ edition = "2021"
 mpz-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-vm-core = { workspace = true }
-tlsn-utils = { workspace = true }
+rangeset = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serio = { workspace = true }
