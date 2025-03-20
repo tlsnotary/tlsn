@@ -515,7 +515,8 @@ mod tests {
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
 
-        // We only have a commitment for the entire received transcript. We won't be able to cover this range alone.
+        // We only have a commitment for the entire received transcript. We won't be
+        // able to cover this range alone.
         builder.reveal_recv(&(0..11)).unwrap();
 
         let err = builder.build().unwrap_err();

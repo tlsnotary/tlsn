@@ -19,8 +19,8 @@ use mpz_vm_core::{
     memory::{binary::Binary, DecodeFuture, Memory, Slice, View},
     Call, Callable, Execute, Vm, VmError,
 };
-use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
 use rangeset::{Difference, RangeSet, UnionMut};
+use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
 
 type Error = DeapError;
 

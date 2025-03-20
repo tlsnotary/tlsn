@@ -2,8 +2,8 @@
 
 use std::{collections::HashSet, fmt};
 
-use serde::{Deserialize, Serialize};
 use rangeset::ToRangeSet;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     hash::HashAlgId,
