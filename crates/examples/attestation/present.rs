@@ -8,7 +8,7 @@ use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
 
 use clap::Parser;
-use utils::range::{ToRangeSet, Union};
+use rangeset::{ToRangeSet, Union};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

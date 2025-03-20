@@ -1,17 +1,11 @@
 //! Transcript proofs.
 
+use rangeset::{Cover, ToRangeSet};
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    collections::{hash_set::Iter, HashSet},
-    fmt,
-    ops::Range,
-};
-use utils::range::ToRangeSet;
+use std::fmt;
 
 use crate::{
     attestation::Body,
-    hash::Blinded,
     index::Index,
     transcript::{
         commit::TranscriptCommitmentKind,
@@ -139,186 +133,6 @@ impl From<PlaintextHashProofError> for TranscriptProofError {
     }
 }
 
-/// A wrapper on [Idx].
-///
-/// This is purely used for [ProofIdxs::prune_subset]. An effective sort of
-/// [Idx] is needed there to reduce the time complexity to prune subset(s) from
-/// a collection of [Idx].
-///
-/// A custom ordering logic is implemented for [OrderedIdx] to achieve that (see
-/// [Ord] implementation below). As a result, for each [OrderedIdx] in this
-/// sorted collection, a full on subset check only needs to be done with other
-/// [OrderedIdx] that are bigger than itself. This is faster than
-/// conducting the check with every other [OrderedIdx] in the collection.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct OrderedIdx(Idx);
-
-impl OrderedIdx {
-    fn new(idx: Idx) -> Self {
-        Self(idx)
-    }
-
-    fn inner(&self) -> &Idx {
-        &self.0
-    }
-
-    fn into_inner(self) -> Idx {
-        self.0
-    }
-
-    fn is_subset(&self, other: &OrderedIdx) -> bool {
-        self.0.is_subset(other.inner())
-    }
-
-    fn iter_ranges(&self) -> impl Iterator<Item = Range<usize>> + '_ {
-        self.0.iter_ranges()
-    }
-}
-
-/// Custom ordering for [OrderedIdx].
-///
-/// [OrderedIdx] is ordered in terms of its likelihood to be a subset of other,
-/// where [OrderedIdx] with higher likelihood to be a subset of other, is
-/// smaller. For example,
-///
-/// (a) [4..5, 7..9] is smaller than [1..5, 6..10].
-/// (b) [7..9, 10..13] is smaller than [7..10, 12..15].
-/// (c) [1..3, 5..9] is smaller than [1..3, 4..10].
-///
-/// Instead of a full on subset check, a cheaper 'subset likelihood' check is
-/// used for this. Note that this doesn't guarantee that the smaller
-/// [OrderedIdx] is always a subset, e.g. example (b).
-impl Ord for OrderedIdx {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let mut self_ranges_iter = self.iter_ranges();
-        let mut other_ranges_iter = other.iter_ranges();
-
-        let mut self_range_option = self_ranges_iter.next();
-        let mut other_range_option = other_ranges_iter.next();
-
-        // Iterate from the respective first range of [self] and [other], return
-        // immediately if their start or end are different.
-        while self_range_option.is_some() && other_range_option.is_some() {
-            let self_range = self_range_option.unwrap();
-            let other_range = other_range_option.unwrap();
-
-            // Compare the start of the range (start..end) between the nth range of [self]
-            // and [other], where bigger start = higher likelihood to be a
-            // subset. For example, 4..x is likely to be a subset of 1..y, but
-            // 1..y cannot be a subset of 4..x.
-            if self_range.start != other_range.start {
-                // reverse() as bigger start = more likely to be subset = smaller [OrderedIdx].
-                return self_range.start.cmp(&other_range.start).reverse();
-            }
-
-            // If start is the same, then the end of the range (start..end) is compared.
-            // Smaller end = higher likelihood to be a subset. For example, x..4 is likely
-            // to be a subset of x..5, but x..5 cannot be a subset of x..4.
-            if self_range.end != other_range.end {
-                return self_range.end.cmp(&other_range.end);
-            }
-
-            self_range_option = self_ranges_iter.next();
-            other_range_option = other_ranges_iter.next();
-        }
-
-        match (self_range_option, other_range_option) {
-            // All N ranges of [other] are the same as the first N ranges of [self],
-            // i.e. [other] is a subset of [self].
-            (Some(_), None) => Ordering::Greater,
-            // All N ranges of [self] are the same as the first N ranges of [other],
-            // i.e. [self] is a subset of [other].
-            (None, Some(_)) => Ordering::Less,
-            // All ranges of [self] are the same as all ranges of [other].
-            (None, None) => Ordering::Equal,
-            (Some(_), Some(_)) => {
-                unreachable!("self_range_option and other_range_option cannot be both some")
-            }
-        }
-    }
-}
-
-impl PartialOrd for OrderedIdx {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-/// A wrapper to store and process ([Direction], [Idx]) to be revealed.
-#[derive(Debug)]
-struct ProofIdxs(HashSet<(Direction, Idx)>);
-
-impl ProofIdxs {
-    fn new() -> Self {
-        Self(HashSet::default())
-    }
-
-    fn insert(&mut self, dir_idx: (Direction, Idx)) -> bool {
-        self.0.insert(dir_idx)
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    fn iter(&self) -> Iter<'_, (Direction, Idx)> {
-        self.0.iter()
-    }
-
-    /// Prune any rangeset [Idx] that is a subset of another rangeset before
-    /// constructing [EncodingProof] or [PlaintextHashProof] to reduce
-    /// unnecessary proof size, and proving + verifying time later.
-    ///
-    /// This is because any subset rangeset would also be revealed by its
-    /// superset rangeset.
-    fn prune_subset(&mut self) {
-        self.prune_subset_with_direction(Direction::Sent);
-        self.prune_subset_with_direction(Direction::Received);
-    }
-
-    fn prune_subset_with_direction(&mut self, direction: Direction) {
-        // Given a specific [Direction], collect relevant [Idx] and build [OrderedIdx].
-        let mut idxs_to_prune = self
-            .iter()
-            .filter(|(dir, _)| *dir == direction)
-            .map(|(_, idx)| OrderedIdx::new(idx.clone()))
-            .collect::<Vec<_>>();
-
-        // Sort the collection according to the custom ordering described in [Ord]
-        // implementation of [OrderedIdx] — which reduces subset search
-        // time complexity.
-        idxs_to_prune.sort_unstable();
-
-        // Reverse the order so that subset check of each [OrderedIdx] is done with the
-        // most likely superset (the biggest) first.
-        idxs_to_prune.reverse();
-
-        // [OrderedIdx] to be pruned and excluded.
-        let mut pruned_idxs = HashSet::new();
-
-        // Start from the second [OrderedIdx], as the first is guaranteed to not be a
-        // subset of any.
-        for i in 1..idxs_to_prune.len() {
-            let idx = &idxs_to_prune[i];
-
-            // Perform subset check of [idx] with [other_idx] that are bigger, as [idx]
-            // is only likely to be their subset.
-            for other_idx in idxs_to_prune.iter().take(i) {
-                // Remove [idx] if it's a subset — this check contains an inner loop, which is
-                // why the custom-ordering sort is used to minimise the no. of iteration of
-                // the current loop.
-                if !pruned_idxs.contains(other_idx) && idx.is_subset(other_idx) {
-                    pruned_idxs.insert(idx);
-                }
-            }
-        }
-
-        pruned_idxs.into_iter().for_each(|idx| {
-            self.0.remove(&(direction, idx.clone().into_inner()));
-        });
-    }
-}
-
 #[derive(Debug)]
 struct QueryIdx {
     sent: Idx,
@@ -339,47 +153,9 @@ impl QueryIdx {
 
     fn union(&mut self, direction: &Direction, other: &Idx) {
         match direction {
-            Direction::Sent => self.sent = self.sent.union(other),
-            Direction::Received => self.recv = self.recv.union(other),
+            Direction::Sent => self.sent.union_mut(other),
+            Direction::Received => self.recv.union_mut(other),
         }
-    }
-
-    fn match_committed_dir_idxs<'a>(
-        &self,
-        committed_dir_idxs: impl IntoIterator<Item = &'a (Direction, Idx)>,
-    ) -> Result<impl Iterator<Item = (Direction, Idx)>, Box<dyn std::error::Error + Send + Sync>>
-    {
-        let committed_dir_idxs = committed_dir_idxs.into_iter().collect::<Vec<_>>();
-
-        let sent_committed_idxs = committed_dir_idxs.iter().filter_map(|(dir, idx)| {
-            if *dir == Direction::Sent {
-                Some(idx)
-            } else {
-                None
-            }
-        });
-
-        let recv_committed_idxs = committed_dir_idxs.iter().filter_map(|(dir, idx)| {
-            if *dir == Direction::Received {
-                Some(idx)
-            } else {
-                None
-            }
-        });
-
-        let sent_matched_idxs = self
-            .sent
-            .cover(sent_committed_idxs)?
-            .map(|idx| (Direction::Sent, idx))
-            .collect::<Vec<_>>();
-
-        let recv_matched_idxs = self
-            .recv
-            .cover(recv_committed_idxs)?
-            .map(|idx| (Direction::Received, idx))
-            .collect::<Vec<_>>();
-
-        Ok(sent_matched_idxs.into_iter().chain(recv_matched_idxs))
     }
 }
 
@@ -391,7 +167,7 @@ pub struct TranscriptProofBuilder<'a> {
     encoding_tree: Option<&'a EncodingTree>,
     plaintext_hashes: &'a Index<PlaintextHashSecret>,
     encoding_query_idx: QueryIdx,
-    hash_proof_idxs: ProofIdxs,
+    hash_query_idx: QueryIdx,
 }
 
 impl<'a> TranscriptProofBuilder<'a> {
@@ -407,7 +183,7 @@ impl<'a> TranscriptProofBuilder<'a> {
             encoding_tree,
             plaintext_hashes,
             encoding_query_idx: QueryIdx::new(),
-            hash_proof_idxs: ProofIdxs::new(),
+            hash_query_idx: QueryIdx::new(),
         }
     }
 
@@ -454,71 +230,29 @@ impl<'a> TranscriptProofBuilder<'a> {
                     ));
                 };
 
-                if idx.is_subset(encoding_tree.aggregated_idx(&direction)) {
+                if idx.is_subset(encoding_tree.idx(direction)) {
                     self.encoding_query_idx.union(&direction, &idx);
                 } else {
+                    let missing = idx.difference(encoding_tree.idx(direction));
                     return Err(TranscriptProofBuilderError::new(
                         BuilderErrorKind::MissingCommitment,
                         format!(
-                            "encoding commitment is missing for ranges in {} transcript",
-                            direction
+                            "encoding commitment is missing for ranges in {direction} transcript: {missing}"
                         ),
                     ));
                 }
             }
             TranscriptCommitmentKind::Hash { .. } => {
-                let dir_idx = (direction, idx);
-                // Insert the rangeset [dir_idx] if it's in [plaintext_hashes], i.e. it's
-                // committed.
-                if self
-                    .plaintext_hashes
-                    .get_by_transcript_idx(&dir_idx)
-                    .is_some()
-                {
-                    self.hash_proof_idxs.insert(dir_idx);
+                if idx.is_subset(self.plaintext_hashes.idx(direction)) {
+                    self.hash_query_idx.union(&direction, &idx);
                 } else {
-                    // Check if there is any committed rangeset in [plaintext_hashes] that is a
-                    // subset of [dir_idx] — if yes, stage them into a temporary collection
-                    // first.
-                    let mut staged_subsets = Vec::new();
-                    for committed_secret in self
-                        .plaintext_hashes
-                        .iter()
-                        .filter(|secret| secret.direction == dir_idx.0)
-                    {
-                        if committed_secret.idx.is_subset(&dir_idx.1) {
-                            staged_subsets
-                                .push((committed_secret.direction, &committed_secret.idx));
-                        }
-                    }
-
-                    // Form a union of all the staged subsets.
-                    let mut union_subsets = Idx::empty();
-                    for &(_, idx) in staged_subsets.iter() {
-                        union_subsets = union_subsets.union(idx);
-                    }
-
-                    // Check if the union equals to [dir_idx] — if yes, that means [dir_idx]
-                    // can be revealed as it is fully covered by the staged committed subsets.
-                    if union_subsets == dir_idx.1 {
-                        staged_subsets.into_iter().for_each(|commited_dir_idx| {
-                            self.hash_proof_idxs
-                                .insert((commited_dir_idx.0, commited_dir_idx.1.clone()));
-                        });
-                    // If no, that means either
-                    // (1) No subset found.
-                    // (2) There are ranges in [dir_idx] that are not covered by
-                    // the staged subsets, hence
-                    //     [dir_idx] cannot be revealed.
-                    } else {
-                        return Err(TranscriptProofBuilderError::new(
-                            BuilderErrorKind::MissingCommitment,
-                            format!(
-                                "hash commitment is missing for ranges in {} transcript",
-                                direction
-                            ),
-                        ));
-                    }
+                    let missing = idx.difference(self.plaintext_hashes.idx(direction));
+                    return Err(TranscriptProofBuilderError::new(
+                        BuilderErrorKind::MissingCommitment,
+                        format!(
+                            "hash commitment is missing for ranges in {direction} transcript: {missing}"
+                        ),
+                    ));
                 }
             }
         }
@@ -567,20 +301,36 @@ impl<'a> TranscriptProofBuilder<'a> {
     }
 
     /// Builds the transcript proof.
-    pub fn build(mut self) -> Result<TranscriptProof, TranscriptProofBuilderError> {
+    pub fn build(self) -> Result<TranscriptProof, TranscriptProofBuilderError> {
         let encoding_proof = if !self.encoding_query_idx.is_empty() {
             let encoding_tree = self.encoding_tree.expect("encoding tree is present");
 
-            let matched_dir_idxs = self
-                .encoding_query_idx
-                .match_committed_dir_idxs(encoding_tree.transcript_indices())
-                .map_err(|err| {
-                    TranscriptProofBuilderError::new(BuilderErrorKind::MissingCommitment, err)
-                })?
-                .collect::<Vec<_>>();
+            let Some(sent_idxs) = self.encoding_query_idx.sent.as_range_set().cover_by(
+                encoding_tree
+                    .transcript_indices()
+                    .filter(|(dir, _)| *dir == Direction::Sent),
+                |(_, idx)| &idx.0,
+            ) else {
+                return Err(TranscriptProofBuilderError::cover(
+                    Direction::Sent,
+                    TranscriptCommitmentKind::Encoding,
+                ));
+            };
+
+            let Some(recv_idxs) = self.encoding_query_idx.recv.as_range_set().cover_by(
+                encoding_tree
+                    .transcript_indices()
+                    .filter(|(dir, _)| *dir == Direction::Received),
+                |(_, idx)| &idx.0,
+            ) else {
+                return Err(TranscriptProofBuilderError::cover(
+                    Direction::Received,
+                    TranscriptCommitmentKind::Encoding,
+                ));
+            };
 
             let proof = encoding_tree
-                .proof(self.transcript, matched_dir_idxs.iter())
+                .proof(self.transcript, sent_idxs.into_iter().chain(recv_idxs))
                 .expect("subsequences were checked to be in tree");
 
             Some(proof)
@@ -588,36 +338,16 @@ impl<'a> TranscriptProofBuilder<'a> {
             None
         };
 
-        let mut hash_proofs = Vec::new();
-        if !self.hash_proof_idxs.is_empty() {
-            self.hash_proof_idxs.prune_subset();
-
-            for dir_idx in self.hash_proof_idxs.iter() {
-                let PlaintextHashSecret {
-                    commitment,
-                    blinder,
-                    ..
-                } = self
-                    .plaintext_hashes
-                    .get_by_transcript_idx(dir_idx)
-                    .expect("idx was checked to be committed");
-
-                let (_, data) = self
-                    .transcript
-                    .get(dir_idx.0, &dir_idx.1)
-                    .expect("subsequence was checked to be in transcript")
-                    .into_parts();
-
-                hash_proofs.push(PlaintextHashProof::new(
-                    Blinded::new_with_blinder(data, blinder.clone()),
-                    *commitment,
-                ));
-            }
+        if !self.hash_query_idx.is_empty() {
+            return Err(TranscriptProofBuilderError::new(
+                BuilderErrorKind::NotSupported,
+                "opening transcript hash commitments is not yet supported",
+            ));
         }
 
         Ok(TranscriptProof {
             encoding_proof,
-            hash_proofs,
+            hash_proofs: Vec::new(),
         })
     }
 }
@@ -639,12 +369,24 @@ impl TranscriptProofBuilderError {
             source: Some(source.into()),
         }
     }
+
+    fn cover(direction: Direction, kind: TranscriptCommitmentKind) -> Self {
+        Self {
+            kind: BuilderErrorKind::Cover { direction, kind },
+            source: None,
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum BuilderErrorKind {
     Index,
     MissingCommitment,
+    Cover {
+        direction: Direction,
+        kind: TranscriptCommitmentKind,
+    },
+    NotSupported,
 }
 
 impl fmt::Display for TranscriptProofBuilderError {
@@ -654,6 +396,10 @@ impl fmt::Display for TranscriptProofBuilderError {
         match self.kind {
             BuilderErrorKind::Index => f.write_str("index error")?,
             BuilderErrorKind::MissingCommitment => f.write_str("commitment error")?,
+            BuilderErrorKind::Cover { direction, kind } => f.write_str(&format!(
+                "unable to cover ranges in {direction} transcript using available {kind} commitments"
+            ))?,
+            BuilderErrorKind::NotSupported => f.write_str("not supported")?,
         }
 
         if let Some(source) = &self.source {
@@ -667,9 +413,9 @@ impl fmt::Display for TranscriptProofBuilderError {
 #[allow(clippy::single_range_in_vec_init)]
 #[cfg(test)]
 mod tests {
+    use rangeset::RangeSet;
     use rstest::rstest;
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
-    use utils::range::RangeSet;
 
     use crate::{
         attestation::FieldId,
@@ -731,7 +477,7 @@ mod tests {
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
 
-        let err = builder.reveal(&(10..15), Direction::Sent).err().unwrap();
+        let err = builder.reveal(&(10..15), Direction::Sent).unwrap_err();
         assert!(matches!(err.kind, BuilderErrorKind::Index));
 
         let err = builder
@@ -750,7 +496,7 @@ mod tests {
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
 
-        let err = builder.reveal_recv(&(9..11)).err().unwrap();
+        let err = builder.reveal_recv(&(9..11)).unwrap_err();
         assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
     }
 
@@ -769,42 +515,17 @@ mod tests {
         let index = Index::default();
         let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
 
+        // We only have a commitment for the entire received transcript. We won't be able to cover this range alone.
         builder.reveal_recv(&(0..11)).unwrap();
-        let err = builder.build().err().unwrap();
-        assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
-    }
 
-    #[rstest]
-    fn test_reveal_missing_hash_commitment_range() {
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-
-        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
-        transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash {
-            alg: HashAlgId::SHA256,
-        });
-        transcript_commitment_builder
-            .commit_recv(&(0..transcript.len().1))
-            .unwrap();
-
-        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        let plaintext_hash_secrets: Index<PlaintextHashSecret> = transcripts_commitment_config
-            .iter_hash()
-            .map(|(&(direction, ref idx), _)| PlaintextHashSecret {
-                direction,
-                idx: idx.clone(),
-                commitment: FieldId::default(),
-                blinder: rand::random(),
-            })
-            .collect::<Vec<_>>()
-            .into();
-        let mut builder = TranscriptProofBuilder::new(&transcript, None, &plaintext_hash_secrets);
-        builder.default_kind(TranscriptCommitmentKind::Hash {
-            alg: HashAlgId::SHA256,
-        });
-
-        let err = builder.reveal_recv(&(0..11)).err().unwrap();
-        assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
+        let err = builder.build().unwrap_err();
+        assert!(matches!(
+            err.kind,
+            BuilderErrorKind::Cover {
+                direction: Direction::Received,
+                kind: TranscriptCommitmentKind::Encoding
+            }
+        ));
     }
 
     #[rstest]
@@ -873,7 +594,7 @@ mod tests {
         if success {
             assert!(builder.reveal_recv(&reveal_recv_rangeset).is_ok());
         } else {
-            let err = builder.reveal_recv(&reveal_recv_rangeset).err().unwrap();
+            let err = builder.reveal_recv(&reveal_recv_rangeset).unwrap_err();
             assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
         }
 
@@ -905,91 +626,8 @@ mod tests {
         if success {
             assert!(builder.reveal_recv(&reveal_recv_rangeset).is_ok());
         } else {
-            let err = builder.reveal_recv(&reveal_recv_rangeset).err().unwrap();
+            let err = builder.reveal_recv(&reveal_recv_rangeset).unwrap_err();
             assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
         }
     }
-
-    // #[rstest]
-    // #[case::no_subset_range(
-    //     vec![RangeSet::from([0..5]), RangeSet::from([4..40, 99..145]),
-    // RangeSet::from([40..59]), RangeSet::from([59..109])],     None
-    // )]
-    // #[case::contains_single_subset_range(
-    //     vec![RangeSet::from([0..40, 99..145]), RangeSet::from([11..20]),
-    // RangeSet::from([40..99])],     Some(vec![RangeSet::from([11..20])])
-    // )]
-    // #[case::contains_multiple_subset_ranges(
-    //     vec![RangeSet::from([0..51, 69..145]), RangeSet::from([0..30,
-    // 99..145]), RangeSet::from([51..69])],     Some(vec!
-    // [RangeSet::from([0..30, 99..145])]) )]
-    // // Also tests [Ord] implementation for [Idx].
-    // #[case::contains_multiple_subset_rangesets(
-    //     vec![RangeSet::from([0..7, 13..31, 49..145]), RangeSet::from([7..13,
-    // 31..49]), RangeSet::from([0..7, 14..30]), RangeSet::from([0..7, 13..29]),
-    // RangeSet::from([0..7, 13..31, 50..70]), RangeSet::from([0..7, 13..31])],
-    //     Some(vec![RangeSet::from([0..7, 14..30]), RangeSet::from([0..7,
-    // 13..29]), RangeSet::from([0..7, 13..31, 50..70]), RangeSet::from([0..7,
-    // 13..31])]) )]
-    // fn test_prune_proof_idxs_direction(
-    //     #[case] commit_recv_rangesets: Vec<RangeSet<usize>>,
-    //     #[case] expected_pruned_subsets: Option<Vec<RangeSet<usize>>>,
-    // ) {
-    //     let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-
-    //     let mut transcript_commitment_builder =
-    // TranscriptCommitConfigBuilder::new(&transcript);     // Commit the
-    // rangesets.     for rangeset in &commit_recv_rangesets {
-    //         transcript_commitment_builder.commit_recv(rangeset).unwrap();
-    //     }
-    //     let transcripts_commitment_config =
-    // transcript_commitment_builder.build().unwrap();
-
-    //     let encoding_tree = EncodingTree::new(
-    //         &Blake3::default(),
-    //         transcripts_commitment_config.iter_encoding(),
-    //         &encoding_provider(GET_WITH_HEADER, OK_JSON),
-    //         &transcript.length(),
-    //     )
-    //     .unwrap();
-
-    //     let index = Index::default();
-    //     let mut builder = TranscriptProofBuilder::new(&transcript,
-    // Some(&encoding_tree), &index);
-
-    //     // Reveal all committed rangesets via a superset rangeset.
-    //     builder.reveal_recv(&RangeSet::from([0..145])).unwrap();
-
-    //     let commit_recv_rangesets: HashSet<_> =
-    // commit_recv_rangesets.into_iter().collect();
-    //     let initial_proof_idxs = builder
-    //         .encoding_proof_idxs
-    //         .iter()
-    //         .filter(|(dir, _)| *dir == Direction::Received)
-    //         .map(|(_, idx)| idx.clone().0)
-    //         .collect::<HashSet<_>>();
-
-    //     // Since all committed rangesets are revealed, before pruning,
-    //     // proof_idxs should contain all committed rangesets.
-    //     assert_eq!(commit_recv_rangesets, initial_proof_idxs);
-
-    //     // Prune any subset.
-    //     builder.encoding_proof_idxs.prune_subset();
-
-    //     let pruned_proof_idxs = builder
-    //         .encoding_proof_idxs
-    //         .iter()
-    //         .filter(|(dir, _)| *dir == Direction::Received)
-    //         .map(|(_, idx)| idx.clone().0)
-    //         .collect::<HashSet<_>>();
-
-    //     if let Some(subsets) = expected_pruned_subsets {
-    //         let pruned_subsets: HashSet<_> = commit_recv_rangesets
-    //             .difference(&pruned_proof_idxs)
-    //             .collect();
-    //         assert_eq!(pruned_subsets, subsets.iter().collect());
-    //     } else {
-    //         assert_eq!(commit_recv_rangesets, pruned_proof_idxs);
-    //     };
-    // }
 }

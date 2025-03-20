@@ -20,7 +20,7 @@ use mpz_vm_core::{
     Call, Callable, Execute, Vm, VmError,
 };
 use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
-use utils::range::{Difference, RangeSet, UnionMut};
+use rangeset::{Difference, RangeSet, UnionMut};
 
 type Error = DeapError;
 

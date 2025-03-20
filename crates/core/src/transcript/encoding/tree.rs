@@ -203,18 +203,16 @@ impl EncodingTree {
         self.idxs.contains_right(idx)
     }
 
-    /// Returns the committed transcript indices.
-    pub(crate) fn transcript_indices(&self) -> impl Iterator<Item = &(Direction, Idx)> {
-        self.idxs.right_values()
-    }
-
-    /// Returns the union of all committed transcript indices in the given
-    /// direction.
-    pub(crate) fn aggregated_idx(&self, direction: &Direction) -> &Idx {
+    pub(crate) fn idx(&self, direction: Direction) -> &Idx {
         match direction {
             Direction::Sent => &self.sent_idx,
             Direction::Received => &self.received_idx,
         }
+    }
+
+    /// Returns the committed transcript indices.
+    pub(crate) fn transcript_indices(&self) -> impl Iterator<Item = &(Direction, Idx)> {
+        self.idxs.right_values()
     }
 }
 

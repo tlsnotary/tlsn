@@ -16,6 +16,7 @@ fixtures = ["dep:hex", "dep:tlsn-data-fixtures"]
 tlsn-data-fixtures = { workspace = true, optional = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
+rangeset = { workspace = true, features = ["serde"] }
 
 bcs = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }

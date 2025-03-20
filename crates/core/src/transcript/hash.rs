@@ -39,6 +39,7 @@ pub(crate) struct PlaintextHashProof {
 }
 
 impl PlaintextHashProof {
+    #[allow(unused)]
     pub(crate) fn new(data: Blinded<Vec<u8>>, commitment: FieldId) -> Self {
         Self { data, commitment }
     }

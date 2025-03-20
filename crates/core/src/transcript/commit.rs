@@ -3,7 +3,7 @@
 use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
-use utils::range::ToRangeSet;
+use rangeset::ToRangeSet;
 
 use crate::{
     hash::HashAlgId,
@@ -20,6 +20,15 @@ pub enum TranscriptCommitmentKind {
         /// The hash algorithm used.
         alg: HashAlgId,
     },
+}
+
+impl fmt::Display for TranscriptCommitmentKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Encoding => f.write_str("encoding"),
+            Self::Hash { alg } => write!(f, "hash ({alg})"),
+        }
+    }
 }
 
 /// Configuration for transcript commitments.

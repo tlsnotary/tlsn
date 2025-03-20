@@ -3,7 +3,7 @@
 use mpz_memory_core::{binary::U8, Vector};
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::transcript::{Direction, Idx, Transcript};
-use utils::range::Intersection;
+use rangeset::Intersection;
 
 /// A transcript of sent and received TLS records.
 #[derive(Debug, Default, Clone)]

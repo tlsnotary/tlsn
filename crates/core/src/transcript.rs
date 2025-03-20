@@ -39,10 +39,8 @@ mod proof;
 
 use std::{fmt, ops::Range};
 
+use rangeset::{Difference, IndexRanges, RangeSet, Subset, ToRangeSet, Union, UnionMut};
 use serde::{Deserialize, Serialize};
-use utils::range::{
-    Cover, Difference, IndexRanges, RangeSet, RangeSetCoverError, Subset, ToRangeSet, Union,
-};
 
 use crate::connection::TranscriptLength;
 
@@ -501,28 +499,43 @@ impl Idx {
         self.0.len_ranges()
     }
 
+    pub(crate) fn as_range_set(&self) -> &RangeSet<usize> {
+        &self.0
+    }
+
     /// Returns the union of this index with another.
-    pub fn union(&self, other: &Idx) -> Idx {
+    pub(crate) fn union(&self, other: &Idx) -> Idx {
         Idx(self.0.union(&other.0))
     }
 
-    /// Checks if this index is a subset of another.
-    pub fn is_subset(&self, other: &Idx) -> bool {
-        self.0.is_subset(&other.0)
+    /// Unions this index with another.
+    pub(crate) fn union_mut(&mut self, other: &Idx) {
+        self.0.union_mut(&other.0);
     }
 
-    /// Returns subsets from others that can exactly cover self.
-    pub fn cover<'a>(
-        &self,
-        others: impl IntoIterator<Item = &'a Idx>,
-    ) -> Result<impl Iterator<Item = Idx>, RangeSetCoverError> {
-        let cover_subsets = self
-            .0
-            .cover(others.into_iter().map(|idx| &idx.0))?
-            .map(Idx::new)
-            .collect::<Vec<_>>();
+    /// Returns the difference between `self` and `other`.
+    pub(crate) fn difference(&self, other: &Idx) -> Idx {
+        Idx(self.0.difference(&other.0))
+    }
 
-        Ok(cover_subsets.into_iter())
+    /// Returns `true` if `self` is a subset of `other`.
+    pub(crate) fn is_subset(&self, other: &Idx) -> bool {
+        self.0.is_subset(&other.0)
+    }
+}
+
+impl std::fmt::Display for Idx {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Idx([")?;
+        let count = self.0.len_ranges();
+        for (i, range) in self.0.iter_ranges().enumerate() {
+            write!(f, "{}..{}", range.start, range.end)?;
+            if i < count - 1 {
+                write!(f, ", ")?;
+            }
+        }
+        f.write_str("])")?;
+        Ok(())
     }
 }
 

@@ -19,6 +19,10 @@ pub(crate) struct Index<T> {
     field_ids: HashMap<FieldId, usize>,
     // Lookup by transcript direction and index.
     transcript_idxs: HashMap<(Direction, Idx), usize>,
+    /// Union of all sent indices.
+    sent: Idx,
+    /// Union of all received indices.
+    recv: Idx,
 }
 
 impl<T> Default for Index<T> {
@@ -27,6 +31,8 @@ impl<T> Default for Index<T> {
             items: Default::default(),
             field_ids: Default::default(),
             transcript_idxs: Default::default(),
+            sent: Default::default(),
+            recv: Default::default(),
         }
     }
 }
@@ -65,15 +71,24 @@ impl<T> Index<T> {
     {
         let mut field_ids = HashMap::new();
         let mut transcript_idxs = HashMap::new();
+        let mut sent = Idx::default();
+        let mut recv = Idx::default();
         for (i, item) in items.iter().enumerate() {
             let (id, dir, idx) = f(item);
             field_ids.insert(*id, i);
             transcript_idxs.insert((dir, idx.clone()), i);
+            match dir {
+                Direction::Sent => sent.union_mut(&idx),
+                Direction::Received => recv.union_mut(&idx),
+            }
         }
+
         Self {
             items,
             field_ids,
             transcript_idxs,
+            sent,
+            recv,
         }
     }
 
@@ -85,8 +100,21 @@ impl<T> Index<T> {
         self.field_ids.get(id).map(|i| &self.items[*i])
     }
 
+    #[allow(unused)]
     pub(crate) fn get_by_transcript_idx(&self, dir_idx: &(Direction, Idx)) -> Option<&T> {
         self.transcript_idxs.get(dir_idx).map(|i| &self.items[*i])
+    }
+
+    pub(crate) fn idx(&self, direction: Direction) -> &Idx {
+        match direction {
+            Direction::Sent => &self.sent,
+            Direction::Received => &self.recv,
+        }
+    }
+
+    #[allow(unused)]
+    pub(crate) fn iter_idxs(&self) -> impl Iterator<Item = &(Direction, Idx)> {
+        self.transcript_idxs.keys()
     }
 }
 
@@ -108,7 +136,7 @@ impl From<Vec<PlaintextHashSecret>> for Index<PlaintextHashSecret> {
 
 #[cfg(test)]
 mod test {
-    use utils::range::RangeSet;
+    use rangeset::RangeSet;
 
     use super::*;
 
