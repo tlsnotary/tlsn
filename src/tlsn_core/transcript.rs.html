@@ -968,7 +968,41 @@
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript types.
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript types.
 //!
 //! All application data communicated over a TLS connection is referred to as a
 //! [`Transcript`]. A transcript is essentially just two vectors of bytes, each
@@ -1009,8 +1043,8 @@
 
 <span class="kw">use </span>std::{fmt, ops::Range};
 
+<span class="kw">use </span>rangeset::{Difference, IndexRanges, RangeSet, Subset, ToRangeSet, Union, UnionMut};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>utils::range::{Difference, IndexRanges, RangeSet, ToRangeSet, Union};
 
 <span class="kw">use </span><span class="kw">crate</span>::connection::TranscriptLength;
 
@@ -1469,9 +1503,43 @@
         <span class="self">self</span>.<span class="number">0</span>.len_ranges()
     }
 
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>as_range_set(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RangeSet&lt;usize&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+
     <span class="doccomment">/// Returns the union of this index with another.
-    </span><span class="kw">pub fn </span>union(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Idx) -&gt; Idx {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>union(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Idx) -&gt; Idx {
         Idx(<span class="self">self</span>.<span class="number">0</span>.union(<span class="kw-2">&amp;</span>other.<span class="number">0</span>))
+    }
+
+    <span class="doccomment">/// Unions this index with another.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>union_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Idx) {
+        <span class="self">self</span>.<span class="number">0</span>.union_mut(<span class="kw-2">&amp;</span>other.<span class="number">0</span>);
+    }
+
+    <span class="doccomment">/// Returns the difference between `self` and `other`.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>difference(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Idx) -&gt; Idx {
+        Idx(<span class="self">self</span>.<span class="number">0</span>.difference(<span class="kw-2">&amp;</span>other.<span class="number">0</span>))
+    }
+
+    <span class="doccomment">/// Returns `true` if `self` is a subset of `other`.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_subset(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Idx) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.is_subset(<span class="kw-2">&amp;</span>other.<span class="number">0</span>)
+    }
+}
+
+<span class="kw">impl </span>std::fmt::Display <span class="kw">for </span>Idx {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.write_str(<span class="string">"Idx(["</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>count = <span class="self">self</span>.<span class="number">0</span>.len_ranges();
+        <span class="kw">for </span>(i, range) <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter_ranges().enumerate() {
+            <span class="macro">write!</span>(f, <span class="string">"{}..{}"</span>, range.start, range.end)<span class="question-mark">?</span>;
+            <span class="kw">if </span>i &lt; count - <span class="number">1 </span>{
+                <span class="macro">write!</span>(f, <span class="string">", "</span>)<span class="question-mark">?</span>;
+            }
+        }
+        f.write_str(<span class="string">"])"</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     }
 }
 

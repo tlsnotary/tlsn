@@ -175,7 +175,46 @@
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -183,18 +222,23 @@
     attestation::{Field, FieldId},
     transcript::{
         hash::{PlaintextHash, PlaintextHashSecret},
-        Idx,
+        Direction, Idx,
     },
 };
 
-<span class="doccomment">/// Index for items which can be looked up by transcript index or field id.
+<span class="doccomment">/// Index for items which can be looked up by transcript's (direction and index)
+/// or field id.
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Index&lt;T&gt; {
     items: Vec&lt;T&gt;,
     <span class="comment">// Lookup by field id.
     </span>field_ids: HashMap&lt;FieldId, usize&gt;,
-    <span class="comment">// Lookup by transcript index.
-    </span>transcript_idxs: HashMap&lt;Idx, usize&gt;,
+    <span class="comment">// Lookup by transcript direction and index.
+    </span>transcript_idxs: HashMap&lt;(Direction, Idx), usize&gt;,
+    <span class="doccomment">/// Union of all sent indices.
+    </span>sent: Idx,
+    <span class="doccomment">/// Union of all received indices.
+    </span>recv: Idx,
 }
 
 <span class="kw">impl</span>&lt;T&gt; Default <span class="kw">for </span>Index&lt;T&gt; {
@@ -203,6 +247,8 @@
             items: Default::default(),
             field_ids: Default::default(),
             transcript_idxs: Default::default(),
+            sent: Default::default(),
+            recv: Default::default(),
         }
     }
 }
@@ -237,19 +283,28 @@
 <span class="kw">impl</span>&lt;T&gt; Index&lt;T&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new&lt;F&gt;(items: Vec&lt;T&gt;, f: F) -&gt; <span class="self">Self
     </span><span class="kw">where
-        </span>F: Fn(<span class="kw-2">&amp;</span>T) -&gt; (<span class="kw-2">&amp;</span>FieldId, <span class="kw-2">&amp;</span>Idx),
+        </span>F: Fn(<span class="kw-2">&amp;</span>T) -&gt; (<span class="kw-2">&amp;</span>FieldId, Direction, <span class="kw-2">&amp;</span>Idx),
     {
         <span class="kw">let </span><span class="kw-2">mut </span>field_ids = HashMap::new();
         <span class="kw">let </span><span class="kw-2">mut </span>transcript_idxs = HashMap::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>sent = Idx::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>recv = Idx::default();
         <span class="kw">for </span>(i, item) <span class="kw">in </span>items.iter().enumerate() {
-            <span class="kw">let </span>(id, idx) = f(item);
+            <span class="kw">let </span>(id, dir, idx) = f(item);
             field_ids.insert(<span class="kw-2">*</span>id, i);
-            transcript_idxs.insert(idx.clone(), i);
+            transcript_idxs.insert((dir, idx.clone()), i);
+            <span class="kw">match </span>dir {
+                Direction::Sent =&gt; sent.union_mut(idx),
+                Direction::Received =&gt; recv.union_mut(idx),
+            }
         }
+
         <span class="self">Self </span>{
             items,
             field_ids,
             transcript_idxs,
+            sent,
+            recv,
         }
     }
 
@@ -261,15 +316,28 @@
         <span class="self">self</span>.field_ids.get(id).map(|i| <span class="kw-2">&amp;</span><span class="self">self</span>.items[<span class="kw-2">*</span>i])
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_by_transcript_idx(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>Idx) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt; {
-        <span class="self">self</span>.transcript_idxs.get(idx).map(|i| <span class="kw-2">&amp;</span><span class="self">self</span>.items[<span class="kw-2">*</span>i])
+    <span class="attr">#[allow(unused)]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_by_transcript_idx(<span class="kw-2">&amp;</span><span class="self">self</span>, dir_idx: <span class="kw-2">&amp;</span>(Direction, Idx)) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt; {
+        <span class="self">self</span>.transcript_idxs.get(dir_idx).map(|i| <span class="kw-2">&amp;</span><span class="self">self</span>.items[<span class="kw-2">*</span>i])
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>idx(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction) -&gt; <span class="kw-2">&amp;</span>Idx {
+        <span class="kw">match </span>direction {
+            Direction::Sent =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sent,
+            Direction::Received =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.recv,
+        }
+    }
+
+    <span class="attr">#[allow(unused)]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter_idxs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(Direction, Idx)&gt; {
+        <span class="self">self</span>.transcript_idxs.keys()
     }
 }
 
 <span class="kw">impl </span>From&lt;Vec&lt;Field&lt;PlaintextHash&gt;&gt;&gt; <span class="kw">for </span>Index&lt;Field&lt;PlaintextHash&gt;&gt; {
     <span class="kw">fn </span>from(items: Vec&lt;Field&lt;PlaintextHash&gt;&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::new(items, |field: <span class="kw-2">&amp;</span>Field&lt;PlaintextHash&gt;| {
-            (<span class="kw-2">&amp;</span>field.id, <span class="kw-2">&amp;</span>field.data.idx)
+            (<span class="kw-2">&amp;</span>field.id, field.data.direction, <span class="kw-2">&amp;</span>field.data.idx)
         })
     }
 }
@@ -277,26 +345,29 @@
 <span class="kw">impl </span>From&lt;Vec&lt;PlaintextHashSecret&gt;&gt; <span class="kw">for </span>Index&lt;PlaintextHashSecret&gt; {
     <span class="kw">fn </span>from(items: Vec&lt;PlaintextHashSecret&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::new(items, |item: <span class="kw-2">&amp;</span>PlaintextHashSecret| {
-            (<span class="kw-2">&amp;</span>item.commitment, <span class="kw-2">&amp;</span>item.idx)
+            (<span class="kw-2">&amp;</span>item.commitment, item.direction, <span class="kw-2">&amp;</span>item.idx)
         })
     }
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
-    <span class="kw">use </span>utils::range::RangeSet;
+    <span class="kw">use </span>rangeset::RangeSet;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[derive(PartialEq, Debug, Clone)]
     </span><span class="kw">struct </span>Stub {
         field_index: FieldId,
+        direction: Direction,
         index: Idx,
     }
 
     <span class="kw">impl </span>From&lt;Vec&lt;Stub&gt;&gt; <span class="kw">for </span>Index&lt;Stub&gt; {
         <span class="kw">fn </span>from(items: Vec&lt;Stub&gt;) -&gt; <span class="self">Self </span>{
-            <span class="self">Self</span>::new(items, |item: <span class="kw-2">&amp;</span>Stub| (<span class="kw-2">&amp;</span>item.field_index, <span class="kw-2">&amp;</span>item.index))
+            <span class="self">Self</span>::new(items, |item: <span class="kw-2">&amp;</span>Stub| {
+                (<span class="kw-2">&amp;</span>item.field_index, item.direction, <span class="kw-2">&amp;</span>item.index)
+            })
         }
     }
 
@@ -304,10 +375,12 @@
         <span class="macro">vec!</span>[
             Stub {
                 field_index: FieldId(<span class="number">1</span>),
+                direction: Direction::Sent,
                 index: Idx::new(RangeSet::from([<span class="number">0</span>..<span class="number">1</span>, <span class="number">18</span>..<span class="number">21</span>])),
             },
             Stub {
                 field_index: FieldId(<span class="number">2</span>),
+                direction: Direction::Received,
                 index: Idx::new(RangeSet::from([<span class="number">1</span>..<span class="number">5</span>, <span class="number">8</span>..<span class="number">11</span>])),
             },
         ]
@@ -321,10 +394,12 @@
         <span class="kw">let </span>stubs = <span class="macro">vec!</span>[
             Stub {
                 field_index: FieldId(<span class="number">1</span>),
+                direction: Direction::Sent,
                 index: stub_a_index.clone(),
             },
             Stub {
                 field_index: stub_b_field_index,
+                direction: Direction::Received,
                 index: Idx::new(RangeSet::from([<span class="number">1</span>..<span class="number">5</span>, <span class="number">8</span>..<span class="number">11</span>])),
             },
         ];
@@ -335,7 +410,7 @@
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>stubs[<span class="number">1</span>])
         );
         <span class="macro">assert_eq!</span>(
-            stubs_index.get_by_transcript_idx(<span class="kw-2">&amp;</span>stub_a_index),
+            stubs_index.get_by_transcript_idx(<span class="kw-2">&amp;</span>(Direction::Sent, stub_a_index)),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>stubs[<span class="number">0</span>])
         );
     }
@@ -349,7 +424,10 @@
         <span class="kw">let </span>wrong_field_index = FieldId(<span class="number">200</span>);
 
         <span class="macro">assert_eq!</span>(stubs_index.get_by_field_id(<span class="kw-2">&amp;</span>wrong_field_index), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(stubs_index.get_by_transcript_idx(<span class="kw-2">&amp;</span>wrong_index), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(
+            stubs_index.get_by_transcript_idx(<span class="kw-2">&amp;</span>(Direction::Sent, wrong_index)),
+            <span class="prelude-val">None
+        </span>);
     }
 }
 </code></pre></div></section></main></body></html>
