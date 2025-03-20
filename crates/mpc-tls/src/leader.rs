@@ -11,7 +11,7 @@ use crate::{
     Config, LeaderOutput, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
+use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use ludi::Context as LudiContext;
@@ -87,12 +87,7 @@ impl MpcTlsLeader {
             ))),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(
-            PrfConfig::builder()
-                .role(hmac_sha256::Role::Leader)
-                .build()
-                .expect("prf config is valid"),
-        );
+        let prf = MpcPrf::default();
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(

@@ -3,7 +3,7 @@ use crate::{
     record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, FollowerData, MpcTlsError, Role, SessionKeys, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
+use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -63,12 +63,7 @@ impl MpcTlsFollower {
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(
-            PrfConfig::builder()
-                .role(hmac_sha256::Role::Follower)
-                .build()
-                .expect("PRF config is valid"),
-        );
+        let prf = MpcPrf::default();
 
         let encrypter = MpcAesGcm::new(
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
