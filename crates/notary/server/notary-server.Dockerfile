@@ -17,6 +17,7 @@
 #
 # (5) rust:latest is still using bullseye somehow which only has OpenSSL 1.1.1
 FROM rust:bookworm AS builder
+RUN apt-get update && apt-get install -y clang libclang-dev
 WORKDIR /usr/src/tlsn
 COPY . .
 RUN cargo install --path crates/notary/server
