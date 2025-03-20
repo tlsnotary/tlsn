@@ -77,12 +77,12 @@ impl MpcPrf {
     ///
     /// * `random` - The client random.
     #[instrument(level = "debug", skip_all, err)]
-    pub fn set_client_random(&mut self, random: Option<[u8; 32]>) -> Result<(), PrfError> {
+    pub fn set_client_random(&mut self, random: [u8; 32]) -> Result<(), PrfError> {
         let State::SessionKeys { client_random } = &mut self.state else {
             return Err(PrfError::state("PRF not set up"));
         };
 
-        *client_random = random;
+        *client_random = Some(random);
         Ok(())
     }
 

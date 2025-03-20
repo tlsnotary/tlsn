@@ -3,8 +3,8 @@ mod actor;
 use crate::{
     error::MpcTlsError,
     msg::{
-        ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetServerKey,
-        SetServerRandom,
+        ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetClientRandom,
+        SetServerKey, SetServerRandom,
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
@@ -123,9 +123,9 @@ impl MpcTlsLeader {
     }
 
     /// Allocates resources for the connection.
-    pub fn alloc(&mut self) -> Result<SessionKeys, MpcTlsError> {
+    pub async fn alloc(&mut self) -> Result<SessionKeys, MpcTlsError> {
         let State::Init {
-            ctx,
+            mut ctx,
             vm,
             mut ke,
             mut prf,
@@ -152,7 +152,14 @@ impl MpcTlsLeader {
             keys.server_iv,
         )?;
 
-        prf.set_client_random(Some(client_random.0))?;
+        ctx.io_mut()
+            .send(Message::SetClientRandom(SetClientRandom {
+                random: client_random.0,
+            }))
+            .await
+            .map_err(MpcTlsError::from)?;
+
+        prf.set_client_random(client_random.0)?;
 
         let cf_vd = vm_lock.decode(cf_vd).map_err(MpcTlsError::alloc)?;
         let sf_vd = vm_lock.decode(sf_vd).map_err(MpcTlsError::alloc)?;

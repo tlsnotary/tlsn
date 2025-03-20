@@ -118,9 +118,6 @@ impl MpcTlsFollower {
                 keys.server_iv,
             )?;
 
-            // TODO: Follower needs to set client random now, since it is now public.
-            prf.set_client_random(None)?;
-
             let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
             let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
 
@@ -225,6 +222,7 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in ready state to run"));
         };
 
+        let mut client_random = None;
         let mut server_random = None;
         let mut server_key = None;
         let mut cf_vd = None;
@@ -232,6 +230,14 @@ impl MpcTlsFollower {
         loop {
             let msg: Message = self.ctx.io_mut().expect_next().await?;
             match msg {
+                Message::SetClientRandom(random) => {
+                    if client_random.is_some() {
+                        return Err(MpcTlsError::hs("client random already set"));
+                    }
+
+                    prf.set_client_random(random.random)?;
+                    client_random = Some(random);
+                }
                 Message::SetServerRandom(random) => {
                     if server_random.is_some() {
                         return Err(MpcTlsError::hs("server random already set"));
