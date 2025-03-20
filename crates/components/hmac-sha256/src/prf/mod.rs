@@ -1,6 +1,5 @@
 use crate::{PrfError, PrfOutput, SessionKeys};
 use mpz_circuits::{Circuit, CircuitBuilder};
-use mpz_common::Context;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
