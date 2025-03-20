@@ -53,7 +53,7 @@ pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
     mpz_core::Block,
 >;
 pub(crate) type Mpc =
-    mpz_garble::protocol::semihonest::Generator<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
+    mpz_garble::protocol::semihonest::Garbler<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
 pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
 
 /// A prover instance.
@@ -345,7 +345,7 @@ impl Prover<state::Closed> {
 
 fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsLeader) {
     let mut rng = rand::rng();
-    let delta = Delta::new(Block::random(&mut rng.compat_by_ref()));
+    let delta = Delta::new(Block::random(&mut rng));
 
     let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
     let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
@@ -361,7 +361,7 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect("ferret config is valid"),
-        Block::random(&mut rng.compat_by_ref()),
+        Block::random(&mut rng),
         rcot_recv,
     );
 
