@@ -1,5 +1,6 @@
 use crate::{PrfError, PrfOutput, SessionKeys};
 use mpz_circuits::{Circuit, CircuitBuilder};
+use mpz_common::Context;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
@@ -159,6 +160,51 @@ impl MpcPrf {
         self.state = State::Complete;
         Ok(())
     }
+
+    /// Drives the computation of the session keys.
+    ///
+    /// Returns if the computation finished.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    pub fn drive_key_expansion(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
+        let Some(ref mut circuits) = self.circuits else {
+            return Err(PrfError::state("Circuits should have been set for PRF"));
+        };
+
+        circuits.drive_key_expansion(vm)
+    }
+
+    /// Drives the computation of the client_finished verify_data.
+    ///
+    /// Returns if the computation finished.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    pub fn drive_client_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
+        let Some(ref mut circuits) = self.circuits else {
+            return Err(PrfError::state("Circuits should have been set for PRF"));
+        };
+
+        circuits.drive_client_finished(vm)
+    }
+
+    /// Drives the computation of the server_finished verify_data.
+    ///
+    /// Returns if the computation finished.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    pub fn drive_server_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
+        let Some(ref mut circuits) = self.circuits else {
+            return Err(PrfError::state("Circuits should have been set for PRF"));
+        };
+
+        circuits.drive_server_finished(vm)
+    }
 }
 
 #[derive(Debug)]
@@ -225,6 +271,21 @@ impl Circuits {
         let sf_vd = <Array<U8, 12> as FromRaw<Binary>>::from_raw(sf_vd.to_raw());
 
         Ok(sf_vd)
+    }
+
+    fn drive_key_expansion(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
+        let ms_finished = self.master_secret.make_progress(vm)?;
+        let ke_finished = self.key_expansion.make_progress(vm)?;
+
+        Ok(ms_finished && ke_finished)
+    }
+
+    fn drive_client_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
+        self.client_finished.make_progress(vm)
+    }
+
+    fn drive_server_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
+        self.server_finished.make_progress(vm)
     }
 }
 
