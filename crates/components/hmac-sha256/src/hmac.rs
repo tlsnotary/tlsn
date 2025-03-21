@@ -40,7 +40,7 @@ mod tests {
         convert_to_bytes,
         hmac::HmacSha256,
         sha256::sha256,
-        tests::{compute_inner_local, compute_outer_partial, mock_vm},
+        test_utils::{compute_inner_local, compute_outer_partial, mock_vm},
     };
     use mpz_common::context::test_st_context;
     use mpz_vm_core::{
@@ -68,65 +68,63 @@ mod tests {
     #[tokio::test]
     async fn test_hmac_circuit() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut generator, mut evaluator) = mock_vm();
+        let (mut leader, mut follower) = mock_vm();
 
         let (inputs, references) = test_fixtures();
         for (input, &reference) in inputs.iter().zip(references.iter()) {
             let outer_partial = compute_outer_partial(input.0.clone());
             let inner_local = compute_inner_local(input.0.clone(), &input.1);
 
-            let outer_partial_ref_gen: Array<U32, 8> = generator.alloc().unwrap();
-            generator.mark_public(outer_partial_ref_gen).unwrap();
-            generator
-                .assign(outer_partial_ref_gen, outer_partial)
-                .unwrap();
-            generator.commit(outer_partial_ref_gen).unwrap();
+            let outer_partial_leader: Array<U32, 8> = leader.alloc().unwrap();
+            leader.mark_public(outer_partial_leader).unwrap();
+            leader.assign(outer_partial_leader, outer_partial).unwrap();
+            leader.commit(outer_partial_leader).unwrap();
 
-            let inner_local_ref_gen: Array<U8, 32> = generator.alloc().unwrap();
-            generator.mark_public(inner_local_ref_gen).unwrap();
-            generator
-                .assign(inner_local_ref_gen, convert_to_bytes(inner_local))
+            let inner_local_leader: Array<U8, 32> = leader.alloc().unwrap();
+            leader.mark_public(inner_local_leader).unwrap();
+            leader
+                .assign(inner_local_leader, convert_to_bytes(inner_local))
                 .unwrap();
-            generator.commit(inner_local_ref_gen).unwrap();
+            leader.commit(inner_local_leader).unwrap();
 
-            let hmac_gen = HmacSha256::new(outer_partial_ref_gen, inner_local_ref_gen)
-                .alloc(&mut generator)
+            let hmac_leader = HmacSha256::new(outer_partial_leader, inner_local_leader)
+                .alloc(&mut leader)
                 .unwrap();
-            let hmac_gen = generator.decode(hmac_gen).unwrap();
+            let hmac_leader = leader.decode(hmac_leader).unwrap();
 
-            let outer_partial_ref_ev: Array<U32, 8> = evaluator.alloc().unwrap();
-            evaluator.mark_public(outer_partial_ref_ev).unwrap();
-            evaluator
-                .assign(outer_partial_ref_ev, outer_partial)
+            let outer_partial_follower: Array<U32, 8> = follower.alloc().unwrap();
+            follower.mark_public(outer_partial_follower).unwrap();
+            follower
+                .assign(outer_partial_follower, outer_partial)
                 .unwrap();
-            evaluator.commit(outer_partial_ref_ev).unwrap();
+            follower.commit(outer_partial_follower).unwrap();
 
-            let inner_local_ref_ev: Array<U8, 32> = evaluator.alloc().unwrap();
-            evaluator.mark_public(inner_local_ref_ev).unwrap();
-            evaluator
-                .assign(inner_local_ref_ev, convert_to_bytes(inner_local))
+            let inner_local_follower: Array<U8, 32> = follower.alloc().unwrap();
+            follower.mark_public(inner_local_follower).unwrap();
+            follower
+                .assign(inner_local_follower, convert_to_bytes(inner_local))
                 .unwrap();
-            evaluator.commit(inner_local_ref_ev).unwrap();
+            follower.commit(inner_local_follower).unwrap();
 
-            let hmac_ev = HmacSha256::new(outer_partial_ref_ev, inner_local_ref_ev)
-                .alloc(&mut evaluator)
+            let hmac_follower = HmacSha256::new(outer_partial_follower, inner_local_follower)
+                .alloc(&mut follower)
                 .unwrap();
-            let hmac_ev = evaluator.decode(hmac_ev).unwrap();
+            let hmac_follower = follower.decode(hmac_follower).unwrap();
 
-            let (hmac_gen, hmac_ev) = tokio::try_join!(
+            let (hmac_leader, hmac_follower) = tokio::try_join!(
                 async {
-                    generator.execute_all(&mut ctx_a).await.unwrap();
-                    hmac_gen.await
+                    leader.execute_all(&mut ctx_a).await.unwrap();
+                    hmac_leader.await
                 },
                 async {
-                    evaluator.execute_all(&mut ctx_b).await.unwrap();
-                    hmac_ev.await
+                    follower.execute_all(&mut ctx_b).await.unwrap();
+                    hmac_follower.await
                 }
             )
             .unwrap();
 
-            assert_eq!(hmac_gen, hmac_ev);
-            assert_eq!(convert_to_bytes(hmac_gen), reference);
+            assert_eq!(hmac_leader, hmac_follower);
+            assert_eq!(convert_to_bytes(hmac_leader), reference);
         }
     }
 

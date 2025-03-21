@@ -167,6 +167,7 @@ impl MpcPrf {
     /// # Arguments
     ///
     /// * `vm` - Virtual machine.
+    #[instrument(level = "debug", skip_all, err)]
     pub fn drive_key_expansion(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         let Some(ref mut circuits) = self.circuits else {
             return Err(PrfError::state("Circuits should have been set for PRF"));
@@ -182,6 +183,7 @@ impl MpcPrf {
     /// # Arguments
     ///
     /// * `vm` - Virtual machine.
+    #[instrument(level = "debug", skip_all, err)]
     pub fn drive_client_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         let Some(ref mut circuits) = self.circuits else {
             return Err(PrfError::state("Circuits should have been set for PRF"));
@@ -197,6 +199,7 @@ impl MpcPrf {
     /// # Arguments
     ///
     /// * `vm` - Virtual machine.
+    #[instrument(level = "debug", skip_all, err)]
     pub fn drive_server_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         let Some(ref mut circuits) = self.circuits else {
             return Err(PrfError::state("Circuits should have been set for PRF"));

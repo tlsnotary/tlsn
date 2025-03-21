@@ -168,7 +168,7 @@ mod tests {
     use crate::{
         convert_to_bytes,
         sha256::{sha256, Sha256},
-        tests::{compress_256, mock_vm},
+        test_utils::{compress_256, mock_vm},
     };
     use mpz_common::context::test_st_context;
     use mpz_vm_core::{
@@ -182,57 +182,57 @@ mod tests {
     #[tokio::test]
     async fn test_sha256_circuit() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut generator, mut evaluator) = mock_vm();
+        let (mut leader, mut follower) = mock_vm();
 
         let (inputs, references) = test_fixtures();
         for (input, &reference) in inputs.iter().zip(references.iter()) {
-            let input_ref_gen: Vector<U8> = generator.alloc_vec(input.len()).unwrap();
-            generator.mark_public(input_ref_gen).unwrap();
-            generator.assign(input_ref_gen, input.clone()).unwrap();
-            generator.commit(input_ref_gen).unwrap();
+            let input_leader: Vector<U8> = leader.alloc_vec(input.len()).unwrap();
+            leader.mark_public(input_leader).unwrap();
+            leader.assign(input_leader, input.clone()).unwrap();
+            leader.commit(input_leader).unwrap();
 
-            let mut sha_gen = Sha256::new();
-            sha_gen
-                .update(input_ref_gen)
-                .add_padding(&mut generator)
+            let mut sha_leader = Sha256::new();
+            sha_leader
+                .update(input_leader)
+                .add_padding(&mut leader)
                 .unwrap();
-            let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
-            let sha_out_gen = generator.decode(sha_out_gen).unwrap();
+            let sha_out_leader = sha_leader.alloc(&mut leader).unwrap();
+            let sha_out_leader = leader.decode(sha_out_leader).unwrap();
 
-            let input_ref_ev: Vector<U8> = evaluator.alloc_vec(input.len()).unwrap();
-            evaluator.mark_public(input_ref_ev).unwrap();
-            evaluator.assign(input_ref_ev, input.clone()).unwrap();
-            evaluator.commit(input_ref_ev).unwrap();
+            let input_follower: Vector<U8> = follower.alloc_vec(input.len()).unwrap();
+            follower.mark_public(input_follower).unwrap();
+            follower.assign(input_follower, input.clone()).unwrap();
+            follower.commit(input_follower).unwrap();
 
-            let mut sha_ev = Sha256::new();
-            sha_ev
-                .update(input_ref_ev)
-                .add_padding(&mut evaluator)
+            let mut sha_follower = Sha256::new();
+            sha_follower
+                .update(input_follower)
+                .add_padding(&mut follower)
                 .unwrap();
-            let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
-            let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
+            let sha_out_follower = sha_follower.alloc(&mut follower).unwrap();
+            let sha_out_follower = follower.decode(sha_out_follower).unwrap();
 
-            let (sha_gen, sha_ev) = tokio::try_join!(
+            let (sha_out_leader, sha_out_follower) = tokio::try_join!(
                 async {
-                    generator.execute_all(&mut ctx_a).await.unwrap();
-                    sha_out_gen.await
+                    leader.execute_all(&mut ctx_a).await.unwrap();
+                    sha_out_leader.await
                 },
                 async {
-                    evaluator.execute_all(&mut ctx_b).await.unwrap();
-                    sha_out_ev.await
+                    follower.execute_all(&mut ctx_b).await.unwrap();
+                    sha_out_follower.await
                 }
             )
             .unwrap();
 
-            assert_eq!(sha_gen, sha_ev);
-            assert_eq!(convert_to_bytes(sha_gen), reference);
+            assert_eq!(sha_out_leader, sha_out_follower);
+            assert_eq!(convert_to_bytes(sha_out_leader), reference);
         }
     }
 
     #[tokio::test]
     async fn test_sha256_circuit_set_state() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut generator, mut evaluator) = mock_vm();
+        let (mut leader, mut follower) = mock_vm();
 
         let (inputs, references) = test_fixtures();
 
@@ -247,58 +247,58 @@ mod tests {
         let state = compress_256(Sha256::IV, &input[..skip]);
         let test = input[skip..].to_vec();
 
-        let input_ref_gen: Vector<U8> = generator.alloc_vec(test.len()).unwrap();
-        generator.mark_public(input_ref_gen).unwrap();
-        generator.assign(input_ref_gen, test.clone()).unwrap();
-        generator.commit(input_ref_gen).unwrap();
+        let input_leader: Vector<U8> = leader.alloc_vec(test.len()).unwrap();
+        leader.mark_public(input_leader).unwrap();
+        leader.assign(input_leader, test.clone()).unwrap();
+        leader.commit(input_leader).unwrap();
 
-        let state_ref_gen: Array<U32, 8> = generator.alloc().unwrap();
-        generator.mark_public(state_ref_gen).unwrap();
-        generator.assign(state_ref_gen, state).unwrap();
-        generator.commit(state_ref_gen).unwrap();
+        let state_leader: Array<U32, 8> = leader.alloc().unwrap();
+        leader.mark_public(state_leader).unwrap();
+        leader.assign(state_leader, state).unwrap();
+        leader.commit(state_leader).unwrap();
 
-        let mut sha_gen = Sha256::new();
-        sha_gen
-            .set_state(state_ref_gen, skip)
-            .update(input_ref_gen)
-            .add_padding(&mut generator)
+        let mut sha_leader = Sha256::new();
+        sha_leader
+            .set_state(state_leader, skip)
+            .update(input_leader)
+            .add_padding(&mut leader)
             .unwrap();
-        let sha_out_gen = sha_gen.alloc(&mut generator).unwrap();
-        let sha_out_gen = generator.decode(sha_out_gen).unwrap();
+        let sha_out_leader = sha_leader.alloc(&mut leader).unwrap();
+        let sha_out_leader = leader.decode(sha_out_leader).unwrap();
 
-        let input_ref_ev: Vector<U8> = evaluator.alloc_vec(test.len()).unwrap();
-        evaluator.mark_public(input_ref_ev).unwrap();
-        evaluator.assign(input_ref_ev, test).unwrap();
-        evaluator.commit(input_ref_ev).unwrap();
+        let input_follower: Vector<U8> = follower.alloc_vec(test.len()).unwrap();
+        follower.mark_public(input_follower).unwrap();
+        follower.assign(input_follower, test).unwrap();
+        follower.commit(input_follower).unwrap();
 
-        let state_ref_ev: Array<U32, 8> = evaluator.alloc().unwrap();
-        evaluator.mark_public(state_ref_ev).unwrap();
-        evaluator.assign(state_ref_ev, state).unwrap();
-        evaluator.commit(state_ref_ev).unwrap();
+        let state_follower: Array<U32, 8> = follower.alloc().unwrap();
+        follower.mark_public(state_follower).unwrap();
+        follower.assign(state_follower, state).unwrap();
+        follower.commit(state_follower).unwrap();
 
-        let mut sha_ev = Sha256::new();
-        sha_ev
-            .set_state(state_ref_ev, skip)
-            .update(input_ref_ev)
-            .add_padding(&mut evaluator)
+        let mut sha_follower = Sha256::new();
+        sha_follower
+            .set_state(state_follower, skip)
+            .update(input_follower)
+            .add_padding(&mut follower)
             .unwrap();
-        let sha_out_ev = sha_ev.alloc(&mut evaluator).unwrap();
-        let sha_out_ev = evaluator.decode(sha_out_ev).unwrap();
+        let sha_out_follower = sha_follower.alloc(&mut follower).unwrap();
+        let sha_out_follower = follower.decode(sha_out_follower).unwrap();
 
-        let (sha_gen, sha_ev) = tokio::try_join!(
+        let (sha_out_leader, sha_out_follower) = tokio::try_join!(
             async {
-                generator.execute_all(&mut ctx_a).await.unwrap();
-                sha_out_gen.await
+                leader.execute_all(&mut ctx_a).await.unwrap();
+                sha_out_leader.await
             },
             async {
-                evaluator.execute_all(&mut ctx_b).await.unwrap();
-                sha_out_ev.await
+                follower.execute_all(&mut ctx_b).await.unwrap();
+                sha_out_follower.await
             }
         )
         .unwrap();
 
-        assert_eq!(sha_gen, sha_ev);
-        assert_eq!(convert_to_bytes(sha_gen), reference);
+        assert_eq!(sha_out_leader, sha_out_follower);
+        assert_eq!(convert_to_bytes(sha_out_leader), reference);
     }
 
     #[test]

@@ -289,7 +289,7 @@ mod tests {
     use crate::{
         convert_to_bytes,
         prf::function::PrfFunction,
-        tests::{mock_vm, prf_reference},
+        test_utils::{mock_vm, phash},
     };
     use mpz_common::context::test_st_context;
     use mpz_vm_core::{
@@ -298,9 +298,9 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_prf() {
+    async fn test_phash() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut generator, mut evaluator) = mock_vm();
+        let (mut leader, mut follower) = mock_vm();
 
         let key: [u8; 32] = std::array::from_fn(|i| i as u8);
         let start_seed: Vec<u8> = vec![42; 12];
@@ -309,65 +309,65 @@ mod tests {
         label_seed.extend_from_slice(&start_seed);
         let iterations = 2;
 
-        let key_ref_gen: Array<U8, 32> = generator.alloc().unwrap();
-        generator.mark_public(key_ref_gen).unwrap();
-        generator.assign(key_ref_gen, key).unwrap();
-        generator.commit(key_ref_gen).unwrap();
+        let leader_key: Array<U8, 32> = leader.alloc().unwrap();
+        leader.mark_public(leader_key).unwrap();
+        leader.assign(leader_key, key).unwrap();
+        leader.commit(leader_key).unwrap();
 
-        let mut prf_gen =
-            PrfFunction::alloc_master_secret(&mut generator, key_ref_gen.into()).unwrap();
-        prf_gen.set_start_seed(start_seed.clone());
+        let mut prf_leader =
+            PrfFunction::alloc_master_secret(&mut leader, leader_key.into()).unwrap();
+        prf_leader.set_start_seed(start_seed.clone());
 
-        let mut prf_out_gen = vec![];
-        for p in prf_gen.output() {
-            let p_out = generator.decode(p).unwrap();
-            prf_out_gen.push(p_out)
+        let mut prf_out_leader = vec![];
+        for p in prf_leader.output() {
+            let p_out = leader.decode(p).unwrap();
+            prf_out_leader.push(p_out)
         }
 
-        let key_ref_ev: Array<U8, 32> = evaluator.alloc().unwrap();
-        evaluator.mark_public(key_ref_ev).unwrap();
-        evaluator.assign(key_ref_ev, key).unwrap();
-        evaluator.commit(key_ref_ev).unwrap();
+        let follower_key: Array<U8, 32> = follower.alloc().unwrap();
+        follower.mark_public(follower_key).unwrap();
+        follower.assign(follower_key, key).unwrap();
+        follower.commit(follower_key).unwrap();
 
-        let mut prf_ev =
-            PrfFunction::alloc_master_secret(&mut evaluator, key_ref_ev.into()).unwrap();
-        prf_ev.set_start_seed(start_seed.clone());
+        let mut prf_follower =
+            PrfFunction::alloc_master_secret(&mut follower, follower_key.into()).unwrap();
+        prf_follower.set_start_seed(start_seed.clone());
 
-        let mut prf_out_ev = vec![];
-        for p in prf_ev.output() {
-            let p_out = evaluator.decode(p).unwrap();
-            prf_out_ev.push(p_out)
+        let mut prf_out_follower = vec![];
+        for p in prf_follower.output() {
+            let p_out = follower.decode(p).unwrap();
+            prf_out_follower.push(p_out)
         }
 
         loop {
-            let gen_finished = prf_gen.make_progress(&mut generator).unwrap();
-            let ev_finished = prf_ev.make_progress(&mut evaluator).unwrap();
+            let leader_finished = prf_leader.make_progress(&mut leader).unwrap();
+            let follower_finished = prf_follower.make_progress(&mut follower).unwrap();
 
             tokio::try_join!(
-                generator.execute_all(&mut ctx_a),
-                evaluator.execute_all(&mut ctx_b)
+                leader.execute_all(&mut ctx_a),
+                follower.execute_all(&mut ctx_b)
             )
             .unwrap();
 
-            if gen_finished && ev_finished {
+            if leader_finished && follower_finished {
                 break;
             }
         }
 
-        assert_eq!(prf_out_gen.len(), prf_out_ev.len());
+        assert_eq!(prf_out_leader.len(), prf_out_follower.len());
 
-        let prf_result_gen: Vec<u8> = prf_out_gen
+        let prf_result_leader: Vec<u8> = prf_out_leader
             .iter_mut()
             .flat_map(|p| convert_to_bytes(p.try_recv().unwrap().unwrap()))
             .collect();
-        let prf_result_ev: Vec<u8> = prf_out_ev
+        let prf_result_follower: Vec<u8> = prf_out_follower
             .iter_mut()
             .flat_map(|p| convert_to_bytes(p.try_recv().unwrap().unwrap()))
             .collect();
 
-        let expected = prf_reference(key.to_vec(), &label_seed, iterations);
+        let expected = phash(key.to_vec(), &label_seed, iterations);
 
-        assert_eq!(prf_result_gen, prf_result_ev);
-        assert_eq!(prf_result_gen, expected)
+        assert_eq!(prf_result_leader, prf_result_follower);
+        assert_eq!(prf_result_leader, expected)
     }
 }
