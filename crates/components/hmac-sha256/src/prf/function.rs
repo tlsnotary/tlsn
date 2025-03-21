@@ -224,7 +224,6 @@ impl PrfFunction {
 
 #[derive(Debug, Clone)]
 struct PHash {
-    pub(crate) outer_partial: Array<U32, 8>,
     pub(crate) inner_partial: Array<U32, 8>,
     pub(crate) inner_partial_decoded: Option<[u32; 8]>,
     pub(crate) inner_local: Array<U8, 32>,
@@ -245,7 +244,6 @@ impl PHash {
         let output = hmac.alloc(vm).map_err(PrfError::vm)?;
 
         let p_hash = Self {
-            outer_partial,
             inner_partial,
             inner_partial_decoded: None,
             inner_local,
