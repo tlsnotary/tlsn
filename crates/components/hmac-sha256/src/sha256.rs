@@ -163,45 +163,21 @@ pub(crate) fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u32; 8] {
     state
 }
 
-pub(crate) fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
-    let mut output = [0_u8; 32];
-    for (k, byte_chunk) in input.iter().enumerate() {
-        let byte_chunk = byte_chunk.to_be_bytes();
-        output[4 * k..4 * (k + 1)].copy_from_slice(&byte_chunk);
-    }
-    output
-}
-
-#[cfg(test)]
-pub(crate) fn compress_256(mut state: [u32; 8], msg: &[u8]) -> [u32; 8] {
-    use sha2::{
-        compress256,
-        digest::{
-            block_buffer::{BlockBuffer, Eager},
-            generic_array::typenum::U64,
-        },
-    };
-
-    let mut buffer = BlockBuffer::<U64, Eager>::default();
-    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
-    state
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::sha256::{compress_256, convert_to_bytes, sha256, Sha256};
+    use crate::{
+        convert_to_bytes,
+        sha256::{sha256, Sha256},
+        tests::{compress_256, mock_vm},
+    };
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-    use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
     use mpz_vm_core::{
         memory::{
             binary::{U32, U8},
-            correlated::Delta,
             Array, MemoryExt, Vector, ViewExt,
         },
         Execute,
     };
-    use rand::{rngs::StdRng, SeedableRng};
 
     #[tokio::test]
     async fn test_sha256_circuit() {
@@ -263,6 +239,9 @@ mod tests {
         // only take 3rd example because we need minimum 64 bits.
         let input = &inputs[2];
         let reference = references[2];
+
+        // This has to be 64 bytes, because the sha256 compression function operates on 64 byte
+        // blocks.
         let skip = 64;
 
         let state = compress_256(Sha256::IV, &input[..skip]);
@@ -338,6 +317,9 @@ mod tests {
         // only take 3rd example because we need minimum 64 bits.
         let input = &inputs[2];
         let reference = references[2];
+
+        // This has to be 64 bytes, because the sha256 compression function operates on 64 byte
+        // blocks.
         let skip = 64;
 
         let state = compress_256(Sha256::IV, &input[..skip]);
@@ -345,18 +327,6 @@ mod tests {
 
         let sha = sha256(state, skip, &test);
         assert_eq!(convert_to_bytes(sha), reference);
-    }
-
-    fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
-
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
-
-        let gen = Garbler::new(cot_send, [0u8; 16], delta);
-        let ev = Evaluator::new(cot_recv);
-
-        (gen, ev)
     }
 
     fn test_fixtures() -> (Vec<Vec<u8>>, Vec<[u8; 32]>) {

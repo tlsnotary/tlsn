@@ -37,26 +37,19 @@ impl HmacSha256 {
 #[cfg(test)]
 mod tests {
     use crate::{
+        convert_to_bytes,
         hmac::HmacSha256,
-        sha256::{compress_256, convert_to_bytes, sha256},
+        sha256::sha256,
+        tests::{compute_inner_local, compute_outer_partial, mock_vm},
     };
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-    use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
     use mpz_vm_core::{
         memory::{
             binary::{U32, U8},
-            correlated::Delta,
             Array, MemoryExt, ViewExt,
         },
         Execute,
     };
-    use rand::{rngs::StdRng, SeedableRng};
-
-    const SHA256_IV: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-        0x5be0cd19,
-    ];
 
     #[test]
     fn test_hmac_reference() {
@@ -135,47 +128,6 @@ mod tests {
             assert_eq!(hmac_gen, hmac_ev);
             assert_eq!(convert_to_bytes(hmac_gen), reference);
         }
-    }
-
-    fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
-
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
-
-        let gen = Garbler::new(cot_send, [0u8; 16], delta);
-        let ev = Evaluator::new(cot_recv);
-
-        (gen, ev)
-    }
-
-    fn compute_outer_partial(mut key: Vec<u8>) -> [u32; 8] {
-        assert!(key.len() <= 64);
-
-        key.resize(64, 0_u8);
-        let key_padded: [u8; 64] = key
-            .into_iter()
-            .map(|b| b ^ 0x5c)
-            .collect::<Vec<u8>>()
-            .try_into()
-            .unwrap();
-
-        compress_256(SHA256_IV, &key_padded)
-    }
-
-    fn compute_inner_local(mut key: Vec<u8>, msg: &[u8]) -> [u32; 8] {
-        assert!(key.len() <= 64);
-
-        key.resize(64, 0_u8);
-        let key_padded: [u8; 64] = key
-            .into_iter()
-            .map(|b| b ^ 0x36)
-            .collect::<Vec<u8>>()
-            .try_into()
-            .unwrap();
-
-        let state = compress_256(SHA256_IV, &key_padded);
-        sha256(state, 64, msg)
     }
 
     #[allow(clippy::type_complexity)]

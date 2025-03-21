@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use crate::{
+    convert_to_bytes,
     hmac::HmacSha256,
-    sha256::{convert_to_bytes, sha256, Sha256},
+    sha256::{sha256, Sha256},
     PrfError,
 };
 use mpz_circuits::circuits::xor;
@@ -285,24 +286,16 @@ impl PHash {
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        convert_to_bytes,
+        prf::function::PrfFunction,
+        tests::{mock_vm, prf_reference},
+    };
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-    use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
     use mpz_vm_core::{
-        memory::{binary::U8, correlated::Delta, Array, MemoryExt, ViewExt},
+        memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
     };
-    use rand::{rngs::StdRng, SeedableRng};
-
-    use crate::{
-        prf::function::PrfFunction,
-        sha256::{compress_256, convert_to_bytes, sha256},
-    };
-
-    const SHA256_IV: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-        0x5be0cd19,
-    ];
 
     #[tokio::test]
     async fn test_prf() {
@@ -376,80 +369,5 @@ mod tests {
 
         assert_eq!(prf_result_gen, prf_result_ev);
         assert_eq!(prf_result_gen, expected)
-    }
-
-    fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
-
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
-
-        let gen = Garbler::new(cot_send, [0u8; 16], delta);
-        let ev = Evaluator::new(cot_recv);
-
-        (gen, ev)
-    }
-
-    fn prf_reference(key: Vec<u8>, seed: &[u8], iterations: usize) -> Vec<u8> {
-        // A() is defined as:
-        //
-        // A(0) = seed
-        // A(i) = HMAC_hash(secret, A(i-1))
-        let mut a_cache: Vec<_> = Vec::with_capacity(iterations + 1);
-        a_cache.push(seed.to_vec());
-
-        for i in 0..iterations {
-            let a_i = hmac_sha256(key.clone(), &a_cache[i]);
-            a_cache.push(a_i.to_vec());
-        }
-
-        // HMAC_hash(secret, A(i) + seed)
-        let mut output: Vec<_> = Vec::with_capacity(iterations * 32);
-        for i in 0..iterations {
-            let mut a_i_seed = a_cache[i + 1].clone();
-            a_i_seed.extend_from_slice(seed);
-
-            let hash = hmac_sha256(key.clone(), &a_i_seed);
-            output.extend_from_slice(&hash);
-        }
-
-        output
-    }
-
-    fn hmac_sha256(key: Vec<u8>, msg: &[u8]) -> [u8; 32] {
-        let outer_partial = compute_outer_partial(key.clone());
-        let inner_local = compute_inner_local(key, msg);
-
-        let hmac = sha256(outer_partial, 64, &convert_to_bytes(inner_local));
-        convert_to_bytes(hmac)
-    }
-
-    fn compute_outer_partial(mut key: Vec<u8>) -> [u32; 8] {
-        assert!(key.len() <= 64);
-
-        key.resize(64, 0_u8);
-        let key_padded: [u8; 64] = key
-            .into_iter()
-            .map(|b| b ^ 0x5c)
-            .collect::<Vec<u8>>()
-            .try_into()
-            .unwrap();
-
-        compress_256(SHA256_IV, &key_padded)
-    }
-
-    fn compute_inner_local(mut key: Vec<u8>, msg: &[u8]) -> [u32; 8] {
-        assert!(key.len() <= 64);
-
-        key.resize(64, 0_u8);
-        let key_padded: [u8; 64] = key
-            .into_iter()
-            .map(|b| b ^ 0x36)
-            .collect::<Vec<u8>>()
-            .try_into()
-            .unwrap();
-
-        let state = compress_256(SHA256_IV, &key_padded);
-        sha256(state, 64, msg)
     }
 }
