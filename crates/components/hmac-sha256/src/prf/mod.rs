@@ -299,7 +299,7 @@ fn merge_outputs(
     assert!(output_bytes <= 32 * inputs.len());
 
     let bits = Array::<U32, 8>::SIZE * inputs.len();
-    let id_circ = identity_circuit(bits);
+    let id_circ = merge_to_big_endian(4, bits);
 
     let mut builder = Call::builder(id_circ);
     for &input in inputs.iter() {
@@ -312,14 +312,89 @@ fn merge_outputs(
     Ok(output)
 }
 
-fn identity_circuit(size: usize) -> Arc<Circuit> {
+fn merge_to_big_endian(element_byte_size: usize, size: usize) -> Arc<Circuit> {
+    assert!((size / 8) % element_byte_size == 0);
+
     let mut builder = CircuitBuilder::new();
     let inputs = (0..size).map(|_| builder.add_input()).collect::<Vec<_>>();
 
-    for input in inputs.into_iter() {
-        let output = builder.add_id_gate(input);
-        builder.add_output(output);
+    for input in inputs.chunks_exact(element_byte_size * 8) {
+        for byte in input.chunks_exact(8).rev() {
+            for &feed in byte.iter() {
+                let output = builder.add_id_gate(feed);
+                builder.add_output(output);
+            }
+        }
     }
 
     Arc::new(builder.build().expect("identity circuit is valid"))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{convert_to_bytes, prf::merge_outputs, test_utils::mock_vm};
+    use mpz_common::context::test_st_context;
+    use mpz_vm_core::{
+        memory::{binary::U32, Array, MemoryExt, ViewExt},
+        Execute,
+    };
+
+    #[tokio::test]
+    async fn test_merge_outputs() {
+        let (mut ctx_a, mut ctx_b) = test_st_context(8);
+        let (mut leader, mut follower) = mock_vm();
+
+        let input1: [u32; 8] = std::array::from_fn(|i| i as u32);
+        let input2: [u32; 8] = std::array::from_fn(|i| i as u32 + 8);
+
+        let mut expected = convert_to_bytes(input1).to_vec();
+        expected.extend_from_slice(&convert_to_bytes(input2));
+        expected.truncate(48);
+
+        // leader
+        let input1_leader: Array<U32, 8> = leader.alloc().unwrap();
+        let input2_leader: Array<U32, 8> = leader.alloc().unwrap();
+
+        leader.mark_public(input1_leader).unwrap();
+        leader.mark_public(input2_leader).unwrap();
+
+        leader.assign(input1_leader, input1).unwrap();
+        leader.assign(input2_leader, input2).unwrap();
+
+        leader.commit(input1_leader).unwrap();
+        leader.commit(input2_leader).unwrap();
+
+        let merged_leader =
+            merge_outputs(&mut leader, vec![input1_leader, input2_leader], 48).unwrap();
+        let mut merged_leader = leader.decode(merged_leader).unwrap();
+
+        // follower
+        let input1_follower: Array<U32, 8> = follower.alloc().unwrap();
+        let input2_follower: Array<U32, 8> = follower.alloc().unwrap();
+
+        follower.mark_public(input1_follower).unwrap();
+        follower.mark_public(input2_follower).unwrap();
+
+        follower.assign(input1_follower, input1).unwrap();
+        follower.assign(input2_follower, input2).unwrap();
+
+        follower.commit(input1_follower).unwrap();
+        follower.commit(input2_follower).unwrap();
+
+        let merged_follower =
+            merge_outputs(&mut follower, vec![input1_follower, input2_follower], 48).unwrap();
+        let mut merged_follower = follower.decode(merged_follower).unwrap();
+
+        tokio::try_join!(
+            leader.execute_all(&mut ctx_a),
+            follower.execute_all(&mut ctx_b)
+        )
+        .unwrap();
+
+        let merged_leader = merged_leader.try_recv().unwrap().unwrap();
+        let merged_follower = merged_follower.try_recv().unwrap().unwrap();
+
+        assert_eq!(merged_leader, merged_follower);
+        assert_eq!(merged_leader, expected);
+    }
 }
