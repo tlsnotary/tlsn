@@ -78,11 +78,19 @@ impl ZkAesCtr {
 
     /// Proves the encryption of `len` bytes.
     ///
+    /// Here we only assign certain values in the VM but the actual proving
+    /// happens later when the plaintext is assigned and the VM is executed.
+    ///
     /// # Arguments
     ///
-    /// * `vm` - Virtual machine.
+    /// * `vm` - A ZK virtual machine.
     /// * `explicit_nonce` - Explicit nonce.
     /// * `len` - Length of the plaintext in bytes.
+    ///
+    /// # Returns
+    ///
+    /// An **unassigned** VM reference to the plaintext and a VM reference
+    /// to the ciphertext.
     pub fn encrypt(
         &mut self,
         vm: &mut dyn Vm<Binary>,
@@ -132,6 +140,8 @@ impl ZkAesCtr {
         // Assign zeroes to the padding.
         if padding_len > 0 {
             let padding = input.split_off(input.len() - padding_len);
+            // To simplify the impl, we don't mark the padding as public, that's why only
+            // the prover assigns it.
             if let Role::Prover = self.role {
                 vm.assign(padding, vec![0; padding_len])
                     .map_err(ZkAesCtrError::vm)?;

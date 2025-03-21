@@ -112,7 +112,7 @@ pub trait Backend: Send {
     async fn prepare_encryption(&mut self) -> Result<(), BackendError>;
     /// Buffer incoming message for decryption.
     async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError>;
-    /// Returns next incoming message ready for decryption.
+    /// Returns next incoming message already decrypted.
     async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, BackendError>;
     /// Buffer outgoing message for encryption.
     async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError>;
