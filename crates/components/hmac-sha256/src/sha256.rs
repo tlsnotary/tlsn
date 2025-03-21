@@ -81,8 +81,9 @@ impl Sha256 {
         };
 
         // Sha256 compression function takes 64 byte blocks as inputs but our blocks in
-        // `self.chunks` can have arbitrary size to simplify the api. So we need to repartition
-        // them to 64 byte blocks and feed those into the compression function.
+        // `self.chunks` can have arbitrary size to simplify the api. So we need to
+        // repartition them to 64 byte blocks and feed those into the
+        // compression function.
         let mut remainder = None;
         let mut block: Vec<Vector<U8>> = vec![];
         let mut chunk_iter = self.chunks.iter().copied();
@@ -240,8 +241,8 @@ mod tests {
         let input = &inputs[2];
         let reference = references[2];
 
-        // This has to be 64 bytes, because the sha256 compression function operates on 64 byte
-        // blocks.
+        // This has to be 64 bytes, because the sha256 compression function operates on
+        // 64 byte blocks.
         let skip = 64;
 
         let state = compress_256(Sha256::IV, &input[..skip]);
@@ -318,8 +319,8 @@ mod tests {
         let input = &inputs[2];
         let reference = references[2];
 
-        // This has to be 64 bytes, because the sha256 compression function operates on 64 byte
-        // blocks.
+        // This has to be 64 bytes, because the sha256 compression function operates on
+        // 64 byte blocks.
         let skip = 64;
 
         let state = compress_256(Sha256::IV, &input[..skip]);
