@@ -67,12 +67,6 @@ impl MerkleProof {
     pub(crate) fn leaf_count(&self) -> usize {
         self.leaf_count
     }
-
-    #[cfg(test)]
-    /// Sets the leaf count. Testing only.
-    pub(crate) fn set_leaf_count(&mut self, count: usize) {
-        self.leaf_count = count;
-    }
 }
 
 #[derive(Clone)]
