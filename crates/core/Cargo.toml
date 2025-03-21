@@ -39,12 +39,9 @@ webpki-roots = { workspace = true }
 itybity = { workspace = true }
 
 [dev-dependencies]
-<<<<<<< HEAD
-=======
 alloy-primitives = { version = "0.8.22", default-features = false }
 alloy-signer = { version = "0.12", default-features = false }
 alloy-signer-local = { version = "0.12", default-features = false }
->>>>>>> dev
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
