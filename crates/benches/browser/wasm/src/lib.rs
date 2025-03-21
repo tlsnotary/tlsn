@@ -1,3 +1,5 @@
+#![cfg(target_arch = "wasm32")]
+
 //! Contains the wasm component of the browser prover.
 //!
 //! Conceptually the browser prover consists of the native and the wasm
@@ -9,13 +11,10 @@ use tlsn_benches_browser_core::{
     FramedIo,
 };
 use tlsn_benches_library::run_prover;
-pub use tlsn_wasm::init_logging;
 
 use anyhow::Result;
 use tracing::info;
 use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
-pub use wasm_bindgen_rayon::init_thread_pool;
 use web_time::Instant;
 use ws_stream_wasm::WsMeta;
 

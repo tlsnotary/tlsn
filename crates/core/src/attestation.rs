@@ -20,7 +20,7 @@ mod proof;
 
 use std::fmt;
 
-use rand::distributions::{Distribution, Standard};
+use rand::distr::{Distribution, StandardUniform};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -51,7 +51,7 @@ impl From<[u8; 16]> for Uid {
     }
 }
 
-impl Distribution<Uid> for Standard {
+impl Distribution<Uid> for StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Uid {
         Uid(self.sample(rng))
     }

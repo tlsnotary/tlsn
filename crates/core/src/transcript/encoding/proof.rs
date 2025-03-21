@@ -51,11 +51,7 @@ impl EncodingProof {
     ) -> Result<PartialTranscript, EncodingProofError> {
         let hasher = provider.hash.get(&commitment.root.alg)?;
 
-        let seed: [u8; 32] = commitment.seed.clone().try_into().map_err(|_| {
-            EncodingProofError::new(ErrorKind::Commitment, "encoding seed not 32 bytes")
-        })?;
-
-        let encoder = new_encoder(seed);
+        let encoder = new_encoder(&commitment.secret);
         let Self {
             inclusion_proof,
             openings,
@@ -149,7 +145,6 @@ impl EncodingProofError {
 #[derive(Debug)]
 enum ErrorKind {
     Provider,
-    Commitment,
     Proof,
 }
 
@@ -159,7 +154,6 @@ impl fmt::Display for EncodingProofError {
 
         match self.kind {
             ErrorKind::Provider => f.write_str("provider error")?,
-            ErrorKind::Commitment => f.write_str("commitment error")?,
             ErrorKind::Proof => f.write_str("proof error")?,
         }
 
@@ -226,5 +220,149 @@ mod validation {
                 openings: unchecked.openings,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
+
+    use crate::{
+        fixtures::{encoder_secret, encoder_secret_tampered_seed, encoding_provider},
+        hash::Blake3,
+        transcript::{
+            encoding::{EncoderSecret, EncodingTree},
+            Idx, Transcript,
+        },
+    };
+
+    use super::*;
+
+    struct EncodingFixture {
+        transcript: Transcript,
+        proof: EncodingProof,
+        commitment: EncodingCommitment,
+    }
+
+    fn new_encoding_fixture(secret: EncoderSecret) -> EncodingFixture {
+        let transcript = Transcript::new(POST_JSON, OK_JSON);
+
+        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()));
+
+        let provider = encoding_provider(transcript.sent(), transcript.received());
+        let transcript_length = TranscriptLength {
+            sent: transcript.sent().len() as u32,
+            received: transcript.received().len() as u32,
+        };
+        let tree = EncodingTree::new(
+            &Blake3::default(),
+            [&idx_0, &idx_1],
+            &provider,
+            &transcript_length,
+        )
+        .unwrap();
+
+        let proof = tree
+            .proof(&transcript, [&idx_0, &idx_1].into_iter())
+            .unwrap();
+
+        let commitment = EncodingCommitment {
+            root: tree.root(),
+            secret,
+        };
+
+        EncodingFixture {
+            transcript,
+            proof,
+            commitment,
+        }
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_tampered_seed() {
+        let EncodingFixture {
+            transcript,
+            proof,
+            commitment,
+        } = new_encoding_fixture(encoder_secret_tampered_seed());
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &transcript.length(),
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Proof));
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_out_of_range() {
+        let EncodingFixture {
+            transcript,
+            proof,
+            commitment,
+        } = new_encoding_fixture(encoder_secret());
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &TranscriptLength {
+                    sent: (transcript.len_of_direction(Direction::Sent) - 1) as u32,
+                    received: (transcript.len_of_direction(Direction::Received) - 2) as u32,
+                },
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Proof));
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_tampered_encoding_seq() {
+        let EncodingFixture {
+            transcript,
+            mut proof,
+            commitment,
+        } = new_encoding_fixture(encoder_secret());
+
+        let Opening { seq, .. } = proof.openings.values_mut().next().unwrap();
+
+        *seq = Subsequence::new(Idx::new([0..3, 13..15]), [0, 1, 2, 5, 6].into()).unwrap();
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &transcript.length(),
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Proof));
+    }
+
+    #[test]
+    fn test_verify_encoding_proof_tampered_encoding_blinder() {
+        let EncodingFixture {
+            transcript,
+            mut proof,
+            commitment,
+        } = new_encoding_fixture(encoder_secret());
+
+        let Opening { blinder, .. } = proof.openings.values_mut().next().unwrap();
+
+        *blinder = rand::random();
+
+        let err = proof
+            .verify_with_provider(
+                &CryptoProvider::default(),
+                &transcript.length(),
+                &commitment,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Proof));
     }
 }

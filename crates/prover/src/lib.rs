@@ -14,21 +14,22 @@ pub mod state;
 pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 pub use future::ProverFuture;
+use mpz_common::Context;
+use mpz_core::Block;
+use mpz_garble_core::Delta;
+use rand06_compat::Rand0_6CompatExt;
 use state::{Notarize, Prove};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpz_common::Allocate;
-use mpz_garble::config::Role as DEAPRole;
-use mpz_ot::{chou_orlandi, kos};
+use mpc_tls::{LeaderCtrl, MpcTlsLeader};
 use rand::Rng;
-use serio::{SinkExt, StreamExt};
+use serio::SinkExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tls_mpc::{build_components, LeaderCtrl, MpcTlsLeader, TlsRole};
+use tls_client_async::{bind_client, TlsConnection};
+use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
-    mux::{attach_mux, MuxControl},
-    DEAPThread, Executor, OTReceiver, OTSender, Role,
+    commit::commit_records, context::build_mt_context, mux::attach_mux, zk_aes::ZkAesCtr, Role,
 };
 use tlsn_core::{
     connection::{
@@ -37,9 +38,23 @@ use tlsn_core::{
     },
     transcript::Transcript,
 };
-use uid_mux::FramedUidMux as _;
+use tlsn_deap::Deap;
+use tokio::sync::Mutex;
 
 use tracing::{debug, info_span, instrument, Instrument, Span};
+
+pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
+    mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,
+    mpz_core::Block,
+>;
+pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
+    mpz_ot::ferret::Receiver<mpz_ot::kos::Receiver<mpz_ot::chou_orlandi::Sender>>,
+    bool,
+    mpz_core::Block,
+>;
+pub(crate) type Mpc =
+    mpz_garble::protocol::semihonest::Generator<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
+pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
 
 /// A prover instance.
 #[derive(Debug)]
@@ -78,37 +93,43 @@ impl Prover<state::Initialized> {
         socket: S,
     ) -> Result<Prover<state::Setup>, ProverError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
-
-        let mut io = mux_fut
-            .poll_with(mux_ctrl.open_framed(b"tlsnotary"))
-            .await?;
+        let mut mt = build_mt_context(mux_ctrl.clone());
+        let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Sends protocol configuration to verifier for compatibility check.
         mux_fut
-            .poll_with(io.send(self.config.protocol_config().clone()))
+            .poll_with(ctx.io_mut().send(self.config.protocol_config().clone()))
             .await?;
 
-        // Maximum thread forking concurrency of 8.
-        // TODO: Determine the optimal number of threads.
-        let mut exec = Executor::new(mux_ctrl.clone(), 8);
+        let (vm, mut mpc_tls) = build_mpc_tls(&self.config, ctx);
 
-        let (mpc_tls, vm, ot_recv) = mux_fut
-            .poll_with(setup_mpc_backend(&self.config, &mux_ctrl, &mut exec))
-            .await?;
+        // Allocate resources for MPC-TLS in VM.
+        let keys = mpc_tls.alloc()?;
+        // Allocate for committing to plaintext.
+        let mut zk_aes = ZkAesCtr::new(Role::Prover);
+        zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes.alloc(
+            &mut (*vm.try_lock().expect("VM is not locked").zk()),
+            self.config.protocol_config().max_recv_data(),
+        )?;
 
-        let ctx = mux_fut.poll_with(exec.new_thread()).await?;
+        debug!("setting up mpc-tls");
+
+        mux_fut.poll_with(mpc_tls.preprocess()).await?;
+
+        debug!("mpc-tls setup complete");
 
         Ok(Prover {
             config: self.config,
             span: self.span,
             state: state::Setup {
-                io,
                 mux_ctrl,
                 mux_fut,
+                mt,
                 mpc_tls,
+                zk_aes,
+                keys,
                 vm,
-                ot_recv,
-                ctx,
             },
         })
     }
@@ -129,13 +150,13 @@ impl Prover<state::Setup> {
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture), ProverError> {
         let state::Setup {
-            io,
             mux_ctrl,
             mut mux_fut,
+            mt,
             mpc_tls,
+            mut zk_aes,
+            keys,
             vm,
-            ot_recv,
-            ctx,
         } = self.state;
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
@@ -158,79 +179,122 @@ impl Prover<state::Setup> {
 
         let (conn, conn_fut) = bind_client(socket, client);
 
-        let start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+        let start_time = web_time::UNIX_EPOCH
+            .elapsed()
+            .expect("system time is available")
+            .as_secs();
 
         let fut = Box::pin({
             let span = self.span.clone();
             let mpc_ctrl = mpc_ctrl.clone();
             async move {
                 let conn_fut = async {
-                    let ClosedConnection { sent, recv, .. } = mux_fut
+                    mux_fut
                         .poll_with(conn_fut.map_err(ProverError::from))
                         .await?;
 
-                    mpc_ctrl.close_connection().await?;
+                    mpc_ctrl.stop().await?;
 
-                    Ok::<_, ProverError>((sent, recv))
+                    Ok::<_, ProverError>(())
                 };
 
-                let ((sent, recv), mpc_tls_data) = futures::try_join!(
+                let (_, (mut ctx, mut data)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
 
+                {
+                    let mut vm = vm.try_lock().expect("VM should not be locked");
+
+                    // Prove received plaintext. Prover drops the proof output, as they trust
+                    // themselves.
+                    _ = commit_records(
+                        &mut (*vm.zk()),
+                        &mut zk_aes,
+                        data.transcript
+                            .recv
+                            .iter_mut()
+                            .filter(|record| record.typ == ContentType::ApplicationData),
+                    )
+                    .map_err(ProverError::zk)?;
+
+                    debug!("finalizing mpc");
+
+                    // Finalize DEAP and execute the plaintext proofs.
+                    mux_fut
+                        .poll_with(vm.finalize(&mut ctx))
+                        .await
+                        .map_err(ProverError::mpc)?;
+
+                    debug!("mpc finalized");
+                }
+
+                let transcript = data
+                    .transcript
+                    .to_transcript()
+                    .expect("transcript is complete");
+                let transcript_refs = data
+                    .transcript
+                    .to_transcript_refs()
+                    .expect("transcript is complete");
+
                 let connection_info = ConnectionInfo {
                     time: start_time,
-                    version: mpc_tls_data
+                    version: data
                         .protocol_version
                         .try_into()
                         .expect("only supported version should have been accepted"),
                     transcript_length: TranscriptLength {
-                        sent: sent.len() as u32,
-                        received: recv.len() as u32,
+                        sent: transcript.sent().len() as u32,
+                        received: transcript.received().len() as u32,
                     },
                 };
 
-                let server_cert_data = ServerCertData {
-                    certs: mpc_tls_data
-                        .server_cert_details
-                        .cert_chain()
-                        .iter()
-                        .cloned()
-                        .map(|c| c.into())
-                        .collect(),
-                    sig: ServerSignature {
-                        scheme: mpc_tls_data
-                            .server_kx_details
-                            .kx_sig()
-                            .scheme
-                            .try_into()
-                            .expect("only supported signature scheme should have been accepted"),
-                        sig: mpc_tls_data.server_kx_details.kx_sig().sig.0.clone(),
-                    },
-                    handshake: HandshakeData::V1_2(HandshakeDataV1_2 {
-                        client_random: mpc_tls_data.client_random.0,
-                        server_random: mpc_tls_data.server_random.0,
-                        server_ephemeral_key: mpc_tls_data
-                            .server_public_key
-                            .try_into()
-                            .expect("only supported key scheme should have been accepted"),
-                    }),
-                };
+                let server_cert_data =
+                    ServerCertData {
+                        certs: data
+                            .server_cert_details
+                            .cert_chain()
+                            .iter()
+                            .cloned()
+                            .map(|c| c.into())
+                            .collect(),
+                        sig: ServerSignature {
+                            scheme: data.server_kx_details.kx_sig().scheme.try_into().expect(
+                                "only supported signature scheme should have been accepted",
+                            ),
+                            sig: data.server_kx_details.kx_sig().sig.0.clone(),
+                        },
+                        handshake: HandshakeData::V1_2(HandshakeDataV1_2 {
+                            client_random: data.client_random.0,
+                            server_random: data.server_random.0,
+                            server_ephemeral_key: data
+                                .server_key
+                                .try_into()
+                                .expect("only supported key scheme should have been accepted"),
+                        }),
+                    };
+
+                // Pull out ZK VM
+                let (_, vm) = Arc::into_inner(vm)
+                    .expect("vm should have only 1 reference")
+                    .into_inner()
+                    .into_inner();
 
                 Ok(Prover {
                     config: self.config,
                     span: self.span,
                     state: state::Closed {
-                        io,
                         mux_ctrl,
                         mux_fut,
-                        vm,
-                        ot_recv,
+                        mt,
                         ctx,
+                        _keys: keys,
+                        vm,
                         connection_info,
                         server_cert_data,
-                        transcript: Transcript::new(sent, recv),
+                        transcript,
+                        transcript_refs,
                     },
                 })
             }
@@ -279,123 +343,55 @@ impl Prover<state::Closed> {
     }
 }
 
-/// Performs a setup of the various MPC subprotocols.
-#[instrument(level = "debug", skip_all, err)]
-async fn setup_mpc_backend(
-    config: &ProverConfig,
-    mux: &MuxControl,
-    exec: &mut Executor,
-) -> Result<(MpcTlsLeader, DEAPThread, OTReceiver), ProverError> {
-    debug!("starting MPC backend setup");
+fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsLeader) {
+    let mut rng = rand::rng();
+    let delta = Delta::new(Block::random(&mut rng.compat_by_ref()));
 
-    let mut ot_sender = kos::Sender::new(
-        config.build_ot_sender_config(),
-        chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
+    let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
+    let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
+    let rcot_send = mpz_ot::kos::Sender::new(
+        mpz_ot::kos::SenderConfig::default(),
+        delta.into_inner(),
+        base_ot_recv,
     );
-    ot_sender.alloc(config.protocol_config().ot_sender_setup_count(Role::Prover));
-
-    let mut ot_receiver = kos::Receiver::new(
-        config.build_ot_receiver_config(),
-        chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
-    );
-    ot_receiver.alloc(
-        config
-            .protocol_config()
-            .ot_receiver_setup_count(Role::Prover),
+    let rcot_recv =
+        mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
+    let rcot_recv = mpz_ot::ferret::Receiver::new(
+        mpz_ot::ferret::FerretConfig::builder()
+            .lpn_type(mpz_ot::ferret::LpnType::Regular)
+            .build()
+            .expect("ferret config is valid"),
+        Block::random(&mut rng.compat_by_ref()),
+        rcot_recv,
     );
 
-    let ot_sender = OTSender::new(ot_sender);
-    let ot_receiver = OTReceiver::new(ot_receiver);
+    let mut rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(4, rcot_send);
+    let mut rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(2, rcot_recv);
 
-    let (
-        ctx_vm,
-        ctx_ke_0,
-        ctx_ke_1,
-        ctx_prf_0,
-        ctx_prf_1,
-        ctx_encrypter_block_cipher,
-        ctx_encrypter_stream_cipher,
-        ctx_encrypter_ghash,
-        ctx_encrypter,
-        ctx_decrypter_block_cipher,
-        ctx_decrypter_stream_cipher,
-        ctx_decrypter_ghash,
-        ctx_decrypter,
-    ) = futures::try_join!(
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-        exec.new_thread(),
-    )?;
-
-    let vm = DEAPThread::new(
-        DEAPRole::Leader,
-        rand::rngs::OsRng.gen(),
-        ctx_vm,
-        ot_sender.clone(),
-        ot_receiver.clone(),
+    let mpc = Mpc::new(
+        mpz_ot::cot::DerandCOTSender::new(rcot_send.next().expect("enough senders are available")),
+        rng.random(),
+        delta,
     );
 
-    let mpc_tls_config = config.build_mpc_tls_config();
-    let (ke, prf, encrypter, decrypter) = build_components(
-        TlsRole::Leader,
-        mpc_tls_config.common(),
-        ctx_ke_0,
-        ctx_encrypter,
-        ctx_decrypter,
-        ctx_encrypter_ghash,
-        ctx_decrypter_ghash,
-        vm.new_thread(ctx_ke_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_0, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(ctx_prf_1, ot_sender.clone(), ot_receiver.clone())?,
-        vm.new_thread(
-            ctx_encrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_block_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_encrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        vm.new_thread(
-            ctx_decrypter_stream_cipher,
-            ot_sender.clone(),
-            ot_receiver.clone(),
-        )?,
-        ot_sender.clone(),
-        ot_receiver.clone(),
-    );
+    let zk = Zk::new(rcot_recv.next().expect("enough receivers are available"));
 
-    let channel = mux.open_framed(b"mpc_tls").await?;
-    let mut mpc_tls = MpcTlsLeader::new(
-        mpc_tls_config,
-        Box::new(StreamExt::compat_stream(channel)),
-        ke,
-        prf,
-        encrypter,
-        decrypter,
-    );
+    let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
 
-    mpc_tls.setup().await?;
-
-    debug!("MPC backend setup complete");
-
-    Ok((mpc_tls, vm, ot_receiver))
+    (
+        vm.clone(),
+        MpcTlsLeader::new(
+            config.build_mpc_tls_config(),
+            ctx,
+            vm,
+            (
+                rcot_send.next().expect("enough senders are available"),
+                rcot_send.next().expect("enough senders are available"),
+                rcot_send.next().expect("enough senders are available"),
+            ),
+            rcot_recv.next().expect("enough receivers are available"),
+        ),
+    )
 }
 
 /// A controller for the prover.

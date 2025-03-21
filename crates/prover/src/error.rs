@@ -1,5 +1,6 @@
+use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
-use tls_mpc::MpcTlsError;
+use tlsn_common::{encoding::EncodingError, zk_aes::ZkAesCtrError};
 
 /// Error for [`Prover`](crate::Prover).
 #[derive(Debug, thiserror::Error)]
@@ -26,6 +27,27 @@ impl ProverError {
         Self::new(ErrorKind::Config, source)
     }
 
+    pub(crate) fn mpc<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Mpc, source)
+    }
+
+    pub(crate) fn zk<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Zk, source)
+    }
+
+    pub(crate) fn commit<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Commit, source)
+    }
+
     pub(crate) fn attestation<E>(source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
@@ -38,7 +60,9 @@ impl ProverError {
 enum ErrorKind {
     Io,
     Mpc,
+    Zk,
     Config,
+    Commit,
     Attestation,
 }
 
@@ -49,7 +73,9 @@ impl fmt::Display for ProverError {
         match self.kind {
             ErrorKind::Io => f.write_str("io error")?,
             ErrorKind::Mpc => f.write_str("mpc error")?,
+            ErrorKind::Zk => f.write_str("zk error")?,
             ErrorKind::Config => f.write_str("config error")?,
+            ErrorKind::Commit => f.write_str("commit error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
         }
 
@@ -91,50 +117,14 @@ impl From<MpcTlsError> for ProverError {
     }
 }
 
-impl From<mpz_ot::OTError> for ProverError {
-    fn from(e: mpz_ot::OTError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
+impl From<ZkAesCtrError> for ProverError {
+    fn from(e: ZkAesCtrError) -> Self {
+        Self::new(ErrorKind::Zk, e)
     }
 }
 
-impl From<mpz_ot::kos::SenderError> for ProverError {
-    fn from(e: mpz_ot::kos::SenderError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_ole::OLEError> for ProverError {
-    fn from(e: mpz_ole::OLEError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_ot::kos::ReceiverError> for ProverError {
-    fn from(e: mpz_ot::kos::ReceiverError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::VmError> for ProverError {
-    fn from(e: mpz_garble::VmError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::protocol::deap::DEAPError> for ProverError {
-    fn from(e: mpz_garble::protocol::deap::DEAPError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::MemoryError> for ProverError {
-    fn from(e: mpz_garble::MemoryError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<mpz_garble::ProveError> for ProverError {
-    fn from(e: mpz_garble::ProveError) -> Self {
-        Self::new(ErrorKind::Mpc, e)
+impl From<EncodingError> for ProverError {
+    fn from(e: EncodingError) -> Self {
+        Self::new(ErrorKind::Commit, e)
     }
 }

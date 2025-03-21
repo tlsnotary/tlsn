@@ -7,6 +7,8 @@ mod server_tracing;
 mod service;
 mod settings;
 mod signing;
+#[cfg(feature = "tee_quote")]
+mod tee;
 mod util;
 
 pub use config::{

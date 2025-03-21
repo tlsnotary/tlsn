@@ -1,75 +1,111 @@
 ## Simple Attestation Example: Notarize Public Data from example.com (Rust) <a name="rust-simple"></a>
 
-This example demonstrates the simplest possible use case for TLSNotary:
-1. Fetch <https://example.com/> and acquire an attestation of its content.
-2. Create a verifiable presentation using the attestation, while redacting the value of a header.
+This example demonstrates the simplest possible use case for TLSNotary. A Prover notarizes data from a local test server with a local Notary.
+
+**Overview**:
+1. Notarize a request and response from the test server and acquire an attestation of its content.
+2. Create a redacted, verifiable presentation using the attestation.
 3. Verify the presentation.
 
-### 1. Notarize <https://example.com/>
+### 1. Notarize
 
-Run the `prove` binary.
+Before starting the notarization, set up the local test server and local notary.
 
+1. Run the test server:
+    ```shell
+    PORT=4000 cargo run --bin tlsn-server-fixture
+    ```
+2. Run the notary server:
+    ```shell
+    cd crates/notary/server
+    cargo run -r -- --tls-enabled false
+    ```
+3. Run the prove example:
+    ```shell
+    SERVER_PORT=4000 cargo run --release --example attestation_prove
+    ```
+
+To see more details, run with additional debug information:
 ```shell
-cargo run --release --example attestation_prove
+RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release --example attestation_prove
 ```
 
-If the notarization was successful, you should see this output in the console:
-
+If notarization is successful, you should see the following output in the console:
 ```log
 Starting an MPC TLS connection with the server
-Got a response from the server
+Got a response from the server: 200 OK
+Notarization complete!
 Notarization completed successfully!
-The attestation has been written to `example.attestation.tlsn` and the corresponding secrets to `example.secrets.tlsn`.
+The attestation has been written to `example-json.attestation.tlsn` and the corresponding secrets to `example-json.secrets.tlsn`.
 ```
 
-⚠️ In this simple example the `Notary` server is automatically started in the background. Note that this is for demonstration purposes only. In a real world example, the notary should be run by a trusted party. Consult the [Notary Server Docs](https://docs.tlsnotary.org/developers/notary_server.html) for more details on how to run a notary server.
+⚠️ Note: In this example, we run a local Notary server for demonstration purposes. In real-world applications, the Notary should be operated by a trusted third party. Refer to the [Notary Server Documentation](https://docs.tlsnotary.org/developers/notary_server.html) for more details on running a Notary server.
 
-### 2. Build a verifiable presentation
+### 2. Build a Verifiable Presentation
 
-This will build a verifiable presentation with the `User-Agent` header redacted from the request. This presentation can be shared with any verifier you wish to present the data to.
+This step creates a verifiable presentation with optional redactions, which can be shared with any verifier.
 
-Run the `present` binary.
-
+Run the present example:
 ```shell
 cargo run --release --example attestation_present
 ```
 
-If successful, you should see this output in the console:
+If successful, you’ll see this output in the console:
 
 ```log
 Presentation built successfully!
-The presentation has been written to `example.presentation.tlsn`.
+The presentation has been written to `example-json.presentation.tlsn`.
 ```
 
-### 3. Verify the presentation
+You can create multiple presentations from the attestation and secrets in the notarization step, each with customized data redactions. You are invited to experiment!
 
-This will read the presentation from the previous step, verify it, and print the disclosed data to console.
+### 3. Verify the Presentation
 
-Run the `verify` binary.
+This step reads the presentation created above, verifies it, and prints the disclosed data to the console.
 
+Run the verify binary:
 ```shell
 cargo run --release --example attestation_verify
 ```
 
-If successful, you should see this output in the console:
-
+Upon success, you should see output similar to:
 ```log
 Verifying presentation with {key algorithm} key: { hex encoded key }
 
 **Ask yourself, do you trust this key?**
 
 -------------------------------------------------------------------
-Successfully verified that the data below came from a session with example.com at 2024-10-03 03:01:40 UTC.
+Successfully verified that the data below came from a session with test-server.io at { time }.
 Note that the data which the Prover chose not to disclose are shown as X.
 
 Data sent:
 ...
 ```
 
-⚠️ Notice that the presentation comes with a "verifying key". This is the key the Notary used when issuing the attestation that the presentation was built from. If you trust the Notary, or more specifically the verifying key, then you can trust that the presented data is authentic.
+⚠️ The presentation includes a “verifying key,” which the Notary used when issuing the attestation. If you trust this key, you can trust the authenticity of the presented data.
 
-### Next steps
+### HTML
 
-Try out the [Discord example](../discord/README.md) and notarize a Discord conversations.
+In the example above, we notarized a JSON response. TLSNotary also supports notarizing HTML content. To run an HTML example, use:
 
+```shell
+# notarize
+SERVER_PORT=4000 cargo run --release --example attestation_prove -- html
+# present
+cargo run --release --example attestation_present -- html
+# verify
+cargo run --release --example attestation_verify -- html
+```
 
+### Private Data
+
+The examples above demonstrate how to use TLSNotary with publicly accessible data. TLSNotary can also be utilized for private data that requires authentication. To access this data, you can add the necessary headers (such as an authentication token) or cookies to your request. To run an example that uses an authentication token, execute the following command:
+
+```shell
+# notarize
+SERVER_PORT=4000 cargo run --release --example attestation_prove -- authenticated
+# present
+cargo run --release --example attestation_present -- authenticated
+# verify
+cargo run --release --example attestation_verify -- authenticated
+```

@@ -4,14 +4,16 @@
 //! attestation but does not verify transcript data.
 
 use super::{state::Notarize, Verifier, VerifierError};
-use mpz_ot::CommittedOTSender;
+use rand::Rng;
 use serio::{stream::IoStreamExt, SinkExt as _};
 
+use tlsn_common::encoding;
 use tlsn_core::{
     attestation::{Attestation, AttestationConfig},
     request::Request,
+    transcript::encoding::EncoderSecret,
 };
-use tracing::{debug, info, instrument};
+use tracing::{info, instrument};
 
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
@@ -22,31 +24,37 @@ impl Verifier<Notarize> {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn finalize(self, config: &AttestationConfig) -> Result<Attestation, VerifierError> {
         let Notarize {
-            mut io,
             mux_ctrl,
             mut mux_fut,
-            mut vm,
-            mut ot_send,
+            delta,
             mut ctx,
-            encoder_seed,
+            vm,
             server_ephemeral_key,
             connection_info,
+            transcript_refs,
+            ..
         } = self.state;
+
+        let encoder_secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
 
         let attestation = mux_fut
             .poll_with(async {
+                let sent_keys = transcript_refs
+                    .sent()
+                    .iter()
+                    .flat_map(|plaintext| vm.get_keys(*plaintext).expect("reference is valid"))
+                    .map(|mac| mac.as_block());
+                let recv_keys = transcript_refs
+                    .recv()
+                    .iter()
+                    .flat_map(|plaintext| vm.get_keys(*plaintext).expect("reference is valid"))
+                    .map(|mac| mac.as_block());
+
+                encoding::transfer(&mut ctx, &encoder_secret, sent_keys, recv_keys).await?;
+
                 // Receive attestation request, which also contains commitments required before
                 // finalization.
-                let request: Request = io.expect_next().await?;
-
-                // Finalize all MPC before attesting.
-                ot_send.reveal(&mut ctx).await?;
-
-                debug!("revealed OT secret");
-
-                vm.finalize().await?;
-
-                info!("Finalized all MPC");
+                let request: Request = ctx.io_mut().expect_next().await?;
 
                 let mut builder = Attestation::builder(config)
                     .accept_request(request)
@@ -55,13 +63,13 @@ impl Verifier<Notarize> {
                 builder
                     .connection_info(connection_info)
                     .server_ephemeral_key(server_ephemeral_key)
-                    .encoding_seed(encoder_seed.to_vec());
+                    .encoder_secret(encoder_secret);
 
                 let attestation = builder
                     .build(self.config.crypto_provider())
                     .map_err(VerifierError::attestation)?;
 
-                io.send(attestation.clone()).await?;
+                ctx.io_mut().send(attestation.clone()).await?;
 
                 info!("Sent attestation");
 
@@ -70,7 +78,7 @@ impl Verifier<Notarize> {
             .await?;
 
         if !mux_fut.is_complete() {
-            mux_ctrl.mux().close();
+            mux_ctrl.close();
             mux_fut.await?;
         }
 

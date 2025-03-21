@@ -61,6 +61,10 @@ pub struct EncodingTree {
     /// Mapping between the index of a leaf and the transcript index it
     /// corresponds to.
     idxs: BiMap<usize, (Direction, Idx)>,
+    /// Union of all transcript indices in the sent direction.
+    sent_idx: Idx,
+    /// Union of all transcript indices in the received direction.
+    received_idx: Idx,
 }
 
 opaque_debug::implement!(EncodingTree);
@@ -84,6 +88,8 @@ impl EncodingTree {
             tree: MerkleTree::new(hasher.id()),
             nonces: Vec::new(),
             idxs: BiMap::new(),
+            sent_idx: Idx::empty(),
+            received_idx: Idx::empty(),
         };
 
         let mut leaves = Vec::new();
@@ -122,6 +128,10 @@ impl EncodingTree {
             leaves.push(hasher.hash(&CanonicalSerialize::serialize(&leaf)));
             this.nonces.push(leaf.into_parts().1);
             this.idxs.insert(this.idxs.len(), dir_idx.clone());
+            match direction {
+                Direction::Sent => this.sent_idx = this.sent_idx.union(idx),
+                Direction::Received => this.received_idx = this.received_idx.union(idx),
+            }
         }
 
         this.tree.insert(hasher, leaves);
@@ -192,13 +202,25 @@ impl EncodingTree {
     pub fn contains(&self, idx: &(Direction, Idx)) -> bool {
         self.idxs.contains_right(idx)
     }
+
+    pub(crate) fn idx(&self, direction: Direction) -> &Idx {
+        match direction {
+            Direction::Sent => &self.sent_idx,
+            Direction::Received => &self.received_idx,
+        }
+    }
+
+    /// Returns the committed transcript indices.
+    pub(crate) fn transcript_indices(&self) -> impl Iterator<Item = &(Direction, Idx)> {
+        self.idxs.right_values()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        fixtures::{encoder_seed, encoding_provider},
+        fixtures::{encoder_secret, encoding_provider},
         hash::Blake3,
         transcript::encoding::EncodingCommitment,
         CryptoProvider,
@@ -235,7 +257,7 @@ mod tests {
 
         let commitment = EncodingCommitment {
             root: tree.root(),
-            seed: encoder_seed().to_vec(),
+            secret: encoder_secret(),
         };
 
         let partial_transcript = proof
@@ -272,7 +294,7 @@ mod tests {
 
         let commitment = EncodingCommitment {
             root: tree.root(),
-            seed: encoder_seed().to_vec(),
+            secret: encoder_secret(),
         };
 
         let partial_transcript = proof
@@ -285,6 +307,22 @@ mod tests {
 
         assert_eq!(partial_transcript.sent_unsafe(), transcript.sent());
         assert_eq!(partial_transcript.received_unsafe(), transcript.received());
+    }
+
+    #[test]
+    fn test_encoding_tree_proof_missing_leaf() {
+        let transcript = Transcript::new(POST_JSON, OK_JSON);
+
+        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, Idx::new(0..4));
+        let idx_2 = (Direction::Received, Idx::new(4..OK_JSON.len()));
+
+        let tree = new_tree(&transcript, [&idx_0, &idx_1].into_iter()).unwrap();
+
+        let result = tree
+            .proof(&transcript, [&idx_0, &idx_1, &idx_2].into_iter())
+            .unwrap_err();
+        assert!(matches!(result, EncodingTreeError::MissingLeaf { .. }));
     }
 
     #[test]
@@ -308,15 +346,6 @@ mod tests {
             sent: 8,
             received: 8,
         };
-
-        let result = EncodingTree::new(
-            &Blake3::default(),
-            [(Direction::Sent, Idx::new(0..8))].iter(),
-            &provider,
-            &transcript_length,
-        )
-        .unwrap_err();
-        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
 
         let result = EncodingTree::new(
             &Blake3::default(),

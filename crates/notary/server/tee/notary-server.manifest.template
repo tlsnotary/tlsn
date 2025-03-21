@@ -1,0 +1,45 @@
+libos.entrypoint = "{{ self_exe }}"
+loader.log_level = "{{ log_level }}"
+
+loader.env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}"
+
+# See https://gramine.readthedocs.io/en/stable/performance.html#glibc-malloc-tuning
+loader.env.MALLOC_ARENA_MAX = "1"
+
+# encrypted type not used
+fs.mounts = [
+  { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
+  { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
+  { type = "tmpfs", path = "/ephemeral" },
+  { type = "encrypted", path = "/vault", uri = "file:vault", key_name = "_sgx_mrenclave" },
+
+]
+
+# allowed enables rw -- will rm this once notary-server drops config file
+# !!!! not hashed !!!!
+# https://gramine.readthedocs.io/en/stable/manifest-syntax.html#allowed-files-1
+sgx.allowed_files = [
+  "file:./config/config.yaml",
+]
+
+# hashed @ buildtime. at runtime => these files are +ro
+# and can be accessed if hash matches manifest
+# !!!! hashed !!!!
+# https://gramine.readthedocs.io/en/stable/manifest-syntax.html#trusted-files
+sgx.trusted_files = [
+  "file:{{ self_exe }}",
+  "file:{{ gramine.runtimedir() }}/",
+  "file:{{ arch_libdir }}/",
+]
+
+sgx.edmm_enable = false
+sgx.remote_attestation = "dcap"
+sgx.max_threads = 64
+sgx.enclave_size = "2G"
+sys.disallow_subprocesses = true
+
+
+#### tlsn rev
+sgx.isvprodid = 7
+#### F
+sgx.isvsvn = 1

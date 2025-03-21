@@ -110,23 +110,25 @@ pub trait Backend: Send {
     async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError>;
     /// Prepares the backend for encryption.
     async fn prepare_encryption(&mut self) -> Result<(), BackendError>;
-    /// Perform the encryption over the concerned TLS message.
-    async fn encrypt(&mut self, msg: PlainMessage, seq: u64)
-        -> Result<OpaqueMessage, BackendError>;
-    /// Perform the decryption over the concerned TLS message.
-    async fn decrypt(&mut self, msg: OpaqueMessage, seq: u64)
-        -> Result<PlainMessage, BackendError>;
     /// Buffer incoming message for decryption.
-    async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError>;
+    async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError>;
     /// Returns next incoming message ready for decryption.
-    async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError>;
+    async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, BackendError>;
+    /// Buffer outgoing message for encryption.
+    async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError>;
+    /// Returns next outgoing message.
+    async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError>;
+    /// Starts processing application data traffic.
+    async fn start_traffic(&mut self) -> Result<(), BackendError>;
+    /// Flushes the record layer.
+    async fn flush(&mut self) -> Result<(), BackendError>;
     /// Returns a notification future which resolves when the backend is ready
     /// to process the next message.
     async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
         Ok(BackendNotify::dummy())
     }
-    /// Returns the number of messages buffered for decryption.
-    async fn buffer_len(&mut self) -> Result<usize, BackendError>;
+    /// Returns `true` if there are no buffered messages in the backend.
+    async fn is_empty(&mut self) -> Result<bool, BackendError>;
     /// Signals to the backend that the server has closed the connection.
     async fn server_closed(&mut self) -> Result<(), BackendError> {
         Ok(())

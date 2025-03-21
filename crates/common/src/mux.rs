@@ -6,16 +6,15 @@ use futures::{
     future::{FusedFuture, FutureExt},
     AsyncRead, AsyncWrite, Future,
 };
-use serio::codec::Bincode;
 use tracing::error;
-use uid_mux::{yamux, FramedMux};
+use uid_mux::yamux;
 
 use crate::Role;
 
 /// Multiplexer supporting unique deterministic stream IDs.
 pub type Mux<Io> = yamux::Yamux<Io>;
-/// Multiplexer controller providing streams with a codec attached.
-pub type MuxControl = FramedMux<yamux::YamuxCtrl, Bincode>;
+/// Multiplexer controller providing streams.
+pub type MuxControl = yamux::YamuxCtrl;
 
 /// Multiplexer future which must be polled for the muxer to make progress.
 pub struct MuxFuture(
@@ -73,7 +72,7 @@ pub fn attach_mux<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     role: Role,
 ) -> (MuxFuture, MuxControl) {
     let mut mux_config = yamux::Config::default();
-    mux_config.set_max_num_streams(64);
+    mux_config.set_max_num_streams(32);
 
     let mux_role = match role {
         Role::Prover => yamux::Mode::Client,
@@ -81,10 +80,10 @@ pub fn attach_mux<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     };
 
     let mux = Mux::new(socket, mux_config, mux_role);
-    let ctrl = FramedMux::new(mux.control(), Bincode);
+    let ctrl = mux.control();
 
     if let Role::Prover = role {
-        ctrl.mux().alloc(64);
+        ctrl.alloc(32);
     }
 
     (MuxFuture(Box::new(mux.into_future().fuse())), ctrl)

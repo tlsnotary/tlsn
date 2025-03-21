@@ -1,6 +1,6 @@
 [package]
 name = "notary-client"
-version = "0.1.0-alpha.8-pre"
+version = "0.1.0-alpha.9"
 edition = "2021"
 
 [dependencies]

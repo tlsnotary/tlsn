@@ -52,10 +52,15 @@ impl std::fmt::Display for KeyAlgId {
 pub struct SignatureAlgId(u8);
 
 impl SignatureAlgId {
-    /// secp256k1 signature algorithm.
+    /// secp256k1 signature algorithm with SHA-256 hashing.
     pub const SECP256K1: Self = Self(1);
-    /// secp256r1 signature algorithm.
+    /// secp256r1 signature algorithm with SHA-256 hashing.
     pub const SECP256R1: Self = Self(2);
+    /// Ethereum-compatible signature algorithm.
+    ///
+    /// Uses secp256k1 with Keccak-256 hashing. The signature is a concatenation
+    /// of `r || s || v` as defined in Solidity's ecrecover().
+    pub const SECP256K1ETH: Self = Self(3);
 
     /// Creates a new signature algorithm identifier.
     ///
@@ -83,6 +88,7 @@ impl std::fmt::Display for SignatureAlgId {
         match *self {
             SignatureAlgId::SECP256K1 => write!(f, "secp256k1"),
             SignatureAlgId::SECP256R1 => write!(f, "secp256r1"),
+            SignatureAlgId::SECP256K1ETH => write!(f, "secp256k1eth"),
             _ => write!(f, "custom({:02x})", self.0),
         }
     }
@@ -120,6 +126,13 @@ impl SignerProvider {
     /// Configures a secp256r1 signer with the provided signing key.
     pub fn set_secp256r1(&mut self, key: &[u8]) -> Result<&mut Self, SignerError> {
         self.set_signer(Box::new(Secp256r1Signer::new(key)?));
+
+        Ok(self)
+    }
+
+    /// Configures a secp256k1eth signer with the provided signing key.
+    pub fn set_secp256k1eth(&mut self, key: &[u8]) -> Result<&mut Self, SignerError> {
+        self.set_signer(Box::new(Secp256k1EthSigner::new(key)?));
 
         Ok(self)
     }
@@ -164,6 +177,10 @@ impl Default for SignatureVerifierProvider {
 
         verifiers.insert(SignatureAlgId::SECP256K1, Box::new(Secp256k1Verifier) as _);
         verifiers.insert(SignatureAlgId::SECP256R1, Box::new(Secp256r1Verifier) as _);
+        verifiers.insert(
+            SignatureAlgId::SECP256K1ETH,
+            Box::new(Secp256k1EthVerifier) as _,
+        );
 
         Self { verifiers }
     }
@@ -231,7 +248,7 @@ mod secp256k1 {
 
     use super::*;
 
-    /// secp256k1 signer.
+    /// secp256k1 signer with SHA-256 hashing.
     pub struct Secp256k1Signer(Arc<Mutex<SigningKey>>);
 
     impl Secp256k1Signer {
@@ -267,7 +284,7 @@ mod secp256k1 {
         }
     }
 
-    /// secp256k1 verifier.
+    /// secp256k1 verifier with SHA-256 hashing.
     pub struct Secp256k1Verifier;
 
     impl SignatureVerifier for Secp256k1Verifier {
@@ -307,7 +324,7 @@ mod secp256r1 {
 
     use super::*;
 
-    /// secp256r1 signer.
+    /// secp256r1 signer with SHA-256 hashing.
     pub struct Secp256r1Signer(Arc<Mutex<SigningKey>>);
 
     impl Secp256r1Signer {
@@ -343,7 +360,7 @@ mod secp256r1 {
         }
     }
 
-    /// secp256r1 verifier.
+    /// secp256r1 verifier with SHA-256 hashing.
     pub struct Secp256r1Verifier;
 
     impl SignatureVerifier for Secp256r1Verifier {
@@ -373,63 +390,209 @@ mod secp256r1 {
 
 pub use secp256r1::{Secp256r1Signer, Secp256r1Verifier};
 
+mod secp256k1eth {
+    use std::sync::{Arc, Mutex};
+
+    use k256::ecdsa::{
+        signature::hazmat::PrehashVerifier, Signature as Secp256K1Signature, SigningKey,
+    };
+    use tiny_keccak::{Hasher, Keccak};
+
+    use super::*;
+
+    /// secp256k1eth signer.
+    pub struct Secp256k1EthSigner(Arc<Mutex<SigningKey>>);
+
+    impl Secp256k1EthSigner {
+        /// Creates a new secp256k1eth signer with the provided signing key.
+        pub fn new(key: &[u8]) -> Result<Self, SignerError> {
+            SigningKey::from_slice(key)
+                .map(|key| Self(Arc::new(Mutex::new(key))))
+                .map_err(|_| SignerError("invalid key".to_string()))
+        }
+    }
+
+    impl Signer for Secp256k1EthSigner {
+        fn alg_id(&self) -> SignatureAlgId {
+            SignatureAlgId::SECP256K1ETH
+        }
+
+        fn sign(&self, msg: &[u8]) -> Result<Signature, SignatureError> {
+            // Pre-hash the message.
+            let mut hasher = Keccak::v256();
+            hasher.update(msg);
+            let mut output = vec![0; 32];
+            hasher.finalize(&mut output);
+
+            let (signature, recid) = self
+                .0
+                .lock()
+                .unwrap()
+                .sign_prehash_recoverable(&output)
+                .map_err(|_| SignatureError("error in sign_prehash_recoverable".to_string()))?;
+
+            let mut sig = signature.to_vec();
+            let recid = recid.to_byte();
+
+            // Based on Ethereum Yellow Paper Appendix F, only values 0 and 1 are valid.
+            if recid > 1 {
+                return Err(SignatureError(format!(
+                    "expected recovery id 0 or 1, got {:?}",
+                    recid
+                )));
+            }
+            // `ecrecover` expects that 0 and 1 are mapped to 27 and 28.
+            sig.push(recid + 27);
+
+            Ok(Signature {
+                alg: SignatureAlgId::SECP256K1ETH,
+                data: sig,
+            })
+        }
+
+        fn verifying_key(&self) -> VerifyingKey {
+            let key = self.0.lock().unwrap().verifying_key().to_sec1_bytes();
+
+            VerifyingKey {
+                alg: KeyAlgId::K256,
+                data: key.to_vec(),
+            }
+        }
+    }
+
+    /// secp256k1eth verifier.
+    pub struct Secp256k1EthVerifier;
+
+    impl SignatureVerifier for Secp256k1EthVerifier {
+        fn alg_id(&self) -> SignatureAlgId {
+            SignatureAlgId::SECP256K1ETH
+        }
+
+        fn verify(&self, key: &VerifyingKey, msg: &[u8], sig: &[u8]) -> Result<(), SignatureError> {
+            if key.alg != KeyAlgId::K256 {
+                return Err(SignatureError("key algorithm is not k256".to_string()));
+            }
+
+            if sig.len() != 65 {
+                return Err(SignatureError(
+                    "ethereum signature length must be 65 bytes".to_string(),
+                ));
+            }
+
+            let key = k256::ecdsa::VerifyingKey::from_sec1_bytes(&key.data)
+                .map_err(|_| SignatureError("invalid k256 key".to_string()))?;
+
+            // `sig` is a concatenation of `r || s || v`. We ignore `v` since it is only
+            // useful when recovering the verifying key.
+            let sig = Secp256K1Signature::from_slice(&sig[..64])
+                .map_err(|_| SignatureError("invalid secp256k1 signature".to_string()))?;
+
+            // Pre-hash the message.
+            let mut hasher = Keccak::v256();
+            hasher.update(msg);
+            let mut output = vec![0; 32];
+            hasher.finalize(&mut output);
+
+            key.verify_prehash(&output, &sig).map_err(|_| {
+                SignatureError("secp256k1 signature verification failed".to_string())
+            })?;
+
+            Ok(())
+        }
+    }
+}
+
+pub use secp256k1eth::{Secp256k1EthSigner, Secp256k1EthVerifier};
+
 #[cfg(test)]
 mod test {
-    use super::*;
-    use rand_core::OsRng;
+    use alloy_primitives::utils::eip191_message;
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+    use rand06_compat::Rand0_6CompatExt;
     use rstest::{fixture, rstest};
 
+    use super::*;
+
     #[fixture]
     #[once]
-    fn secp256k1_signer() -> Secp256k1Signer {
-        let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
-        Secp256k1Signer::new(&signing_key.to_bytes()).unwrap()
+    fn secp256k1_pair() -> (Box<dyn Signer>, Box<dyn SignatureVerifier>) {
+        let signing_key = k256::ecdsa::SigningKey::random(&mut rand::rng().compat());
+        (
+            Box::new(Secp256k1Signer::new(&signing_key.to_bytes()).unwrap()),
+            Box::new(Secp256k1Verifier {}),
+        )
     }
 
     #[fixture]
     #[once]
-    fn secp256r1_signer() -> Secp256r1Signer {
-        let signing_key = p256::ecdsa::SigningKey::random(&mut OsRng);
-        Secp256r1Signer::new(&signing_key.to_bytes()).unwrap()
+    fn secp256r1_pair() -> (Box<dyn Signer>, Box<dyn SignatureVerifier>) {
+        let signing_key = p256::ecdsa::SigningKey::random(&mut rand::rng().compat());
+        (
+            Box::new(Secp256r1Signer::new(&signing_key.to_bytes()).unwrap()),
+            Box::new(Secp256r1Verifier {}),
+        )
+    }
+
+    #[fixture]
+    #[once]
+    fn secp256k1eth_pair() -> (Box<dyn Signer>, Box<dyn SignatureVerifier>) {
+        let signing_key = k256::ecdsa::SigningKey::random(&mut rand::rng().compat());
+        (
+            Box::new(Secp256k1EthSigner::new(&signing_key.to_bytes()).unwrap()),
+            Box::new(Secp256k1EthVerifier {}),
+        )
     }
 
     #[rstest]
-    fn test_secp256k1_success(secp256k1_signer: &Secp256k1Signer) {
-        assert_eq!(secp256k1_signer.alg_id(), SignatureAlgId::SECP256K1);
+    #[case::r1(secp256r1_pair(), SignatureAlgId::SECP256R1)]
+    #[case::k1(secp256k1_pair(), SignatureAlgId::SECP256K1)]
+    #[case::k1eth(secp256k1eth_pair(), SignatureAlgId::SECP256K1ETH)]
+    fn test_success(
+        #[case] pair: (Box<dyn Signer>, Box<dyn SignatureVerifier>),
+        #[case] alg: SignatureAlgId,
+    ) {
+        let (signer, verifier) = pair;
+        assert_eq!(signer.alg_id(), alg);
 
         let msg = "test payload";
-        let signature = secp256k1_signer.sign(msg.as_bytes()).unwrap();
-        let verifying_key = secp256k1_signer.verifying_key();
+        let signature = signer.sign(msg.as_bytes()).unwrap();
+        let verifying_key = signer.verifying_key();
+
+        assert_eq!(verifier.alg_id(), alg);
+        let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
+        assert!(result.is_ok());
+    }
+
+    #[rstest]
+    #[case::r1(secp256r1_pair())]
+    #[case::k1eth(secp256k1eth_pair())]
+    fn test_wrong_signer(#[case] pair: (Box<dyn Signer>, Box<dyn SignatureVerifier>)) {
+        let (signer, _) = pair;
+
+        let msg = "test payload";
+        let signature = signer.sign(msg.as_bytes()).unwrap();
+        let verifying_key = signer.verifying_key();
 
         let verifier = Secp256k1Verifier {};
-        assert_eq!(verifier.alg_id(), SignatureAlgId::SECP256K1);
         let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[rstest]
-    fn test_secp256r1_success(secp256r1_signer: &Secp256r1Signer) {
-        assert_eq!(secp256r1_signer.alg_id(), SignatureAlgId::SECP256R1);
-
-        let msg = "test payload";
-        let signature = secp256r1_signer.sign(msg.as_bytes()).unwrap();
-        let verifying_key = secp256r1_signer.verifying_key();
-
-        let verifier = Secp256r1Verifier {};
-        assert_eq!(verifier.alg_id(), SignatureAlgId::SECP256R1);
-        let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
-        assert!(result.is_ok());
-    }
-
-    #[rstest]
-    #[case::wrong_signer(&secp256r1_signer(), false, false)]
-    #[case::corrupted_signature(&secp256k1_signer(), true, false)]
-    #[case::wrong_signature(&secp256k1_signer(), false, true)]
+    #[case::corrupted_signature_r1(secp256r1_pair(), true, false)]
+    #[case::corrupted_signature_k1(secp256k1_pair(), true, false)]
+    #[case::corrupted_signature_k1eth(secp256k1eth_pair(), true, false)]
+    #[case::wrong_signature_r1(secp256r1_pair(), false, true)]
+    #[case::wrong_signature_k1(secp256k1_pair(), false, true)]
+    #[case::wrong_signature_k1eth(secp256k1eth_pair(), false, true)]
     fn test_failure(
-        #[case] signer: &dyn Signer,
+        #[case] pair: (Box<dyn Signer>, Box<dyn SignatureVerifier>),
         #[case] corrupted_signature: bool,
         #[case] wrong_signature: bool,
     ) {
+        let (signer, verifier) = pair;
+
         let msg = "test payload";
         let mut signature = signer.sign(msg.as_bytes()).unwrap();
         let verifying_key = signer.verifying_key();
@@ -442,8 +605,32 @@ mod test {
             signature = signer.sign("different payload".as_bytes()).unwrap();
         }
 
-        let verifier = Secp256k1Verifier {};
         let result = verifier.verify(&verifying_key, msg.as_bytes(), &signature.data);
         assert!(result.is_err());
+    }
+
+    #[test]
+    // Tests secp256k1eth signatures against a reference implementation.
+    fn test_secp256k1eth_sig() {
+        // An arbitrary signing key.
+        let sk = vec![1; 32];
+        let mut msg = "test message".as_bytes().to_vec();
+
+        let signer: Secp256k1EthSigner = Secp256k1EthSigner::new(&sk).unwrap();
+
+        // Testing multiple signatures.
+        for i in 0..10 {
+            msg.push(i);
+            // Convert to EIP-191 since the reference signer can't sign raw bytes.
+            let sig = signer.sign(&eip191_message(&msg)).unwrap().data;
+
+            assert_eq!(sig, reference_eth_signature(&sk, &msg));
+        }
+    }
+
+    // Returns a reference Ethereum signature.
+    fn reference_eth_signature(sk: &[u8], msg: &[u8]) -> Vec<u8> {
+        let signer = PrivateKeySigner::from_slice(sk).unwrap();
+        signer.sign_message_sync(msg).unwrap().as_bytes().to_vec()
     }
 }

@@ -1,6 +1,6 @@
 import * as Comlink from "./comlink.mjs";
 
-import init, { wasm_main, initThreadPool, init_logging } from './tlsn_benches_browser_wasm.js';
+import init, { wasm_main, initialize } from './tlsn_benches_browser_wasm.js';
 
 class Worker {
   async init() {
@@ -12,7 +12,7 @@ class Worker {
       //   crate_filters: undefined,
       //   span_events: undefined,
       // });
-      await initThreadPool(navigator.hardwareConcurrency);
+      await initialize({ thread_count: navigator.hardwareConcurrency });
     } catch (e) {
       console.error(e);
       throw e;
@@ -20,12 +20,12 @@ class Worker {
   }
 
   async run(
-      ws_ip,
-      ws_port,
-      wasm_to_server_port,
-      wasm_to_verifier_port,
-      wasm_to_native_port
-    ) {
+    ws_ip,
+    ws_port,
+    wasm_to_server_port,
+    wasm_to_verifier_port,
+    wasm_to_native_port
+  ) {
     try {
       await wasm_main(
         ws_ip,

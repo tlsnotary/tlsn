@@ -5,7 +5,7 @@ description = "Core types for TLSNotary"
 keywords = ["tls", "mpc", "2pc", "types"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.8-pre"
+version = "0.1.0-alpha.9"
 edition = "2021"
 
 [features]
@@ -16,10 +16,7 @@ fixtures = ["dep:hex", "dep:tlsn-data-fixtures"]
 tlsn-data-fixtures = { workspace = true, optional = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
-
-mpz-core = { workspace = true }
-mpz-garble-core = { workspace = true }
-mpz-circuits = { workspace = true }
+rangeset = { workspace = true, features = ["serde"] }
 
 bcs = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }
@@ -30,6 +27,7 @@ opaque-debug = { workspace = true }
 p256 = { workspace = true, features = ["serde"] }
 rand = { workspace = true }
 rand_core = { workspace = true }
+rand_chacha = { workspace = true }
 rs_merkle = { workspace = true, features = ["serde"] }
 rstest = { workspace = true, optional = true }
 serde = { workspace = true }
@@ -38,12 +36,20 @@ thiserror = { workspace = true }
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 web-time = { workspace = true }
 webpki-roots = { workspace = true }
+itybity = { workspace = true }
 
 [dev-dependencies]
+<<<<<<< HEAD
+=======
+alloy-primitives = { version = "0.8.22", default-features = false }
+alloy-signer = { version = "0.12", default-features = false }
+alloy-signer-local = { version = "0.12", default-features = false }
+>>>>>>> dev
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
 tlsn-data-fixtures = { workspace = true }
+rand06-compat = { workspace = true }
 
 [[test]]
 name = "api"

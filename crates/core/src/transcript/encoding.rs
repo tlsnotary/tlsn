@@ -8,7 +8,7 @@ mod proof;
 mod provider;
 mod tree;
 
-pub(crate) use encoder::{new_encoder, Encoder};
+pub use encoder::{new_encoder, Encoder, EncoderSecret};
 pub use proof::{EncodingProof, EncodingProofError};
 pub use provider::EncodingProvider;
 pub use tree::EncodingTree;
@@ -23,7 +23,7 @@ pub struct EncodingCommitment {
     /// Merkle root of the encoding commitments.
     pub root: TypedHash,
     /// Seed used to generate the encodings.
-    pub seed: Vec<u8>,
+    pub secret: EncoderSecret,
 }
 
 impl_domain_separator!(EncodingCommitment);

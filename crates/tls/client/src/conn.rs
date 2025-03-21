@@ -10,6 +10,7 @@ use crate::{
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use std::{
+    backtrace::Backtrace,
     collections::VecDeque,
     convert::TryFrom,
     io, mem,
@@ -30,8 +31,9 @@ use tls_core::{
     suites::SupportedCipherSuite,
 };
 
-/// Values of this structure are returned from [`Connection::process_new_packets`]
-/// and tell the caller the current I/O state of the TLS connection.
+/// Values of this structure are returned from
+/// [`Connection::process_new_packets`] and tell the caller the current I/O
+/// state of the TLS connection.
 #[derive(Debug, PartialEq)]
 pub struct IoState {
     tls_bytes_to_write: usize,
@@ -75,21 +77,25 @@ pub struct Reader<'a> {
 impl<'a> io::Read for Reader<'a> {
     /// Obtain plaintext data received from the peer over this TLS connection.
     ///
-    /// If the peer closes the TLS session cleanly, this returns `Ok(0)`  once all
-    /// the pending data has been read. No further data can be received on that
-    /// connection, so the underlying TCP connection should be half-closed too.
+    /// If the peer closes the TLS session cleanly, this returns `Ok(0)`  once
+    /// all the pending data has been read. No further data can be received
+    /// on that connection, so the underlying TCP connection should be
+    /// half-closed too.
     ///
-    /// If the peer closes the TLS session uncleanly (a TCP EOF without sending a
-    /// `close_notify` alert) this function returns `Err(ErrorKind::UnexpectedEof.into())`
-    /// once any pending data has been read.
+    /// If the peer closes the TLS session uncleanly (a TCP EOF without sending
+    /// a `close_notify` alert) this function returns
+    /// `Err(ErrorKind::UnexpectedEof.into())` once any pending data has
+    /// been read.
     ///
-    /// Note that support for `close_notify` varies in peer TLS libraries: many do not
-    /// support it and uncleanly close the TCP connection (this might be
-    /// vulnerable to truncation attacks depending on the application protocol).
-    /// This means applications using rustls must both handle EOF
-    /// from this function, *and* unexpected EOF of the underlying TCP connection.
+    /// Note that support for `close_notify` varies in peer TLS libraries: many
+    /// do not support it and uncleanly close the TCP connection (this might
+    /// be vulnerable to truncation attacks depending on the application
+    /// protocol). This means applications using rustls must both handle EOF
+    /// from this function, *and* unexpected EOF of the underlying TCP
+    /// connection.
     ///
-    /// If there are no bytes to read, this returns `Err(ErrorKind::WouldBlock.into())`.
+    /// If there are no bytes to read, this returns
+    /// `Err(ErrorKind::WouldBlock.into())`.
     ///
     /// You may learn the number of bytes available at any time by inspecting
     /// the return of [`Connection::process_new_packets`].
@@ -193,11 +199,11 @@ impl ConnectionCommon {
         self.common_state.received_plaintext.read(buf)
     }
 
-    /// Returns the number of messages buffered for decryption.
-    pub async fn buffer_len(&mut self) -> Result<usize, Error> {
+    /// Returns whether there are buffered data.
+    pub async fn is_empty(&mut self) -> Result<bool, Error> {
         self.common_state
             .backend
-            .buffer_len()
+            .is_empty()
             .await
             .map_err(Error::from)
     }
@@ -233,12 +239,11 @@ impl ConnectionCommon {
     ///
     /// What this means depends on the connection  state:
     ///
-    /// - If the connection [`is_handshaking`], then IO is performed until
-    ///   the handshake is complete.
-    /// - Otherwise, if [`wants_write`] is true, [`write_tls`] is invoked
-    ///   until it is all written.
-    /// - Otherwise, if [`wants_read`] is true, [`read_tls`] is invoked
-    ///   once.
+    /// - If the connection [`is_handshaking`], then IO is performed until the
+    ///   handshake is complete.
+    /// - Otherwise, if [`wants_write`] is true, [`write_tls`] is invoked until
+    ///   it is all written.
+    /// - Otherwise, if [`wants_read`] is true, [`read_tls`] is invoked once.
     ///
     /// The return value is the number of bytes read from and written
     /// to `io`, respectively.
@@ -304,7 +309,8 @@ impl ConnectionCommon {
     /// Extract the first handshake message.
     ///
     /// This is a shortcut to the `process_new_packets()` -> `process_msg()` ->
-    /// `process_handshake_messages()` path, specialized for the first handshake message.
+    /// `process_handshake_messages()` path, specialized for the first handshake
+    /// message.
     pub(crate) async fn first_handshake_message(&mut self) -> Result<Option<Message>, Error> {
         if self.message_deframer.desynced {
             return Err(Error::CorruptMessage);
@@ -335,11 +341,10 @@ impl ConnectionCommon {
         self.state = Ok(new);
     }
 
-    async fn process_msg(
+    async fn process_incoming_opaque(
         &mut self,
         msg: OpaqueMessage,
-        state: Box<dyn State<ClientConnectionData>>,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+    ) -> Result<Option<PlainMessage>, Error> {
         // Drop CCS messages during handshake in TLS1.3
         if msg.typ == ContentType::ChangeCipherSpec
             && !self.common_state.may_receive_application_data
@@ -360,25 +365,25 @@ impl ConnectionCommon {
             } else {
                 self.common_state.received_middlebox_ccs += 1;
                 trace!("Dropping CCS");
-                return Ok(state);
+                return Ok(None);
             }
         }
 
         // Decrypt if demanded by current state.
-        let msg = match self.common_state.record_layer.is_decrypting() {
-            true => match self.common_state.decrypt_incoming(msg).await {
-                Ok(None) => {
-                    // message dropped
-                    return Ok(state);
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-                Ok(Some(msg)) => msg,
-            },
-            false => msg.into_plain_message(),
-        };
+        if self.common_state.record_layer.is_decrypting() {
+            self.common_state.decrypt_incoming(msg).await?;
 
+            Ok(None)
+        } else {
+            Ok(Some(msg.into_plain_message()))
+        }
+    }
+
+    async fn process_incoming_plain(
+        &mut self,
+        msg: PlainMessage,
+        state: Box<dyn State<ClientConnectionData>>,
+    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
         // For handshake messages, we need to join them before parsing
         // and processing.
         if self.handshake_joiner.want_message(&msg) {
@@ -411,7 +416,8 @@ impl ConnectionCommon {
             .await
     }
 
-    /// Returns a notification future which resolves when the backend has messages ready to decrypt.
+    /// Returns a notification future which resolves when the backend has
+    /// messages ready to decrypt.
     pub async fn get_notify(&mut self) -> Result<BackendNotify, Error> {
         self.common_state
             .backend
@@ -451,12 +457,25 @@ impl ConnectionCommon {
             return Err(Error::CorruptMessage);
         }
 
+        // Process new messages.
         while let Some(msg) = self.message_deframer.frames.pop_front() {
-            self.backend.buffer_incoming(msg).await?;
+            // If we're not encrypting yet we process it immediately. Otherwise it will be
+            // pushed to the backend.
+            if let Some(plain) = self.process_incoming_opaque(msg).await? {
+                match self.process_incoming_plain(plain, state).await {
+                    Ok(new) => state = new,
+                    Err(e) => {
+                        self.state = Err(e.clone());
+                        return Err(e);
+                    }
+                }
+            }
         }
+        self.backend.flush().await?;
 
+        // Process pending decrypted messages.
         while let Some(msg) = self.backend.next_incoming().await? {
-            match self.process_msg(msg, state).await {
+            match self.process_incoming_plain(msg, state).await {
                 Ok(new) => state = new,
                 Err(e) => {
                     self.state = Err(e.clone());
@@ -465,7 +484,12 @@ impl ConnectionCommon {
             }
         }
 
+        while let Some(msg) = self.backend.next_outgoing().await? {
+            self.queue_tls_message(msg);
+        }
+
         self.state = Ok(state);
+
         Ok(self.common_state.current_io_state())
     }
 
@@ -497,6 +521,10 @@ impl ConnectionCommon {
         let mut pos = 0;
         while pos < buf.len() {
             pos += self.write_plaintext(&buf[pos..]).await?;
+        }
+        self.backend.flush().await?;
+        while let Some(msg) = self.backend.next_outgoing().await? {
+            self.queue_tls_message(msg);
         }
         Ok(pos)
     }
@@ -650,22 +678,25 @@ impl CommonState {
         })
     }
 
-    /// Returns true if the caller should call [`CommonState::write_tls`] as soon
-    /// as possible.
+    /// Returns true if the caller should call [`CommonState::write_tls`] as
+    /// soon as possible.
     pub fn wants_write(&self) -> bool {
         !self.sendable_tls.is_empty()
     }
 
-    /// Returns true if there is no plaintext data available to read immediately.
+    /// Returns true if there is no plaintext data available to read
+    /// immediately.
     pub fn plaintext_is_empty(&self) -> bool {
         self.received_plaintext.is_empty()
     }
 
-    /// Returns true if the connection is currently performing the TLS handshake.
+    /// Returns true if the connection is currently performing the TLS
+    /// handshake.
     ///
-    /// During this time plaintext written to the connection is buffered in memory. After
-    /// [`Connection::process_new_packets`] has been called, this might start to return `false`
-    /// while the final handshake packets still need to be extracted from the connection's buffers.
+    /// During this time plaintext written to the connection is buffered in
+    /// memory. After [`Connection::process_new_packets`] has been called,
+    /// this might start to return `false` while the final handshake packets
+    /// still need to be extracted from the connection's buffers.
     pub fn is_handshaking(&self) -> bool {
         !(self.may_send_application_data && self.may_receive_application_data)
     }
@@ -782,29 +813,24 @@ impl CommonState {
         Ok(Error::PeerMisbehavedError(why.to_string()))
     }
 
-    pub(crate) async fn decrypt_incoming(
-        &mut self,
-        encr: OpaqueMessage,
-    ) -> Result<Option<PlainMessage>, Error> {
+    pub(crate) async fn decrypt_incoming(&mut self, encr: OpaqueMessage) -> Result<(), Error> {
         if self.record_layer.wants_close_before_decrypt() {
             self.send_close_notify().await?;
         }
 
-        let encrypted_len = encr.payload.0.len();
-        let plain = self
-            .record_layer
+        self.record_layer
             .decrypt_incoming(self.backend.as_mut(), encr)
-            .await;
+            .await?;
 
-        match plain {
+        Ok(())
+    }
+
+    pub(crate) async fn next_decrypted(&mut self) -> Result<Option<PlainMessage>, Error> {
+        match self.backend.next_incoming().await.map_err(Error::from) {
             Err(Error::PeerSentOversizedRecord) => {
                 self.send_fatal_alert(AlertDescription::RecordOverflow)
                     .await?;
                 Err(Error::PeerSentOversizedRecord)
-            }
-            Err(Error::DecryptError) if self.record_layer.doing_trial_decryption(encrypted_len) => {
-                trace!("Dropping undecryptable message after aborted early_data");
-                Ok(None)
             }
             Err(Error::DecryptError) => {
                 self.send_fatal_alert(AlertDescription::BadRecordMac)
@@ -812,7 +838,7 @@ impl CommonState {
                 Err(Error::DecryptError)
             }
             Err(e) => Err(e),
-            Ok(plain) => Ok(Some(plain)),
+            Ok(plain) => Ok(plain),
         }
     }
 
@@ -871,32 +897,33 @@ impl CommonState {
             return Err(Error::EncryptError);
         }
 
-        let em = self
-            .record_layer
+        self.record_layer
             .encrypt_outgoing(self.backend.as_mut(), m)
             .await?;
-        self.queue_tls_message(em);
+
         Ok(())
     }
 
     /// Writes TLS messages to `wr`.
     ///
-    /// On success, this function returns `Ok(n)` where `n` is a number of bytes written to `wr`
-    /// (after encoding and encryption).
+    /// On success, this function returns `Ok(n)` where `n` is a number of bytes
+    /// written to `wr` (after encoding and encryption).
     ///
-    /// After this function returns, the connection buffer may not yet be fully flushed. The
-    /// [`CommonState::wants_write`] function can be used to check if the output buffer is empty.
+    /// After this function returns, the connection buffer may not yet be fully
+    /// flushed. The [`CommonState::wants_write`] function can be used to
+    /// check if the output buffer is empty.
     pub fn write_tls(&mut self, wr: &mut dyn io::Write) -> Result<usize, io::Error> {
         self.sendable_tls.write_to(wr)
     }
 
     /// Writes TLS messages to `wr`.
     ///
-    /// On success, this function returns `Ok(n)` where `n` is a number of bytes written to `wr`
-    /// (after encoding and encryption).
+    /// On success, this function returns `Ok(n)` where `n` is a number of bytes
+    /// written to `wr` (after encoding and encryption).
     ///
-    /// After this function returns, the connection buffer may not yet be fully flushed. The
-    /// [`CommonState::wants_write`] function can be used to check if the output buffer is empty.
+    /// After this function returns, the connection buffer may not yet be fully
+    /// flushed. The [`CommonState::wants_write`] function can be used to
+    /// check if the output buffer is empty.
     pub async fn write_tls_async<T: AsyncWrite + Unpin>(
         &mut self,
         wr: &mut T,
@@ -937,6 +964,7 @@ impl CommonState {
 
     pub(crate) async fn start_traffic(&mut self) -> Result<(), Error> {
         self.may_receive_application_data = true;
+        self.backend.start_traffic().await?;
         self.start_outgoing_traffic().await
     }
 
@@ -973,10 +1001,10 @@ impl CommonState {
     /// This buffer is used to store TLS records that rustls needs to
     /// send to the peer.  It is used in these two circumstances:
     ///
-    /// - by [`Connection::process_new_packets`] when a handshake or alert
-    ///   TLS record needs to be sent.
-    /// - by [`Connection::writer`] post-handshake: the plaintext is
-    ///   encrypted and the resulting TLS record is buffered.
+    /// - by [`Connection::process_new_packets`] when a handshake or alert TLS
+    ///   record needs to be sent.
+    /// - by [`Connection::writer`] post-handshake: the plaintext is encrypted
+    ///   and the resulting TLS record is buffered.
     ///
     /// This buffer is emptied by [`CommonState::write_tls`].
     pub fn set_buffer_limit(&mut self, limit: Option<usize>) {
@@ -1095,12 +1123,14 @@ impl CommonState {
     /// this returns false.  If your application respects this mechanism,
     /// only one full TLS message will be buffered by rustls.
     pub fn wants_read(&self) -> bool {
-        // We want to read more data all the time, except when we have unprocessed plaintext.
-        // This provides back-pressure to the TCP buffers. We also don't want to read more after
-        // the peer has sent us a close notification.
+        // We want to read more data all the time, except when we have unprocessed
+        // plaintext. This provides back-pressure to the TCP buffers. We also
+        // don't want to read more after the peer has sent us a close
+        // notification.
         //
-        // In the handshake case we don't have readable plaintext before the handshake has
-        // completed, but also don't want to read if we still have sendable tls.
+        // In the handshake case we don't have readable plaintext before the handshake
+        // has completed, but also don't want to read if we still have sendable
+        // tls.
         self.received_plaintext.is_empty()
             && !self.has_received_close_notify
             && (self.may_send_application_data || self.sendable_tls.is_empty())

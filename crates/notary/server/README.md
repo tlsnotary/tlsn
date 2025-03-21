@@ -115,11 +115,13 @@ String
 ## Logging
 The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic:
 
-`notary_server=DEBUG,tlsn_verifier=DEBUG,tls_mpc=DEBUG,tls_client_async=DEBUG`
+`notary_server=DEBUG,tlsn_verifier=DEBUG,mpc_tls=DEBUG,tls_client_async=DEBUG`
 
-In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field under `logging`.
+In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field under `logging`. Alternatively, use the CLI argument `--log-level` (see [this](#configuration)).
 
-One can also provide a custom filtering logic by adding a `filter` field  under `logging` in the config file above, and use a value that follows the tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+One can also provide a custom filtering logic by adding a `filter` field under `logging` in the config file above, and use a value that follows the tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+
+Logs can be printed in two formats. Compact and JSON. Compact is human-readable and is best suited for console. JSON is machine-readable and is used to send logs to log collection services. One can change log format by switching the `format` field under `logging`. Accepted values are `compact` and `json`. If the config key is not set - `compact` is used by default.
 
 ---
 ## Architecture
@@ -154,7 +156,7 @@ TLS between the prover and the notary is currently manually handled in this serv
 - This server is run locally
 - TLS is to be handled by an external environment, e.g. reverse proxy, cloud setup
 
-The toggle to turn on/off TLS is in the config (`tls` field).
+The toggle to turn on/off TLS is in the config (`tls` field). Alternatively, use the CLI argument `--tls-enabled` (see [this](#configuration)).
 
 ### Design Choices
 #### Web Framework

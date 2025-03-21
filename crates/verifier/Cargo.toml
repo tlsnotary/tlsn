@@ -5,7 +5,7 @@ description = "A library for the TLSNotary verifier"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.8-pre"
+version = "0.1.0-alpha.9"
 edition = "2021"
 
 [features]
@@ -16,21 +16,29 @@ force-st = ["mpz-common/force-st"]
 [dependencies]
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
-tlsn-tls-mpc = { workspace = true }
+tlsn-deap = { workspace = true }
+tlsn-mpc-tls = { workspace = true }
+tlsn-tls-core = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
 
-mpz-circuits = { workspace = true }
+mpz-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-garble = { workspace = true }
+mpz-garble-core = { workspace = true }
+mpz-memory-core = { workspace = true }
 mpz-ole = { workspace = true }
 mpz-ot = { workspace = true }
+mpz-vm-core = { workspace = true }
+mpz-zk = { workspace = true }
 
 derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
+rand06-compat = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 web-time = { workspace = true }
