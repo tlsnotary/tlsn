@@ -20,6 +20,49 @@ pub(crate) fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>
     (gen, ev)
 }
 
+pub(crate) fn prf_ms(pms: [u8; 32], client_random: [u8; 32], server_random: [u8; 32]) -> [u8; 48] {
+    let mut label_start_seed = b"master secret".to_vec();
+    label_start_seed.extend_from_slice(&client_random);
+    label_start_seed.extend_from_slice(&server_random);
+
+    let ms = phash(pms.to_vec(), &label_start_seed, 2)[..48].to_vec();
+
+    ms.try_into().unwrap()
+}
+
+pub(crate) fn prf_keys(
+    ms: [u8; 48],
+    client_random: [u8; 32],
+    server_random: [u8; 32],
+) -> [Vec<u8>; 4] {
+    let mut label_start_seed = b"key expansion".to_vec();
+    label_start_seed.extend_from_slice(&server_random);
+    label_start_seed.extend_from_slice(&client_random);
+
+    let mut session_keys = phash(ms.to_vec(), &label_start_seed, 2)[..40].to_vec();
+
+    let server_iv = session_keys.split_off(36);
+    let client_iv = session_keys.split_off(32);
+    let server_write_key = session_keys.split_off(16);
+    let client_write_key = session_keys;
+
+    [client_write_key, server_write_key, client_iv, server_iv]
+}
+
+pub(crate) fn prf_cf_vd(ms: [u8; 48], hanshake_hash: [u8; 32]) -> Vec<u8> {
+    let mut label_start_seed = b"client finished".to_vec();
+    label_start_seed.extend_from_slice(&hanshake_hash);
+
+    phash(ms.to_vec(), &label_start_seed, 1)[..12].to_vec()
+}
+
+pub(crate) fn prf_sf_vd(ms: [u8; 48], hanshake_hash: [u8; 32]) -> Vec<u8> {
+    let mut label_start_seed = b"server finished".to_vec();
+    label_start_seed.extend_from_slice(&hanshake_hash);
+
+    phash(ms.to_vec(), &label_start_seed, 1)[..12].to_vec()
+}
+
 pub(crate) fn phash(key: Vec<u8>, seed: &[u8], iterations: usize) -> Vec<u8> {
     // A() is defined as:
     //
