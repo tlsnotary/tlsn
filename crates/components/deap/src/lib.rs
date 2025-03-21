@@ -368,7 +368,6 @@ mod tests {
     };
     use mpz_zk::{Prover, Verifier};
     use rand::{rngs::StdRng, SeedableRng};
-    use rand06_compat::Rand0_6CompatExt;
 
     use super::*;
 
