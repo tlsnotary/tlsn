@@ -270,9 +270,14 @@ impl MpcTlsFollower {
                     ke.compute_shares(&mut self.ctx).await?;
                     ke.assign(&mut (*vm))?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    while !prf
+                        .drive_key_expansion(&mut (*vm))
+                        .map_err(MpcTlsError::hs)?
+                    {
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+                    }
 
                     ke.finalize().await?;
                     record_layer.setup(&mut self.ctx).await?;
@@ -288,9 +293,14 @@ impl MpcTlsFollower {
 
                     prf.set_cf_hash(vd.handshake_hash)?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    while !prf
+                        .drive_client_finished(&mut (*vm))
+                        .map_err(MpcTlsError::hs)?
+                    {
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+                    }
 
                     cf_vd = Some(
                         cf_vd_fut
@@ -310,9 +320,14 @@ impl MpcTlsFollower {
 
                     prf.set_sf_hash(vd.handshake_hash)?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    while !prf
+                        .drive_server_finished(&mut (*vm))
+                        .map_err(MpcTlsError::hs)?
+                    {
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+                    }
 
                     sf_vd = Some(
                         sf_vd_fut

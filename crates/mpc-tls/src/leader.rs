@@ -539,7 +539,12 @@ impl Backend for MpcTlsLeader {
             .map_err(|_| MpcTlsError::other("VM lock is held"))?;
         prf.set_sf_hash(hash).map_err(MpcTlsError::hs)?;
 
-        vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        while !prf
+            .drive_server_finished(&mut *(vm))
+            .map_err(MpcTlsError::hs)?
+        {
+            vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        }
 
         let sf_vd = sf_vd
             .try_recv()
@@ -582,7 +587,12 @@ impl Backend for MpcTlsLeader {
             .map_err(|_| MpcTlsError::hs("VM lock is held"))?;
         prf.set_cf_hash(hash).map_err(MpcTlsError::hs)?;
 
-        vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        while !prf
+            .drive_client_finished(&mut *(vm))
+            .map_err(MpcTlsError::hs)?
+        {
+            vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        }
 
         let cf_vd = cf_vd
             .try_recv()
@@ -599,7 +609,7 @@ impl Backend for MpcTlsLeader {
             vm,
             keys,
             mut ke,
-            prf,
+            mut prf,
             mut record_layer,
             cf_vd,
             sf_vd,
@@ -644,10 +654,17 @@ impl Backend for MpcTlsLeader {
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
             ke.assign(&mut (*vm_lock)).map_err(MpcTlsError::hs)?;
-            vm_lock
-                .execute_all(&mut ctx)
-                .await
-                .map_err(MpcTlsError::hs)?;
+
+            while !prf
+                .drive_key_expansion(&mut (*vm_lock))
+                .map_err(MpcTlsError::hs)?
+            {
+                vm_lock
+                    .execute_all(&mut ctx)
+                    .await
+                    .map_err(MpcTlsError::hs)?;
+            }
+
             ke.finalize().await.map_err(MpcTlsError::hs)?;
             record_layer.setup(&mut ctx).await?;
         }
