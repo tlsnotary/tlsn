@@ -14,8 +14,10 @@ use tracing::instrument;
 mod state;
 use state::State;
 
-mod function;
-use function::PrfFunction;
+mod interactive;
+
+mod local;
+use local::PrfFunction;
 
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
 #[derive(Debug)]
@@ -299,9 +301,9 @@ fn merge_outputs(
     assert!(output_bytes <= 32 * inputs.len());
 
     let bits = Array::<U32, 8>::SIZE * inputs.len();
-    let id_circ = merge_to_big_endian(4, bits);
+    let msb0_circ = gen_merge_circ(4, bits);
 
-    let mut builder = Call::builder(id_circ);
+    let mut builder = Call::builder(msb0_circ);
     for &input in inputs.iter() {
         builder = builder.arg(input);
     }
@@ -312,7 +314,7 @@ fn merge_outputs(
     Ok(output)
 }
 
-fn merge_to_big_endian(element_byte_size: usize, size: usize) -> Arc<Circuit> {
+fn gen_merge_circ(element_byte_size: usize, size: usize) -> Arc<Circuit> {
     assert!((size / 8) % element_byte_size == 0);
 
     let mut builder = CircuitBuilder::new();

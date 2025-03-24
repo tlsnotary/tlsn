@@ -288,7 +288,7 @@ impl PHash {
 mod tests {
     use crate::{
         convert_to_bytes,
-        prf::function::PrfFunction,
+        prf::local::PrfFunction,
         test_utils::{mock_vm, phash},
     };
     use mpz_common::context::test_st_context;
@@ -298,12 +298,12 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_phash() {
+    async fn test_phash_local() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut leader, mut follower) = mock_vm();
 
         let key: [u8; 32] = std::array::from_fn(|i| i as u8);
-        let start_seed: Vec<u8> = vec![42; 12];
+        let start_seed: Vec<u8> = vec![42; 64];
 
         let mut label_seed = PrfFunction::MS_LABEL.to_vec();
         label_seed.extend_from_slice(&start_seed);
