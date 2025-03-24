@@ -6,6 +6,7 @@ use axum::{
 use axum_core::body::Body;
 use hyper::upgrade::{OnUpgrade, Upgraded};
 use hyper_util::rt::TokioIo;
+use tokio::time::Instant;
 use std::future::Future;
 use tracing::{debug, error, info};
 
@@ -84,13 +85,22 @@ pub async fn tcp_notarize(
     notary_globals: NotaryGlobals,
     session_id: String,
 ) {
+    let start = Instant::now();
     debug!(?session_id, "Upgraded to tcp connection");
     match notary_service(stream, notary_globals, &session_id).await {
         Ok(_) => {
-            info!(?session_id, "Successful notarization using tcp!");
+            info!(
+                ?session_id,
+                elapsed_time = start.elapsed().as_millis(),
+                "Successful notarization using tcp!"
+            );
         }
         Err(err) => {
-            error!(?session_id, "Failed notarization using tcp: {err}");
+            error!(
+                ?session_id,
+                elapsed_time = start.elapsed().as_millis(),
+                "Failed notarization using tcp: {err}"
+            );
         }
     }
 }
