@@ -40,7 +40,7 @@ pub struct SessionKeys {
     pub server_iv: Array<U8, 4>,
 }
 
-#[cfg(any(test, feature = "prf-local"))]
+#[cfg(any(test, feature = "local-inner-hash"))]
 fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
     let mut output = [0_u8; 32];
     for (k, byte_chunk) in input.iter().enumerate() {

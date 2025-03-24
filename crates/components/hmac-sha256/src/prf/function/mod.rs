@@ -9,14 +9,14 @@ use mpz_vm_core::{
 };
 use std::sync::Arc;
 
-#[cfg(not(feature = "prf-local"))]
+#[cfg(not(feature = "local-inner-hash"))]
 mod interactive;
-#[cfg(not(feature = "prf-local"))]
+#[cfg(not(feature = "local-inner-hash"))]
 pub(crate) use interactive::PrfFunction;
 
-#[cfg(feature = "prf-local")]
+#[cfg(feature = "local-inner-hash")]
 mod local;
-#[cfg(feature = "prf-local")]
+#[cfg(feature = "local-inner-hash")]
 pub(crate) use local::PrfFunction;
 
 fn compute_partial(
