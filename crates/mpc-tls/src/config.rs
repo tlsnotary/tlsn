@@ -27,6 +27,9 @@ pub struct Config {
     /// the TLS connection is active. Data which can be decrypted after the TLS
     /// connection will be decrypted for free.
     pub(crate) max_recv_online: usize,
+    /// Maximum number of received bytes.
+    #[allow(unused)]
+    pub(crate) max_recv: usize,
 }
 
 impl Config {
@@ -48,13 +51,22 @@ impl ConfigBuilder {
             + self
                 .max_recv_online
                 .ok_or(ConfigBuilderError::UninitializedField("max_recv_online"))?;
+        let max_recv = self
+            .max_recv
+            .ok_or(ConfigBuilderError::UninitializedField("max_recv"))?;
+
+        if max_recv_online > max_recv {
+            return Err(ConfigBuilderError::ValidationError(
+                "max_recv_online must be less than or equal to max_recv".to_string(),
+            ));
+        }
 
         let max_sent_records = self
             .max_sent_records
             .unwrap_or_else(|| MIN_SENT_RECORDS + max_sent.div_ceil(16384));
         let max_recv_records = self
             .max_recv_records
-            .unwrap_or_else(|| MIN_RECV_RECORDS + max_recv_online.div_ceil(16384));
+            .unwrap_or_else(|| MIN_RECV_RECORDS + max_recv.div_ceil(16384));
 
         Ok(Config {
             defer_decryption,
@@ -62,6 +74,7 @@ impl ConfigBuilder {
             max_sent,
             max_recv_records,
             max_recv_online,
+            max_recv,
         })
     }
 }
