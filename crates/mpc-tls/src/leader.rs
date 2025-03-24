@@ -539,11 +539,15 @@ impl Backend for MpcTlsLeader {
             .map_err(|_| MpcTlsError::other("VM lock is held"))?;
         prf.set_sf_hash(hash).map_err(MpcTlsError::hs)?;
 
-        while !prf
-            .drive_server_finished(&mut *(vm))
-            .map_err(MpcTlsError::hs)?
-        {
+        loop {
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+
+            if prf
+                .drive_server_finished(&mut (*vm))
+                .map_err(MpcTlsError::hs)?
+            {
+                break;
+            }
         }
 
         let sf_vd = sf_vd
@@ -587,11 +591,15 @@ impl Backend for MpcTlsLeader {
             .map_err(|_| MpcTlsError::hs("VM lock is held"))?;
         prf.set_cf_hash(hash).map_err(MpcTlsError::hs)?;
 
-        while !prf
-            .drive_client_finished(&mut *(vm))
-            .map_err(MpcTlsError::hs)?
-        {
+        loop {
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+
+            if prf
+                .drive_client_finished(&mut (*vm))
+                .map_err(MpcTlsError::hs)?
+            {
+                break;
+            }
         }
 
         let cf_vd = cf_vd
@@ -655,14 +663,18 @@ impl Backend for MpcTlsLeader {
 
             ke.assign(&mut (*vm_lock)).map_err(MpcTlsError::hs)?;
 
-            while !prf
-                .drive_key_expansion(&mut (*vm_lock))
-                .map_err(MpcTlsError::hs)?
-            {
+            loop {
                 vm_lock
                     .execute_all(&mut ctx)
                     .await
                     .map_err(MpcTlsError::hs)?;
+
+                if prf
+                    .drive_key_expansion(&mut (*vm_lock))
+                    .map_err(MpcTlsError::hs)?
+                {
+                    break;
+                }
             }
 
             ke.finalize().await.map_err(MpcTlsError::hs)?;

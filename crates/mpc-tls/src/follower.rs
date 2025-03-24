@@ -270,13 +270,17 @@ impl MpcTlsFollower {
                     ke.compute_shares(&mut self.ctx).await?;
                     ke.assign(&mut (*vm))?;
 
-                    while !prf
-                        .drive_key_expansion(&mut (*vm))
-                        .map_err(MpcTlsError::hs)?
-                    {
+                    loop {
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
+
+                        if prf
+                            .drive_key_expansion(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?
+                        {
+                            break;
+                        }
                     }
 
                     ke.finalize().await?;
@@ -293,13 +297,17 @@ impl MpcTlsFollower {
 
                     prf.set_cf_hash(vd.handshake_hash)?;
 
-                    while !prf
-                        .drive_client_finished(&mut (*vm))
-                        .map_err(MpcTlsError::hs)?
-                    {
+                    loop {
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
+
+                        if prf
+                            .drive_client_finished(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?
+                        {
+                            break;
+                        }
                     }
 
                     cf_vd = Some(
@@ -320,13 +328,17 @@ impl MpcTlsFollower {
 
                     prf.set_sf_hash(vd.handshake_hash)?;
 
-                    while !prf
-                        .drive_server_finished(&mut (*vm))
-                        .map_err(MpcTlsError::hs)?
-                    {
+                    loop {
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
+
+                        if prf
+                            .drive_server_finished(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?
+                        {
+                            break;
+                        }
                     }
 
                     sf_vd = Some(
