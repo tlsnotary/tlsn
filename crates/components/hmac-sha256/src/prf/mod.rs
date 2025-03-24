@@ -14,10 +14,8 @@ use tracing::instrument;
 mod state;
 use state::State;
 
-mod interactive;
-
-mod local;
-use local::PrfFunction;
+mod function;
+use function::PrfFunction;
 
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
 #[derive(Debug)]

@@ -52,9 +52,3 @@ impl fmt::Display for PrfError {
         Ok(())
     }
 }
-
-impl From<mpz_common::ContextError> for PrfError {
-    fn from(error: mpz_common::ContextError) -> Self {
-        Self::new(ErrorKind::Vm, error)
-    }
-}

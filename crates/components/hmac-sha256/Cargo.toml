@@ -12,20 +12,16 @@ edition = "2021"
 name = "hmac_sha256"
 
 [features]
-default = ["mock"]
-rayon = ["mpz-common/rayon"]
-mock = []
+default = ["prf-local"]
+prf-local = []
 
 [dependencies]
 mpz-vm-core = { workspace = true }
 mpz-core = { workspace = true }
 mpz-circuits = { workspace = true }
-mpz-common = { workspace = true, features = ["cpu"] }
 
-derive_builder = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-futures = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
