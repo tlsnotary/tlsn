@@ -47,10 +47,9 @@ impl ConfigBuilder {
             + self
                 .max_sent
                 .ok_or(ConfigBuilderError::UninitializedField("max_sent"))?;
-        let max_recv_online = MIN_RECV
-            + self
-                .max_recv_online
-                .ok_or(ConfigBuilderError::UninitializedField("max_recv_online"))?;
+        let mut max_recv_online = self
+            .max_recv_online
+            .ok_or(ConfigBuilderError::UninitializedField("max_recv_online"))?;
         let max_recv = self
             .max_recv
             .ok_or(ConfigBuilderError::UninitializedField("max_recv"))?;
@@ -60,6 +59,8 @@ impl ConfigBuilder {
                 "max_recv_online must be less than or equal to max_recv".to_string(),
             ));
         }
+
+        max_recv_online += MIN_RECV;
 
         let max_sent_records = self
             .max_sent_records
