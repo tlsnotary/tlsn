@@ -1,5 +1,6 @@
-use crate::prf::function::compute_partial;
-use crate::{convert_to_bytes, hmac::HmacSha256, sha256::sha256, PrfError};
+use crate::{
+    convert_to_bytes, hmac::HmacSha256, prf::function::compute_partial, sha256::sha256, PrfError,
+};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},

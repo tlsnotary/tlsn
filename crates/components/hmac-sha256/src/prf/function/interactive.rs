@@ -154,7 +154,7 @@ impl PHash {
 }
 
 fn convert_array(vm: &mut dyn Vm<Binary>, input: Array<U32, 8>) -> Result<Array<U8, 32>, PrfError> {
-    let id_circ = {
+    let circ = {
         let mut builder = CircuitBuilder::new();
         let inputs = (0..32 * 8).map(|_| builder.add_input()).collect::<Vec<_>>();
 
@@ -167,10 +167,10 @@ fn convert_array(vm: &mut dyn Vm<Binary>, input: Array<U32, 8>) -> Result<Array<
             }
         }
 
-        Arc::new(builder.build().expect("identity circuit is valid"))
+        Arc::new(builder.build().expect("conversion circuit is valid"))
     };
 
-    let mut builder = Call::builder(id_circ);
+    let mut builder = Call::builder(circ);
     builder = builder.arg(input);
     let call = builder.build().map_err(PrfError::vm)?;
 
@@ -179,19 +179,21 @@ fn convert_array(vm: &mut dyn Vm<Binary>, input: Array<U32, 8>) -> Result<Array<
 
 fn merge_vecs(vm: &mut dyn Vm<Binary>, inputs: Vec<Vector<U8>>) -> Result<Vector<U8>, PrfError> {
     let len: usize = inputs.iter().map(|inp| inp.len()).sum();
-    let mut builder = CircuitBuilder::new();
+    let circ = {
+        let mut builder = CircuitBuilder::new();
 
-    let feeds = (0..len * 8)
-        .map(|_| builder.add_input())
-        .collect::<Vec<_>>();
-    for feed in feeds {
-        let output = builder.add_id_gate(feed);
-        builder.add_output(output);
-    }
+        let feeds = (0..len * 8)
+            .map(|_| builder.add_input())
+            .collect::<Vec<_>>();
+        for feed in feeds {
+            let output = builder.add_id_gate(feed);
+            builder.add_output(output);
+        }
 
-    let circuit = builder.build().map_err(PrfError::vm)?;
-    let mut builder = Call::builder(Arc::new(circuit));
+        Arc::new(builder.build().expect("merge circuit is valid"))
+    };
 
+    let mut builder = Call::builder(circ);
     for input in inputs {
         builder = builder.arg(input);
     }

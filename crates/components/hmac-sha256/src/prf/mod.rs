@@ -123,7 +123,7 @@ impl MpcPrf {
     /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_cf_hash(&mut self, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
-        let State::ClientFinished { .. } = self.state.take() else {
+        let State::ClientFinished = self.state.take() else {
             return Err(PrfError::state("PRF not in client finished state"));
         };
 
@@ -327,7 +327,7 @@ fn gen_merge_circ(element_byte_size: usize, size: usize) -> Arc<Circuit> {
         }
     }
 
-    Arc::new(builder.build().expect("identity circuit is valid"))
+    Arc::new(builder.build().expect("merge circuit is valid"))
 }
 
 #[cfg(test)]
