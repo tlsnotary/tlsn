@@ -4,7 +4,6 @@ version = "0.1.0-alpha.9"
 edition = "2021"
 
 [features]
-default = ["tee_quote"]
 tee_quote = [
 	"dep:mc-sgx-dcap-types",
 	"dep:hex",
