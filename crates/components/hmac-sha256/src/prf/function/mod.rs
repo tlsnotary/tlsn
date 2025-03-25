@@ -1,3 +1,8 @@
+//! Provides [`PrfFunction`], for computing the TLS 1.2 PRF.
+//!
+//! If the feature flag `local-inner-hash` is set, provides an implementation which computes
+//! some hashes locally.
+
 use crate::{sha256::Sha256, PrfError};
 use mpz_circuits::circuits::xor;
 use mpz_vm_core::{
@@ -19,14 +24,22 @@ mod local;
 #[cfg(feature = "local-inner-hash")]
 pub(crate) use local::PrfFunction;
 
+/// Depending on the provided `mask` computes and returns `outer_partial` or `inner_partial` for
+/// HMAC-SHA256.
+///
+/// # Arguments
+///
+/// * `vm` - Virtual machine.
+/// * `key` - Key to pad and xor.
+/// * `mask`- Mask used for padding.
 fn compute_partial(
     vm: &mut dyn Vm<Binary>,
-    data: Vector<U8>,
+    key: Vector<U8>,
     mask: [u8; 64],
 ) -> Result<Array<U32, 8>, PrfError> {
     let xor = Arc::new(xor(8 * 64));
 
-    let additional_len = 64 - data.len();
+    let additional_len = 64 - key.len();
     let padding = vec![0_u8; additional_len];
 
     let padding_ref: Vector<U8> = vm.alloc_vec(additional_len).map_err(PrfError::vm)?;
@@ -40,7 +53,7 @@ fn compute_partial(
     vm.commit(mask_ref).map_err(PrfError::vm)?;
 
     let xor = Call::builder(xor)
-        .arg(data)
+        .arg(key)
         .arg(padding_ref)
         .arg(mask_ref)
         .build()

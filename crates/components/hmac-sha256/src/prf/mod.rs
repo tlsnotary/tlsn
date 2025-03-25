@@ -17,7 +17,7 @@ use state::State;
 mod function;
 use function::PrfFunction;
 
-/// MPC PRF for computing TLS HMAC-SHA256 PRF.
+/// MPC PRF for computing TLS 1.2 HMAC-SHA256 PRF.
 #[derive(Debug)]
 pub struct MpcPrf {
     state: State,
@@ -209,6 +209,7 @@ impl MpcPrf {
     }
 }
 
+/// Contains the respective [`PrfFunction`]s.
 #[derive(Debug)]
 struct Circuits {
     pub(crate) master_secret: PrfFunction,
