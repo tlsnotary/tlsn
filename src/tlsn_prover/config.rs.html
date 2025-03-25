@@ -57,7 +57,8 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>mpc_tls::Config;
 <span class="kw">use </span>tlsn_common::config::ProtocolConfig;
@@ -112,6 +113,7 @@
             .defer_decryption(<span class="self">self</span>.defer_decryption_from_start)
             .max_sent(<span class="self">self</span>.protocol_config.max_sent_data())
             .max_recv_online(<span class="self">self</span>.protocol_config.max_recv_data_online())
+            .max_recv(<span class="self">self</span>.protocol_config.max_recv_data())
             .build()
             .unwrap()
     }

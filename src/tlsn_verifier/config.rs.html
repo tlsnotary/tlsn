@@ -50,7 +50,8 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fmt::{Debug, Formatter, <span class="prelude-ty">Result</span>},
     sync::Arc,
 };
@@ -98,6 +99,7 @@
         Config::builder()
             .max_sent(protocol_config.max_sent_data())
             .max_recv_online(protocol_config.max_recv_data_online())
+            .max_recv(protocol_config.max_recv_data())
             .build()
             .unwrap()
     }
