@@ -3,6 +3,7 @@
 // example to learn how to acquire an attestation from a Notary.
 
 use hyper::header;
+use rangeset::ToRangeSet;
 use tlsn_core::{attestation::Attestation, presentation::Presentation, CryptoProvider, Secrets};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
@@ -40,12 +41,13 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     // Build a transcript proof.
     let mut builder = secrets.transcript_proof_builder();
 
+    // Here is where we reveal all or some of the parts we committed in `prove.rs` previously.
     let request = &transcript.requests[0];
     // Reveal the structure of the request without the headers or body.
     builder.reveal_sent(&request.without_data())?;
     // Reveal the request target.
     builder.reveal_sent(&request.request.target)?;
-    // Reveal all headers except the values of User-Agent and Authorization.
+    // Reveal all request headers except the values of User-Agent and Authorization.
     for header in &request.headers {
         if !(header
             .name
@@ -64,10 +66,12 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
 
     // Reveal only parts of the response
     let response = &transcript.responses[0];
+    // Reveal the structure of the response without the headers or body.
     builder.reveal_recv(&response.without_data())?;
-    for header in &response.headers {
-        builder.reveal_recv(header)?;
-    }
+    // Reveal all response headers.
+    let start = response.headers.first().unwrap().to_range_set().min().unwrap();
+    let end = response.headers.last().unwrap().to_range_set().end().unwrap();
+    builder.reveal_recv(&(start..end))?;
 
     let content = &response.body.as_ref().unwrap().content;
     match content {
