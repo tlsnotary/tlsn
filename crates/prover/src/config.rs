@@ -53,6 +53,7 @@ impl ProverConfig {
             .defer_decryption(self.defer_decryption_from_start)
             .max_sent(self.protocol_config.max_sent_data())
             .max_recv_online(self.protocol_config.max_recv_data_online())
+            .max_recv(self.protocol_config.max_recv_data())
             .build()
             .unwrap()
     }
