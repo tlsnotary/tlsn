@@ -1,3 +1,5 @@
+//! Computation of SHA256.
+
 use crate::PrfError;
 use mpz_circuits::circuits::SHA256_COMPRESS;
 use mpz_vm_core::{
@@ -8,6 +10,7 @@ use mpz_vm_core::{
     Call, CallableExt, Vm,
 };
 
+/// Computes SHA256.
 #[derive(Debug, Default)]
 pub(crate) struct Sha256 {
     state: Option<Array<U32, 8>>,
@@ -16,26 +19,41 @@ pub(crate) struct Sha256 {
 }
 
 impl Sha256 {
+    /// The default initialization vector.
     const IV: [u32; 8] = [
         0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
         0x5be0cd19,
     ];
 
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
+    /// Sets the state.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The starting state for the SHA256 compression function.
+    /// * `processed` - The number of already processed bytes corresponding to `state`.
     pub(crate) fn set_state(&mut self, state: Array<U32, 8>, processed: usize) -> &mut Self {
         self.state = Some(state);
         self.processed = processed;
         self
     }
 
+    /// Feeds data into the hash function.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data to hash.
     pub(crate) fn update(&mut self, data: Vector<U8>) -> &mut Self {
         self.chunks.push(data);
         self
     }
 
+    /// Computes the padding for SHA256.
+    ///
+    /// Padding is computed depending on [`Self::state`] and [`Self::processed`].
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine.
     pub(crate) fn add_padding(&mut self, vm: &mut dyn Vm<Binary>) -> Result<&mut Self, PrfError> {
         let msg_len: usize = self.chunks.iter().map(|b| b.len()).sum();
         let pos = self.processed;
@@ -73,6 +91,11 @@ impl Sha256 {
         Ok(self)
     }
 
+    /// Adds the [`Call`] to the [`Vm`], and returns the output.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine.
     pub(crate) fn alloc(self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
         let mut state = if let Some(state) = self.state {
             state
@@ -80,7 +103,7 @@ impl Sha256 {
             Self::assign_iv(vm)?
         };
 
-        // Sha256 compression function takes 64 byte blocks as inputs but our blocks in
+        // SHA256 compression function takes 64 byte blocks as inputs but our blocks in
         // `self.chunks` can have arbitrary size to simplify the api. So we need to
         // repartition them to 64 byte blocks and feed those into the
         // compression function.
@@ -193,7 +216,7 @@ mod tests {
             leader.assign(input_leader, input.clone()).unwrap();
             leader.commit(input_leader).unwrap();
 
-            let mut sha_leader = Sha256::new();
+            let mut sha_leader = Sha256::default();
             sha_leader
                 .update(input_leader)
                 .add_padding(&mut leader)
@@ -206,7 +229,7 @@ mod tests {
             follower.assign(input_follower, input.clone()).unwrap();
             follower.commit(input_follower).unwrap();
 
-            let mut sha_follower = Sha256::new();
+            let mut sha_follower = Sha256::default();
             sha_follower
                 .update(input_follower)
                 .add_padding(&mut follower)
@@ -259,7 +282,7 @@ mod tests {
         leader.assign(state_leader, state).unwrap();
         leader.commit(state_leader).unwrap();
 
-        let mut sha_leader = Sha256::new();
+        let mut sha_leader = Sha256::default();
         sha_leader
             .set_state(state_leader, skip)
             .update(input_leader)
@@ -278,7 +301,7 @@ mod tests {
         follower.assign(state_follower, state).unwrap();
         follower.commit(state_follower).unwrap();
 
-        let mut sha_follower = Sha256::new();
+        let mut sha_follower = Sha256::default();
         sha_follower
             .set_state(state_follower, skip)
             .update(input_follower)

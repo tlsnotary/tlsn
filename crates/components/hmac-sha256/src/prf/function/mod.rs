@@ -47,7 +47,7 @@ fn compute_partial(
         .map_err(PrfError::vm)?;
     let key_padded = vm.call(xor).map_err(PrfError::vm)?;
 
-    let mut sha = Sha256::new();
+    let mut sha = Sha256::default();
     sha.update(key_padded);
     sha.alloc(vm)
 }

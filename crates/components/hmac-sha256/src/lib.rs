@@ -4,14 +4,15 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-mod error;
-pub(crate) mod hmac;
-mod prf;
-pub(crate) mod sha256;
+mod hmac;
+mod sha256;
 #[cfg(test)]
-pub(crate) mod test_utils;
+mod test_utils;
 
+mod error;
 pub use error::PrfError;
+
+mod prf;
 pub use prf::MpcPrf;
 
 use mpz_vm_core::memory::{binary::U8, Array};

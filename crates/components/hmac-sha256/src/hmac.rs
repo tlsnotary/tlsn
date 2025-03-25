@@ -1,3 +1,21 @@
+//! Computation of HMAC-SHA256.
+//!
+//! HMAC-SHA256 is defined as
+//!
+//! HMAC(m) = H((key' xor opad) || H((key' xor ipad) || m))
+//!
+//! * H     - SHA256 hash function
+//! * key'  - key padded with zero bytes to 64 bytes (we do not support longer keys)
+//! * opad  - 64 bytes of 0x5c
+//! * ipad  - 64 bytes of 0x36
+//! * m     - message
+//!
+//! This implementation computes HMAC-SHA256 using intermediate results `outer_partial` and `inner_local`.
+//! Then HMAC(m) = H(outer_partial || inner_local)
+//!
+//! * `outer_partial`   - key' xor opad
+//! * `inner_local`     - H((key' xor ipad) || m)
+
 use crate::{sha256::Sha256, PrfError};
 use mpz_vm_core::{
     memory::{
@@ -7,6 +25,7 @@ use mpz_vm_core::{
     Vm,
 };
 
+/// Computes HMAC-SHA256.
 #[derive(Debug)]
 pub(crate) struct HmacSha256 {
     outer_partial: Array<U32, 8>,
@@ -14,6 +33,12 @@ pub(crate) struct HmacSha256 {
 }
 
 impl HmacSha256 {
+    /// Creates a new instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `outer_partial` - (key' xor opad)
+    /// * `inner_local` - H((key' xor ipad) || m)
     pub(crate) fn new(outer_partial: Array<U32, 8>, inner_local: Array<U8, 32>) -> Self {
         Self {
             outer_partial,
@@ -21,10 +46,15 @@ impl HmacSha256 {
         }
     }
 
+    /// Adds the circuit to the [`Vm`] and returns the output.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine.
     pub(crate) fn alloc(self, vm: &mut dyn Vm<Binary>) -> Result<Array<U32, 8>, PrfError> {
         let inner_local = self.inner_local.into();
 
-        let mut outer = Sha256::new();
+        let mut outer = Sha256::default();
         outer
             .set_state(self.outer_partial, 64)
             .update(inner_local)

@@ -137,7 +137,7 @@ impl PHash {
         inner_partial: Array<U32, 8>,
         msg: Vector<U8>,
     ) -> Result<Self, PrfError> {
-        let mut sha = Sha256::new();
+        let mut sha = Sha256::default();
         sha.set_state(inner_partial, 64)
             .update(msg)
             .add_padding(vm)?;
