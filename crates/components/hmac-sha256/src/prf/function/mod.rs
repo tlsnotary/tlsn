@@ -1,7 +1,7 @@
 //! Provides [`PrfFunction`], for computing the TLS 1.2 PRF.
 //!
-//! If the feature flag `local-inner-hash` is set, provides an implementation which computes
-//! some hashes locally.
+//! If the feature flag `local-inner-hash` is set, provides an implementation
+//! which computes some hashes locally.
 
 use crate::{sha256::Sha256, PrfError};
 use mpz_circuits::circuits::xor;
@@ -24,8 +24,8 @@ mod local;
 #[cfg(feature = "local-inner-hash")]
 pub(crate) use local::PrfFunction;
 
-/// Depending on the provided `mask` computes and returns `outer_partial` or `inner_partial` for
-/// HMAC-SHA256.
+/// Depending on the provided `mask` computes and returns `outer_partial` or
+/// `inner_partial` for HMAC-SHA256.
 ///
 /// # Arguments
 ///

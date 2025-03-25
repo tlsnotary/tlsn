@@ -5,13 +5,15 @@
 //! HMAC(m) = H((key' xor opad) || H((key' xor ipad) || m))
 //!
 //! * H     - SHA256 hash function
-//! * key'  - key padded with zero bytes to 64 bytes (we do not support longer keys)
+//! * key'  - key padded with zero bytes to 64 bytes (we do not support longer
+//!   keys)
 //! * opad  - 64 bytes of 0x5c
 //! * ipad  - 64 bytes of 0x36
 //! * m     - message
 //!
-//! This implementation computes HMAC-SHA256 using intermediate results `outer_partial` and `inner_local`.
-//! Then HMAC(m) = H(outer_partial || inner_local)
+//! This implementation computes HMAC-SHA256 using intermediate results
+//! `outer_partial` and `inner_local`. Then HMAC(m) = H(outer_partial ||
+//! inner_local)
 //!
 //! * `outer_partial`   - key' xor opad
 //! * `inner_local`     - H((key' xor ipad) || m)

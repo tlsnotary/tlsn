@@ -30,7 +30,8 @@ impl Sha256 {
     /// # Arguments
     ///
     /// * `state` - The starting state for the SHA256 compression function.
-    /// * `processed` - The number of already processed bytes corresponding to `state`.
+    /// * `processed` - The number of already processed bytes corresponding to
+    ///   `state`.
     pub(crate) fn set_state(&mut self, state: Array<U32, 8>, processed: usize) -> &mut Self {
         self.state = Some(state);
         self.processed = processed;
@@ -49,7 +50,8 @@ impl Sha256 {
 
     /// Computes the padding for SHA256.
     ///
-    /// Padding is computed depending on [`Self::state`] and [`Self::processed`].
+    /// Padding is computed depending on [`Self::state`] and
+    /// [`Self::processed`].
     ///
     /// # Arguments
     ///
