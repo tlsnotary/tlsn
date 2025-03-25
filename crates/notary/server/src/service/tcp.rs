@@ -6,8 +6,8 @@ use axum::{
 use axum_core::body::Body;
 use hyper::upgrade::{OnUpgrade, Upgraded};
 use hyper_util::rt::TokioIo;
-use tokio::time::Instant;
 use std::future::Future;
+use tokio::time::Instant;
 use tracing::{debug, error, info};
 
 use crate::{domain::notary::NotaryGlobals, service::notary_service, NotaryServerError};
