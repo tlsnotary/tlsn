@@ -164,7 +164,6 @@ async fn notarize(
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
-    // dbg!(&transcript);
 
     let body_content = &transcript.responses[0].body.as_ref().unwrap().content;
     let body = String::from_utf8_lossy(body_content.span().as_bytes());
