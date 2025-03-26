@@ -214,7 +214,6 @@ jobs:
   gramine-sgx:
     runs-on: ubuntu-latest
     needs: build-sgx
-    environment: tee
     container:
       image: gramineproject/gramine:latest
 
