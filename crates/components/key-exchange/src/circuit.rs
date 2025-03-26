@@ -1,6 +1,6 @@
 //! This module provides the circuits used in the key exchange protocol.
 
-use mpz_circuits::{ops::add_mod, Circuit, CircuitBuilder};
+use mpz_circuits::{ops::add_mod, Circuit, CircuitBuilder, Feed, Node};
 use std::sync::Arc;
 
 /// Circuit for combining additive shares of the PMS, twice
@@ -19,6 +19,7 @@ use std::sync::Arc;
 /// 2. EQ: Equality check of PMS_0 and PMS_1
 pub(crate) fn build_pms_circuit() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new();
+
     let share_a0 = (0..32 * 8).map(|_| builder.add_input()).collect::<Vec<_>>();
     let share_b0 = (0..32 * 8).map(|_| builder.add_input()).collect::<Vec<_>>();
     let share_a1 = (0..32 * 8).map(|_| builder.add_input()).collect::<Vec<_>>();
@@ -26,12 +27,33 @@ pub(crate) fn build_pms_circuit() -> Arc<Circuit> {
 
     let modulus = (0..32 * 8).map(|_| builder.add_input()).collect::<Vec<_>>();
 
-    let pms_0 = add_mod(&mut builder, &share_a0, &share_b0, &modulus);
+    /// assumes input is provided as big endian
+    fn to_little_endian(input: &[Node<Feed>]) -> Vec<Node<Feed>> {
+        let mut be_lsb0_output = vec![];
+        for node in input.chunks_exact(8).rev() {
+            for &bit in node.iter() {
+                be_lsb0_output.push(bit);
+            }
+        }
+        be_lsb0_output
+    }
+
+    let pms_0 = add_mod(
+        &mut builder,
+        &to_little_endian(&share_a0),
+        &to_little_endian(&share_b0),
+        &to_little_endian(&modulus),
+    );
     for node in pms_0.iter() {
         builder.add_output(*node);
     }
 
-    let pms_1 = add_mod(&mut builder, &share_a1, &share_b1, &modulus);
+    let pms_1 = add_mod(
+        &mut builder,
+        &to_little_endian(&share_a1),
+        &to_little_endian(&share_b1),
+        &to_little_endian(&modulus),
+    );
     for node in pms_1.iter() {
         builder.add_output(*node);
     }
