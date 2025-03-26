@@ -91,14 +91,14 @@ pub async fn tcp_notarize(
         Ok(_) => {
             info!(
                 ?session_id,
-                elapsed_time = start.elapsed().as_millis(),
+                elapsed_time_millis = start.elapsed().as_millis(),
                 "Successful notarization using tcp!"
             );
         }
         Err(err) => {
             error!(
                 ?session_id,
-                elapsed_time = start.elapsed().as_millis(),
+                elapsed_time_millis = start.elapsed().as_millis(),
                 "Failed notarization using tcp: {err}"
             );
         }
