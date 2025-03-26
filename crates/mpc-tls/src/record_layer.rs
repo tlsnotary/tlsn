@@ -132,7 +132,8 @@ impl RecordLayer {
     /// * `sent_records` - Number of sent records to allocate.
     /// * `recv_records` - Number of received records to allocate.
     /// * `sent_len` - Total length of sent records to allocate.
-    /// * `recv_len_online` - Total length of received records to be decrypted online.
+    /// * `recv_len_online` - Total length of received records to be decrypted
+    ///   online.
     /// * `recv_len` - Total length of received records to allocate.
     pub(crate) fn alloc(
         &mut self,
