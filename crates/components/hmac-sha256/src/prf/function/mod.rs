@@ -1,6 +1,6 @@
 //! Provides [`PrfFunction`], for computing the TLS 1.2 PRF.
 //!
-//! If the feature flag `local-inner-hash` is set, provides an implementation
+//! If the feature flag `local-hash` is set, provides an implementation
 //! which computes some hashes locally.
 
 use crate::{sha256::Sha256, PrfError};
@@ -14,14 +14,14 @@ use mpz_vm_core::{
 };
 use std::sync::Arc;
 
-#[cfg(not(feature = "local-inner-hash"))]
+#[cfg(not(feature = "local-hash"))]
 mod interactive;
-#[cfg(not(feature = "local-inner-hash"))]
+#[cfg(not(feature = "local-hash"))]
 pub(crate) use interactive::PrfFunction;
 
-#[cfg(feature = "local-inner-hash")]
+#[cfg(feature = "local-hash")]
 mod local;
-#[cfg(feature = "local-inner-hash")]
+#[cfg(feature = "local-hash")]
 pub(crate) use local::PrfFunction;
 
 /// Depending on the provided `mask` computes and returns `outer_partial` or

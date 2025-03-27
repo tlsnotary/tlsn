@@ -172,7 +172,7 @@ impl Sha256 {
 /// * `state` - The SHA256 state.
 /// * `pos` - The number of bytes processed in the current state.
 /// * `msg` - The message to hash.
-#[cfg(any(test, feature = "local-inner-hash"))]
+#[cfg(any(test, feature = "local-hash"))]
 pub(crate) fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u32; 8] {
     use sha2::{
         compress256,
