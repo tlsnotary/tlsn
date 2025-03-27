@@ -15,6 +15,7 @@ pub(crate) struct PrfFunction {
     start_seed_label: Option<Vec<u8>>,
     a: Vec<PHash>,
     p: Vec<PHash>,
+    assigned: bool,
 }
 
 impl PrfFunction {
@@ -55,19 +56,24 @@ impl PrfFunction {
     }
 
     pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        let a = self.a.first_mut().expect("prf should be allocated");
-        let msg = a.msg;
+        let assigned = self.assigned;
 
-        let msg_value = self
-            .start_seed_label
-            .clone()
-            .expect("seed should be assigned by now");
+        if !assigned {
+            let a = self.a.first_mut().expect("prf should be allocated");
+            let msg = a.msg;
 
-        vm.mark_public(msg).map_err(PrfError::vm)?;
-        vm.assign(msg, msg_value).map_err(PrfError::vm)?;
-        vm.commit(msg).map_err(PrfError::vm)?;
+            let msg_value = self
+                .start_seed_label
+                .clone()
+                .expect("seed should be assigned by now");
 
-        Ok(true)
+            vm.mark_public(msg).map_err(PrfError::vm)?;
+            vm.assign(msg, msg_value).map_err(PrfError::vm)?;
+            vm.commit(msg).map_err(PrfError::vm)?;
+        }
+
+        self.assigned = true;
+        Ok(assigned)
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
@@ -93,6 +99,7 @@ impl PrfFunction {
             start_seed_label: None,
             a: vec![],
             p: vec![],
+            assigned: false,
         };
 
         assert!(
