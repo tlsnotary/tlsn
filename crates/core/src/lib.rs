@@ -78,6 +78,9 @@
 //! Prover can configure some of the details of the attestation, such as which
 //! cryptographic algorithms are used (if the Notary supports them).
 //!
+//! The Prover may also request for extensions to be added to the attestation,
+//! see [here](crate::attestation#extensions) for more information.
+//!
 //! Upon being issued an attestation, the Prover will also hold a corresponding
 //! [`Secrets`] which contains all private information. This pair can be stored
 //! and used later to construct a

@@ -27,7 +27,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    attestation::{Attestation, AttestationError, AttestationProof},
+    attestation::{Attestation, AttestationError, AttestationProof, Extension},
     connection::{ConnectionInfo, ServerIdentityProof, ServerIdentityProofError, ServerName},
     signing::VerifyingKey,
     transcript::{PartialTranscript, TranscriptProof, TranscriptProofError},
@@ -89,11 +89,18 @@ impl Presentation {
 
         let connection_info = attestation.body.connection_info().clone();
 
+        let extensions = attestation
+            .body
+            .iter_extensions()
+            .map(|extension| extension.clone())
+            .collect();
+
         Ok(PresentationOutput {
             attestation,
             server_name,
             connection_info,
             transcript,
+            extensions,
         })
     }
 }
@@ -110,6 +117,8 @@ pub struct PresentationOutput {
     pub connection_info: ConnectionInfo,
     /// Authenticated transcript data.
     pub transcript: Option<PartialTranscript>,
+    /// Extensions.
+    pub extensions: Vec<Extension>,
 }
 
 /// Builder for [`Presentation`].

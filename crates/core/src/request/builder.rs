@@ -1,4 +1,5 @@
 use crate::{
+    attestation::Extension,
     connection::{ServerCertData, ServerCertOpening, ServerName},
     index::Index,
     request::{Request, RequestConfig},
@@ -14,6 +15,7 @@ pub struct RequestBuilder<'a> {
     server_cert_data: Option<ServerCertData>,
     encoding_tree: Option<EncodingTree>,
     transcript: Option<Transcript>,
+    extensions: Vec<Extension>,
 }
 
 impl<'a> RequestBuilder<'a> {
@@ -25,6 +27,7 @@ impl<'a> RequestBuilder<'a> {
             server_cert_data: None,
             encoding_tree: None,
             transcript: None,
+            extensions: Vec::new(),
         }
     }
 
@@ -52,6 +55,12 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    /// Adds an extension to the request.
+    pub fn extension(&mut self, extension: Extension) -> &mut Self {
+        self.extensions.push(extension);
+        self
+    }
+
     /// Builds the attestation request and returns the corresponding secrets.
     pub fn build(
         self,
@@ -63,6 +72,7 @@ impl<'a> RequestBuilder<'a> {
             server_cert_data,
             encoding_tree,
             transcript,
+            extensions,
         } = self;
 
         let signature_alg = *config.signature_alg();
@@ -92,6 +102,7 @@ impl<'a> RequestBuilder<'a> {
             hash_alg,
             server_cert_commitment,
             encoding_commitment_root,
+            extensions,
         };
 
         let secrets = Secrets {

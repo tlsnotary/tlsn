@@ -1,8 +1,12 @@
+use std::{fmt::Debug, sync::Arc};
+
 use crate::{
-    attestation::FieldKind,
+    attestation::{Extension, FieldKind, InvalidExtension},
     hash::{HashAlgId, DEFAULT_SUPPORTED_HASH_ALGS},
     signing::SignatureAlgId,
 };
+
+type ExtensionValidator = Arc<dyn Fn(&[Extension]) -> Result<(), InvalidExtension> + Send + Sync>;
 
 const DEFAULT_SUPPORTED_FIELDS: &[FieldKind] = &[
     FieldKind::ConnectionInfo,
@@ -44,11 +48,12 @@ impl AttestationConfigError {
 }
 
 /// Attestation configuration.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AttestationConfig {
     supported_signature_algs: Vec<SignatureAlgId>,
     supported_hash_algs: Vec<HashAlgId>,
     supported_fields: Vec<FieldKind>,
+    extension_validator: Option<ExtensionValidator>,
 }
 
 impl AttestationConfig {
@@ -68,14 +73,28 @@ impl AttestationConfig {
     pub(crate) fn supported_fields(&self) -> &[FieldKind] {
         &self.supported_fields
     }
+
+    pub(crate) fn extension_validator(&self) -> Option<&ExtensionValidator> {
+        self.extension_validator.as_ref()
+    }
+}
+
+impl Debug for AttestationConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AttestationConfig")
+            .field("supported_signature_algs", &self.supported_signature_algs)
+            .field("supported_hash_algs", &self.supported_hash_algs)
+            .field("supported_fields", &self.supported_fields)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Builder for [`AttestationConfig`].
-#[derive(Debug)]
 pub struct AttestationConfigBuilder {
     supported_signature_algs: Vec<SignatureAlgId>,
     supported_hash_algs: Vec<HashAlgId>,
     supported_fields: Vec<FieldKind>,
+    extension_validator: Option<ExtensionValidator>,
 }
 
 impl Default for AttestationConfigBuilder {
@@ -84,6 +103,15 @@ impl Default for AttestationConfigBuilder {
             supported_signature_algs: Vec::default(),
             supported_hash_algs: DEFAULT_SUPPORTED_HASH_ALGS.to_vec(),
             supported_fields: DEFAULT_SUPPORTED_FIELDS.to_vec(),
+            extension_validator: Some(Arc::new(|e| {
+                if !e.is_empty() {
+                    Err(InvalidExtension::new(
+                        "all extensions are disallowed by default",
+                    ))
+                } else {
+                    Ok(())
+                }
+            })),
         }
     }
 }
@@ -113,12 +141,46 @@ impl AttestationConfigBuilder {
         self
     }
 
+    /// Sets the extension validator.
+    ///
+    /// # Example
+    /// ```
+    /// # use tlsn_core::attestation::{AttestationConfig, InvalidExtension};
+    /// # let mut builder = AttestationConfig::builder();
+    /// builder.extension_validator(|extensions| {
+    ///     for extension in extensions {
+    ///         if extension.typ != b"example.type" {
+    ///             return Err(InvalidExtension::new("invalid extension type"));
+    ///         }
+    ///     }
+    ///     Ok(())
+    /// });
+    /// ```
+    pub fn extension_validator<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(&[Extension]) -> Result<(), InvalidExtension> + Send + Sync + 'static,
+    {
+        self.extension_validator = Some(Arc::new(f));
+        self
+    }
+
     /// Builds the configuration.
     pub fn build(&self) -> Result<AttestationConfig, AttestationConfigError> {
         Ok(AttestationConfig {
             supported_signature_algs: self.supported_signature_algs.clone(),
             supported_hash_algs: self.supported_hash_algs.clone(),
             supported_fields: self.supported_fields.clone(),
+            extension_validator: self.extension_validator.clone(),
         })
+    }
+}
+
+impl Debug for AttestationConfigBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AttestationConfigBuilder")
+            .field("supported_signature_algs", &self.supported_signature_algs)
+            .field("supported_hash_algs", &self.supported_hash_algs)
+            .field("supported_fields", &self.supported_fields)
+            .finish_non_exhaustive()
     }
 }
