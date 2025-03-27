@@ -1,21 +1,3 @@
-#### gramine with intel SGX
-```bash
-SGX=1 make
-```
-```bash
-SGX=1 make start-gramine-server
-```
-#### gramine emulating SGX
-```
-make
-```
-```
-make start-gramine-server
-```
-#### generate measurement without SGX hardware
-```
-make
-```
-```
-gramine-sgx-sigstruct-view --verbose --output-format=toml notary-server.sig
-```
+This folder contains the necessary files to build a Docker image for running the Notary Server on Intel SGX-enabled hardware.
+
+The container is built as part of the CI pipeline. For details on the build process, refer to the [CI workflow configuration](../../../../.github/workflows/ci.yml).
