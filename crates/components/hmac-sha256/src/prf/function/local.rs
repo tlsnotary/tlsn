@@ -100,7 +100,7 @@ impl PrfFunction {
     }
 
     fn poll_p(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let Some(start_seed) = self.start_seed_label.clone() else {
+        let Some(ref start_seed) = self.start_seed_label else {
             return Err(PrfError::state("Starting seed not set for PRF"));
         };
 
@@ -114,7 +114,7 @@ impl PrfFunction {
             };
 
             let mut message = convert_to_bytes(message).to_vec();
-            message.extend_from_slice(&start_seed);
+            message.extend_from_slice(start_seed);
 
             let Some(inner_partial) = p.inner_partial.poll(vm)? else {
                 break;
