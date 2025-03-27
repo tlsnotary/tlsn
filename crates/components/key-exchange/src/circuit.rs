@@ -44,8 +44,12 @@ pub(crate) fn build_pms_circuit() -> Arc<Circuit> {
         &to_little_endian(&share_b0),
         &to_little_endian(&modulus),
     );
-    for node in pms_0.iter() {
-        builder.add_output(*node);
+
+    // return output as big endian
+    for node in pms_0.chunks_exact(8).rev() {
+        for &bit in node.iter() {
+            builder.add_output(bit);
+        }
     }
 
     let pms_1 = add_mod(
@@ -54,8 +58,12 @@ pub(crate) fn build_pms_circuit() -> Arc<Circuit> {
         &to_little_endian(&share_b1),
         &to_little_endian(&modulus),
     );
-    for node in pms_1.iter() {
-        builder.add_output(*node);
+
+    // return output as big endian
+    for node in pms_1.chunks_exact(8).rev() {
+        for &bit in node.iter() {
+            builder.add_output(bit);
+        }
     }
 
     for (a, b) in pms_0.into_iter().zip(pms_1) {
