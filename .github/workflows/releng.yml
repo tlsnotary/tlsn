@@ -31,12 +31,28 @@ jobs:
           echo "Found run: $RUN_ID"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          run-id: ${{ steps.find_run.outputs.run_id }}
-          # name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
-          path: tlsn-wasm-pkg
+          DOWNLOAD_URL = $(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/tlsnotary/tlsn/actions/runs/${RUN_ID}/artifacts \
+            --jq '.artifacts[] | select(.name == "${{ github.event.inputs.tag }}-tlsn-wasm-pkg") | .archive_download_url')
+
+          mkdir tlsn-wasm-pkg
+
+          curl -L -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -o artifact.zip \
+            ${DOWNLOAD_URL}
+
+          file artifact.zip
+          unzip -q artifact.zip -d tlsn-wasm-pkg
+          find tlsn-wasm-pkg
+
+      # - name: Download build artifacts
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     run-id: ${{ steps.find_run.outputs.run_id }}
+      #     # name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
+      #     path: tlsn-wasm-pkg
 
       - name: NPM Publish for tlsn-wasm
         env:
