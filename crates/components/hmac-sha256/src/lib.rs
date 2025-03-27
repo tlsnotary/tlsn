@@ -62,16 +62,18 @@ mod tests {
         memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
     };
+    use rand::{rngs::StdRng, Rng, SeedableRng};
 
     #[tokio::test]
     async fn test_prf() {
+        let mut rng = StdRng::seed_from_u64(1);
         // Test input
-        let pms = [42_u8; 32];
-        let client_random = [69_u8; 32];
-        let server_random: [u8; 32] = [96_u8; 32];
+        let pms: [u8; 32] = rng.random();
+        let client_random: [u8; 32] = rng.random();
+        let server_random: [u8; 32] = rng.random();
 
-        let cf_hs_hash = [1_u8; 32];
-        let sf_hs_hash = [2_u8; 32];
+        let cf_hs_hash: [u8; 32] = rng.random();
+        let sf_hs_hash: [u8; 32] = rng.random();
 
         // Expected output
         let ms_expected = prf_ms(pms, client_random, server_random);
@@ -238,4 +240,7 @@ mod tests {
         assert_eq!(sf_vd_leader, sf_vd_follower);
         assert_eq!(sf_vd_leader, sf_vd_expected);
     }
+
+    #[test]
+    fn test_reference_prf() {}
 }
