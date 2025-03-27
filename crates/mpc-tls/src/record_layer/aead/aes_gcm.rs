@@ -377,6 +377,9 @@ impl MpcAesGcm {
     /// # Arguments
     ///
     /// * `vm` - Virtual machine.
+    /// * `data` - Tag data associated with `tags`.
+    /// * `ciphertexts` - Ciphertexts to verify the tags for.
+    /// * `tags` - Tags to verify.
     pub(crate) fn verify_tags(
         &mut self,
         vm: &mut dyn Vm<Binary>,
