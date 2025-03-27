@@ -83,14 +83,13 @@ impl ZkAesCtr {
     ///
     /// # Arguments
     ///
-    /// * `vm` - A ZK virtual machine.
+    /// * `vm` - Virtual machine.
     /// * `explicit_nonce` - Explicit nonce.
     /// * `len` - Length of the plaintext in bytes.
     ///
     /// # Returns
     ///
-    /// An **unassigned** VM reference to the plaintext and a VM reference
-    /// to the ciphertext.
+    /// A VM reference to the plaintext and the ciphertext.
     pub fn encrypt(
         &mut self,
         vm: &mut dyn Vm<Binary>,
