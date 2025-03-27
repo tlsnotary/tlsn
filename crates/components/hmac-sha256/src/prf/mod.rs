@@ -1,12 +1,11 @@
-use crate::{PrfError, PrfOutput, SessionKeys};
-use mpz_circuits::{Circuit, CircuitBuilder};
+use crate::{sha256::Sha256, PrfError, PrfOutput, SessionKeys};
+use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, FromRaw, StaticSize, ToRaw, Vector,
+        Array, FromRaw, MemoryExt, StaticSize, ToRaw, Vector, ViewExt,
     },
-    prelude::*,
-    Call, Vm,
+    Call, CallableExt, Vm,
 };
 use std::{fmt::Debug, sync::Arc};
 use tracing::instrument;
@@ -222,25 +221,44 @@ struct Circuits {
 }
 
 impl Circuits {
-    fn alloc(vm: &mut dyn Vm<Binary>, pms: Vector<U8>) -> Result<Self, PrfError> {
-        let master_secret = PrfFunction::alloc_master_secret(vm, pms)?;
-        let ms = master_secret.output();
+    const IPAD: [u8; 64] = [0x36; 64];
+    const OPAD: [u8; 64] = [0x5c; 64];
 
+    fn alloc(vm: &mut dyn Vm<Binary>, pms: Vector<U8>) -> Result<Self, PrfError> {
+        let outer_partial_pms = compute_partial(vm, pms, Self::OPAD)?;
+        let inner_partial_pms = compute_partial(vm, pms, Self::IPAD)?;
+
+        let master_secret =
+            PrfFunction::alloc_master_secret(vm, outer_partial_pms, inner_partial_pms)?;
+        let ms = master_secret.output();
         let ms = merge_outputs(vm, ms, 48)?;
+
+        let outer_partial_ms = compute_partial(vm, ms, Self::OPAD)?;
+        let inner_partial_ms = compute_partial(vm, ms, Self::IPAD)?;
 
         let circuits = Self {
             master_secret,
-            key_expansion: PrfFunction::alloc_key_expansion(vm, ms)?,
-            client_finished: PrfFunction::alloc_client_finished(vm, ms)?,
-            server_finished: PrfFunction::alloc_server_finished(vm, ms)?,
+            key_expansion: PrfFunction::alloc_key_expansion(
+                vm,
+                outer_partial_ms,
+                inner_partial_ms,
+            )?,
+            client_finished: PrfFunction::alloc_client_finished(
+                vm,
+                outer_partial_ms,
+                inner_partial_ms,
+            )?,
+            server_finished: PrfFunction::alloc_server_finished(
+                vm,
+                outer_partial_ms,
+                inner_partial_ms,
+            )?,
         };
         Ok(circuits)
     }
 
     fn get_session_keys(&self, vm: &mut dyn Vm<Binary>) -> Result<SessionKeys, PrfError> {
-        let key_expansion = &self.key_expansion;
-        let keys = key_expansion.output();
-
+        let keys = self.key_expansion.output();
         let mut keys = merge_outputs(vm, keys, 40)?;
 
         let server_iv = <Array<U8, 4> as FromRaw<Binary>>::from_raw(keys.split_off(36).to_raw());
@@ -293,6 +311,47 @@ impl Circuits {
     fn drive_server_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         self.server_finished.make_progress(vm)
     }
+}
+
+/// Depending on the provided `mask` computes and returns `outer_partial` or
+/// `inner_partial` for HMAC-SHA256.
+///
+/// # Arguments
+///
+/// * `vm` - Virtual machine.
+/// * `key` - Key to pad and xor.
+/// * `mask`- Mask used for padding.
+fn compute_partial(
+    vm: &mut dyn Vm<Binary>,
+    key: Vector<U8>,
+    mask: [u8; 64],
+) -> Result<Array<U32, 8>, PrfError> {
+    let xor = Arc::new(xor(8 * 64));
+
+    let additional_len = 64 - key.len();
+    let padding = vec![0_u8; additional_len];
+
+    let padding_ref: Vector<U8> = vm.alloc_vec(additional_len).map_err(PrfError::vm)?;
+    vm.mark_public(padding_ref).map_err(PrfError::vm)?;
+    vm.assign(padding_ref, padding).map_err(PrfError::vm)?;
+    vm.commit(padding_ref).map_err(PrfError::vm)?;
+
+    let mask_ref: Array<U8, 64> = vm.alloc().map_err(PrfError::vm)?;
+    vm.mark_public(mask_ref).map_err(PrfError::vm)?;
+    vm.assign(mask_ref, mask).map_err(PrfError::vm)?;
+    vm.commit(mask_ref).map_err(PrfError::vm)?;
+
+    let xor = Call::builder(xor)
+        .arg(key)
+        .arg(padding_ref)
+        .arg(mask_ref)
+        .build()
+        .map_err(PrfError::vm)?;
+    let key_padded = vm.call(xor).map_err(PrfError::vm)?;
+
+    let mut sha = Sha256::default();
+    sha.update(key_padded);
+    sha.alloc(vm)
 }
 
 fn merge_outputs(

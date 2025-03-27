@@ -1,4 +1,4 @@
-use crate::{hmac::HmacSha256, prf::function::compute_partial, sha256::Sha256, PrfError};
+use crate::{hmac::HmacSha256, sha256::Sha256, PrfError};
 use mpz_circuits::CircuitBuilder;
 use mpz_vm_core::{
     memory::{
@@ -19,9 +19,6 @@ pub(crate) struct PrfFunction {
 }
 
 impl PrfFunction {
-    const IPAD: [u8; 64] = [0x36; 64];
-    const OPAD: [u8; 64] = [0x5c; 64];
-
     pub(crate) const MS_LABEL: &[u8] = b"master secret";
     pub(crate) const KEY_LABEL: &[u8] = b"key expansion";
     pub(crate) const CF_LABEL: &[u8] = b"client finished";
@@ -29,30 +26,34 @@ impl PrfFunction {
 
     pub(crate) fn alloc_master_secret(
         vm: &mut dyn Vm<Binary>,
-        key: Vector<U8>,
+        outer_partial: Array<U32, 8>,
+        inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
-        Self::alloc(vm, key, Self::MS_LABEL, 48, 64)
+        Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48, 64)
     }
 
     pub(crate) fn alloc_key_expansion(
         vm: &mut dyn Vm<Binary>,
-        key: Vector<U8>,
+        outer_partial: Array<U32, 8>,
+        inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
-        Self::alloc(vm, key, Self::KEY_LABEL, 40, 64)
+        Self::alloc(vm, Self::KEY_LABEL, outer_partial, inner_partial, 40, 64)
     }
 
     pub(crate) fn alloc_client_finished(
         vm: &mut dyn Vm<Binary>,
-        key: Vector<U8>,
+        outer_partial: Array<U32, 8>,
+        inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
-        Self::alloc(vm, key, Self::CF_LABEL, 12, 32)
+        Self::alloc(vm, Self::CF_LABEL, outer_partial, inner_partial, 12, 32)
     }
 
     pub(crate) fn alloc_server_finished(
         vm: &mut dyn Vm<Binary>,
-        key: Vector<U8>,
+        outer_partial: Array<U32, 8>,
+        inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
-        Self::alloc(vm, key, Self::SF_LABEL, 12, 32)
+        Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12, 32)
     }
 
     pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
@@ -89,8 +90,9 @@ impl PrfFunction {
 
     fn alloc(
         vm: &mut dyn Vm<Binary>,
-        key: Vector<U8>,
         label: &'static [u8],
+        outer_partial: Array<U32, 8>,
+        inner_partial: Array<U32, 8>,
         output_len: usize,
         seed_len: usize,
     ) -> Result<Self, PrfError> {
@@ -102,16 +104,9 @@ impl PrfFunction {
             assigned: false,
         };
 
-        assert!(
-            key.len() <= 64,
-            "keys longer than 64 bits are not supported"
-        );
         assert!(output_len > 0, "cannot compute 0 bytes for prf");
 
         let iterations = output_len / 32 + ((output_len % 32) != 0) as usize;
-
-        let outer_partial = compute_partial(vm, key, Self::OPAD)?;
-        let inner_partial = compute_partial(vm, key, Self::IPAD)?;
 
         let msg_len_a = label.len() + seed_len;
         let seed_label_ref: Vector<U8> = vm.alloc_vec(msg_len_a).map_err(PrfError::vm)?;

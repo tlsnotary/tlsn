@@ -1,4 +1,4 @@
-//! This module contains the protocol for computing TLS SHA-256 HMAC PRF.
+//! This crate contains the protocol for computing TLS 1.2 SHA-256 HMAC PRF.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -240,7 +240,4 @@ mod tests {
         assert_eq!(sf_vd_leader, sf_vd_follower);
         assert_eq!(sf_vd_leader, sf_vd_expected);
     }
-
-    #[test]
-    fn test_reference_prf() {}
 }

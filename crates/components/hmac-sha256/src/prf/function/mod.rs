@@ -3,17 +3,6 @@
 //! If the feature flag `local-hash` is set, provides an implementation
 //! which computes some hashes locally.
 
-use crate::{sha256::Sha256, PrfError};
-use mpz_circuits::circuits::xor;
-use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U32, U8},
-        Array, MemoryExt, Vector, ViewExt,
-    },
-    Call, CallableExt, Vm,
-};
-use std::sync::Arc;
-
 #[cfg(not(feature = "local-hash"))]
 mod interactive;
 #[cfg(not(feature = "local-hash"))]
@@ -24,52 +13,11 @@ mod local;
 #[cfg(feature = "local-hash")]
 pub(crate) use local::PrfFunction;
 
-/// Depending on the provided `mask` computes and returns `outer_partial` or
-/// `inner_partial` for HMAC-SHA256.
-///
-/// # Arguments
-///
-/// * `vm` - Virtual machine.
-/// * `key` - Key to pad and xor.
-/// * `mask`- Mask used for padding.
-fn compute_partial(
-    vm: &mut dyn Vm<Binary>,
-    key: Vector<U8>,
-    mask: [u8; 64],
-) -> Result<Array<U32, 8>, PrfError> {
-    let xor = Arc::new(xor(8 * 64));
-
-    let additional_len = 64 - key.len();
-    let padding = vec![0_u8; additional_len];
-
-    let padding_ref: Vector<U8> = vm.alloc_vec(additional_len).map_err(PrfError::vm)?;
-    vm.mark_public(padding_ref).map_err(PrfError::vm)?;
-    vm.assign(padding_ref, padding).map_err(PrfError::vm)?;
-    vm.commit(padding_ref).map_err(PrfError::vm)?;
-
-    let mask_ref: Array<U8, 64> = vm.alloc().map_err(PrfError::vm)?;
-    vm.mark_public(mask_ref).map_err(PrfError::vm)?;
-    vm.assign(mask_ref, mask).map_err(PrfError::vm)?;
-    vm.commit(mask_ref).map_err(PrfError::vm)?;
-
-    let xor = Call::builder(xor)
-        .arg(key)
-        .arg(padding_ref)
-        .arg(mask_ref)
-        .build()
-        .map_err(PrfError::vm)?;
-    let key_padded = vm.call(xor).map_err(PrfError::vm)?;
-
-    let mut sha = Sha256::default();
-    sha.update(key_padded);
-    sha.alloc(vm)
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
         convert_to_bytes,
-        prf::function::PrfFunction,
+        prf::{compute_partial, function::PrfFunction},
         test_utils::{mock_vm, phash},
     };
     use mpz_common::context::test_st_context;
@@ -77,6 +25,9 @@ mod tests {
         memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
     };
+
+    const IPAD: [u8; 64] = [0x36; 64];
+    const OPAD: [u8; 64] = [0x5c; 64];
 
     #[tokio::test]
     async fn test_phash() {
@@ -95,8 +46,15 @@ mod tests {
         leader.assign(leader_key, key).unwrap();
         leader.commit(leader_key).unwrap();
 
-        let mut prf_leader =
-            PrfFunction::alloc_master_secret(&mut leader, leader_key.into()).unwrap();
+        let outer_partial_leader = compute_partial(&mut leader, leader_key.into(), OPAD).unwrap();
+        let inner_partial_leader = compute_partial(&mut leader, leader_key.into(), IPAD).unwrap();
+
+        let mut prf_leader = PrfFunction::alloc_master_secret(
+            &mut leader,
+            outer_partial_leader,
+            inner_partial_leader,
+        )
+        .unwrap();
         prf_leader.set_start_seed(start_seed.clone());
 
         let mut prf_out_leader = vec![];
@@ -110,8 +68,17 @@ mod tests {
         follower.assign(follower_key, key).unwrap();
         follower.commit(follower_key).unwrap();
 
-        let mut prf_follower =
-            PrfFunction::alloc_master_secret(&mut follower, follower_key.into()).unwrap();
+        let outer_partial_follower =
+            compute_partial(&mut follower, follower_key.into(), OPAD).unwrap();
+        let inner_partial_follower =
+            compute_partial(&mut follower, follower_key.into(), IPAD).unwrap();
+
+        let mut prf_follower = PrfFunction::alloc_master_secret(
+            &mut follower,
+            outer_partial_follower,
+            inner_partial_follower,
+        )
+        .unwrap();
         prf_follower.set_start_seed(start_seed.clone());
 
         let mut prf_out_follower = vec![];
