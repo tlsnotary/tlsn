@@ -21,7 +21,7 @@ jobs:
           # Find the workflow run ID for the tag
           RUN_ID=$(gh api \
             -H "Accept: application/vnd.github+json" \
-            /repos/tlsnotary/tlsn/actions/workflows/ci.yml/runs \
+            "/repos/tlsnotary/tlsn/actions/workflows/ci.yml/runs?per_page=100" \
             --jq '.workflow_runs[] | select(.head_branch == "${{ github.event.inputs.tag }}") | .id')
 
           if [ -z "$RUN_ID" ]; then
