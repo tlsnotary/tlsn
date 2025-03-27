@@ -18,6 +18,7 @@ jobs:
       - name: Find workflow run ID
         id: find_run
         run: |
+          # Find the workflow run ID for the tag
           RUN_ID=$(gh api \
             -H "Accept: application/vnd.github+json" \
             /repos/tlsnotary/tlsn/actions/workflows/ci.yml/runs \
@@ -31,28 +32,25 @@ jobs:
           echo "Found run: $RUN_ID"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
+          # Find the download URL for the build artifact
           DOWNLOAD_URL=$(gh api \
             -H "Accept: application/vnd.github+json" \
             /repos/tlsnotary/tlsn/actions/runs/${RUN_ID}/artifacts \
             --jq '.artifacts[] | select(.name == "${{ github.event.inputs.tag }}-tlsn-wasm-pkg") | .archive_download_url')
 
-          mkdir tlsn-wasm-pkg
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "No download url for build artifact ${{ github.event.inputs.tag }}-tlsn-wasm-pkg in run $RUN_ID"
+            exit 1
+          fi
 
+          # Download and unzip the build artifact
+          mkdir tlsn-wasm-pkg
           curl -L -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            -o artifact.zip \
+            -o tlsn-wasm-pkg.zip \
             ${DOWNLOAD_URL}
+          unzip -q tlsn-wasm-pkg.zip -d tlsn-wasm-pkg
 
-          file artifact.zip
-          unzip -q artifact.zip -d tlsn-wasm-pkg
-          find tlsn-wasm-pkg
-
-      # - name: Download build artifacts
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     run-id: ${{ steps.find_run.outputs.run_id }}
-      #     # name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
-      #     path: tlsn-wasm-pkg
 
       - name: NPM Publish for tlsn-wasm
         env:
