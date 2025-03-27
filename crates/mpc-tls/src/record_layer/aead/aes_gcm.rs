@@ -111,7 +111,7 @@ impl MpcAesGcm {
 
         // Allocate encryption/decryption.
 
-        // Round up the length to the nearest multiple of the block count.
+        // Round up the length to the nearest multiple of the block size.
         let len = 16 * len.div_ceil(16);
 
         let input = vm.alloc_vec::<U8>(len)?;
@@ -141,7 +141,7 @@ impl MpcAesGcm {
 
     pub(crate) async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), AeadError> {
         let State::Setup { ghash, .. } = &mut self.state else {
-            return Err(AeadError::state("must be in setup state to allocate"));
+            return Err(AeadError::state("must be in setup state to preprocess"));
         };
 
         ghash.preprocess(ctx).await?;
@@ -216,7 +216,7 @@ impl MpcAesGcm {
         let explicit_nonce: [u8; 8] = explicit_nonce.try_into().map_err(|nonce: Vec<_>| {
             AeadError::cipher(format!(
                 "explicit nonce length: expected {}, got {}",
-                16,
+                8,
                 nonce.len()
             ))
         })?;
@@ -246,6 +246,8 @@ impl MpcAesGcm {
         // Assign zeroes to the padding.
         if padding_len > 0 {
             let padding = input.split_off(input.len() - padding_len);
+            // To simplify the impl, we don't mark the padding as public, that's why only
+            // the prover assigns it.
             if let Role::Leader = self.role {
                 vm.assign(padding, vec![0; padding_len])?;
             }
@@ -283,7 +285,7 @@ impl MpcAesGcm {
         let explicit_nonce: [u8; 8] = explicit_nonce.try_into().map_err(|nonce: Vec<_>| {
             AeadError::cipher(format!(
                 "explicit nonce length: expected {}, got {}",
-                16,
+                8,
                 nonce.len()
             ))
         })?;
@@ -375,7 +377,9 @@ impl MpcAesGcm {
     /// # Arguments
     ///
     /// * `vm` - Virtual machine.
-    /// * `inputs` - Data to verify the tags for.
+    /// * `data` - Tag data associated with `tags`.
+    /// * `ciphertexts` - Ciphertexts to verify the tags for.
+    /// * `tags` - Tags to verify.
     pub(crate) fn verify_tags(
         &mut self,
         vm: &mut dyn Vm<Binary>,

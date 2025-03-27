@@ -178,7 +178,7 @@ impl RecordLayer {
             .try_lock_owned()
             .map_err(|_| MpcTlsError::other("decrypt lock is held"))?;
 
-        // Computes GHASH keys in parallel.
+        // Preprocesses GHASH keys in parallel.
         ctx.try_join(
             |ctx| async move { encrypt.preprocess(ctx).await }.scope_boxed(),
             |ctx| async move { decrypt.preprocess(ctx).await }.scope_boxed(),
@@ -486,7 +486,7 @@ impl RecordLayer {
 
         if !self.encrypt_buffer.is_empty() {
             return Err(MpcTlsError::state(
-                "record layer can not commit with pending encrypt operations",
+                "record layer cannot commit with pending encrypt operations",
             ));
         }
 
