@@ -287,9 +287,12 @@ struct TagShare([u8; 16]);
 impl Add for TagShare {
     type Output = Vec<u8>;
 
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self.0.iter_mut().zip(rhs.0).for_each(|(a, b)| *a ^= b);
-        self.0.to_vec()
+    fn add(self, rhs: Self) -> Self::Output {
+        self.0
+            .iter()
+            .zip(rhs.0)
+            .map(|(a, b)| *a ^ b)
+            .collect::<Vec<_>>()
     }
 }
 
