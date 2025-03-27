@@ -35,7 +35,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           run-id: ${{ steps.find_run.outputs.run_id }}
-          name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
+          # name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
           path: tlsn-wasm-pkg
 
       - name: NPM Publish for tlsn-wasm
