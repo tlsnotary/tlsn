@@ -15,7 +15,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Find workflow run ID
+      - name: Find and download tlsn-wasm build from the tagged ci workflow
         id: find_run
         run: |
           # Find the workflow run ID for the tag
@@ -57,5 +57,4 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd tlsn-wasm-pkg
-          # FIXME: remove dry-run before merging
-          npm publish --dry-run
+          npm publish
