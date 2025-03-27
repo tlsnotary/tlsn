@@ -488,7 +488,10 @@ mod tests {
 
         let leader_private_key = SecretKey::random(&mut rng);
         let follower_private_key = SecretKey::random(&mut rng);
-        let server_public_key = PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng));
+
+        let server_secret_key = &NonZeroScalar::random(&mut rng);
+        let server_public_key = PublicKey::from_secret_scalar(server_secret_key);
+
         let expected_client_public_key = PublicKey::from_affine(
             (leader_private_key.public_key().to_projective()
                 + follower_private_key.public_key().to_projective())
@@ -541,7 +544,12 @@ mod tests {
             }
         );
 
+        let expected_ecdh_x =
+            p256::ecdh::diffie_hellman(server_secret_key, client_public_key.as_affine());
+        let expected_ecdh_x = expected_ecdh_x.raw_secret_bytes().to_vec();
+
         assert_eq!(leader_pms, follower_pms);
+        assert_eq!(leader_pms.to_vec(), expected_ecdh_x);
     }
 
     #[tokio::test]
