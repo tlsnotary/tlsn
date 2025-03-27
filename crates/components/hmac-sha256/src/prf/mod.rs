@@ -162,7 +162,8 @@ impl MpcPrf {
 
     /// Drives the computation of the session keys.
     ///
-    /// Returns if all inputs have been assigned for the computation of the final output.
+    /// Returns if all inputs have been assigned for the computation of the
+    /// final output.
     ///
     /// # Arguments
     ///
@@ -178,7 +179,8 @@ impl MpcPrf {
 
     /// Drives the computation of the client_finished verify_data.
     ///
-    /// Returns if all inputs have been assigned for the computation of the final output.
+    /// Returns if all inputs have been assigned for the computation of the
+    /// final output.
     ///
     /// # Arguments
     ///
@@ -194,7 +196,8 @@ impl MpcPrf {
 
     /// Drives the computation of the server_finished verify_data.
     ///
-    /// Returns if all inputs have been assigned for the computation of the final output.
+    /// Returns if all inputs have been assigned for the computation of the
+    /// final output.
     ///
     /// # Arguments
     ///
