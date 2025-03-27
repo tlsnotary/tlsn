@@ -41,4 +41,5 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd tlsn-wasm-pkg
-          npm publish
+          # FIXME: remove dry-run before merging
+          npm publish --dry-run
