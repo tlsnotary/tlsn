@@ -57,9 +57,7 @@ impl PrfFunction {
     }
 
     pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        let assigned = self.assigned;
-
-        if !assigned {
+        if !self.assigned {
             let a = self.a.first_mut().expect("prf should be allocated");
             let msg = a.msg;
 
@@ -71,10 +69,10 @@ impl PrfFunction {
             vm.mark_public(msg).map_err(PrfError::vm)?;
             vm.assign(msg, msg_value).map_err(PrfError::vm)?;
             vm.commit(msg).map_err(PrfError::vm)?;
+            self.assigned = true;
         }
 
-        self.assigned = true;
-        Ok(assigned)
+        Ok(self.assigned)
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
