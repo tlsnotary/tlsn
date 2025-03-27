@@ -271,14 +271,15 @@ impl MpcTlsFollower {
                     ke.assign(&mut (*vm))?;
 
                     loop {
+                        let assigned = prf
+                            .drive_key_expansion(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?;
+
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
 
-                        if prf
-                            .drive_key_expansion(&mut (*vm))
-                            .map_err(MpcTlsError::hs)?
-                        {
+                        if assigned {
                             break;
                         }
                     }
@@ -298,14 +299,15 @@ impl MpcTlsFollower {
                     prf.set_cf_hash(vd.handshake_hash)?;
 
                     loop {
+                        let assigned = prf
+                            .drive_client_finished(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?;
+
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
 
-                        if prf
-                            .drive_client_finished(&mut (*vm))
-                            .map_err(MpcTlsError::hs)?
-                        {
+                        if assigned {
                             break;
                         }
                     }
@@ -329,14 +331,15 @@ impl MpcTlsFollower {
                     prf.set_sf_hash(vd.handshake_hash)?;
 
                     loop {
+                        let assigned = prf
+                            .drive_server_finished(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?;
+
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
 
-                        if prf
-                            .drive_server_finished(&mut (*vm))
-                            .map_err(MpcTlsError::hs)?
-                        {
+                        if assigned {
                             break;
                         }
                     }

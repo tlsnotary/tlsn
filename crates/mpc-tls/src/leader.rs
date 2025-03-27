@@ -540,12 +540,13 @@ impl Backend for MpcTlsLeader {
         prf.set_sf_hash(hash).map_err(MpcTlsError::hs)?;
 
         loop {
+            let assigned = prf
+                .drive_server_finished(&mut (*vm))
+                .map_err(MpcTlsError::hs)?;
+
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
 
-            if prf
-                .drive_server_finished(&mut (*vm))
-                .map_err(MpcTlsError::hs)?
-            {
+            if assigned {
                 break;
             }
         }
@@ -592,12 +593,13 @@ impl Backend for MpcTlsLeader {
         prf.set_cf_hash(hash).map_err(MpcTlsError::hs)?;
 
         loop {
+            let assigned = prf
+                .drive_client_finished(&mut (*vm))
+                .map_err(MpcTlsError::hs)?;
+
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
 
-            if prf
-                .drive_client_finished(&mut (*vm))
-                .map_err(MpcTlsError::hs)?
-            {
+            if assigned {
                 break;
             }
         }
@@ -664,15 +666,16 @@ impl Backend for MpcTlsLeader {
             ke.assign(&mut (*vm_lock)).map_err(MpcTlsError::hs)?;
 
             loop {
+                let assigned = prf
+                    .drive_key_expansion(&mut (*vm_lock))
+                    .map_err(MpcTlsError::hs)?;
+
                 vm_lock
                     .execute_all(&mut ctx)
                     .await
                     .map_err(MpcTlsError::hs)?;
 
-                if prf
-                    .drive_key_expansion(&mut (*vm_lock))
-                    .map_err(MpcTlsError::hs)?
-                {
+                if assigned {
                     break;
                 }
             }
