@@ -31,7 +31,7 @@ jobs:
           echo "Found run: $RUN_ID"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
-          DOWNLOAD_URL = $(gh api \
+          DOWNLOAD_URL=$(gh api \
             -H "Accept: application/vnd.github+json" \
             /repos/tlsnotary/tlsn/actions/runs/${RUN_ID}/artifacts \
             --jq '.artifacts[] | select(.name == "${{ github.event.inputs.tag }}-tlsn-wasm-pkg") | .archive_download_url')
