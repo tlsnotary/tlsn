@@ -27,16 +27,7 @@
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript encoding commitments and proofs.
+<a href="#29" id="29">29</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript encoding commitments and proofs.
 //!
 //! This is an internal module that is not intended to be used directly by
 //! users.
@@ -54,15 +45,6 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::hash::{impl_domain_separator, TypedHash};
-
-<span class="doccomment">/// The maximum allowed total bytelength of committed data for a single
-/// commitment kind. Used to prevent DoS during verification. (May cause the
-/// verifier to hash up to a max of 1GB * 128 = 128GB of data for certain kinds
-/// of encoding commitments.)
-///
-/// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 &lt;&lt;
-/// 31) - 1 by default)
-</span><span class="kw">const </span>MAX_TOTAL_COMMITTED_DATA: usize = <span class="number">1_000_000_000</span>;
 
 <span class="doccomment">/// Transcript encoding commitment.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

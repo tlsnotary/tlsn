@@ -632,7 +632,18 @@
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
 <a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript proofs.
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a></pre></div><pre class="rust"><code><span class="doccomment">//! Transcript proofs.
 
 </span><span class="kw">use </span>rangeset::{Cover, ToRangeSet};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -642,7 +653,7 @@
     attestation::Body,
     index::Index,
     transcript::{
-        commit::TranscriptCommitmentKind,
+        commit::{TranscriptCommitmentKind, MAX_TOTAL_COMMITTED_DATA},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{PlaintextHashProof, PlaintextHashProofError, PlaintextHashSecret},
         Direction, Idx, PartialTranscript, Transcript,
@@ -693,7 +704,9 @@
         }
 
         <span class="comment">// Verify hash openings.
-        </span><span class="kw">for </span>proof <span class="kw">in </span><span class="self">self</span>.hash_proofs {
+        </span><span class="kw">let </span><span class="kw-2">mut </span>total_opened = <span class="number">0u128</span>;
+
+        <span class="kw">for </span>proof <span class="kw">in </span><span class="self">self</span>.hash_proofs {
             <span class="kw">let </span>commitment = attestation_body
                 .plaintext_hashes()
                 .get_by_field_id(proof.commitment_id())
@@ -704,6 +717,15 @@
                         <span class="macro">format!</span>(<span class="string">"contains a hash opening but attestation is missing corresponding commitment (id: {})"</span>, proof.commitment_id()),
                     )
                 })<span class="question-mark">?</span>;
+
+            <span class="comment">// Make sure the amount of data being proved is bounded.
+            </span>total_opened += commitment.idx.len() <span class="kw">as </span>u128;
+            <span class="kw">if </span>total_opened &gt; MAX_TOTAL_COMMITTED_DATA <span class="kw">as </span>u128 {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(TranscriptProofError::new(
+                    ErrorKind::Hash,
+                    <span class="string">"exceeded maximum allowed data"</span>,
+                ))<span class="question-mark">?</span>;
+            }
 
             <span class="kw">let </span>(direction, seq) = proof.verify(<span class="kw-2">&amp;</span>provider.hash, commitment)<span class="question-mark">?</span>;
             transcript.union_subsequence(direction, <span class="kw-2">&amp;</span>seq);

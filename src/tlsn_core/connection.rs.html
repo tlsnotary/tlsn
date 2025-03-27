@@ -980,11 +980,11 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(CertificateVerificationError::InvalidServerEphemeralKey);
         }
 
-        <span class="comment">// Verify server name
+        <span class="comment">// Verify server name.
         </span><span class="kw">let </span>server_name = tls_core::dns::ServerName::try_from(server_name.as_ref())
             .map_err(|<span class="kw">_</span>| CertificateVerificationError::InvalidIdentity(server_name.clone()))<span class="question-mark">?</span>;
 
-        <span class="comment">// Verify server certificate
+        <span class="comment">// Verify server certificate.
         </span><span class="kw">let </span>cert_chain = <span class="self">self
             </span>.certs
             .clone()
