@@ -13,21 +13,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Find workflow run for tagged version
+      - name: Find workflow run ID
         id: find_run
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const runs = await github.rest.actions.listWorkflowRuns({
-              owner: "tlsnotary",
-              repo: "tlsn",
-              workflow_id: "ci.yml",
-              per_page: 20,
-            });
+        run: |
+          RUN_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/tlsnotary/tlsn/actions/workflows/ci.yml/runs \
+            --jq '.workflow_runs[] | select(.head_branch == "v${{ github.event.inputs.tag }}") | .id')
 
-            const run = runs.data.workflow_runs.find(r => r.head_branch === "${{ github.event.inputs.tag }}");
-            if (!run) throw new Error("No run found");
-            core.setOutput("run_id", run.id);
+          if [ -z "$RUN_ID" ]; then
+            echo "No run found for tag v${{ github.event.inputs.tag }}"
+            exit 1
+          fi
+
+          echo "Found run: $RUN_ID"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
