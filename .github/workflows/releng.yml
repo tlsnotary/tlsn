@@ -13,15 +13,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
-        path: tlsn-wasm-pkg
+      - name: Find workflow run for tagged version
+        id: find_run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: "tlsnotary",
+              repo: "tlsn",
+              workflow_id: "ci.yml",
+              per_page: 20,
+            });
 
-    - name: NPM Publish for tlsn-wasm
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      run: |
-        cd tlsn-wasm-pkg
-        npm publish
+            const run = runs.data.workflow_runs.find(r => r.head_branch === "${{ github.event.inputs.tag }}");
+            if (!run) throw new Error("No run found");
+            core.setOutput("run_id", run.id);
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.find_run.outputs.run_id }}
+          name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
+          path: tlsn-wasm-pkg
+
+      - name: NPM Publish for tlsn-wasm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd tlsn-wasm-pkg
+          npm publish
