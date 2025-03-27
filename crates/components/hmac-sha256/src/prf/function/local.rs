@@ -4,7 +4,7 @@ use crate::{
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, MemoryExt, Vector, ViewExt,
+        Array, DecodeFutureTyped, MemoryExt, MemoryType, Repr, Vector, ViewExt,
     },
     Vm,
 };
@@ -62,7 +62,8 @@ impl PrfFunction {
             .p
             .last()
             .expect("prf should be allocated")
-            .assigned_inner_local;
+            .inner_local
+            .1;
         Ok(finished)
     }
 
@@ -74,7 +75,7 @@ impl PrfFunction {
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
-        self.p.iter().map(|p| p.output).collect()
+        self.p.iter().map(|p| p.output.value()).collect()
     }
 
     fn poll_a(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -83,18 +84,17 @@ impl PrfFunction {
         };
 
         for a in self.a.iter_mut() {
-            let Some(inner_partial) = a.inner_partial_decoded else {
-                a.try_recv_inner_partial(vm)?;
+            let Some(inner_partial) = a.inner_partial.poll(vm)? else {
                 break;
             };
 
-            if !a.assigned_inner_local {
+            if !a.inner_local.1 {
                 let inner_local = Self::compute_inner_local(inner_partial, &message);
                 a.assign_inner_local(vm, inner_local)?;
-                a.assigned_inner_local = true;
+                a.inner_local.1 = true;
             }
-            let Some(output) = a.output_decoded else {
-                a.try_recv_output(vm)?;
+
+            let Some(output) = a.output.poll(vm)? else {
                 break;
             };
             message = convert_to_bytes(output).to_vec();
@@ -109,21 +109,21 @@ impl PrfFunction {
         };
 
         for (i, p) in self.p.iter_mut().enumerate() {
-            let Some(message) = self.a[i].output_decoded else {
+            let Some(message) = self.a[i].output.poll(vm)? else {
                 break;
             };
+
             let mut message = convert_to_bytes(message).to_vec();
             message.extend_from_slice(&start_seed);
 
-            let Some(inner_partial) = p.inner_partial_decoded else {
-                p.try_recv_inner_partial(vm)?;
+            let Some(inner_partial) = p.inner_partial.poll(vm)? else {
                 break;
             };
 
-            if !p.assigned_inner_local {
+            if !p.inner_local.1 {
                 let inner_local = Self::compute_inner_local(inner_partial, &message);
                 p.assign_inner_local(vm, inner_local)?;
-                p.assigned_inner_local = true;
+                p.inner_local.1 = true;
             }
         }
 
@@ -170,14 +170,12 @@ impl PrfFunction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct PHash {
-    pub(crate) inner_partial: Array<U32, 8>,
-    pub(crate) inner_partial_decoded: Option<[u32; 8]>,
-    pub(crate) inner_local: Array<U8, 32>,
-    pub(crate) assigned_inner_local: bool,
-    pub(crate) output: Array<U32, 8>,
-    pub(crate) output_decoded: Option<[u32; 8]>,
+    pub(crate) inner_partial: DecodeOperation<Array<U32, 8>>,
+    // the bool tracks if assignment has already happened
+    pub(crate) inner_local: (Array<U8, 32>, bool),
+    pub(crate) output: DecodeOperation<Array<U32, 8>>,
 }
 
 impl PHash {
@@ -192,27 +190,12 @@ impl PHash {
         let output = hmac.alloc(vm).map_err(PrfError::vm)?;
 
         let p_hash = Self {
-            inner_partial,
-            inner_partial_decoded: None,
-            inner_local,
-            assigned_inner_local: false,
-            output,
-            output_decoded: None,
+            inner_partial: DecodeOperation::new(inner_partial),
+            inner_local: (inner_local, false),
+            output: DecodeOperation::new(output),
         };
 
         Ok(p_hash)
-    }
-
-    fn try_recv_inner_partial(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let mut inner_partial_decoded = vm.decode(self.inner_partial).map_err(PrfError::vm)?;
-        self.inner_partial_decoded = inner_partial_decoded.try_recv().map_err(PrfError::vm)?;
-        Ok(())
-    }
-
-    fn try_recv_output(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let mut output_decoded = vm.decode(self.output).map_err(PrfError::vm)?;
-        self.output_decoded = output_decoded.try_recv().map_err(PrfError::vm)?;
-        Ok(())
     }
 
     fn assign_inner_local(
@@ -220,13 +203,78 @@ impl PHash {
         vm: &mut dyn Vm<Binary>,
         inner_local: [u32; 8],
     ) -> Result<(), PrfError> {
-        let inner_local_ref: Array<U8, 32> = self.inner_local;
-
+        let inner_local_ref: Array<U8, 32> = self.inner_local.0;
         vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
         vm.assign(inner_local_ref, convert_to_bytes(inner_local))
             .map_err(PrfError::vm)?;
         vm.commit(inner_local_ref).map_err(PrfError::vm)?;
-
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct DecodeOperation<T>
+where
+    T: Repr<Binary, Clear: std::fmt::Debug>,
+{
+    value: T,
+    progress: DecodeProgress<T>,
+}
+
+impl<T> DecodeOperation<T>
+where
+    T: Repr<Binary, Clear: std::fmt::Debug + Copy> + Copy,
+{
+    pub(crate) fn new(value: T) -> Self {
+        Self {
+            value,
+            progress: DecodeProgress::Alloc,
+        }
+    }
+
+    pub(crate) fn value(&self) -> T {
+        self.value
+    }
+
+    pub(crate) fn poll(&mut self, vm: &mut dyn Vm<Binary>) -> Result<Option<T::Clear>, PrfError> {
+        self.progress.poll(vm, self.value)
+    }
+}
+
+#[derive(Debug)]
+enum DecodeProgress<T>
+where
+    T: Repr<Binary>,
+{
+    Alloc,
+    Decoded(DecodeFutureTyped<<Binary as MemoryType>::Raw, T::Clear>),
+    Finished(T::Clear),
+}
+
+impl<T> DecodeProgress<T>
+where
+    T: Repr<Binary, Clear: Copy> + Copy,
+{
+    pub(crate) fn poll(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        value: T,
+    ) -> Result<Option<T::Clear>, PrfError> {
+        match self {
+            DecodeProgress::Alloc => {
+                let value = vm.decode(value).map_err(PrfError::vm)?;
+                *self = DecodeProgress::Decoded(value);
+                Ok(None)
+            }
+            DecodeProgress::Decoded(value) => {
+                if let Some(value) = value.try_recv().map_err(PrfError::vm)? {
+                    *self = DecodeProgress::Finished(value);
+                    Ok(Some(value))
+                } else {
+                    Ok(None)
+                }
+            }
+            DecodeProgress::Finished(value) => Ok(Some(*value)),
+        }
     }
 }
