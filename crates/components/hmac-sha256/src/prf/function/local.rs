@@ -84,20 +84,16 @@ impl PrfFunction {
         };
 
         for a in self.a.iter_mut() {
+            if let Some(output) = a.output.poll(vm)? {
+                message = convert_to_bytes(output).to_vec();
+                continue;
+            };
+
             let Some(inner_partial) = a.inner_partial.poll(vm)? else {
                 break;
             };
 
-            if !a.inner_local.1 {
-                let inner_local = Self::compute_inner_local(inner_partial, &message);
-                a.assign_inner_local(vm, inner_local)?;
-                a.inner_local.1 = true;
-            }
-
-            let Some(output) = a.output.poll(vm)? else {
-                break;
-            };
-            message = convert_to_bytes(output).to_vec();
+            a.assign_inner_local(vm, inner_partial, &message)?;
         }
 
         Ok(())
@@ -109,6 +105,10 @@ impl PrfFunction {
         };
 
         for (i, p) in self.p.iter_mut().enumerate() {
+            if p.output.poll(vm)?.is_some() {
+                continue;
+            }
+
             let Some(message) = self.a[i].output.poll(vm)? else {
                 break;
             };
@@ -120,11 +120,7 @@ impl PrfFunction {
                 break;
             };
 
-            if !p.inner_local.1 {
-                let inner_local = Self::compute_inner_local(inner_partial, &message);
-                p.assign_inner_local(vm, inner_local)?;
-                p.inner_local.1 = true;
-            }
+            p.assign_inner_local(vm, inner_partial, &message)?;
         }
 
         Ok(())
@@ -164,10 +160,6 @@ impl PrfFunction {
 
         Ok(prf)
     }
-
-    fn compute_inner_local(inner_partial: [u32; 8], message: &[u8]) -> [u32; 8] {
-        sha256(inner_partial, 64, message)
-    }
 }
 
 #[derive(Debug)]
@@ -201,13 +193,21 @@ impl PHash {
     fn assign_inner_local(
         &mut self,
         vm: &mut dyn Vm<Binary>,
-        inner_local: [u32; 8],
+        inner_partial: [u32; 8],
+        msg: &[u8],
     ) -> Result<(), PrfError> {
-        let inner_local_ref: Array<U8, 32> = self.inner_local.0;
-        vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
-        vm.assign(inner_local_ref, convert_to_bytes(inner_local))
-            .map_err(PrfError::vm)?;
-        vm.commit(inner_local_ref).map_err(PrfError::vm)?;
+        if !self.inner_local.1 {
+            let inner_local_ref: Array<U8, 32> = self.inner_local.0;
+            let inner_local = sha256(inner_partial, 64, msg);
+
+            vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
+            vm.assign(inner_local_ref, convert_to_bytes(inner_local))
+                .map_err(PrfError::vm)?;
+            vm.commit(inner_local_ref).map_err(PrfError::vm)?;
+
+            self.inner_local.1 = true
+        }
+
         Ok(())
     }
 }
