@@ -54,16 +54,19 @@ impl PrfFunction {
     }
 
     pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        self.poll_a(vm)?;
-        self.poll_p(vm)?;
+        let a_assigned = self.is_a_assigned();
+        let mut p_assigned = self.is_p_assigned();
 
-        let finished = self
-            .p
-            .last()
-            .expect("prf should be allocated")
-            .inner_local
-            .1;
-        Ok(finished)
+        if !a_assigned {
+            self.poll_a(vm)?;
+        }
+
+        if !p_assigned {
+            self.poll_p(vm)?;
+            p_assigned = self.is_p_assigned();
+        }
+
+        Ok(p_assigned)
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
@@ -152,6 +155,22 @@ impl PrfFunction {
         }
 
         Ok(prf)
+    }
+
+    fn is_p_assigned(&self) -> bool {
+        self.p
+            .last()
+            .expect("prf should be allocated")
+            .inner_local
+            .1
+    }
+
+    fn is_a_assigned(&self) -> bool {
+        self.a
+            .last()
+            .expect("prf should be allocated")
+            .inner_local
+            .1
     }
 }
 
