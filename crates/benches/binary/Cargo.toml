@@ -13,12 +13,13 @@ browser-bench = ["tlsn-benches-browser-native"]
 mpz-common = { workspace = true }
 mpz-core = { workspace = true }
 mpz-garble = { workspace = true }
+mpz-vm-core = { workspace = true }
 mpz-ot = { workspace = true, features = ["ideal"] }
 tlsn-benches-library = { workspace = true }
 tlsn-benches-browser-native = { workspace = true, optional = true}
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
-#tlsn-hmac-sha256 = { workspace = true }
+tlsn-hmac-sha256 = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
@@ -44,6 +45,7 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true }
 toml = "0.8.11"
 tracing-subscriber = {workspace = true, features = ["env-filter"]}
+rand = { workspace = true }
 
 [[bin]]
 name = "bench"

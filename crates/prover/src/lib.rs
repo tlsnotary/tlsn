@@ -17,7 +17,6 @@ pub use future::ProverFuture;
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use rand06_compat::Rand0_6CompatExt;
 use state::{Notarize, Prove};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
@@ -104,7 +103,7 @@ impl Prover<state::Initialized> {
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, ctx);
 
         // Allocate resources for MPC-TLS in VM.
-        let keys = mpc_tls.alloc()?;
+        let keys = mpc_tls.alloc().await?;
         // Allocate for committing to plaintext.
         let mut zk_aes = ZkAesCtr::new(Role::Prover);
         zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
