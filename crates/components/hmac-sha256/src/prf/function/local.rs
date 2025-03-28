@@ -107,7 +107,7 @@ impl PrfFunction {
         };
 
         for (i, p) in self.p.iter_mut().enumerate() {
-            if p.output.poll(vm)?.is_some() {
+            if p.inner_local.1 {
                 continue;
             }
 
