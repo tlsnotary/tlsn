@@ -50,7 +50,7 @@ impl ConfigBuilder {
         let mut max_recv_online = self
             .max_recv_online
             .ok_or(ConfigBuilderError::UninitializedField("max_recv_online"))?;
-        let max_recv = self
+        let mut max_recv = self
             .max_recv
             .ok_or(ConfigBuilderError::UninitializedField("max_recv"))?;
 
@@ -61,6 +61,7 @@ impl ConfigBuilder {
         }
 
         max_recv_online += MIN_RECV;
+        max_recv += MIN_RECV;
 
         let max_sent_records = self
             .max_sent_records
