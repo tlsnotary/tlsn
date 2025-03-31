@@ -34,7 +34,6 @@ sgx.trusted_files = [
 
 sgx.edmm_enable = false
 sgx.remote_attestation = "dcap"
-sgx.generate_quote = true
 sgx.quote_type = "sgx_ecdsa"
 sgx.quote_output = "quote.dat"
 sgx.max_threads = 64
