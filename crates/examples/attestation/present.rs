@@ -40,7 +40,8 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     // Build a transcript proof.
     let mut builder = secrets.transcript_proof_builder();
 
-    // Here is where we reveal all or some of the parts we committed in `prove.rs` previously.
+    // Here is where we reveal all or some of the parts we committed in `prove.rs`
+    // previously.
     let request = &transcript.requests[0];
     // Reveal the structure of the request without the headers or body.
     builder.reveal_sent(&request.without_data())?;
