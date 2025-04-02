@@ -297,7 +297,7 @@ where
         } = self.state.take()
         else {
             return Err(KeyExchangeError::state(
-                "can not compute shares before performing setup",
+                "cannot compute shares before performing setup",
             ));
         };
 

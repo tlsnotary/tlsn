@@ -28,6 +28,7 @@ async fn mpc_tls_test() {
         .defer_decryption(false)
         .max_sent(1 << 13)
         .max_recv_online(1 << 13)
+        .max_recv(1 << 13)
         .build()
         .unwrap();
 

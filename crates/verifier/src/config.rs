@@ -46,6 +46,7 @@ impl VerifierConfig {
         Config::builder()
             .max_sent(protocol_config.max_sent_data())
             .max_recv_online(protocol_config.max_recv_data_online())
+            .max_recv(protocol_config.max_recv_data())
             .build()
             .unwrap()
     }
