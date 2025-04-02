@@ -3,7 +3,6 @@
 // example to learn how to acquire an attestation from a Notary.
 
 use hyper::header;
-use rangeset::ToRangeSet;
 use tlsn_core::{attestation::Attestation, presentation::Presentation, CryptoProvider, Secrets};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
@@ -69,9 +68,9 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     // Reveal the structure of the response without the headers or body.
     builder.reveal_recv(&response.without_data())?;
     // Reveal all response headers.
-    let start = response.headers.first().unwrap().to_range_set().min().unwrap();
-    let end = response.headers.last().unwrap().to_range_set().end().unwrap();
-    builder.reveal_recv(&(start..end))?;
+    for header in &response.headers {
+        builder.reveal_recv(header)?;
+    }
 
     let content = &response.body.as_ref().unwrap().content;
     match content {
