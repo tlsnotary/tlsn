@@ -117,7 +117,7 @@
 //!
 //! builder
 //!     // Use transcript encoding commitments.
-//!     .default_kind(TranscriptCommitmentKind::Encoding)
+//!     .commitment_kinds(&[TranscriptCommitmentKind::Encoding])
 //!     // Disclose the first 10 bytes of the sent data.
 //!     .reveal(&(0..10), Direction::Sent)?
 //!     // Disclose all of the received data.
