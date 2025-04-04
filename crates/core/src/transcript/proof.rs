@@ -238,8 +238,8 @@ impl<'a> TranscriptProofBuilder<'a> {
         }
     }
 
-    /// Sets the commitment kinds in order of preference, i.e. the first one is
-    /// the most preferred.
+    /// Sets the commitment kinds in order of preference for building transcript
+    /// proofs, i.e. the first one is the most preferred.
     pub fn commitment_kinds(&mut self, kinds: &[TranscriptCommitmentKind]) -> &mut Self {
         if !kinds.is_empty() {
             self.commitment_kinds = kinds.to_vec();
