@@ -21,7 +21,6 @@ tlsn-hmac-sha256 = { workspace = true }
 tlsn-key-exchange = { workspace = true }
 tlsn-tls-backend = { workspace = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
-tlsn-utils-aio = { workspace = true }
 
 mpz-common = { workspace = true }
 mpz-core = { workspace = true }

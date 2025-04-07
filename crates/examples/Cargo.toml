@@ -9,7 +9,6 @@ notary-client = { workspace = true }
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-prover = { workspace = true }
-tlsn-utils = { workspace = true }
 tlsn-verifier = { workspace = true }
 tlsn-formats = { workspace = true }
 tlsn-tls-core = { workspace = true }

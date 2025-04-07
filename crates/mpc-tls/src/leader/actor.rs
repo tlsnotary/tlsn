@@ -1728,7 +1728,7 @@ impl Wrap<BackendMsgServerClosed> for MpcTlsLeaderMsg {
     }
 }
 
-/// Message to start deferring the decryption
+/// Message to start deferring the decryption.
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct DeferDecryption;

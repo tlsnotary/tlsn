@@ -63,7 +63,6 @@ tlsn-tls-client = { path = "crates/tls/client" }
 tlsn-tls-client-async = { path = "crates/tls/client-async" }
 tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6650a95" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6650a95" }
 tlsn-verifier = { path = "crates/verifier" }
 
 mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }

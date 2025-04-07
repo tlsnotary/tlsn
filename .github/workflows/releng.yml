@@ -6,22 +6,57 @@ on:
       tag:
         description: 'Tag to publish to NPM'
         required: true
-        default: '0.1.0-alpha.9'
+        default: 'v0.1.0-alpha.9'
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
 
     steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ github.event.inputs.tag }}-tlsn-wasm-pkg
-        path: tlsn-wasm-pkg
+      - name: Find and download tlsn-wasm build from the tagged ci workflow
+        id: find_run
+        run: |
+          # Find the workflow run ID for the tag
+          RUN_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/tlsnotary/tlsn/actions/workflows/ci.yml/runs?per_page=100" \
+            --jq '.workflow_runs[] | select(.head_branch == "${{ github.event.inputs.tag }}") | .id')
 
-    - name: NPM Publish for tlsn-wasm
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      run: |
-        cd tlsn-wasm-pkg
-        npm publish
+          if [ -z "$RUN_ID" ]; then
+            echo "No run found for tag ${{ github.event.inputs.tag }}"
+            exit 1
+          fi
+
+          echo "Found run: $RUN_ID"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+          # Find the download URL for the build artifact
+          DOWNLOAD_URL=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/tlsnotary/tlsn/actions/runs/${RUN_ID}/artifacts \
+            --jq '.artifacts[] | select(.name == "${{ github.event.inputs.tag }}-tlsn-wasm-pkg") | .archive_download_url')
+
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "No download url for build artifact ${{ github.event.inputs.tag }}-tlsn-wasm-pkg in run $RUN_ID"
+            exit 1
+          fi
+
+          # Download and unzip the build artifact
+          mkdir tlsn-wasm-pkg
+          curl -L -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -o tlsn-wasm-pkg.zip \
+            ${DOWNLOAD_URL}
+          unzip -q tlsn-wasm-pkg.zip -d tlsn-wasm-pkg
+
+
+      - name: NPM Publish for tlsn-wasm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd tlsn-wasm-pkg
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
+          npm publish
+          rm .npmrc

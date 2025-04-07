@@ -197,7 +197,9 @@ impl DecryptOp {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub(crate) enum DecryptMode {
+    /// The plaintext is private.
     Private,
+    /// The plaintext is public.
     Public,
 }
 

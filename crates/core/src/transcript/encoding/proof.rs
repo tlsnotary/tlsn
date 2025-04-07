@@ -7,9 +7,8 @@ use crate::{
     hash::{Blinded, Blinder, HashAlgorithmExt, HashProviderError},
     merkle::{MerkleError, MerkleProof},
     transcript::{
-        encoding::{
-            new_encoder, tree::EncodingLeaf, Encoder, EncodingCommitment, MAX_TOTAL_COMMITTED_DATA,
-        },
+        commit::MAX_TOTAL_COMMITTED_DATA,
+        encoding::{new_encoder, tree::EncodingLeaf, Encoder, EncodingCommitment},
         Direction, PartialTranscript, Subsequence,
     },
     CryptoProvider,
@@ -27,6 +26,7 @@ opaque_debug::implement!(Opening);
 
 /// An encoding commitment proof.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "validation::EncodingProofUnchecked")]
 pub struct EncodingProof {
     /// The proof of inclusion of the commitment(s) in the Merkle tree of
     /// commitments.
@@ -174,6 +174,52 @@ impl From<HashProviderError> for EncodingProofError {
 impl From<MerkleError> for EncodingProofError {
     fn from(error: MerkleError) -> Self {
         Self::new(ErrorKind::Proof, error)
+    }
+}
+
+/// Invalid encoding proof error.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid encoding proof: {0}")]
+pub struct InvalidEncodingProof(&'static str);
+
+mod validation {
+    use super::*;
+
+    /// The maximum allowed height of the Merkle tree of encoding commitments.
+    ///
+    /// The statistical security parameter (SSP) of the encoding commitment
+    /// protocol is calculated as "the number of uniformly random bits in a
+    /// single bit's encoding minus `MAX_HEIGHT`".
+    ///
+    /// For example, a bit encoding used in garbled circuits typically has 127
+    /// uniformly random bits, hence when using it in the encoding
+    /// commitment protocol, the SSP is 127 - 30 = 97 bits.
+    ///
+    /// Leaving this validation here as a fail-safe in case we ever start
+    /// using shorter encodings.
+    const MAX_HEIGHT: usize = 30;
+
+    #[derive(Debug, Deserialize)]
+    pub(super) struct EncodingProofUnchecked {
+        inclusion_proof: MerkleProof,
+        openings: HashMap<usize, Opening>,
+    }
+
+    impl TryFrom<EncodingProofUnchecked> for EncodingProof {
+        type Error = InvalidEncodingProof;
+
+        fn try_from(unchecked: EncodingProofUnchecked) -> Result<Self, Self::Error> {
+            if unchecked.inclusion_proof.leaf_count() > 1 << MAX_HEIGHT {
+                return Err(InvalidEncodingProof(
+                    "the height of the tree exceeds the maximum allowed",
+                ));
+            }
+
+            Ok(Self {
+                inclusion_proof: unchecked.inclusion_proof,
+                openings: unchecked.openings,
+            })
+        }
     }
 }
 

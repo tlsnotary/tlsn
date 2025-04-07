@@ -192,7 +192,9 @@ impl EncryptOp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum EncryptMode {
+    /// The encrypted plaintext is private.
     Private,
+    /// The encrypted plaintext is public.
     Public,
 }
 

@@ -148,7 +148,7 @@ impl MpcTlsLeader {
 
         let client_random = Random::new().expect("rng is available");
 
-        // Allocate
+        // Allocate.
         let pms = ke.alloc(&mut (*vm_lock))?;
         let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc(&mut (*vm_lock), pms)?;
         record_layer.set_keys(
