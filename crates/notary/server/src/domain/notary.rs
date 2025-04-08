@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tlsn_core::CryptoProvider;
+use tokio::sync::Semaphore;
 
 use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
 
@@ -34,6 +35,15 @@ pub struct NotarizationRequestQuery {
     pub session_id: String,
 }
 
+/// Response object of the /notarize API sent when the client should retry the
+/// notarization later.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotarizationRetryResponse {
+    /// The amount of seconds to retry the notarization in.
+    pub retry_in: usize,
+}
+
 /// Types of client that the prover is using
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ClientType {
@@ -53,6 +63,8 @@ pub struct NotaryGlobals {
     pub store: Arc<Mutex<HashMap<String, ()>>>,
     /// Whitelist of API keys for authorization purpose
     pub authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
+    /// A semaphore to acquire a permit for notarization
+    pub semaphore: Arc<Semaphore>,
 }
 
 impl NotaryGlobals {
@@ -60,12 +72,14 @@ impl NotaryGlobals {
         crypto_provider: Arc<CryptoProvider>,
         notarization_config: NotarizationProperties,
         authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
+        semaphore: Arc<Semaphore>,
     ) -> Self {
         Self {
             crypto_provider,
             notarization_config,
             store: Default::default(),
             authorization_whitelist,
+            semaphore,
         }
     }
 }

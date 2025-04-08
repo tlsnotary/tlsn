@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
-notary-client = { workspace = true }
+notary-client = { workspace = true, features = ["test-api"] }
 notary-server = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-common = { workspace = true }
@@ -14,6 +14,7 @@ tlsn-tls-core = { workspace = true }
 tlsn-core = { workspace = true }
 
 async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
+futures = { workspace = true }
 http = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1", "server"] }

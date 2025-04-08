@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct NotaryServerProperties {
     /// Name and address of the notary server
     pub server: ServerProperties,
@@ -14,6 +14,23 @@ pub struct NotaryServerProperties {
     pub logging: LoggingProperties,
     /// Setting for authorization
     pub authorization: AuthorizationProperties,
+    /// The maximum number of concurrent notarization sessions
+    pub concurrency: usize,
+}
+
+impl Default for NotaryServerProperties {
+    fn default() -> Self {
+        Self {
+            server: ServerProperties::default(),
+            notarization: NotarizationProperties::default(),
+            tls: TLSProperties::default(),
+            notary_key: NotarySigningKeyProperties::default(),
+            logging: LoggingProperties::default(),
+            authorization: AuthorizationProperties::default(),
+            // By default there is essentially no concurrency limit.
+            concurrency: usize::MAX,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]

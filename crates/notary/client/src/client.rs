@@ -4,9 +4,15 @@
 //! subsequent requests for notarization.
 
 use http_body_util::{BodyExt as _, Either, Empty, Full};
-use hyper::{body::Bytes, client::conn::http1::Parts, Request, StatusCode};
+use hyper::{
+    body::{Bytes, Incoming},
+    client::conn::http1::Parts,
+    Request, Response, StatusCode,
+};
 use hyper_util::rt::TokioIo;
-use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
+use notary_server::{
+    ClientType, NotarizationRetryResponse, NotarizationSessionRequest, NotarizationSessionResponse,
+};
 use std::{
     io::Error as IoError,
     pin::Pin,
@@ -16,6 +22,7 @@ use std::{
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
+    time::{sleep, timeout, Duration},
 };
 use tokio_rustls::{
     client::TlsStream,
@@ -129,6 +136,15 @@ pub struct NotaryClient {
     /// in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
+    /// How many seconds to wait for notarization request to be accepted before
+    /// timing out.
+    #[builder(default = "60")]
+    notarization_request_timeout: usize,
+    /// How many seconds to retry the notarization request in. Overrides the
+    /// value suggested by the server.
+    #[cfg(feature = "test-api")]
+    #[builder(default = "None")]
+    notarization_request_retry_override: Option<usize>,
 }
 
 impl NotaryClientBuilder {
@@ -355,15 +371,69 @@ impl NotaryClient {
 
             debug!("Sending notarization request: {:?}", notarization_request);
 
-            let notarization_response = notary_request_sender
-                .send_request(notarization_request)
-                .await
-                .map_err(|err| {
-                    error!("Failed to send http request for notarization");
-                    ClientError::new(ErrorKind::Http, Some(Box::new(err)))
-                })?;
+            let notarize_with_retry_fut = async {
+                loop {
+                    let notarization_response = notary_request_sender
+                        .send_request(notarization_request.clone())
+                        .await
+                        .map_err(|err| {
+                            error!("Failed to send http request for notarization");
+                            ClientError::new(ErrorKind::Http, Some(Box::new(err)))
+                        })?;
 
-            debug!("Sent notarization request");
+                    if notarization_response.status() == StatusCode::OK {
+                        let payload = notarization_response
+                            .into_body()
+                            .collect()
+                            .await
+                            .map_err(|err| {
+                                error!("Failed to parse configuration response");
+                                ClientError::new(ErrorKind::Http, Some(Box::new(err)))
+                            })?
+                            .to_bytes();
+
+                        if let Ok(payload) = serde_json::from_str::<NotarizationRetryResponse>(
+                            &String::from_utf8_lossy(&payload),
+                        ) {
+                            let retry_in = if cfg!(feature = "test-api")
+                                && self.notarization_request_retry_override.is_some()
+                            {
+                                self.notarization_request_retry_override
+                                    .expect("value should be Some()")
+                            } else {
+                                payload.retry_in
+                            };
+
+                            debug!("Retrying notarization request in {:?}", retry_in);
+
+                            sleep(Duration::from_secs(retry_in as u64)).await;
+                        } else {
+                            return Err(ClientError::new(
+                                ErrorKind::Internal,
+                                Some(format!("Server sent unknown payload: {:?}", payload).into()),
+                            ));
+                        }
+                    } else {
+                        return Ok::<Response<Incoming>, ClientError>(notarization_response);
+                    }
+                }
+            };
+
+            let notarization_response = timeout(
+                Duration::from_secs(self.notarization_request_timeout as u64),
+                notarize_with_retry_fut,
+            )
+            .await
+            .map_err(|_| {
+                ClientError::new(
+                    ErrorKind::Internal,
+                    Some(
+                        "Timed out while waiting for server to accept notarization request".into(),
+                    ),
+                )
+            })??;
+
+            debug!("Notarization request was accepted by the server");
 
             if notarization_response.status() != StatusCode::SWITCHING_PROTOCOLS {
                 return Err(ClientError::new(
@@ -387,6 +457,18 @@ impl NotaryClient {
             futures::try_join!(notary_connection_fut, client_requests_fut)?;
 
         Ok((notary_socket.into_inner(), session_id))
+    }
+
+    /// Used only for testing.
+    #[cfg(feature = "test-api")]
+    pub fn set_notarization_request_timeout(&mut self, timeout: usize) {
+        self.notarization_request_timeout = timeout;
+    }
+
+    /// Used only for testing.
+    #[cfg(feature = "test-api")]
+    pub fn set_notarization_request_retry_override(&mut self, seconds: usize) {
+        self.notarization_request_retry_override = Some(seconds);
     }
 }
 

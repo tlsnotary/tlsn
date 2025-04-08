@@ -23,8 +23,8 @@ use uuid::Uuid;
 
 use crate::{
     domain::notary::{
-        NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
-        NotaryGlobals,
+        NotarizationRequestQuery, NotarizationRetryResponse, NotarizationSessionRequest,
+        NotarizationSessionResponse, NotaryGlobals,
     },
     error::NotaryServerError,
     service::{
@@ -78,6 +78,18 @@ pub async fn upgrade_protocol(
     State(notary_globals): State<NotaryGlobals>,
     Query(params): Query<NotarizationRequestQuery>,
 ) -> Response {
+    let permit = if let Ok(permit) = notary_globals.semaphore.clone().try_acquire_owned() {
+        permit
+    } else {
+        // Ask the client to retry later.
+        // TODO: estimate the time more precisely to avoid unnecessary retries.
+        return (
+            StatusCode::OK,
+            Json(NotarizationRetryResponse { retry_in: 5 }),
+        )
+            .into_response();
+    };
+
     info!("Received upgrade protocol request");
     let session_id = params.session_id;
     // Check if session_id exists in the store, this also removes session_id from
@@ -96,12 +108,14 @@ pub async fn upgrade_protocol(
     // This completes the HTTP Upgrade request and returns a successful response to
     // the client, meanwhile initiating the websocket or tcp connection
     match protocol_upgrade {
-        ProtocolUpgrade::Ws(ws) => {
-            ws.on_upgrade(move |socket| websocket_notarize(socket, notary_globals, session_id))
-        }
-        ProtocolUpgrade::Tcp(tcp) => {
-            tcp.on_upgrade(move |stream| tcp_notarize(stream, notary_globals, session_id))
-        }
+        ProtocolUpgrade::Ws(ws) => ws.on_upgrade(move |socket| async move {
+            websocket_notarize(socket, notary_globals, session_id).await;
+            drop(permit);
+        }),
+        ProtocolUpgrade::Tcp(tcp) => tcp.on_upgrade(move |stream| async move {
+            tcp_notarize(stream, notary_globals, session_id).await;
+            drop(permit);
+        }),
     }
 }
 

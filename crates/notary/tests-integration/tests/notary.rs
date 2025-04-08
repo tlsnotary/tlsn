@@ -1,6 +1,7 @@
 use async_tungstenite::{
     tokio::connect_async_with_tls_connector_and_config, tungstenite::protocol::WebSocketConfig,
 };
+use futures::future::join_all;
 use http_body_util::{BodyExt as _, Full};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_tls::HttpsConnector;
@@ -8,7 +9,7 @@ use hyper_util::{
     client::legacy::{connect::HttpConnector, Builder},
     rt::{TokioExecutor, TokioIo},
 };
-use notary_client::{NotarizationRequest, NotaryClient, NotaryConnection};
+use notary_client::{Accepted, ClientError, NotarizationRequest, NotaryClient, NotaryConnection};
 use rstest::rstest;
 use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
@@ -17,9 +18,13 @@ use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_prover::{Prover, ProverConfig};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite, AsyncWriteExt},
+    time::sleep,
+};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
+use tracing_subscriber::EnvFilter;
 use ws_stream_tungstenite::WsStream;
 
 use notary_server::{
@@ -37,7 +42,12 @@ const NOTARY_CA_CERT_PATH: &str = "../server/fixture/tls/rootCA.crt";
 const NOTARY_CA_CERT_BYTES: &[u8] = include_bytes!("../../server/fixture/tls/rootCA.crt");
 const API_KEY: &str = "test_api_key_0";
 
-fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> NotaryServerProperties {
+fn get_server_config(
+    port: u16,
+    tls_enabled: bool,
+    auth_enabled: bool,
+    concurrency: usize,
+) -> NotaryServerProperties {
     NotaryServerProperties {
         server: ServerProperties {
             name: NOTARY_DNS.to_string(),
@@ -67,6 +77,7 @@ fn get_server_config(port: u16, tls_enabled: bool, auth_enabled: bool) -> Notary
             enabled: auth_enabled,
             whitelist_csv_path: Some("../server/fixture/auth/whitelist.csv".to_string()),
         },
+        concurrency,
     }
 }
 
@@ -75,10 +86,19 @@ async fn setup_config_and_server(
     port: u16,
     tls_enabled: bool,
     auth_enabled: bool,
+    concurrency: usize,
 ) -> NotaryServerProperties {
-    let notary_config = get_server_config(port, tls_enabled, auth_enabled);
+    let notary_config = get_server_config(port, tls_enabled, auth_enabled, concurrency);
 
-    let _ = tracing_subscriber::fmt::try_init();
+    // Abruptly closed connections will cause the server to log errors. We
+    // prevent that by excluding the noisy modules from logging.
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::new(
+            "error,uid_mux::yamux=off,tlsn_verifier=off,notary_server::service::tcp=off",
+        ))
+        .try_init();
+    // Note: since only one global subscriber is allowed for the entire
+    // testsuite, the above filter will have an effect on all tests.
 
     let config = notary_config.clone();
 
@@ -93,7 +113,8 @@ async fn setup_config_and_server(
     notary_config
 }
 
-async fn tcp_prover(notary_config: NotaryServerProperties) -> (NotaryConnection, String) {
+// Returns `NotaryClient` configured for proving over TCP.
+fn tcp_prover_client(notary_config: NotaryServerProperties) -> NotaryClient {
     let mut notary_client_builder = NotaryClient::builder();
 
     notary_client_builder
@@ -105,20 +126,25 @@ async fn tcp_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
         notary_client_builder.api_key(API_KEY);
     }
 
-    let notary_client = notary_client_builder.build().unwrap();
+    notary_client_builder.build().unwrap()
+}
 
+// Tries to put the client in an `Accepted` state.
+async fn accepted_client(client: NotaryClient) -> Result<Accepted, ClientError> {
     let notarization_request = NotarizationRequest::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
         .build()
         .unwrap();
 
-    let accepted_request = notary_client
-        .request_notarization(notarization_request)
+    client.request_notarization(notarization_request).await
+}
+
+async fn tcp_prover(notary_config: NotaryServerProperties) -> (NotaryConnection, String) {
+    let accepted = accepted_client(tcp_prover_client(notary_config))
         .await
         .unwrap();
-
-    (accepted_request.io, accepted_request.id)
+    (accepted.io, accepted.id)
 }
 
 async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection, String) {
@@ -140,32 +166,22 @@ async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
         .build()
         .unwrap();
 
-    let notarization_request = NotarizationRequest::builder()
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
-        .build()
-        .unwrap();
-
-    let accepted_request = notary_client
-        .request_notarization(notarization_request)
-        .await
-        .unwrap();
-
-    (accepted_request.io, accepted_request.id)
+    let accepted = accepted_client(notary_client).await.unwrap();
+    (accepted.io, accepted.id)
 }
 
 #[rstest]
 // For `tls_without_auth` test to pass, one needs to add "<NOTARY_HOST> <NOTARY_DNS>" in /etc/hosts
 // so that this test programme can resolve the self-named NOTARY_DNS to NOTARY_HOST IP successfully.
-#[case::tls_without_auth(
-    tls_prover(setup_config_and_server(100, 7047, true, false).await)
-)]
-#[case::tcp_with_auth(
-    tcp_prover(setup_config_and_server(100, 7048, false, true).await)
-)]
-#[case::tcp_without_auth(
-    tcp_prover(setup_config_and_server(100, 7049, false, false).await)
-)]
+#[case::tls_without_auth({
+    tls_prover(setup_config_and_server(100, 7047, true, false, 100).await)
+})]
+#[case::tcp_with_auth({
+    tcp_prover(setup_config_and_server(100, 7048, false, true, 100).await)
+})]
+#[case::tcp_without_auth({
+    tcp_prover(setup_config_and_server(100, 7049, false, false, 100).await)
+})]
 #[awt]
 #[tokio::test]
 #[ignore = "expensive"]
@@ -268,7 +284,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 #[ignore = "expensive"]
 async fn test_websocket_prover() {
     // Notary server configuration setup
-    let notary_config = setup_config_and_server(100, 7050, true, false).await;
+    let notary_config = setup_config_and_server(100, 7050, true, false, 100).await;
     let notary_host = notary_config.server.host.clone();
     let notary_port = notary_config.server.port;
 
@@ -451,4 +467,74 @@ async fn test_websocket_prover() {
     _ = prover.finalize(&request).await.unwrap();
 
     debug!("Done notarization!");
+}
+
+#[tokio::test]
+async fn test_concurrency_limit() {
+    const CONCURRENCY: usize = 5;
+
+    let notary_config = setup_config_and_server(100, 7051, false, false, CONCURRENCY).await;
+
+    async fn do_test(config: NotaryServerProperties) -> Vec<(NotaryConnection, String)> {
+        // Start notarization requests in parallel.
+        let connections = (0..CONCURRENCY).map(|_| tcp_prover(config.clone()));
+
+        // Wait for all requests to become accepted.
+        let mut connections = join_all(connections).await;
+
+        // Start a new request which will time out.
+        let mut client = tcp_prover_client(config.clone());
+        client.set_notarization_request_timeout(1);
+        assert_eq!(accepted_client(client.clone()).await.err().unwrap().to_string(), "client error: Internal, source: Some(\"Timed out while waiting for server to accept notarization request\")");
+
+        // Close one of the connections.
+        connections.pop().unwrap().0.shutdown().await.unwrap();
+
+        // Start a new request which will be accepted this time.
+        let accepted = accepted_client(client).await.unwrap();
+        connections.push((accepted.io, accepted.id));
+
+        connections
+    }
+
+    let connections = do_test(notary_config.clone()).await;
+    // Close all connections.
+    for mut c in connections {
+        c.0.shutdown().await.unwrap();
+    }
+
+    // Test again to make sure the server's semaphore was restored to the initial
+    // state.
+    _ = do_test(notary_config).await;
+}
+
+#[tokio::test]
+async fn test_notarization_request_retry() {
+    const CONCURRENCY: usize = 5;
+
+    let config = setup_config_and_server(100, 7052, false, false, CONCURRENCY).await;
+
+    // Max out the concurrency limit.
+    let connections = (0..CONCURRENCY).map(|_| tcp_prover(config.clone()));
+    let mut connections = join_all(connections).await;
+
+    // Start a new request which will retry every second.
+    let mut client = tcp_prover_client(config.clone());
+    client.set_notarization_request_retry_override(1);
+    let client_fut = accepted_client(client.clone());
+    tokio::pin!(client_fut);
+
+    tokio::select! {
+        _ = &mut client_fut => panic!("Expected timeout to complete first"),
+        _ = sleep(Duration::from_secs(2)) => {}
+    }
+
+    // Close one of the connections.
+    connections.pop().unwrap().0.shutdown().await.unwrap();
+
+    // Now the request will be accepted.
+    tokio::select! {
+        _ = client_fut => {},
+        _ = sleep(Duration::from_secs(2)) => panic!("Expected client future to complete first")
+    }
 }
