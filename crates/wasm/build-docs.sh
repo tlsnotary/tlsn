@@ -29,3 +29,7 @@ cargo +nightly doc \
     "${PACKAGE_ARGS[@]}" \
     --no-deps \
     --features "$FEATURES"
+
+# https://dev.to/deciduously/prepare-your-rust-api-docs-for-github-pages-2n5i
+echo "Add index file -> tlsn_prover"
+echo "<meta http-equiv=\"refresh\" content=\"0; url=tlsn_prover\">" >../../target/wasm32-unknown-unknown/doc/index.html
