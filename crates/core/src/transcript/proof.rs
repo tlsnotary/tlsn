@@ -459,7 +459,7 @@ impl fmt::Display for TranscriptProofBuilderError {
             BuilderErrorKind::Index => f.write_str("index error")?,
             BuilderErrorKind::MissingCommitment => f.write_str("commitment error")?,
             BuilderErrorKind::Cover { uncovered, kinds } => f.write_str(&format!(
-                "unable to cover ranges {uncovered} in transcript using available {:?} commitments",
+                "unable to cover ranges of {uncovered} in transcript using available {:?} commitments",
                 kinds
             ))?,
             BuilderErrorKind::NotSupported => f.write_str("not supported")?,
