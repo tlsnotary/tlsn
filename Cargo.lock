@@ -6382,7 +6382,6 @@ dependencies = [
  "console_error_panic_hook",
  "enum-try-as-inner",
  "futures",
- "getrandom 0.2.16",
  "getrandom 0.3.3",
  "http-body-util",
  "hyper",
