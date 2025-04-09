@@ -21,8 +21,9 @@ jobs:
           toolchain: stable
 
       - name: "rustdoc"
-        run: cargo doc -p tlsn-core -p tlsn-prover -p tlsn-verifier --no-deps --all-features
-        # --target-dir ${GITHUB_WORKSPACE}/docs
+        run: |
+            cd crates/wasm
+            ./build-docs.sh
 
       # https://dev.to/deciduously/prepare-your-rust-api-docs-for-github-pages-2n5i
       - name: "Add index file -> tlsn_prover"
