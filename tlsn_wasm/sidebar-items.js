@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LoggingLevel"],"fn":["build_presentation","initialize"],"mod":["prover","types","verifier"],"struct":["LoggingConfig"]};

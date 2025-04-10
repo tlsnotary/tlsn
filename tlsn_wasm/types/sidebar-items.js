@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Body","KeyType","Method","TlsVersion"],"struct":["Attestation","Commit","ConnectionInfo","HttpRequest","HttpResponse","NotarizationOutput","PartialTranscript","Presentation","PresentationOutput","Reveal","Secrets","Transcript","TranscriptLength","VerifierOutput","VerifyingKey"]};
