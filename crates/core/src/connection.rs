@@ -314,11 +314,11 @@ impl ServerCertData {
             return Err(CertificateVerificationError::InvalidServerEphemeralKey);
         }
 
-        // Verify server name
+        // Verify server name.
         let server_name = tls_core::dns::ServerName::try_from(server_name.as_ref())
             .map_err(|_| CertificateVerificationError::InvalidIdentity(server_name.clone()))?;
 
-        // Verify server certificate
+        // Verify server certificate.
         let cert_chain = self
             .certs
             .clone()

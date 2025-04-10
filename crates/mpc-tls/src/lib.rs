@@ -84,9 +84,9 @@ pub struct LeaderOutput {
     pub server_cert_details: ServerCertDetails,
     /// Key exchange details.
     pub server_kx_details: ServerKxDetails,
-    /// Client random
+    /// Client random.
     pub client_random: Random,
-    /// Server random
+    /// Server random.
     pub server_random: Random,
     /// TLS transcript.
     pub transcript: TlsTranscript,

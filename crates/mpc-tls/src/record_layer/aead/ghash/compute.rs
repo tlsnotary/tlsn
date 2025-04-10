@@ -95,7 +95,7 @@ impl Task for ComputeTags {
                 let tags = tag_shares
                     .into_iter()
                     .zip(follower_tag_shares)
-                    .map(|(a, b)| (a + b).to_vec())
+                    .map(|(a, b)| a + b)
                     .collect();
 
                 Some(tags)

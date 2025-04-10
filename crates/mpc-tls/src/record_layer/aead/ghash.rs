@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::record_layer::aead::AeadError;
 
-/// Maximum key share power.
+/// Maximum exponent used in GHASH.
 const MAX_POWER: usize = 1026;
 
 #[async_trait]
@@ -26,13 +26,13 @@ pub(crate) trait Ghash {
     /// Preprocesses GHASH.
     async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), GhashError>;
 
-    /// Sets the key for the hash function.
+    /// Sets the additive key share for the hash function.
     fn set_key(&mut self, key: Vec<u8>) -> Result<(), GhashError>;
 
     /// Sets up GHASH, computing the key shares.
     async fn setup(&mut self, ctx: &mut Context) -> Result<(), GhashError>;
 
-    /// Computes the GHASH tag.
+    /// Computes the GHASH tag share.
     fn compute(&self, input: &[u8]) -> Result<Vec<u8>, GhashError>;
 }
 
@@ -80,12 +80,13 @@ where
 {
     fn alloc(&mut self) -> Result<(), GhashError> {
         if !self.alloc {
-            // We need only half the number of `MAX_POWER` M2As because of the free
-            // squaring trick and we need one extra A2M conversion in the beginning.
+            // Odd powers are computed using M2A, even powers are computed
+            // locally. We need one extra A2M conversion in the beginning.
             // Both M2A and A2M, each require a single OLE.
             AdditiveToMultiplicative::<Gf2_128>::alloc(&mut self.converter, 1)
                 .map_err(GhashError::conversion)?;
 
+            // -1 because the odd power H^1 is already known at this point.
             MultiplicativeToAdditive::<Gf2_128>::alloc(&mut self.converter, (MAX_POWER / 2) - 1)
                 .map_err(GhashError::conversion)?;
 
@@ -128,7 +129,7 @@ where
 
     async fn setup(&mut self, ctx: &mut Context) -> Result<(), GhashError> {
         let State::SetKey { key: add_key } = self.state.take() else {
-            return Err(GhashError::state("can not setup before key is set"));
+            return Err(GhashError::state("cannot setup before key is set"));
         };
 
         let mut mult_key = self
@@ -156,9 +157,9 @@ where
                 *acc = power_n * mult_key;
                 Some(power_n)
             })
-            // Start from H^3
+            // Start from H^3.
             .skip(2)
-            // Skip even powers
+            // Skip even powers.
             .step_by(2)
             .collect();
 
@@ -249,7 +250,7 @@ fn compute_shares(key: Gf2_128, odd_powers: &[Gf2_128]) -> Vec<Gf2_128> {
             let base = shares[i / 2 - 1];
             shares.push(base * base);
         } else {
-            // Odd power
+            // Odd power.
             shares.push(odd_powers[odd_idx]);
             odd_idx += 1;
         }
@@ -287,9 +288,12 @@ struct TagShare([u8; 16]);
 impl Add for TagShare {
     type Output = Vec<u8>;
 
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self.0.iter_mut().zip(rhs.0).for_each(|(a, b)| *a ^= b);
-        self.0.to_vec()
+    fn add(self, rhs: Self) -> Self::Output {
+        self.0
+            .iter()
+            .zip(rhs.0)
+            .map(|(a, b)| *a ^ b)
+            .collect::<Vec<_>>()
     }
 }
 
@@ -420,7 +424,7 @@ mod tests {
         let sender_key: u128 = rng.random();
         let receiver_key: u128 = h ^ sender_key;
 
-        // Message length is not a multiple of the block length
+        // Message length is not a multiple of the block length.
         let message: Vec<u8> = (0..14).map(|_| rng.random()).collect();
 
         let (mut sender, mut receiver) = create_pair();
