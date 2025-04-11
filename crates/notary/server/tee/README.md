@@ -1,31 +1,32 @@
-This folder contains the necessary files to build a Docker image for running the Notary Server on Intel SGX-enabled hardware. 
+This folder contains the necessary files to build a Docker image for running the Notary Server on Intel SGX-enabled hardware.
 
-## Compile the notary server for Intel SGX
+## Compile the Notary Server for Intel SGX
 
-We are using [Gramine](https://github.com/gramineproject/gramine) to run the notary server on Intel SGX. Gramine allows to run the notary server in an isolated environment with minimal host requirements.
+We use [Gramine](https://github.com/gramineproject/gramine) to run the Notary Server on Intel SGX. Gramine allows the Notary Server to run in an isolated environment with minimal host requirements.
 
 The isolated environment is defined via the manifest template (`notary-server.manifest.template`).
 
-The notary server for SGX is compiled with an extra Rust feature flag `tee_quote`. This makes the notary server use an ephemeral private notary key for signing attestations (`private_key_pem_path: "/ephemeral/notary.key"`) and also adds the SGX *quote* to the notary server's `/info` end point.
+The Notary Server for SGX is compiled with the Rust feature flag `tee_quote`. This enables the server to use an ephemeral private notary key for signing attestations (`private_key_pem_path: "/ephemeral/notary.key"`) and also adds the SGX *quote* to the server's `/info` endpoint.
 
-### CI 
+### CI
 
 The container is built as part of the CI pipeline. For details on the build process, refer to the [CI workflow configuration](../../../../.github/workflows/ci.yml).
 
-CI builds a zip-file `notary-server-sgx.zip` (which contains the compiled binary and the signed manifest). You can find this zip file for all releases and the `dev` builds in the build Artifacts. We also publish a docker image `notary-server-sgx` to <https://github.com/tlsnotary/tlsn/pkgs/container/tlsn%2Fnotary-server-sgx>. Check the #how for more details on running this container.
+CI builds a zip file named `notary-server-sgx.zip`, which contains the compiled binary and the signed manifest. This zip file is available for all releases and `dev` builds in the build artifacts. We also publish a Docker image `notary-server-sgx` at <https://github.com/tlsnotary/tlsn/pkgs/container/tlsn%2Fnotary-server-sgx>. Check the section below for details on running this container.
 
 ### Development
 
-You can also build everything locally with `run-gramine-local.sh`. 
+You can also build everything locally using the `run-gramine-local.sh` script.
 
-This script creates and signs the Gramine manifest for the Notary server in a local development environment. This scripts requires the Gramine SDK, so it is most convenient to run it in a Docker container with the necessary dependencies and tools.
+This script creates and signs the Gramine manifest for the Notary Server in a local development environment. It requires the Gramine SDK, so the most convenient way to use it is within a Docker container that includes the necessary dependencies and tools.
 
-> ⚠️ This script assumes that the `notary-server` binary is already built (for linux/amd64) and available in the current directory. Make sure it is built with the `tee_quote` feature (On Linux: `cargo build --bin notary-server --release --features tee_quote`).
+> ⚠️ This script assumes that the `notary-server` binary is already built (for `linux/amd64`) and available in the current directory. Make sure it is built with the `tee_quote` feature:  
+> `cargo build --bin notary-server --release --features tee_quote`
 
 #### Build the Docker Image
 
 To build the Docker image for local development, run:
-```
+```sh
 docker build -f gramine-local.Dockerfile -t gramine-local .
 ```
 #### Run the Gramine Script
@@ -58,8 +59,7 @@ The output should be the same as `notary-server-sigstruct.json`
 
 ## How to Run TLSNotary on Intel SGX?
 
-Before you can run the notary server on Intel SGX hardware, you need to ensure that your system has the required Intel SGX components installed:
-
+Before running the Notary Server on Intel SGX hardware, ensure your system has the required Intel SGX components installed:
 ```sh
 wget https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key
 cat intel-sgx-deb.key | sudo tee /etc/apt/keyrings/intel-sgx-keyring.asc > /dev/null
@@ -75,8 +75,8 @@ For more details, refer to the official **[Intel SGX Installation Guide](https:/
 
 ### Docker Compose
 
-To run the notary server with Docker Compose. Create a `docker-compose.yml` file with a configuration like:
-```
+To run the Notary Server using Docker Compose, create a docker-compose.yml file like the following:
+```yaml
 services:
   dev:
     container_name: dev
@@ -92,15 +92,14 @@ services:
     entrypoint: [ "gramine-sgx", "notary-server" ]
 ```
 
-To retrieve the SGX attestation quote, navigate to `<your notary server>:7047/info`:
-```
+To retrieve the SGX attestation quote, query the `/info` endpoint:
+```sh
 curl localhost:7047/info | jq
 ```
 
-### Run local build, directly with gramine
+### Run local build directly with Gramine
 
-To run a local build, you can start the Notary Server inside a **Gramine-protected SGX enclave** with:
-
+To run a locally built Notary Server inside a Gramine-protected SGX enclave, execute:
 ```sh
 docker run --detach \
   --restart=unless-stopped \
