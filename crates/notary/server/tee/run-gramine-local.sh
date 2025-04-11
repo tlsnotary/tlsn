@@ -1,28 +1,15 @@
 #!/bin/bash
 
-# This script is used to build and run the Gramine manifest for the Notary server in a local development environment.
-# It is intended to be run inside a Docker container with the Gramine SDK installed.
-
-# The Dockerfile used to build the container is located in the same directory as this script.
-# The Dockerfile is named "Dockerfile.gramine-local" and is used to create a container with the necessary dependencies
-# and tools to build and run the Gramine manifest.
-
-# To build the Docker image, run the following command:
-# ```
-# docker build -f Dockerfile.gramine-local -t gramine-local .
-# ```
-
-# ⚠️ This script assumes that the notary-server binary is already built (for linux/amd64) and available in the current directory.
-
-# To run the script inside the Docker container, use the following command:
-# ```
-# docker run --rm -it --platform=linux/amd64 -v "${PWD}:/app" -w /app/ gramine-local "bash -c ./run-gramine-local.sh"
-# ```
-
 set -euo pipefail
 
 echo "[*] Generating SGX signing key..."
 gramine-sgx-gen-private-key
+
+if [ ! -f notary-server ]; then
+    echo "[!] notary-server binary not found. Please copy it from ci, or build it first."
+    echo "Note that notary-server must be build for linux/amd64 with tee_quote feature enabled"
+    exit 1
+fi
 
 chmod +x notary-server
 
@@ -59,4 +46,4 @@ zip -r notary-server-sgx.zip \
     notary-server.manifest \
     notary-server.manifest.sgx \
     config \
-    notary-server-sgx.md
+    README.md

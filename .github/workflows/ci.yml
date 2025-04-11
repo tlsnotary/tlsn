@@ -280,7 +280,7 @@ jobs:
             crates/notary/server/tee/notary-server.manifest
             crates/notary/server/tee/notary-server.manifest.sgx
             crates/notary/server/tee/config
-            crates/notary/server/tee/notary-server-sgx.md
+            crates/notary/server/tee/README.md
           if-no-files-found: error
 
       - name: Attest Build Provenance
