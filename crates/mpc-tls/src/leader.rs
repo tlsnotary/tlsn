@@ -169,6 +169,7 @@ impl MpcTlsLeader {
             self.config.max_recv_records,
             self.config.max_sent,
             self.config.max_recv_online,
+            self.config.max_recv,
         )?;
 
         self.state = State::Setup {
