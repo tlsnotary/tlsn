@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use hmac_sha256::Config as PrfConfig;
 use mpc_tls::Config;
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
@@ -16,6 +17,9 @@ pub struct VerifierConfig {
     /// Cryptography provider.
     #[builder(default, setter(into))]
     crypto_provider: Arc<CryptoProvider>,
+    /// Configuration options for the PRF.
+    #[builder(default)]
+    prf: PrfConfig,
 }
 
 impl Debug for VerifierConfig {
@@ -47,6 +51,7 @@ impl VerifierConfig {
             .max_sent(protocol_config.max_sent_data())
             .max_recv_online(protocol_config.max_recv_data_online())
             .max_recv(protocol_config.max_recv_data())
+            .prf(self.prf)
             .build()
             .unwrap()
     }

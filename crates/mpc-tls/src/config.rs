@@ -1,4 +1,5 @@
 use derive_builder::Builder;
+use hmac_sha256::Config as PrfConfig;
 
 const MIN_SENT: usize = 32;
 const MIN_SENT_RECORDS: usize = 8;
@@ -30,6 +31,8 @@ pub struct Config {
     /// Maximum number of received bytes.
     #[allow(unused)]
     pub(crate) max_recv: usize,
+    /// Configuration options for the PRF.
+    pub(crate) prf: PrfConfig,
 }
 
 impl Config {
@@ -77,6 +80,7 @@ impl ConfigBuilder {
             max_recv_records,
             max_recv_online,
             max_recv,
+            prf: self.prf.unwrap_or_default(),
         })
     }
 }

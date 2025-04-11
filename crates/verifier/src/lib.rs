@@ -20,7 +20,6 @@ use mpc_tls::{FollowerData, MpcTlsFollower};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use rand06_compat::Rand0_6CompatExt;
 use serio::stream::IoStreamExt;
 use state::{Notarize, Verify};
 use tls_core::msgs::enums::ContentType;
