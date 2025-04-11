@@ -27,6 +27,15 @@ pub struct ProtocolConfig {
     max_recv_data_online: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
+    /// A cushion for handling more incoming TLS records than estimated by the
+    /// internal algorithm.
+    ///
+    /// We internally estimate based on an optimistic assumption that the
+    /// incoming TLS record's size will be 16KB, but in practice it is often
+    /// not the case.
+    /// This value will be added to the internal estimate.
+    #[builder(default = "0")]
+    extra_recv_records: usize,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -62,6 +71,12 @@ impl ProtocolConfig {
     /// Returns the maximum number of bytes that can be received.
     pub fn max_recv_data(&self) -> usize {
         self.max_recv_data
+    }
+
+    /// Returns a cushion for handling more incoming TLS records than estimated
+    /// by the internal algorithm.
+    pub fn extra_recv_records(&self) -> usize {
+        self.extra_recv_records
     }
 }
 

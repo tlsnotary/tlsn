@@ -79,4 +79,14 @@ impl ConfigBuilder {
             max_recv,
         })
     }
+
+    /// Builds the configuration with `count` additional received records.
+    pub fn build_with_extra_recv_records(
+        &self,
+        count: usize,
+    ) -> Result<Config, ConfigBuilderError> {
+        let mut config = self.build()?;
+        config.max_recv_records += count;
+        Ok(config)
+    }
 }

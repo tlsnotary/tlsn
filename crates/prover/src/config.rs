@@ -54,7 +54,7 @@ impl ProverConfig {
             .max_sent(self.protocol_config.max_sent_data())
             .max_recv_online(self.protocol_config.max_recv_data_online())
             .max_recv(self.protocol_config.max_recv_data())
-            .build()
+            .build_with_extra_recv_records(self.protocol_config.extra_recv_records())
             .unwrap()
     }
 }

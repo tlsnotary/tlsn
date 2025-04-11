@@ -47,7 +47,7 @@ impl VerifierConfig {
             .max_sent(protocol_config.max_sent_data())
             .max_recv_online(protocol_config.max_recv_data_online())
             .max_recv(protocol_config.max_recv_data())
-            .build()
+            .build_with_extra_recv_records(protocol_config.extra_recv_records())
             .unwrap()
     }
 }
