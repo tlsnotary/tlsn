@@ -19,7 +19,7 @@ use tokio::{
 };
 use tokio_rustls::{
     client::TlsStream,
-    rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore},
+    rustls::{self, ClientConfig, OwnedTrustAnchor, RootCertStore},
     TlsConnector,
 };
 use tracing::{debug, error};
@@ -179,7 +179,23 @@ impl NotaryClient {
                     notary_socket,
                 )
                 .await
-                .map_err(|err| ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err))))?;
+                .map_err(|err| {
+                    if let Some(inner) = err.get_ref() {
+                        if let Some(error) = inner.downcast_ref::<rustls::Error>() {
+                            if *error
+                                == rustls::Error::InvalidMessage(
+                                    rustls::InvalidMessage::InvalidContentType,
+                                )
+                            {
+                                error!(
+                                    "The notary server does not seem to accept our TLS connection"
+                                );
+                            }
+                        }
+                    }
+
+                    ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err)))
+                })?;
 
             self.send_request(notary_tls_socket, notarization_request)
                 .await

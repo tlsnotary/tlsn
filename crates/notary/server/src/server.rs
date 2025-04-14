@@ -26,7 +26,7 @@ use std::{
 };
 use tlsn_core::CryptoProvider;
 use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::{rustls, TlsAcceptor};
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use tracing::{debug, error, info};
@@ -210,6 +210,15 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     }
                     Err(err) => {
                         error!("{}", NotaryServerError::Connection(err.to_string()));
+                        if let Ok(error) = err.downcast::<rustls::Error>() {
+                            if error
+                                == rustls::Error::InvalidMessage(
+                                    rustls::InvalidMessage::InvalidContentType,
+                                )
+                            {
+                                error!("You should turn on `TLSProperties::enabled` to accept client's TLS connections");
+                            }
+                        }
                     }
                 }
             } else {
