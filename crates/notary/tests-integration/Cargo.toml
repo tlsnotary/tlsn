@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
-notary-client = { workspace = true, features = ["test-api"] }
+notary-client = { workspace = true }
 notary-server = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-common = { workspace = true }

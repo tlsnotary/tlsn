@@ -3,10 +3,6 @@ name = "notary-client"
 version = "0.1.0-alpha.10-pre"
 edition = "2021"
 
-[features]
-# Exposes some API which are only meant for testing.
-test-api = []
-
 [dependencies]
 notary-server = { workspace = true }
 

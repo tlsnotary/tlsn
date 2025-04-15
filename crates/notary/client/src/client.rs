@@ -140,7 +140,6 @@ pub struct NotaryClient {
     notarization_request_timeout: usize,
     /// How many seconds to retry the notarization request in. Overrides the
     /// value suggested by the server.
-    #[cfg(feature = "test-api")]
     #[builder(default = "None")]
     notarization_request_retry_override: Option<u64>,
 }
@@ -382,14 +381,9 @@ impl NotaryClient {
                     if notarization_response.status() == StatusCode::SWITCHING_PROTOCOLS {
                         return Ok::<Response<Incoming>, ClientError>(notarization_response);
                     } else if notarization_response.status() == StatusCode::SERVICE_UNAVAILABLE {
-                        let retry_after = if cfg!(feature = "test-api")
-                            && self.notarization_request_retry_override.is_some()
-                        {
-                            self.notarization_request_retry_override
-                                .expect("value should be Some()")
-                        } else {
-                            parse_retry_after(&notarization_response)?
-                        };
+                        let retry_after = self
+                            .notarization_request_retry_override
+                            .unwrap_or(parse_retry_after(&notarization_response)?);
 
                         debug!("Retrying notarization request in {:?}", retry_after);
 
@@ -449,14 +443,14 @@ impl NotaryClient {
         Ok((notary_socket.into_inner(), session_id))
     }
 
-    /// Used only for testing.
-    #[cfg(feature = "test-api")]
+    /// Sets ow many seconds to wait for notarization request to be accepted
+    /// before timing out.
     pub fn set_notarization_request_timeout(&mut self, timeout: usize) {
         self.notarization_request_timeout = timeout;
     }
 
-    /// Used only for testing.
-    #[cfg(feature = "test-api")]
+    /// Sets how many seconds to retry the notarization request in. Overrides
+    /// the value suggested by the server.
     pub fn set_notarization_request_retry_override(&mut self, seconds: u64) {
         self.notarization_request_retry_override = Some(seconds);
     }
