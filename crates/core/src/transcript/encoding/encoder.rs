@@ -107,17 +107,13 @@ impl Encoder for ChaChaEncoder {
     }
 
     fn encode_subsequence(&self, direction: Direction, seq: &Subsequence) -> Vec<u8> {
-        const ZERO: [u8; 16] = [0; BIT_ENCODING_SIZE];
         let mut encoding = self.encode_idx(direction, seq.index());
-        for (byte_idx, &byte) in seq.data().iter().enumerate() {
-            let start = byte_idx * BYTE_ENCODING_SIZE;
-            for (bit_idx, bit) in byte.iter_lsb0().enumerate() {
-                let pos = start + (bit_idx * BIT_ENCODING_SIZE);
-                let delta = if bit { &self.delta } else { &ZERO };
-
-                encoding[pos..pos + BIT_ENCODING_SIZE]
+        for (pos, bit) in seq.data().iter_lsb0().enumerate() {
+            // Add delta to the encoding whenever the encoded bit is 1.
+            if bit {
+                encoding[pos * BIT_ENCODING_SIZE..(pos + 1) * BIT_ENCODING_SIZE]
                     .iter_mut()
-                    .zip(delta)
+                    .zip(&self.delta)
                     .for_each(|(a, b)| *a ^= *b);
             }
         }
