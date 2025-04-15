@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tlsn_core::CryptoProvider;
+use tokio::sync::Semaphore;
 
 use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
 
@@ -53,6 +54,8 @@ pub struct NotaryGlobals {
     pub store: Arc<Mutex<HashMap<String, ()>>>,
     /// Whitelist of API keys for authorization purpose
     pub authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
+    /// A semaphore to acquire a permit for notarization
+    pub semaphore: Arc<Semaphore>,
 }
 
 impl NotaryGlobals {
@@ -60,12 +63,14 @@ impl NotaryGlobals {
         crypto_provider: Arc<CryptoProvider>,
         notarization_config: NotarizationProperties,
         authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
+        semaphore: Arc<Semaphore>,
     ) -> Self {
         Self {
             crypto_provider,
             notarization_config,
             store: Default::default(),
             authorization_whitelist,
+            semaphore,
         }
     }
 }

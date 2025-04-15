@@ -49,6 +49,8 @@ use crate::{
 #[cfg(feature = "tee_quote")]
 use crate::tee::{generate_ephemeral_keypair, quote};
 
+use tokio::sync::Semaphore;
+
 /// Start a TCP server (with or without TLS) to accept notarization request for
 /// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
@@ -114,6 +116,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         Arc::new(crypto_provider),
         config.notarization.clone(),
         authorization_whitelist,
+        Arc::new(Semaphore::new(config.concurrency)),
     );
 
     // Parameters needed for the info endpoint
