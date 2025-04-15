@@ -484,7 +484,7 @@ async fn test_concurrency_limit() {
 
         // Start a new request which will time out.
         let mut client = tcp_prover_client(config.clone());
-        client.set_notarization_request_timeout(1);
+        client.request_timeout(1);
         assert_eq!(accepted_client(client.clone()).await.err().unwrap().to_string(), "client error: Internal, source: Some(\"Timed out while waiting for server to accept notarization request\")");
 
         // Close one of the connections.
@@ -520,7 +520,7 @@ async fn test_notarization_request_retry() {
 
     // Start a new request which will retry every second.
     let mut client = tcp_prover_client(config.clone());
-    client.set_notarization_request_retry_override(1);
+    client.request_retry_override(1);
     let client_fut = accepted_client(client.clone());
     tokio::pin!(client_fut);
 

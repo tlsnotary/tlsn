@@ -134,14 +134,14 @@ pub struct NotaryClient {
     /// in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
-    /// How many seconds to wait for notarization request to be accepted before
-    /// timing out.
+    /// The duration of notarization request timeout in seconds.
     #[builder(default = "60")]
-    notarization_request_timeout: usize,
-    /// How many seconds to retry the notarization request in. Overrides the
-    /// value suggested by the server.
+    request_timeout: usize,
+    /// The number of seconds to wait between notarization request retries.
+    ///
+    /// By default uses the value suggested by the server.
     #[builder(default = "None")]
-    notarization_request_retry_override: Option<u64>,
+    request_retry_override: Option<u64>,
 }
 
 impl NotaryClientBuilder {
@@ -382,7 +382,7 @@ impl NotaryClient {
                         return Ok::<Response<Incoming>, ClientError>(notarization_response);
                     } else if notarization_response.status() == StatusCode::SERVICE_UNAVAILABLE {
                         let retry_after = self
-                            .notarization_request_retry_override
+                            .request_retry_override
                             .unwrap_or(parse_retry_after(&notarization_response)?);
 
                         debug!("Retrying notarization request in {:?}", retry_after);
@@ -404,7 +404,7 @@ impl NotaryClient {
             };
 
             let notarization_response = timeout(
-                Duration::from_secs(self.notarization_request_timeout as u64),
+                Duration::from_secs(self.request_timeout as u64),
                 notarize_with_retry_fut,
             )
             .await
@@ -443,16 +443,15 @@ impl NotaryClient {
         Ok((notary_socket.into_inner(), session_id))
     }
 
-    /// Sets ow many seconds to wait for notarization request to be accepted
-    /// before timing out.
-    pub fn set_notarization_request_timeout(&mut self, timeout: usize) {
-        self.notarization_request_timeout = timeout;
+    /// Sets notarization request timeout duration in seconds.
+    pub fn request_timeout(&mut self, timeout: usize) {
+        self.request_timeout = timeout;
     }
 
-    /// Sets how many seconds to retry the notarization request in. Overrides
-    /// the value suggested by the server.
-    pub fn set_notarization_request_retry_override(&mut self, seconds: u64) {
-        self.notarization_request_retry_override = Some(seconds);
+    /// Sets the number of seconds to wait between notarization request
+    /// retries.
+    pub fn request_retry_override(&mut self, seconds: u64) {
+        self.request_retry_override = Some(seconds);
     }
 }
 
