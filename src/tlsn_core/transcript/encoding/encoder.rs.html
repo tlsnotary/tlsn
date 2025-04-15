@@ -108,20 +108,18 @@
 <a href=#108 id=108 data-nosnippet>108</a>
 <a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">fn </span>encode_subsequence(<span class="kw-2">&amp;</span><span class="self">self</span>, direction: Direction, seq: <span class="kw-2">&amp;</span>Subsequence) -&gt; Vec&lt;u8&gt; {
 <a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">const </span>ZERO: [u8; <span class="number">16</span>] = [<span class="number">0</span>; BIT_ENCODING_SIZE];
-<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoding = <span class="self">self</span>.encode_idx(direction, seq.index());
-<a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">for </span>(byte_idx, <span class="kw-2">&amp;</span>byte) <span class="kw">in </span>seq.data().iter().enumerate() {
-<a href=#113 id=113 data-nosnippet>113</a>            <span class="kw">let </span>start = byte_idx * BYTE_ENCODING_SIZE;
-<a href=#114 id=114 data-nosnippet>114</a>            <span class="kw">for </span>(bit_idx, bit) <span class="kw">in </span>byte.iter_lsb0().enumerate() {
-<a href=#115 id=115 data-nosnippet>115</a>                <span class="kw">let </span>pos = start + (bit_idx * BIT_ENCODING_SIZE);
-<a href=#116 id=116 data-nosnippet>116</a>                <span class="kw">let </span>delta = <span class="kw">if </span>bit { <span class="kw-2">&amp;</span><span class="self">self</span>.delta } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>ZERO };
-<a href=#117 id=117 data-nosnippet>117</a>
-<a href=#118 id=118 data-nosnippet>118</a>                encoding[pos..pos + BIT_ENCODING_SIZE]
-<a href=#119 id=119 data-nosnippet>119</a>                    .iter_mut()
-<a href=#120 id=120 data-nosnippet>120</a>                    .zip(delta)
-<a href=#121 id=121 data-nosnippet>121</a>                    .for_each(|(a, b)| <span class="kw-2">*</span>a ^= <span class="kw-2">*</span>b);
-<a href=#122 id=122 data-nosnippet>122</a>            }
-<a href=#123 id=123 data-nosnippet>123</a>        }
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>        encoding
-<a href=#126 id=126 data-nosnippet>126</a>    }
-<a href=#127 id=127 data-nosnippet>127</a>}</code></pre></div></section></main></body></html>
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoding = <span class="self">self</span>.encode_idx(direction, seq.index());
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">for </span>(pos, bit) <span class="kw">in </span>seq.data().iter_lsb0().enumerate() {
+<a href=#114 id=114 data-nosnippet>114</a>            <span class="comment">// Add the delta to the encoding whenever the encoded bit is 1,
+<a href=#115 id=115 data-nosnippet>115</a>            // otherwise add a zero.
+<a href=#116 id=116 data-nosnippet>116</a>            </span><span class="kw">let </span>summand = <span class="kw">if </span>bit { <span class="kw-2">&amp;</span><span class="self">self</span>.delta } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>ZERO };
+<a href=#117 id=117 data-nosnippet>117</a>            encoding[pos * BIT_ENCODING_SIZE..(pos + <span class="number">1</span>) * BIT_ENCODING_SIZE]
+<a href=#118 id=118 data-nosnippet>118</a>                .iter_mut()
+<a href=#119 id=119 data-nosnippet>119</a>                .zip(summand)
+<a href=#120 id=120 data-nosnippet>120</a>                .for_each(|(a, b)| <span class="kw-2">*</span>a ^= <span class="kw-2">*</span>b);
+<a href=#121 id=121 data-nosnippet>121</a>        }
+<a href=#122 id=122 data-nosnippet>122</a>
+<a href=#123 id=123 data-nosnippet>123</a>        encoding
+<a href=#124 id=124 data-nosnippet>124</a>    }
+<a href=#125 id=125 data-nosnippet>125</a>}</code></pre></div></section></main></body></html>
