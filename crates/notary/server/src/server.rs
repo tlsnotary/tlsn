@@ -208,6 +208,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                             .with_upgrades()
                             .await;
                     }
+
                     Err(err) => {
                         error!("{}", NotaryServerError::Connection(err.to_string()));
                     }

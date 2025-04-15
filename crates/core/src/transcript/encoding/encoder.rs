@@ -84,7 +84,7 @@ pub trait Encoder {
 
 impl Encoder for ChaChaEncoder {
     fn encode_idx(&self, direction: Direction, idx: &Idx) -> Vec<u8> {
-        // ChaCha20 encoder works with 32-bit words. Each encoded bit is 128 bits long.
+        // ChaCha encoder works with 32-bit words. Each encoded bit is 128 bits long.
         const WORDS_PER_BYTE: u128 = 8 * 128 / 32;
 
         let stream_id: u64 = match direction {
