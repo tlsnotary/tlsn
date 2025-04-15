@@ -35,15 +35,6 @@ pub struct NotarizationRequestQuery {
     pub session_id: String,
 }
 
-/// Response object of the /notarize API sent when the client should retry the
-/// notarization later.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NotarizationRetryResponse {
-    /// The amount of seconds to retry the notarization in.
-    pub retry_in: usize,
-}
-
 /// Types of client that the prover is using
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ClientType {

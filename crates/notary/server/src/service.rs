@@ -3,6 +3,7 @@ pub mod tcp;
 pub mod websocket;
 
 use axum::{
+    body::Body,
     extract::{rejection::JsonRejection, FromRequestParts, Query, State},
     http::{header, request::Parts, StatusCode},
     response::{IntoResponse, Json, Response},
@@ -23,8 +24,8 @@ use uuid::Uuid;
 
 use crate::{
     domain::notary::{
-        NotarizationRequestQuery, NotarizationRetryResponse, NotarizationSessionRequest,
-        NotarizationSessionResponse, NotaryGlobals,
+        NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
+        NotaryGlobals,
     },
     error::NotaryServerError,
     service::{
@@ -81,13 +82,12 @@ pub async fn upgrade_protocol(
     let permit = if let Ok(permit) = notary_globals.semaphore.clone().try_acquire_owned() {
         permit
     } else {
-        // Ask the client to retry later.
         // TODO: estimate the time more precisely to avoid unnecessary retries.
-        return (
-            StatusCode::OK,
-            Json(NotarizationRetryResponse { retry_in: 5 }),
-        )
-            .into_response();
+        return Response::builder()
+            .status(StatusCode::SERVICE_UNAVAILABLE)
+            .header("Retry-After", 5)
+            .body(Body::default())
+            .expect("Builder should not fail");
     };
 
     info!("Received upgrade protocol request");

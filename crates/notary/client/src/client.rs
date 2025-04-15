@@ -10,9 +10,7 @@ use hyper::{
     Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
-use notary_server::{
-    ClientType, NotarizationRetryResponse, NotarizationSessionRequest, NotarizationSessionResponse,
-};
+use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 use std::{
     io::Error as IoError,
     pin::Pin,
@@ -144,7 +142,7 @@ pub struct NotaryClient {
     /// value suggested by the server.
     #[cfg(feature = "test-api")]
     #[builder(default = "None")]
-    notarization_request_retry_override: Option<usize>,
+    notarization_request_retry_override: Option<u64>,
 }
 
 impl NotaryClientBuilder {
@@ -381,40 +379,32 @@ impl NotaryClient {
                             ClientError::new(ErrorKind::Http, Some(Box::new(err)))
                         })?;
 
-                    if notarization_response.status() == StatusCode::OK {
-                        let payload = notarization_response
-                            .into_body()
-                            .collect()
-                            .await
-                            .map_err(|err| {
-                                error!("Failed to parse configuration response");
-                                ClientError::new(ErrorKind::Http, Some(Box::new(err)))
-                            })?
-                            .to_bytes();
-
-                        if let Ok(payload) = serde_json::from_str::<NotarizationRetryResponse>(
-                            &String::from_utf8_lossy(&payload),
-                        ) {
-                            let retry_in = if cfg!(feature = "test-api")
-                                && self.notarization_request_retry_override.is_some()
-                            {
-                                self.notarization_request_retry_override
-                                    .expect("value should be Some()")
-                            } else {
-                                payload.retry_in
-                            };
-
-                            debug!("Retrying notarization request in {:?}", retry_in);
-
-                            sleep(Duration::from_secs(retry_in as u64)).await;
-                        } else {
-                            return Err(ClientError::new(
-                                ErrorKind::Internal,
-                                Some(format!("Server sent unknown payload: {:?}", payload).into()),
-                            ));
-                        }
-                    } else {
+                    if notarization_response.status() == StatusCode::SWITCHING_PROTOCOLS {
                         return Ok::<Response<Incoming>, ClientError>(notarization_response);
+                    } else if notarization_response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                        let retry_after = if cfg!(feature = "test-api")
+                            && self.notarization_request_retry_override.is_some()
+                        {
+                            self.notarization_request_retry_override
+                                .expect("value should be Some()")
+                        } else {
+                            parse_retry_after(&notarization_response)?
+                        };
+
+                        debug!("Retrying notarization request in {:?}", retry_after);
+
+                        sleep(Duration::from_secs(retry_after)).await;
+                    } else {
+                        return Err(ClientError::new(
+                            ErrorKind::Internal,
+                            Some(
+                                format!(
+                                    "Server sent unexpected status code {:?}",
+                                    notarization_response.status()
+                                )
+                                .into(),
+                            ),
+                        ));
                     }
                 }
             };
@@ -467,7 +457,7 @@ impl NotaryClient {
 
     /// Used only for testing.
     #[cfg(feature = "test-api")]
-    pub fn set_notarization_request_retry_override(&mut self, seconds: usize) {
+    pub fn set_notarization_request_retry_override(&mut self, seconds: u64) {
         self.notarization_request_retry_override = Some(seconds);
     }
 }
@@ -484,4 +474,35 @@ fn default_root_store() -> RootCertStore {
     }));
 
     root_store
+}
+
+// Attempts to parse the value of the "Retry-After" header from the given
+// `response`.
+fn parse_retry_after(response: &Response<Incoming>) -> Result<u64, ClientError> {
+    let seconds = match response.headers().get("Retry-After") {
+        Some(value) => {
+            let value_str = value.to_str().map_err(|err| {
+                ClientError::new(
+                    ErrorKind::Internal,
+                    Some(format!("Invalid Retry-After header: {}", err).into()),
+                )
+            })?;
+
+            let seconds: u64 = value_str.parse().map_err(|err| {
+                ClientError::new(
+                    ErrorKind::Internal,
+                    Some(format!("Could not parse Retry-After header as number: {}", err).into()),
+                )
+            })?;
+            seconds
+        }
+        None => {
+            return Err(ClientError::new(
+                ErrorKind::Internal,
+                Some("The expected Retry-After header was not found in server response".into()),
+            ));
+        }
+    };
+
+    Ok(seconds)
 }

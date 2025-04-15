@@ -17,10 +17,7 @@ pub use config::{
 };
 pub use domain::{
     cli::CliFields,
-    notary::{
-        ClientType, NotarizationRetryResponse, NotarizationSessionRequest,
-        NotarizationSessionResponse,
-    },
+    notary::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse},
 };
 pub use error::NotaryServerError;
 pub use server::{read_pem_file, run_server};
