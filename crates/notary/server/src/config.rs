@@ -27,8 +27,7 @@ impl Default for NotaryServerProperties {
             notary_key: NotarySigningKeyProperties::default(),
             logging: LoggingProperties::default(),
             authorization: AuthorizationProperties::default(),
-            // By default there is essentially no concurrency limit.
-            concurrency: usize::MAX,
+            concurrency: 32,
         }
     }
 }
