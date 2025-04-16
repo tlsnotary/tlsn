@@ -8,7 +8,7 @@ use crate::{
     attestation::Body,
     index::Index,
     transcript::{
-        commit::TranscriptCommitmentKind,
+        commit::{TranscriptCommitmentKind, MAX_TOTAL_COMMITTED_DATA},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{PlaintextHashProof, PlaintextHashProofError, PlaintextHashSecret},
         Direction, Idx, PartialTranscript, Transcript,
@@ -63,6 +63,8 @@ impl TranscriptProof {
         }
 
         // Verify hash openings.
+        let mut total_opened = 0u128;
+
         for proof in self.hash_proofs {
             let commitment = attestation_body
                 .plaintext_hashes()
@@ -74,6 +76,15 @@ impl TranscriptProof {
                         format!("contains a hash opening but attestation is missing corresponding commitment (id: {})", proof.commitment_id()),
                     )
                 })?;
+
+            // Make sure the amount of data being proved is bounded.
+            total_opened += commitment.idx.len() as u128;
+            if total_opened > MAX_TOTAL_COMMITTED_DATA as u128 {
+                return Err(TranscriptProofError::new(
+                    ErrorKind::Hash,
+                    "exceeded maximum allowed data",
+                ))?;
+            }
 
             let (direction, seq) = proof.verify(&provider.hash, commitment)?;
             transcript.union_subsequence(direction, &seq);

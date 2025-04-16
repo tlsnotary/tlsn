@@ -135,6 +135,7 @@ impl MpcTlsFollower {
                 self.config.max_recv_records,
                 self.config.max_sent,
                 self.config.max_recv_online,
+                self.config.max_recv,
             )?;
 
             (keys, cf_vd, sf_vd)

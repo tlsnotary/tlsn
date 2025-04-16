@@ -99,6 +99,7 @@ pub struct CtrBlock<N, C, O> {
 /// Can be used to XOR with the cipher input to operate the cipher in counter
 /// mode.
 pub struct Keystream<N, C, O> {
+    /// Sequential keystream blocks. Outputs are stored in contiguous memory.
     blocks: VecDeque<CtrBlock<N, C, O>>,
 }
 

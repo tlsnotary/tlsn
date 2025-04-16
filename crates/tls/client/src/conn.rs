@@ -459,7 +459,7 @@ impl ConnectionCommon {
 
         // Process new messages.
         while let Some(msg) = self.message_deframer.frames.pop_front() {
-            // If we're not encrypting yet we process it immediately. Otherwise it will be
+            // If we're not decrypting yet, we process it immediately. Otherwise it will be
             // pushed to the backend.
             if let Some(plain) = self.process_incoming_opaque(msg).await? {
                 match self.process_incoming_plain(plain, state).await {
@@ -508,7 +508,7 @@ impl ConnectionCommon {
         Ok(state)
     }
 
-    /// Write buffer into connection
+    /// Write buffer into connection.
     pub async fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
         if let Ok(st) = &mut self.state {
             st.perhaps_write_key_update(&mut self.common_state).await;
@@ -516,7 +516,7 @@ impl ConnectionCommon {
         self.common_state.send_some_plaintext(buf).await
     }
 
-    /// Write entire buffer into connection
+    /// Write entire buffer into connection.
     pub async fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
         let mut pos = 0;
         while pos < buf.len() {
