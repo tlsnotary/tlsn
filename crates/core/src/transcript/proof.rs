@@ -2,7 +2,7 @@
 
 use rangeset::{Cover, ToRangeSet};
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 use crate::{
     attestation::Body,
@@ -193,13 +193,6 @@ impl QueryIdx {
             Direction::Received => self.recv.union_mut(other),
         }
     }
-
-    fn set_idx(&mut self, direction: &Direction, idx: &Idx) {
-        match direction {
-            Direction::Sent => self.sent = idx.clone(),
-            Direction::Received => self.recv = idx.clone(),
-        }
-    }
 }
 
 impl std::fmt::Display for QueryIdx {
@@ -242,7 +235,13 @@ impl<'a> TranscriptProofBuilder<'a> {
     /// proofs, i.e. the first one is the most preferred.
     pub fn commitment_kinds(&mut self, kinds: &[TranscriptCommitmentKind]) -> &mut Self {
         if !kinds.is_empty() {
-            self.commitment_kinds = kinds.to_vec();
+            // Removes duplicates from `kinds` while preserving its order.
+            let mut seen = HashSet::new();
+            self.commitment_kinds = kinds
+                .iter()
+                .filter(|&kind| seen.insert(kind))
+                .cloned()
+                .collect();
         }
         self
     }
@@ -331,41 +330,35 @@ impl<'a> TranscriptProofBuilder<'a> {
                             ));
                         };
 
-                        let sent_dir_idxs = match uncovered_query_idx.sent.as_range_set().cover_by(
-                            encoding_tree
-                                .transcript_indices()
-                                .filter(|(dir, _)| *dir == Direction::Sent),
-                            |(_, idx)| &idx.0,
-                        ) {
-                            // Query ranges are fully covered by ranges of encoding commitments.
-                            Ok(dir_idxs) => {
-                                uncovered_query_idx.set_idx(&Direction::Sent, &Idx::empty());
-                                dir_idxs
-                            }
-                            // Query ranges are only partially or not covered by ranges of encoding
-                            // commitments.
-                            Err((covered, uncovered)) => {
-                                // Uncovered ranges will be checked with ranges of the next
-                                // preferred commitment kind.
-                                uncovered_query_idx.set_idx(&Direction::Sent, &Idx(uncovered));
-                                covered
-                            }
+                        let (sent_dir_idxs, uncovered) =
+                            uncovered_query_idx.sent.as_range_set().cover_by(
+                                encoding_tree
+                                    .transcript_indices()
+                                    .filter(|(dir, _)| *dir == Direction::Sent),
+                                |(_, idx)| &idx.0,
+                            );
+                        // Query ranges are fully covered by ranges of encoding commitments.
+                        if uncovered.is_empty() {
+                            uncovered_query_idx.sent = Idx::empty();
+                        // Query ranges are only partially or not covered by
+                        // ranges of encoding commitments.
+                        } else {
+                            // Uncovered ranges will be checked with ranges of the next
+                            // preferred commitment kind.
+                            uncovered_query_idx.sent = Idx(uncovered);
                         };
 
-                        let recv_dir_idxs = match uncovered_query_idx.recv.as_range_set().cover_by(
-                            encoding_tree
-                                .transcript_indices()
-                                .filter(|(dir, _)| *dir == Direction::Received),
-                            |(_, idx)| &idx.0,
-                        ) {
-                            Ok(dir_idxs) => {
-                                uncovered_query_idx.set_idx(&Direction::Received, &Idx::empty());
-                                dir_idxs
-                            }
-                            Err((covered, uncovered)) => {
-                                uncovered_query_idx.set_idx(&Direction::Received, &Idx(uncovered));
-                                covered
-                            }
+                        let (recv_dir_idxs, uncovered) =
+                            uncovered_query_idx.recv.as_range_set().cover_by(
+                                encoding_tree
+                                    .transcript_indices()
+                                    .filter(|(dir, _)| *dir == Direction::Received),
+                                |(_, idx)| &idx.0,
+                            );
+                        if uncovered.is_empty() {
+                            uncovered_query_idx.recv = Idx::empty();
+                        } else {
+                            uncovered_query_idx.recv = Idx(uncovered);
                         };
 
                         let dir_idxs = sent_dir_idxs
@@ -459,7 +452,7 @@ impl fmt::Display for TranscriptProofBuilderError {
             BuilderErrorKind::Index => f.write_str("index error")?,
             BuilderErrorKind::MissingCommitment => f.write_str("commitment error")?,
             BuilderErrorKind::Cover { uncovered, kinds } => f.write_str(&format!(
-                "unable to cover ranges of {uncovered} in transcript using available {:?} commitments",
+                "unable to cover the following ranges in transcript using available {:?} commitments: {uncovered}",
                 kinds
             ))?,
             BuilderErrorKind::NotSupported => f.write_str("not supported")?,
@@ -561,6 +554,36 @@ mod tests {
 
         let err = builder.reveal_recv(&(9..11)).unwrap_err();
         assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
+    }
+
+    #[rstest]
+    fn test_set_commitment_kinds_with_duplicates() {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let index = Index::default();
+        let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
+        builder.commitment_kinds(&[
+            TranscriptCommitmentKind::Hash {
+                alg: HashAlgId::SHA256,
+            },
+            TranscriptCommitmentKind::Encoding,
+            TranscriptCommitmentKind::Hash {
+                alg: HashAlgId::SHA256,
+            },
+            TranscriptCommitmentKind::Hash {
+                alg: HashAlgId::SHA256,
+            },
+            TranscriptCommitmentKind::Encoding,
+        ]);
+
+        assert_eq!(
+            builder.commitment_kinds,
+            vec![
+                TranscriptCommitmentKind::Hash {
+                    alg: HashAlgId::SHA256
+                },
+                TranscriptCommitmentKind::Encoding
+            ]
+        );
     }
 
     #[rstest]
