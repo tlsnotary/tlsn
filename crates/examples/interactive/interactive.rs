@@ -3,8 +3,7 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
-use http_body_util::Empty;
-use hyper::{body::Bytes, Request, StatusCode, Uri};
+use hyper::{Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::transcript::Idx;
@@ -20,9 +19,9 @@ use tracing::instrument;
 
 const SECRET: &str = "TLSNotary's private key 🤡";
 
-// Maximum number of bytes that can be sent from prover to server.
-const MAX_SENT_DATA: usize = 1 << 12;
-// Maximum number of bytes that can be received by prover from server.
+// Maximum number of bytes that can be sent from prover to server
+const MAX_SENT_DATA: usize = 1 << 18;
+// Maximum number of bytes that can be received by prover from server
 const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::main]
@@ -41,17 +40,22 @@ async fn main() {
     let server_addr = SocketAddr::from((server_ip, server_port));
 
     // Connect prover and verifier.
+    let sent_len_orig = 1 << 16;
+    let offset = 157;
     let (prover_socket, verifier_socket) = tokio::io::duplex(1 << 23);
-    let prover = prover(prover_socket, &server_addr, &uri);
+    let prover = prover(prover_socket, &server_addr, &uri, sent_len_orig);
     let verifier = verifier(verifier_socket);
-    let (_, (sent, received, _session_info)) = tokio::join!(prover, verifier);
+    let (_, (sent, _received, _session_info)) = tokio::join!(prover, verifier);
 
-    println!("Successfully verified {}", &uri);
-    println!("Verified sent data:\n{}", bytes_to_redacted_string(&sent));
-    println!(
-        "Verified received data:\n{}",
-        bytes_to_redacted_string(&received)
-    );
+    println!("Sent len expected roughly: ~{}", offset + sent_len_orig);
+    println!("Actual sent len: {}", sent.len());
+
+    //println!("Successfully verified {}", &uri);
+    //println!("Verified sent data:\n{}", bytes_to_redacted_string(&sent));
+    //println!(
+    //"Verified received data:\n{}",
+    //bytes_to_redacted_string(&received)
+    //);
 }
 
 #[instrument(skip(verifier_socket))]
@@ -59,6 +63,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     verifier_socket: T,
     server_addr: &SocketAddr,
     uri: &str,
+    sent_len_orig: u32,
 ) {
     let uri = uri.parse::<Uri>().unwrap();
     assert_eq!(uri.scheme().unwrap().as_str(), "https");
@@ -107,6 +112,11 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
 
+    let mut body = String::new();
+    for _ in 0..sent_len_orig {
+        body.push('x');
+    }
+
     // MPC-TLS: Send Request and wait for Response.
     let request = Request::builder()
         .uri(uri.clone())
@@ -114,7 +124,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .header("Connection", "close")
         .header("Secret", SECRET)
         .method("GET")
-        .body(Empty::<Bytes>::new())
+        .body(body)
         .unwrap();
     let response = request_sender.send_request(request).await.unwrap();
 
