@@ -19,7 +19,7 @@ mod config;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    attestation::Attestation,
+    attestation::{Attestation, Extension},
     connection::ServerCertCommitment,
     hash::{HashAlgId, TypedHash},
     signing::SignatureAlgId,
@@ -35,6 +35,7 @@ pub struct Request {
     pub(crate) hash_alg: HashAlgId,
     pub(crate) server_cert_commitment: ServerCertCommitment,
     pub(crate) encoding_commitment_root: Option<TypedHash>,
+    pub(crate) extensions: Vec<Extension>,
 }
 
 impl Request {
@@ -75,6 +76,15 @@ impl Request {
             if &encoding_commitment.root != encoding_commitment_root {
                 return Err(InconsistentAttestation(
                     "encoding commitment root does not match".to_string(),
+                ));
+            }
+        }
+
+        // TODO: improve the O(M*N) complexity of this check.
+        for extension in &self.extensions {
+            if !attestation.body.iter_extensions().any(|e| e == extension) {
+                return Err(InconsistentAttestation(
+                    "extension is missing from the attestation".to_string(),
                 ));
             }
         }

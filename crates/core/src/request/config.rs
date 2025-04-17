@@ -1,10 +1,11 @@
-use crate::{hash::HashAlgId, signing::SignatureAlgId};
+use crate::{attestation::Extension, hash::HashAlgId, signing::SignatureAlgId};
 
 /// Request configuration.
 #[derive(Debug, Clone)]
 pub struct RequestConfig {
     signature_alg: SignatureAlgId,
     hash_alg: HashAlgId,
+    extensions: Vec<Extension>,
 }
 
 impl Default for RequestConfig {
@@ -28,6 +29,11 @@ impl RequestConfig {
     pub fn hash_alg(&self) -> &HashAlgId {
         &self.hash_alg
     }
+
+    /// Returns the extensions.
+    pub fn extensions(&self) -> &[Extension] {
+        &self.extensions
+    }
 }
 
 /// Builder for [`RequestConfig`].
@@ -35,6 +41,7 @@ impl RequestConfig {
 pub struct RequestConfigBuilder {
     signature_alg: SignatureAlgId,
     hash_alg: HashAlgId,
+    extensions: Vec<Extension>,
 }
 
 impl Default for RequestConfigBuilder {
@@ -42,6 +49,7 @@ impl Default for RequestConfigBuilder {
         Self {
             signature_alg: SignatureAlgId::SECP256K1,
             hash_alg: HashAlgId::BLAKE3,
+            extensions: Vec::new(),
         }
     }
 }
@@ -59,11 +67,18 @@ impl RequestConfigBuilder {
         self
     }
 
+    /// Adds an extension to the request.
+    pub fn extension(&mut self, extension: Extension) -> &mut Self {
+        self.extensions.push(extension);
+        self
+    }
+
     /// Builds the config.
     pub fn build(self) -> Result<RequestConfig, RequestConfigBuilderError> {
         Ok(RequestConfig {
             signature_alg: self.signature_alg,
             hash_alg: self.hash_alg,
+            extensions: self.extensions,
         })
     }
 }

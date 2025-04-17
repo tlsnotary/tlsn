@@ -13,9 +13,25 @@
 //! The body contains the fields of the attestation. These fields include data
 //! which can be used to verify aspects of a TLS connection, such as the
 //! server's identity, and facts about the transcript.
+//!
+//! # Extensions
+//!
+//! An attestation may be extended using [`Extension`] fields included in the
+//! body. Extensions (currently) have no canonical semantics, but may be used to
+//! implement application specific functionality.
+//!
+//! A Prover may [append extensions](crate::request::RequestConfigBuilder::extension)
+//! to their attestation request, provided that the Notary supports them
+//! (disallowed by default). A Notary may also be configured to
+//! [validate](crate::attestation::AttestationConfigBuilder::extension_validator)
+//! any extensions requested by a Prover using custom application logic.
+//! Additionally, they  may
+//! [include](crate::attestation::AttestationBuilder::extension)
+//! their own extensions.
 
 mod builder;
 mod config;
+mod extension;
 mod proof;
 
 use std::fmt;
@@ -36,6 +52,7 @@ use crate::{
 
 pub use builder::{AttestationBuilder, AttestationBuilderError};
 pub use config::{AttestationConfig, AttestationConfigBuilder, AttestationConfigError};
+pub use extension::{Extension, InvalidExtension};
 pub use proof::{AttestationError, AttestationProof};
 
 /// Current version of attestations.
@@ -135,6 +152,7 @@ pub struct Body {
     cert_commitment: Field<ServerCertCommitment>,
     encoding_commitment: Option<Field<EncodingCommitment>>,
     plaintext_hashes: Index<Field<PlaintextHash>>,
+    extensions: Vec<Field<Extension>>,
 }
 
 impl Body {
@@ -175,6 +193,7 @@ impl Body {
             cert_commitment,
             encoding_commitment,
             plaintext_hashes,
+            extensions,
         } = self;
 
         let mut fields: Vec<(FieldId, Hash)> = vec![
@@ -198,6 +217,10 @@ impl Body {
         }
 
         for field in plaintext_hashes.iter() {
+            fields.push((field.id, hasher.hash_separated(&field.data)));
+        }
+
+        for field in extensions.iter() {
             fields.push((field.id, hasher.hash_separated(&field.data)));
         }
 
@@ -228,6 +251,11 @@ impl Body {
     /// Returns the plaintext hash commitments.
     pub(crate) fn plaintext_hashes(&self) -> &Index<Field<PlaintextHash>> {
         &self.plaintext_hashes
+    }
+
+    /// Returns an iterator over the extensions.
+    pub(crate) fn iter_extensions(&self) -> impl Iterator<Item = &Extension> {
+        self.extensions.iter().map(|field| &field.data)
     }
 }
 

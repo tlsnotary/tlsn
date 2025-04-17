@@ -189,8 +189,16 @@ async fn notarize(
 
     prover.transcript_commit(builder.build()?);
 
-    // Request an attestation.
-    let request_config = RequestConfig::default();
+    // Build an attestation request.
+    let builder = RequestConfig::builder();
+
+    // Optionally, add an extension to the attestation if the notary supports it.
+    // builder.extension(Extension {
+    //     id: b"example.name".to_vec(),
+    //     value: b"Bobert".to_vec(),
+    // });
+
+    let request_config = builder.build()?;
 
     let (attestation, secrets) = prover.finalize(&request_config).await?;
 

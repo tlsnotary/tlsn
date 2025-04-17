@@ -4,8 +4,8 @@ use rand::{rng, Rng};
 
 use crate::{
     attestation::{
-        Attestation, AttestationConfig, Body, EncodingCommitment, FieldId, FieldKind, Header,
-        ServerCertCommitment, VERSION,
+        Attestation, AttestationConfig, Body, EncodingCommitment, Extension, FieldId, FieldKind,
+        Header, ServerCertCommitment, VERSION,
     },
     connection::{ConnectionInfo, ServerEphemKey},
     hash::{HashAlgId, TypedHash},
@@ -27,6 +27,7 @@ pub struct Sign {
     cert_commitment: ServerCertCommitment,
     encoding_commitment_root: Option<TypedHash>,
     encoder_secret: Option<EncoderSecret>,
+    extensions: Vec<Extension>,
 }
 
 /// An attestation builder.
@@ -56,6 +57,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
             hash_alg,
             server_cert_commitment: cert_commitment,
             encoding_commitment_root,
+            extensions,
         } = request;
 
         if !config.supported_signature_algs().contains(&signature_alg) {
@@ -83,6 +85,11 @@ impl<'a> AttestationBuilder<'a, Accept> {
             ));
         }
 
+        if let Some(validator) = config.extension_validator() {
+            validator(&extensions)
+                .map_err(|err| AttestationBuilderError::new(ErrorKind::Extension, err))?;
+        }
+
         Ok(AttestationBuilder {
             config: self.config,
             state: Sign {
@@ -93,6 +100,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
                 cert_commitment,
                 encoding_commitment_root,
                 encoder_secret: None,
+                extensions,
             },
         })
     }
@@ -117,6 +125,12 @@ impl AttestationBuilder<'_, Sign> {
         self
     }
 
+    /// Adds an extension to the attestation.
+    pub fn extension(&mut self, extension: Extension) -> &mut Self {
+        self.state.extensions.push(extension);
+        self
+    }
+
     /// Builds the attestation.
     pub fn build(self, provider: &CryptoProvider) -> Result<Attestation, AttestationBuilderError> {
         let Sign {
@@ -127,6 +141,7 @@ impl AttestationBuilder<'_, Sign> {
             cert_commitment,
             encoding_commitment_root,
             encoder_secret,
+            extensions,
         } = self.state;
 
         let hasher = provider.hash.get(&hash_alg).map_err(|_| {
@@ -170,6 +185,10 @@ impl AttestationBuilder<'_, Sign> {
             cert_commitment: field_id.next(cert_commitment),
             encoding_commitment: encoding_commitment.map(|commitment| field_id.next(commitment)),
             plaintext_hashes: Default::default(),
+            extensions: extensions
+                .into_iter()
+                .map(|extension| field_id.next(extension))
+                .collect(),
         };
 
         let header = Header {
@@ -203,6 +222,7 @@ enum ErrorKind {
     Config,
     Field,
     Signature,
+    Extension,
 }
 
 impl AttestationBuilderError {
@@ -229,6 +249,7 @@ impl std::fmt::Display for AttestationBuilderError {
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Field => f.write_str("field error")?,
             ErrorKind::Signature => f.write_str("signature error")?,
+            ErrorKind::Extension => f.write_str("extension error")?,
         }
 
         if let Some(source) = &self.source {
