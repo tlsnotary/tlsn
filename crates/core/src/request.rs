@@ -82,7 +82,7 @@ impl Request {
 
         // TODO: improve the O(M*N) complexity of this check.
         for extension in &self.extensions {
-            if !attestation.body.iter_extensions().any(|e| e == extension) {
+            if !attestation.body.extensions().any(|e| e == extension) {
                 return Err(InconsistentAttestation(
                     "extension is missing from the attestation".to_string(),
                 ));

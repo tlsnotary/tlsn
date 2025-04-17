@@ -157,6 +157,11 @@ pub struct Body {
 }
 
 impl Body {
+    /// Returns an iterator over the extensions.
+    pub fn extensions(&self) -> impl Iterator<Item = &Extension> {
+        self.extensions.iter().map(|field| &field.data)
+    }
+
     /// Returns the attestation verifying key.
     pub fn verifying_key(&self) -> &VerifyingKey {
         &self.verifying_key.data
@@ -252,11 +257,6 @@ impl Body {
     /// Returns the plaintext hash commitments.
     pub(crate) fn plaintext_hashes(&self) -> &Index<Field<PlaintextHash>> {
         &self.plaintext_hashes
-    }
-
-    /// Returns an iterator over the extensions.
-    pub(crate) fn iter_extensions(&self) -> impl Iterator<Item = &Extension> {
-        self.extensions.iter().map(|field| &field.data)
     }
 }
 

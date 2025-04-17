@@ -89,7 +89,7 @@ impl Presentation {
 
         let connection_info = attestation.body.connection_info().clone();
 
-        let extensions = attestation.body.iter_extensions().cloned().collect();
+        let extensions = attestation.body.extensions().cloned().collect();
 
         Ok(PresentationOutput {
             attestation,
