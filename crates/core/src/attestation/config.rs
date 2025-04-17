@@ -149,7 +149,7 @@ impl AttestationConfigBuilder {
     /// # let mut builder = AttestationConfig::builder();
     /// builder.extension_validator(|extensions| {
     ///     for extension in extensions {
-    ///         if extension.typ != b"example.type" {
+    ///         if extension.id != b"example.type" {
     ///             return Err(InvalidExtension::new("invalid extension type"));
     ///         }
     ///     }
