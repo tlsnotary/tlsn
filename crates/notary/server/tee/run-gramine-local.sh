@@ -7,7 +7,7 @@ gramine-sgx-gen-private-key
 
 if [ ! -f notary-server ]; then
     echo "[!] notary-server binary not found. Please copy it from ci, or build it first."
-    echo "Note that notary-server must be build for linux/amd64 with tee_quote feature enabled"
+    echo "Note that notary-server must be built for linux/amd64 with tee_quote feature enabled"
     exit 1
 fi
 

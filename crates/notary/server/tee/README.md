@@ -10,7 +10,7 @@ The Notary Server for SGX is compiled with the Rust feature flag `tee_quote`. Th
 
 ### CI
 
-The container is built as part of the CI pipeline. For details on the build process, refer to the [CI workflow configuration](../../../../.github/workflows/ci.yml).
+The [notary-server-sgx Docker container](https://github.com/tlsnotary/tlsn/pkgs/container/tlsn%2Fnotary-server-sgx) is built as part of the CI pipeline. For details on the build process, refer to the [CI workflow configuration](../../../../.github/workflows/ci.yml).
 
 CI builds a zip file named `notary-server-sgx.zip`, which contains the compiled binary and the signed manifest. This zip file is available for all releases and `dev` builds in the build artifacts. We also publish a Docker image `notary-server-sgx` at <https://github.com/tlsnotary/tlsn/pkgs/container/tlsn%2Fnotary-server-sgx>. Check the section below for details on running this container.
 
@@ -48,7 +48,7 @@ If successful, the script will generate the following files:
 * `notary-server.manifest.sgx`
 
 
-You can verify that the provided **enclave signature (`.sig`)** matches the expected **`MR_ENCLAVE` and `MR_SIGNER`** values, by running the following command inside a **Gramine Docker container** to inspect the enclave's signature:
+You can verify that the provided **enclave signature (`notary-server.sig`)** matches the expected **`MR_ENCLAVE` and `MR_SIGNER`** values in `notary-server-sigstruct.json`, by running the following command inside a **Gramine Docker container** to inspect the enclave's signature:
 
 ```sh
 docker run --rm -v "$(pwd):/work" -w /work gramineproject/gramine:latest \
