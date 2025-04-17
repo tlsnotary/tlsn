@@ -275,7 +275,7 @@ impl Prover<state::Setup> {
                         }),
                     };
 
-                // Pull out ZK VM
+                // Pull out ZK VM.
                 let (_, vm) = Arc::into_inner(vm)
                     .expect("vm should have only 1 reference")
                     .into_inner()

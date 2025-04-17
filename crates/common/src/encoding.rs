@@ -19,6 +19,8 @@ struct Encodings {
 }
 
 /// Transfers the encodings using the provided seed and keys.
+///
+/// The keys must be consistent with the global delta used in the encodings.
 pub async fn transfer(
     ctx: &mut Context,
     secret: &EncoderSecret,
@@ -70,6 +72,8 @@ pub async fn transfer(
 }
 
 /// Receives the encodings using the provided MACs.
+///
+/// The MACs must be consistent with the global delta used in the encodings.
 pub async fn receive(
     ctx: &mut Context,
     sent_macs: impl IntoIterator<Item = &'_ Block>,
@@ -132,7 +136,7 @@ impl EncodingProvider for Provider {
             Direction::Received => &self.recv,
         };
 
-        let mut encoding = Vec::with_capacity(idx.len());
+        let mut encoding = Vec::with_capacity(idx.len() * ENCODING_SIZE);
         for range in idx.iter_ranges() {
             let start = range.start * ENCODING_SIZE;
             let end = range.end * ENCODING_SIZE;

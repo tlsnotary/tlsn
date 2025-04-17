@@ -223,8 +223,7 @@ impl Verifier<state::Setup> {
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
 
-            // Prove received plaintext. Prover drops the proof output, as they trust
-            // themselves.
+            // Prepare for the prover to prove received plaintext.
             let proof = commit_records(
                 &mut (*vm.zk()),
                 &mut zk_aes,
@@ -272,7 +271,7 @@ impl Verifier<state::Setup> {
             transcript_length: TranscriptLength { sent, received },
         };
 
-        // Pull out ZK VM
+        // Pull out ZK VM.
         let (_, vm) = Arc::into_inner(vm)
             .expect("vm should have only 1 reference")
             .into_inner()
