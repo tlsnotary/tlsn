@@ -330,47 +330,35 @@ impl<'a> TranscriptProofBuilder<'a> {
         // Tries to cover the query ranges with committed ranges.
         while !uncovered_query_idx.is_empty() {
             // Committed ranges of different kinds are checked in order of preference set in
-            // [`self.commitment_kinds`].
+            // self.commitment_kinds.
             if let Some(kind) = commitment_kinds_iter.next() {
                 match kind {
                     TranscriptCommitmentKind::Encoding => {
                         let Some(encoding_tree) = self.encoding_tree else {
-                            return Err(TranscriptProofBuilderError::new(
-                                BuilderErrorKind::MissingCommitment,
-                                "encoding tree is missing",
-                            ));
+                            // Proceeds to the next preferred commitment kind if encoding tree is
+                            // not available.
+                            continue;
                         };
 
-                        let (sent_dir_idxs, uncovered) =
+                        let (sent_dir_idxs, sent_uncovered) =
                             uncovered_query_idx.sent.as_range_set().cover_by(
                                 encoding_tree
                                     .transcript_indices()
                                     .filter(|(dir, _)| *dir == Direction::Sent),
                                 |(_, idx)| &idx.0,
                             );
-                        // Query ranges are fully covered by ranges of encoding commitments.
-                        if uncovered.is_empty() {
-                            uncovered_query_idx.sent = Idx::empty();
-                        // Query ranges are only partially or not covered by
-                        // ranges of encoding commitments.
-                        } else {
-                            // Uncovered ranges will be checked with ranges of the next
-                            // preferred commitment kind.
-                            uncovered_query_idx.sent = Idx(uncovered);
-                        };
+                        // Uncovered ranges will be checked with ranges of the next
+                        // preferred commitment kind.
+                        uncovered_query_idx.sent = Idx(sent_uncovered);
 
-                        let (recv_dir_idxs, uncovered) =
+                        let (recv_dir_idxs, recv_uncovered) =
                             uncovered_query_idx.recv.as_range_set().cover_by(
                                 encoding_tree
                                     .transcript_indices()
                                     .filter(|(dir, _)| *dir == Direction::Received),
                                 |(_, idx)| &idx.0,
                             );
-                        if uncovered.is_empty() {
-                            uncovered_query_idx.recv = Idx::empty();
-                        } else {
-                            uncovered_query_idx.recv = Idx(uncovered);
-                        };
+                        uncovered_query_idx.recv = Idx(recv_uncovered);
 
                         let dir_idxs = sent_dir_idxs
                             .into_iter()
@@ -379,20 +367,18 @@ impl<'a> TranscriptProofBuilder<'a> {
 
                         // Skip proof generation if there are no committed ranges that can cover the
                         // query ranges.
-                        if dir_idxs.is_empty() {
-                            continue;
+                        if !dir_idxs.is_empty() {
+                            transcript_proof.encoding_proof = Some(
+                                encoding_tree
+                                    .proof(self.transcript, dir_idxs.into_iter())
+                                    .expect("subsequences were checked to be in tree"),
+                            );
                         }
-
-                        let proof = encoding_tree
-                            .proof(self.transcript, dir_idxs.into_iter())
-                            .expect("subsequences were checked to be in tree");
-
-                        transcript_proof.encoding_proof = Some(proof);
                     }
-                    TranscriptCommitmentKind::Hash { .. } => {
+                    kind => {
                         return Err(TranscriptProofBuilderError::new(
                             BuilderErrorKind::NotSupported,
-                            "opening transcript hash commitments is not yet supported",
+                            format!("opening {kind} transcript commitments is not yet supported"),
                         ));
                     }
                 }

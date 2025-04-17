@@ -21,6 +21,7 @@ pub(crate) const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
 
 /// Kind of transcript commitment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TranscriptCommitmentKind {
     /// A commitment to encodings of the transcript.
     Encoding,

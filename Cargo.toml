@@ -78,7 +78,7 @@ mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/
 mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
 mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", tag = "v0.1.0-alpha.2" }
 
-rangeset = { version = "0.1" }
+rangeset = { version = "0.2" }
 serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6650a95" }
 uid-mux = { version = "0.2" }
