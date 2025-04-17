@@ -24,6 +24,7 @@ use tls_core::{
 use tlsn_common::transcript::{Record, TlsTranscript};
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
+use utils::filter_drain::FilterDrain;
 
 use crate::{
     record_layer::{aes_ctr::AesCtr, decrypt::DecryptOp, encrypt::EncryptOp},
@@ -57,6 +58,10 @@ enum State {
     Online {
         recv_otp: Option<Vec<u8>>,
         sent_records: Vec<Record>,
+        /// Contains received records which were decrypted in the online phase.
+        ///
+        /// The records designated for decryption in the offline phase are not
+        /// included.
         recv_records: Vec<Record>,
     },
     Complete,
@@ -405,17 +410,14 @@ impl RecordLayer {
             .map_err(|_| MpcTlsError::record_layer("decrypt lock is held"))?;
 
         let encrypt_ops: Vec<_> = self.encrypt_buffer.drain(..).collect();
+
         let decrypt_ops: Vec<_> = if is_decrypting {
             self.decrypt_buffer.drain(..).collect()
         } else {
             // Process non-application data even if we're not decrypting.
-            let decrypt_pos = self
-                .decrypt_buffer
-                .iter()
-                .position(|op| op.typ == ContentType::ApplicationData)
-                .unwrap_or(self.decrypt_buffer.len());
-
-            self.decrypt_buffer.drain(..decrypt_pos).collect()
+            self.decrypt_buffer
+                .filter_drain(|op| op.typ != ContentType::ApplicationData)
+                .collect()
         };
 
         if encrypt_ops.is_empty() && decrypt_ops.is_empty() {
@@ -423,16 +425,14 @@ impl RecordLayer {
             return Ok(());
         }
 
-        if is_decrypting {
-            let decrypt_len: usize = decrypt_ops.iter().map(|op| op.ciphertext.len()).sum();
-            if self.recv_online + decrypt_len > self.max_recv_online {
-                return Err(MpcTlsError::record_layer(format!(
-                    "attempted to decrypt more data in the online phase than was configured, increase `max_recv_online` in the config: current={}, additional={}, max={}",
-                    self.recv_online, decrypt_len, self.max_recv_online
-                )));
-            } else {
-                self.recv_online += decrypt_len;
-            }
+        let decrypt_len: usize = decrypt_ops.iter().map(|op| op.ciphertext.len()).sum();
+        if self.recv_online + decrypt_len > self.max_recv_online {
+            return Err(MpcTlsError::record_layer(format!(
+                "attempted to decrypt more data in the online phase than was configured, increase `max_recv_online` in the config: current={}, additional={}, max={}",
+                self.recv_online, decrypt_len, self.max_recv_online
+            )));
+        } else {
+            self.recv_online += decrypt_len;
         }
 
         debug!(
@@ -596,6 +596,10 @@ impl RecordLayer {
                 ciphertext: op.ciphertext,
             });
         }
+
+        // At this point `recv_records` are in the order they were decrypted.
+        // We want them to be in the order they were received.
+        recv_records.sort_by(|a, b| a.seq.cmp(&b.seq));
 
         self.state = State::Complete;
 
