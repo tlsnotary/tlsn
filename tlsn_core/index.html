@@ -83,7 +83,7 @@ corresponding <a href="struct.Secrets.html" title="struct tlsn_core::Secrets"><c
 
 builder
     <span class="comment">// Use transcript encoding commitments.
-    </span>.default_kind(TranscriptCommitmentKind::Encoding)
+    </span>.commitment_kinds(<span class="kw-2">&amp;</span>[TranscriptCommitmentKind::Encoding])
     <span class="comment">// Disclose the first 10 bytes of the sent data.
     </span>.reveal(<span class="kw-2">&amp;</span>(<span class="number">0</span>..<span class="number">10</span>), Direction::Sent)<span class="question-mark">?
     </span><span class="comment">// Disclose all of the received data.
