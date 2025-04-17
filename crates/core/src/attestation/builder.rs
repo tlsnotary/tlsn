@@ -17,8 +17,10 @@ use crate::{
 };
 
 /// Attestation builder state for accepting a request.
+#[derive(Debug)]
 pub struct Accept {}
 
+#[derive(Debug)]
 pub struct Sign {
     signature_alg: SignatureAlgId,
     hash_alg: HashAlgId,
@@ -31,6 +33,7 @@ pub struct Sign {
 }
 
 /// An attestation builder.
+#[derive(Debug)]
 pub struct AttestationBuilder<'a, T = Accept> {
     config: &'a AttestationConfig,
     state: T,
@@ -303,6 +306,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_config = AttestationConfig::builder()
@@ -327,6 +331,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_config = AttestationConfig::builder()
@@ -352,6 +357,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_config = AttestationConfig::builder()
@@ -381,6 +387,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_builder = Attestation::builder(attestation_config)
@@ -407,6 +414,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let mut attestation_builder = Attestation::builder(attestation_config)
@@ -445,6 +453,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let mut attestation_builder = Attestation::builder(attestation_config)
@@ -476,6 +485,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let mut attestation_builder = Attestation::builder(attestation_config)
@@ -497,5 +507,77 @@ mod test {
 
         let err = attestation_builder.build(crypto_provider).err().unwrap();
         assert!(matches!(err.kind, ErrorKind::Field));
+    }
+
+    #[rstest]
+    fn test_attestation_builder_reject_extensions_by_default(
+        attestation_config: &AttestationConfig,
+    ) {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+            vec![Extension {
+                id: b"foo".to_vec(),
+                value: b"bar".to_vec(),
+            }],
+        );
+
+        let err = Attestation::builder(attestation_config)
+            .accept_request(request)
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Extension));
+    }
+
+    #[rstest]
+    fn test_attestation_builder_accept_extension(crypto_provider: &CryptoProvider) {
+        let attestation_config = AttestationConfig::builder()
+            .supported_signature_algs([SignatureAlgId::SECP256K1])
+            .extension_validator(|_| Ok(()))
+            .build()
+            .unwrap();
+
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+            vec![Extension {
+                id: b"foo".to_vec(),
+                value: b"bar".to_vec(),
+            }],
+        );
+
+        let mut attestation_builder = Attestation::builder(&attestation_config)
+            .accept_request(request)
+            .unwrap();
+
+        let ConnectionFixture {
+            server_cert_data,
+            connection_info,
+            ..
+        } = connection;
+
+        let HandshakeData::V1_2(HandshakeDataV1_2 {
+            server_ephemeral_key,
+            ..
+        }) = server_cert_data.handshake;
+
+        attestation_builder
+            .connection_info(connection_info)
+            .server_ephemeral_key(server_ephemeral_key)
+            .encoder_secret(encoder_secret());
+
+        let attestation = attestation_builder.build(crypto_provider).unwrap();
+
+        assert_eq!(attestation.body.extensions().count(), 1);
     }
 }

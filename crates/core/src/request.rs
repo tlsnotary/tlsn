@@ -126,6 +126,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -148,6 +149,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -173,6 +175,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -198,6 +201,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -233,6 +237,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
