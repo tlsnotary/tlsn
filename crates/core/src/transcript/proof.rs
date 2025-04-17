@@ -496,6 +496,7 @@ mod tests {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let index = Index::default();

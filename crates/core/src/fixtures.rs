@@ -8,7 +8,7 @@ use hex::FromHex;
 use p256::ecdsa::SigningKey;
 
 use crate::{
-    attestation::{Attestation, AttestationConfig},
+    attestation::{Attestation, AttestationConfig, Extension},
     connection::{
         Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerCertData,
         ServerEphemKey, ServerName, ServerSignature, SignatureScheme, TlsVersion, TranscriptLength,
@@ -171,6 +171,7 @@ pub fn request_fixture(
     encodings_provider: impl EncodingProvider,
     connection: ConnectionFixture,
     encoding_hasher: impl HashAlgorithm,
+    extensions: Vec<Extension>,
 ) -> RequestFixture {
     let provider = CryptoProvider::default();
     let (sent_len, recv_len) = transcript.len();
@@ -205,6 +206,10 @@ pub fn request_fixture(
         .server_cert_data(server_cert_data)
         .transcript(transcript)
         .encoding_tree(encoding_tree.clone());
+
+    for extension in extensions {
+        request_builder.extension(extension);
+    }
 
     let (request, _) = request_builder.build(&provider).unwrap();
 

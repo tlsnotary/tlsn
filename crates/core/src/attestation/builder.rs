@@ -4,8 +4,8 @@ use rand::{rng, Rng};
 
 use crate::{
     attestation::{
-        Attestation, AttestationConfig, Body, EncodingCommitment, FieldId, FieldKind, Header,
-        ServerCertCommitment, VERSION,
+        Attestation, AttestationConfig, Body, EncodingCommitment, Extension, FieldId, FieldKind,
+        Header, ServerCertCommitment, VERSION,
     },
     connection::{ConnectionInfo, ServerEphemKey},
     hash::{HashAlgId, TypedHash},
@@ -17,8 +17,10 @@ use crate::{
 };
 
 /// Attestation builder state for accepting a request.
+#[derive(Debug)]
 pub struct Accept {}
 
+#[derive(Debug)]
 pub struct Sign {
     signature_alg: SignatureAlgId,
     hash_alg: HashAlgId,
@@ -27,9 +29,11 @@ pub struct Sign {
     cert_commitment: ServerCertCommitment,
     encoding_commitment_root: Option<TypedHash>,
     encoder_secret: Option<EncoderSecret>,
+    extensions: Vec<Extension>,
 }
 
 /// An attestation builder.
+#[derive(Debug)]
 pub struct AttestationBuilder<'a, T = Accept> {
     config: &'a AttestationConfig,
     state: T,
@@ -56,6 +60,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
             hash_alg,
             server_cert_commitment: cert_commitment,
             encoding_commitment_root,
+            extensions,
         } = request;
 
         if !config.supported_signature_algs().contains(&signature_alg) {
@@ -83,6 +88,11 @@ impl<'a> AttestationBuilder<'a, Accept> {
             ));
         }
 
+        if let Some(validator) = config.extension_validator() {
+            validator(&extensions)
+                .map_err(|err| AttestationBuilderError::new(ErrorKind::Extension, err))?;
+        }
+
         Ok(AttestationBuilder {
             config: self.config,
             state: Sign {
@@ -93,6 +103,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
                 cert_commitment,
                 encoding_commitment_root,
                 encoder_secret: None,
+                extensions,
             },
         })
     }
@@ -117,6 +128,12 @@ impl AttestationBuilder<'_, Sign> {
         self
     }
 
+    /// Adds an extension to the attestation.
+    pub fn extension(&mut self, extension: Extension) -> &mut Self {
+        self.state.extensions.push(extension);
+        self
+    }
+
     /// Builds the attestation.
     pub fn build(self, provider: &CryptoProvider) -> Result<Attestation, AttestationBuilderError> {
         let Sign {
@@ -127,6 +144,7 @@ impl AttestationBuilder<'_, Sign> {
             cert_commitment,
             encoding_commitment_root,
             encoder_secret,
+            extensions,
         } = self.state;
 
         let hasher = provider.hash.get(&hash_alg).map_err(|_| {
@@ -170,6 +188,10 @@ impl AttestationBuilder<'_, Sign> {
             cert_commitment: field_id.next(cert_commitment),
             encoding_commitment: encoding_commitment.map(|commitment| field_id.next(commitment)),
             plaintext_hashes: Default::default(),
+            extensions: extensions
+                .into_iter()
+                .map(|extension| field_id.next(extension))
+                .collect(),
         };
 
         let header = Header {
@@ -203,6 +225,7 @@ enum ErrorKind {
     Config,
     Field,
     Signature,
+    Extension,
 }
 
 impl AttestationBuilderError {
@@ -229,6 +252,7 @@ impl std::fmt::Display for AttestationBuilderError {
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Field => f.write_str("field error")?,
             ErrorKind::Signature => f.write_str("signature error")?,
+            ErrorKind::Extension => f.write_str("extension error")?,
         }
 
         if let Some(source) = &self.source {
@@ -282,6 +306,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_config = AttestationConfig::builder()
@@ -306,6 +331,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_config = AttestationConfig::builder()
@@ -331,6 +357,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_config = AttestationConfig::builder()
@@ -360,6 +387,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection,
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation_builder = Attestation::builder(attestation_config)
@@ -386,6 +414,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let mut attestation_builder = Attestation::builder(attestation_config)
@@ -424,6 +453,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let mut attestation_builder = Attestation::builder(attestation_config)
@@ -455,6 +485,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let mut attestation_builder = Attestation::builder(attestation_config)
@@ -476,5 +507,77 @@ mod test {
 
         let err = attestation_builder.build(crypto_provider).err().unwrap();
         assert!(matches!(err.kind, ErrorKind::Field));
+    }
+
+    #[rstest]
+    fn test_attestation_builder_reject_extensions_by_default(
+        attestation_config: &AttestationConfig,
+    ) {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+            vec![Extension {
+                id: b"foo".to_vec(),
+                value: b"bar".to_vec(),
+            }],
+        );
+
+        let err = Attestation::builder(attestation_config)
+            .accept_request(request)
+            .unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::Extension));
+    }
+
+    #[rstest]
+    fn test_attestation_builder_accept_extension(crypto_provider: &CryptoProvider) {
+        let attestation_config = AttestationConfig::builder()
+            .supported_signature_algs([SignatureAlgId::SECP256K1])
+            .extension_validator(|_| Ok(()))
+            .build()
+            .unwrap();
+
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+            vec![Extension {
+                id: b"foo".to_vec(),
+                value: b"bar".to_vec(),
+            }],
+        );
+
+        let mut attestation_builder = Attestation::builder(&attestation_config)
+            .accept_request(request)
+            .unwrap();
+
+        let ConnectionFixture {
+            server_cert_data,
+            connection_info,
+            ..
+        } = connection;
+
+        let HandshakeData::V1_2(HandshakeDataV1_2 {
+            server_ephemeral_key,
+            ..
+        }) = server_cert_data.handshake;
+
+        attestation_builder
+            .connection_info(connection_info)
+            .server_ephemeral_key(server_ephemeral_key)
+            .encoder_secret(encoder_secret());
+
+        let attestation = attestation_builder.build(crypto_provider).unwrap();
+
+        assert_eq!(attestation.body.extensions().count(), 1);
     }
 }

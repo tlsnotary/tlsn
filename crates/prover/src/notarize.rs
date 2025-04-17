@@ -87,6 +87,10 @@ impl Prover<Notarize> {
             }
         }
 
+        for extension in config.extensions() {
+            builder.extension(extension.clone());
+        }
+
         let (request, secrets) = builder.build(provider).map_err(ProverError::attestation)?;
 
         let attestation = mux_fut
