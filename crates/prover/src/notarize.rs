@@ -91,7 +91,7 @@ impl Prover<Notarize> {
 
         let attestation = mux_fut
             .poll_with(async {
-                debug!("starting finalization");
+                debug!("sending attestation request");
 
                 ctx.io_mut().send(request.clone()).await?;
 

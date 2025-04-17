@@ -62,17 +62,18 @@ impl Verifier<VerifyState> {
 
                 self.state.vm.flush(&mut self.state.ctx).await.unwrap();
 
-                let mut purported_data = Vec::new();
+                let mut authenticated_data = Vec::new();
                 for mut fut in plaintext_futs {
                     let plaintext = fut
                         .try_recv()
                         .map_err(VerifierError::zk)?
                         .expect("plaintext should be decoded");
-                    purported_data.extend_from_slice(&plaintext);
+                    authenticated_data.extend_from_slice(&plaintext);
                 }
 
-                // Check that purported values are correct.
-                if purported_data
+                // Check that the purported data in the partial transcript is
+                // correct.
+                if authenticated_data
                     .into_iter()
                     .zip(
                         partial_transcript
