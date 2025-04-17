@@ -20,7 +20,8 @@
 //! body. Extensions (currently) have no canonical semantics, but may be used to
 //! implement application specific functionality.
 //!
-//! A Prover may [append extensions](crate::request::RequestConfigBuilder::extension)
+//! A Prover may [append
+//! extensions](crate::request::RequestConfigBuilder::extension)
 //! to their attestation request, provided that the Notary supports them
 //! (disallowed by default). A Notary may also be configured to
 //! [validate](crate::attestation::AttestationConfigBuilder::extension_validator)
