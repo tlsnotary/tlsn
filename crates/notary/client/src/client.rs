@@ -180,23 +180,9 @@ impl NotaryClient {
                 )
                 .await
                 .map_err(|err| {
-                    if let Some(rustls::Error::InvalidMessage(
-                        rustls::InvalidMessage::InvalidContentType,
-                    )) = err
-                        .get_ref()
-                        .and_then(|inner| inner.downcast_ref::<rustls::Error>())
-                    {
+                    if is_tls_mismatch_error(&err) {
                         error!("Perhaps the notary server is not accepting our TLS connection");
-                    } else if let Some(err) = err
-                        .get_ref()
-                        .and_then(|inner| inner.downcast_ref::<hyper::Error>())
-                    {
-                        // Check if the hyper error is `Kind::Parse(Parse::Version)`.
-                        if err.to_string() == "invalid HTTP version parsed" {
-                            error!("Perhaps the notary server is not accepting our TLS connection");
-                        }
                     }
-
                     ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err)))
                 })?;
 
@@ -421,4 +407,24 @@ fn default_root_store() -> RootCertStore {
     }));
 
     root_store
+}
+
+// Checks whether the error is potentially related to a mismatch in TLS
+// configuration between the client and the server.
+fn is_tls_mismatch_error(err: &std::io::Error) -> bool {
+    if let Some(rustls::Error::InvalidMessage(rustls::InvalidMessage::InvalidContentType)) = err
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+    {
+        return true;
+    } else if let Some(err) = err
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<hyper::Error>())
+    {
+        // Check if the hyper error is `Kind::Parse(Parse::Version)`.
+        if err.to_string() == "invalid HTTP version parsed" {
+            return true;
+        }
+    }
+    false
 }
