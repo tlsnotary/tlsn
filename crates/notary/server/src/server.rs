@@ -216,7 +216,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                                     rustls::InvalidMessage::InvalidContentType,
                                 )
                             {
-                                error!("You should turn on `TLSProperties::enabled` to accept client's TLS connections");
+                                error!("Perhaps you should turn on `TLSProperties::enabled` to accept client's TLS connections");
                             }
                         }
                     }

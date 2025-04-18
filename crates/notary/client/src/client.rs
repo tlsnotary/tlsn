@@ -188,7 +188,7 @@ impl NotaryClient {
                                 )
                             {
                                 error!(
-                                    "The notary server does not seem to accept our TLS connection"
+                                    "Perhaps the notary server is not accepting our TLS connection"
                                 );
                             }
                         }
