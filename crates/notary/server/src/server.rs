@@ -210,14 +210,14 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     }
                     Err(err) => {
                         error!("{}", NotaryServerError::Connection(err.to_string()));
-                        if let Ok(error) = err.downcast::<rustls::Error>() {
-                            if error
-                                == rustls::Error::InvalidMessage(
-                                    rustls::InvalidMessage::InvalidContentType,
-                                )
-                            {
-                                error!("Perhaps you should turn on `TLSProperties::enabled` to accept client's TLS connections");
-                            }
+
+                        if let Some(rustls::Error::InvalidMessage(
+                            rustls::InvalidMessage::InvalidContentType,
+                        )) = err
+                            .get_ref()
+                            .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+                        {
+                            error!("Perhaps you should turn on `TLSProperties::enabled` to accept client's TLS connections");
                         }
                     }
                 }

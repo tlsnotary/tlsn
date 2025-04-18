@@ -180,18 +180,13 @@ impl NotaryClient {
                 )
                 .await
                 .map_err(|err| {
-                    if let Some(inner) = err.get_ref() {
-                        if let Some(error) = inner.downcast_ref::<rustls::Error>() {
-                            if *error
-                                == rustls::Error::InvalidMessage(
-                                    rustls::InvalidMessage::InvalidContentType,
-                                )
-                            {
-                                error!(
-                                    "Perhaps the notary server is not accepting our TLS connection"
-                                );
-                            }
-                        }
+                    if let Some(rustls::Error::InvalidMessage(
+                        rustls::InvalidMessage::InvalidContentType,
+                    )) = err
+                        .get_ref()
+                        .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+                    {
+                        error!("Perhaps the notary server is not accepting our TLS connection");
                     }
 
                     ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err)))
