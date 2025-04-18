@@ -50,6 +50,7 @@ async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         server_name,
         connection_info,
         transcript,
+        // extensions, // Optionally, verify any custom extensions from prover/notary
         ..
     } = presentation.verify(&provider).unwrap();
 
