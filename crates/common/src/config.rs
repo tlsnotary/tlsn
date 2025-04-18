@@ -26,6 +26,7 @@ pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     max_sent_data: usize,
     /// Maximum number of application data records that can be sent.
+    #[builder(setter(strip_option), default)]
     max_sent_records: Option<usize>,
     /// Maximum number of bytes that can be decrypted online, i.e. while the
     /// MPC-TLS connection is active.
@@ -34,6 +35,7 @@ pub struct ProtocolConfig {
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
     /// Maximum number of application data records that can be received.
+    #[builder(setter(strip_option), default)]
     max_recv_records: Option<usize>,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
