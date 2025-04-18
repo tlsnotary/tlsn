@@ -187,6 +187,14 @@ impl NotaryClient {
                         .and_then(|inner| inner.downcast_ref::<rustls::Error>())
                     {
                         error!("Perhaps the notary server is not accepting our TLS connection");
+                    } else if let Some(err) = err
+                        .get_ref()
+                        .and_then(|inner| inner.downcast_ref::<hyper::Error>())
+                    {
+                        // Check if the hyper error is `Kind::Parse(Parse::Version)`.
+                        if err.to_string() == "invalid HTTP version parsed" {
+                            error!("Perhaps the notary server is not accepting our TLS connection");
+                        }
                     }
 
                     ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err)))
