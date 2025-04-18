@@ -49,12 +49,22 @@
 <a href=#49 id=49 data-nosnippet>49</a>    }
 <a href=#50 id=50 data-nosnippet>50</a>
 <a href=#51 id=51 data-nosnippet>51</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_mpc_tls_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Config {
-<a href=#52 id=52 data-nosnippet>52</a>        Config::builder()
-<a href=#53 id=53 data-nosnippet>53</a>            .defer_decryption(<span class="self">self</span>.defer_decryption_from_start)
-<a href=#54 id=54 data-nosnippet>54</a>            .max_sent(<span class="self">self</span>.protocol_config.max_sent_data())
-<a href=#55 id=55 data-nosnippet>55</a>            .max_recv_online(<span class="self">self</span>.protocol_config.max_recv_data_online())
-<a href=#56 id=56 data-nosnippet>56</a>            .max_recv(<span class="self">self</span>.protocol_config.max_recv_data())
-<a href=#57 id=57 data-nosnippet>57</a>            .build()
-<a href=#58 id=58 data-nosnippet>58</a>            .unwrap()
-<a href=#59 id=59 data-nosnippet>59</a>    }
-<a href=#60 id=60 data-nosnippet>60</a>}</code></pre></div></section></main></body></html>
+<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">let </span><span class="kw-2">mut </span>builder = Config::builder();
+<a href=#53 id=53 data-nosnippet>53</a>
+<a href=#54 id=54 data-nosnippet>54</a>        builder
+<a href=#55 id=55 data-nosnippet>55</a>            .defer_decryption(<span class="self">self</span>.defer_decryption_from_start)
+<a href=#56 id=56 data-nosnippet>56</a>            .max_sent(<span class="self">self</span>.protocol_config.max_sent_data())
+<a href=#57 id=57 data-nosnippet>57</a>            .max_recv_online(<span class="self">self</span>.protocol_config.max_recv_data_online())
+<a href=#58 id=58 data-nosnippet>58</a>            .max_recv(<span class="self">self</span>.protocol_config.max_recv_data());
+<a href=#59 id=59 data-nosnippet>59</a>
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_sent_records) = <span class="self">self</span>.protocol_config.max_sent_records() {
+<a href=#61 id=61 data-nosnippet>61</a>            builder.max_sent_records(max_sent_records);
+<a href=#62 id=62 data-nosnippet>62</a>        }
+<a href=#63 id=63 data-nosnippet>63</a>
+<a href=#64 id=64 data-nosnippet>64</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_recv_records) = <span class="self">self</span>.protocol_config.max_recv_records() {
+<a href=#65 id=65 data-nosnippet>65</a>            builder.max_recv_records(max_recv_records);
+<a href=#66 id=66 data-nosnippet>66</a>        }
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a>        builder.build().unwrap()
+<a href=#69 id=69 data-nosnippet>69</a>    }
+<a href=#70 id=70 data-nosnippet>70</a>}</code></pre></div></section></main></body></html>
