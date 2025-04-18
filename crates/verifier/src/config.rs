@@ -43,11 +43,21 @@ impl VerifierConfig {
     }
 
     pub(crate) fn build_mpc_tls_config(&self, protocol_config: &ProtocolConfig) -> Config {
-        Config::builder()
+        let mut builder = Config::builder();
+
+        builder
             .max_sent(protocol_config.max_sent_data())
             .max_recv_online(protocol_config.max_recv_data_online())
-            .max_recv(protocol_config.max_recv_data())
-            .build()
-            .unwrap()
+            .max_recv(protocol_config.max_recv_data());
+
+        if let Some(max_sent_records) = protocol_config.max_sent_records() {
+            builder.max_sent_records(max_sent_records);
+        }
+
+        if let Some(max_recv_records) = protocol_config.max_recv_records() {
+            builder.max_recv_records(max_recv_records);
+        }
+
+        builder.build().unwrap()
     }
 }

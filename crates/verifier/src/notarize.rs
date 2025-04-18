@@ -43,13 +43,14 @@ impl Verifier<Notarize> {
                     .sent()
                     .iter()
                     .flat_map(|plaintext| vm.get_keys(*plaintext).expect("reference is valid"))
-                    .map(|mac| mac.as_block());
+                    .map(|key| key.as_block());
                 let recv_keys = transcript_refs
                     .recv()
                     .iter()
                     .flat_map(|plaintext| vm.get_keys(*plaintext).expect("reference is valid"))
-                    .map(|mac| mac.as_block());
+                    .map(|key| key.as_block());
 
+                // Convert encodings into a structured format.
                 encoding::transfer(&mut ctx, &encoder_secret, sent_keys, recv_keys).await?;
 
                 // Receive attestation request, which also contains commitments required before
