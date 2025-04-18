@@ -199,17 +199,20 @@ pub fn request_fixture(
     )
     .unwrap();
 
-    let request_config = RequestConfig::default();
+    let mut builder = RequestConfig::builder();
+
+    for extension in extensions {
+        builder.extension(extension);
+    }
+
+    let request_config = builder.build().unwrap();
+
     let mut request_builder = Request::builder(&request_config);
     request_builder
         .server_name(server_name)
         .server_cert_data(server_cert_data)
         .transcript(transcript)
         .encoding_tree(encoding_tree.clone());
-
-    for extension in extensions {
-        request_builder.extension(extension);
-    }
 
     let (request, _) = request_builder.build(&provider).unwrap();
 
