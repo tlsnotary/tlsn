@@ -44,3 +44,5 @@ logging:
 authorization:
   enabled: false
   whitelist_csv_path: "."
+
+concurrency: 32
