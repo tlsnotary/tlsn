@@ -8,8 +8,12 @@ use serio::{stream::IoStreamExt as _, SinkExt as _};
 use tlsn_common::encoding;
 use tlsn_core::{
     attestation::Attestation,
+    connection::TranscriptLength,
     request::{Request, RequestConfig},
-    transcript::{encoding::EncodingTree, Transcript, TranscriptCommitConfig},
+    transcript::{
+        encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider, EncodingTree},
+        Direction, Idx, Transcript, TranscriptCommitConfig,
+    },
     Secrets,
 };
 use tracing::{debug, instrument};
@@ -71,9 +75,9 @@ impl Prover<Notarize> {
         builder
             .server_name(self.config.server_name().clone())
             .server_cert_data(server_cert_data)
-            .transcript(transcript);
+            .transcript(transcript.clone());
 
-        if let Some(config) = transcript_commit_config {
+        if let Some(ref config) = transcript_commit_config {
             if config.has_encoding() {
                 builder.encoding_tree(
                     EncodingTree::new(
@@ -112,6 +116,62 @@ impl Prover<Notarize> {
             .validate(&attestation)
             .map_err(ProverError::attestation)?;
 
+        if let Some(config) = transcript_commit_config {
+            if config.has_encoding() {
+                validate_encoder_secret(
+                    attestation
+                        .body
+                        .encoder_secret()
+                        .expect("attestation contains encoder secret"),
+                    &transcript,
+                    &encoding_provider,
+                )?;
+            }
+        }
+
         Ok((attestation, secrets))
     }
+}
+
+// Validates that the encoder `secret` is consistent with the encoding
+// `provider` for the given `transcript`.
+fn validate_encoder_secret(
+    secret: &EncoderSecret,
+    transcript: &Transcript,
+    provider: &impl EncodingProvider,
+) -> Result<(), ProverError> {
+    let encoder = new_encoder(secret);
+    let TranscriptLength { sent, received } = transcript.length();
+    let sent_idx = Idx::new(0..sent as usize);
+    let recv_idx = Idx::new(0..received as usize);
+
+    // The transcript encoding produced by the `encoder` and the `provider`
+    // must match.
+    if provider
+        .provide_encoding(Direction::Sent, &sent_idx)
+        .expect("index is valid")
+        != encoder.encode_subsequence(
+            Direction::Sent,
+            &transcript
+                .get(Direction::Sent, &sent_idx)
+                .expect("index is valid"),
+        )
+    {
+        return Err(ProverError::attestation("Incosistent encoder secret"));
+    }
+
+    if provider
+        .provide_encoding(Direction::Received, &recv_idx)
+        .expect("index is valid")
+        != encoder.encode_subsequence(
+            Direction::Received,
+            &transcript
+                .get(Direction::Received, &recv_idx)
+                .expect("index is valid"),
+        )
+    {
+        return Err(ProverError::attestation("Incosistent encoder secret"));
+    }
+
+    Ok(())
 }

@@ -47,7 +47,10 @@ use crate::{
     merkle::MerkleTree,
     presentation::PresentationBuilder,
     signing::{Signature, VerifyingKey},
-    transcript::{encoding::EncodingCommitment, hash::PlaintextHash},
+    transcript::{
+        encoding::{EncoderSecret, EncodingCommitment},
+        hash::PlaintextHash,
+    },
     CryptoProvider,
 };
 
@@ -165,6 +168,13 @@ impl Body {
     /// Returns the attestation verifying key.
     pub fn verifying_key(&self) -> &VerifyingKey {
         &self.verifying_key.data
+    }
+
+    /// Returns the encoder secret.
+    pub fn encoder_secret(&self) -> Option<&EncoderSecret> {
+        self.encoding_commitment
+            .as_ref()
+            .map(|field| &field.data.secret)
     }
 
     /// Computes the Merkle root of the attestation fields.
