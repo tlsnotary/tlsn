@@ -64,7 +64,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         }
     }
 
-    // Reveal only parts of the response
+    // Reveal only parts of the response.
     let response = &transcript.responses[0];
     // Reveal the structure of the response without the headers or body.
     builder.reveal_recv(&response.without_data())?;
@@ -76,7 +76,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let content = &response.body.as_ref().unwrap().content;
     match content {
         tlsn_formats::http::BodyContent::Json(json) => {
-            // For experimentation, reveal the entire response or just a selection
+            // For experimentation, reveal the entire response or just a selection.
             let reveal_all = false;
             if reveal_all {
                 builder.reveal_recv(response)?;
