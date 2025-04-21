@@ -20,9 +20,9 @@ use tracing::instrument;
 
 const SECRET: &str = "TLSNotary's private key 🤡";
 
-// Maximum number of bytes that can be sent from prover to server
+// Maximum number of bytes that can be sent from prover to server.
 const MAX_SENT_DATA: usize = 1 << 12;
-// Maximum number of bytes that can be received by prover from server
+// Maximum number of bytes that can be received by prover from server.
 const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::main]
@@ -34,8 +34,8 @@ async fn main() {
         .map(|port| port.parse().expect("port should be valid integer"))
         .unwrap_or(DEFAULT_FIXTURE_PORT);
 
-    // we use SERVER_DOMAIN here to make sure it matches the domain in the test
-    // server's certificate
+    // We use SERVER_DOMAIN here to make sure it matches the domain in the test
+    // server's certificate.
     let uri = format!("https://{SERVER_DOMAIN}:{server_port}/formats/html");
     let server_ip: IpAddr = server_host.parse().expect("Invalid IP address");
     let server_addr = SocketAddr::from((server_ip, server_port));
@@ -123,7 +123,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Create proof for the Verifier.
     let mut prover = prover_task.await.unwrap().unwrap().start_prove();
 
-    // Reveal parts of the transcript
+    // Reveal parts of the transcript.
     let idx_sent = revealed_ranges_sent(&mut prover);
     let idx_recv = revealed_ranges_received(&mut prover);
     prover.prove_transcript(idx_sent, idx_recv).await.unwrap();
@@ -136,7 +136,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
 ) -> (Vec<u8>, Vec<u8>, SessionInfo) {
-    // Setup Verifier.
+    // Set up Verifier.
     let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
@@ -154,14 +154,14 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let (mut partial_transcript, session_info) = verifier.verify(socket.compat()).await.unwrap();
     partial_transcript.set_unauthed(0);
 
-    // Check sent data:
+    // Check sent data.
     let sent = partial_transcript.sent_unsafe().to_vec();
     let sent_data = String::from_utf8(sent.clone()).expect("Verifier expected sent data");
     sent_data
         .find(SERVER_DOMAIN)
         .unwrap_or_else(|| panic!("Verification failed: Expected host {}", SERVER_DOMAIN));
 
-    // Check received data:
+    // Check received data.
     let received = partial_transcript.received_unsafe().to_vec();
     let response = String::from_utf8(received.clone()).expect("Verifier expected received data");
     response
