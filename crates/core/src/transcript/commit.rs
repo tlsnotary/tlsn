@@ -10,8 +10,18 @@ use crate::{
     transcript::{Direction, Idx, Transcript},
 };
 
+/// The maximum allowed total bytelength of committed data for a single
+/// commitment kind. Used to prevent DoS during verification. (May cause the
+/// verifier to hash up to a max of 1GB * 128 = 128GB of data for certain kinds
+/// of encoding commitments.)
+///
+/// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 <<
+/// 31) - 1 by default)
+pub(crate) const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
+
 /// Kind of transcript commitment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TranscriptCommitmentKind {
     /// A commitment to encodings of the transcript.
     Encoding,

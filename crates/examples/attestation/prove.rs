@@ -22,13 +22,13 @@ use tracing::debug;
 
 use clap::Parser;
 
-// Setting of the application server
+// Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// What data to notarize
+    /// What data to notarize.
     #[clap(default_value_t, value_enum)]
     example_type: ExampleType,
 }
@@ -131,7 +131,7 @@ async fn notarize(
     // Spawn the HTTP task to be run concurrently in the background.
     tokio::spawn(connection);
 
-    // Build a simple HTTP request with common headers
+    // Build a simple HTTP request with common headers.
     let request_builder = Request::builder()
         .uri(uri)
         .header("Host", SERVER_DOMAIN)
@@ -164,7 +164,6 @@ async fn notarize(
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
-    // dbg!(&transcript);
 
     let body_content = &transcript.responses[0].body.as_ref().unwrap().content;
     let body = String::from_utf8_lossy(body_content.span().as_bytes());
@@ -183,12 +182,23 @@ async fn notarize(
     // Commit to the transcript.
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
+    // This commits to various parts of the transcript separately (e.g. request
+    // headers, response headers, response body and more). See https://docs.tlsnotary.org//protocol/commit_strategy.html
+    // for other strategies that can be used to generate commitments.
     DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
 
     prover.transcript_commit(builder.build()?);
 
-    // Request an attestation.
-    let request_config = RequestConfig::default();
+    // Build an attestation request.
+    let builder = RequestConfig::builder();
+
+    // Optionally, add an extension to the attestation if the notary supports it.
+    // builder.extension(Extension {
+    //     id: b"example.name".to_vec(),
+    //     value: b"Bobert".to_vec(),
+    // });
+
+    let request_config = builder.build()?;
 
     let (attestation, secrets) = prover.finalize(&request_config).await?;
 

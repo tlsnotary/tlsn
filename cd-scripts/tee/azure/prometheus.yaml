@@ -1,7 +1,0 @@
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: caddy
-    static_configs:
-      - targets: ['localhost:2019']

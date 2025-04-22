@@ -1,8 +1,11 @@
 use tls_core::verify::WebPkiVerifier;
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{
-    attestation::AttestationConfig, request::RequestConfig, signing::SignatureAlgId,
-    transcript::TranscriptCommitConfig, CryptoProvider,
+    attestation::{AttestationConfig, Extension},
+    request::RequestConfig,
+    signing::SignatureAlgId,
+    transcript::TranscriptCommitConfig,
+    CryptoProvider,
 };
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
@@ -109,9 +112,18 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     prover.transcript_commit(config);
 
-    let config = RequestConfig::default();
+    let mut builder = RequestConfig::builder();
 
-    prover.finalize(&config).await.unwrap();
+    builder.extension(Extension {
+        id: b"foo".to_vec(),
+        value: b"bar".to_vec(),
+    });
+
+    let config = builder.build().unwrap();
+
+    let (attestation, _) = prover.finalize(&config).await.unwrap();
+
+    assert_eq!(attestation.body.extensions().count(), 1);
 }
 
 #[instrument(skip(socket))]
@@ -144,6 +156,7 @@ async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socke
 
     let config = AttestationConfig::builder()
         .supported_signature_algs(vec![SignatureAlgId::SECP256K1])
+        .extension_validator(|_| Ok(()))
         .build()
         .unwrap();
 

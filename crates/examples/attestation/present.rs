@@ -40,12 +40,14 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     // Build a transcript proof.
     let mut builder = secrets.transcript_proof_builder();
 
+    // Here is where we reveal all or some of the parts we committed in `prove.rs`
+    // previously.
     let request = &transcript.requests[0];
     // Reveal the structure of the request without the headers or body.
     builder.reveal_sent(&request.without_data())?;
     // Reveal the request target.
     builder.reveal_sent(&request.request.target)?;
-    // Reveal all headers except the values of User-Agent and Authorization.
+    // Reveal all request headers except the values of User-Agent and Authorization.
     for header in &request.headers {
         if !(header
             .name
@@ -62,9 +64,11 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         }
     }
 
-    // Reveal only parts of the response
+    // Reveal only parts of the response.
     let response = &transcript.responses[0];
+    // Reveal the structure of the response without the headers or body.
     builder.reveal_recv(&response.without_data())?;
+    // Reveal all response headers.
     for header in &response.headers {
         builder.reveal_recv(header)?;
     }
@@ -72,7 +76,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let content = &response.body.as_ref().unwrap().content;
     match content {
         tlsn_formats::http::BodyContent::Json(json) => {
-            // For experimentation, reveal the entire response or just a selection
+            // For experimentation, reveal the entire response or just a selection.
             let reveal_all = false;
             if reveal_all {
                 builder.reveal_recv(response)?;
