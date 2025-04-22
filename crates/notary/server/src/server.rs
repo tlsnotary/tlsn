@@ -221,7 +221,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                             .get_ref()
                             .and_then(|inner| inner.downcast_ref::<rustls::Error>())
                         {
-                            error!("Perhaps you should turn on `TLSProperties::enabled` to accept client's TLS connections");
+                            error!("Perhaps the client is connecting without TLS");
                         }
                     }
                 }
