@@ -19,7 +19,7 @@ mod config;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    attestation::Attestation,
+    attestation::{Attestation, Extension},
     connection::ServerCertCommitment,
     hash::{HashAlgId, TypedHash},
     signing::SignatureAlgId,
@@ -35,6 +35,7 @@ pub struct Request {
     pub(crate) hash_alg: HashAlgId,
     pub(crate) server_cert_commitment: ServerCertCommitment,
     pub(crate) encoding_commitment_root: Option<TypedHash>,
+    pub(crate) extensions: Vec<Extension>,
 }
 
 impl Request {
@@ -79,6 +80,15 @@ impl Request {
             }
         }
 
+        // TODO: improve the O(M*N) complexity of this check.
+        for extension in &self.extensions {
+            if !attestation.body.extensions().any(|e| e == extension) {
+                return Err(InconsistentAttestation(
+                    "extension is missing from the attestation".to_string(),
+                ));
+            }
+        }
+
         Ok(())
     }
 }
@@ -116,6 +126,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -138,6 +149,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -163,6 +175,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -188,6 +201,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(
@@ -223,6 +237,7 @@ mod test {
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
+            Vec::new(),
         );
 
         let attestation = attestation_fixture(

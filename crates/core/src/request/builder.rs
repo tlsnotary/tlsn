@@ -87,11 +87,14 @@ impl<'a> RequestBuilder<'a> {
 
         let encoding_commitment_root = encoding_tree.as_ref().map(|tree| tree.root());
 
+        let extensions = config.extensions().to_vec();
+
         let request = Request {
             signature_alg,
             hash_alg,
             server_cert_commitment,
             encoding_commitment_root,
+            extensions,
         };
 
         let secrets = Secrets {

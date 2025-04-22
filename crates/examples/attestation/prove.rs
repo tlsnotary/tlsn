@@ -22,13 +22,13 @@ use tracing::debug;
 
 use clap::Parser;
 
-// Setting of the application server
+// Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// What data to notarize
+    /// What data to notarize.
     #[clap(default_value_t, value_enum)]
     example_type: ExampleType,
 }
@@ -131,7 +131,7 @@ async fn notarize(
     // Spawn the HTTP task to be run concurrently in the background.
     tokio::spawn(connection);
 
-    // Build a simple HTTP request with common headers
+    // Build a simple HTTP request with common headers.
     let request_builder = Request::builder()
         .uri(uri)
         .header("Host", SERVER_DOMAIN)
@@ -189,8 +189,16 @@ async fn notarize(
 
     prover.transcript_commit(builder.build()?);
 
-    // Request an attestation.
-    let request_config = RequestConfig::default();
+    // Build an attestation request.
+    let builder = RequestConfig::builder();
+
+    // Optionally, add an extension to the attestation if the notary supports it.
+    // builder.extension(Extension {
+    //     id: b"example.name".to_vec(),
+    //     value: b"Bobert".to_vec(),
+    // });
+
+    let request_config = builder.build()?;
 
     let (attestation, secrets) = prover.finalize(&request_config).await?;
 
