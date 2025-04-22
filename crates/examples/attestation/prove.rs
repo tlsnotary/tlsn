@@ -22,13 +22,13 @@ use tracing::debug;
 
 use clap::Parser;
 
-// Setting of the application server
+// Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// What data to notarize
+    /// What data to notarize.
     #[clap(default_value_t, value_enum)]
     example_type: ExampleType,
 }
@@ -131,7 +131,7 @@ async fn notarize(
     // Spawn the HTTP task to be run concurrently in the background.
     tokio::spawn(connection);
 
-    // Build a simple HTTP request with common headers
+    // Build a simple HTTP request with common headers.
     let request_builder = Request::builder()
         .uri(uri)
         .header("Host", SERVER_DOMAIN)
