@@ -482,14 +482,6 @@ fn is_tls_mismatch_error(err: &std::io::Error) -> bool {
         .and_then(|inner| inner.downcast_ref::<rustls::Error>())
     {
         return true;
-    } else if let Some(err) = err
-        .get_ref()
-        .and_then(|inner| inner.downcast_ref::<hyper::Error>())
-    {
-        // Check if the hyper error is `Kind::Parse(Parse::Version)`.
-        if err.to_string() == "invalid HTTP version parsed" {
-            return true;
-        }
     }
     false
 }
