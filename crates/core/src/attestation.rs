@@ -264,6 +264,7 @@ impl Body {
 ///
 /// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "validation::AttestationUnchecked")]
 pub struct Attestation {
     /// The signature of the attestation.
     pub signature: Signature,
@@ -285,5 +286,75 @@ impl Attestation {
         provider: &'a CryptoProvider,
     ) -> PresentationBuilder<'a> {
         PresentationBuilder::new(provider, self)
+    }
+}
+
+/// Invalid attestation error.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid attestation: {0}")]
+pub struct InvalidAttestation(String);
+
+mod validation {
+    use super::*;
+    use crate::{serialize::CanonicalSerialize, signing::SignatureVerifierProvider};
+
+    #[derive(Debug, Deserialize)]
+    pub(super) struct AttestationUnchecked {
+        signature: Signature,
+        header: Header,
+        body: Body,
+    }
+
+    impl TryFrom<AttestationUnchecked> for Attestation {
+        type Error = InvalidAttestation;
+
+        fn try_from(unchecked: AttestationUnchecked) -> Result<Self, Self::Error> {
+            let provider = SignatureVerifierProvider::default();
+            let verifier = provider.get(&unchecked.signature.alg).map_err(|_| {
+                InvalidAttestation(format!(
+                    "invalid signature algorithm id {:?}",
+                    unchecked.signature.alg
+                ))
+            })?;
+
+            verifier
+                .verify(
+                    &unchecked.body.verifying_key.data,
+                    &CanonicalSerialize::serialize(&unchecked.header),
+                    &unchecked.signature.data,
+                )
+                .map_err(|_| InvalidAttestation("failed to verify the signature".into()))?;
+
+            Ok(Self {
+                body: unchecked.body,
+                header: unchecked.header,
+                signature: unchecked.signature,
+            })
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use crate::{attestation::Attestation, fixtures::basic_attestation_fixture};
+
+        #[test]
+        fn test_validation_ok() {
+            let attestation = basic_attestation_fixture();
+            let bytes = bincode::serialize(&attestation).unwrap();
+            let result: Result<Attestation, Box<bincode::ErrorKind>> = bincode::deserialize(&bytes);
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_validation_err() {
+            let mut attestation = basic_attestation_fixture();
+
+            // Corrupt the signature.
+            attestation.signature.data[1] = attestation.signature.data[1].wrapping_add(1);
+
+            let bytes = bincode::serialize(&attestation).unwrap();
+            let result: Result<Attestation, Box<bincode::ErrorKind>> = bincode::deserialize(&bytes);
+            assert!(result.is_err());
+        }
     }
 }
