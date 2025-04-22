@@ -8,6 +8,9 @@ license = "MIT OR Apache-2.0"
 keywords = ["tls", "tlsn", "tlsnotary"]
 homepage = "https://tlsnotary.org"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

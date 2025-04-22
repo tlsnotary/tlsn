@@ -4,6 +4,9 @@ name = "tlsn-examples"
 publish = false
 version = "0.0.0"
 
+[lints]
+workspace = true
+
 [dependencies]
 notary-client = { workspace = true }
 tlsn-common = { workspace = true }

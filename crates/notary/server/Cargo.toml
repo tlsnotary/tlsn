@@ -3,6 +3,9 @@ name = "notary-server"
 version = "0.1.0-alpha.10"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [features]
 tee_quote = [
 	"dep:mc-sgx-dcap-types",

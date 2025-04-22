@@ -3,6 +3,9 @@ name = "tlsn-deap"
 version = "0.1.0-alpha.10"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 mpz-core = { workspace = true }
 mpz-common = { workspace = true }
