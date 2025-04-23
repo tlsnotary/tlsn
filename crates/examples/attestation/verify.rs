@@ -15,7 +15,7 @@ use tlsn_examples::ExampleType;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// What data to notarize
+    /// What data to notarize.
     #[clap(default_value_t, value_enum)]
     example_type: ExampleType,
 }
