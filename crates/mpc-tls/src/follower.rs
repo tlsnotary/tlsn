@@ -3,7 +3,7 @@ use crate::{
     record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, FollowerData, MpcTlsError, Role, SessionKeys, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
+use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -63,12 +63,7 @@ impl MpcTlsFollower {
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(
-            PrfConfig::builder()
-                .role(hmac_sha256::Role::Follower)
-                .build()
-                .expect("PRF config is valid"),
-        );
+        let prf = MpcPrf::new(config.prf);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -122,8 +117,6 @@ impl MpcTlsFollower {
                 keys.server_write_key,
                 keys.server_iv,
             )?;
-
-            prf.set_client_random(vm, None)?;
 
             let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
             let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
@@ -230,6 +223,7 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in ready state to run"));
         };
 
+        let mut client_random = None;
         let mut server_random = None;
         let mut server_key = None;
         let mut cf_vd = None;
@@ -237,17 +231,20 @@ impl MpcTlsFollower {
         loop {
             let msg: Message = self.ctx.io_mut().expect_next().await?;
             match msg {
+                Message::SetClientRandom(random) => {
+                    if client_random.is_some() {
+                        return Err(MpcTlsError::hs("client random already set"));
+                    }
+
+                    prf.set_client_random(random.random)?;
+                    client_random = Some(random);
+                }
                 Message::SetServerRandom(random) => {
                     if server_random.is_some() {
                         return Err(MpcTlsError::hs("server random already set"));
                     }
 
-                    let mut vm = vm
-                        .try_lock()
-                        .map_err(|_| MpcTlsError::other("VM lock is held"))?;
-
-                    prf.set_server_random(&mut (*vm), random.random)?;
-
+                    prf.set_server_random(random.random)?;
                     server_random = Some(random);
                 }
                 Message::SetServerKey(key) => {
@@ -274,9 +271,19 @@ impl MpcTlsFollower {
                     ke.compute_shares(&mut self.ctx).await?;
                     ke.assign(&mut (*vm))?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    loop {
+                        let assigned = prf
+                            .drive_key_expansion(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?;
+
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+
+                        if assigned {
+                            break;
+                        }
+                    }
 
                     ke.finalize().await?;
                     record_layer.setup(&mut self.ctx).await?;
@@ -290,11 +297,21 @@ impl MpcTlsFollower {
                         .try_lock()
                         .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-                    prf.set_cf_hash(&mut (*vm), vd.handshake_hash)?;
+                    prf.set_cf_hash(vd.handshake_hash)?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    loop {
+                        let assigned = prf
+                            .drive_client_finished(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?;
+
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+
+                        if assigned {
+                            break;
+                        }
+                    }
 
                     cf_vd = Some(
                         cf_vd_fut
@@ -312,11 +329,21 @@ impl MpcTlsFollower {
                         .try_lock()
                         .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-                    prf.set_sf_hash(&mut (*vm), vd.handshake_hash)?;
+                    prf.set_sf_hash(vd.handshake_hash)?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    loop {
+                        let assigned = prf
+                            .drive_server_finished(&mut (*vm))
+                            .map_err(MpcTlsError::hs)?;
+
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+
+                        if assigned {
+                            break;
+                        }
+                    }
 
                     sf_vd = Some(
                         sf_vd_fut

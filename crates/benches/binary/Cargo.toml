@@ -18,10 +18,10 @@ mpz-core = { workspace = true }
 mpz-garble = { workspace = true }
 mpz-ot = { workspace = true, features = ["ideal"] }
 tlsn-benches-library = { workspace = true }
-tlsn-benches-browser-native = { workspace = true, optional = true}
+tlsn-benches-browser-native = { workspace = true, optional = true }
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
-#tlsn-hmac-sha256 = { workspace = true }
+tlsn-hmac-sha256 = { workspace = true }
 tlsn-prover = { workspace = true }
 tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
@@ -30,7 +30,7 @@ tlsn-verifier = { workspace = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-charming = {version = "0.3.1", features = ["ssr"]}
+charming = { version = "0.3.1", features = ["ssr"] }
 csv = "1.3.0"
 dhat = { version = "0.3.3" }
 env_logger = { version = "0.6.0", default-features = false }
@@ -46,7 +46,8 @@ tokio = { workspace = true, features = [
 ] }
 tokio-util = { workspace = true }
 toml = "0.8.11"
-tracing-subscriber = {workspace = true, features = ["env-filter"]}
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+rand = { workspace = true }
 
 [[bin]]
 name = "bench"

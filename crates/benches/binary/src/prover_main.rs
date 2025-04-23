@@ -14,7 +14,6 @@ use std::{
 use crate::{
     config::{BenchInstance, Config},
     metrics::Metrics,
-    preprocess::preprocess_prf_circuits,
     set_interface, PROVER_INTERFACE,
 };
 use anyhow::Context;
@@ -57,10 +56,6 @@ pub async fn prover_main(is_memory_profiling: bool) -> anyhow::Result<()> {
         .append(true)
         .open("metrics.csv")
         .context("failed to open metrics file")?;
-
-    // Preprocess the PRF circuits as they are allocating a lot of memory, which
-    // don't need to be accounted for in the benchmarks.
-    preprocess_prf_circuits().await;
 
     {
         let mut metric_wrt = WriterBuilder::new()

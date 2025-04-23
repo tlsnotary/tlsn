@@ -1,24 +1,16 @@
-use derive_builder::Builder;
+//! PRF Config.
 
-/// Role of this party in the PRF.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Role {
-    /// The leader provides the private inputs to the PRF.
-    Leader,
-    /// The follower is blind to the inputs to the PRF.
-    Follower,
+/// Configuration option for the PRF.
+#[derive(Debug, Clone, Copy)]
+pub enum Config {
+    /// Computes some hashes locally.
+    Local,
+    /// Computes the whole PRF in MPC.
+    Mpc,
 }
 
-/// Configuration for the PRF.
-#[derive(Debug, Builder)]
-pub struct PrfConfig {
-    /// The role of this party in the PRF.
-    pub(crate) role: Role,
-}
-
-impl PrfConfig {
-    /// Creates a new builder.
-    pub fn builder() -> PrfConfigBuilder {
-        PrfConfigBuilder::default()
+impl Default for Config {
+    fn default() -> Self {
+        Self::Mpc
     }
 }
