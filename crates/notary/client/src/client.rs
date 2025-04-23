@@ -24,7 +24,7 @@ use tokio::{
 };
 use tokio_rustls::{
     client::TlsStream,
-    rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore},
+    rustls::{self, ClientConfig, OwnedTrustAnchor, RootCertStore},
     TlsConnector,
 };
 use tracing::{debug, error};
@@ -192,7 +192,12 @@ impl NotaryClient {
                     notary_socket,
                 )
                 .await
-                .map_err(|err| ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err))))?;
+                .map_err(|err| {
+                    if is_tls_mismatch_error(&err) {
+                        error!("Perhaps the notary server is not accepting our TLS connection");
+                    }
+                    ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err)))
+                })?;
 
             self.send_request(notary_tls_socket, notarization_request)
                 .await
@@ -467,6 +472,18 @@ fn default_root_store() -> RootCertStore {
     }));
 
     root_store
+}
+
+// Checks whether the error is potentially related to a mismatch in TLS
+// configuration between the client and the server.
+fn is_tls_mismatch_error(err: &std::io::Error) -> bool {
+    if let Some(rustls::Error::InvalidMessage(rustls::InvalidMessage::InvalidContentType)) = err
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+    {
+        return true;
+    }
+    false
 }
 
 // Attempts to parse the value of the "Retry-After" header from the given
