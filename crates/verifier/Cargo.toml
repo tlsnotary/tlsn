@@ -22,6 +22,7 @@ tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
 tlsn-tls-core = { workspace = true }
+tlsn-hmac-sha256 = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }

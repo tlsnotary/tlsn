@@ -8,8 +8,7 @@ members = [
     "crates/common",
     "crates/components/deap",
     "crates/components/cipher",
-    #"crates/components/hmac-sha256",
-    #"crates/components/hmac-sha256-circuits",
+    "crates/components/hmac-sha256",
     "crates/components/key-exchange",
     "crates/core",
     "crates/data-fixtures",
@@ -57,8 +56,7 @@ tlsn-core = { path = "crates/core" }
 tlsn-data-fixtures = { path = "crates/data-fixtures" }
 tlsn-deap = { path = "crates/components/deap" }
 tlsn-formats = { path = "crates/formats" }
-#tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
-#tlsn-hmac-sha256-circuits = { path = "crates/components/hmac-sha256-circuits" }
+tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
 tlsn-prover = { path = "crates/prover" }

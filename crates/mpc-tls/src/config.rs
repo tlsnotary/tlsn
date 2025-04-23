@@ -1,4 +1,5 @@
 use derive_builder::Builder;
+use hmac_sha256::Config as PrfConfig;
 
 /// Number of TLS protocol bytes that will be sent.
 const PROTOCOL_DATA_SENT: usize = 32;
@@ -55,6 +56,8 @@ pub struct Config {
     /// Maximum number of received bytes.
     #[allow(unused)]
     pub(crate) max_recv: usize,
+    /// Configuration options for the PRF.
+    pub(crate) prf: PrfConfig,
 }
 
 impl Config {
@@ -102,6 +105,7 @@ impl ConfigBuilder {
             max_recv_records,
             max_recv_online,
             max_recv,
+            prf: self.prf.unwrap_or_default(),
         })
     }
 }

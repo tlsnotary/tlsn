@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use hmac_sha256::Config as PrfConfig;
 use mpc_tls::Config;
 use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{connection::ServerName, CryptoProvider};
@@ -15,6 +16,9 @@ pub struct ProverConfig {
     /// Cryptography provider.
     #[builder(default, setter(into))]
     crypto_provider: Arc<CryptoProvider>,
+    /// Configuration options for the PRF.
+    #[builder(default)]
+    prf: PrfConfig,
 }
 
 impl ProverConfig {
@@ -45,7 +49,8 @@ impl ProverConfig {
             .defer_decryption(self.protocol_config.defer_decryption_from_start())
             .max_sent(self.protocol_config.max_sent_data())
             .max_recv_online(self.protocol_config.max_recv_data_online())
-            .max_recv(self.protocol_config.max_recv_data());
+            .max_recv(self.protocol_config.max_recv_data())
+            .prf(self.prf);
 
         if let Some(max_sent_records) = self.protocol_config.max_sent_records() {
             builder.max_sent_records(max_sent_records);
