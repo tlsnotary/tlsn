@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use spansy::{json::KeyValue, Spanned};
+use rangeset::{ RangeSet, Intersection, Difference, ToRangeSet };
 use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
@@ -150,15 +151,21 @@ pub trait JsonCommit {
             .map_err(|e| JsonCommitError::new_with_source("failed to commit array", e))?;
 
         if !array.elems.is_empty() {
-            builder
-                .commit(&array.without_values(), direction)
-                .map_err(|e| {
-                    JsonCommitError::new_with_source("failed to commit array excluding values", e)
-                })?;
-        }
+            let array_range: RangeSet<usize> = array.to_range_set();
+            let elem_ranges: Vec<RangeSet<usize>> = array.elems.iter().map(|e| e.to_range_set()).collect();
+            let elem_ranges = elem_ranges.iter()
+                .fold(array_range.clone(), |acc, range| acc.intersection(range));
 
-        // TODO: Commit each value separately, but we need a strategy for handling
-        // separators.
+            // Commit to the parts of the array that are not elements.
+            let difference = array_range.difference(&elem_ranges);
+            for range in difference.iter_ranges() {
+                builder.commit(&range, direction).map_err(|e| JsonCommitError::new_with_source("failed to commit array element", e))?;
+            }
+
+            for elem in &array.elems {
+                self.commit_value(builder, elem, direction)?;
+            }
+        }
 
         Ok(())
     }

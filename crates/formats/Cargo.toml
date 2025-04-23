@@ -8,6 +8,7 @@ tlsn-core = { workspace = true }
 
 bytes = { workspace = true }
 spansy = { workspace = true, features = ["serde"] }
+rangeset = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
