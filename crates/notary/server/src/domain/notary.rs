@@ -6,7 +6,7 @@ use std::{
 use tlsn_core::CryptoProvider;
 use tokio::sync::Semaphore;
 
-use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
+use crate::{config::NotarizationProperties, domain::auth::AuthorizationMode};
 
 /// Response object of the /session API
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,14 +46,13 @@ pub enum ClientType {
 }
 
 /// Global data that needs to be shared with the axum handlers
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct NotaryGlobals {
     pub crypto_provider: Arc<CryptoProvider>,
     pub notarization_config: NotarizationProperties,
     /// A temporary storage to store session_id
     pub store: Arc<Mutex<HashMap<String, ()>>>,
-    /// Whitelist of API keys for authorization purpose
-    pub authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
+    pub authorization_mode: Option<AuthorizationMode>,
     /// A semaphore to acquire a permit for notarization
     pub semaphore: Arc<Semaphore>,
 }
@@ -62,14 +61,14 @@ impl NotaryGlobals {
     pub fn new(
         crypto_provider: Arc<CryptoProvider>,
         notarization_config: NotarizationProperties,
-        authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
+        authorization_mode: Option<AuthorizationMode>,
         semaphore: Arc<Semaphore>,
     ) -> Self {
         Self {
             crypto_provider,
             notarization_config,
             store: Default::default(),
-            authorization_whitelist,
+            authorization_mode,
             semaphore,
         }
     }

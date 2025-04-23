@@ -36,8 +36,55 @@ impl Default for NotaryServerProperties {
 pub struct AuthorizationProperties {
     /// Switch to turn on or off auth middleware
     pub enabled: bool,
+    /// Authorization mode to use: JWT or whitelist
+    #[serde(flatten)]
+    pub mode: Option<AuthorizationModeProperties>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AuthorizationModeProperties {
+    /// JWT authorization properties
+    Jwt(JwtAuthorizationProperties),
     /// File path of the whitelist API key csv
-    pub whitelist_csv_path: Option<String>,
+    Whitelist(String),
+}
+
+impl AuthorizationModeProperties {
+    pub fn as_whitelist(&self) -> Option<String> {
+        match self {
+            Self::Jwt(..) => None,
+            Self::Whitelist(path) => Some(path.clone()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub struct JwtAuthorizationProperties {
+    /// File path to JWT public key for verifying token signatures
+    pub public_key_pem_path: String,
+    /// Set of required JWT claims
+    #[serde(default)]
+    pub claims: Vec<JwtClaim>,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub struct JwtClaim {
+    /// Name of the claim
+    pub name: String,
+    /// Optional set of expected values for the claim
+    #[serde(default)]
+    pub values: Vec<String>,
+    /// Optional expected type for the claim
+    #[serde(default)]
+    pub value_type: JwtClaimValueType,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum JwtClaimValueType {
+    #[default]
+    String,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]

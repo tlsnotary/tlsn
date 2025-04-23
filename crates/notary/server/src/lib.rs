@@ -12,8 +12,9 @@ mod tee;
 mod util;
 
 pub use config::{
-    AuthorizationProperties, LoggingProperties, NotarizationProperties, NotaryServerProperties,
-    NotarySigningKeyProperties, ServerProperties, TLSProperties,
+    AuthorizationModeProperties, AuthorizationProperties, JwtAuthorizationProperties, JwtClaim,
+    LoggingProperties, NotarizationProperties, NotaryServerProperties, NotarySigningKeyProperties,
+    ServerProperties, TLSProperties,
 };
 pub use domain::{
     auth::X_API_KEY_HEADER,
