@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Custom HTTP header used for specifying a whitelisted API key
+pub const X_API_KEY_HEADER: &str = "X-API-Key";
+
 /// Structure of each whitelisted record of the API key whitelist for
 /// authorization purpose
 #[derive(Clone, Debug, Deserialize, Serialize)]
