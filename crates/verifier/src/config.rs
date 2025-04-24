@@ -3,9 +3,8 @@ use std::{
     sync::Arc,
 };
 
-use hmac_sha256::Mode as PrfConfig;
 use mpc_tls::Config;
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
+use tlsn_common::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
@@ -17,9 +16,9 @@ pub struct VerifierConfig {
     /// Cryptography provider.
     #[builder(default, setter(into))]
     crypto_provider: Arc<CryptoProvider>,
-    /// Configuration options for the PRF.
+    /// Network settings.
     #[builder(default)]
-    prf: PrfConfig,
+    network: NetworkSetting,
 }
 
 impl Debug for VerifierConfig {
@@ -52,8 +51,7 @@ impl VerifierConfig {
         builder
             .max_sent(protocol_config.max_sent_data())
             .max_recv_online(protocol_config.max_recv_data_online())
-            .max_recv(protocol_config.max_recv_data())
-            .prf(self.prf);
+            .max_recv(protocol_config.max_recv_data());
 
         if let Some(max_sent_records) = protocol_config.max_sent_records() {
             builder.max_sent_records(max_sent_records);
@@ -61,6 +59,10 @@ impl VerifierConfig {
 
         if let Some(max_recv_records) = protocol_config.max_recv_records() {
             builder.max_recv_records(max_recv_records);
+        }
+
+        if let NetworkSetting::Latency = self.network {
+            builder.low_bandwidth();
         }
 
         builder.build().unwrap()
