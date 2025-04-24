@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use spansy::{json::KeyValue, Spanned};
-use rangeset::{ RangeSet, Intersection, Difference, ToRangeSet };
+use rangeset::{ RangeSet, Difference, ToRangeSet };
 use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
@@ -154,19 +154,21 @@ pub trait JsonCommit {
             let without_values = array.without_values();
 
             // Commit to the array excluding all values and separators.
-            builder.commit(&without_values, direction).map_err(|e| JsonCommitError::new_with_source("failed to commit array excluding values", e))?;
-
-            let array_range: RangeSet<usize> = array.to_range_set();
-            let elem_ranges = array.elems.iter()
-                .map(|e| e.to_range_set())
-                .fold(array_range.clone(), |acc, range| acc.intersection(&range));
+            builder.commit(&without_values, direction)
+                .map_err(|e| JsonCommitError::new_with_source("failed to commit array excluding values", e))?;
 
             // Commit to the separators and whitespace of the array
-            let difference = array_range.difference(&without_values).difference(&elem_ranges);
+            let array_range: RangeSet<usize> = array.to_range_set().difference(&without_values);
+            let difference = array.elems.iter()
+                .map(|e| e.to_range_set())
+                .fold(array_range.clone(), |acc, range| acc.difference(&range));
+
             for range in difference.iter_ranges() {
-                builder.commit(&range, direction).map_err(|e| JsonCommitError::new_with_source("failed to commit array element", e))?;
+                builder.commit(&range, direction)
+                    .map_err(|e| JsonCommitError::new_with_source("failed to commit array element", e))?;
             }
 
+            // Commit to the values of the array
             for elem in &array.elems {
                 self.commit_value(builder, elem, direction)?;
             }
@@ -262,3 +264,29 @@ pub trait JsonCommit {
 pub struct DefaultJsonCommitter {}
 
 impl JsonCommit for DefaultJsonCommitter {}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+    use spansy::json::parse_slice;
+    use tlsn_core::transcript::Transcript;
+    use tlsn_data_fixtures::json as fixtures;
+
+    #[rstest]
+    #[case::array(fixtures::ARRAY)]
+    #[case::integer(fixtures::INTEGER)]
+    #[case::json_object(fixtures::NESTED_OBJECT)]
+    #[case::strings(fixtures::STRINGS)]
+    fn test_json_commit(#[case] src: &'static [u8]) {
+        let transcript = Transcript::new([], src);
+        let json_data = parse_slice(src).unwrap();
+        let mut committer = DefaultJsonCommitter::default();
+        let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
+
+        committer.commit_value(&mut builder, &json_data, Direction::Received).unwrap();
+
+        builder.build().unwrap();
+    }
+}
