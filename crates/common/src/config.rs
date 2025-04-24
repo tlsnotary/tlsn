@@ -218,7 +218,8 @@ impl ProtocolConfigValidator {
 
 /// Settings for the network environment.
 ///
-/// Provides optimization options to adapt the protocol to different network situations.
+/// Provides optimization options to adapt the protocol to different network
+/// situations.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum NetworkSetting {
     /// Prefers a bandwidth-heavy protocol.
