@@ -21,7 +21,7 @@ define_fixture!(
 );
 
 define_fixture!(
-    STRINGS,
-    "A JSON object with various strings.",
-    "../data/json/strings"
+    VALUES,
+    "A JSON object with various values.",
+    "../data/json/values"
 );

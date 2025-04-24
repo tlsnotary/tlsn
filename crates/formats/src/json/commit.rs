@@ -278,7 +278,7 @@ mod tests {
     #[case::array(fixtures::ARRAY)]
     #[case::integer(fixtures::INTEGER)]
     #[case::json_object(fixtures::NESTED_OBJECT)]
-    #[case::strings(fixtures::STRINGS)]
+    #[case::values(fixtures::VALUES)]
     fn test_json_commit(#[case] src: &'static [u8]) {
         let transcript = Transcript::new([], src);
         let json_data = parse_slice(src).unwrap();
