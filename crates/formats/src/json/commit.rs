@@ -151,13 +151,18 @@ pub trait JsonCommit {
             .map_err(|e| JsonCommitError::new_with_source("failed to commit array", e))?;
 
         if !array.elems.is_empty() {
-            let array_range: RangeSet<usize> = array.to_range_set();
-            let elem_ranges: Vec<RangeSet<usize>> = array.elems.iter().map(|e| e.to_range_set()).collect();
-            let elem_ranges = elem_ranges.iter()
-                .fold(array_range.clone(), |acc, range| acc.intersection(range));
+            let without_values = array.without_values();
 
-            // Commit to the parts of the array that are not elements.
-            let difference = array_range.difference(&elem_ranges);
+            // Commit to the array excluding all values and separators.
+            builder.commit(&without_values, direction).map_err(|e| JsonCommitError::new_with_source("failed to commit array excluding values", e))?;
+
+            let array_range: RangeSet<usize> = array.to_range_set();
+            let elem_ranges = array.elems.iter()
+                .map(|e| e.to_range_set())
+                .fold(array_range.clone(), |acc, range| acc.intersection(&range));
+
+            // Commit to the separators and whitespace of the array
+            let difference = array_range.difference(&without_values).difference(&elem_ranges);
             for range in difference.iter_ranges() {
                 builder.commit(&range, direction).map_err(|e| JsonCommitError::new_with_source("failed to commit array element", e))?;
             }
