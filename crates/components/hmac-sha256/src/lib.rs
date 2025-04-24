@@ -10,7 +10,7 @@ mod sha256;
 mod test_utils;
 
 mod config;
-pub use config::Config;
+pub use config::Mode;
 
 mod error;
 pub use error::PrfError;
@@ -57,7 +57,7 @@ fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
 mod tests {
     use crate::{
         test_utils::{mock_vm, prf_cf_vd, prf_keys, prf_ms, prf_sf_vd},
-        Config, MpcPrf, SessionKeys,
+        Mode, MpcPrf, SessionKeys,
     };
     use mpz_common::context::test_st_context;
     use mpz_vm_core::{
@@ -68,17 +68,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_prf_local() {
-        let config = Config::Local;
+        let config = Mode::Reduced;
         test_prf(config).await;
     }
 
     #[tokio::test]
     async fn test_prf_mpc() {
-        let config = Config::Mpc;
+        let config = Mode::Normal;
         test_prf(config).await;
     }
 
-    async fn test_prf(config: Config) {
+    async fn test_prf(config: Mode) {
         let mut rng = StdRng::seed_from_u64(1);
         // Test input
         let pms: [u8; 32] = rng.random();

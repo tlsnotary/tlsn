@@ -1,6 +1,6 @@
 //! Provides [`Prf`], for computing the TLS 1.2 PRF.
 
-use crate::{Config, PrfError};
+use crate::{Mode, PrfError};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32},
@@ -9,29 +9,29 @@ use mpz_vm_core::{
     Vm,
 };
 
-mod local;
-mod mpc;
+mod normal;
+mod reduced;
 
 #[derive(Debug)]
 pub(crate) enum Prf {
-    Local(local::PrfFunction),
-    Mpc(mpc::PrfFunction),
+    Local(reduced::PrfFunction),
+    Mpc(normal::PrfFunction),
 }
 
 impl Prf {
     pub(crate) fn alloc_master_secret(
-        config: Config,
+        config: Mode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Array<U32, 8>,
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match config {
-            Config::Local => Self::Local(local::PrfFunction::alloc_master_secret(
+            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Config::Mpc => Self::Mpc(mpc::PrfFunction::alloc_master_secret(
+            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -41,18 +41,18 @@ impl Prf {
     }
 
     pub(crate) fn alloc_key_expansion(
-        config: Config,
+        config: Mode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Array<U32, 8>,
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match config {
-            Config::Local => Self::Local(local::PrfFunction::alloc_key_expansion(
+            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_key_expansion(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Config::Mpc => Self::Mpc(mpc::PrfFunction::alloc_key_expansion(
+            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_key_expansion(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -62,18 +62,18 @@ impl Prf {
     }
 
     pub(crate) fn alloc_client_finished(
-        config: Config,
+        config: Mode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Array<U32, 8>,
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match config {
-            Config::Local => Self::Local(local::PrfFunction::alloc_client_finished(
+            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_client_finished(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Config::Mpc => Self::Mpc(mpc::PrfFunction::alloc_client_finished(
+            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_client_finished(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -83,18 +83,18 @@ impl Prf {
     }
 
     pub(crate) fn alloc_server_finished(
-        config: Config,
+        config: Mode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Array<U32, 8>,
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match config {
-            Config::Local => Self::Local(local::PrfFunction::alloc_server_finished(
+            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_server_finished(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Config::Mpc => Self::Mpc(mpc::PrfFunction::alloc_server_finished(
+            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_server_finished(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -131,7 +131,7 @@ mod tests {
         convert_to_bytes,
         prf::{compute_partial, function::Prf},
         test_utils::{mock_vm, phash},
-        Config,
+        Mode,
     };
     use mpz_common::context::test_st_context;
     use mpz_vm_core::{
@@ -144,17 +144,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_phash_local() {
-        let config = Config::Local;
+        let config = Mode::Reduced;
         test_phash(config).await;
     }
 
     #[tokio::test]
     async fn test_phash_mpc() {
-        let config = Config::Local;
+        let config = Mode::Reduced;
         test_phash(config).await;
     }
 
-    async fn test_phash(config: Config) {
+    async fn test_phash(config: Mode) {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut leader, mut follower) = mock_vm();
 

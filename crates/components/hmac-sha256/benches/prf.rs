@@ -2,7 +2,7 @@
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use hmac_sha256::{Config, MpcPrf};
+use hmac_sha256::{Mode, MpcPrf};
 use mpz_common::context::test_mt_context;
 use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
 use mpz_ot::ideal::cot::ideal_cot;
@@ -52,8 +52,8 @@ async fn prf() {
     follower_vm.assign(follower_pms, pms).unwrap();
     follower_vm.commit(follower_pms).unwrap();
 
-    let mut leader = MpcPrf::new(Config::default());
-    let mut follower = MpcPrf::new(Config::default());
+    let mut leader = MpcPrf::new(Mode::default());
+    let mut follower = MpcPrf::new(Mode::default());
 
     let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
     let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();

@@ -1,16 +1,16 @@
-//! PRF Config.
+//! PRF modes.
 
-/// Configuration option for the PRF.
+/// Modes for the PRF.
 #[derive(Debug, Clone, Copy)]
-pub enum Config {
+pub enum Mode {
     /// Computes some hashes locally.
-    Local,
+    Reduced,
     /// Computes the whole PRF in MPC.
-    Mpc,
+    Normal,
 }
 
-impl Default for Config {
+impl Default for Mode {
     fn default() -> Self {
-        Self::Mpc
+        Self::Normal
     }
 }
