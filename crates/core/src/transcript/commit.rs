@@ -188,6 +188,26 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         self.commit(ranges, Direction::Received)
     }
 
+    /// Returns whether the builder has a commitment for the given direction and
+    /// range.
+    ///
+    /// # Arguments
+    ///
+    /// * `direction` - The direction of the transcript.
+    /// * `range` - The range of the commitment.
+    /// * `kind` - The kind of commitment.
+    pub fn has_commit(
+        &self,
+        direction: Direction,
+        range: &dyn ToRangeSet<usize>,
+        kind: Option<TranscriptCommitmentKind>,
+    ) -> bool {
+        let idx = Idx::new(range.to_range_set());
+
+        self.commits
+            .contains(&((direction, idx), kind.unwrap_or(self.default_kind)))
+    }
+
     /// Builds the configuration.
     pub fn build(self) -> Result<TranscriptCommitConfig, TranscriptCommitConfigBuilderError> {
         Ok(TranscriptCommitConfig {

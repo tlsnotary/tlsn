@@ -273,7 +273,7 @@ impl JsonCommit for DefaultJsonCommitter {}
 mod tests {
     use super::*;
     use rstest::*;
-    use spansy::json::parse_slice;
+    use spansy::json::{parse_slice, JsonValue, JsonVisit};
     use tlsn_core::transcript::Transcript;
     use tlsn_data_fixtures::json as fixtures;
 
@@ -291,6 +291,56 @@ mod tests {
         committer
             .commit_value(&mut builder, &json_data, Direction::Received)
             .unwrap();
+
+        struct CommitChecker<'a> {
+            builder: &'a TranscriptCommitConfigBuilder<'a>,
+        }
+        impl<'a> JsonVisit for CommitChecker<'a> {
+            fn visit_value(&mut self, _node: &JsonValue) {
+                match _node {
+                    JsonValue::Object(obj) => {
+                        assert!(self.builder.has_commit(
+                            Direction::Received,
+                            &obj.without_pairs(),
+                            None
+                        ));
+
+                        for kv in &obj.elems {
+                            assert!(self.builder.has_commit(
+                                Direction::Received,
+                                &kv.without_value(),
+                                None
+                            ));
+                        }
+
+                        JsonVisit::visit_object(self, obj);
+                    }
+
+                    JsonValue::Array(arr) => {
+                        assert!(self.builder.has_commit(
+                            Direction::Received,
+                            &arr.without_values(),
+                            None
+                        ));
+
+                        JsonVisit::visit_array(self, arr);
+                    }
+
+                    _ => {
+                        if !_node.to_range_set().is_empty() {
+                            assert!(
+                                self.builder.has_commit(Direction::Received, _node, None),
+                                "failed to commit to value ({}), at {:?}",
+                                _node.span().as_str(),
+                                _node.to_range_set()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        CommitChecker { builder: &builder }.visit_value(&json_data);
 
         builder.build().unwrap();
     }
