@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use hmac_sha256::Config as PrfConfig;
+use hmac_sha256::Mode as PrfConfig;
 
 /// Number of TLS protocol bytes that will be sent.
 const PROTOCOL_DATA_SENT: usize = 32;

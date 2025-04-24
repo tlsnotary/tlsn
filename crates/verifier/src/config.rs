@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use hmac_sha256::Config as PrfConfig;
+use hmac_sha256::Mode as PrfConfig;
 use mpc_tls::Config;
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;

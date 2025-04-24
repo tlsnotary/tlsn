@@ -1,4 +1,4 @@
-use crate::{sha256::Sha256, Config, PrfError, PrfOutput, SessionKeys};
+use crate::{sha256::Sha256, Mode, PrfError, PrfOutput, SessionKeys};
 use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
 use mpz_vm_core::{
     memory::{
@@ -19,7 +19,7 @@ use function::Prf;
 /// MPC PRF for computing TLS 1.2 HMAC-SHA256 PRF.
 #[derive(Debug)]
 pub struct MpcPrf {
-    config: Config,
+    config: Mode,
     state: State,
     circuits: Option<Circuits>,
 }
@@ -30,7 +30,7 @@ impl MpcPrf {
     /// # Arguments
     ///
     /// `config` - The PRF config.
-    pub fn new(config: Config) -> MpcPrf {
+    pub fn new(config: Mode) -> MpcPrf {
         Self {
             config,
             state: State::Initialized,
@@ -224,7 +224,7 @@ impl Circuits {
     const IPAD: [u8; 64] = [0x36; 64];
     const OPAD: [u8; 64] = [0x5c; 64];
 
-    fn alloc(config: Config, vm: &mut dyn Vm<Binary>, pms: Vector<U8>) -> Result<Self, PrfError> {
+    fn alloc(config: Mode, vm: &mut dyn Vm<Binary>, pms: Vector<U8>) -> Result<Self, PrfError> {
         let outer_partial_pms = compute_partial(vm, pms, Self::OPAD)?;
         let inner_partial_pms = compute_partial(vm, pms, Self::IPAD)?;
 
