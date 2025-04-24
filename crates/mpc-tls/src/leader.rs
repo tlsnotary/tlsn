@@ -123,9 +123,9 @@ impl MpcTlsLeader {
     }
 
     /// Allocates resources for the connection.
-    pub async fn alloc(&mut self) -> Result<SessionKeys, MpcTlsError> {
+    pub fn alloc(&mut self) -> Result<SessionKeys, MpcTlsError> {
         let State::Init {
-            mut ctx,
+            ctx,
             vm,
             mut ke,
             mut prf,
@@ -151,15 +151,6 @@ impl MpcTlsLeader {
             keys.server_write_key,
             keys.server_iv,
         )?;
-
-        ctx.io_mut()
-            .send(Message::SetClientRandom(SetClientRandom {
-                random: client_random.0,
-            }))
-            .await
-            .map_err(MpcTlsError::from)?;
-
-        prf.set_client_random(client_random.0)?;
 
         let cf_vd = vm_lock.decode(cf_vd).map_err(MpcTlsError::alloc)?;
         let sf_vd = vm_lock.decode(sf_vd).map_err(MpcTlsError::alloc)?;
@@ -196,7 +187,7 @@ impl MpcTlsLeader {
             vm,
             keys,
             mut ke,
-            prf,
+            mut prf,
             mut record_layer,
             cf_vd,
             sf_vd,
@@ -239,6 +230,15 @@ impl MpcTlsLeader {
             )
             .await
             .map_err(MpcTlsError::preprocess)??;
+
+        ctx.io_mut()
+            .send(Message::SetClientRandom(SetClientRandom {
+                random: client_random.0,
+            }))
+            .await
+            .map_err(MpcTlsError::from)?;
+
+        prf.set_client_random(client_random.0)?;
 
         self.state = State::Handshake {
             ctx,
