@@ -216,6 +216,23 @@ impl ProtocolConfigValidator {
     }
 }
 
+/// Settings for the network environment.
+///
+/// Provides optimization options to adapt the protocol to different network situations.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum NetworkSetting {
+    /// Prefers a bandwidth-heavy protocol.
+    Bandwidth,
+    /// Prefers a latency-heavy protocol.
+    Latency,
+}
+
+impl Default for NetworkSetting {
+    fn default() -> Self {
+        Self::Bandwidth
+    }
+}
+
 /// A ProtocolConfig error.
 #[derive(thiserror::Error, Debug)]
 pub struct ProtocolConfigError {

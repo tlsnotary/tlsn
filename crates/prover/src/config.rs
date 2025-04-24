@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use hmac_sha256::Mode as PrfConfig;
 use mpc_tls::Config;
-use tlsn_common::config::ProtocolConfig;
+use tlsn_common::config::{NetworkSetting, ProtocolConfig};
 use tlsn_core::{connection::ServerName, CryptoProvider};
 
 /// Configuration for the prover
@@ -16,9 +15,9 @@ pub struct ProverConfig {
     /// Cryptography provider.
     #[builder(default, setter(into))]
     crypto_provider: Arc<CryptoProvider>,
-    /// Configuration options for the PRF.
+    /// Network settings.
     #[builder(default)]
-    prf: PrfConfig,
+    network: NetworkSetting,
 }
 
 impl ProverConfig {
@@ -49,8 +48,7 @@ impl ProverConfig {
             .defer_decryption(self.protocol_config.defer_decryption_from_start())
             .max_sent(self.protocol_config.max_sent_data())
             .max_recv_online(self.protocol_config.max_recv_data_online())
-            .max_recv(self.protocol_config.max_recv_data())
-            .prf(self.prf);
+            .max_recv(self.protocol_config.max_recv_data());
 
         if let Some(max_sent_records) = self.protocol_config.max_sent_records() {
             builder.max_sent_records(max_sent_records);
@@ -58,6 +56,10 @@ impl ProverConfig {
 
         if let Some(max_recv_records) = self.protocol_config.max_recv_records() {
             builder.max_recv_records(max_recv_records);
+        }
+
+        if let NetworkSetting::Latency = self.network {
+            builder.low_bandwidth();
         }
 
         builder.build().unwrap()

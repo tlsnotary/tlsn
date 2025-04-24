@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tlsn_common::config::ProtocolConfig;
+use tlsn_common::config::{NetworkSetting, ProtocolConfig};
 use tsify_next::Tsify;
 
 #[derive(Debug, Tsify, Deserialize)]
@@ -12,6 +12,7 @@ pub struct ProverConfig {
     pub defer_decryption_from_start: Option<bool>,
     pub max_sent_records: Option<usize>,
     pub max_recv_records: Option<usize>,
+    pub network: NetworkSetting,
 }
 
 impl From<ProverConfig> for tlsn_prover::ProverConfig {
@@ -43,6 +44,12 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
         builder
             .server_name(value.server_name.as_ref())
             .protocol_config(protocol_config);
+
+        if let Some(value) = value.defer_decryption_from_start {
+            builder.defer_decryption_from_start(value);
+        }
+
+        builder.network(value.network);
 
         builder.build().unwrap()
     }

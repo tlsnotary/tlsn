@@ -24,7 +24,6 @@ tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
-tlsn-hmac-sha256 = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
