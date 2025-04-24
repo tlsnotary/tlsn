@@ -1,7 +1,7 @@
 use std::error::Error;
 
+use rangeset::{Difference, RangeSet, ToRangeSet};
 use spansy::{json::KeyValue, Spanned};
-use rangeset::{ RangeSet, Difference, ToRangeSet };
 use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
@@ -154,18 +154,22 @@ pub trait JsonCommit {
             let without_values = array.without_values();
 
             // Commit to the array excluding all values and separators.
-            builder.commit(&without_values, direction)
-                .map_err(|e| JsonCommitError::new_with_source("failed to commit array excluding values", e))?;
+            builder.commit(&without_values, direction).map_err(|e| {
+                JsonCommitError::new_with_source("failed to commit array excluding values", e)
+            })?;
 
             // Commit to the separators and whitespace of the array
             let array_range: RangeSet<usize> = array.to_range_set().difference(&without_values);
-            let difference = array.elems.iter()
+            let difference = array
+                .elems
+                .iter()
                 .map(|e| e.to_range_set())
                 .fold(array_range.clone(), |acc, range| acc.difference(&range));
 
             for range in difference.iter_ranges() {
-                builder.commit(&range, direction)
-                    .map_err(|e| JsonCommitError::new_with_source("failed to commit array element", e))?;
+                builder.commit(&range, direction).map_err(|e| {
+                    JsonCommitError::new_with_source("failed to commit array element", e)
+                })?;
             }
 
             // Commit to the values of the array
@@ -265,7 +269,6 @@ pub struct DefaultJsonCommitter {}
 
 impl JsonCommit for DefaultJsonCommitter {}
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,7 +288,9 @@ mod tests {
         let mut committer = DefaultJsonCommitter::default();
         let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
 
-        committer.commit_value(&mut builder, &json_data, Direction::Received).unwrap();
+        committer
+            .commit_value(&mut builder, &json_data, Direction::Received)
+            .unwrap();
 
         builder.build().unwrap();
     }
