@@ -14,10 +14,10 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
     label: &'static [u8],
+    state: State,
     start_seed_label: Option<Vec<u8>>,
     a: Vec<PHash>,
     p: Vec<PHash>,
-    assigned: bool,
 }
 
 impl PrfFunction {
@@ -59,15 +59,14 @@ impl PrfFunction {
     }
 
     pub(crate) fn wants_flush(&self) -> bool {
-        todo!()
+        match self.state {
+            State::Computing => true,
+            State::Finished => false,
+        }
     }
 
-    pub(crate) fn flush(&mut self) -> Result<(), PrfError> {
-        todo!()
-    }
-
-    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        if !self.assigned {
+    pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
+        if let State::Computing = self.state {
             let a = self.a.first_mut().expect("prf should be allocated");
             let msg = a.msg;
 
@@ -79,10 +78,10 @@ impl PrfFunction {
             vm.mark_public(msg).map_err(PrfError::vm)?;
             vm.assign(msg, msg_value).map_err(PrfError::vm)?;
             vm.commit(msg).map_err(PrfError::vm)?;
-            self.assigned = true;
-        }
 
-        Ok(self.assigned)
+            self.state = State::Finished;
+        }
+        Ok(())
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
@@ -106,10 +105,10 @@ impl PrfFunction {
     ) -> Result<Self, PrfError> {
         let mut prf = Self {
             label,
+            state: State::Computing,
             start_seed_label: None,
             a: vec![],
             p: vec![],
-            assigned: false,
         };
 
         assert!(output_len > 0, "cannot compute 0 bytes for prf");
@@ -132,6 +131,12 @@ impl PrfFunction {
 
         Ok(prf)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum State {
+    Computing,
+    Finished,
 }
 
 #[derive(Debug, Clone)]

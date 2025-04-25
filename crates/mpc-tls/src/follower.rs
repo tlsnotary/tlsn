@@ -272,10 +272,10 @@ impl MpcTlsFollower {
                     ke.assign(&mut (*vm))?;
 
                     while prf.wants_flush() {
+                        prf.flush(&mut *vm)?;
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
-                        prf.flush()?;
                     }
 
                     ke.finalize().await?;
@@ -293,10 +293,10 @@ impl MpcTlsFollower {
                     prf.set_cf_hash(vd.handshake_hash)?;
 
                     while prf.wants_flush() {
+                        prf.flush(&mut *vm)?;
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
-                        prf.flush()?;
                     }
 
                     cf_vd = Some(
@@ -318,10 +318,10 @@ impl MpcTlsFollower {
                     prf.set_sf_hash(vd.handshake_hash)?;
 
                     while prf.wants_flush() {
+                        prf.flush(&mut *vm)?;
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
-                        prf.flush()?;
                     }
 
                     sf_vd = Some(

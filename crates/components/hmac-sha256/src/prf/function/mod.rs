@@ -14,8 +14,8 @@ mod reduced;
 
 #[derive(Debug)]
 pub(crate) enum Prf {
-    Local(reduced::PrfFunction),
-    Mpc(normal::PrfFunction),
+    Reduced(reduced::PrfFunction),
+    Normal(normal::PrfFunction),
 }
 
 impl Prf {
@@ -26,12 +26,12 @@ impl Prf {
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match mode {
-            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_master_secret(
+            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_master_secret(
+            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -47,12 +47,12 @@ impl Prf {
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match mode {
-            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_key_expansion(
+            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_key_expansion(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_key_expansion(
+            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_key_expansion(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -68,12 +68,12 @@ impl Prf {
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match config {
-            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_client_finished(
+            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_client_finished(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_client_finished(
+            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_client_finished(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -89,12 +89,12 @@ impl Prf {
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
         let prf = match config {
-            Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_server_finished(
+            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_server_finished(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Mode::Normal => Self::Mpc(normal::PrfFunction::alloc_server_finished(
+            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_server_finished(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -105,36 +105,29 @@ impl Prf {
 
     pub(crate) fn wants_flush(&self) -> bool {
         match self {
-            Prf::Local(prf) => prf.wants_flush(),
-            Prf::Mpc(prf) => prf.wants_flush(),
+            Prf::Reduced(prf) => prf.wants_flush(),
+            Prf::Normal(prf) => prf.wants_flush(),
         }
     }
 
-    pub(crate) fn flush(&mut self) -> Result<(), PrfError> {
+    pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         match self {
-            Prf::Local(prf) => prf.flush(),
-            Prf::Mpc(prf) => prf.flush(),
-        }
-    }
-
-    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        match self {
-            Prf::Local(prf) => prf.make_progress(vm),
-            Prf::Mpc(prf) => prf.make_progress(vm),
+            Prf::Reduced(prf) => prf.flush(vm),
+            Prf::Normal(prf) => prf.flush(vm),
         }
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
         match self {
-            Prf::Local(prf) => prf.set_start_seed(seed),
-            Prf::Mpc(prf) => prf.set_start_seed(seed),
+            Prf::Reduced(prf) => prf.set_start_seed(seed),
+            Prf::Normal(prf) => prf.set_start_seed(seed),
         }
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
         match self {
-            Prf::Local(prf) => prf.output(),
-            Prf::Mpc(prf) => prf.output(),
+            Prf::Reduced(prf) => prf.output(),
+            Prf::Normal(prf) => prf.output(),
         }
     }
 }
@@ -157,14 +150,14 @@ mod tests {
     const OPAD: [u8; 64] = [0x5c; 64];
 
     #[tokio::test]
-    async fn test_phash_local() {
+    async fn test_phash_reduced() {
         let config = Mode::Reduced;
         test_phash(config).await;
     }
 
     #[tokio::test]
-    async fn test_phash_mpc() {
-        let config = Mode::Reduced;
+    async fn test_phash_normal() {
+        let config = Mode::Normal;
         test_phash(config).await;
     }
 
@@ -227,19 +220,18 @@ mod tests {
             prf_out_follower.push(p_out)
         }
 
-        loop {
-            let leader_finished = prf_leader.make_progress(&mut leader).unwrap();
-            let follower_finished = prf_follower.make_progress(&mut follower).unwrap();
-
+        while prf_leader.wants_flush() || prf_follower.wants_flush() {
             tokio::try_join!(
-                leader.execute_all(&mut ctx_a),
-                follower.execute_all(&mut ctx_b)
+                async {
+                    prf_leader.flush(&mut leader).unwrap();
+                    leader.execute_all(&mut ctx_a).await
+                },
+                async {
+                    prf_follower.flush(&mut follower).unwrap();
+                    follower.execute_all(&mut ctx_b).await
+                }
             )
             .unwrap();
-
-            if leader_finished && follower_finished {
-                break;
-            }
         }
 
         assert_eq!(prf_out_leader.len(), prf_out_follower.len());

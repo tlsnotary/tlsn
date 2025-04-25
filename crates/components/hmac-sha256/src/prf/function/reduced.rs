@@ -59,7 +59,7 @@ impl PrfFunction {
         todo!()
     }
 
-    pub(crate) fn flush(&mut self) -> Result<(), PrfError> {
+    pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         todo!()
     }
 

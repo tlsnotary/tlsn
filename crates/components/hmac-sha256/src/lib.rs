@@ -67,13 +67,13 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     #[tokio::test]
-    async fn test_prf_local() {
+    async fn test_prf_reduced() {
         let config = Mode::Reduced;
         test_prf(config).await;
     }
 
     #[tokio::test]
-    async fn test_prf_mpc() {
+    async fn test_prf_normal() {
         let config = Mode::Normal;
         test_prf(config).await;
     }
@@ -119,18 +119,18 @@ mod tests {
         follower.assign(follower_pms, pms).unwrap();
         follower.commit(follower_pms).unwrap();
 
-        let mut leader_prf = MpcPrf::new(config);
-        let mut follower_prf = MpcPrf::new(config);
+        let mut prf_leader = MpcPrf::new(config);
+        let mut prf_follower = MpcPrf::new(config);
 
-        let leader_prf_out = leader_prf.alloc(&mut leader, leader_pms).unwrap();
-        let follower_prf_out = follower_prf.alloc(&mut follower, follower_pms).unwrap();
+        let leader_prf_out = prf_leader.alloc(&mut leader, leader_pms).unwrap();
+        let follower_prf_out = prf_follower.alloc(&mut follower, follower_pms).unwrap();
 
         // client_random and server_random
-        leader_prf.set_client_random(client_random).unwrap();
-        follower_prf.set_client_random(client_random).unwrap();
+        prf_leader.set_client_random(client_random).unwrap();
+        prf_follower.set_client_random(client_random).unwrap();
 
-        leader_prf.set_server_random(server_random).unwrap();
-        follower_prf.set_server_random(server_random).unwrap();
+        prf_leader.set_server_random(server_random).unwrap();
+        prf_follower.set_server_random(server_random).unwrap();
 
         let SessionKeys {
             client_write_key: cwk_leader,
@@ -156,19 +156,18 @@ mod tests {
         let mut civ_follower = follower.decode(civ_follower).unwrap();
         let mut siv_follower = follower.decode(siv_follower).unwrap();
 
-        loop {
-            let leader_finished = leader_prf.drive_key_expansion(&mut leader).unwrap();
-            let follower_finished = follower_prf.drive_key_expansion(&mut follower).unwrap();
-
+        while prf_leader.wants_flush() || prf_follower.wants_flush() {
             tokio::try_join!(
-                leader.execute_all(&mut ctx_a),
-                follower.execute_all(&mut ctx_b)
+                async {
+                    prf_leader.flush(&mut leader).unwrap();
+                    leader.execute_all(&mut ctx_a).await
+                },
+                async {
+                    prf_follower.flush(&mut follower).unwrap();
+                    follower.execute_all(&mut ctx_b).await
+                }
             )
             .unwrap();
-
-            if leader_finished && follower_finished {
-                break;
-            }
         }
 
         let cwk_leader = cwk_leader.try_recv().unwrap().unwrap();
@@ -192,8 +191,8 @@ mod tests {
         assert_eq!(siv_leader, siv_expected);
 
         // client finished
-        leader_prf.set_cf_hash(cf_hs_hash).unwrap();
-        follower_prf.set_cf_hash(cf_hs_hash).unwrap();
+        prf_leader.set_cf_hash(cf_hs_hash).unwrap();
+        prf_follower.set_cf_hash(cf_hs_hash).unwrap();
 
         let cf_vd_leader = leader_prf_out.cf_vd;
         let cf_vd_follower = follower_prf_out.cf_vd;
@@ -201,19 +200,18 @@ mod tests {
         let mut cf_vd_leader = leader.decode(cf_vd_leader).unwrap();
         let mut cf_vd_follower = follower.decode(cf_vd_follower).unwrap();
 
-        loop {
-            let leader_finished = leader_prf.drive_client_finished(&mut leader).unwrap();
-            let follower_finished = follower_prf.drive_client_finished(&mut follower).unwrap();
-
+        while prf_leader.wants_flush() || prf_follower.wants_flush() {
             tokio::try_join!(
-                leader.execute_all(&mut ctx_a),
-                follower.execute_all(&mut ctx_b)
+                async {
+                    prf_leader.flush(&mut leader).unwrap();
+                    leader.execute_all(&mut ctx_a).await
+                },
+                async {
+                    prf_follower.flush(&mut follower).unwrap();
+                    follower.execute_all(&mut ctx_b).await
+                }
             )
             .unwrap();
-
-            if leader_finished && follower_finished {
-                break;
-            }
         }
 
         let cf_vd_leader = cf_vd_leader.try_recv().unwrap().unwrap();
@@ -223,8 +221,8 @@ mod tests {
         assert_eq!(cf_vd_leader, cf_vd_expected);
 
         // server finished
-        leader_prf.set_sf_hash(sf_hs_hash).unwrap();
-        follower_prf.set_sf_hash(sf_hs_hash).unwrap();
+        prf_leader.set_sf_hash(sf_hs_hash).unwrap();
+        prf_follower.set_sf_hash(sf_hs_hash).unwrap();
 
         let sf_vd_leader = leader_prf_out.sf_vd;
         let sf_vd_follower = follower_prf_out.sf_vd;
@@ -232,19 +230,18 @@ mod tests {
         let mut sf_vd_leader = leader.decode(sf_vd_leader).unwrap();
         let mut sf_vd_follower = follower.decode(sf_vd_follower).unwrap();
 
-        loop {
-            let leader_finished = leader_prf.drive_server_finished(&mut leader).unwrap();
-            let follower_finished = follower_prf.drive_server_finished(&mut follower).unwrap();
-
+        while prf_leader.wants_flush() || prf_follower.wants_flush() {
             tokio::try_join!(
-                leader.execute_all(&mut ctx_a),
-                follower.execute_all(&mut ctx_b)
+                async {
+                    prf_leader.flush(&mut leader).unwrap();
+                    leader.execute_all(&mut ctx_a).await
+                },
+                async {
+                    prf_follower.flush(&mut follower).unwrap();
+                    follower.execute_all(&mut ctx_b).await
+                }
             )
             .unwrap();
-
-            if leader_finished && follower_finished {
-                break;
-            }
         }
 
         let sf_vd_leader = sf_vd_leader.try_recv().unwrap().unwrap();
