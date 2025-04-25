@@ -1,9 +1,9 @@
-use crate::{sha256::Sha256, Mode, PrfError, PrfOutput, SessionKeys};
+use crate::{hmac::HmacSha256, sha256::Sha256, Mode, PrfError, PrfOutput};
 use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, FromRaw, MemoryExt, StaticSize, ToRaw, Vector, ViewExt,
+        Array, MemoryExt, StaticSize, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
 };
@@ -19,9 +19,8 @@ use function::Prf;
 /// MPC PRF for computing TLS 1.2 HMAC-SHA256 PRF.
 #[derive(Debug)]
 pub struct MpcPrf {
-    config: Mode,
+    mode: Mode,
     state: State,
-    circuits: Option<Circuits>,
 }
 
 impl MpcPrf {
@@ -29,12 +28,11 @@ impl MpcPrf {
     ///
     /// # Arguments
     ///
-    /// `config` - The PRF config.
-    pub fn new(config: Mode) -> MpcPrf {
+    /// `mode` - The PRF config.
+    pub fn new(mode: Mode) -> MpcPrf {
         Self {
-            config,
+            mode,
             state: State::Initialized,
-            circuits: None,
         }
     }
 
@@ -54,20 +52,35 @@ impl MpcPrf {
             return Err(PrfError::state("PRF not in initialized state"));
         };
 
-        let circuits = Circuits::alloc(self.config, vm, pms.into())?;
+        let mode = self.mode;
+        let pms: Vector<U8> = pms.into();
 
-        let keys = circuits.get_session_keys(vm)?;
-        let cf_vd = circuits.get_client_finished_vd(vm)?;
-        let sf_vd = circuits.get_server_finished_vd(vm)?;
+        let outer_partial_pms = compute_partial(vm, pms, HmacSha256::OPAD)?;
+        let inner_partial_pms = compute_partial(vm, pms, HmacSha256::IPAD)?;
 
-        let prf_output = PrfOutput { keys, cf_vd, sf_vd };
+        let master_secret =
+            Prf::alloc_master_secret(mode, vm, outer_partial_pms, inner_partial_pms)?;
+        let ms = master_secret.output();
+        let ms = merge_outputs(vm, ms, 48)?;
 
-        self.circuits = Some(circuits);
+        let outer_partial_ms = compute_partial(vm, ms, HmacSha256::OPAD)?;
+        let inner_partial_ms = compute_partial(vm, ms, HmacSha256::IPAD)?;
+
+        let key_expansion = Prf::alloc_key_expansion(mode, vm, outer_partial_ms, inner_partial_ms)?;
+        let client_finished =
+            Prf::alloc_client_finished(mode, vm, outer_partial_ms, inner_partial_ms)?;
+        let server_finished =
+            Prf::alloc_server_finished(mode, vm, outer_partial_ms, inner_partial_ms)?;
+
         self.state = State::SessionKeys {
             client_random: None,
+            master_secret,
+            key_expansion,
+            client_finished,
+            server_finished,
         };
 
-        Ok(prf_output)
+        self.state.prf_output(vm)
     }
 
     /// Sets the client random.
@@ -77,7 +90,7 @@ impl MpcPrf {
     /// * `random` - The client random.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_client_random(&mut self, random: [u8; 32]) -> Result<(), PrfError> {
-        let State::SessionKeys { client_random } = &mut self.state else {
+        let State::SessionKeys { client_random, .. } = &mut self.state else {
             return Err(PrfError::state("PRF not set up"));
         };
 
@@ -92,12 +105,14 @@ impl MpcPrf {
     /// * `random` - The server random.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_server_random(&mut self, random: [u8; 32]) -> Result<(), PrfError> {
-        let State::SessionKeys { client_random } = self.state.take() else {
+        let State::SessionKeys {
+            client_random,
+            master_secret,
+            key_expansion,
+            ..
+        } = &mut self.state
+        else {
             return Err(PrfError::state("PRF not set up"));
-        };
-
-        let Some(ref mut circuits) = self.circuits else {
-            return Err(PrfError::state("Circuits should have been set for PRF"));
         };
 
         let client_random = client_random.expect("Client random should have been set by now");
@@ -105,13 +120,12 @@ impl MpcPrf {
 
         let mut seed_ms = client_random.to_vec();
         seed_ms.extend_from_slice(&server_random);
-        circuits.master_secret.set_start_seed(seed_ms);
+        master_secret.set_start_seed(seed_ms);
 
         let mut seed_ke = server_random.to_vec();
         seed_ke.extend_from_slice(&client_random);
-        circuits.key_expansion.set_start_seed(seed_ke);
+        key_expansion.set_start_seed(seed_ke);
 
-        self.state = State::ClientFinished;
         Ok(())
     }
 
@@ -122,18 +136,16 @@ impl MpcPrf {
     /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_cf_hash(&mut self, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
-        let State::ClientFinished = self.state.take() else {
+        let State::ClientFinished {
+            client_finished, ..
+        } = &mut self.state
+        else {
             return Err(PrfError::state("PRF not in client finished state"));
         };
 
-        let Some(ref mut circuits) = self.circuits else {
-            return Err(PrfError::state("Circuits should have been set for PRF"));
-        };
-
         let seed_cf = handshake_hash.to_vec();
-        circuits.client_finished.set_start_seed(seed_cf);
+        client_finished.set_start_seed(seed_cf);
 
-        self.state = State::ServerFinished;
         Ok(())
     }
 
@@ -144,175 +156,19 @@ impl MpcPrf {
     /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_sf_hash(&mut self, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
-        let State::ServerFinished = self.state.take() else {
+        let State::ServerFinished { server_finished } = &mut self.state else {
             return Err(PrfError::state("PRF not in server finished state"));
         };
 
-        let Some(ref mut circuits) = self.circuits else {
-            return Err(PrfError::state("Circuits should have been set for PRF"));
-        };
-
         let seed_sf = handshake_hash.to_vec();
-        circuits.server_finished.set_start_seed(seed_sf);
+        server_finished.set_start_seed(seed_sf);
 
-        self.state = State::Complete;
         Ok(())
     }
 
-    /// Drives the computation of the session keys.
-    ///
-    /// Returns if all inputs have been assigned for the computation of the
-    /// final output.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    #[instrument(level = "debug", skip_all, err)]
-    pub fn drive_key_expansion(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        let Some(ref mut circuits) = self.circuits else {
-            return Err(PrfError::state("Circuits should have been set for PRF"));
-        };
-
-        circuits.drive_key_expansion(vm)
-    }
-
-    /// Drives the computation of the client_finished verify_data.
-    ///
-    /// Returns if all inputs have been assigned for the computation of the
-    /// final output.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    #[instrument(level = "debug", skip_all, err)]
-    pub fn drive_client_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        let Some(ref mut circuits) = self.circuits else {
-            return Err(PrfError::state("Circuits should have been set for PRF"));
-        };
-
-        circuits.drive_client_finished(vm)
-    }
-
-    /// Drives the computation of the server_finished verify_data.
-    ///
-    /// Returns if all inputs have been assigned for the computation of the
-    /// final output.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    #[instrument(level = "debug", skip_all, err)]
-    pub fn drive_server_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        let Some(ref mut circuits) = self.circuits else {
-            return Err(PrfError::state("Circuits should have been set for PRF"));
-        };
-
-        circuits.drive_server_finished(vm)
-    }
-}
-
-/// Contains the respective [`PrfFunction`]s.
-#[derive(Debug)]
-struct Circuits {
-    pub(crate) master_secret: Prf,
-    pub(crate) key_expansion: Prf,
-    pub(crate) client_finished: Prf,
-    pub(crate) server_finished: Prf,
-}
-
-impl Circuits {
-    const IPAD: [u8; 64] = [0x36; 64];
-    const OPAD: [u8; 64] = [0x5c; 64];
-
-    fn alloc(config: Mode, vm: &mut dyn Vm<Binary>, pms: Vector<U8>) -> Result<Self, PrfError> {
-        let outer_partial_pms = compute_partial(vm, pms, Self::OPAD)?;
-        let inner_partial_pms = compute_partial(vm, pms, Self::IPAD)?;
-
-        let master_secret =
-            Prf::alloc_master_secret(config, vm, outer_partial_pms, inner_partial_pms)?;
-        let ms = master_secret.output();
-        let ms = merge_outputs(vm, ms, 48)?;
-
-        let outer_partial_ms = compute_partial(vm, ms, Self::OPAD)?;
-        let inner_partial_ms = compute_partial(vm, ms, Self::IPAD)?;
-
-        let circuits = Self {
-            master_secret,
-            key_expansion: Prf::alloc_key_expansion(
-                config,
-                vm,
-                outer_partial_ms,
-                inner_partial_ms,
-            )?,
-            client_finished: Prf::alloc_client_finished(
-                config,
-                vm,
-                outer_partial_ms,
-                inner_partial_ms,
-            )?,
-            server_finished: Prf::alloc_server_finished(
-                config,
-                vm,
-                outer_partial_ms,
-                inner_partial_ms,
-            )?,
-        };
-        Ok(circuits)
-    }
-
-    fn get_session_keys(&self, vm: &mut dyn Vm<Binary>) -> Result<SessionKeys, PrfError> {
-        let keys = self.key_expansion.output();
-        let mut keys = merge_outputs(vm, keys, 40)?;
-
-        let server_iv = <Array<U8, 4> as FromRaw<Binary>>::from_raw(keys.split_off(36).to_raw());
-        let client_iv = <Array<U8, 4> as FromRaw<Binary>>::from_raw(keys.split_off(32).to_raw());
-        let server_write_key =
-            <Array<U8, 16> as FromRaw<Binary>>::from_raw(keys.split_off(16).to_raw());
-        let client_write_key = <Array<U8, 16> as FromRaw<Binary>>::from_raw(keys.to_raw());
-
-        let session_keys = SessionKeys {
-            client_write_key,
-            server_write_key,
-            client_iv,
-            server_iv,
-        };
-
-        Ok(session_keys)
-    }
-
-    fn get_client_finished_vd(&self, vm: &mut dyn Vm<Binary>) -> Result<Array<U8, 12>, PrfError> {
-        let client_finished = &self.client_finished;
-        let cf_vd = client_finished.output();
-
-        let cf_vd = merge_outputs(vm, cf_vd, 12)?;
-        let cf_vd = <Array<U8, 12> as FromRaw<Binary>>::from_raw(cf_vd.to_raw());
-
-        Ok(cf_vd)
-    }
-
-    fn get_server_finished_vd(&self, vm: &mut dyn Vm<Binary>) -> Result<Array<U8, 12>, PrfError> {
-        let server_finished = &self.server_finished;
-        let sf_vd = server_finished.output();
-
-        let sf_vd = merge_outputs(vm, sf_vd, 12)?;
-        let sf_vd = <Array<U8, 12> as FromRaw<Binary>>::from_raw(sf_vd.to_raw());
-
-        Ok(sf_vd)
-    }
-
-    fn drive_key_expansion(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        let ms_finished = self.master_secret.make_progress(vm)?;
-        let ke_finished = self.key_expansion.make_progress(vm)?;
-
-        Ok(ms_finished && ke_finished)
-    }
-
-    fn drive_client_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        self.client_finished.make_progress(vm)
-    }
-
-    fn drive_server_finished(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        self.server_finished.make_progress(vm)
+    /// Returns if the PRF needs to be flushed.
+    pub fn wants_flush(&self) -> bool {
+        todo!()
     }
 }
 

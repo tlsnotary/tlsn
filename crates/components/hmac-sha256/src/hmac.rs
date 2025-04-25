@@ -35,6 +35,9 @@ pub(crate) struct HmacSha256 {
 }
 
 impl HmacSha256 {
+    pub(crate) const IPAD: [u8; 64] = [0x36; 64];
+    pub(crate) const OPAD: [u8; 64] = [0x5c; 64];
+
     /// Creates a new instance.
     ///
     /// # Arguments
