@@ -59,6 +59,10 @@ impl PrfFunction {
         todo!()
     }
 
+    pub(crate) fn flush(&mut self) -> Result<(), PrfError> {
+        todo!()
+    }
+
     pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         let a_assigned = self.is_a_assigned();
         let mut p_assigned = self.is_p_assigned();

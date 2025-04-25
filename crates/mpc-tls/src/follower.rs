@@ -275,6 +275,7 @@ impl MpcTlsFollower {
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
+                        prf.flush()?;
                     }
 
                     ke.finalize().await?;
@@ -295,6 +296,7 @@ impl MpcTlsFollower {
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
+                        prf.flush()?;
                     }
 
                     cf_vd = Some(
@@ -319,6 +321,7 @@ impl MpcTlsFollower {
                         vm.execute_all(&mut self.ctx)
                             .await
                             .map_err(MpcTlsError::hs)?;
+                        prf.flush()?;
                     }
 
                     sf_vd = Some(

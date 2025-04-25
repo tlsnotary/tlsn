@@ -542,6 +542,7 @@ impl Backend for MpcTlsLeader {
 
         while prf.wants_flush() {
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+            prf.flush().map_err(MpcTlsError::hs)?;
         }
 
         let sf_vd = sf_vd
@@ -587,6 +588,7 @@ impl Backend for MpcTlsLeader {
 
         while prf.wants_flush() {
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+            prf.flush().map_err(MpcTlsError::hs)?;
         }
 
         let cf_vd = cf_vd
@@ -655,6 +657,7 @@ impl Backend for MpcTlsLeader {
                     .execute_all(&mut ctx)
                     .await
                     .map_err(MpcTlsError::hs)?;
+                prf.flush().map_err(MpcTlsError::hs)?;
             }
 
             ke.finalize().await.map_err(MpcTlsError::hs)?;
