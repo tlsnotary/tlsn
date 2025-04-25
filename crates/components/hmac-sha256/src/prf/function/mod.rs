@@ -20,12 +20,12 @@ pub(crate) enum Prf {
 
 impl Prf {
     pub(crate) fn alloc_master_secret(
-        config: Mode,
+        mode: Mode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Array<U32, 8>,
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
-        let prf = match config {
+        let prf = match mode {
             Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
@@ -41,12 +41,12 @@ impl Prf {
     }
 
     pub(crate) fn alloc_key_expansion(
-        config: Mode,
+        mode: Mode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Array<U32, 8>,
         inner_partial: Array<U32, 8>,
     ) -> Result<Self, PrfError> {
-        let prf = match config {
+        let prf = match mode {
             Mode::Reduced => Self::Local(reduced::PrfFunction::alloc_key_expansion(
                 vm,
                 outer_partial,
