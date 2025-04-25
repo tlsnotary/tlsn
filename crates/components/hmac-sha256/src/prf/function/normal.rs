@@ -141,8 +141,8 @@ enum State {
 
 #[derive(Debug, Clone)]
 struct PHash {
-    pub(crate) msg: Vector<U8>,
-    pub(crate) output: Array<U32, 8>,
+    msg: Vector<U8>,
+    output: Array<U32, 8>,
 }
 
 impl PHash {
