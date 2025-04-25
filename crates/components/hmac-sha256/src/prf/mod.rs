@@ -167,8 +167,41 @@ impl MpcPrf {
     }
 
     /// Returns if the PRF needs to be flushed.
-    pub fn wants_flush(&self) -> bool {
-        todo!()
+    ///
+    /// Also drives forward the inner state.
+    pub fn wants_flush(&mut self) -> bool {
+        let wants_flush = match &self.state {
+            State::Initialized => false,
+            State::SessionKeys {
+                master_secret,
+                key_expansion,
+                ..
+            } => master_secret.wants_flush() || key_expansion.wants_flush(),
+            State::ClientFinished {
+                client_finished, ..
+            } => client_finished.wants_flush(),
+            State::ServerFinished { server_finished } => server_finished.wants_flush(),
+            State::Complete => false,
+            State::Error => false,
+        };
+
+        self.state = match self.state.take() {
+            State::SessionKeys {
+                client_finished,
+                server_finished,
+                ..
+            } if !wants_flush => State::ClientFinished {
+                client_finished,
+                server_finished,
+            },
+            State::ClientFinished {
+                server_finished, ..
+            } if !wants_flush => State::ServerFinished { server_finished },
+            State::ServerFinished { .. } if !wants_flush => State::Complete,
+            other => other,
+        };
+
+        wants_flush
     }
 }
 

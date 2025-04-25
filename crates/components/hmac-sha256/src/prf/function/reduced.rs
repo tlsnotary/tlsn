@@ -55,6 +55,10 @@ impl PrfFunction {
         Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12)
     }
 
+    pub(crate) fn wants_flush(&self) -> bool {
+        todo!()
+    }
+
     pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         let a_assigned = self.is_a_assigned();
         let mut p_assigned = self.is_p_assigned();

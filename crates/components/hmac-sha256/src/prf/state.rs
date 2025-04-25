@@ -10,6 +10,7 @@ use mpz_vm_core::{
     Vm,
 };
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub(crate) enum State {
     Initialized,
