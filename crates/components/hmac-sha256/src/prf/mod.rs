@@ -166,9 +166,7 @@ impl MpcPrf {
         Ok(())
     }
 
-    /// Returns if the PRF needs to be flushed.
-    ///
-    /// Also drives forward the inner state.
+    /// Returns if the PRF needs to be flushed and drives the PRF.
     pub fn wants_flush(&mut self) -> bool {
         let wants_flush = match &self.state {
             State::Initialized => false,
@@ -185,23 +183,50 @@ impl MpcPrf {
             State::Error => false,
         };
 
-        self.state = match self.state.take() {
-            State::SessionKeys {
-                client_finished,
-                server_finished,
-                ..
-            } if !wants_flush => State::ClientFinished {
-                client_finished,
-                server_finished,
-            },
-            State::ClientFinished {
-                server_finished, ..
-            } if !wants_flush => State::ServerFinished { server_finished },
-            State::ServerFinished { .. } if !wants_flush => State::Complete,
-            other => other,
-        };
+        if !wants_flush {
+            self.state = match self.state.take() {
+                State::SessionKeys {
+                    client_finished,
+                    server_finished,
+                    ..
+                } => State::ClientFinished {
+                    client_finished,
+                    server_finished,
+                },
+                State::ClientFinished {
+                    server_finished, ..
+                } => State::ServerFinished { server_finished },
+                State::ServerFinished { .. } => State::Complete,
+                other => other,
+            };
+        }
 
         wants_flush
+    }
+
+    /// Flushes the PRF.
+    pub fn flush(&mut self) -> Result<(), PrfError> {
+        match &mut self.state {
+            State::SessionKeys {
+                master_secret,
+                key_expansion,
+                ..
+            } => {
+                master_secret.flush()?;
+                key_expansion.flush()?;
+            }
+            State::ClientFinished {
+                client_finished, ..
+            } => {
+                client_finished.flush()?;
+            }
+            State::ServerFinished { server_finished } => {
+                server_finished.flush()?;
+            }
+            _ => (),
+        }
+
+        Ok(())
     }
 }
 
