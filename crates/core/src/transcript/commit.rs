@@ -66,6 +66,46 @@ impl TranscriptCommitConfig {
             .any(|(_, kind)| matches!(kind, TranscriptCommitmentKind::Encoding))
     }
 
+    /// Returns whether the builder has a commitment for the given direction and
+    /// range.
+    ///
+    /// # Arguments
+    ///
+    /// * `direction` - The direction of the transcript.
+    /// * `range` - The range of the commitment.
+    pub fn contains(
+        &self,
+        ranges: &dyn ToRangeSet<usize>,
+        direction: Direction,
+    ) -> bool {
+        let idx = Idx::new(ranges.to_range_set());
+
+        self.commits
+            .iter()
+            .any(|((d, i), _)| *d == direction && *i == idx)
+    }
+
+    /// Returns whether the builder has a commitment for the given direction and
+    /// range, with the given kind.
+    ///
+    /// # Arguments
+    ///
+    /// * `direction` - The direction of the transcript.
+    /// * `ranges` - The range of the commitment.
+    /// * `kind` - The kind of commitment.
+    pub fn contains_with_kind(
+        &self,
+        ranges: &dyn ToRangeSet<usize>,
+        direction: Direction,
+        kind: TranscriptCommitmentKind,
+    ) -> bool {
+        let idx = Idx::new(ranges.to_range_set());
+
+        self.commits
+            .iter()
+            .any(|((d, i), k)| *d == direction && *i == idx && *k == kind)
+    }
+
     /// Returns an iterator over the encoding commitment indices.
     pub fn iter_encoding(&self) -> impl Iterator<Item = &(Direction, Idx)> {
         self.commits.iter().filter_map(|(idx, kind)| match kind {
@@ -186,26 +226,6 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         ranges: &dyn ToRangeSet<usize>,
     ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
         self.commit(ranges, Direction::Received)
-    }
-
-    /// Returns whether the builder has a commitment for the given direction and
-    /// range.
-    ///
-    /// # Arguments
-    ///
-    /// * `direction` - The direction of the transcript.
-    /// * `range` - The range of the commitment.
-    /// * `kind` - The kind of commitment.
-    pub fn has_commit(
-        &self,
-        direction: Direction,
-        range: &dyn ToRangeSet<usize>,
-        kind: Option<TranscriptCommitmentKind>,
-    ) -> bool {
-        let idx = Idx::new(range.to_range_set());
-
-        self.commits
-            .contains(&((direction, idx), kind.unwrap_or(self.default_kind)))
     }
 
     /// Builds the configuration.

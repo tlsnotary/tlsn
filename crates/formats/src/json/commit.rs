@@ -274,7 +274,9 @@ mod tests {
     use super::*;
     use rstest::*;
     use spansy::json::{parse_slice, JsonValue, JsonVisit};
-    use tlsn_core::transcript::Transcript;
+    use tlsn_core::transcript::{
+        Transcript, TranscriptCommitConfig, TranscriptCommitConfigBuilder,
+    };
     use tlsn_data_fixtures::json as fixtures;
 
     #[rstest]
@@ -292,47 +294,43 @@ mod tests {
             .commit_value(&mut builder, &json_data, Direction::Received)
             .unwrap();
 
+        let config = builder.build().unwrap();
+
         struct CommitChecker<'a> {
-            builder: &'a TranscriptCommitConfigBuilder<'a>,
+            config: &'a TranscriptCommitConfig,
         }
         impl<'a> JsonVisit for CommitChecker<'a> {
-            fn visit_value(&mut self, _node: &JsonValue) {
-                match _node {
+            fn visit_value(&mut self, node: &JsonValue) {
+                match node {
                     JsonValue::Object(obj) => {
-                        assert!(self.builder.has_commit(
-                            Direction::Received,
-                            &obj.without_pairs(),
-                            None
-                        ));
+                        assert!(self
+                            .config
+                            .contains(&obj.without_pairs(), Direction::Received));
 
                         for kv in &obj.elems {
-                            assert!(self.builder.has_commit(
-                                Direction::Received,
-                                &kv.without_value(),
-                                None
-                            ));
+                            assert!(self
+                                .config
+                                .contains(&kv.without_value(), Direction::Received));
                         }
 
                         JsonVisit::visit_object(self, obj);
                     }
 
                     JsonValue::Array(arr) => {
-                        assert!(self.builder.has_commit(
-                            Direction::Received,
-                            &arr.without_values(),
-                            None
-                        ));
+                        assert!(self
+                            .config
+                            .contains(&arr.without_values(), Direction::Received));
 
                         JsonVisit::visit_array(self, arr);
                     }
 
                     _ => {
-                        if !_node.to_range_set().is_empty() {
+                        if !node.span().is_empty() {
                             assert!(
-                                self.builder.has_commit(Direction::Received, _node, None),
+                                self.config.contains(node, Direction::Received),
                                 "failed to commit to value ({}), at {:?}",
-                                _node.span().as_str(),
-                                _node.to_range_set()
+                                node.span().as_str(),
+                                node.span()
                             );
                         }
                     }
@@ -340,8 +338,6 @@ mod tests {
             }
         }
 
-        CommitChecker { builder: &builder }.visit_value(&json_data);
-
-        builder.build().unwrap();
+        CommitChecker { config: &config }.visit_value(&json_data);
     }
 }
