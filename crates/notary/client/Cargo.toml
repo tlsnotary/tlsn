@@ -3,6 +3,9 @@ name = "notary-client"
 version = "0.1.0-alpha.11-pre"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 notary-server = { workspace = true }
 

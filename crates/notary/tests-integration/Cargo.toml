@@ -4,6 +4,9 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 
+[lints]
+workspace = true
+
 [dev-dependencies]
 notary-client = { workspace = true }
 notary-server = { workspace = true }
