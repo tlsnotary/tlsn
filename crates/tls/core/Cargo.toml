@@ -4,8 +4,8 @@ authors = ["TLSNotary Team"]
 description = "Cryptographic operations for the TLSNotary TLS client"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
-license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.10"
+license = "Apache-2.0 OR ISC OR MIT"
+version = "0.1.0-alpha.11-pre"
 edition = "2021"
 
 [lints]
