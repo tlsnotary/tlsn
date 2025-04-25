@@ -103,6 +103,13 @@ impl Prf {
         Ok(prf)
     }
 
+    pub(crate) fn wants_flush(&self) -> bool {
+        match self {
+            Prf::Local(prf) => prf.wants_flush(),
+            Prf::Mpc(prf) => prf.wants_flush(),
+        }
+    }
+
     pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
         match self {
             Prf::Local(prf) => prf.make_progress(vm),
