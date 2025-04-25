@@ -1,10 +1,11 @@
 //! Computes some hashes of the PRF locally.
 
 use crate::{convert_to_bytes, hmac::HmacSha256, sha256::sha256, PrfError};
+use mpz_core::bitvec::BitVec;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
-        Array, DecodeFutureTyped, MemoryExt, MemoryType, Repr, ViewExt,
+        Array, DecodeFutureTyped, MemoryExt, ViewExt,
     },
     Vm,
 };
@@ -12,6 +13,7 @@ use mpz_vm_core::{
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
     label: &'static [u8],
+    state: State,
     start_seed_label: Option<Vec<u8>>,
     a: Vec<PHash>,
     p: Vec<PHash>,
@@ -55,28 +57,24 @@ impl PrfFunction {
         Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12)
     }
 
-    pub(crate) fn wants_flush(&self) -> bool {
-        todo!()
+    pub(crate) fn wants_flush(&mut self) -> bool {
+        let wants_flush = if let State::Finished = self.state {
+            false
+        } else {
+            true
+        };
+
+        // Drive state
+
+        wants_flush
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        todo!()
-    }
-
-    pub(crate) fn make_progress(&mut self, vm: &mut dyn Vm<Binary>) -> Result<bool, PrfError> {
-        let a_assigned = self.is_a_assigned();
-        let mut p_assigned = self.is_p_assigned();
-
-        if !a_assigned {
-            self.poll_a(vm)?;
+        if let State::Computing = self.state {
+            todo!()
         }
 
-        if !p_assigned {
-            self.poll_p(vm)?;
-            p_assigned = self.is_p_assigned();
-        }
-
-        Ok(p_assigned)
+        Ok(())
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
@@ -87,7 +85,7 @@ impl PrfFunction {
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
-        self.p.iter().map(|p| p.output.value()).collect()
+        self.p.iter().map(|p| p.output).collect()
     }
 
     fn poll_a(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -96,7 +94,7 @@ impl PrfFunction {
         };
 
         for a in self.a.iter_mut() {
-            if let Some(output) = a.output.poll(vm)? {
+            if let Some(output) = a.output_decoded.try_recv().map_err(PrfError::vm)? {
                 message = convert_to_bytes(output).to_vec();
                 continue;
             };
@@ -146,6 +144,7 @@ impl PrfFunction {
         len: usize,
     ) -> Result<Self, PrfError> {
         let mut prf = Self {
+            state: State::Computing,
             label,
             start_seed_label: None,
             a: vec![],
@@ -166,30 +165,21 @@ impl PrfFunction {
 
         Ok(prf)
     }
+}
 
-    fn is_p_assigned(&self) -> bool {
-        self.p
-            .last()
-            .expect("prf should be allocated")
-            .inner_local
-            .1
-    }
-
-    fn is_a_assigned(&self) -> bool {
-        self.a
-            .last()
-            .expect("prf should be allocated")
-            .inner_local
-            .1
-    }
+#[derive(Debug, Clone, Copy)]
+enum State {
+    Computing,
+    Finished,
 }
 
 #[derive(Debug)]
 struct PHash {
-    pub(crate) inner_partial: DecodeOperation<Array<U32, 8>>,
-    // the bool tracks if assignment has already happened
-    pub(crate) inner_local: (Array<U8, 32>, bool),
-    pub(crate) output: DecodeOperation<Array<U32, 8>>,
+    state: InnerState,
+    inner_partial: Array<U32, 8>,
+    inner_local: Array<U8, 32>,
+    output: Array<U32, 8>,
+    output_decoded: DecodeFutureTyped<BitVec, [u32; 8]>,
 }
 
 impl PHash {
@@ -202,11 +192,14 @@ impl PHash {
         let hmac = HmacSha256::new(outer_partial, inner_local);
 
         let output = hmac.alloc(vm).map_err(PrfError::vm)?;
+        let output_decoded = vm.decode(output).map_err(PrfError::vm)?;
 
         let p_hash = Self {
-            inner_partial: DecodeOperation::new(inner_partial),
-            inner_local: (inner_local, false),
-            output: DecodeOperation::new(output),
+            state: InnerState::Init,
+            inner_partial,
+            inner_local,
+            output,
+            output_decoded,
         };
 
         Ok(p_hash)
@@ -218,85 +211,22 @@ impl PHash {
         inner_partial: [u32; 8],
         msg: &[u8],
     ) -> Result<(), PrfError> {
-        if !self.inner_local.1 {
-            let inner_local_ref: Array<U8, 32> = self.inner_local.0;
-            let inner_local = sha256(inner_partial, 64, msg);
+        let inner_local_ref: Array<U8, 32> = self.inner_local;
+        let inner_local = sha256(inner_partial, 64, msg);
 
-            vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
-            vm.assign(inner_local_ref, convert_to_bytes(inner_local))
-                .map_err(PrfError::vm)?;
-            vm.commit(inner_local_ref).map_err(PrfError::vm)?;
+        vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
+        vm.assign(inner_local_ref, convert_to_bytes(inner_local))
+            .map_err(PrfError::vm)?;
+        vm.commit(inner_local_ref).map_err(PrfError::vm)?;
 
-            self.inner_local.1 = true
-        }
+        self.state = InnerState::Assigned;
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
-struct DecodeOperation<T>
-where
-    T: Repr<Binary, Clear: std::fmt::Debug>,
-{
-    value: T,
-    progress: DecodeProgress<T>,
-}
-
-impl<T> DecodeOperation<T>
-where
-    T: Repr<Binary, Clear: std::fmt::Debug + Copy> + Copy,
-{
-    pub(crate) fn new(value: T) -> Self {
-        Self {
-            value,
-            progress: DecodeProgress::Alloc,
-        }
-    }
-
-    pub(crate) fn value(&self) -> T {
-        self.value
-    }
-
-    pub(crate) fn poll(&mut self, vm: &mut dyn Vm<Binary>) -> Result<Option<T::Clear>, PrfError> {
-        self.progress.poll(vm, self.value)
-    }
-}
-
-#[derive(Debug)]
-enum DecodeProgress<T>
-where
-    T: Repr<Binary>,
-{
-    Alloc,
-    Decoded(DecodeFutureTyped<<Binary as MemoryType>::Raw, T::Clear>),
-    Finished(T::Clear),
-}
-
-impl<T> DecodeProgress<T>
-where
-    T: Repr<Binary, Clear: Copy> + Copy,
-{
-    pub(crate) fn poll(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-        value: T,
-    ) -> Result<Option<T::Clear>, PrfError> {
-        match self {
-            DecodeProgress::Alloc => {
-                let value = vm.decode(value).map_err(PrfError::vm)?;
-                *self = DecodeProgress::Decoded(value);
-                Ok(None)
-            }
-            DecodeProgress::Decoded(value) => {
-                if let Some(value) = value.try_recv().map_err(PrfError::vm)? {
-                    *self = DecodeProgress::Finished(value);
-                    Ok(Some(value))
-                } else {
-                    Ok(None)
-                }
-            }
-            DecodeProgress::Finished(value) => Ok(Some(*value)),
-        }
-    }
+#[derive(Debug, Clone, Copy)]
+enum InnerState {
+    Init,
+    Assigned,
 }
