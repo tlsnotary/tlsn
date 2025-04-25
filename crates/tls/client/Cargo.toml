@@ -4,13 +4,8 @@ authors = ["TLSNotary Team"]
 description = "A TLS client for TLSNotary"
 keywords = ["tls", "mpc", "2pc", "client", "sync"]
 categories = ["cryptography"]
-<<<<<<< HEAD
 license = "Apache-2.0 OR ISC OR MIT"
-version = "0.1.0-alpha.10"
-=======
-license = "MIT OR Apache-2.0"
 version = "0.1.0-alpha.11-pre"
->>>>>>> dev
 edition = "2021"
 autobenches = false
 
