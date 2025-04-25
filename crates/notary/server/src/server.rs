@@ -26,7 +26,7 @@ use std::{
 };
 use tlsn_core::CryptoProvider;
 use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::{rustls, TlsAcceptor};
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use tracing::{debug, error, info};
@@ -214,6 +214,15 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
 
                     Err(err) => {
                         error!("{}", NotaryServerError::Connection(err.to_string()));
+
+                        if let Some(rustls::Error::InvalidMessage(
+                            rustls::InvalidMessage::InvalidContentType,
+                        )) = err
+                            .get_ref()
+                            .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+                        {
+                            error!("Perhaps the client is connecting without TLS");
+                        }
                     }
                 }
             } else {
