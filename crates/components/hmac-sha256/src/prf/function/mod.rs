@@ -151,17 +151,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_phash_reduced() {
-        let config = Mode::Reduced;
-        test_phash(config).await;
+        let mode = Mode::Reduced;
+        test_phash(mode).await;
     }
 
     #[tokio::test]
     async fn test_phash_normal() {
-        let config = Mode::Normal;
-        test_phash(config).await;
+        let mode = Mode::Normal;
+        test_phash(mode).await;
     }
 
-    async fn test_phash(config: Mode) {
+    async fn test_phash(mode: Mode) {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut leader, mut follower) = mock_vm();
 
@@ -181,7 +181,7 @@ mod tests {
         let inner_partial_leader = compute_partial(&mut leader, leader_key.into(), IPAD).unwrap();
 
         let mut prf_leader = Prf::alloc_master_secret(
-            config,
+            mode,
             &mut leader,
             outer_partial_leader,
             inner_partial_leader,
@@ -206,7 +206,7 @@ mod tests {
             compute_partial(&mut follower, follower_key.into(), IPAD).unwrap();
 
         let mut prf_follower = Prf::alloc_master_secret(
-            config,
+            mode,
             &mut follower,
             outer_partial_follower,
             inner_partial_follower,

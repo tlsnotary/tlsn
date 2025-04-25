@@ -68,17 +68,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_prf_reduced() {
-        let config = Mode::Reduced;
-        test_prf(config).await;
+        let mode = Mode::Reduced;
+        test_prf(mode).await;
     }
 
     #[tokio::test]
     async fn test_prf_normal() {
-        let config = Mode::Normal;
-        test_prf(config).await;
+        let mode = Mode::Normal;
+        test_prf(mode).await;
     }
 
-    async fn test_prf(config: Mode) {
+    async fn test_prf(mode: Mode) {
         let mut rng = StdRng::seed_from_u64(1);
         // Test input
         let pms: [u8; 32] = rng.random();
@@ -119,8 +119,8 @@ mod tests {
         follower.assign(follower_pms, pms).unwrap();
         follower.commit(follower_pms).unwrap();
 
-        let mut prf_leader = MpcPrf::new(config);
-        let mut prf_follower = MpcPrf::new(config);
+        let mut prf_leader = MpcPrf::new(mode);
+        let mut prf_follower = MpcPrf::new(mode);
 
         let leader_prf_out = prf_leader.alloc(&mut leader, leader_pms).unwrap();
         let follower_prf_out = prf_follower.alloc(&mut follower, follower_pms).unwrap();
