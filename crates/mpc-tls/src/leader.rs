@@ -541,8 +541,8 @@ impl Backend for MpcTlsLeader {
         prf.set_sf_hash(hash).map_err(MpcTlsError::hs)?;
 
         while prf.wants_flush() {
+            prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
-            prf.flush().map_err(MpcTlsError::hs)?;
         }
 
         let sf_vd = sf_vd
@@ -587,8 +587,8 @@ impl Backend for MpcTlsLeader {
         prf.set_cf_hash(hash).map_err(MpcTlsError::hs)?;
 
         while prf.wants_flush() {
+            prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
-            prf.flush().map_err(MpcTlsError::hs)?;
         }
 
         let cf_vd = cf_vd
@@ -653,11 +653,11 @@ impl Backend for MpcTlsLeader {
             ke.assign(&mut (*vm_lock)).map_err(MpcTlsError::hs)?;
 
             while prf.wants_flush() {
+                prf.flush(&mut *vm_lock).map_err(MpcTlsError::hs)?;
                 vm_lock
                     .execute_all(&mut ctx)
                     .await
                     .map_err(MpcTlsError::hs)?;
-                prf.flush().map_err(MpcTlsError::hs)?;
             }
 
             ke.finalize().await.map_err(MpcTlsError::hs)?;

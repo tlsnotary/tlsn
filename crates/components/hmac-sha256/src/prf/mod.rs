@@ -205,23 +205,23 @@ impl MpcPrf {
     }
 
     /// Flushes the PRF.
-    pub fn flush(&mut self) -> Result<(), PrfError> {
+    pub fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         match &mut self.state {
             State::SessionKeys {
                 master_secret,
                 key_expansion,
                 ..
             } => {
-                master_secret.flush()?;
-                key_expansion.flush()?;
+                master_secret.flush(vm)?;
+                key_expansion.flush(vm)?;
             }
             State::ClientFinished {
                 client_finished, ..
             } => {
-                client_finished.flush()?;
+                client_finished.flush(vm)?;
             }
             State::ServerFinished { server_finished } => {
-                server_finished.flush()?;
+                server_finished.flush(vm)?;
             }
             _ => (),
         }
