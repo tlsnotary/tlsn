@@ -1,6 +1,6 @@
 [package]
 name = "tlsn-wasm"
-version = "0.1.0-alpha.10"
+version = "0.1.0-alpha.11-pre"
 edition = "2021"
 repository = "https://github.com/tlsnotary/tlsn.git"
 description = "A core WebAssembly package for TLSNotary."
