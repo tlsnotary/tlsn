@@ -10,6 +10,8 @@ pub struct ProverConfig {
     pub max_recv_data_online: Option<usize>,
     pub max_recv_data: usize,
     pub defer_decryption_from_start: Option<bool>,
+    pub max_sent_records: Option<usize>,
+    pub max_recv_records: Option<usize>,
 }
 
 impl From<ProverConfig> for tlsn_prover::ProverConfig {
@@ -21,6 +23,14 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
 
         if let Some(value) = value.max_recv_data_online {
             builder.max_recv_data_online(value);
+        }
+
+        if let Some(value) = value.max_sent_records {
+            builder.max_sent_records(value);
+        }
+
+        if let Some(value) = value.max_recv_records {
+            builder.max_recv_records(value);
         }
 
         let protocol_config = builder.build().unwrap();
