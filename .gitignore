@@ -22,6 +22,9 @@ Cargo.lock
 # vscode project specific settings
 .vscode/
 
+# idea project specific settings
+.idea
+
 # transcript
 *.json
 

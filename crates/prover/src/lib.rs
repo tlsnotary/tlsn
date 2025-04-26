@@ -25,7 +25,7 @@ use mpc_tls::{LeaderCtrl, MpcTlsLeader};
 use rand::Rng;
 use serio::SinkExt;
 use std::sync::Arc;
-use tls_client::{ClientConnection, ServerName as TlsServerName};
+use tls_client::{Backend, ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, TlsConnection};
 use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
@@ -41,6 +41,7 @@ use tlsn_core::{
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
+use tls_core::key::PublicKey;
 use tracing::{debug, info_span, instrument, Instrument, Span};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
@@ -308,6 +309,23 @@ impl Prover<state::Setup> {
                 ctrl: ProverControl { mpc_ctrl },
             },
         ))
+    }
+
+    /// Gets public client keyshare.
+    pub async fn get_client_key(&mut self) -> Result<PublicKey, ProverError> {
+        let client_key_share = self
+            .state
+            .mpc_tls
+            .get_client_key_share()
+            .await
+            .map_err(ProverError::zk)?;
+        Ok(client_key_share)
+    }
+
+    /// Gets prover's public key share
+    pub fn get_key_share(&self) -> Result<PublicKey, ProverError> {
+        let key_share = self.state.mpc_tls.get_key_share()?;
+        Ok(key_share)
     }
 }
 

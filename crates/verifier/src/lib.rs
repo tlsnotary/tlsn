@@ -37,6 +37,7 @@ use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use web_time::{SystemTime, UNIX_EPOCH};
 
+use tls_core::key::PublicKey;
 use tracing::{debug, info, info_span, instrument, Span};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
@@ -295,6 +296,11 @@ impl Verifier<state::Setup> {
                 transcript_refs,
             },
         })
+    }
+
+    /// Gets verifier's public key share
+    pub fn get_key_share(&self) -> Result<PublicKey, VerifierError> {
+        Ok(self.state.mpc_tls.key_share()?)
     }
 }
 

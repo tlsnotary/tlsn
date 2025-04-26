@@ -340,6 +340,26 @@ impl MpcTlsLeader {
     pub fn stop(&mut self, ctx: &mut LudiContext<Self>) {
         ctx.stop();
     }
+
+    /// Gets leader public key share
+    pub fn get_key_share(&self) -> Result<PublicKey, MpcTlsError> {
+        match &self.state {
+            State::Setup { ke, .. }
+            | State::Active { ke, .. }
+            | State::Handshake { ke, .. }
+            | State::Init { ke, .. } => {
+                let key_share = ke.key_share()?;
+                Ok(PublicKey::new(
+                    NamedGroup::secp256r1,
+                    &p256::EncodedPoint::from(key_share).to_bytes(),
+                ))
+            }
+            State::Closed { .. } | State::Error { .. } => Err(MpcTlsError::state(format!(
+                "can not get key share in state: {}",
+                self.state
+            ))),
+        }
+    }
 }
 
 #[async_trait]
@@ -674,7 +694,7 @@ impl Backend for MpcTlsLeader {
             ctx,
             vm,
             keys,
-            _ke: ke,
+            ke,
             prf,
             record_layer,
             cf_vd,
@@ -1009,7 +1029,7 @@ enum State {
         ctx: Context,
         vm: Vm,
         keys: SessionKeys,
-        _ke: Box<dyn KeyExchange + Send + Sync + 'static>,
+        ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
         cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,

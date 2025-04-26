@@ -221,6 +221,11 @@ where
     }
 
     #[instrument(level = "debug", skip_all, err)]
+    fn key_share(&self) -> Result<PublicKey, KeyExchangeError> {
+        Ok(self.private_key.public_key())
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
     async fn setup(&mut self, ctx: &mut Context) -> Result<(), KeyExchangeError> {
         let State::Setup {
             share_a0,
