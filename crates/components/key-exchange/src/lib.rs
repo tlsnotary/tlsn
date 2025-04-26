@@ -64,6 +64,13 @@ pub trait KeyExchange {
     /// key.
     fn client_key(&self) -> Result<PublicKey, KeyExchangeError>;
 
+    /// Gets this party's individual public key share (before any combination).
+    ///
+    /// For the Leader, this returns the Leader's public key.
+    /// For the Follower, this returns the Follower's public key.
+    /// This is distinct from `client_key()` which returns the combined key.
+    fn key_share(&self) -> Result<PublicKey, KeyExchangeError>;
+
     /// Performs one-time setup for the key exchange protocol.
     async fn setup(&mut self, ctx: &mut Context) -> Result<(), KeyExchangeError>;
 

@@ -21,11 +21,14 @@ use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use rand06_compat::Rand0_6CompatExt;
 use serio::stream::IoStreamExt;
 use std::mem;
-use tls_core::msgs::{
-    alert::AlertMessagePayload,
-    codec::{Codec, Reader},
-    enums::{AlertDescription, ContentType, NamedGroup, ProtocolVersion},
-    handshake::{HandshakeMessagePayload, HandshakePayload},
+use tls_core::{
+    key::PublicKey,
+    msgs::{
+        alert::AlertMessagePayload,
+        codec::{Codec, Reader},
+        enums::{AlertDescription, ContentType, NamedGroup, ProtocolVersion},
+        handshake::{HandshakeMessagePayload, HandshakePayload},
+    },
 };
 use tlsn_common::transcript::TlsTranscript;
 use tracing::{debug, instrument};
@@ -393,6 +396,20 @@ impl MpcTlsFollower {
                 keys,
             },
         ))
+    }
+
+    /// Gets key share
+    pub fn key_share(&self) -> Result<PublicKey, MpcTlsError> {
+        match &self.state {
+            State::Init { ke, .. } | State::Setup { ke, .. } | State::Ready { ke, .. } => {
+                let key_share = ke.key_share()?;
+                Ok(PublicKey::new(
+                    NamedGroup::secp256r1,
+                    &p256::EncodedPoint::from(key_share).to_bytes(),
+                ))
+            }
+            State::Error => Err(MpcTlsError::state("can not get key share in Error state")),
+        }
     }
 }
 
