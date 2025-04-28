@@ -1,10 +1,13 @@
-use axum::http::{header, request::Parts};
+use axum::http::request::Parts;
 use axum_core::extract::{FromRef, FromRequestParts};
 use std::collections::HashMap;
 use tracing::{error, trace};
 
 use crate::{
-    domain::{auth::AuthorizationWhitelistRecord, notary::NotaryGlobals},
+    domain::{
+        auth::{AuthorizationWhitelistRecord, X_API_KEY_HEADER},
+        notary::NotaryGlobals,
+    },
     NotaryServerError,
 };
 
@@ -26,7 +29,7 @@ where
         };
         let auth_header = parts
             .headers
-            .get(header::AUTHORIZATION)
+            .get(X_API_KEY_HEADER)
             .and_then(|value| std::str::from_utf8(value.as_bytes()).ok());
 
         match auth_header {
