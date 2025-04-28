@@ -12,8 +12,13 @@ use mpz_vm_core::{
 
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
+    // The label, e.g. "master secret".
     label: &'static [u8],
-    start_seed_label: Option<Vec<u8>>,
+    // The start seed and the label, e.g. client_random + server_random + "master_secret".
+    start_seed_label: Vec<u8>,
+    // The current HMAC message needed for a[i]
+    a_msg: Vec<u8>,
+    inner_partial: InnerPartial,
     a: Vec<PHash>,
     p: Vec<PHash>,
 }
@@ -66,18 +71,16 @@ impl PrfFunction {
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let mut message = self.start_seed_label.clone();
+        let inner_partial = self.inner_partial.try_recv()?;
+        let Some(inner_partial) = inner_partial else {
+            return Ok(());
+        };
 
         for (a, p) in self.a.iter_mut().zip(self.p.iter_mut()) {
             match &mut a.state {
-                State::Init { inner_partial, .. } => {
-                    if let (Some(msg), Some(inner_partial)) = (
-                        message.as_ref(),
-                        inner_partial.try_recv().map_err(PrfError::vm)?,
-                    ) {
-                        a.assign_inner_local(vm, inner_partial, msg)?;
-                        message = None;
-                    }
+                State::Init { .. } => {
+                    a.assign_inner_local(vm, inner_partial, &self.a_msg)?;
+                    break;
                 }
                 State::Assigned { output } => {
                     if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
@@ -85,33 +88,24 @@ impl PrfFunction {
                         a.state = State::Finished {
                             output: output.clone(),
                         };
-                        message = Some(output);
+                        self.a_msg = output;
                     }
                 }
-                State::Finished { output } => {
-                    message = Some(output.clone());
-                }
+                _ => (),
             }
 
             match &mut p.state {
-                State::Init { inner_partial, .. } => {
-                    if let (State::Finished { output }, Some(inner_partial)) =
-                        (&a.state, inner_partial.try_recv().map_err(PrfError::vm)?)
-                    {
-                        let mut msg = output.to_vec();
-                        msg.extend_from_slice(
-                            self.start_seed_label
-                                .as_ref()
-                                .expect("Start seed for PRF should be set"),
-                        );
-
-                        p.assign_inner_local(vm, inner_partial, &msg)?;
+                State::Init { .. } => {
+                    if let State::Finished { output } = &a.state {
+                        let mut p_msg = output.to_vec();
+                        p_msg.extend_from_slice(&self.start_seed_label);
+                        p.assign_inner_local(vm, inner_partial, &p_msg)?;
                     }
                 }
                 State::Assigned { output } => {
                     if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
                         let output = convert_to_bytes(output).to_vec();
-                        a.state = State::Finished { output };
+                        p.state = State::Finished { output };
                     }
                 }
                 _ => (),
@@ -125,7 +119,8 @@ impl PrfFunction {
         let mut start_seed_label = self.label.to_vec();
         start_seed_label.extend_from_slice(&seed);
 
-        self.start_seed_label = Some(start_seed_label);
+        self.start_seed_label = start_seed_label.clone();
+        self.a_msg = start_seed_label;
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
@@ -139,9 +134,13 @@ impl PrfFunction {
         inner_partial: Array<U32, 8>,
         len: usize,
     ) -> Result<Self, PrfError> {
+        let inner_partial = vm.decode(inner_partial).map_err(PrfError::vm)?;
+
         let mut prf = Self {
             label,
-            start_seed_label: None,
+            start_seed_label: vec![],
+            a_msg: vec![],
+            inner_partial: InnerPartial::Decoding(inner_partial),
             a: vec![],
             p: vec![],
         };
@@ -151,10 +150,10 @@ impl PrfFunction {
         let iterations = len / 32 + ((len % 32) != 0) as usize;
 
         for _ in 0..iterations {
-            let a = PHash::alloc(vm, outer_partial, inner_partial)?;
+            let a = PHash::alloc(vm, outer_partial)?;
             prf.a.push(a);
 
-            let p = PHash::alloc(vm, outer_partial, inner_partial)?;
+            let p = PHash::alloc(vm, outer_partial)?;
             prf.p.push(p);
         }
 
@@ -169,22 +168,14 @@ struct PHash {
 }
 
 impl PHash {
-    fn alloc(
-        vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
-    ) -> Result<Self, PrfError> {
+    fn alloc(vm: &mut dyn Vm<Binary>, outer_partial: Array<U32, 8>) -> Result<Self, PrfError> {
         let inner_local = vm.alloc().map_err(PrfError::vm)?;
         let hmac = HmacSha256::new(outer_partial, inner_local);
 
         let output = hmac.alloc(vm).map_err(PrfError::vm)?;
 
-        let inner_partial = vm.decode(inner_partial).map_err(PrfError::vm)?;
         let p_hash = Self {
-            state: State::Init {
-                inner_partial,
-                inner_local,
-            },
+            state: State::Init { inner_local },
             output,
         };
 
@@ -216,7 +207,6 @@ impl PHash {
 #[derive(Debug)]
 enum State {
     Init {
-        inner_partial: DecodeFutureTyped<BitVec, [u32; 8]>,
         inner_local: Array<U8, 32>,
     },
     Assigned {
@@ -225,4 +215,25 @@ enum State {
     Finished {
         output: Vec<u8>,
     },
+}
+
+#[derive(Debug)]
+enum InnerPartial {
+    Decoding(DecodeFutureTyped<BitVec, [u32; 8]>),
+    Finished([u32; 8]),
+}
+
+impl InnerPartial {
+    pub(crate) fn try_recv(&mut self) -> Result<Option<[u32; 8]>, PrfError> {
+        match self {
+            InnerPartial::Decoding(value) => {
+                let value = value.try_recv().map_err(PrfError::vm)?;
+                if let Some(value) = value {
+                    *self = InnerPartial::Finished(value);
+                }
+                Ok(value)
+            }
+            InnerPartial::Finished(value) => Ok(Some(*value)),
+        }
+    }
 }
