@@ -13,9 +13,11 @@ use std::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
+    // The label, e.g. "master secret".
     label: &'static [u8],
     state: State,
-    start_seed_label: Option<Vec<u8>>,
+    // The start seed and the label, e.g. client_random + server_random + "master_secret".
+    start_seed_label: Vec<u8>,
     a: Vec<PHash>,
     p: Vec<PHash>,
 }
@@ -67,13 +69,10 @@ impl PrfFunction {
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         if let State::Computing = self.state {
-            let a = self.a.first_mut().expect("prf should be allocated");
+            let a = self.a.first().expect("prf should be allocated");
             let msg = a.msg;
 
-            let msg_value = self
-                .start_seed_label
-                .clone()
-                .expect("seed should be assigned by now");
+            let msg_value = self.start_seed_label.clone();
 
             vm.mark_public(msg).map_err(PrfError::vm)?;
             vm.assign(msg, msg_value).map_err(PrfError::vm)?;
@@ -88,7 +87,7 @@ impl PrfFunction {
         let mut start_seed_label = self.label.to_vec();
         start_seed_label.extend_from_slice(&seed);
 
-        self.start_seed_label = Some(start_seed_label);
+        self.start_seed_label = start_seed_label;
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
@@ -106,7 +105,7 @@ impl PrfFunction {
         let mut prf = Self {
             label,
             state: State::Computing,
-            start_seed_label: None,
+            start_seed_label: vec![],
             a: vec![],
             p: vec![],
         };
