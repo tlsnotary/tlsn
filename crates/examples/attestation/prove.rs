@@ -4,23 +4,23 @@
 
 use std::env;
 
+use clap::Parser;
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use spansy::Spanned;
-use tlsn_examples::ExampleType;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tracing::debug;
 
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
-use tls_server_fixture::SERVER_DOMAIN;
+use tls_core::verify::WebPkiVerifier;
+use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig};
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
+use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
-use tracing::debug;
-
-use clap::Parser;
 
 // Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
@@ -90,6 +90,20 @@ async fn notarize(
         .await
         .expect("Could not connect to notary. Make sure it is running.");
 
+    // Create a crypto provider accepting the server-fixture's self-signed
+    // root certificate.
+    //
+    // This is only required for offline testing with the server-fixture. In
+    // production, use `CryptoProvider::default()` instead.
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+    let crypto_provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
+
     // Set up protocol configuration for prover.
     // Prover configuration.
     let prover_config = ProverConfig::builder()
@@ -103,7 +117,7 @@ async fn notarize(
                 .max_recv_data(tlsn_examples::MAX_RECV_DATA)
                 .build()?,
         )
-        .crypto_provider(tlsn_examples::get_crypto_provider_with_server_fixture())
+        .crypto_provider(crypto_provider)
         .build()?;
 
     // Create a new prover and perform necessary setup.

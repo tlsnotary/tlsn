@@ -4,12 +4,15 @@
 
 use std::time::Duration;
 
+use clap::Parser;
+
+use tls_core::verify::WebPkiVerifier;
+use tls_server_fixture::CA_CERT_DER;
 use tlsn_core::{
     presentation::{Presentation, PresentationOutput},
     signing::VerifyingKey,
+    CryptoProvider,
 };
-
-use clap::Parser;
 use tlsn_examples::ExampleType;
 
 #[derive(Parser, Debug)]
@@ -33,7 +36,19 @@ async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
 
     let presentation: Presentation = bincode::deserialize(&std::fs::read(presentation_path)?)?;
 
-    let provider = tlsn_examples::get_crypto_provider_with_server_fixture();
+    // Create a crypto provider accepting the server-fixture's self-signed
+    // root certificate.
+    //
+    // This is only required for offline testing with the server-fixture. In
+    // production, use `CryptoProvider::default()` instead.
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+    let crypto_provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
 
     let VerifyingKey {
         alg,
@@ -52,7 +67,7 @@ async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         transcript,
         // extensions, // Optionally, verify any custom extensions from prover/notary.
         ..
-    } = presentation.verify(&provider).unwrap();
+    } = presentation.verify(&crypto_provider).unwrap();
 
     // The time at which the connection was started.
     let time = chrono::DateTime::UNIX_EPOCH + Duration::from_secs(connection_info.time);
