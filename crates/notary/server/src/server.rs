@@ -33,17 +33,15 @@ use tracing::{debug, error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    config::{NotaryServerProperties, NotarySigningKeyProperties},
-    domain::{
-        auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord},
-        notary::NotaryGlobals,
-        InfoResponse,
-    },
+    api::{InfoResponse, NotaryGlobals},
+    auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord},
+    config::NotaryServerProperties,
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
     signing::AttestationKey,
     util::parse_csv_file,
+    NotarizationProperties,
 };
 
 #[cfg(feature = "tee_quote")]
@@ -55,7 +53,7 @@ use tokio::sync::Semaphore;
 /// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
-    let attestation_key = load_attestation_key(&config.notary_key).await?;
+    let attestation_key = load_attestation_key(&config.notarization).await?;
     let crypto_provider = build_crypto_provider(attestation_key);
 
     // Build TLS acceptor if it is turned on
@@ -65,12 +63,12 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     } else {
         let private_key_pem_path = config
             .tls
-            .private_key_pem_path
+            .private_key_path
             .as_deref()
             .ok_or_else(|| eyre!("TLS is enabled but private key PEM path is not set"))?;
         let certificate_pem_path = config
             .tls
-            .certificate_pem_path
+            .certificate_path
             .as_deref()
             .ok_or_else(|| eyre!("TLS is enabled but certificate PEM path is not set"))?;
 
@@ -100,10 +98,10 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     }
 
     let notary_address = SocketAddr::new(
-        IpAddr::V4(config.server.host.parse().map_err(|err| {
+        IpAddr::V4(config.host.parse().map_err(|err| {
             eyre!("Failed to parse notary host address from server config: {err}")
         })?),
-        config.server.port,
+        config.port,
     );
     let mut listener = TcpListener::bind(notary_address)
         .await
@@ -120,13 +118,13 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     );
 
     // Parameters needed for the info endpoint
-    let public_key = std::fs::read_to_string(&config.notary_key.public_key_pem_path)
+    let public_key = std::fs::read_to_string(config.notarization.public_key_path.as_ref().unwrap())
         .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
     let version = env!("CARGO_PKG_VERSION").to_string();
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
 
     // Parameters needed for the root / endpoint
-    let html_string = config.server.html_info.clone();
+    let html_string = config.html_info.clone();
     let html_info = Html(
         html_string
             .replace("{version}", &version)
@@ -253,13 +251,13 @@ fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
 }
 
 /// Load notary signing key for attestations from static file
-async fn load_attestation_key(config: &NotarySigningKeyProperties) -> Result<AttestationKey> {
+async fn load_attestation_key(config: &NotarizationProperties) -> Result<AttestationKey> {
     #[cfg(feature = "tee_quote")]
     generate_ephemeral_keypair(&config.private_key_pem_path, &config.public_key_pem_path);
 
     debug!("Loading notary server's signing key");
 
-    let mut file = File::open(&config.private_key_pem_path).await?;
+    let mut file = File::open(config.private_key_path.as_ref().unwrap()).await?;
     let mut pem = String::new();
     file.read_to_string(&mut pem)
         .await
@@ -310,18 +308,14 @@ async fn load_tls_key_and_cert(
 fn load_authorization_whitelist(
     config: &NotaryServerProperties,
 ) -> Result<Option<HashMap<String, AuthorizationWhitelistRecord>>> {
-    let authorization_whitelist = if !config.authorization.enabled {
+    let authorization_whitelist = if !config.auth.enabled {
         debug!("Skipping authorization as it is turned off.");
         None
     } else {
         // Check if whitelist_csv_path is Some and convert to &str
-        let whitelist_csv_path = config
-            .authorization
-            .whitelist_csv_path
-            .as_deref()
-            .ok_or_else(|| {
-                eyre!("Authorization whitelist csv path is not provided in the config")
-            })?;
+        let whitelist_csv_path = config.auth.whitelist_path.as_deref().ok_or_else(|| {
+            eyre!("Authorization whitelist csv path is not provided in the config")
+        })?;
         // Load the csv
         let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
             .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
@@ -375,13 +369,9 @@ fn watch_and_reload_authorization_whitelist(
         .map_err(|err| eyre!("Error occured when setting up watcher for hot reload: {err}"))?;
 
         // Check if whitelist_csv_path is Some and convert to &str
-        let whitelist_csv_path = config
-            .authorization
-            .whitelist_csv_path
-            .as_deref()
-            .ok_or_else(|| {
-                eyre!("Authorization whitelist csv path is not provided in the config")
-            })?;
+        let whitelist_csv_path = config.auth.whitelist_path.as_deref().ok_or_else(|| {
+            eyre!("Authorization whitelist csv path is not provided in the config")
+        })?;
 
         // Start watcher to listen to any changes on the whitelist file
         watcher
@@ -419,9 +409,10 @@ mod test {
 
     #[tokio::test]
     async fn test_load_attestation_key() {
-        let config = NotarySigningKeyProperties {
-            private_key_pem_path: "./fixture/notary/notary.key".to_string(),
-            public_key_pem_path: "./fixture/notary/notary.pub".to_string(),
+        let config = NotarizationProperties {
+            private_key_path: Some("./fixture/notary/notary.key".to_string()),
+            public_key_path: Some("./fixture/notary/notary.pub".to_string()),
+            ..Default::default()
         };
         load_attestation_key(&config).await.unwrap();
     }
@@ -435,9 +426,9 @@ mod test {
 
         // Setup watcher
         let config = NotaryServerProperties {
-            authorization: AuthorizationProperties {
+            auth: AuthorizationProperties {
                 enabled: true,
-                whitelist_csv_path: Some(whitelist_csv_path.clone()),
+                whitelist_path: Some(whitelist_csv_path.clone()),
             },
             ..Default::default()
         };
@@ -461,7 +452,7 @@ mod test {
             api_key: "unit-test-api-key".to_string(),
             created_at: "unit-test-created-at".to_string(),
         };
-        if let Some(ref path) = config.authorization.whitelist_csv_path {
+        if let Some(ref path) = config.auth.whitelist_path {
             let file = OpenOptions::new().append(true).open(path).unwrap();
             let mut wtr = WriterBuilder::new()
                 .has_headers(false) // Set to false to avoid writing header again

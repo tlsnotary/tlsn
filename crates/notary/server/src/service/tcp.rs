@@ -10,7 +10,7 @@ use std::future::Future;
 use tokio::time::Instant;
 use tracing::{debug, error, info};
 
-use crate::{domain::notary::NotaryGlobals, service::notary_service, NotaryServerError};
+use crate::{api::NotaryGlobals, service::notary_service, NotaryServerError};
 
 /// Custom extractor used to extract underlying TCP connection for TCP client —
 /// using the same upgrade primitives used by the WebSocket implementation where

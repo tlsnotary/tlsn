@@ -23,7 +23,7 @@ use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 use crate::{
-    domain::notary::{
+    api::{
         NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
         NotaryGlobals,
     },

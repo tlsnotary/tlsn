@@ -6,7 +6,24 @@ use std::{
 use tlsn_core::CryptoProvider;
 use tokio::sync::Semaphore;
 
-use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
+#[cfg(feature = "tee_quote")]
+use crate::tee::Quote;
+use crate::{auth::AuthorizationWhitelistRecord, config::NotarizationProperties};
+
+/// Response object of the /info API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InfoResponse {
+    /// Current version of notary-server
+    pub version: String,
+    /// Public key of the notary signing key
+    pub public_key: String,
+    /// Current git commit hash of notary-server
+    pub git_commit_hash: String,
+    /// Hardware attestation
+    #[cfg(feature = "tee_quote")]
+    pub quote: Quote,
+}
 
 /// Response object of the /session API
 #[derive(Debug, Clone, Serialize, Deserialize)]

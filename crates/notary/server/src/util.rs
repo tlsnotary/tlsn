@@ -24,7 +24,7 @@ pub fn parse_csv_file<T: DeserializeOwned>(location: &str) -> Result<Vec<T>> {
 mod test {
 
     use crate::{
-        config::NotaryServerProperties, domain::auth::AuthorizationWhitelistRecord,
+        config::NotaryServerProperties, auth::AuthorizationWhitelistRecord,
         util::parse_csv_file,
     };
 

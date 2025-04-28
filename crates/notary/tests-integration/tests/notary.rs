@@ -28,9 +28,8 @@ use tracing_subscriber::EnvFilter;
 use ws_stream_tungstenite::WsStream;
 
 use notary_server::{
-    read_pem_file, run_server, AuthorizationProperties, LoggingProperties, NotarizationProperties,
-    NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties,
-    NotarySigningKeyProperties, ServerProperties, TLSProperties,
+    read_pem_file, run_server, AuthorizationProperties, LogProperties, NotarizationProperties,
+    NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties, TLSProperties,
 };
 
 const MAX_SENT_DATA: usize = 1 << 13;
@@ -49,33 +48,27 @@ fn get_server_config(
     concurrency: usize,
 ) -> NotaryServerProperties {
     NotaryServerProperties {
-        server: ServerProperties {
-            name: NOTARY_DNS.to_string(),
-            host: NOTARY_HOST.to_string(),
-            port,
-            html_info: "example html response".to_string(),
-        },
+        host: NOTARY_HOST.to_string(),
+        port,
+        html_info: "example html response".to_string(),
         notarization: NotarizationProperties {
             max_sent_data: 1 << 13,
             max_recv_data: 1 << 14,
-            timeout: 1800,
+            private_key_path: Some("../server/fixture/notary/notary.key".to_string()),
+            public_key_path: Some("../server/fixture/notary/notary.pub".to_string()),
+            ..Default::default()
         },
         tls: TLSProperties {
             enabled: tls_enabled,
-            private_key_pem_path: Some("../server/fixture/tls/notary.key".to_string()),
-            certificate_pem_path: Some("../server/fixture/tls/notary.crt".to_string()),
+            private_key_path: Some("../server/fixture/tls/notary.key".to_string()),
+            certificate_path: Some("../server/fixture/tls/notary.crt".to_string()),
         },
-        notary_key: NotarySigningKeyProperties {
-            private_key_pem_path: "../server/fixture/notary/notary.key".to_string(),
-            public_key_pem_path: "../server/fixture/notary/notary.pub".to_string(),
-        },
-        logging: LoggingProperties {
-            level: "DEBUG".to_string(),
+        log: LogProperties {
             ..Default::default()
         },
-        authorization: AuthorizationProperties {
+        auth: AuthorizationProperties {
             enabled: auth_enabled,
-            whitelist_csv_path: Some("../server/fixture/auth/whitelist.csv".to_string()),
+            whitelist_path: Some("../server/fixture/auth/whitelist.csv".to_string()),
         },
         concurrency,
     }
@@ -118,11 +111,11 @@ fn tcp_prover_client(notary_config: NotaryServerProperties) -> NotaryClient {
     let mut notary_client_builder = NotaryClient::builder();
 
     notary_client_builder
-        .host(&notary_config.server.host)
-        .port(notary_config.server.port)
+        .host(&notary_config.host)
+        .port(notary_config.port)
         .enable_tls(false);
 
-    if notary_config.authorization.enabled {
+    if notary_config.auth.enabled {
         notary_client_builder.api_key(API_KEY);
     }
 
@@ -160,8 +153,8 @@ async fn tls_prover(notary_config: NotaryServerProperties) -> (NotaryConnection,
     root_cert_store.add(&certificate).unwrap();
 
     let notary_client = NotaryClient::builder()
-        .host(&notary_config.server.name)
-        .port(notary_config.server.port)
+        .host(NOTARY_DNS)
+        .port(notary_config.port)
         .root_cert_store(root_cert_store)
         .build()
         .unwrap();
@@ -285,8 +278,8 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 async fn test_websocket_prover() {
     // Notary server configuration setup
     let notary_config = setup_config_and_server(100, 7050, true, false, 100).await;
-    let notary_host = notary_config.server.host.clone();
-    let notary_port = notary_config.server.port;
+    let notary_host = notary_config.host.clone();
+    let notary_port = notary_config.port;
 
     // Connect to the notary server via TLS-WebSocket
     // Try to avoid dealing with transport layer directly to mimic the limitation of
