@@ -82,63 +82,61 @@ async fn prf() {
     let _ = follower_vm.decode(follower_output.keys.client_iv).unwrap();
     let _ = follower_vm.decode(follower_output.keys.server_iv).unwrap();
 
-    loop {
-        let leader_finished = leader.drive_key_expansion(&mut leader_vm).unwrap();
-        let follower_finished = follower.drive_key_expansion(&mut follower_vm).unwrap();
-
+    while leader.wants_flush() || follower.wants_flush() {
         tokio::try_join!(
-            leader_vm.execute_all(&mut leader_ctx),
-            follower_vm.execute_all(&mut follower_ctx)
+            async {
+                leader.flush(&mut leader_vm).unwrap();
+                leader_vm.execute_all(&mut leader_ctx).await
+            },
+            async {
+                follower.flush(&mut follower_vm).unwrap();
+                follower_vm.execute_all(&mut follower_ctx).await
+            }
         )
         .unwrap();
-
-        if leader_finished && follower_finished {
-            break;
-        }
     }
 
     let cf_hs_hash = [1u8; 32];
-    let sf_hs_hash = [2u8; 32];
 
     leader.set_cf_hash(cf_hs_hash).unwrap();
-    leader.set_sf_hash(sf_hs_hash).unwrap();
-
     follower.set_cf_hash(cf_hs_hash).unwrap();
-    follower.set_sf_hash(sf_hs_hash).unwrap();
+
+    while leader.wants_flush() || follower.wants_flush() {
+        tokio::try_join!(
+            async {
+                leader.flush(&mut leader_vm).unwrap();
+                leader_vm.execute_all(&mut leader_ctx).await
+            },
+            async {
+                follower.flush(&mut follower_vm).unwrap();
+                follower_vm.execute_all(&mut follower_ctx).await
+            }
+        )
+        .unwrap();
+    }
 
     let _ = leader_vm.decode(leader_output.cf_vd).unwrap();
-    let _ = leader_vm.decode(leader_output.sf_vd).unwrap();
-
     let _ = follower_vm.decode(follower_output.cf_vd).unwrap();
+
+    let sf_hs_hash = [2u8; 32];
+
+    leader.set_sf_hash(sf_hs_hash).unwrap();
+    follower.set_sf_hash(sf_hs_hash).unwrap();
+
+    while leader.wants_flush() || follower.wants_flush() {
+        tokio::try_join!(
+            async {
+                leader.flush(&mut leader_vm).unwrap();
+                leader_vm.execute_all(&mut leader_ctx).await
+            },
+            async {
+                follower.flush(&mut follower_vm).unwrap();
+                follower_vm.execute_all(&mut follower_ctx).await
+            }
+        )
+        .unwrap();
+    }
+
+    let _ = leader_vm.decode(leader_output.sf_vd).unwrap();
     let _ = follower_vm.decode(follower_output.sf_vd).unwrap();
-
-    loop {
-        let leader_finished = leader.drive_client_finished(&mut leader_vm).unwrap();
-        let follower_finished = follower.drive_client_finished(&mut follower_vm).unwrap();
-
-        tokio::try_join!(
-            leader_vm.execute_all(&mut leader_ctx),
-            follower_vm.execute_all(&mut follower_ctx)
-        )
-        .unwrap();
-
-        if leader_finished && follower_finished {
-            break;
-        }
-    }
-
-    loop {
-        let leader_finished = leader.drive_server_finished(&mut leader_vm).unwrap();
-        let follower_finished = follower.drive_server_finished(&mut follower_vm).unwrap();
-
-        tokio::try_join!(
-            leader_vm.execute_all(&mut leader_ctx),
-            follower_vm.execute_all(&mut follower_ctx)
-        )
-        .unwrap();
-
-        if leader_finished && follower_finished {
-            break;
-        }
-    }
 }
