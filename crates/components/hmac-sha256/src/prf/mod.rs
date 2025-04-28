@@ -168,7 +168,7 @@ impl MpcPrf {
 
     /// Returns if the PRF needs to be flushed and drives the PRF.
     pub fn wants_flush(&mut self) -> bool {
-        let wants_flush = match &self.state {
+        let wants_flush = match &mut self.state {
             State::Initialized => false,
             State::SessionKeys {
                 master_secret,

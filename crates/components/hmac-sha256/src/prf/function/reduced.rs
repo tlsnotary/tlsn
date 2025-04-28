@@ -13,7 +13,6 @@ use mpz_vm_core::{
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
     label: &'static [u8],
-    state: State,
     start_seed_label: Option<Vec<u8>>,
     a: Vec<PHash>,
     p: Vec<PHash>,
@@ -58,20 +57,65 @@ impl PrfFunction {
     }
 
     pub(crate) fn wants_flush(&mut self) -> bool {
-        let wants_flush = if let State::Finished = self.state {
-            false
-        } else {
-            true
-        };
+        let last_p = self.p.last().expect("Prf should be allocated");
 
-        // Drive state
-
-        wants_flush
+        if let State::Finished { .. } = last_p.state {
+            return false;
+        }
+        true
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        if let State::Computing = self.state {
-            todo!()
+        let mut message = self.start_seed_label.clone();
+
+        for (a, p) in self.a.iter_mut().zip(self.p.iter_mut()) {
+            match &mut a.state {
+                State::Init { inner_partial, .. } => {
+                    if let (Some(msg), Some(inner_partial)) = (
+                        message.as_ref(),
+                        inner_partial.try_recv().map_err(PrfError::vm)?,
+                    ) {
+                        a.assign_inner_local(vm, inner_partial, msg)?;
+                        message = None;
+                    }
+                }
+                State::Assigned { output } => {
+                    if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
+                        let output = convert_to_bytes(output).to_vec();
+                        a.state = State::Finished {
+                            output: output.clone(),
+                        };
+                        message = Some(output);
+                    }
+                }
+                State::Finished { output } => {
+                    message = Some(output.clone());
+                }
+            }
+
+            match &mut p.state {
+                State::Init { inner_partial, .. } => {
+                    if let (State::Finished { output }, Some(inner_partial)) =
+                        (&a.state, inner_partial.try_recv().map_err(PrfError::vm)?)
+                    {
+                        let mut msg = output.to_vec();
+                        msg.extend_from_slice(
+                            self.start_seed_label
+                                .as_ref()
+                                .expect("Start seed for PRF should be set"),
+                        );
+
+                        p.assign_inner_local(vm, inner_partial, &msg)?;
+                    }
+                }
+                State::Assigned { output } => {
+                    if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
+                        let output = convert_to_bytes(output).to_vec();
+                        a.state = State::Finished { output };
+                    }
+                }
+                _ => (),
+            }
         }
 
         Ok(())
@@ -88,54 +132,6 @@ impl PrfFunction {
         self.p.iter().map(|p| p.output).collect()
     }
 
-    fn poll_a(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let Some(mut message) = self.start_seed_label.clone() else {
-            return Err(PrfError::state("Starting seed not set for PRF"));
-        };
-
-        for a in self.a.iter_mut() {
-            if let Some(output) = a.output_decoded.try_recv().map_err(PrfError::vm)? {
-                message = convert_to_bytes(output).to_vec();
-                continue;
-            };
-
-            let Some(inner_partial) = a.inner_partial.poll(vm)? else {
-                break;
-            };
-
-            a.assign_inner_local(vm, inner_partial, &message)?;
-        }
-
-        Ok(())
-    }
-
-    fn poll_p(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let Some(ref start_seed) = self.start_seed_label else {
-            return Err(PrfError::state("Starting seed not set for PRF"));
-        };
-
-        for (i, p) in self.p.iter_mut().enumerate() {
-            if p.inner_local.1 {
-                continue;
-            }
-
-            let Some(message) = self.a[i].output.poll(vm)? else {
-                break;
-            };
-
-            let mut message = convert_to_bytes(message).to_vec();
-            message.extend_from_slice(start_seed);
-
-            let Some(inner_partial) = p.inner_partial.poll(vm)? else {
-                break;
-            };
-
-            p.assign_inner_local(vm, inner_partial, &message)?;
-        }
-
-        Ok(())
-    }
-
     fn alloc(
         vm: &mut dyn Vm<Binary>,
         label: &'static [u8],
@@ -144,7 +140,6 @@ impl PrfFunction {
         len: usize,
     ) -> Result<Self, PrfError> {
         let mut prf = Self {
-            state: State::Computing,
             label,
             start_seed_label: None,
             a: vec![],
@@ -167,19 +162,10 @@ impl PrfFunction {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum State {
-    Computing,
-    Finished,
-}
-
 #[derive(Debug)]
 struct PHash {
-    state: InnerState,
-    inner_partial: Array<U32, 8>,
-    inner_local: Array<U8, 32>,
     output: Array<U32, 8>,
-    output_decoded: DecodeFutureTyped<BitVec, [u32; 8]>,
+    state: State,
 }
 
 impl PHash {
@@ -192,14 +178,14 @@ impl PHash {
         let hmac = HmacSha256::new(outer_partial, inner_local);
 
         let output = hmac.alloc(vm).map_err(PrfError::vm)?;
-        let output_decoded = vm.decode(output).map_err(PrfError::vm)?;
 
+        let inner_partial = vm.decode(inner_partial).map_err(PrfError::vm)?;
         let p_hash = Self {
-            state: InnerState::Init,
-            inner_partial,
-            inner_local,
+            state: State::Init {
+                inner_partial,
+                inner_local,
+            },
             output,
-            output_decoded,
         };
 
         Ok(p_hash)
@@ -211,22 +197,32 @@ impl PHash {
         inner_partial: [u32; 8],
         msg: &[u8],
     ) -> Result<(), PrfError> {
-        let inner_local_ref: Array<U8, 32> = self.inner_local;
-        let inner_local = sha256(inner_partial, 64, msg);
+        if let State::Init { inner_local, .. } = self.state {
+            let inner_local_value = sha256(inner_partial, 64, msg);
 
-        vm.mark_public(inner_local_ref).map_err(PrfError::vm)?;
-        vm.assign(inner_local_ref, convert_to_bytes(inner_local))
-            .map_err(PrfError::vm)?;
-        vm.commit(inner_local_ref).map_err(PrfError::vm)?;
+            vm.mark_public(inner_local).map_err(PrfError::vm)?;
+            vm.assign(inner_local, convert_to_bytes(inner_local_value))
+                .map_err(PrfError::vm)?;
+            vm.commit(inner_local).map_err(PrfError::vm)?;
 
-        self.state = InnerState::Assigned;
+            let output = vm.decode(self.output).map_err(PrfError::vm)?;
+            self.state = State::Assigned { output };
+        }
 
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum InnerState {
-    Init,
-    Assigned,
+#[derive(Debug)]
+enum State {
+    Init {
+        inner_partial: DecodeFutureTyped<BitVec, [u32; 8]>,
+        inner_local: Array<U8, 32>,
+    },
+    Assigned {
+        output: DecodeFutureTyped<BitVec, [u32; 8]>,
+    },
+    Finished {
+        output: Vec<u8>,
+    },
 }
