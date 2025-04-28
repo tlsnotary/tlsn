@@ -8,6 +8,9 @@ license = "Apache-2.0 OR ISC OR MIT"
 version = "0.1.0-alpha.11-pre"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [lib]
 name = "tls_core"
 

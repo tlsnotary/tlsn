@@ -4,6 +4,9 @@ name = "tlsn-benches"
 publish = false
 version = "0.0.0"
 
+[lints]
+workspace = true
+
 [features]
 default = []
 # Enables benchmarks in the browser.
