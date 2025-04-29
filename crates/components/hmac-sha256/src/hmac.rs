@@ -119,7 +119,7 @@ mod tests {
             leader.commit(inner_local_leader).unwrap();
 
             let hmac_leader = HmacSha256::new(
-                Sha256::new_from_state(outer_partial_leader, 64),
+                Sha256::new_from_state(outer_partial_leader, 1),
                 inner_local_leader,
             )
             .alloc(&mut leader)
@@ -141,7 +141,7 @@ mod tests {
             follower.commit(inner_local_follower).unwrap();
 
             let hmac_follower = HmacSha256::new(
-                Sha256::new_from_state(outer_partial_follower, 64),
+                Sha256::new_from_state(outer_partial_follower, 1),
                 inner_local_follower,
             )
             .alloc(&mut follower)

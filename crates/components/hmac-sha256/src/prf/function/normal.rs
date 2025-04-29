@@ -5,7 +5,7 @@ use mpz_circuits::CircuitBuilder;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U32, U8},
+        binary::{Binary, U8},
         Array, MemoryExt, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
@@ -163,30 +163,6 @@ impl PHash {
         let p_hash = Self { msg, output };
         Ok(p_hash)
     }
-}
-
-fn convert_array(vm: &mut dyn Vm<Binary>, input: Array<U32, 8>) -> Result<Array<U8, 32>, PrfError> {
-    let circ = {
-        let mut builder = CircuitBuilder::new();
-        let inputs = (0..32 * 8).map(|_| builder.add_input()).collect::<Vec<_>>();
-
-        for input in inputs.chunks_exact(4 * 8) {
-            for byte in input.chunks_exact(8).rev() {
-                for &feed in byte.iter() {
-                    let output = builder.add_id_gate(feed);
-                    builder.add_output(output);
-                }
-            }
-        }
-
-        Arc::new(builder.build().expect("conversion circuit is valid"))
-    };
-
-    let mut builder = Call::builder(circ);
-    builder = builder.arg(input);
-    let call = builder.build().map_err(PrfError::vm)?;
-
-    vm.call(call).map_err(PrfError::vm)
 }
 
 fn merge_vecs(vm: &mut dyn Vm<Binary>, inputs: Vec<Vector<U8>>) -> Result<Vector<U8>, PrfError> {
