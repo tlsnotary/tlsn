@@ -4,7 +4,7 @@ use config::{Config, Environment};
 use eyre::eyre;
 use serde::{Deserialize, Serialize};
 
-use crate::{parse_config_file, CliFields, NotaryServerError};
+use crate::{parse_config_file, util::prepend_file_path, CliFields, NotaryServerError};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NotaryServerProperties {
@@ -28,12 +28,38 @@ pub struct NotaryServerProperties {
 
 impl NotaryServerProperties {
     pub fn new(cli_fields: &CliFields) -> Result<Self, NotaryServerError> {
+        // Uses config file if given.
         if let Some(config_path) = &cli_fields.config {
-            let config: NotaryServerProperties = parse_config_file(config_path)?;
+            let mut config: NotaryServerProperties = parse_config_file(config_path)?;
+
+            // Ensures all relative file paths in the config file are prepended with 
+            // the config file's parent directory, so that server binary can be run from anywhere.
             let parent_dir = Path::new(config_path)
                 .parent()
-                .ok_or(eyre!("Failed to get parent directory of config file"))?;
-
+                .ok_or(eyre!("Failed to get parent directory of config file"))?
+                .to_str()
+                .ok_or_else(|| eyre!("Failed to convert path to str"))?
+                .to_string();
+            
+            // Prepend notarization key paths.
+            if let Some(path) = &config.notarization.private_key_path {
+                config.notarization.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
+            }
+            if let Some(path) = &config.notarization.public_key_path {
+                config.notarization.public_key_path = Some(prepend_file_path(path, &parent_dir)?);
+            }
+            // Prepend TLS key paths.
+            if let Some(path) = &config.tls.private_key_path {
+                config.tls.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
+            }
+            if let Some(path) = &config.tls.certificate_path {
+                config.tls.certificate_path = Some(prepend_file_path(path, &parent_dir)?);
+            }
+            // Prepend auth whitelist path.
+            if let Some(path) = &config.auth.whitelist_path {
+                config.auth.whitelist_path = Some(prepend_file_path(path, &parent_dir)?);
+            }
+            
             Ok(config)
         } else {
             let default_config = Config::try_from(&NotaryServerProperties::default())
@@ -73,14 +99,16 @@ pub struct NotarizationProperties {
     pub public_key_path: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TLSProperties {
     /// Flag to turn on/off TLS between prover and notary — should always be
     /// turned on unless either
     /// (1) TLS is handled by external setup e.g. reverse proxy cloud; or
     /// (2) For local testing
     pub enabled: bool,
+    /// File path of TLS private key (in PEM format)
     pub private_key_path: Option<String>,
+    /// File path of TLS cert (in PEM format)
     pub certificate_path: Option<String>,
 }
 
@@ -104,11 +132,11 @@ pub struct LogProperties {
     pub format: LogFormat,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct AuthorizationProperties {
     /// Flag to turn on or off auth middleware
     pub enabled: bool,
-    /// File path of the API key whitelist csv
+    /// File path of the API key whitelist (in CSV format)
     pub whitelist_path: Option<String>,
 }
 
@@ -160,31 +188,12 @@ impl Default for NotarizationProperties {
     }
 }
 
-impl Default for TLSProperties {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            private_key_path: None,
-            certificate_path: None,
-        }
-    }
-}
-
 impl Default for LogProperties {
     fn default() -> Self {
         Self {
             level: "DEBUG".to_string(),
             filter: None,
             format: LogFormat::Compact,
-        }
-    }
-}
-
-impl Default for AuthorizationProperties {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            whitelist_path: None,
         }
     }
 }
@@ -231,6 +240,6 @@ impl std::fmt::Display for LogProperties {
 impl std::fmt::Display for AuthorizationProperties {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "   enabled: {}", self.enabled)?;
-        write!(f, "   whitelist_csv_path: {:?}", self.whitelist_path)
+        write!(f, "   whitelist_path: {:?}", self.whitelist_path)
     }
 }

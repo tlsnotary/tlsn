@@ -28,8 +28,8 @@ notarization:
   max_sent_data: 4096
   max_recv_data: 16384
   timeout: 1800
-  private_key_path: "./fixture/notary/notary.key"
-  public_key_path: "./fixture/notary/notary.pub"
+  private_key_path: "../fixture/notary/notary.key"
+  public_key_path: "../fixture/notary/notary.pub"
 
 tls:
   enabled: false

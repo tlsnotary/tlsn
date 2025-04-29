@@ -1,5 +1,6 @@
-use eyre::Result;
+use eyre::{eyre, Result};
 use serde::de::DeserializeOwned;
+use std::path::Path;
 
 /// Parse a yaml configuration file into a struct
 pub fn parse_config_file<T: DeserializeOwned>(location: &str) -> Result<T> {
@@ -20,12 +21,25 @@ pub fn parse_csv_file<T: DeserializeOwned>(location: &str) -> Result<Vec<T>> {
     Ok(table)
 }
 
+/// Prepend a file path with a base directory if the path is not absolute.
+pub fn prepend_file_path<S: AsRef<str>>(file_path: S, base_dir: S) -> Result<String> {
+    let path = Path::new(file_path.as_ref());
+    if !path.is_absolute() {
+        Ok(Path::new(base_dir.as_ref()).join(path)
+            .to_str()
+            .ok_or_else(|| eyre!("Failed to convert path to str"))?
+            .to_string()
+        )
+    } else {
+        Ok(file_path.as_ref().to_string())
+    }
+}
+
 #[cfg(test)]
 mod test {
 
     use crate::{
-        config::NotaryServerProperties, auth::AuthorizationWhitelistRecord,
-        util::parse_csv_file,
+        auth::AuthorizationWhitelistRecord, config::NotaryServerProperties, util::{parse_csv_file, prepend_file_path}
     };
 
     use super::{parse_config_file, Result};
@@ -48,5 +62,20 @@ mod test {
             table.is_ok(),
             "Could not open csv or read the csv's values."
         );
+    }
+
+    #[test]
+    fn test_prepend_file_path() {
+        let base_dir = "/base/dir";
+        let relative_path = "relative/path";
+        let absolute_path = "/absolute/path";
+
+        let result = prepend_file_path(relative_path, base_dir);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "/base/dir/relative/path");
+
+        let result = prepend_file_path(absolute_path, base_dir);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "/absolute/path");
     }
 }

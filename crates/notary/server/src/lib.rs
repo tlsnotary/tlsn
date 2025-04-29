@@ -12,11 +12,11 @@ mod signing;
 mod tee;
 mod util;
 
+pub use api::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 pub use cli::CliFields;
 pub use config::{
     AuthorizationProperties, LogProperties, NotarizationProperties, NotaryServerProperties, TLSProperties,
 };
-pub use api::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 pub use error::NotaryServerError;
 pub use server::{read_pem_file, run_server};
 pub use server_tracing::init_tracing;
