@@ -1,6 +1,6 @@
 //! Computes some hashes of the PRF locally.
 
-use crate::{bytes_to_state, hmac::HmacSha256, sha256, state_to_bytes, PrfError};
+use crate::{hmac::HmacSha256, sha256, state_to_bytes, PrfError};
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
@@ -135,7 +135,9 @@ impl PrfFunction {
         inner_partial: Sha256,
         len: usize,
     ) -> Result<Self, PrfError> {
-        let inner_partial = inner_partial.finalize(vm)?;
+        let (inner_partial, _) = inner_partial
+            .state()
+            .expect("state should be set for inner_partial");
         let inner_partial = vm.decode(inner_partial).map_err(PrfError::vm)?;
 
         let mut prf = Self {
@@ -187,11 +189,10 @@ impl PHash {
     fn assign_inner_local(
         &mut self,
         vm: &mut dyn Vm<Binary>,
-        inner_partial: [u8; 32],
+        inner_partial: [u32; 8],
         msg: &[u8],
     ) -> Result<(), PrfError> {
         if let State::Init { inner_local, .. } = self.state {
-            let inner_partial = bytes_to_state(inner_partial);
             let inner_local_value = sha256(inner_partial, 64, msg);
 
             vm.mark_public(inner_local).map_err(PrfError::vm)?;
@@ -222,12 +223,12 @@ enum State {
 
 #[derive(Debug)]
 enum InnerPartial {
-    Decoding(DecodeFutureTyped<BitVec, [u8; 32]>),
-    Finished([u8; 32]),
+    Decoding(DecodeFutureTyped<BitVec, [u32; 8]>),
+    Finished([u32; 8]),
 }
 
 impl InnerPartial {
-    pub(crate) fn try_recv(&mut self) -> Result<Option<[u8; 32]>, PrfError> {
+    pub(crate) fn try_recv(&mut self) -> Result<Option<[u32; 8]>, PrfError> {
         match self {
             InnerPartial::Decoding(value) => {
                 let value = value.try_recv().map_err(PrfError::vm)?;
