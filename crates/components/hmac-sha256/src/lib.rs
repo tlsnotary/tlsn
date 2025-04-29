@@ -5,7 +5,6 @@
 #![forbid(unsafe_code)]
 
 mod hmac;
-mod sha256;
 #[cfg(test)]
 mod test_utils;
 
@@ -44,11 +43,37 @@ pub struct SessionKeys {
     pub server_iv: Array<U8, 4>,
 }
 
-fn convert_to_bytes(input: [u32; 8]) -> [u8; 32] {
+fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u32; 8] {
+    use sha2::{
+        compress256,
+        digest::{
+            block_buffer::{BlockBuffer, Eager},
+            generic_array::typenum::U64,
+        },
+    };
+
+    let mut buffer = BlockBuffer::<U64, Eager>::default();
+    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
+    buffer.digest_pad(0x80, &(((msg.len() + pos) * 8) as u64).to_be_bytes(), |b| {
+        compress256(&mut state, &[*b])
+    });
+    state
+}
+
+fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
     let mut output = [0_u8; 32];
     for (k, byte_chunk) in input.iter().enumerate() {
         let byte_chunk = byte_chunk.to_be_bytes();
         output[4 * k..4 * (k + 1)].copy_from_slice(&byte_chunk);
+    }
+    output
+}
+
+fn bytes_to_state(byte_input: [u8; 32]) -> [u32; 8] {
+    let mut output = [0_u32; 8];
+    for (k, bytes) in byte_input.chunks_exact(4).rev().enumerate() {
+        let value = u32::from_le_bytes(bytes.try_into().unwrap());
+        output[k] = value;
     }
     output
 }

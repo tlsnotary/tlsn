@@ -1,9 +1,10 @@
 //! Provides [`Prf`], for computing the TLS 1.2 PRF.
 
 use crate::{Mode, PrfError};
+use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U32},
+        binary::{Binary, U8},
         Array,
     },
     Vm,
@@ -22,8 +23,8 @@ impl Prf {
     pub(crate) fn alloc_master_secret(
         mode: Mode,
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         let prf = match mode {
             Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_master_secret(
@@ -43,8 +44,8 @@ impl Prf {
     pub(crate) fn alloc_key_expansion(
         mode: Mode,
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         let prf = match mode {
             Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_key_expansion(
@@ -64,8 +65,8 @@ impl Prf {
     pub(crate) fn alloc_client_finished(
         config: Mode,
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         let prf = match config {
             Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_client_finished(
@@ -85,8 +86,8 @@ impl Prf {
     pub(crate) fn alloc_server_finished(
         config: Mode,
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         let prf = match config {
             Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_server_finished(
@@ -124,7 +125,7 @@ impl Prf {
         }
     }
 
-    pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
+    pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
         match self {
             Prf::Reduced(prf) => prf.output(),
             Prf::Normal(prf) => prf.output(),
@@ -135,7 +136,6 @@ impl Prf {
 #[cfg(test)]
 mod tests {
     use crate::{
-        convert_to_bytes,
         prf::{compute_partial, function::Prf},
         test_utils::{mock_vm, phash},
         Mode,
@@ -238,11 +238,11 @@ mod tests {
 
         let prf_result_leader: Vec<u8> = prf_out_leader
             .iter_mut()
-            .flat_map(|p| convert_to_bytes(p.try_recv().unwrap().unwrap()))
+            .flat_map(|p| p.try_recv().unwrap().unwrap())
             .collect();
         let prf_result_follower: Vec<u8> = prf_out_follower
             .iter_mut()
-            .flat_map(|p| convert_to_bytes(p.try_recv().unwrap().unwrap()))
+            .flat_map(|p| p.try_recv().unwrap().unwrap())
             .collect();
 
         let expected = phash(key.to_vec(), &label_seed, iterations);

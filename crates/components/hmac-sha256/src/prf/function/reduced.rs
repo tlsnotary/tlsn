@@ -1,10 +1,11 @@
 //! Computes some hashes of the PRF locally.
 
-use crate::{convert_to_bytes, hmac::HmacSha256, sha256::sha256, PrfError};
+use crate::{bytes_to_state, hmac::HmacSha256, sha256, state_to_bytes, PrfError};
 use mpz_core::bitvec::BitVec;
+use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U32, U8},
+        binary::{Binary, U8},
         Array, DecodeFutureTyped, MemoryExt, ViewExt,
     },
     Vm,
@@ -31,32 +32,32 @@ impl PrfFunction {
 
     pub(crate) fn alloc_master_secret(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48)
     }
 
     pub(crate) fn alloc_key_expansion(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::KEY_LABEL, outer_partial, inner_partial, 40)
     }
 
     pub(crate) fn alloc_client_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::CF_LABEL, outer_partial, inner_partial, 12)
     }
 
     pub(crate) fn alloc_server_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12)
     }
@@ -84,7 +85,7 @@ impl PrfFunction {
                 }
                 State::Assigned { output } => {
                     if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
-                        let output = convert_to_bytes(output).to_vec();
+                        let output = output.to_vec();
                         a.state = State::Finished {
                             output: output.clone(),
                         };
@@ -104,7 +105,7 @@ impl PrfFunction {
                 }
                 State::Assigned { output } => {
                     if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
-                        let output = convert_to_bytes(output).to_vec();
+                        let output = output.to_vec();
                         p.state = State::Finished { output };
                     }
                 }
@@ -123,17 +124,18 @@ impl PrfFunction {
         self.a_msg = start_seed_label;
     }
 
-    pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
+    pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
         self.p.iter().map(|p| p.output).collect()
     }
 
     fn alloc(
         vm: &mut dyn Vm<Binary>,
         label: &'static [u8],
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
         len: usize,
     ) -> Result<Self, PrfError> {
+        let inner_partial = inner_partial.finalize(vm)?;
         let inner_partial = vm.decode(inner_partial).map_err(PrfError::vm)?;
 
         let mut prf = Self {
@@ -150,10 +152,10 @@ impl PrfFunction {
         let iterations = len / 32 + ((len % 32) != 0) as usize;
 
         for _ in 0..iterations {
-            let a = PHash::alloc(vm, outer_partial)?;
+            let a = PHash::alloc(vm, outer_partial.clone())?;
             prf.a.push(a);
 
-            let p = PHash::alloc(vm, outer_partial)?;
+            let p = PHash::alloc(vm, outer_partial.clone())?;
             prf.p.push(p);
         }
 
@@ -163,13 +165,13 @@ impl PrfFunction {
 
 #[derive(Debug)]
 struct PHash {
-    output: Array<U32, 8>,
+    output: Array<U8, 32>,
     state: State,
 }
 
 impl PHash {
-    fn alloc(vm: &mut dyn Vm<Binary>, outer_partial: Array<U32, 8>) -> Result<Self, PrfError> {
-        let inner_local = vm.alloc().map_err(PrfError::vm)?;
+    fn alloc(vm: &mut dyn Vm<Binary>, outer_partial: Sha256) -> Result<Self, PrfError> {
+        let inner_local: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
         let hmac = HmacSha256::new(outer_partial, inner_local);
 
         let output = hmac.alloc(vm).map_err(PrfError::vm)?;
@@ -185,14 +187,15 @@ impl PHash {
     fn assign_inner_local(
         &mut self,
         vm: &mut dyn Vm<Binary>,
-        inner_partial: [u32; 8],
+        inner_partial: [u8; 32],
         msg: &[u8],
     ) -> Result<(), PrfError> {
         if let State::Init { inner_local, .. } = self.state {
+            let inner_partial = bytes_to_state(inner_partial);
             let inner_local_value = sha256(inner_partial, 64, msg);
 
             vm.mark_public(inner_local).map_err(PrfError::vm)?;
-            vm.assign(inner_local, convert_to_bytes(inner_local_value))
+            vm.assign(inner_local, state_to_bytes(inner_local_value))
                 .map_err(PrfError::vm)?;
             vm.commit(inner_local).map_err(PrfError::vm)?;
 
@@ -210,7 +213,7 @@ enum State {
         inner_local: Array<U8, 32>,
     },
     Assigned {
-        output: DecodeFutureTyped<BitVec, [u32; 8]>,
+        output: DecodeFutureTyped<BitVec, [u8; 32]>,
     },
     Finished {
         output: Vec<u8>,
@@ -219,12 +222,12 @@ enum State {
 
 #[derive(Debug)]
 enum InnerPartial {
-    Decoding(DecodeFutureTyped<BitVec, [u32; 8]>),
-    Finished([u32; 8]),
+    Decoding(DecodeFutureTyped<BitVec, [u8; 32]>),
+    Finished([u8; 32]),
 }
 
 impl InnerPartial {
-    pub(crate) fn try_recv(&mut self) -> Result<Option<[u32; 8]>, PrfError> {
+    pub(crate) fn try_recv(&mut self) -> Result<Option<[u8; 32]>, PrfError> {
         match self {
             InnerPartial::Decoding(value) => {
                 let value = value.try_recv().map_err(PrfError::vm)?;
