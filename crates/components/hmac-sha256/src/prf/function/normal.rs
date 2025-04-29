@@ -1,7 +1,8 @@
 //! Computes the whole PRF in MPC.
 
-use crate::{hmac::HmacSha256, sha256::Sha256, PrfError};
+use crate::{hmac::HmacSha256, PrfError};
 use mpz_circuits::CircuitBuilder;
+use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U32, U8},
@@ -30,32 +31,32 @@ impl PrfFunction {
 
     pub(crate) fn alloc_master_secret(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48, 64)
     }
 
     pub(crate) fn alloc_key_expansion(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::KEY_LABEL, outer_partial, inner_partial, 40, 64)
     }
 
     pub(crate) fn alloc_client_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::CF_LABEL, outer_partial, inner_partial, 12, 32)
     }
 
     pub(crate) fn alloc_server_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
         Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12, 32)
     }
@@ -90,15 +91,15 @@ impl PrfFunction {
         self.start_seed_label = start_seed_label;
     }
 
-    pub(crate) fn output(&self) -> Vec<Array<U32, 8>> {
+    pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
         self.p.iter().map(|p| p.output).collect()
     }
 
     fn alloc(
         vm: &mut dyn Vm<Binary>,
         label: &'static [u8],
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
         output_len: usize,
         seed_len: usize,
     ) -> Result<Self, PrfError> {
@@ -119,12 +120,12 @@ impl PrfFunction {
         let mut msg_a = seed_label_ref;
 
         for _ in 0..iterations {
-            let a = PHash::alloc(vm, outer_partial, inner_partial, msg_a)?;
-            msg_a = convert_array(vm, a.output)?.into();
+            let a = PHash::alloc(vm, outer_partial.clone(), inner_partial.clone(), msg_a)?;
+            msg_a = Vector::<U8>::from(a.output);
             prf.a.push(a);
 
             let msg_p = merge_vecs(vm, vec![msg_a, seed_label_ref])?;
-            let p = PHash::alloc(vm, outer_partial, inner_partial, msg_p)?;
+            let p = PHash::alloc(vm, outer_partial.clone(), inner_partial.clone(), msg_p)?;
             prf.p.push(p);
         }
 
@@ -141,23 +142,20 @@ enum State {
 #[derive(Debug, Clone)]
 struct PHash {
     msg: Vector<U8>,
-    output: Array<U32, 8>,
+    output: Array<U8, 32>,
 }
 
 impl PHash {
     fn alloc(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Array<U32, 8>,
-        inner_partial: Array<U32, 8>,
+        outer_partial: Sha256,
+        inner_partial: Sha256,
         msg: Vector<U8>,
     ) -> Result<Self, PrfError> {
-        let mut sha = Sha256::default();
-        sha.set_state(inner_partial, 64)
-            .update(msg)
-            .add_padding(vm)?;
-
-        let inner_local = sha.alloc(vm)?;
-        let inner_local = convert_array(vm, inner_local)?;
+        let mut inner_local = inner_partial;
+        inner_local.update(&msg);
+        inner_local.compress(vm)?;
+        let inner_local = inner_local.finalize(vm)?;
 
         let hmac = HmacSha256::new(outer_partial, inner_local);
         let output = hmac.alloc(vm).map_err(PrfError::vm)?;

@@ -4,7 +4,7 @@ use crate::{
 };
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U32, U8},
+        binary::{Binary, U8},
         Array, FromRaw, ToRaw,
     },
     Vm,
@@ -61,7 +61,7 @@ impl State {
 }
 
 fn get_session_keys(
-    output: Vec<Array<U32, 8>>,
+    output: Vec<Array<U8, 32>>,
     vm: &mut dyn Vm<Binary>,
 ) -> Result<SessionKeys, PrfError> {
     let mut keys = merge_outputs(vm, output, 40)?;
@@ -83,7 +83,7 @@ fn get_session_keys(
 }
 
 fn get_client_finished_vd(
-    output: Vec<Array<U32, 8>>,
+    output: Vec<Array<U8, 32>>,
     vm: &mut dyn Vm<Binary>,
 ) -> Result<Array<U8, 12>, PrfError> {
     let cf_vd = merge_outputs(vm, output, 12)?;
@@ -93,7 +93,7 @@ fn get_client_finished_vd(
 }
 
 fn get_server_finished_vd(
-    output: Vec<Array<U32, 8>>,
+    output: Vec<Array<U8, 32>>,
     vm: &mut dyn Vm<Binary>,
 ) -> Result<Array<U8, 12>, PrfError> {
     let sf_vd = merge_outputs(vm, output, 12)?;

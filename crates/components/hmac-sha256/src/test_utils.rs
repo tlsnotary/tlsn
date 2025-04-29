@@ -1,4 +1,4 @@
-use crate::{convert_to_bytes, sha256::sha256};
+use crate::{sha256, state_to_bytes};
 use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
 use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
 use mpz_vm_core::memory::correlated::Delta;
@@ -93,8 +93,8 @@ pub(crate) fn hmac_sha256(key: Vec<u8>, msg: &[u8]) -> [u8; 32] {
     let outer_partial = compute_outer_partial(key.clone());
     let inner_local = compute_inner_local(key, msg);
 
-    let hmac = sha256(outer_partial, 64, &convert_to_bytes(inner_local));
-    convert_to_bytes(hmac)
+    let hmac = sha256(outer_partial, 64, &state_to_bytes(inner_local));
+    state_to_bytes(hmac)
 }
 
 pub(crate) fn compute_outer_partial(mut key: Vec<u8>) -> [u32; 8] {

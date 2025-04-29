@@ -1,8 +1,9 @@
-use crate::{hmac::HmacSha256, sha256::Sha256, Mode, PrfError, PrfOutput};
+use crate::{hmac::HmacSha256, Mode, PrfError, PrfOutput};
 use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
+use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
-        binary::{Binary, U32, U8},
+        binary::{Binary, U8},
         Array, MemoryExt, StaticSize, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
@@ -66,11 +67,20 @@ impl MpcPrf {
         let outer_partial_ms = compute_partial(vm, ms, HmacSha256::OPAD)?;
         let inner_partial_ms = compute_partial(vm, ms, HmacSha256::IPAD)?;
 
-        let key_expansion = Prf::alloc_key_expansion(mode, vm, outer_partial_ms, inner_partial_ms)?;
-        let client_finished =
-            Prf::alloc_client_finished(mode, vm, outer_partial_ms, inner_partial_ms)?;
-        let server_finished =
-            Prf::alloc_server_finished(mode, vm, outer_partial_ms, inner_partial_ms)?;
+        let key_expansion =
+            Prf::alloc_key_expansion(mode, vm, outer_partial_ms.clone(), inner_partial_ms.clone())?;
+        let client_finished = Prf::alloc_client_finished(
+            mode,
+            vm,
+            outer_partial_ms.clone(),
+            inner_partial_ms.clone(),
+        )?;
+        let server_finished = Prf::alloc_server_finished(
+            mode,
+            vm,
+            outer_partial_ms.clone(),
+            inner_partial_ms.clone(),
+        )?;
 
         self.state = State::SessionKeys {
             client_random: None,
@@ -242,7 +252,7 @@ fn compute_partial(
     vm: &mut dyn Vm<Binary>,
     key: Vector<U8>,
     mask: [u8; 64],
-) -> Result<Array<U32, 8>, PrfError> {
+) -> Result<Sha256, PrfError> {
     let xor = Arc::new(xor(8 * 64));
 
     let additional_len = 64 - key.len();
@@ -264,24 +274,25 @@ fn compute_partial(
         .arg(mask_ref)
         .build()
         .map_err(PrfError::vm)?;
-    let key_padded = vm.call(xor).map_err(PrfError::vm)?;
+    let key_padded: Vector<U8> = vm.call(xor).map_err(PrfError::vm)?;
 
-    let mut sha = Sha256::default();
-    sha.update(key_padded);
-    sha.alloc(vm)
+    let mut sha = Sha256::new_with_init(vm)?;
+    sha.update(&key_padded);
+    sha.compress(vm)?;
+    Ok(sha)
 }
 
 fn merge_outputs(
     vm: &mut dyn Vm<Binary>,
-    inputs: Vec<Array<U32, 8>>,
+    inputs: Vec<Array<U8, 32>>,
     output_bytes: usize,
 ) -> Result<Vector<U8>, PrfError> {
     assert!(output_bytes <= 32 * inputs.len());
 
-    let bits = Array::<U32, 8>::SIZE * inputs.len();
-    let msb0_circ = gen_merge_circ(4, bits);
+    let bits = Array::<U8, 32>::SIZE * inputs.len();
+    let circ = gen_merge_circ(1, bits);
 
-    let mut builder = Call::builder(msb0_circ);
+    let mut builder = Call::builder(circ);
     for &input in inputs.iter() {
         builder = builder.arg(input);
     }
@@ -299,6 +310,7 @@ fn gen_merge_circ(element_byte_size: usize, size: usize) -> Arc<Circuit> {
     let inputs = (0..size).map(|_| builder.add_input()).collect::<Vec<_>>();
 
     for input in inputs.chunks_exact(element_byte_size * 8) {
+        // TODO: .rev() removed here, correct?
         for byte in input.chunks_exact(8).rev() {
             for &feed in byte.iter() {
                 let output = builder.add_id_gate(feed);
@@ -312,10 +324,10 @@ fn gen_merge_circ(element_byte_size: usize, size: usize) -> Arc<Circuit> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{convert_to_bytes, prf::merge_outputs, test_utils::mock_vm};
+    use crate::{prf::merge_outputs, test_utils::mock_vm};
     use mpz_common::context::test_st_context;
     use mpz_vm_core::{
-        memory::{binary::U32, Array, MemoryExt, ViewExt},
+        memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
     };
 
@@ -324,16 +336,16 @@ mod tests {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut leader, mut follower) = mock_vm();
 
-        let input1: [u32; 8] = std::array::from_fn(|i| i as u32);
-        let input2: [u32; 8] = std::array::from_fn(|i| i as u32 + 8);
+        let input1: [u8; 32] = std::array::from_fn(|i| i as u8);
+        let input2: [u8; 32] = std::array::from_fn(|i| i as u8 + 32);
 
-        let mut expected = convert_to_bytes(input1).to_vec();
-        expected.extend_from_slice(&convert_to_bytes(input2));
+        let mut expected = input1.to_vec();
+        expected.extend_from_slice(&input2);
         expected.truncate(48);
 
         // leader
-        let input1_leader: Array<U32, 8> = leader.alloc().unwrap();
-        let input2_leader: Array<U32, 8> = leader.alloc().unwrap();
+        let input1_leader: Array<U8, 32> = leader.alloc().unwrap();
+        let input2_leader: Array<U8, 32> = leader.alloc().unwrap();
 
         leader.mark_public(input1_leader).unwrap();
         leader.mark_public(input2_leader).unwrap();
@@ -349,8 +361,8 @@ mod tests {
         let mut merged_leader = leader.decode(merged_leader).unwrap();
 
         // follower
-        let input1_follower: Array<U32, 8> = follower.alloc().unwrap();
-        let input2_follower: Array<U32, 8> = follower.alloc().unwrap();
+        let input1_follower: Array<U8, 32> = follower.alloc().unwrap();
+        let input2_follower: Array<U8, 32> = follower.alloc().unwrap();
 
         follower.mark_public(input1_follower).unwrap();
         follower.mark_public(input2_follower).unwrap();

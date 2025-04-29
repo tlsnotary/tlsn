@@ -18,6 +18,7 @@ name = "hmac_sha256"
 mpz-vm-core = { workspace = true }
 mpz-core = { workspace = true }
 mpz-circuits = { workspace = true }
+mpz-hash = { workspace = true }
 
 thiserror = { workspace = true }
 tracing = { workspace = true }
