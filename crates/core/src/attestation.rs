@@ -26,7 +26,7 @@
 //! (disallowed by default). A Notary may also be configured to
 //! [validate](crate::attestation::AttestationConfigBuilder::extension_validator)
 //! any extensions requested by a Prover using custom application logic.
-//! Additionally, they  may
+//! Additionally, a Notary may
 //! [include](crate::attestation::AttestationBuilder::extension)
 //! their own extensions.
 
