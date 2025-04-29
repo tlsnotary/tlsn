@@ -29,13 +29,12 @@ use zeroize::Zeroize;
 
 use crate::{
     auth::{load_authorization_whitelist, watch_and_reload_authorization_whitelist},
-    config::NotaryServerProperties,
+    config::{NotarizationProperties, NotaryServerProperties},
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
     signing::AttestationKey,
     types::{InfoResponse, NotaryGlobals},
-    NotarizationProperties,
 };
 
 #[cfg(feature = "tee_quote")]
@@ -112,8 +111,11 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     );
 
     // Parameters needed for the info endpoint
-    let public_key = std::fs::read_to_string(config.notarization.public_key_path.as_ref().unwrap())
-        .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
+    let public_key =
+        std::fs::read_to_string(config.notarization.public_key_path.as_ref().unwrap()) // TODO: replace with ephemeral
+            .map_err(|err| {
+                eyre!("Failed to load notary public signing key for notarization: {err}")
+            })?;
     let version = env!("CARGO_PKG_VERSION").to_string();
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
 
@@ -251,6 +253,7 @@ async fn load_attestation_key(config: &NotarizationProperties) -> Result<Attesta
 
     debug!("Loading notary server's signing key");
 
+    // TODO: replace with ephemeral
     let mut file = File::open(config.private_key_path.as_ref().unwrap()).await?;
     let mut pem = String::new();
     file.read_to_string(&mut pem)

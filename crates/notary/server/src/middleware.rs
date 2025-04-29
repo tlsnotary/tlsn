@@ -3,7 +3,11 @@ use axum_core::extract::{FromRef, FromRequestParts};
 use std::collections::HashMap;
 use tracing::{error, trace};
 
-use crate::{auth::{AuthorizationWhitelistRecord, X_API_KEY_HEADER}, types::NotaryGlobals, NotaryServerError};
+use crate::{
+    auth::{AuthorizationWhitelistRecord, X_API_KEY_HEADER},
+    types::NotaryGlobals,
+    NotaryServerError,
+};
 
 /// Auth middleware to prevent DOS
 pub struct AuthorizationMiddleware;

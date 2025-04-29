@@ -12,6 +12,7 @@ mod tee;
 mod types;
 mod util;
 
+pub use auth::X_API_KEY_HEADER;
 pub use cli::CliFields;
 pub use config::{
     AuthorizationProperties, LogProperties, NotarizationProperties, NotaryServerProperties,
