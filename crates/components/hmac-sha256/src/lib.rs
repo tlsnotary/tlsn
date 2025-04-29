@@ -69,15 +69,6 @@ fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
     output
 }
 
-fn bytes_to_state(byte_input: [u8; 32]) -> [u32; 8] {
-    let mut output = [0_u32; 8];
-    for (k, bytes) in byte_input.chunks_exact(4).rev().enumerate() {
-        let value = u32::from_le_bytes(bytes.try_into().unwrap());
-        output[k] = value;
-    }
-    output
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
