@@ -65,7 +65,7 @@ impl PrfFunction {
     pub(crate) fn wants_flush(&mut self) -> bool {
         let last_p = self.p.last().expect("Prf should be allocated");
 
-        if let State::Finished { .. } = last_p.state {
+        if let State::Done = last_p.state {
             return false;
         }
         true
@@ -86,7 +86,7 @@ impl PrfFunction {
                 State::Assigned { output } => {
                     if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
                         let output = output.to_vec();
-                        a.state = State::Finished {
+                        a.state = State::Decoded {
                             output: output.clone(),
                         };
                         self.a_msg = output;
@@ -97,17 +97,14 @@ impl PrfFunction {
 
             match &mut p.state {
                 State::Init { .. } => {
-                    if let State::Finished { output } = &a.state {
+                    if let State::Decoded { output } = &a.state {
                         let mut p_msg = output.to_vec();
                         p_msg.extend_from_slice(&self.start_seed_label);
                         p.assign_inner_local(vm, inner_partial, &p_msg)?;
                     }
                 }
-                State::Assigned { output } => {
-                    if let Some(output) = output.try_recv().map_err(PrfError::vm)? {
-                        let output = output.to_vec();
-                        p.state = State::Finished { output };
-                    }
+                State::Assigned { .. } => {
+                    p.state = State::Done;
                 }
                 _ => (),
             }
@@ -216,9 +213,10 @@ enum State {
     Assigned {
         output: DecodeFutureTyped<BitVec, [u8; 32]>,
     },
-    Finished {
+    Decoded {
         output: Vec<u8>,
     },
+    Done,
 }
 
 #[derive(Debug)]
