@@ -25,11 +25,11 @@ pub fn parse_csv_file<T: DeserializeOwned>(location: &str) -> Result<Vec<T>> {
 pub fn prepend_file_path<S: AsRef<str>>(file_path: S, base_dir: S) -> Result<String> {
     let path = Path::new(file_path.as_ref());
     if !path.is_absolute() {
-        Ok(Path::new(base_dir.as_ref()).join(path)
+        Ok(Path::new(base_dir.as_ref())
+            .join(path)
             .to_str()
             .ok_or_else(|| eyre!("Failed to convert path to str"))?
-            .to_string()
-        )
+            .to_string())
     } else {
         Ok(file_path.as_ref().to_string())
     }
@@ -39,14 +39,16 @@ pub fn prepend_file_path<S: AsRef<str>>(file_path: S, base_dir: S) -> Result<Str
 mod test {
 
     use crate::{
-        auth::AuthorizationWhitelistRecord, config::NotaryServerProperties, util::{parse_csv_file, prepend_file_path}
+        auth::AuthorizationWhitelistRecord,
+        config::NotaryServerProperties,
+        util::{parse_csv_file, prepend_file_path},
     };
 
     use super::{parse_config_file, Result};
 
     #[test]
     fn test_parse_config_file() {
-        let location = "./config/config.yaml";
+        let location = "./fixture/config/config.yaml";
         let config: Result<NotaryServerProperties> = parse_config_file(location);
         assert!(
             config.is_ok(),

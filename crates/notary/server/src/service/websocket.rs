@@ -3,8 +3,8 @@ use tracing::{debug, error, info};
 use ws_stream_tungstenite::WsStream;
 
 use crate::{
-    api::NotaryGlobals,
     service::{axum_websocket::WebSocket, notary_service},
+    types::NotaryGlobals,
 };
 
 /// Perform notarization using the established websocket connection

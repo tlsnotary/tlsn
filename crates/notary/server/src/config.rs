@@ -32,15 +32,16 @@ impl NotaryServerProperties {
         if let Some(config_path) = &cli_fields.config {
             let mut config: NotaryServerProperties = parse_config_file(config_path)?;
 
-            // Ensures all relative file paths in the config file are prepended with 
-            // the config file's parent directory, so that server binary can be run from anywhere.
+            // Ensures all relative file paths in the config file are prepended with
+            // the config file's parent directory, so that server binary can be run from
+            // anywhere.
             let parent_dir = Path::new(config_path)
                 .parent()
                 .ok_or(eyre!("Failed to get parent directory of config file"))?
                 .to_str()
                 .ok_or_else(|| eyre!("Failed to convert path to str"))?
                 .to_string();
-            
+
             // Prepend notarization key paths.
             if let Some(path) = &config.notarization.private_key_path {
                 config.notarization.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
@@ -59,7 +60,7 @@ impl NotaryServerProperties {
             if let Some(path) = &config.auth.whitelist_path {
                 config.auth.whitelist_path = Some(prepend_file_path(path, &parent_dir)?);
             }
-            
+
             Ok(config)
         } else {
             let default_config = Config::try_from(&NotaryServerProperties::default())
@@ -67,7 +68,8 @@ impl NotaryServerProperties {
 
             let config = Config::builder()
                 .add_source(default_config)
-                // Add in settings from environment variables (with a prefix of NS and '_' as separator).
+                // Add in settings from environment variables (with a prefix of NS and '_' as
+                // separator).
                 .add_source(
                     Environment::with_prefix("NS")
                         .try_parsing(true)

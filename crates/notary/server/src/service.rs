@@ -23,15 +23,15 @@ use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 use crate::{
-    api::{
-        NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
-        NotaryGlobals,
-    },
     error::NotaryServerError,
     service::{
         axum_websocket::{header_eq, WebSocketUpgrade},
         tcp::{tcp_notarize, TcpUpgrade},
         websocket::websocket_notarize,
+    },
+    types::{
+        NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
+        NotaryGlobals,
     },
 };
 
