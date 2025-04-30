@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use config::{Config, Environment};
-use eyre::eyre;
+use eyre::{eyre, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::{parse_config_file, util::prepend_file_path, CliFields, NotaryServerError};
+use crate::{parse_config_file, util::prepend_file_path, CliFields};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NotaryServerProperties {
@@ -27,7 +27,7 @@ pub struct NotaryServerProperties {
 }
 
 impl NotaryServerProperties {
-    pub fn new(cli_fields: &CliFields) -> Result<Self, NotaryServerError> {
+    pub fn new(cli_fields: &CliFields) -> Result<Self> {
         // Uses config file if given.
         if let Some(config_path) = &cli_fields.config {
             let mut config: NotaryServerProperties = parse_config_file(config_path)?;
@@ -63,8 +63,7 @@ impl NotaryServerProperties {
 
             Ok(config)
         } else {
-            let default_config = Config::try_from(&NotaryServerProperties::default())
-                .expect("Default config should never fail to load");
+            let default_config = Config::try_from(&NotaryServerProperties::default())?;
 
             let config = Config::builder()
                 .add_source(default_config)
@@ -76,10 +75,8 @@ impl NotaryServerProperties {
                         .prefix_separator("_")
                         .separator("__"),
                 )
-                .build()
-                .map_err(|err| eyre!("{err}"))?
-                .try_deserialize()
-                .map_err(|err| eyre!("{err}"))?;
+                .build()?
+                .try_deserialize()?;
 
             Ok(config)
         }
