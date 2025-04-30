@@ -48,7 +48,7 @@ mod test {
 
     #[test]
     fn test_parse_config_file() {
-        let location = "./fixture/config/config.yaml";
+        let location = "../tests-integration/fixture/config/config.yaml";
         let config: Result<NotaryServerProperties> = parse_config_file(location);
         assert!(
             config.is_ok(),
@@ -58,7 +58,7 @@ mod test {
 
     #[test]
     fn test_parse_csv_file() {
-        let location = "./fixture/auth/whitelist.csv";
+        let location = "../tests-integration/fixture/auth/whitelist.csv";
         let table: Result<Vec<AuthorizationWhitelistRecord>> = parse_csv_file(location);
         assert!(
             table.is_ok(),

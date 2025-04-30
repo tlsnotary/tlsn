@@ -46,9 +46,6 @@ impl NotaryServerProperties {
             if let Some(path) = &config.notarization.private_key_path {
                 config.notarization.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
             }
-            if let Some(path) = &config.notarization.public_key_path {
-                config.notarization.public_key_path = Some(prepend_file_path(path, &parent_dir)?);
-            }
             // Prepend TLS key paths.
             if let Some(path) = &config.tls.private_key_path {
                 config.tls.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
@@ -94,8 +91,6 @@ pub struct NotarizationProperties {
     pub timeout: u64,
     /// File path of private key (in PEM format) used to sign the notarization
     pub private_key_path: Option<String>,
-    /// File path of the corresponding public key (in PEM format)
-    pub public_key_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -182,7 +177,6 @@ impl Default for NotarizationProperties {
             max_recv_data: 16384,
             timeout: 1800,
             private_key_path: None,
-            public_key_path: None,
         }
     }
 }
@@ -215,8 +209,7 @@ impl std::fmt::Display for NotarizationProperties {
         writeln!(f, "   max_sent_data: {}", self.max_sent_data)?;
         writeln!(f, "   max_recv_data: {}", self.max_recv_data)?;
         writeln!(f, "   timeout: {}", self.timeout)?;
-        writeln!(f, "   private_key_path: {:?}", self.private_key_path)?;
-        write!(f, "   public_key_path: {:?}", self.public_key_path)
+        write!(f, "   private_key_path: {:?}", self.private_key_path)
     }
 }
 

@@ -1,7 +1,12 @@
+use const_oid::db::rfc5912::ID_EC_PUBLIC_KEY as OID_EC_PUBLIC_KEY;
 use core::fmt;
-
-use pkcs8::{der::Encode, AssociatedOid, DecodePrivateKey, ObjectIdentifier, PrivateKeyInfo};
-use tlsn_core::signing::{Secp256k1Signer, Secp256r1Signer, SignatureAlgId, Signer};
+use pkcs8::{
+    der::{self, Encode},
+    spki::DynAssociatedAlgorithmIdentifier,
+    AssociatedOid, DecodePrivateKey, EncodePublicKey, LineEnding, PrivateKeyInfo,
+};
+use rand06_compat::Rand0_6CompatExt;
+use tlsn_core::signing::{KeyAlgId, Secp256k1Signer, Secp256r1Signer, SignatureAlgId, Signer};
 use tracing::error;
 
 /// A cryptographic key used for signing attestations.
@@ -14,9 +19,6 @@ impl TryFrom<PrivateKeyInfo<'_>> for AttestationKey {
     type Error = pkcs8::Error;
 
     fn try_from(pkcs8: PrivateKeyInfo<'_>) -> Result<Self, Self::Error> {
-        const OID_EC_PUBLIC_KEY: ObjectIdentifier =
-            ObjectIdentifier::new_unwrap("1.2.840.10045.2.1");
-
         // For now we only support elliptic curve keys.
         if pkcs8.algorithm.oid != OID_EC_PUBLIC_KEY {
             error!("unsupported key algorithm OID: {:?}", pkcs8.algorithm.oid);
@@ -47,6 +49,34 @@ impl TryFrom<PrivateKeyInfo<'_>> for AttestationKey {
 }
 
 impl AttestationKey {
+    /// Samples a new attestation key of the given signature algorithm.
+    pub fn random(alg_id: SignatureAlgId) -> Self {
+        match alg_id {
+            SignatureAlgId::SECP256K1 => Self {
+                alg_id,
+                key: SigningKey::Secp256k1(k256::ecdsa::SigningKey::random(
+                    &mut rand::rng().compat(),
+                )),
+            },
+            SignatureAlgId::SECP256R1 => Self {
+                alg_id,
+                key: SigningKey::Secp256r1(p256::ecdsa::SigningKey::random(
+                    &mut rand::rng().compat(),
+                )),
+            },
+            _ => unimplemented!(),
+        }
+    }
+
+    /// Generates the verifying key corresponding to this attestation key.  
+    pub fn verifying_key(&self) -> PublicKey {
+        match self.alg_id {
+            SignatureAlgId::SECP256K1 => PublicKey::new(KeyAlgId::K256, self.key.verifying_key()),
+            SignatureAlgId::SECP256R1 => PublicKey::new(KeyAlgId::P256, self.key.verifying_key()),
+            _ => unimplemented!(),
+        }
+    }
+
     /// Creates a new signer using this key.
     pub fn into_signer(self) -> Box<dyn Signer + Send + Sync> {
         match self.key {
@@ -71,4 +101,74 @@ impl fmt::Debug for AttestationKey {
 enum SigningKey {
     Secp256k1(k256::ecdsa::SigningKey),
     Secp256r1(p256::ecdsa::SigningKey),
+}
+
+impl SigningKey {
+    fn verifying_key(&self) -> VerifyingKey {
+        match self {
+            SigningKey::Secp256k1(key) => VerifyingKey::K256(*key.verifying_key()),
+            SigningKey::Secp256r1(key) => VerifyingKey::P256(*key.verifying_key()),
+        }
+    }
+}
+
+/// Corresponding public key of the attestation key.
+pub struct PublicKey {
+    #[allow(dead_code)]
+    alg_id: KeyAlgId,
+    key: VerifyingKey,
+}
+
+impl PublicKey {
+    fn new(alg_id: KeyAlgId, key: VerifyingKey) -> Self {
+        Self { alg_id, key }
+    }
+
+    /// Converts the public key into PEM encoding in compressed form.
+    pub fn to_pem(&self) -> Result<String, pkcs8::Error> {
+        Ok(self.key.to_public_key_pem(LineEnding::LF)?)
+    }
+
+    #[cfg(feature = "tee_quote")]
+    /// Coverts the public key into bytes in compressed form.
+    pub fn to_compressed_bytes(&self) -> Vec<u8> {
+        self.key.to_compressed_bytes()
+    }
+}
+
+enum VerifyingKey {
+    K256(k256::ecdsa::VerifyingKey),
+    P256(p256::ecdsa::VerifyingKey),
+}
+
+impl VerifyingKey {
+    fn to_compressed_bytes(&self) -> Vec<u8> {
+        let encoded_point = match self {
+            VerifyingKey::K256(key) => key.to_encoded_point(true),
+            VerifyingKey::P256(key) => key.to_encoded_point(true),
+        };
+        encoded_point.as_bytes().to_vec()
+    }
+}
+// The default `EncodePublicKey` impl for both `k256::ecdsa::VerifyingKey` and
+// `p256::ecdsa::VerifyingKey` are serializing the public key in uncompressed
+// format. This overrides that to obtain the compressed format.
+//
+// Reference: https://github.com/RustCrypto/traits/blob/f44963a897af10d125efe3af89b20930ebe4a999/elliptic-curve/src/public_key.rs#L476-L493
+impl EncodePublicKey for VerifyingKey {
+    fn to_public_key_der(&self) -> Result<der::Document, pkcs8::spki::Error> {
+        let algorithm = match self {
+            VerifyingKey::K256(key) => key.algorithm_identifier()?,
+            VerifyingKey::P256(key) => key.algorithm_identifier()?,
+        };
+
+        let public_key_bytes = self.to_compressed_bytes();
+        let subject_public_key = der::asn1::BitStringRef::new(0, &public_key_bytes)?;
+
+        pkcs8::SubjectPublicKeyInfo {
+            algorithm,
+            subject_public_key,
+        }
+        .try_into()
+    }
 }

@@ -19,12 +19,12 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
 };
-use tlsn_core::CryptoProvider;
+use tlsn_core::{signing::SignatureAlgId, CryptoProvider};
 use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
 use tokio_rustls::{rustls, TlsAcceptor};
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
 
 use crate::{
@@ -38,7 +38,7 @@ use crate::{
 };
 
 #[cfg(feature = "tee_quote")]
-use crate::tee::{generate_ephemeral_keypair, quote};
+use crate::tee::quote;
 
 use tokio::sync::Semaphore;
 
@@ -46,7 +46,8 @@ use tokio::sync::Semaphore;
 /// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
-    let attestation_key = load_attestation_key(&config.notarization).await?;
+    let attestation_key = get_attestation_key(&config.notarization).await?;
+    let public_key = attestation_key.verifying_key();
     let crypto_provider = build_crypto_provider(attestation_key);
 
     // Build TLS acceptor if it is turned on
@@ -111,11 +112,13 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     );
 
     // Parameters needed for the info endpoint
-    let public_key =
-        std::fs::read_to_string(config.notarization.public_key_path.as_ref().unwrap()) // TODO: replace with ephemeral
-            .map_err(|err| {
-                eyre!("Failed to load notary public signing key for notarization: {err}")
-            })?;
+    let public_key_pem = public_key
+        .to_pem()
+        .map_err(|err| eyre!("Failed to convert public key to PEM: {err}"))?;
+
+    #[cfg(feature = "tee_quote")]
+    let public_key_bytes = public_key.to_compressed_bytes();
+
     let version = env!("CARGO_PKG_VERSION").to_string();
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
 
@@ -125,7 +128,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         html_string
             .replace("{version}", &version)
             .replace("{git_commit_hash}", &git_commit_hash)
-            .replace("{public_key}", &public_key),
+            .replace("{public_key}", &public_key_pem),
     );
 
     let router = Router::new()
@@ -144,10 +147,10 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     StatusCode::OK,
                     Json(InfoResponse {
                         version,
-                        public_key,
+                        public_key: public_key_pem,
                         git_commit_hash,
                         #[cfg(feature = "tee_quote")]
-                        quote: quote().await,
+                        quote: quote(public_key_bytes).await,
                     }),
                 )
                     .into_response()
@@ -246,26 +249,31 @@ fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
     provider
 }
 
-/// Load notary signing key for attestations from static file
-async fn load_attestation_key(config: &NotarizationProperties) -> Result<AttestationKey> {
-    #[cfg(feature = "tee_quote")]
-    generate_ephemeral_keypair(&config.private_key_pem_path, &config.public_key_pem_path);
+/// Get notary signing key for attestations.
+/// Generate a random key if user does not provide a static key.
+async fn get_attestation_key(config: &NotarizationProperties) -> Result<AttestationKey> {
+    let key = if let Some(private_key_path) = &config.private_key_path {
+        debug!("Loading notary server's signing key");
 
-    debug!("Loading notary server's signing key");
+        let mut file = File::open(private_key_path).await?;
+        let mut pem = String::new();
+        file.read_to_string(&mut pem)
+            .await
+            .map_err(|_| eyre!("pem file does not contain valid UTF-8"))?;
 
-    // TODO: replace with ephemeral
-    let mut file = File::open(config.private_key_path.as_ref().unwrap()).await?;
-    let mut pem = String::new();
-    file.read_to_string(&mut pem)
-        .await
-        .map_err(|_| eyre!("pem file does not contain valid UTF-8"))?;
+        let key = AttestationKey::from_pkcs8_pem(&pem)
+            .map_err(|err| eyre!("Failed to load notary signing key for notarization: {err}"))?;
 
-    let key = AttestationKey::from_pkcs8_pem(&pem)
-        .map_err(|err| eyre!("Failed to load notary signing key for notarization: {err}"))?;
+        pem.zeroize();
 
-    pem.zeroize();
-
-    debug!("Successfully loaded notary server's signing key!");
+        key
+    } else {
+        warn!(
+            "WARNING! A *random* (ephemeral) signing key will be generated, since none is provided"
+        );
+        // TODO: Support configuring the algorithm
+        AttestationKey::random(SignatureAlgId::SECP256K1)
+    };
 
     Ok(key)
 }
@@ -307,8 +315,8 @@ mod test {
 
     #[tokio::test]
     async fn test_load_notary_key_and_cert() {
-        let private_key_pem_path = "./fixture/tls/notary.key";
-        let certificate_pem_path = "./fixture/tls/notary.crt";
+        let private_key_pem_path = "../tests-integration/fixture/tls/notary.key";
+        let certificate_pem_path = "../tests-integration/fixture/tls/notary.crt";
         let result: Result<(PrivateKey, Vec<Certificate>)> =
             load_tls_key_and_cert(private_key_pem_path, certificate_pem_path).await;
         assert!(result.is_ok(), "Could not load tls private key and cert");
@@ -317,10 +325,20 @@ mod test {
     #[tokio::test]
     async fn test_load_attestation_key() {
         let config = NotarizationProperties {
-            private_key_path: Some("./fixture/notary/notary.key".to_string()),
-            public_key_path: Some("./fixture/notary/notary.pub".to_string()),
+            private_key_path: Some("../tests-integration/fixture/notary/notary.key".to_string()),
             ..Default::default()
         };
-        load_attestation_key(&config).await.unwrap();
+        let result = get_attestation_key(&config).await;
+        assert!(result.is_ok(), "Could not load attestation key");
+    }
+
+    #[tokio::test]
+    async fn test_generate_attestation_key() {
+        let config = NotarizationProperties {
+            private_key_path: None,
+            ..Default::default()
+        };
+        let result = get_attestation_key(&config).await;
+        assert!(result.is_ok(), "Could not generate attestation key");
     }
 }
