@@ -47,7 +47,7 @@ use tokio::sync::Semaphore;
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
     let attestation_key = get_attestation_key(&config.notarization).await?;
-    let public_key = attestation_key.verifying_key();
+    let public_key = attestation_key.public_key();
     let crypto_provider = build_crypto_provider(attestation_key);
 
     // Build TLS acceptor if it is turned on

@@ -68,8 +68,8 @@ impl AttestationKey {
         }
     }
 
-    /// Generates the verifying key corresponding to this attestation key.  
-    pub fn verifying_key(&self) -> PublicKey {
+    /// Generates the public key corresponding to this attestation key.  
+    pub fn public_key(&self) -> PublicKey {
         match self.alg_id {
             SignatureAlgId::SECP256K1 => PublicKey::new(KeyAlgId::K256, self.key.verifying_key()),
             SignatureAlgId::SECP256R1 => PublicKey::new(KeyAlgId::P256, self.key.verifying_key()),
