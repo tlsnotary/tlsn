@@ -314,7 +314,7 @@ impl MpcAesGcm {
             ctr.next().expect("range is unbounded").to_be_bytes()
         })?;
 
-        Ok(keystream.to_vector(len)?)
+        Ok(keystream.to_vector(vm, len)?)
     }
 
     /// Computes tags for the provided ciphertext. See
