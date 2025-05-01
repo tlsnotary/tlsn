@@ -5,18 +5,19 @@
 //! Conceptually the browser prover consists of the native and the wasm
 //! components.
 
+use anyhow::Result;
 use serio::{stream::IoStreamExt, SinkExt as _};
+use tracing::info;
+use wasm_bindgen::prelude::*;
+use web_time::Instant;
+use ws_stream_wasm::WsMeta;
+
 use tlsn_benches_browser_core::{
     msg::{Config, Runtime},
     FramedIo,
 };
 use tlsn_benches_library::run_prover;
-
-use anyhow::Result;
-use tracing::info;
-use wasm_bindgen::prelude::*;
-use web_time::Instant;
-use ws_stream_wasm::WsMeta;
+use tlsn_wasm::LoggingConfig;
 
 #[wasm_bindgen]
 pub async fn wasm_main(
@@ -85,6 +86,9 @@ pub async fn main(
     let cfg: Config = native_io.expect_next().await?;
 
     let start_time = Instant::now();
+
+    info!("running the prover");
+
     run_prover(
         cfg.upload_size,
         cfg.download_size,
@@ -99,4 +103,13 @@ pub async fn main(
         .await?;
 
     Ok(())
+}
+
+/// Initializes the module.
+#[wasm_bindgen]
+pub async fn initialize_bench(
+    logging_config: Option<LoggingConfig>,
+    thread_count: usize,
+) -> Result<(), JsValue> {
+    tlsn_wasm::initialize(logging_config, thread_count).await
 }

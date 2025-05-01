@@ -5,6 +5,7 @@ COPY . .
 ARG BENCH_TYPE=native
 
 RUN \
+  rustup update; \
   if [ "$BENCH_TYPE" = "browser" ]; then \
     # ring's build script needs clang.
     apt update && apt install -y clang; \
@@ -12,7 +13,7 @@ RUN \
     rustup component add rust-src --toolchain nightly; \
     cargo install wasm-pack; \
     cd crates/benches/browser/wasm; \
-    rustup run nightly wasm-pack build --release --target web; \
+    wasm-pack build --target web; \
     cd ../../binary; \
     cargo build --release --features browser-bench; \
   else \
