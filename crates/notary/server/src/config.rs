@@ -3,6 +3,7 @@ use std::path::Path;
 use config::{Config, Environment};
 use eyre::{eyre, Result};
 use serde::{Deserialize, Serialize};
+use tlsn_core::signing::SignatureAlgId;
 
 use crate::{parse_config_file, util::prepend_file_path, CliFields};
 
@@ -42,7 +43,7 @@ impl NotaryServerProperties {
                 .ok_or_else(|| eyre!("Failed to convert path to str"))?
                 .to_string();
 
-            // Prepend notarization key paths.
+            // Prepend notarization key path.
             if let Some(path) = &config.notarization.private_key_path {
                 config.notarization.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
             }
@@ -80,6 +81,22 @@ impl NotaryServerProperties {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum EphemeralKeyAlg {
+    Secp256k1,
+    Secp256r1,
+}
+
+impl From<EphemeralKeyAlg> for SignatureAlgId {
+    fn from(alg: EphemeralKeyAlg) -> Self {
+        match alg {
+            EphemeralKeyAlg::Secp256k1 => SignatureAlgId::SECP256K1,
+            EphemeralKeyAlg::Secp256r1 => SignatureAlgId::SECP256R1,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NotarizationProperties {
     /// Global limit for maximum number of bytes that can be sent
@@ -91,6 +108,9 @@ pub struct NotarizationProperties {
     pub timeout: u64,
     /// File path of private key (in PEM format) used to sign the notarization
     pub private_key_path: Option<String>,
+    /// Signature algorithm used to generate a random private key when
+    /// private_key_path is not set
+    pub ephemeral_key_alg: EphemeralKeyAlg,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -177,6 +197,7 @@ impl Default for NotarizationProperties {
             max_recv_data: 16384,
             timeout: 1800,
             private_key_path: None,
+            ephemeral_key_alg: EphemeralKeyAlg::Secp256k1,
         }
     }
 }
@@ -209,7 +230,8 @@ impl std::fmt::Display for NotarizationProperties {
         writeln!(f, "   max_sent_data: {}", self.max_sent_data)?;
         writeln!(f, "   max_recv_data: {}", self.max_recv_data)?;
         writeln!(f, "   timeout: {}", self.timeout)?;
-        write!(f, "   private_key_path: {:?}", self.private_key_path)
+        writeln!(f, "   private_key_path: {:?}", self.private_key_path)?;
+        write!(f, "   ephemeral_key_alg: {:?}", self.ephemeral_key_alg)
     }
 }
 

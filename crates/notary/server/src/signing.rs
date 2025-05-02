@@ -64,7 +64,7 @@ impl AttestationKey {
                     &mut rand::rng().compat(),
                 )),
             },
-            _ => unimplemented!(),
+            alg_id => unimplemented!("unsupported signature algorithm: {alg_id}"),
         }
     }
 

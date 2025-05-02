@@ -29,6 +29,7 @@ notarization:
   max_recv_data: 16384
   timeout: 1800
   private_key_path: "../notary/notary.key"
+  ephemeral_key_alg: SECP256K1
 
 tls:
   enabled: false

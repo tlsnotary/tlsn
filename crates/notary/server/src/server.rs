@@ -19,7 +19,7 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
 };
-use tlsn_core::{signing::SignatureAlgId, CryptoProvider};
+use tlsn_core::CryptoProvider;
 use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
 use tokio_rustls::{rustls, TlsAcceptor};
 use tower_http::cors::CorsLayer;
@@ -269,10 +269,9 @@ async fn get_attestation_key(config: &NotarizationProperties) -> Result<Attestat
         key
     } else {
         warn!(
-            "WARNING! A *random* (ephemeral) signing key will be generated, since none is provided"
+            "⚠️ Using a random, ephemeral signing key because `notarization.private_key_path` is not set."
         );
-        // TODO: Support configuring the algorithm
-        AttestationKey::random(SignatureAlgId::SECP256K1)
+        AttestationKey::random(config.ephemeral_key_alg.into())
     };
 
     Ok(key)
