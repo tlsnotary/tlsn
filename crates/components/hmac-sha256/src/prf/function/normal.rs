@@ -1,16 +1,14 @@
 //! Computes the whole PRF in MPC.
 
 use crate::{hmac::hmac_sha256, PrfError};
-use mpz_circuits::CircuitBuilder;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U8},
         Array, MemoryExt, Vector, ViewExt,
     },
-    Call, CallableExt, Vm,
+    Vm,
 };
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
@@ -71,7 +69,7 @@ impl PrfFunction {
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         if let State::Computing = self.state {
             let a = self.a.first().expect("prf should be allocated");
-            let msg = a.msg;
+            let msg = *a.msg.first().expect("message for prf should be present");
 
             let msg_value = self.start_seed_label.clone();
 
@@ -120,12 +118,16 @@ impl PrfFunction {
         let mut msg_a = seed_label_ref;
 
         for _ in 0..iterations {
-            let a = PHash::alloc(vm, outer_partial.clone(), inner_partial.clone(), msg_a)?;
+            let a = PHash::alloc(vm, outer_partial.clone(), inner_partial.clone(), &[msg_a])?;
             msg_a = Vector::<U8>::from(a.output);
             prf.a.push(a);
 
-            let msg_p = merge_vecs(vm, vec![msg_a, seed_label_ref])?;
-            let p = PHash::alloc(vm, outer_partial.clone(), inner_partial.clone(), msg_p)?;
+            let p = PHash::alloc(
+                vm,
+                outer_partial.clone(),
+                inner_partial.clone(),
+                &[msg_a, seed_label_ref],
+            )?;
             prf.p.push(p);
         }
 
@@ -141,7 +143,7 @@ enum State {
 
 #[derive(Debug, Clone)]
 struct PHash {
-    msg: Vector<U8>,
+    msg: Vec<Vector<U8>>,
     output: Array<U8, 32>,
 }
 
@@ -150,40 +152,19 @@ impl PHash {
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
-        msg: Vector<U8>,
+        msg: &[Vector<U8>],
     ) -> Result<Self, PrfError> {
         let mut inner_local = inner_partial;
-        inner_local.update(&msg);
+
+        msg.iter().for_each(|m| inner_local.update(m));
         inner_local.compress(vm)?;
         let inner_local = inner_local.finalize(vm)?;
 
         let output = hmac_sha256(vm, outer_partial, inner_local)?;
-        let p_hash = Self { msg, output };
+        let p_hash = Self {
+            msg: msg.to_vec(),
+            output,
+        };
         Ok(p_hash)
     }
-}
-
-fn merge_vecs(vm: &mut dyn Vm<Binary>, inputs: Vec<Vector<U8>>) -> Result<Vector<U8>, PrfError> {
-    let len: usize = inputs.iter().map(|inp| inp.len()).sum();
-    let circ = {
-        let mut builder = CircuitBuilder::new();
-
-        let feeds = (0..len * 8)
-            .map(|_| builder.add_input())
-            .collect::<Vec<_>>();
-        for feed in feeds {
-            let output = builder.add_id_gate(feed);
-            builder.add_output(output);
-        }
-
-        Arc::new(builder.build().expect("merge circuit is valid"))
-    };
-
-    let mut builder = Call::builder(circ);
-    for input in inputs {
-        builder = builder.arg(input);
-    }
-    let call = builder.build().map_err(PrfError::vm)?;
-
-    vm.call(call).map_err(PrfError::vm)
 }
