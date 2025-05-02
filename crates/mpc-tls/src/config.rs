@@ -105,7 +105,7 @@ impl ConfigBuilder {
             .max_recv_records
             .unwrap_or_else(|| PROTOCOL_RECORD_COUNT_RECV + default_record_count(max_recv));
 
-        let prf = self.prf.unwrap_or(PrfMode::Normal);
+        let prf = self.prf.unwrap_or_default();
 
         Ok(Config {
             defer_decryption,
