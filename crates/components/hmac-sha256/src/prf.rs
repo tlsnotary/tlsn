@@ -1,4 +1,7 @@
-use crate::{hmac::HmacSha256, Mode, PrfError, PrfOutput};
+use crate::{
+    hmac::{IPAD, OPAD},
+    Mode, PrfError, PrfOutput,
+};
 use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
@@ -56,16 +59,16 @@ impl MpcPrf {
         let mode = self.mode;
         let pms: Vector<U8> = pms.into();
 
-        let outer_partial_pms = compute_partial(vm, pms, HmacSha256::OPAD)?;
-        let inner_partial_pms = compute_partial(vm, pms, HmacSha256::IPAD)?;
+        let outer_partial_pms = compute_partial(vm, pms, OPAD)?;
+        let inner_partial_pms = compute_partial(vm, pms, IPAD)?;
 
         let master_secret =
             Prf::alloc_master_secret(mode, vm, outer_partial_pms, inner_partial_pms)?;
         let ms = master_secret.output();
         let ms = merge_outputs(vm, ms, 48)?;
 
-        let outer_partial_ms = compute_partial(vm, ms, HmacSha256::OPAD)?;
-        let inner_partial_ms = compute_partial(vm, ms, HmacSha256::IPAD)?;
+        let outer_partial_ms = compute_partial(vm, ms, OPAD)?;
+        let inner_partial_ms = compute_partial(vm, ms, IPAD)?;
 
         let key_expansion =
             Prf::alloc_key_expansion(mode, vm, outer_partial_ms.clone(), inner_partial_ms.clone())?;

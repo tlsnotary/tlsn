@@ -1,6 +1,6 @@
 //! Computes some hashes of the PRF locally.
 
-use crate::{hmac::HmacSha256, sha256, state_to_bytes, PrfError};
+use crate::{hmac::hmac_sha256, sha256, state_to_bytes, PrfError};
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
@@ -171,9 +171,7 @@ struct PHash {
 impl PHash {
     fn alloc(vm: &mut dyn Vm<Binary>, outer_partial: Sha256) -> Result<Self, PrfError> {
         let inner_local: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
-        let hmac = HmacSha256::new(outer_partial, inner_local);
-
-        let output = hmac.alloc(vm).map_err(PrfError::vm)?;
+        let output = hmac_sha256(vm, outer_partial, inner_local)?;
 
         let p_hash = Self {
             state: State::Init { inner_local },
