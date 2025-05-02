@@ -65,12 +65,12 @@ fn get_session_keys(
     vm: &mut dyn Vm<Binary>,
 ) -> Result<SessionKeys, PrfError> {
     let mut keys = merge_outputs(vm, output, 40)?;
+    debug_assert!(keys.len() == 40, "session keys len should be 40");
 
-    let server_iv = <Array<U8, 4> as FromRaw<Binary>>::from_raw(keys.split_off(36).to_raw());
-    let client_iv = <Array<U8, 4> as FromRaw<Binary>>::from_raw(keys.split_off(32).to_raw());
-    let server_write_key =
-        <Array<U8, 16> as FromRaw<Binary>>::from_raw(keys.split_off(16).to_raw());
-    let client_write_key = <Array<U8, 16> as FromRaw<Binary>>::from_raw(keys.to_raw());
+    let server_iv = Array::<U8, 4>::try_from(keys.split_off(36)).unwrap();
+    let client_iv = Array::<U8, 4>::try_from(keys.split_off(32)).unwrap();
+    let server_write_key = Array::<U8, 16>::try_from(keys.split_off(16)).unwrap();
+    let client_write_key = Array::<U8, 16>::try_from(keys).unwrap();
 
     let session_keys = SessionKeys {
         client_write_key,
