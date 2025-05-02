@@ -10,7 +10,9 @@ use hyper::{
     Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
-use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
+use notary_server::{
+    ClientType, NotarizationSessionRequest, NotarizationSessionResponse, X_API_KEY_HEADER,
+};
 use std::{
     io::Error as IoError,
     pin::Pin,
@@ -285,7 +287,7 @@ impl NotaryClient {
 
             if let Some(api_key) = &self.api_key {
                 configuration_request_builder =
-                    configuration_request_builder.header("Authorization", api_key);
+                    configuration_request_builder.header(X_API_KEY_HEADER, api_key);
             }
 
             let configuration_request = configuration_request_builder

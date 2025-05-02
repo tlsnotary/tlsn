@@ -281,7 +281,7 @@ jobs:
             crates/notary/server/tee/notary-server.manifest
             crates/notary/server/tee/notary-server.manifest.sgx
             crates/notary/server/tee/config
-            crates/notary/server/tee/notary-server-sgx.md
+            crates/notary/server/tee/README.md
           if-no-files-found: error
 
       - name: Attest Build Provenance
@@ -305,23 +305,16 @@ jobs:
       CONTAINER_REGISTRY: ghcr.io
     if: github.ref == 'refs/heads/dev' || (startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '.'))
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: './crates/notary/server/tee/notary-server-sgx.Dockerfile'
+
       - name: Download notary-server-sgx.zip from gramine-sgx job
         uses: actions/download-artifact@v4
         with:
           name: notary-server-sgx.zip
           path: ./notary-server-sgx
-
-      - name: Create Dockerfile
-        run: |
-          cat <<EOF > ./Dockerfile
-          FROM gramineproject/gramine:latest
-          WORKDIR /work
-          COPY ./notary-server-sgx /work
-          RUN chmod +x /work/notary-server
-          LABEL org.opencontainers.image.source=https://github.com/tlsnotary/tlsn
-          LABEL org.opencontainers.image.description="TLSNotary notary server in SGX/Gramine."
-          ENTRYPOINT ["gramine-sgx", "notary-server"]
-          EOF
 
       - name: Log in to the Container registry
         uses: docker/login-action@v2
@@ -343,7 +336,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-notary-server-sgx.outputs.tags }}
           labels: ${{ steps.meta-notary-server-sgx.outputs.labels }}
-          file: ./Dockerfile
+          file: ./crates/notary/server/tee/notary-server-sgx.Dockerfile
+
   build_and_publish_notary_server_image:
     name: Build and publish notary server's image
     runs-on: ubuntu-latest

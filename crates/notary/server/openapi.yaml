@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Notary Server
   description: Notary server written in Rust to provide notarization service.
-  version: 0.1.0-alpha.10
+  version: 0.1.0-alpha.11-pre
 tags:
 - name: General
 - name: Notarization
@@ -12,13 +12,9 @@ paths:
       tags:
       - General
       description: Healthcheck endpoint
-      parameters:
-      - in: header
-        name: Authorization
-        description: Whitelisted API key if auth module is turned on
-        schema:
-          type: string
-        required: false
+      security:
+        - {} # make security optional
+        - ApiKeyAuth: []
       responses:
         '200':
           description: Ok response from server
@@ -39,13 +35,9 @@ paths:
       tags:
       - General
       description: General information about the notary server
-      parameters:
-      - in: header
-        name: Authorization
-        description: Whitelisted API key if auth module is turned on
-        schema:
-          type: string
-        required: false
+      security:
+        - {} # make security optional
+        - ApiKeyAuth: []
       responses:
         '200':
           description: Info response from server
@@ -65,6 +57,9 @@ paths:
       tags:
       - Notarization
       description: Initialize and configure notarization for both TCP and WebSocket clients
+      security:
+        - {} # make security optional
+        - ApiKeyAuth: []
       parameters:
       - in: header
         name: Content-Type
@@ -74,12 +69,6 @@ paths:
           enum:
           - application/json
         required: true
-      - in: header
-        name: Authorization
-        description: Whitelisted API key if auth module is turned on
-        schema:
-          type: string
-        required: false
       requestBody:
         description: Notarization session request to server
         required: true
@@ -218,3 +207,9 @@ components:
       - version
       - publicKey
       - gitCommitHash
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Whitelisted API key if auth module is turned on
