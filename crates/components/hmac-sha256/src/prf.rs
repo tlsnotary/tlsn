@@ -14,7 +14,7 @@ use tracing::instrument;
 mod state;
 use state::State;
 
-pub(crate) mod function;
+mod function;
 use function::Prf;
 
 /// MPC PRF for computing TLS 1.2 HMAC-SHA256 PRF.
