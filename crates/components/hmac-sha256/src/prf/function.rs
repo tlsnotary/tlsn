@@ -234,6 +234,7 @@ mod tests {
             .unwrap();
         }
 
+        assert_eq!(prf_out_leader.len(), 2);
         assert_eq!(prf_out_leader.len(), prf_out_follower.len());
 
         let prf_result_leader: Vec<u8> = prf_out_leader
