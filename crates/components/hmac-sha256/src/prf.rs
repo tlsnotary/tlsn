@@ -32,7 +32,7 @@ impl MpcPrf {
     ///
     /// # Arguments
     ///
-    /// `mode` - The PRF config.
+    /// `mode` - The PRF mode.
     pub fn new(mode: Mode) -> MpcPrf {
         Self {
             mode,
@@ -293,7 +293,7 @@ fn merge_outputs(
     assert!(output_bytes <= 32 * inputs.len());
 
     let bits = Array::<U8, 32>::SIZE * inputs.len();
-    let circ = gen_merge_circ(1, bits);
+    let circ = gen_merge_circ(bits);
 
     let mut builder = Call::builder(circ);
     for &input in inputs.iter() {
@@ -306,15 +306,12 @@ fn merge_outputs(
     Ok(output)
 }
 
-fn gen_merge_circ(element_byte_size: usize, size: usize) -> Arc<Circuit> {
-    assert!((size / 8) % element_byte_size == 0);
-
+fn gen_merge_circ(size: usize) -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new();
     let inputs = (0..size).map(|_| builder.add_input()).collect::<Vec<_>>();
 
-    for input in inputs.chunks_exact(element_byte_size * 8) {
-        // TODO: .rev() removed here, correct?
-        for byte in input.chunks_exact(8).rev() {
+    for input in inputs.chunks_exact(8) {
+        for byte in input.chunks_exact(8) {
             for &feed in byte.iter() {
                 let output = builder.add_id_gate(feed);
                 builder.add_output(output);
