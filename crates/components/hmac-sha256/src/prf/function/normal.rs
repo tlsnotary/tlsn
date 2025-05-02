@@ -73,7 +73,6 @@ impl PrfFunction {
 
             let msg_value = self.start_seed_label.clone();
 
-            vm.mark_public(msg).map_err(PrfError::vm)?;
             vm.assign(msg, msg_value).map_err(PrfError::vm)?;
             vm.commit(msg).map_err(PrfError::vm)?;
 
@@ -115,8 +114,9 @@ impl PrfFunction {
 
         let msg_len_a = label.len() + seed_len;
         let seed_label_ref: Vector<U8> = vm.alloc_vec(msg_len_a).map_err(PrfError::vm)?;
-        let mut msg_a = seed_label_ref;
+        vm.mark_public(seed_label_ref).map_err(PrfError::vm)?;
 
+        let mut msg_a = seed_label_ref;
         for _ in 0..iterations {
             let a = PHash::alloc(vm, outer_partial.clone(), inner_partial.clone(), &[msg_a])?;
             msg_a = Vector::<U8>::from(a.output);
