@@ -34,10 +34,7 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
             builder.max_recv_records(value);
         }
 
-        if let Some(value) = value.defer_decryption_from_start {
-            builder.defer_decryption_from_start(value);
-        }
-
+        builder.network(value.network);
         let protocol_config = builder.build().unwrap();
 
         let mut builder = tlsn_prover::ProverConfig::builder();
@@ -48,8 +45,6 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
         if let Some(value) = value.defer_decryption_from_start {
             builder.defer_decryption_from_start(value);
         }
-
-        builder.network(value.network);
 
         builder.build().unwrap()
     }

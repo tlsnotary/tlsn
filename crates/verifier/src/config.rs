@@ -16,9 +16,6 @@ pub struct VerifierConfig {
     /// Cryptography provider.
     #[builder(default, setter(into))]
     crypto_provider: Arc<CryptoProvider>,
-    /// Network settings.
-    #[builder(default)]
-    network: NetworkSetting,
 }
 
 impl Debug for VerifierConfig {
@@ -61,7 +58,7 @@ impl VerifierConfig {
             builder.max_recv_records(max_recv_records);
         }
 
-        if let NetworkSetting::Latency = self.network {
+        if let NetworkSetting::Latency = protocol_config.network() {
             builder.low_bandwidth();
         }
 
