@@ -1,6 +1,6 @@
 //! Computes the whole PRF in MPC.
 
-use crate::{hmac::HmacSha256, PrfError};
+use crate::{hmac::hmac_sha256, PrfError};
 use mpz_circuits::CircuitBuilder;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
@@ -157,9 +157,7 @@ impl PHash {
         inner_local.compress(vm)?;
         let inner_local = inner_local.finalize(vm)?;
 
-        let hmac = HmacSha256::new(outer_partial, inner_local);
-        let output = hmac.alloc(vm).map_err(PrfError::vm)?;
-
+        let output = hmac_sha256(vm, outer_partial, inner_local)?;
         let p_hash = Self { msg, output };
         Ok(p_hash)
     }

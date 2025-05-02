@@ -29,46 +29,30 @@ use mpz_vm_core::{
 
 use crate::PrfError;
 
-/// Computes HMAC-SHA256.
-#[derive(Debug)]
-pub(crate) struct HmacSha256 {
-    outer_partial: Sha256,
+pub(crate) const IPAD: [u8; 64] = [0x36; 64];
+pub(crate) const OPAD: [u8; 64] = [0x5c; 64];
+
+/// Computes HMAC-SHA256
+///
+/// # Arguments
+///
+/// * `vm` - The virtual machine.
+/// * `outer_partial` - (key' xor opad)
+/// * `inner_local` - H((key' xor ipad) || m)
+pub(crate) fn hmac_sha256(
+    vm: &mut dyn Vm<Binary>,
+    mut outer_partial: Sha256,
     inner_local: Array<U8, 32>,
-}
-
-impl HmacSha256 {
-    pub(crate) const IPAD: [u8; 64] = [0x36; 64];
-    pub(crate) const OPAD: [u8; 64] = [0x5c; 64];
-
-    /// Creates a new instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `outer_partial` - (key' xor opad)
-    /// * `inner_local` - H((key' xor ipad) || m)
-    pub(crate) fn new(outer_partial: Sha256, inner_local: Array<U8, 32>) -> Self {
-        Self {
-            outer_partial,
-            inner_local,
-        }
-    }
-
-    /// Adds the circuit to the [`Vm`] and returns the output.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine.
-    pub(crate) fn alloc(mut self, vm: &mut dyn Vm<Binary>) -> Result<Array<U8, 32>, PrfError> {
-        self.outer_partial.update(&self.inner_local);
-        self.outer_partial.compress(vm)?;
-        self.outer_partial.finalize(vm).map_err(PrfError::from)
-    }
+) -> Result<Array<U8, 32>, PrfError> {
+    outer_partial.update(&inner_local);
+    outer_partial.compress(vm)?;
+    outer_partial.finalize(vm).map_err(PrfError::from)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        hmac::HmacSha256,
+        hmac::hmac_sha256,
         sha256, state_to_bytes,
         test_utils::{compute_inner_local, compute_outer_partial, mock_vm},
     };
@@ -118,11 +102,11 @@ mod tests {
                 .unwrap();
             leader.commit(inner_local_leader).unwrap();
 
-            let hmac_leader = HmacSha256::new(
+            let hmac_leader = hmac_sha256(
+                &mut leader,
                 Sha256::new_from_state(outer_partial_leader, 1),
                 inner_local_leader,
             )
-            .alloc(&mut leader)
             .unwrap();
             let hmac_leader = leader.decode(hmac_leader).unwrap();
 
@@ -140,11 +124,11 @@ mod tests {
                 .unwrap();
             follower.commit(inner_local_follower).unwrap();
 
-            let hmac_follower = HmacSha256::new(
+            let hmac_follower = hmac_sha256(
+                &mut follower,
                 Sha256::new_from_state(outer_partial_follower, 1),
                 inner_local_follower,
             )
-            .alloc(&mut follower)
             .unwrap();
             let hmac_follower = follower.decode(hmac_follower).unwrap();
 
