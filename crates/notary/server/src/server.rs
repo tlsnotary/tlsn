@@ -10,6 +10,7 @@ use eyre::{ensure, eyre, Result};
 use futures_util::future::poll_fn;
 use hyper::{body::Incoming, server::conn::http1};
 use hyper_util::rt::TokioIo;
+use jsonwebtoken::DecodingKey;
 use notify::{
     event::ModifyKind, Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
@@ -18,7 +19,7 @@ use rustls::{Certificate, PrivateKey, ServerConfig};
 use std::{
     collections::HashMap,
     fs::File as StdFile,
-    io::BufReader,
+    io::{BufReader, Read},
     net::{IpAddr, SocketAddr},
     path::Path,
     pin::Pin,
@@ -33,9 +34,12 @@ use tracing::{debug, error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    config::{NotaryServerProperties, NotarySigningKeyProperties},
+    config::{AuthorizationModeProperties, NotaryServerProperties, NotarySigningKeyProperties},
     domain::{
-        auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord},
+        auth::{
+            authorization_whitelist_vec_into_hashmap, AuthorizationMode,
+            AuthorizationWhitelistRecord, Jwt,
+        },
         notary::NotaryGlobals,
         InfoResponse,
     },
@@ -89,12 +93,22 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         Some(TlsAcceptor::from(tls_config))
     };
 
-    // Load the authorization whitelist csv if it is turned on
-    let authorization_whitelist =
-        load_authorization_whitelist(config)?.map(|whitelist| Arc::new(Mutex::new(whitelist)));
+    // Set up authorization if it is turned on
+    let authorization_mode = load_authorization_mode(config).await?;
+
     // Enable hot reload if authorization whitelist is available
-    let watcher =
-        watch_and_reload_authorization_whitelist(config.clone(), authorization_whitelist.clone())?;
+    let watcher = authorization_mode
+        .as_ref()
+        .and_then(AuthorizationMode::as_whitelist)
+        .zip(
+            config
+                .authorization
+                .mode
+                .as_ref()
+                .and_then(AuthorizationModeProperties::as_whitelist),
+        )
+        .map(|(whitelist, path)| watch_and_reload_authorization_whitelist(whitelist, path))
+        .transpose()?;
     if watcher.is_some() {
         debug!("Successfully setup watcher for hot reload of authorization whitelist!");
     }
@@ -115,7 +129,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let notary_globals = NotaryGlobals::new(
         Arc::new(crypto_provider),
         config.notarization.clone(),
-        authorization_whitelist,
+        authorization_mode,
         Arc::new(Semaphore::new(config.concurrency)),
     );
 
@@ -306,30 +320,51 @@ async fn load_tls_key_and_cert(
     Ok((private_key, certificates))
 }
 
+async fn load_authorization_mode(
+    config: &NotaryServerProperties,
+) -> Result<Option<AuthorizationMode>> {
+    if !config.authorization.enabled {
+        debug!("Skipping authorization as it is turned off.");
+        return Ok(None);
+    }
+
+    let auth_mode = match config.authorization.mode.as_ref().ok_or_else(|| {
+        eyre!(
+            "Authorization enabled but neither whitelist nor jwt properties provided in the config"
+        )
+    })? {
+        AuthorizationModeProperties::Jwt(jwt_opts) => {
+            let key = load_jwt_key(&jwt_opts.public_key_pem_path).await?;
+            let claims = jwt_opts.claims.clone();
+            AuthorizationMode::Jwt(Jwt { key, claims })
+        }
+        AuthorizationModeProperties::Whitelist(whitelist_csv_path) => {
+            let whitelist = load_authorization_whitelist(whitelist_csv_path)?;
+            AuthorizationMode::Whitelist(Arc::new(Mutex::new(whitelist)))
+        }
+    };
+
+    Ok(Some(auth_mode))
+}
+
+async fn load_jwt_key(public_key_pem_path: &str) -> Result<DecodingKey> {
+    let mut reader = read_pem_file(public_key_pem_path).await?;
+    let mut key: Vec<u8> = Vec::new();
+    reader.read_to_end(&mut key)?;
+    let key = DecodingKey::from_rsa_pem(&key)?;
+    Ok(key)
+}
+
 /// Load authorization whitelist if it is enabled
 fn load_authorization_whitelist(
-    config: &NotaryServerProperties,
-) -> Result<Option<HashMap<String, AuthorizationWhitelistRecord>>> {
-    let authorization_whitelist = if !config.authorization.enabled {
-        debug!("Skipping authorization as it is turned off.");
-        None
-    } else {
-        // Check if whitelist_csv_path is Some and convert to &str
-        let whitelist_csv_path = config
-            .authorization
-            .whitelist_csv_path
-            .as_deref()
-            .ok_or_else(|| {
-                eyre!("Authorization whitelist csv path is not provided in the config")
-            })?;
-        // Load the csv
-        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
-            .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
-        // Convert the whitelist record into hashmap for faster lookup
-        let whitelist_hashmap = authorization_whitelist_vec_into_hashmap(whitelist_csv);
-        Some(whitelist_hashmap)
-    };
-    Ok(authorization_whitelist)
+    whitelist_csv_path: &str,
+) -> Result<HashMap<String, AuthorizationWhitelistRecord>> {
+    // Load the csv
+    let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
+        .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
+    // Convert the whitelist record into hashmap for faster lookup
+    let whitelist_hashmap = authorization_whitelist_vec_into_hashmap(whitelist_csv);
+    Ok(whitelist_hashmap)
 }
 
 // Setup a watcher to detect any changes to authorization whitelist
@@ -337,62 +372,44 @@ fn load_authorization_whitelist(
 // The watcher is setup in a separate thread by the notify library which is
 // synchronous
 fn watch_and_reload_authorization_whitelist(
-    config: NotaryServerProperties,
-    authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
-) -> Result<Option<RecommendedWatcher>> {
-    // Only setup the watcher if auth whitelist is loaded
-    let watcher = if let Some(authorization_whitelist) = authorization_whitelist {
-        let cloned_config = config.clone();
-        // Setup watcher by giving it a function that will be triggered when an event is
-        // detected
-        let mut watcher = RecommendedWatcher::new(
-            move |event: Result<Event, Error>| {
-                match event {
-                    Ok(event) => {
-                        // Only reload whitelist if it's an event that modified the file data
-                        if let EventKind::Modify(ModifyKind::Data(_)) = event.kind {
-                            debug!("Authorization whitelist is modified");
-                            match load_authorization_whitelist(&cloned_config) {
-                                Ok(Some(new_authorization_whitelist)) => {
-                                    *authorization_whitelist.lock().unwrap() = new_authorization_whitelist;
-                                    info!("Successfully reloaded authorization whitelist!");
-                                }
-                                Ok(None) => unreachable!(
-                                    "Authorization whitelist will never be None as the auth module is enabled"
-                                ),
-                                // Ensure that error from reloading doesn't bring the server down
-                                Err(err) => error!("{err}"),
+    authorization_whitelist: Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>,
+    whitelist_csv_path: String,
+) -> Result<RecommendedWatcher> {
+    let whitelist_csv_path_cloned = whitelist_csv_path.clone();
+    // Setup watcher by giving it a function that will be triggered when an event is
+    // detected
+    let mut watcher = RecommendedWatcher::new(
+        move |event: Result<Event, Error>| {
+            match event {
+                Ok(event) => {
+                    // Only reload whitelist if it's an event that modified the file data
+                    if let EventKind::Modify(ModifyKind::Data(_)) = event.kind {
+                        debug!("Authorization whitelist is modified");
+                        match load_authorization_whitelist(&whitelist_csv_path_cloned) {
+                            Ok(new_authorization_whitelist) => {
+                                *authorization_whitelist.lock().unwrap() =
+                                    new_authorization_whitelist;
+                                info!("Successfully reloaded authorization whitelist!");
                             }
+                            // Ensure that error from reloading doesn't bring the server down
+                            Err(err) => error!("{err}"),
                         }
-                    },
-                    Err(err) => {
-                        error!("Error occured when watcher detected an event: {err}")
                     }
                 }
-            },
-            notify::Config::default(),
-        )
-        .map_err(|err| eyre!("Error occured when setting up watcher for hot reload: {err}"))?;
+                Err(err) => {
+                    error!("Error occured when watcher detected an event: {err}")
+                }
+            }
+        },
+        notify::Config::default(),
+    )
+    .map_err(|err| eyre!("Error occured when setting up watcher for hot reload: {err}"))?;
 
-        // Check if whitelist_csv_path is Some and convert to &str
-        let whitelist_csv_path = config
-            .authorization
-            .whitelist_csv_path
-            .as_deref()
-            .ok_or_else(|| {
-                eyre!("Authorization whitelist csv path is not provided in the config")
-            })?;
+    // Start watcher to listen to any changes on the whitelist file
+    watcher
+        .watch(Path::new(&whitelist_csv_path), RecursiveMode::Recursive)
+        .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
-        // Start watcher to listen to any changes on the whitelist file
-        watcher
-            .watch(Path::new(whitelist_csv_path), RecursiveMode::Recursive)
-            .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
-
-        Some(watcher)
-    } else {
-        // Skip setup the watcher if auth whitelist is not loaded
-        None
-    };
     // Need to return the watcher to parent function, else it will be dropped and
     // stop listening
     Ok(watcher)
@@ -403,8 +420,6 @@ mod test {
     use std::{fs::OpenOptions, time::Duration};
 
     use csv::WriterBuilder;
-
-    use crate::AuthorizationProperties;
 
     use super::*;
 
@@ -434,23 +449,16 @@ mod test {
         std::fs::copy(original_whitelist_csv_path, &whitelist_csv_path).unwrap();
 
         // Setup watcher
-        let config = NotaryServerProperties {
-            authorization: AuthorizationProperties {
-                enabled: true,
-                whitelist_csv_path: Some(whitelist_csv_path.clone()),
-            },
-            ..Default::default()
-        };
-        let authorization_whitelist = load_authorization_whitelist(&config)
-            .expect("Authorization whitelist csv from fixture should be able to be loaded")
-            .as_ref()
-            .map(|whitelist| Arc::new(Mutex::new(whitelist.clone())));
+        let authorization_whitelist = load_authorization_whitelist(&whitelist_csv_path).expect(
+            "Authorization whitelist csv from fixture should be able
+    to be loaded",
+        );
+        let authorization_whitelist = Arc::new(Mutex::new(authorization_whitelist));
         let _watcher = watch_and_reload_authorization_whitelist(
-            config.clone(),
-            authorization_whitelist.as_ref().map(Arc::clone),
+            authorization_whitelist.clone(),
+            whitelist_csv_path.clone(),
         )
-        .expect("Watcher should be able to be setup successfully")
-        .expect("Watcher should be set up and not None");
+        .expect("Watcher should be able to be setup successfully");
 
         // Sleep to buy a bit of time for hot reload task and watcher thread to run
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -461,21 +469,20 @@ mod test {
             api_key: "unit-test-api-key".to_string(),
             created_at: "unit-test-created-at".to_string(),
         };
-        if let Some(ref path) = config.authorization.whitelist_csv_path {
-            let file = OpenOptions::new().append(true).open(path).unwrap();
-            let mut wtr = WriterBuilder::new()
-                .has_headers(false) // Set to false to avoid writing header again
-                .from_writer(file);
-            wtr.serialize(new_record).unwrap();
-            wtr.flush().unwrap();
-        } else {
-            panic!("Whitelist CSV path should be provided in the config");
-        }
+        let file = OpenOptions::new()
+            .append(true)
+            .open(&whitelist_csv_path)
+            .unwrap();
+        let mut wtr = WriterBuilder::new()
+            .has_headers(false) // Set to false to avoid writing header again
+            .from_writer(file);
+        wtr.serialize(new_record).unwrap();
+        wtr.flush().unwrap();
+
         // Sleep to buy a bit of time for updated whitelist to be hot reloaded
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         assert!(authorization_whitelist
-            .unwrap()
             .lock()
             .unwrap()
             .contains_key("unit-test-api-key"));

@@ -43,6 +43,6 @@ logging:
 
 authorization:
   enabled: false
-  whitelist_csv_path: "."
+  whitelist: "."
 
 concurrency: 32
