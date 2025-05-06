@@ -271,7 +271,7 @@ async fn get_attestation_key(config: &NotarizationProperties) -> Result<Attestat
         warn!(
             "⚠️ Using a random, ephemeral signing key because `notarization.private_key_path` is not set."
         );
-        AttestationKey::random(config.ephemeral_key_alg.into())
+        AttestationKey::random(&config.signature_algorithm)
     };
 
     Ok(key)

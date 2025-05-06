@@ -50,21 +50,21 @@ impl TryFrom<PrivateKeyInfo<'_>> for AttestationKey {
 
 impl AttestationKey {
     /// Samples a new attestation key of the given signature algorithm.
-    pub fn random(alg_id: SignatureAlgId) -> Self {
-        match alg_id {
-            SignatureAlgId::SECP256K1 => Self {
-                alg_id,
+    pub fn random(alg_id: &str) -> Self {
+        match alg_id.to_uppercase().as_str() {
+            "SECP256K1" => Self {
+                alg_id: SignatureAlgId::SECP256K1,
                 key: SigningKey::Secp256k1(k256::ecdsa::SigningKey::random(
                     &mut rand::rng().compat(),
                 )),
             },
-            SignatureAlgId::SECP256R1 => Self {
-                alg_id,
+            "SECP256R1" => Self {
+                alg_id: SignatureAlgId::SECP256R1,
                 key: SigningKey::Secp256r1(p256::ecdsa::SigningKey::random(
                     &mut rand::rng().compat(),
                 )),
             },
-            alg_id => unimplemented!("unsupported signature algorithm: {alg_id}"),
+            alg_id => unimplemented!("unsupported signature algorithm: {alg_id} — only secp256k1 and secp256r1 are supported now"),
         }
     }
 

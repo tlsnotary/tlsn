@@ -1,9 +1,7 @@
-use std::path::Path;
-
 use config::{Config, Environment};
 use eyre::{eyre, Result};
 use serde::{Deserialize, Serialize};
-use tlsn_core::signing::SignatureAlgId;
+use std::path::Path;
 
 use crate::{parse_config_file, util::prepend_file_path, CliFields};
 
@@ -81,22 +79,6 @@ impl NotaryServerProperties {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum EphemeralKeyAlg {
-    Secp256k1,
-    Secp256r1,
-}
-
-impl From<EphemeralKeyAlg> for SignatureAlgId {
-    fn from(alg: EphemeralKeyAlg) -> Self {
-        match alg {
-            EphemeralKeyAlg::Secp256k1 => SignatureAlgId::SECP256K1,
-            EphemeralKeyAlg::Secp256r1 => SignatureAlgId::SECP256R1,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NotarizationProperties {
     /// Global limit for maximum number of bytes that can be sent
@@ -110,7 +92,7 @@ pub struct NotarizationProperties {
     pub private_key_path: Option<String>,
     /// Signature algorithm used to generate a random private key when
     /// private_key_path is not set
-    pub ephemeral_key_alg: EphemeralKeyAlg,
+    pub signature_algorithm: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -197,7 +179,7 @@ impl Default for NotarizationProperties {
             max_recv_data: 16384,
             timeout: 1800,
             private_key_path: None,
-            ephemeral_key_alg: EphemeralKeyAlg::Secp256k1,
+            signature_algorithm: "secp256k1".to_string(),
         }
     }
 }
@@ -231,7 +213,7 @@ impl std::fmt::Display for NotarizationProperties {
         writeln!(f, "   max_recv_data: {}", self.max_recv_data)?;
         writeln!(f, "   timeout: {}", self.timeout)?;
         writeln!(f, "   private_key_path: {:?}", self.private_key_path)?;
-        write!(f, "   ephemeral_key_alg: {:?}", self.ephemeral_key_alg)
+        write!(f, "   signature_algorithm: {}", self.signature_algorithm)
     }
 }
 
