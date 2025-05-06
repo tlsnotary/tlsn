@@ -1,5 +1,7 @@
 //! Computes some hashes of the PRF locally.
 
+use std::collections::VecDeque;
+
 use crate::{hmac::hmac_sha256, sha256, state_to_bytes, PrfError};
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
@@ -19,8 +21,8 @@ pub(crate) struct PrfFunction {
     start_seed_label: Vec<u8>,
     iterations: usize,
     state: PrfState,
-    a: Vec<PHash>,
-    p: Vec<PHash>,
+    a: VecDeque<AHash>,
+    p: VecDeque<PHash>,
 }
 
 #[derive(Debug)]
@@ -38,7 +40,7 @@ enum PrfState {
         inner_partial: [u32; 8],
         a_output: DecodeFutureTyped<BitVec, [u8; 32]>,
     },
-    ComputeLastP,
+    FinishLastP,
     Done,
 }
 
@@ -95,7 +97,7 @@ impl PrfFunction {
                 };
 
                 self.state = PrfState::ComputeA {
-                    iter: 0,
+                    iter: 1,
                     inner_partial,
                     msg: self.start_seed_label.clone(),
                 };
@@ -106,14 +108,13 @@ impl PrfFunction {
                 inner_partial,
                 msg,
             } => {
-                let a = &self.a[*iter];
+                let a = self.a.pop_front().expect("Prf AHash should be present");
                 assign_inner_local(vm, a.inner_local, *inner_partial, msg)?;
 
-                let a_output = vm.decode(a.output).map_err(PrfError::vm)?;
                 self.state = PrfState::ComputeP {
                     iter: *iter,
                     inner_partial: *inner_partial,
-                    a_output,
+                    a_output: a.output,
                 };
             }
             PrfState::ComputeP {
@@ -124,7 +125,7 @@ impl PrfFunction {
                 let Some(output) = a_output.try_recv().map_err(PrfError::vm)? else {
                     return Ok(());
                 };
-                let p = &self.p[*iter];
+                let p = self.p.pop_front().expect("Prf PHash should be present");
 
                 let mut msg = output.to_vec();
                 msg.extend_from_slice(&self.start_seed_label);
@@ -132,7 +133,7 @@ impl PrfFunction {
                 assign_inner_local(vm, p.inner_local, *inner_partial, &msg)?;
 
                 if *iter == self.iterations {
-                    self.state = PrfState::ComputeLastP;
+                    self.state = PrfState::FinishLastP;
                 } else {
                     self.state = PrfState::ComputeA {
                         iter: *iter + 1,
@@ -141,7 +142,7 @@ impl PrfFunction {
                     }
                 };
             }
-            PrfState::ComputeLastP => self.state = PrfState::Done,
+            PrfState::FinishLastP => self.state = PrfState::Done,
             _ => (),
         }
 
@@ -178,22 +179,24 @@ impl PrfFunction {
         let mut prf = Self {
             label,
             start_seed_label: vec![],
-            // used for indexing, so we need to subtract one here
-            iterations: iterations - 1,
+            iterations,
             state: PrfState::InnerPartial { inner_partial },
-            a: vec![],
-            p: vec![],
+            a: VecDeque::new(),
+            p: VecDeque::new(),
         };
 
         for _ in 0..iterations {
             // setup A[i]
             let inner_local: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
             let output = hmac_sha256(vm, outer_partial.clone(), inner_local)?;
-            let p_hash = PHash {
+
+            let output = vm.decode(output).map_err(PrfError::vm)?;
+            let a_hash = AHash {
                 inner_local,
                 output,
             };
-            prf.a.push(p_hash);
+
+            prf.a.push_front(a_hash);
 
             // setup P[i]
             let inner_local: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
@@ -202,7 +205,7 @@ impl PrfFunction {
                 inner_local,
                 output,
             };
-            prf.p.push(p_hash);
+            prf.p.push_front(p_hash);
         }
 
         Ok(prf)
@@ -223,6 +226,14 @@ fn assign_inner_local(
     vm.commit(inner_local).map_err(PrfError::vm)?;
 
     Ok(())
+}
+
+/// Like PHash but stores the output as the decoding future because in the reduced Prf we need to
+/// decode this output.
+#[derive(Debug)]
+struct AHash {
+    inner_local: Array<U8, 32>,
+    output: DecodeFutureTyped<BitVec, [u8; 32]>,
 }
 
 #[derive(Debug, Clone, Copy)]
