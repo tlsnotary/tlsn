@@ -39,7 +39,7 @@ directory, build the wasm module, build the binaries, and then run the script:
 ```sh
 cd browser/wasm
 wasm-pack build --target web
-cd ../../binary 
+cd ../../binary
 cargo build --release --features browser-bench
 sudo ./bench.sh
 ```
