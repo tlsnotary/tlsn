@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use mpz_circuits::circuits::xor;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    MemoryExt, Repr, Slice, StaticSize, Vector,
+    MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
 };
 use mpz_vm_core::{prelude::*, Call, CallBuilder, CallError, Vm};
 use std::{collections::VecDeque, sync::Arc};
@@ -159,14 +159,24 @@ where
             return Err(CipherError::new("no keystream material available"));
         }
 
-        let mut builder = CallBuilder::new(Arc::new(xor(input.len() * 8))).arg(input);
-
+        let xor = Arc::new(xor(self.block_size() * 8));
+        let mut pos = 0;
+        let mut outputs = Vec::with_capacity(self.blocks.len());
         for block in &self.blocks {
-            builder = builder.arg(block.output);
+            let call = CallBuilder::new(xor.clone())
+                .arg(block.output)
+                .arg(
+                    input
+                        .get(pos..pos + self.block_size())
+                        .expect("input length was checked"),
+                )
+                .build()?;
+            let output: Vector<U8> = vm.call(call).map_err(CipherError::new)?;
+            outputs.push(output);
+            pos += self.block_size();
         }
 
-        let call = builder.build()?;
-        let output: Vector<U8> = vm.call(call).map_err(CipherError::new)?;
+        let output = flatten_blocks(vm, outputs.iter().map(|block| block.to_raw()))?;
 
         Ok(output)
     }

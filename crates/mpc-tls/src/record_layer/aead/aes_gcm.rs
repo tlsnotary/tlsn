@@ -33,7 +33,6 @@ enum State {
         input: Vector<U8>,
         keystream: Keystream<Nonce, Ctr, Block>,
         j0s: Vec<(CtrBlock<Nonce, Ctr, Block>, OneTimePadShared<[u8; 16]>)>,
-        output: Vector<U8>,
         ghash_key: OneTimePadShared<[u8; 16]>,
         ghash: Box<dyn Ghash + Send + Sync>,
     },
@@ -41,7 +40,6 @@ enum State {
         input: Vector<U8>,
         keystream: Keystream<Nonce, Ctr, Block>,
         j0s: Vec<(CtrBlock<Nonce, Ctr, Block>, OneTimePadShared<[u8; 16]>)>,
-        output: Vector<U8>,
         ghash: Arc<dyn Ghash + Send + Sync>,
     },
     Error,
@@ -125,13 +123,11 @@ impl MpcAesGcm {
         }
 
         let keystream = self.aes.alloc_keystream(vm, len)?;
-        let output = keystream.apply(vm, input)?;
 
         self.state = State::Setup {
             input,
             keystream,
             j0s,
-            output,
             ghash,
             ghash_key,
         };
@@ -162,7 +158,6 @@ impl MpcAesGcm {
             input,
             keystream,
             j0s,
-            output,
             mut ghash,
             ghash_key,
         } = self.state.take()
@@ -178,7 +173,6 @@ impl MpcAesGcm {
             input,
             keystream,
             j0s,
-            output,
             ghash: Arc::from(ghash),
         };
 
@@ -202,10 +196,7 @@ impl MpcAesGcm {
         len: usize,
     ) -> Result<(Vector<U8>, Vector<U8>), AeadError> {
         let State::Ready {
-            input,
-            keystream,
-            output,
-            ..
+            input, keystream, ..
         } = &mut self.state
         else {
             return Err(AeadError::state(
@@ -235,7 +226,7 @@ impl MpcAesGcm {
 
         let mut input = input.split_off(input.len() - padded_len);
         let keystream = keystream.consume(padded_len)?;
-        let mut output = output.split_off(output.len() - padded_len);
+        let mut output = keystream.apply(vm, input)?;
 
         // Assign counter block inputs.
         let mut ctr = START_CTR..;
@@ -273,10 +264,7 @@ impl MpcAesGcm {
         len: usize,
     ) -> Result<Vector<U8>, AeadError> {
         let State::Ready {
-            input,
-            keystream,
-            output,
-            ..
+            input, keystream, ..
         } = &mut self.state
         else {
             return Err(AeadError::state("must be in ready state to take keystream"));
@@ -300,11 +288,6 @@ impl MpcAesGcm {
                 input.len()
             )));
         }
-
-        // Drop the input and output text, we won't be needing them.
-        // This leaves them allocated but unassigned in the VM.
-        _ = input.split_off(input.len() - padded_len);
-        _ = output.split_off(output.len() - padded_len);
 
         let keystream = keystream.consume(len)?;
 
