@@ -13,7 +13,7 @@ RUN \
     rustup component add rust-src --toolchain nightly; \
     cargo install wasm-pack; \
     cd crates/benches/browser/wasm; \
-    wasm-pack build --target web; \
+    wasm-pack build --release --target web; \
     cd ../../binary; \
     cargo build --release --features browser-bench; \
   else \

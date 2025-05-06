@@ -38,7 +38,7 @@ With a Chrome browser installed on your system, make sure you're in the `crates/
 directory, build the wasm module, build the binaries, and then run the script:
 ```sh
 cd browser/wasm
-wasm-pack build --target web
+wasm-pack build --release --target web
 cd ../../binary
 cargo build --release --features browser-bench
 sudo ./bench.sh
