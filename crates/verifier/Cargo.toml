@@ -40,7 +40,6 @@ derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
-rand06-compat = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }

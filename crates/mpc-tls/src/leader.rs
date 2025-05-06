@@ -15,7 +15,7 @@ use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use ludi::Context as LudiContext;
-use mpz_common::{scoped_futures::ScopedFutureExt, Context, Flush};
+use mpz_common::{Context, Flush};
 use mpz_core::{bitvec::BitVec, Block};
 use mpz_memory_core::DecodeFutureTyped;
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
@@ -28,7 +28,6 @@ use mpz_ot::{
 };
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use mpz_vm_core::prelude::*;
-use rand06_compat::Rand0_6CompatExt;
 use serio::SinkExt;
 use tls_backend::{Backend, BackendError, BackendNotifier, BackendNotify};
 use tls_core::{
@@ -80,7 +79,7 @@ impl MpcTlsLeader {
         let ke = Box::new(MpcKeyExchange::new(
             key_exchange::Role::Leader,
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.0)),
             )),
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -97,14 +96,14 @@ impl MpcTlsLeader {
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.1)),
             )),
             Role::Leader,
         );
         let decrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.2)),
             )),
             Role::Leader,
@@ -212,37 +211,28 @@ impl MpcTlsLeader {
 
         let (ke, record_layer, _) = ctx
             .try_join3(
-                |ctx| {
-                    async move {
-                        ke.setup(ctx)
-                            .await
-                            .map(|_| ke)
-                            .map_err(MpcTlsError::preprocess)
-                    }
-                    .scope_boxed()
+                async move |ctx| {
+                    ke.setup(ctx)
+                        .await
+                        .map(|_| ke)
+                        .map_err(MpcTlsError::preprocess)
                 },
-                |ctx| {
-                    async move {
-                        record_layer
-                            .preprocess(ctx)
-                            .await
-                            .map(|_| record_layer)
-                            .map_err(MpcTlsError::preprocess)
-                    }
-                    .scope_boxed()
+                async move |ctx| {
+                    record_layer
+                        .preprocess(ctx)
+                        .await
+                        .map(|_| record_layer)
+                        .map_err(MpcTlsError::preprocess)
                 },
-                |ctx| {
-                    async move {
-                        vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
-                        vm_lock
-                            .preprocess(ctx)
-                            .await
-                            .map_err(MpcTlsError::preprocess)?;
-                        vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                async move |ctx| {
+                    vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                    vm_lock
+                        .preprocess(ctx)
+                        .await
+                        .map_err(MpcTlsError::preprocess)?;
+                    vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
-                        Ok::<_, MpcTlsError>(())
-                    }
-                    .scope_boxed()
+                    Ok::<_, MpcTlsError>(())
                 },
             )
             .await

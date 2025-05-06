@@ -449,12 +449,11 @@ mod tests {
     };
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
-    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_memory_core::{binary::U8, correlated::Delta};
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_share_conversion::ideal::ideal_share_convert;
     use rand::{rngs::StdRng, SeedableRng};
-    use rand06_compat::Rand0_6CompatExt;
     use rstest::*;
 
     static SHORT_MSG: &[u8] = b"hello world";
@@ -568,12 +567,12 @@ mod tests {
     }
 
     fn create_vm(key: [u8; 16], iv: [u8; 4]) -> ((impl Vm<Binary>, Vars), (impl Vm<Binary>, Vars)) {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = StdRng::seed_from_u64(0);
         let block = Block::random(&mut rng);
         let (sender, receiver) = ideal_cot(block);
 
         let delta = Delta::new(block);
-        let mut vm_0 = Generator::new(sender, [0u8; 16], delta);
+        let mut vm_0 = Garbler::new(sender, [0u8; 16], delta);
         let mut vm_1 = Evaluator::new(receiver);
 
         let key_ref_0 = vm_0.alloc::<Array<U8, 16>>().unwrap();
@@ -616,7 +615,7 @@ mod tests {
 
     fn create_pair(vars_0: Vars, vars_1: Vars) -> (MpcAesGcm, MpcAesGcm) {
         let mut rng = StdRng::seed_from_u64(0);
-        let (c_0, c_1) = ideal_share_convert(Block::random(&mut rng.compat_by_ref()));
+        let (c_0, c_1) = ideal_share_convert(Block::random(&mut rng));
         let mut leader = MpcAesGcm::new(c_0, Role::Leader);
         let mut follower = MpcAesGcm::new(c_1, Role::Follower);
 

@@ -347,7 +347,7 @@ mod tests {
         ideal_share_convert, IdealShareConvertReceiver, IdealShareConvertSender,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use rand06_compat::Rand0_6CompatExt;
+
     fn create_pair() -> (
         MpcGhash<IdealShareConvertSender<Gf2_128>>,
         MpcGhash<IdealShareConvertReceiver<Gf2_128>>,
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_compute_shares() {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = StdRng::seed_from_u64(0);
 
         let key = Gf2_128::rand(&mut rng);
         let expected_powers: Vec<_> = (0..MAX_POWER)
