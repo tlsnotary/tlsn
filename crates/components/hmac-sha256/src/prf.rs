@@ -199,44 +199,62 @@ impl MpcPrf {
 
     /// Flushes the PRF.
     pub fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        match &mut self.state {
+        let state = match self.state.take() {
             State::SessionKeys {
-                master_secret,
-                key_expansion,
-                ..
+                client_random,
+                mut master_secret,
+                mut key_expansion,
+                client_finished,
+                server_finished,
             } => {
                 master_secret.flush(vm)?;
                 key_expansion.flush(vm)?;
+
+                if !master_secret.wants_flush() && !key_expansion.wants_flush() {
+                    State::ClientFinished {
+                        client_finished,
+                        server_finished,
+                    }
+                } else {
+                    State::SessionKeys {
+                        client_random,
+                        master_secret,
+                        key_expansion,
+                        client_finished,
+                        server_finished,
+                    }
+                }
             }
             State::ClientFinished {
-                client_finished, ..
+                mut client_finished,
+                server_finished,
             } => {
                 client_finished.flush(vm)?;
+
+                if !client_finished.wants_flush() {
+                    State::ServerFinished { server_finished }
+                } else {
+                    State::ClientFinished {
+                        client_finished,
+                        server_finished,
+                    }
+                }
             }
-            State::ServerFinished { server_finished } => {
+            State::ServerFinished {
+                mut server_finished,
+            } => {
                 server_finished.flush(vm)?;
+
+                if !server_finished.wants_flush() {
+                    State::Complete
+                } else {
+                    State::ServerFinished { server_finished }
+                }
             }
-            _ => (),
-        }
+            other => other,
+        };
 
-        if !self.wants_flush() {
-            self.state = match self.state.take() {
-                State::SessionKeys {
-                    client_finished,
-                    server_finished,
-                    ..
-                } => State::ClientFinished {
-                    client_finished,
-                    server_finished,
-                },
-                State::ClientFinished {
-                    server_finished, ..
-                } => State::ServerFinished { server_finished },
-                State::ServerFinished { .. } => State::Complete,
-                other => other,
-            };
-        }
-
+        self.state = state;
         Ok(())
     }
 }
