@@ -180,8 +180,8 @@ impl MpcPrf {
     }
 
     /// Returns if the PRF needs to be flushed and drives the PRF.
-    pub fn wants_flush(&mut self) -> bool {
-        let wants_flush = match &mut self.state {
+    pub fn wants_flush(&self) -> bool {
+        match &self.state {
             State::Initialized => false,
             State::SessionKeys {
                 master_secret,
@@ -194,27 +194,7 @@ impl MpcPrf {
             State::ServerFinished { server_finished } => server_finished.wants_flush(),
             State::Complete => false,
             State::Error => false,
-        };
-
-        if !wants_flush {
-            self.state = match self.state.take() {
-                State::SessionKeys {
-                    client_finished,
-                    server_finished,
-                    ..
-                } => State::ClientFinished {
-                    client_finished,
-                    server_finished,
-                },
-                State::ClientFinished {
-                    server_finished, ..
-                } => State::ServerFinished { server_finished },
-                State::ServerFinished { .. } => State::Complete,
-                other => other,
-            };
         }
-
-        wants_flush
     }
 
     /// Flushes the PRF.
@@ -237,6 +217,24 @@ impl MpcPrf {
                 server_finished.flush(vm)?;
             }
             _ => (),
+        }
+
+        if !self.wants_flush() {
+            self.state = match self.state.take() {
+                State::SessionKeys {
+                    client_finished,
+                    server_finished,
+                    ..
+                } => State::ClientFinished {
+                    client_finished,
+                    server_finished,
+                },
+                State::ClientFinished {
+                    server_finished, ..
+                } => State::ServerFinished { server_finished },
+                State::ServerFinished { .. } => State::Complete,
+                other => other,
+            };
         }
 
         Ok(())

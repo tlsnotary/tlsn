@@ -18,7 +18,7 @@ pub(crate) struct PrfFunction {
     // The label, e.g. "master secret".
     label: &'static [u8],
     // The start seed and the label, e.g. client_random + server_random + "master_secret".
-    start_seed_label: Vec<u8>,
+    start_seed_label: Option<Vec<u8>>,
     iterations: usize,
     state: PrfState,
     a: VecDeque<AHash>,
@@ -82,8 +82,8 @@ impl PrfFunction {
         Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12)
     }
 
-    pub(crate) fn wants_flush(&mut self) -> bool {
-        !matches!(self.state, PrfState::Done)
+    pub(crate) fn wants_flush(&self) -> bool {
+        !matches!(self.state, PrfState::Done) && self.start_seed_label.is_some()
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -96,7 +96,10 @@ impl PrfFunction {
                 self.state = PrfState::ComputeA {
                     iter: 1,
                     inner_partial,
-                    msg: self.start_seed_label.clone(),
+                    msg: self
+                        .start_seed_label
+                        .clone()
+                        .expect("Start seed should have been set"),
                 };
                 self.flush(vm)?;
             }
@@ -125,7 +128,11 @@ impl PrfFunction {
                 let p = self.p.pop_front().expect("Prf PHash should be present");
 
                 let mut msg = output.to_vec();
-                msg.extend_from_slice(&self.start_seed_label);
+                msg.extend_from_slice(
+                    self.start_seed_label
+                        .as_ref()
+                        .expect("Start seed should have been set"),
+                );
 
                 assign_inner_local(vm, p.inner_local, *inner_partial, &msg)?;
 
@@ -150,7 +157,7 @@ impl PrfFunction {
         let mut start_seed_label = self.label.to_vec();
         start_seed_label.extend_from_slice(&seed);
 
-        self.start_seed_label = start_seed_label;
+        self.start_seed_label = Some(start_seed_label);
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
@@ -175,7 +182,7 @@ impl PrfFunction {
 
         let mut prf = Self {
             label,
-            start_seed_label: vec![],
+            start_seed_label: None,
             iterations,
             state: PrfState::InnerPartial { inner_partial },
             a: VecDeque::new(),
