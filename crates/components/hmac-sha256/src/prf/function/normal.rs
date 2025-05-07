@@ -16,7 +16,7 @@ pub(crate) struct PrfFunction {
     label: &'static [u8],
     state: State,
     // The start seed and the label, e.g. client_random + server_random + "master_secret".
-    start_seed_label: Vec<u8>,
+    start_seed_label: Option<Vec<u8>>,
     a: Vec<PHash>,
     p: Vec<PHash>,
 }
@@ -60,10 +60,11 @@ impl PrfFunction {
     }
 
     pub(crate) fn wants_flush(&self) -> bool {
-        match self.state {
+        let is_computing = match self.state {
             State::Computing => true,
             State::Finished => false,
-        }
+        };
+        is_computing && self.start_seed_label.is_some()
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -71,7 +72,10 @@ impl PrfFunction {
             let a = self.a.first().expect("prf should be allocated");
             let msg = *a.msg.first().expect("message for prf should be present");
 
-            let msg_value = self.start_seed_label.clone();
+            let msg_value = self
+                .start_seed_label
+                .clone()
+                .expect("Start seed should have been set");
 
             vm.assign(msg, msg_value).map_err(PrfError::vm)?;
             vm.commit(msg).map_err(PrfError::vm)?;
@@ -85,7 +89,7 @@ impl PrfFunction {
         let mut start_seed_label = self.label.to_vec();
         start_seed_label.extend_from_slice(&seed);
 
-        self.start_seed_label = start_seed_label;
+        self.start_seed_label = Some(start_seed_label);
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
@@ -103,7 +107,7 @@ impl PrfFunction {
         let mut prf = Self {
             label,
             state: State::Computing,
-            start_seed_label: vec![],
+            start_seed_label: None,
             a: vec![],
             p: vec![],
         };

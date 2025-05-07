@@ -104,7 +104,7 @@ impl Prf {
         Ok(prf)
     }
 
-    pub(crate) fn wants_flush(&mut self) -> bool {
+    pub(crate) fn wants_flush(&self) -> bool {
         match self {
             Prf::Reduced(prf) => prf.wants_flush(),
             Prf::Normal(prf) => prf.wants_flush(),
