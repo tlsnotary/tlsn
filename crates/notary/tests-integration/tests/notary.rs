@@ -37,8 +37,8 @@ const MAX_RECV_DATA: usize = 1 << 13;
 
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_DNS: &str = "tlsnotaryserver.io";
-const NOTARY_CA_CERT_PATH: &str = "../server/fixture/tls/rootCA.crt";
-const NOTARY_CA_CERT_BYTES: &[u8] = include_bytes!("../../server/fixture/tls/rootCA.crt");
+const NOTARY_CA_CERT_PATH: &str = "./fixture/tls/rootCA.crt";
+const NOTARY_CA_CERT_BYTES: &[u8] = include_bytes!("../fixture/tls/rootCA.crt");
 const API_KEY: &str = "test_api_key_0";
 
 fn get_server_config(
@@ -54,21 +54,20 @@ fn get_server_config(
         notarization: NotarizationProperties {
             max_sent_data: 1 << 13,
             max_recv_data: 1 << 14,
-            private_key_path: Some("../server/fixture/notary/notary.key".to_string()),
-            public_key_path: Some("../server/fixture/notary/notary.pub".to_string()),
+            private_key_path: Some("./fixture/notary/notary.key".to_string()),
             ..Default::default()
         },
         tls: TLSProperties {
             enabled: tls_enabled,
-            private_key_path: Some("../server/fixture/tls/notary.key".to_string()),
-            certificate_path: Some("../server/fixture/tls/notary.crt".to_string()),
+            private_key_path: Some("./fixture/tls/notary.key".to_string()),
+            certificate_path: Some("./fixture/tls/notary.crt".to_string()),
         },
         log: LogProperties {
             ..Default::default()
         },
         auth: AuthorizationProperties {
             enabled: auth_enabled,
-            whitelist_path: Some("../server/fixture/auth/whitelist.csv".to_string()),
+            whitelist_path: Some("./fixture/auth/whitelist.csv".to_string()),
         },
         concurrency,
     }

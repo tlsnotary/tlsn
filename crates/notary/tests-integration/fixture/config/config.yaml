@@ -29,7 +29,7 @@ notarization:
   max_recv_data: 16384
   timeout: 1800
   private_key_path: "../notary/notary.key"
-  public_key_path: "../notary/notary.pub"
+  signature_algorithm: secp256k1
 
 tls:
   enabled: false
