@@ -179,7 +179,7 @@ impl MpcPrf {
         Ok(())
     }
 
-    /// Returns if the PRF needs to be flushed and drives the PRF.
+    /// Returns if the PRF needs to be flushed.
     pub fn wants_flush(&self) -> bool {
         match &self.state {
             State::Initialized => false,
