@@ -145,6 +145,7 @@ mod tests {
         memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
     };
+    use rand::{rngs::ThreadRng, Rng};
 
     const IPAD: [u8; 64] = [0x36; 64];
     const OPAD: [u8; 64] = [0x5c; 64];
@@ -162,10 +163,12 @@ mod tests {
     }
 
     async fn test_phash(mode: Mode) {
+        let mut rng = ThreadRng::default();
+
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let (mut leader, mut follower) = mock_vm();
 
-        let key: [u8; 32] = std::array::from_fn(|i| i as u8);
+        let key: [u8; 32] = rng.random();
         let start_seed: Vec<u8> = vec![42; 64];
 
         let mut label_seed = b"master secret".to_vec();

@@ -110,7 +110,7 @@ impl PrfFunction {
 
         assert!(output_len > 0, "cannot compute 0 bytes for prf");
 
-        let iterations = output_len / 32 + ((output_len % 32) != 0) as usize;
+        let iterations = output_len.div_ceil(32);
 
         let msg_len_a = label.len() + seed_len;
         let seed_label_ref: Vector<U8> = vm.alloc_vec(msg_len_a).map_err(PrfError::vm)?;
