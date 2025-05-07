@@ -1,5 +1,6 @@
 use const_oid::db::rfc5912::ID_EC_PUBLIC_KEY as OID_EC_PUBLIC_KEY;
 use core::fmt;
+use eyre::{eyre, Result};
 use pkcs8::{
     der::{self, pem::PemLabel, Encode},
     spki::{DynAssociatedAlgorithmIdentifier, SubjectPublicKeyInfoRef},
@@ -50,21 +51,21 @@ impl TryFrom<PrivateKeyInfo<'_>> for AttestationKey {
 
 impl AttestationKey {
     /// Samples a new attestation key of the given signature algorithm.
-    pub fn random(alg_id: &str) -> Self {
+    pub fn random(alg_id: &str) -> Result<Self> {
         match alg_id.to_uppercase().as_str() {
-            "SECP256K1" => Self {
+            "SECP256K1" => Ok(Self {
                 alg_id: SignatureAlgId::SECP256K1,
                 key: SigningKey::Secp256k1(k256::ecdsa::SigningKey::random(
                     &mut rand::rng().compat(),
                 )),
-            },
-            "SECP256R1" => Self {
+            }),
+            "SECP256R1" => Ok(Self {
                 alg_id: SignatureAlgId::SECP256R1,
                 key: SigningKey::Secp256r1(p256::ecdsa::SigningKey::random(
                     &mut rand::rng().compat(),
                 )),
-            },
-            alg_id => unimplemented!("unsupported signature algorithm: {alg_id} — only secp256k1 and secp256r1 are supported now"),
+            }),
+            alg_id => Err(eyre!("unsupported signature algorithm: {alg_id} — only secp256k1 and secp256r1 are supported now")),
         }
     }
 
@@ -128,4 +129,25 @@ impl fmt::Debug for AttestationKey {
 enum SigningKey {
     Secp256k1(k256::ecdsa::SigningKey),
     Secp256r1(p256::ecdsa::SigningKey),
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::fs::read_to_string;
+
+    #[test]
+    fn test_verifying_key_pem() {
+        let attestation_key_pem =
+            read_to_string("../tests-integration/fixture/notary/notary.key").unwrap();
+
+        let attestation_key = AttestationKey::from_pkcs8_pem(&attestation_key_pem).unwrap();
+
+        let verifying_key_pem = attestation_key.verifying_key_pem().unwrap();
+
+        let expected_verifying_key_pem =
+            read_to_string("../tests-integration/fixture/notary/notary.pub").unwrap();
+
+        assert_eq!(verifying_key_pem, expected_verifying_key_pem);
+    }
 }

@@ -270,7 +270,7 @@ async fn get_attestation_key(config: &NotarizationProperties) -> Result<Attestat
         warn!(
             "⚠️ Using a random, ephemeral signing key because `notarization.private_key_path` is not set."
         );
-        AttestationKey::random(&config.signature_algorithm)
+        AttestationKey::random(&config.signature_algorithm)?
     };
 
     Ok(key)
@@ -312,7 +312,7 @@ mod test {
     use super::*;
 
     #[tokio::test]
-    async fn test_load_notary_key_and_cert() {
+    async fn test_load_tls_key_and_cert() {
         let private_key_pem_path = "../tests-integration/fixture/tls/notary.key";
         let certificate_pem_path = "../tests-integration/fixture/tls/notary.crt";
         let result: Result<(PrivateKey, Vec<Certificate>)> =
