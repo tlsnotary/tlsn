@@ -47,7 +47,13 @@ use tokio::sync::Semaphore;
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
     let attestation_key = get_attestation_key(&config.notarization).await?;
-    let public_key = attestation_key.public_key();
+    let verifying_key_pem = attestation_key
+        .verifying_key_pem()
+        .map_err(|err| eyre!("Failed to get verifying key in PEM format: {err}"))?;
+
+    #[cfg(feature = "tee_quote")]
+    let verifying_key_bytes = attestation_key.verifying_key_bytes();
+
     let crypto_provider = build_crypto_provider(attestation_key);
 
     // Build TLS acceptor if it is turned on
@@ -112,13 +118,6 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     );
 
     // Parameters needed for the info endpoint
-    let public_key_pem = public_key
-        .to_pem()
-        .map_err(|err| eyre!("Failed to convert public key to PEM: {err}"))?;
-
-    #[cfg(feature = "tee_quote")]
-    let public_key_bytes = public_key.to_compressed_bytes();
-
     let version = env!("CARGO_PKG_VERSION").to_string();
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
 
@@ -128,7 +127,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         html_string
             .replace("{version}", &version)
             .replace("{git_commit_hash}", &git_commit_hash)
-            .replace("{public_key}", &public_key_pem),
+            .replace("{public_key}", &verifying_key_pem),
     );
 
     let router = Router::new()
@@ -147,10 +146,10 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     StatusCode::OK,
                     Json(InfoResponse {
                         version,
-                        public_key: public_key_pem,
+                        public_key: verifying_key_pem,
                         git_commit_hash,
                         #[cfg(feature = "tee_quote")]
-                        quote: quote(public_key_bytes).await,
+                        quote: quote(verifying_key_bytes).await,
                     }),
                 )
                     .into_response()
