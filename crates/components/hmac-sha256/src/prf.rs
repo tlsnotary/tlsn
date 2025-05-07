@@ -199,7 +199,7 @@ impl MpcPrf {
 
     /// Flushes the PRF.
     pub fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        let state = match self.state.take() {
+        self.state = match self.state.take() {
             State::SessionKeys {
                 client_random,
                 mut master_secret,
@@ -254,7 +254,6 @@ impl MpcPrf {
             other => other,
         };
 
-        self.state = state;
         Ok(())
     }
 }
