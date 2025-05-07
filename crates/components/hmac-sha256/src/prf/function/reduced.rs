@@ -83,10 +83,7 @@ impl PrfFunction {
     }
 
     pub(crate) fn wants_flush(&mut self) -> bool {
-        if let PrfState::Done = self.state {
-            return false;
-        }
-        true
+        !matches!(self.state, PrfState::Done)
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -169,7 +166,7 @@ impl PrfFunction {
     ) -> Result<Self, PrfError> {
         assert!(len > 0, "cannot compute 0 bytes for prf");
 
-        let iterations = len / 32 + ((len % 32) != 0) as usize;
+        let iterations = len.div_ceil(32);
 
         let (inner_partial, _) = inner_partial
             .state()
@@ -228,8 +225,8 @@ fn assign_inner_local(
     Ok(())
 }
 
-/// Like PHash but stores the output as the decoding future because in the reduced Prf we need to
-/// decode this output.
+/// Like PHash but stores the output as the decoding future because in the
+/// reduced Prf we need to decode this output.
 #[derive(Debug)]
 struct AHash {
     inner_local: Array<U8, 32>,
