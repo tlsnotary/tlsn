@@ -8,8 +8,7 @@ members = [
     "crates/common",
     "crates/components/deap",
     "crates/components/cipher",
-    #"crates/components/hmac-sha256",
-    #"crates/components/hmac-sha256-circuits",
+    "crates/components/hmac-sha256",
     "crates/components/key-exchange",
     "crates/core",
     "crates/data-fixtures",
@@ -57,8 +56,7 @@ tlsn-core = { path = "crates/core" }
 tlsn-data-fixtures = { path = "crates/data-fixtures" }
 tlsn-deap = { path = "crates/components/deap" }
 tlsn-formats = { path = "crates/formats" }
-#tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
-#tlsn-hmac-sha256-circuits = { path = "crates/components/hmac-sha256-circuits" }
+tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
 tlsn-prover = { path = "crates/prover" }
@@ -71,18 +69,19 @@ tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 tlsn-verifier = { path = "crates/verifier" }
 
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
-mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "alpha.3" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
+mpz-hash = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "39f64de" }
 
 rangeset = { version = "0.2" }
 serio = { version = "0.2" }

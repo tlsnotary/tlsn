@@ -4,7 +4,7 @@ use std::{
 };
 
 use mpc_tls::Config;
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
+use tlsn_common::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
@@ -56,6 +56,10 @@ impl VerifierConfig {
 
         if let Some(max_recv_records) = protocol_config.max_recv_records() {
             builder.max_recv_records(max_recv_records);
+        }
+
+        if let NetworkSetting::Latency = protocol_config.network() {
+            builder.low_bandwidth();
         }
 
         builder.build().unwrap()

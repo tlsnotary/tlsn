@@ -1,29 +1,23 @@
-//! This module contains the protocol for computing TLS SHA-256 HMAC PRF.
+//! This crate contains the protocol for computing TLS 1.2 SHA-256 HMAC PRF.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-mod config;
-mod error;
-mod prf;
+mod hmac;
+#[cfg(test)]
+mod test_utils;
 
-pub use config::{PrfConfig, PrfConfigBuilder, PrfConfigBuilderError, Role};
+mod config;
+pub use config::Mode;
+
+mod error;
 pub use error::PrfError;
+
+mod prf;
 pub use prf::MpcPrf;
 
 use mpz_vm_core::memory::{binary::U8, Array};
-
-pub(crate) static CF_LABEL: &[u8] = b"client finished";
-pub(crate) static SF_LABEL: &[u8] = b"server finished";
-
-/// Builds the circuits for the PRF.
-///
-/// This function can be used ahead of time to build the circuits for the PRF,
-/// which at the moment is CPU and memory intensive.
-pub async fn build_circuits() {
-    prf::Circuits::get().await;
-}
 
 /// PRF output.
 #[derive(Debug, Clone, Copy)]
@@ -49,176 +43,227 @@ pub struct SessionKeys {
     pub server_iv: Array<U8, 4>,
 }
 
+fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u32; 8] {
+    use sha2::{
+        compress256,
+        digest::{
+            block_buffer::{BlockBuffer, Eager},
+            generic_array::typenum::U64,
+        },
+    };
+
+    let mut buffer = BlockBuffer::<U64, Eager>::default();
+    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
+    buffer.digest_pad(0x80, &(((msg.len() + pos) * 8) as u64).to_be_bytes(), |b| {
+        compress256(&mut state, &[*b])
+    });
+    state
+}
+
+fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
+    let mut output = [0_u8; 32];
+    for (k, byte_chunk) in input.iter().enumerate() {
+        let byte_chunk = byte_chunk.to_be_bytes();
+        output[4 * k..4 * (k + 1)].copy_from_slice(&byte_chunk);
+    }
+    output
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::{
+        test_utils::{mock_vm, prf_cf_vd, prf_keys, prf_ms, prf_sf_vd},
+        Mode, MpcPrf, SessionKeys,
+    };
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_vm_core::{
+        memory::{binary::U8, Array, MemoryExt, ViewExt},
+        Execute,
+    };
+    use rand::{rngs::StdRng, Rng, SeedableRng};
 
-    use hmac_sha256_circuits::{hmac_sha256_partial, prf, session_keys};
-    use mpz_ot::ideal::cot::ideal_cot;
-    use mpz_vm_core::{memory::correlated::Delta, prelude::*};
-    use rand::{rngs::StdRng, SeedableRng};
-    use rand06_compat::Rand0_6CompatExt;
-
-    use super::*;
-
-    fn compute_ms(pms: [u8; 32], client_random: [u8; 32], server_random: [u8; 32]) -> [u8; 48] {
-        let (outer_state, inner_state) = hmac_sha256_partial(&pms);
-        let seed = client_random
-            .iter()
-            .chain(&server_random)
-            .copied()
-            .collect::<Vec<_>>();
-        let ms = prf(outer_state, inner_state, &seed, b"master secret", 48);
-        ms.try_into().unwrap()
-    }
-
-    fn compute_vd(ms: [u8; 48], label: &[u8], hs_hash: [u8; 32]) -> [u8; 12] {
-        let (outer_state, inner_state) = hmac_sha256_partial(&ms);
-        let vd = prf(outer_state, inner_state, &hs_hash, label, 12);
-        vd.try_into().unwrap()
-    }
-
-    #[ignore = "expensive"]
     #[tokio::test]
-    async fn test_prf() {
-        let mut rng = StdRng::seed_from_u64(0);
+    async fn test_prf_reduced() {
+        let mode = Mode::Reduced;
+        test_prf(mode).await;
+    }
 
-        let pms = [42u8; 32];
-        let client_random = [69u8; 32];
-        let server_random: [u8; 32] = [96u8; 32];
-        let ms = compute_ms(pms, client_random, server_random);
+    #[tokio::test]
+    async fn test_prf_normal() {
+        let mode = Mode::Normal;
+        test_prf(mode).await;
+    }
 
-        let (mut leader_ctx, mut follower_ctx) = test_st_context(128);
+    async fn test_prf(mode: Mode) {
+        let mut rng = StdRng::seed_from_u64(1);
+        // Test input
+        let pms: [u8; 32] = rng.random();
+        let client_random: [u8; 32] = rng.random();
+        let server_random: [u8; 32] = rng.random();
 
-        let delta = Delta::random(&mut rng.compat_by_ref());
-        let (ot_send, ot_recv) = ideal_cot(delta.into_inner());
+        let cf_hs_hash: [u8; 32] = rng.random();
+        let sf_hs_hash: [u8; 32] = rng.random();
 
-        let mut leader_vm = Generator::new(ot_send, [0u8; 16], delta);
-        let mut follower_vm = Evaluator::new(ot_recv);
+        // Expected output
+        let ms_expected = prf_ms(pms, client_random, server_random);
 
-        let leader_pms: Array<U8, 32> = leader_vm.alloc().unwrap();
-        leader_vm.mark_public(leader_pms).unwrap();
-        leader_vm.assign(leader_pms, pms).unwrap();
-        leader_vm.commit(leader_pms).unwrap();
+        let [cwk_expected, swk_expected, civ_expected, siv_expected] =
+            prf_keys(ms_expected, client_random, server_random);
 
-        let follower_pms: Array<U8, 32> = follower_vm.alloc().unwrap();
-        follower_vm.mark_public(follower_pms).unwrap();
-        follower_vm.assign(follower_pms, pms).unwrap();
-        follower_vm.commit(follower_pms).unwrap();
+        let cwk_expected: [u8; 16] = cwk_expected.try_into().unwrap();
+        let swk_expected: [u8; 16] = swk_expected.try_into().unwrap();
+        let civ_expected: [u8; 4] = civ_expected.try_into().unwrap();
+        let siv_expected: [u8; 4] = siv_expected.try_into().unwrap();
 
-        let mut leader = MpcPrf::new(PrfConfig::builder().role(Role::Leader).build().unwrap());
-        let mut follower = MpcPrf::new(PrfConfig::builder().role(Role::Follower).build().unwrap());
+        let cf_vd_expected = prf_cf_vd(ms_expected, cf_hs_hash);
+        let sf_vd_expected = prf_sf_vd(ms_expected, sf_hs_hash);
 
-        let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
-        let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();
+        let cf_vd_expected: [u8; 12] = cf_vd_expected.try_into().unwrap();
+        let sf_vd_expected: [u8; 12] = sf_vd_expected.try_into().unwrap();
 
-        leader
-            .set_client_random(&mut leader_vm, Some(client_random))
+        // Set up vm and prf
+        let (mut ctx_a, mut ctx_b) = test_st_context(128);
+        let (mut leader, mut follower) = mock_vm();
+
+        let leader_pms: Array<U8, 32> = leader.alloc().unwrap();
+        leader.mark_public(leader_pms).unwrap();
+        leader.assign(leader_pms, pms).unwrap();
+        leader.commit(leader_pms).unwrap();
+
+        let follower_pms: Array<U8, 32> = follower.alloc().unwrap();
+        follower.mark_public(follower_pms).unwrap();
+        follower.assign(follower_pms, pms).unwrap();
+        follower.commit(follower_pms).unwrap();
+
+        let mut prf_leader = MpcPrf::new(mode);
+        let mut prf_follower = MpcPrf::new(mode);
+
+        let leader_prf_out = prf_leader.alloc(&mut leader, leader_pms).unwrap();
+        let follower_prf_out = prf_follower.alloc(&mut follower, follower_pms).unwrap();
+
+        // client_random and server_random
+        prf_leader.set_client_random(client_random).unwrap();
+        prf_follower.set_client_random(client_random).unwrap();
+
+        prf_leader.set_server_random(server_random).unwrap();
+        prf_follower.set_server_random(server_random).unwrap();
+
+        let SessionKeys {
+            client_write_key: cwk_leader,
+            server_write_key: swk_leader,
+            client_iv: civ_leader,
+            server_iv: siv_leader,
+        } = leader_prf_out.keys;
+
+        let mut cwk_leader = leader.decode(cwk_leader).unwrap();
+        let mut swk_leader = leader.decode(swk_leader).unwrap();
+        let mut civ_leader = leader.decode(civ_leader).unwrap();
+        let mut siv_leader = leader.decode(siv_leader).unwrap();
+
+        let SessionKeys {
+            client_write_key: cwk_follower,
+            server_write_key: swk_follower,
+            client_iv: civ_follower,
+            server_iv: siv_follower,
+        } = follower_prf_out.keys;
+
+        let mut cwk_follower = follower.decode(cwk_follower).unwrap();
+        let mut swk_follower = follower.decode(swk_follower).unwrap();
+        let mut civ_follower = follower.decode(civ_follower).unwrap();
+        let mut siv_follower = follower.decode(siv_follower).unwrap();
+
+        while prf_leader.wants_flush() || prf_follower.wants_flush() {
+            tokio::try_join!(
+                async {
+                    prf_leader.flush(&mut leader).unwrap();
+                    leader.execute_all(&mut ctx_a).await
+                },
+                async {
+                    prf_follower.flush(&mut follower).unwrap();
+                    follower.execute_all(&mut ctx_b).await
+                }
+            )
             .unwrap();
-        follower.set_client_random(&mut follower_vm, None).unwrap();
+        }
 
-        leader
-            .set_server_random(&mut leader_vm, server_random)
+        let cwk_leader = cwk_leader.try_recv().unwrap().unwrap();
+        let swk_leader = swk_leader.try_recv().unwrap().unwrap();
+        let civ_leader = civ_leader.try_recv().unwrap().unwrap();
+        let siv_leader = siv_leader.try_recv().unwrap().unwrap();
+
+        let cwk_follower = cwk_follower.try_recv().unwrap().unwrap();
+        let swk_follower = swk_follower.try_recv().unwrap().unwrap();
+        let civ_follower = civ_follower.try_recv().unwrap().unwrap();
+        let siv_follower = siv_follower.try_recv().unwrap().unwrap();
+
+        assert_eq!(cwk_leader, cwk_follower);
+        assert_eq!(swk_leader, swk_follower);
+        assert_eq!(civ_leader, civ_follower);
+        assert_eq!(siv_leader, siv_follower);
+
+        assert_eq!(cwk_leader, cwk_expected);
+        assert_eq!(swk_leader, swk_expected);
+        assert_eq!(civ_leader, civ_expected);
+        assert_eq!(siv_leader, siv_expected);
+
+        // client finished
+        prf_leader.set_cf_hash(cf_hs_hash).unwrap();
+        prf_follower.set_cf_hash(cf_hs_hash).unwrap();
+
+        let cf_vd_leader = leader_prf_out.cf_vd;
+        let cf_vd_follower = follower_prf_out.cf_vd;
+
+        let mut cf_vd_leader = leader.decode(cf_vd_leader).unwrap();
+        let mut cf_vd_follower = follower.decode(cf_vd_follower).unwrap();
+
+        while prf_leader.wants_flush() || prf_follower.wants_flush() {
+            tokio::try_join!(
+                async {
+                    prf_leader.flush(&mut leader).unwrap();
+                    leader.execute_all(&mut ctx_a).await
+                },
+                async {
+                    prf_follower.flush(&mut follower).unwrap();
+                    follower.execute_all(&mut ctx_b).await
+                }
+            )
             .unwrap();
-        follower
-            .set_server_random(&mut follower_vm, server_random)
+        }
+
+        let cf_vd_leader = cf_vd_leader.try_recv().unwrap().unwrap();
+        let cf_vd_follower = cf_vd_follower.try_recv().unwrap().unwrap();
+
+        assert_eq!(cf_vd_leader, cf_vd_follower);
+        assert_eq!(cf_vd_leader, cf_vd_expected);
+
+        // server finished
+        prf_leader.set_sf_hash(sf_hs_hash).unwrap();
+        prf_follower.set_sf_hash(sf_hs_hash).unwrap();
+
+        let sf_vd_leader = leader_prf_out.sf_vd;
+        let sf_vd_follower = follower_prf_out.sf_vd;
+
+        let mut sf_vd_leader = leader.decode(sf_vd_leader).unwrap();
+        let mut sf_vd_follower = follower.decode(sf_vd_follower).unwrap();
+
+        while prf_leader.wants_flush() || prf_follower.wants_flush() {
+            tokio::try_join!(
+                async {
+                    prf_leader.flush(&mut leader).unwrap();
+                    leader.execute_all(&mut ctx_a).await
+                },
+                async {
+                    prf_follower.flush(&mut follower).unwrap();
+                    follower.execute_all(&mut ctx_b).await
+                }
+            )
             .unwrap();
+        }
 
-        let leader_cwk = leader_vm
-            .decode(leader_output.keys.client_write_key)
-            .unwrap();
-        let leader_swk = leader_vm
-            .decode(leader_output.keys.server_write_key)
-            .unwrap();
-        let leader_civ = leader_vm.decode(leader_output.keys.client_iv).unwrap();
-        let leader_siv = leader_vm.decode(leader_output.keys.server_iv).unwrap();
+        let sf_vd_leader = sf_vd_leader.try_recv().unwrap().unwrap();
+        let sf_vd_follower = sf_vd_follower.try_recv().unwrap().unwrap();
 
-        let follower_cwk = follower_vm
-            .decode(follower_output.keys.client_write_key)
-            .unwrap();
-        let follower_swk = follower_vm
-            .decode(follower_output.keys.server_write_key)
-            .unwrap();
-        let follower_civ = follower_vm.decode(follower_output.keys.client_iv).unwrap();
-        let follower_siv = follower_vm.decode(follower_output.keys.server_iv).unwrap();
-
-        futures::join!(
-            async {
-                leader_vm.flush(&mut leader_ctx).await.unwrap();
-                leader_vm.execute(&mut leader_ctx).await.unwrap();
-                leader_vm.flush(&mut leader_ctx).await.unwrap();
-            },
-            async {
-                follower_vm.flush(&mut follower_ctx).await.unwrap();
-                follower_vm.execute(&mut follower_ctx).await.unwrap();
-                follower_vm.flush(&mut follower_ctx).await.unwrap();
-            }
-        );
-
-        let leader_cwk = leader_cwk.await.unwrap();
-        let leader_swk = leader_swk.await.unwrap();
-        let leader_civ = leader_civ.await.unwrap();
-        let leader_siv = leader_siv.await.unwrap();
-
-        let follower_cwk = follower_cwk.await.unwrap();
-        let follower_swk = follower_swk.await.unwrap();
-        let follower_civ = follower_civ.await.unwrap();
-        let follower_siv = follower_siv.await.unwrap();
-
-        let (expected_cwk, expected_swk, expected_civ, expected_siv) =
-            session_keys(pms, client_random, server_random);
-
-        assert_eq!(leader_cwk, expected_cwk);
-        assert_eq!(leader_swk, expected_swk);
-        assert_eq!(leader_civ, expected_civ);
-        assert_eq!(leader_siv, expected_siv);
-
-        assert_eq!(follower_cwk, expected_cwk);
-        assert_eq!(follower_swk, expected_swk);
-        assert_eq!(follower_civ, expected_civ);
-        assert_eq!(follower_siv, expected_siv);
-
-        let cf_hs_hash = [1u8; 32];
-        let sf_hs_hash = [2u8; 32];
-
-        leader.set_cf_hash(&mut leader_vm, cf_hs_hash).unwrap();
-        leader.set_sf_hash(&mut leader_vm, sf_hs_hash).unwrap();
-
-        follower.set_cf_hash(&mut follower_vm, cf_hs_hash).unwrap();
-        follower.set_sf_hash(&mut follower_vm, sf_hs_hash).unwrap();
-
-        let leader_cf_vd = leader_vm.decode(leader_output.cf_vd).unwrap();
-        let leader_sf_vd = leader_vm.decode(leader_output.sf_vd).unwrap();
-
-        let follower_cf_vd = follower_vm.decode(follower_output.cf_vd).unwrap();
-        let follower_sf_vd = follower_vm.decode(follower_output.sf_vd).unwrap();
-
-        futures::join!(
-            async {
-                leader_vm.flush(&mut leader_ctx).await.unwrap();
-                leader_vm.execute(&mut leader_ctx).await.unwrap();
-                leader_vm.flush(&mut leader_ctx).await.unwrap();
-            },
-            async {
-                follower_vm.flush(&mut follower_ctx).await.unwrap();
-                follower_vm.execute(&mut follower_ctx).await.unwrap();
-                follower_vm.flush(&mut follower_ctx).await.unwrap();
-            }
-        );
-
-        let leader_cf_vd = leader_cf_vd.await.unwrap();
-        let leader_sf_vd = leader_sf_vd.await.unwrap();
-
-        let follower_cf_vd = follower_cf_vd.await.unwrap();
-        let follower_sf_vd = follower_sf_vd.await.unwrap();
-
-        let expected_cf_vd = compute_vd(ms, b"client finished", cf_hs_hash);
-        let expected_sf_vd = compute_vd(ms, b"server finished", sf_hs_hash);
-
-        assert_eq!(leader_cf_vd, expected_cf_vd);
-        assert_eq!(leader_sf_vd, expected_sf_vd);
-        assert_eq!(follower_cf_vd, expected_cf_vd);
-        assert_eq!(follower_sf_vd, expected_sf_vd);
+        assert_eq!(sf_vd_leader, sf_vd_follower);
+        assert_eq!(sf_vd_leader, sf_vd_expected);
     }
 }

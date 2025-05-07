@@ -37,6 +37,9 @@ pub struct ProtocolConfig {
     /// Maximum number of application data records that can be received.
     #[builder(setter(strip_option), default)]
     max_recv_records: Option<usize>,
+    /// Network settings.
+    #[builder(default)]
+    network: NetworkSetting,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -84,6 +87,11 @@ impl ProtocolConfig {
     /// be received.
     pub fn max_recv_records(&self) -> Option<usize> {
         self.max_recv_records
+    }
+
+    /// Returns the network settings.
+    pub fn network(&self) -> NetworkSetting {
+        self.network
     }
 }
 
@@ -203,6 +211,24 @@ impl ProtocolConfigValidator {
         }
 
         Ok(())
+    }
+}
+
+/// Settings for the network environment.
+///
+/// Provides optimization options to adapt the protocol to different network
+/// situations.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum NetworkSetting {
+    /// Prefers a bandwidth-heavy protocol.
+    Bandwidth,
+    /// Prefers a latency-heavy protocol.
+    Latency,
+}
+
+impl Default for NetworkSetting {
+    fn default() -> Self {
+        Self::Bandwidth
     }
 }
 

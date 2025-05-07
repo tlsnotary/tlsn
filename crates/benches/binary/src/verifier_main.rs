@@ -4,7 +4,6 @@
 
 use crate::{
     config::{BenchInstance, Config},
-    preprocess::preprocess_prf_circuits,
     set_interface, VERIFIER_INTERFACE,
 };
 use tls_core::verify::WebPkiVerifier;
@@ -39,10 +38,6 @@ pub async fn verifier_main(is_memory_profiling: bool) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(host)
         .await
         .context("failed to bind to port")?;
-
-    // Preprocess the PRF circuits as they are allocating a lot of memory, which
-    // don't need to be accounted for in the benchmarks.
-    preprocess_prf_circuits().await;
 
     for bench in config.benches {
         for instance in bench.flatten() {
