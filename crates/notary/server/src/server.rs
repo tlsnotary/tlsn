@@ -10,17 +10,12 @@ use eyre::{ensure, eyre, Result};
 use futures_util::future::poll_fn;
 use hyper::{body::Incoming, server::conn::http1};
 use hyper_util::rt::TokioIo;
-use notify::{
-    event::ModifyKind, Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
-};
 use pkcs8::DecodePrivateKey;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use std::{
-    collections::HashMap,
     fs::File as StdFile,
     io::BufReader,
     net::{IpAddr, SocketAddr},
-    path::Path,
     pin::Pin,
     sync::{Arc, Mutex},
 };
@@ -33,17 +28,13 @@ use tracing::{debug, error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    config::{NotaryServerProperties, NotarySigningKeyProperties},
-    domain::{
-        auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord},
-        notary::NotaryGlobals,
-        InfoResponse,
-    },
+    auth::{load_authorization_whitelist, watch_and_reload_authorization_whitelist},
+    config::{NotarizationProperties, NotaryServerProperties},
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
     signing::AttestationKey,
-    util::parse_csv_file,
+    types::{InfoResponse, NotaryGlobals},
 };
 
 #[cfg(feature = "tee_quote")]
@@ -55,7 +46,7 @@ use tokio::sync::Semaphore;
 /// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
-    let attestation_key = load_attestation_key(&config.notary_key).await?;
+    let attestation_key = load_attestation_key(&config.notarization).await?;
     let crypto_provider = build_crypto_provider(attestation_key);
 
     // Build TLS acceptor if it is turned on
@@ -65,12 +56,12 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     } else {
         let private_key_pem_path = config
             .tls
-            .private_key_pem_path
+            .private_key_path
             .as_deref()
             .ok_or_else(|| eyre!("TLS is enabled but private key PEM path is not set"))?;
         let certificate_pem_path = config
             .tls
-            .certificate_pem_path
+            .certificate_path
             .as_deref()
             .ok_or_else(|| eyre!("TLS is enabled but certificate PEM path is not set"))?;
 
@@ -100,10 +91,10 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     }
 
     let notary_address = SocketAddr::new(
-        IpAddr::V4(config.server.host.parse().map_err(|err| {
+        IpAddr::V4(config.host.parse().map_err(|err| {
             eyre!("Failed to parse notary host address from server config: {err}")
         })?),
-        config.server.port,
+        config.port,
     );
     let mut listener = TcpListener::bind(notary_address)
         .await
@@ -120,13 +111,16 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     );
 
     // Parameters needed for the info endpoint
-    let public_key = std::fs::read_to_string(&config.notary_key.public_key_pem_path)
-        .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
+    let public_key =
+        std::fs::read_to_string(config.notarization.public_key_path.as_ref().unwrap()) // TODO: replace with ephemeral
+            .map_err(|err| {
+                eyre!("Failed to load notary public signing key for notarization: {err}")
+            })?;
     let version = env!("CARGO_PKG_VERSION").to_string();
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
 
     // Parameters needed for the root / endpoint
-    let html_string = config.server.html_info.clone();
+    let html_string = config.html_info.clone();
     let html_info = Html(
         html_string
             .replace("{version}", &version)
@@ -253,13 +247,14 @@ fn build_crypto_provider(attestation_key: AttestationKey) -> CryptoProvider {
 }
 
 /// Load notary signing key for attestations from static file
-async fn load_attestation_key(config: &NotarySigningKeyProperties) -> Result<AttestationKey> {
+async fn load_attestation_key(config: &NotarizationProperties) -> Result<AttestationKey> {
     #[cfg(feature = "tee_quote")]
     generate_ephemeral_keypair(&config.private_key_pem_path, &config.public_key_pem_path);
 
     debug!("Loading notary server's signing key");
 
-    let mut file = File::open(&config.private_key_pem_path).await?;
+    // TODO: replace with ephemeral
+    let mut file = File::open(config.private_key_path.as_ref().unwrap()).await?;
     let mut pem = String::new();
     file.read_to_string(&mut pem)
         .await
@@ -306,106 +301,8 @@ async fn load_tls_key_and_cert(
     Ok((private_key, certificates))
 }
 
-/// Load authorization whitelist if it is enabled
-fn load_authorization_whitelist(
-    config: &NotaryServerProperties,
-) -> Result<Option<HashMap<String, AuthorizationWhitelistRecord>>> {
-    let authorization_whitelist = if !config.authorization.enabled {
-        debug!("Skipping authorization as it is turned off.");
-        None
-    } else {
-        // Check if whitelist_csv_path is Some and convert to &str
-        let whitelist_csv_path = config
-            .authorization
-            .whitelist_csv_path
-            .as_deref()
-            .ok_or_else(|| {
-                eyre!("Authorization whitelist csv path is not provided in the config")
-            })?;
-        // Load the csv
-        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
-            .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
-        // Convert the whitelist record into hashmap for faster lookup
-        let whitelist_hashmap = authorization_whitelist_vec_into_hashmap(whitelist_csv);
-        Some(whitelist_hashmap)
-    };
-    Ok(authorization_whitelist)
-}
-
-// Setup a watcher to detect any changes to authorization whitelist
-// When the list file is modified, the watcher thread will reload the whitelist
-// The watcher is setup in a separate thread by the notify library which is
-// synchronous
-fn watch_and_reload_authorization_whitelist(
-    config: NotaryServerProperties,
-    authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
-) -> Result<Option<RecommendedWatcher>> {
-    // Only setup the watcher if auth whitelist is loaded
-    let watcher = if let Some(authorization_whitelist) = authorization_whitelist {
-        let cloned_config = config.clone();
-        // Setup watcher by giving it a function that will be triggered when an event is
-        // detected
-        let mut watcher = RecommendedWatcher::new(
-            move |event: Result<Event, Error>| {
-                match event {
-                    Ok(event) => {
-                        // Only reload whitelist if it's an event that modified the file data
-                        if let EventKind::Modify(ModifyKind::Data(_)) = event.kind {
-                            debug!("Authorization whitelist is modified");
-                            match load_authorization_whitelist(&cloned_config) {
-                                Ok(Some(new_authorization_whitelist)) => {
-                                    *authorization_whitelist.lock().unwrap() = new_authorization_whitelist;
-                                    info!("Successfully reloaded authorization whitelist!");
-                                }
-                                Ok(None) => unreachable!(
-                                    "Authorization whitelist will never be None as the auth module is enabled"
-                                ),
-                                // Ensure that error from reloading doesn't bring the server down
-                                Err(err) => error!("{err}"),
-                            }
-                        }
-                    },
-                    Err(err) => {
-                        error!("Error occured when watcher detected an event: {err}")
-                    }
-                }
-            },
-            notify::Config::default(),
-        )
-        .map_err(|err| eyre!("Error occured when setting up watcher for hot reload: {err}"))?;
-
-        // Check if whitelist_csv_path is Some and convert to &str
-        let whitelist_csv_path = config
-            .authorization
-            .whitelist_csv_path
-            .as_deref()
-            .ok_or_else(|| {
-                eyre!("Authorization whitelist csv path is not provided in the config")
-            })?;
-
-        // Start watcher to listen to any changes on the whitelist file
-        watcher
-            .watch(Path::new(whitelist_csv_path), RecursiveMode::Recursive)
-            .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
-
-        Some(watcher)
-    } else {
-        // Skip setup the watcher if auth whitelist is not loaded
-        None
-    };
-    // Need to return the watcher to parent function, else it will be dropped and
-    // stop listening
-    Ok(watcher)
-}
-
 #[cfg(test)]
 mod test {
-    use std::{fs::OpenOptions, time::Duration};
-
-    use csv::WriterBuilder;
-
-    use crate::AuthorizationProperties;
-
     use super::*;
 
     #[tokio::test]
@@ -419,68 +316,11 @@ mod test {
 
     #[tokio::test]
     async fn test_load_attestation_key() {
-        let config = NotarySigningKeyProperties {
-            private_key_pem_path: "./fixture/notary/notary.key".to_string(),
-            public_key_pem_path: "./fixture/notary/notary.pub".to_string(),
-        };
-        load_attestation_key(&config).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_watch_and_reload_authorization_whitelist() {
-        // Clone fixture auth whitelist for testing
-        let original_whitelist_csv_path = "./fixture/auth/whitelist.csv";
-        let whitelist_csv_path = "./fixture/auth/whitelist_copied.csv".to_string();
-        std::fs::copy(original_whitelist_csv_path, &whitelist_csv_path).unwrap();
-
-        // Setup watcher
-        let config = NotaryServerProperties {
-            authorization: AuthorizationProperties {
-                enabled: true,
-                whitelist_csv_path: Some(whitelist_csv_path.clone()),
-            },
+        let config = NotarizationProperties {
+            private_key_path: Some("./fixture/notary/notary.key".to_string()),
+            public_key_path: Some("./fixture/notary/notary.pub".to_string()),
             ..Default::default()
         };
-        let authorization_whitelist = load_authorization_whitelist(&config)
-            .expect("Authorization whitelist csv from fixture should be able to be loaded")
-            .as_ref()
-            .map(|whitelist| Arc::new(Mutex::new(whitelist.clone())));
-        let _watcher = watch_and_reload_authorization_whitelist(
-            config.clone(),
-            authorization_whitelist.as_ref().map(Arc::clone),
-        )
-        .expect("Watcher should be able to be setup successfully")
-        .expect("Watcher should be set up and not None");
-
-        // Sleep to buy a bit of time for hot reload task and watcher thread to run
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Write a new record to the whitelist to trigger modify event
-        let new_record = AuthorizationWhitelistRecord {
-            name: "unit-test-name".to_string(),
-            api_key: "unit-test-api-key".to_string(),
-            created_at: "unit-test-created-at".to_string(),
-        };
-        if let Some(ref path) = config.authorization.whitelist_csv_path {
-            let file = OpenOptions::new().append(true).open(path).unwrap();
-            let mut wtr = WriterBuilder::new()
-                .has_headers(false) // Set to false to avoid writing header again
-                .from_writer(file);
-            wtr.serialize(new_record).unwrap();
-            wtr.flush().unwrap();
-        } else {
-            panic!("Whitelist CSV path should be provided in the config");
-        }
-        // Sleep to buy a bit of time for updated whitelist to be hot reloaded
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        assert!(authorization_whitelist
-            .unwrap()
-            .lock()
-            .unwrap()
-            .contains_key("unit-test-api-key"));
-
-        // Delete the cloned whitelist
-        std::fs::remove_file(&whitelist_csv_path).unwrap();
+        load_attestation_key(&config).await.unwrap();
     }
 }

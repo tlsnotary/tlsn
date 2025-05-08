@@ -21,12 +21,12 @@ where
 
 pub fn init_tracing(config: &NotaryServerProperties) -> Result<()> {
     // Retrieve log filtering logic from config
-    let directives = match &config.logging.filter {
+    let directives = match &config.log.filter {
         // Use custom filter that is provided by user
         Some(filter) => filter.clone(),
         // Use the default filter when only verbosity level is provided
         None => {
-            let level = Level::from_str(&config.logging.level)?;
+            let level = Level::from_str(&config.log.level)?;
             format!("notary_server={level},tlsn_verifier={level},mpc_tls={level}")
         }
     };
@@ -34,7 +34,7 @@ pub fn init_tracing(config: &NotaryServerProperties) -> Result<()> {
 
     Registry::default()
         .with(filter_layer)
-        .with(format_layer(config.logging.format))
+        .with(format_layer(config.log.format))
         .try_init()?;
 
     Ok(())
