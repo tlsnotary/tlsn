@@ -113,6 +113,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let notary_globals = NotaryGlobals::new(
         Arc::new(crypto_provider),
         config.notarization.clone(),
+        config.extension_validator.clone(),
         authorization_whitelist,
         Arc::new(Semaphore::new(config.concurrency)),
     );
