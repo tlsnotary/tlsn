@@ -8,7 +8,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "tee_quote")]
 use crate::tee::Quote;
-use crate::{auth::AuthorizationWhitelistRecord, config::{ExtensionValidatorProperties, NotarizationProperties}};
+use crate::{auth::AuthorizationWhitelistRecord, config::NotarizationProperties};
 
 /// Response object of the /info API
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,7 +67,6 @@ pub enum ClientType {
 pub struct NotaryGlobals {
     pub crypto_provider: Arc<CryptoProvider>,
     pub notarization_config: NotarizationProperties,
-    pub extension_validator_config: ExtensionValidatorProperties,
     /// A temporary storage to store session_id
     pub store: Arc<Mutex<HashMap<String, ()>>>,
     /// Whitelist of API keys for authorization purpose
@@ -80,14 +79,12 @@ impl NotaryGlobals {
     pub fn new(
         crypto_provider: Arc<CryptoProvider>,
         notarization_config: NotarizationProperties,
-        extension_validator_config: ExtensionValidatorProperties,
         authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
         semaphore: Arc<Semaphore>,
     ) -> Self {
         Self {
             crypto_provider,
             notarization_config,
-            extension_validator_config,
             store: Default::default(),
             authorization_whitelist,
             semaphore,

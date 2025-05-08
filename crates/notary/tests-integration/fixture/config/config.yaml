@@ -30,6 +30,7 @@ notarization:
   timeout: 1800
   private_key_path: "../notary/notary.key"
   signature_algorithm: secp256k1
+  allow_extensions: false
 
 tls:
   enabled: false
@@ -43,9 +44,3 @@ log:
 auth:
   enabled: false
   whitelist_path: "../auth/whitelist.csv"
-
-extension_validator:
-  enabled: false
-  max_count: 100
-  max_id_size: 1024
-  max_value_size: 102400
