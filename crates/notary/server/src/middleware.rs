@@ -1,15 +1,10 @@
 use axum::http::request::Parts;
 use axum_core::extract::{FromRef, FromRequestParts};
+use notary_common::X_API_KEY_HEADER;
 use std::collections::HashMap;
 use tracing::{error, trace};
 
-use crate::{
-    domain::{
-        auth::{AuthorizationWhitelistRecord, X_API_KEY_HEADER},
-        notary::NotaryGlobals,
-    },
-    NotaryServerError,
-};
+use crate::{auth::AuthorizationWhitelistRecord, types::NotaryGlobals, NotaryServerError};
 
 /// Auth middleware to prevent DOS
 pub struct AuthorizationMiddleware;
@@ -64,9 +59,7 @@ fn api_key_is_valid(
 #[cfg(test)]
 mod test {
     use super::{api_key_is_valid, HashMap};
-    use crate::domain::auth::{
-        authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord,
-    };
+    use crate::auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord};
     use std::sync::Arc;
 
     fn get_whitelist_fixture() -> HashMap<String, AuthorizationWhitelistRecord> {

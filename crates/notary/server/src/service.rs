@@ -10,6 +10,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use eyre::eyre;
+use notary_common::{NotarizationSessionRequest, NotarizationSessionResponse};
 use std::time::Duration;
 use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::attestation::AttestationConfig;
@@ -23,16 +24,13 @@ use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 use crate::{
-    domain::notary::{
-        NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
-        NotaryGlobals,
-    },
     error::NotaryServerError,
     service::{
         axum_websocket::{header_eq, WebSocketUpgrade},
         tcp::{tcp_notarize, TcpUpgrade},
         websocket::websocket_notarize,
     },
+    types::{NotarizationRequestQuery, NotaryGlobals},
 };
 
 /// A wrapper enum to facilitate extracting TCP connection for either WebSocket
