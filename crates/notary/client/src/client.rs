@@ -10,7 +10,7 @@ use hyper::{
     Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
-use notary_server::{
+use notary_common::{
     ClientType, NotarizationSessionRequest, NotarizationSessionResponse, X_API_KEY_HEADER,
 };
 use std::{
