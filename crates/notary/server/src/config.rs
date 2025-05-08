@@ -23,6 +23,9 @@ pub struct NotaryServerProperties {
     pub log: LogProperties,
     /// Setting for authorization
     pub auth: AuthorizationProperties,
+    /// Setting for a simple custom extension validator to prevent DOS from prover. 
+    /// By default this is disabled, where all custom extensions are disallowed
+    pub extension_validator: ExtensionValidatorProperties,
 }
 
 impl NotaryServerProperties {
@@ -136,6 +139,18 @@ pub struct AuthorizationProperties {
     pub whitelist_path: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct ExtensionValidatorProperties {
+    /// Flag to turn on or off the validator
+    pub enabled: bool,
+    /// Maximum number of extensions allowed
+    pub max_count: Option<usize>,
+    /// Maximum size of the extension id field in bytes
+    pub max_id_size: Option<usize>,
+    /// Maximum size of the extension value field in bytes
+    pub max_value_size: Option<usize>,
+}
+
 impl Default for NotaryServerProperties {
     fn default() -> Self {
         Self {
@@ -168,6 +183,7 @@ impl Default for NotaryServerProperties {
             tls: Default::default(),
             log: Default::default(),
             auth: Default::default(),
+            extension_validator: Default::default(),
         }
     }
 }

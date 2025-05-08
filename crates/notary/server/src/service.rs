@@ -12,7 +12,7 @@ use axum_macros::debug_handler;
 use eyre::eyre;
 use std::time::Duration;
 use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::attestation::AttestationConfig;
+use tlsn_core::attestation::{AttestationConfig, InvalidExtension};
 use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -202,8 +202,36 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let crypto_provider = notary_globals.crypto_provider.clone();
 
-    let att_config = AttestationConfig::builder()
-        .supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()))
+    let mut att_config_builder = AttestationConfig::builder();
+    att_config_builder.supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()));
+
+    // If enabled, use a simple custom extension validator to prevent DOS from prover
+    if notary_globals.extension_validator_config.enabled {
+        let max_count = notary_globals.extension_validator_config.max_count
+            .unwrap_or(100);
+        let max_id_size = notary_globals.extension_validator_config.max_id_size
+            .unwrap_or(1_024); // 1 KB
+        let max_value_size = notary_globals.extension_validator_config.max_value_size
+            .unwrap_or(102_400); // 100 KB
+
+        att_config_builder.extension_validator(move |extensions| {
+            if extensions.len() > max_count {
+                return Err(InvalidExtension::new(format!("Number of extensions provided exceeds the max limit of {max_count}")));
+            }
+            for extension in extensions {
+                if extension.id.len() > max_id_size {
+                    return Err(InvalidExtension::new(format!("An extension has an id that exceeds the max size limit of {max_id_size} bytes")));
+                }
+                if extension.value.len() > max_value_size {
+                    return Err(InvalidExtension::new(format!("An extension has a value that exceeds the max size limit of {max_value_size} bytes")));
+                }
+            }
+        
+            Ok(())
+        });
+    }
+
+    let att_config = att_config_builder
         .build()
         .map_err(|err| NotaryServerError::Notarization(Box::new(err)))?;
 
