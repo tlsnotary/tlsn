@@ -16,6 +16,7 @@ members = [
     "crates/examples",
     "crates/formats",
     "crates/notary/client",
+    "crates/notary/common",
     "crates/notary/server",
     "crates/notary/tests-integration",
     "crates/prover",
@@ -46,6 +47,7 @@ opt-level = 1
 
 [workspace.dependencies]
 notary-client = { path = "crates/notary/client" }
+notary-common = { path = "crates/notary/common" }
 notary-server = { path = "crates/notary/server" }
 tls-server-fixture = { path = "crates/tls/server-fixture" }
 tlsn-cipher = { path = "crates/components/cipher" }
