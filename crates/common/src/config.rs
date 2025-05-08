@@ -37,6 +37,10 @@ pub struct ProtocolConfig {
     /// Maximum number of application data records that can be received.
     #[builder(setter(strip_option), default)]
     max_recv_records: Option<usize>,
+    /// Whether the `deferred decryption` feature is toggled on from the start
+    /// of the MPC-TLS connection.
+    #[builder(default = "true")]
+    defer_decryption_from_start: bool,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -84,6 +88,12 @@ impl ProtocolConfig {
     /// be received.
     pub fn max_recv_records(&self) -> Option<usize> {
         self.max_recv_records
+    }
+
+    /// Returns whether the `deferred decryption` feature is toggled on from the
+    /// start of the MPC-TLS connection.
+    pub fn defer_decryption_from_start(&self) -> bool {
+        self.defer_decryption_from_start
     }
 }
 

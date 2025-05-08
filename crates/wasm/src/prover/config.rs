@@ -33,16 +33,16 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
             builder.max_recv_records(value);
         }
 
+        if let Some(value) = value.defer_decryption_from_start {
+            builder.defer_decryption_from_start(value);
+        }
+
         let protocol_config = builder.build().unwrap();
 
         let mut builder = tlsn_prover::ProverConfig::builder();
         builder
             .server_name(value.server_name.as_ref())
             .protocol_config(protocol_config);
-
-        if let Some(value) = value.defer_decryption_from_start {
-            builder.defer_decryption_from_start(value);
-        }
 
         builder.build().unwrap()
     }
