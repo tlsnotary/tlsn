@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use mpz_common::Context;
 use mpz_core::bitvec::BitVec;
 use mpz_vm_core::{
-    memory::{binary::Binary, DecodeFuture, Memory, Slice, View},
+    memory::{binary::Binary, DecodeFuture, Memory, Repr, Slice, View},
     Call, Callable, Execute, Vm, VmError,
 };
 use rangeset::{Difference, RangeSet, UnionMut};
@@ -85,10 +85,10 @@ impl<Mpc, Zk> Deap<Mpc, Zk> {
         self.zk.clone().try_lock_owned().unwrap()
     }
 
-    /// Translates a slice from the MPC VM address space to the ZK VM address
+    /// Translates a value from the MPC VM address space to the ZK VM address
     /// space.
-    pub fn translate_slice(&self, slice: Slice) -> Result<Slice, VmError> {
-        self.memory_map.try_get(slice)
+    pub fn translate<T: Repr<Binary>>(&self, value: T) -> Result<T, VmError> {
+        self.memory_map.try_get(value.to_raw()).map(T::from_raw)
     }
 
     #[cfg(test)]
