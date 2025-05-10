@@ -65,26 +65,26 @@ pub async fn run_prover(
         ..Default::default()
     };
 
-    let protocol_config = if defer_decryption {
-        ProtocolConfig::builder()
+    let mut protocol_config = ProtocolConfig::builder();
+    if defer_decryption {
+        protocol_config
             .max_sent_data(upload_size + 256)
             .max_recv_data(download_size + 256)
-            .build()
-            .unwrap()
     } else {
-        ProtocolConfig::builder()
+        protocol_config
             .max_sent_data(upload_size + 256)
             .max_recv_data(download_size + 256)
             .max_recv_data_online(download_size + 256)
-            .build()
-            .unwrap()
     };
+    let protocol_config = protocol_config
+        .defer_decryption_from_start(defer_decryption)
+        .build()
+        .unwrap();
 
     let prover = Prover::new(
         ProverConfig::builder()
             .server_name(SERVER_DOMAIN)
             .protocol_config(protocol_config)
-            .defer_decryption_from_start(defer_decryption)
             .crypto_provider(provider)
             .build()
             .context("invalid prover config")?,
