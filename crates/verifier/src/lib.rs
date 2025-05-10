@@ -350,17 +350,12 @@ fn build_mpc_tls(
     let rcot_recv =
         mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
 
-    let mut rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(2, rcot_send);
-    let mut rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(4, rcot_recv);
+    let rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
+    let rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
 
-    let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(
-        rcot_recv.next().expect("receivers should be available"),
-    ));
+    let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(rcot_recv.clone()));
 
-    let zk = Zk::new(
-        delta,
-        rcot_send.next().expect("senders should be available"),
-    );
+    let zk = Zk::new(delta, rcot_send.clone());
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
 
@@ -370,12 +365,8 @@ fn build_mpc_tls(
             config.build_mpc_tls_config(protocol_config),
             ctx,
             vm,
-            rcot_send.next().expect("senders should be available"),
-            (
-                rcot_recv.next().expect("receivers should be available"),
-                rcot_recv.next().expect("receivers should be available"),
-                rcot_recv.next().expect("receivers should be available"),
-            ),
+            rcot_send,
+            (rcot_recv.clone(), rcot_recv.clone(), rcot_recv),
         ),
     )
 }
