@@ -129,42 +129,34 @@ fn build_pair(config: Config) -> (MpcTlsLeader, MpcTlsFollower) {
     let (rcot_send_a, rcot_recv_b) = ideal_rcot(Block::random(&mut rng), delta_a.into_inner());
     let (rcot_send_b, rcot_recv_a) = ideal_rcot(Block::random(&mut rng), delta_b.into_inner());
 
-    let mut rcot_send_a = SharedRCOTSender::new(4, rcot_send_a);
-    let mut rcot_send_b = SharedRCOTSender::new(1, rcot_send_b);
-    let mut rcot_recv_a = SharedRCOTReceiver::new(1, rcot_recv_a);
-    let mut rcot_recv_b = SharedRCOTReceiver::new(4, rcot_recv_b);
+    let rcot_send_a = SharedRCOTSender::new(rcot_send_a);
+    let rcot_send_b = SharedRCOTSender::new(rcot_send_b);
+    let rcot_recv_a = SharedRCOTReceiver::new(rcot_recv_a);
+    let rcot_recv_b = SharedRCOTReceiver::new(rcot_recv_b);
 
     let mpc_a = Arc::new(Mutex::new(Garbler::new(
-        DerandCOTSender::new(rcot_send_a.next().unwrap()),
+        DerandCOTSender::new(rcot_send_a.clone()),
         rand::rng().random(),
         delta_a,
     )));
     let mpc_b = Arc::new(Mutex::new(Evaluator::new(DerandCOTReceiver::new(
-        rcot_recv_b.next().unwrap(),
+        rcot_recv_b.clone(),
     ))));
 
     let leader = MpcTlsLeader::new(
         config.clone(),
         ctx_a,
         mpc_a,
-        (
-            rcot_send_a.next().unwrap(),
-            rcot_send_a.next().unwrap(),
-            rcot_send_a.next().unwrap(),
-        ),
-        rcot_recv_a.next().unwrap(),
+        (rcot_send_a.clone(), rcot_send_a.clone(), rcot_send_a),
+        rcot_recv_a,
     );
 
     let follower = MpcTlsFollower::new(
         config,
         ctx_b,
         mpc_b,
-        rcot_send_b.next().unwrap(),
-        (
-            rcot_recv_b.next().unwrap(),
-            rcot_recv_b.next().unwrap(),
-            rcot_recv_b.next().unwrap(),
-        ),
+        rcot_send_b,
+        (rcot_recv_b.clone(), rcot_recv_b.clone(), rcot_recv_b),
     );
 
     (leader, follower)
