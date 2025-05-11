@@ -2,12 +2,12 @@
 // attestation and the corresponding connection secrets. See the `prove.rs`
 // example to learn how to acquire an attestation from a Notary.
 
+use clap::Parser;
 use hyper::header;
+
 use tlsn_core::{attestation::Attestation, presentation::Presentation, CryptoProvider, Secrets};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
-
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
