@@ -927,19 +927,6 @@ dependencies = [
 
 [[package]]
 name = "async-tungstenite"
-version = "0.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5682ea0913e5c20780fe5785abacb85a411e7437bf52a1bedb93ddb3972cb8dd"
-dependencies = [
- "futures-io",
- "futures-util",
- "log",
- "pin-project-lite",
- "tungstenite 0.16.0",
-]
-
-[[package]]
-name = "async-tungstenite"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cca750b12e02c389c1694d35c16539f88b8bbaa5945934fdc1b41a776688589"
@@ -1390,15 +1377,6 @@ dependencies = [
  "constant_time_eq",
  "rayon-core",
  "serde",
-]
-
-[[package]]
-name = "block-buffer"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
-dependencies = [
- "generic-array",
 ]
 
 [[package]]
@@ -2453,7 +2431,7 @@ version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
- "block-buffer 0.10.4",
+ "block-buffer",
  "const-oid",
  "crypto-common",
  "subtle",
@@ -2507,18 +2485,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "educe"
-version = "0.4.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f0042ff8246a363dbe77d2ceedb073339e85a804b9a47636c6e016a9a32c05f"
-dependencies = [
- "enum-ordinalize",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2556,19 +2522,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
 dependencies = [
  "cfg-if",
-]
-
-[[package]]
-name = "enum-ordinalize"
-version = "3.1.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bf1fa3f06bbff1ea5b1a9c7b14aa992a39657db60a2759457328d7e058f49ee"
-dependencies = [
- "num-bigint",
- "num-traits",
- "proc-macro2",
- "quote",
- "syn 2.0.100",
 ]
 
 [[package]]
@@ -4697,7 +4650,7 @@ dependencies = [
 
 [[package]]
 name = "notary-client"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "derive_builder 0.12.0",
  "futures 0.3.31",
@@ -4715,7 +4668,7 @@ dependencies = [
 
 [[package]]
 name = "notary-server"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "async-tungstenite 0.28.2",
  "axum 0.8.1",
@@ -4772,6 +4725,7 @@ name = "notary-tests-integration"
 version = "0.0.0"
 dependencies = [
  "async-tungstenite 0.28.2",
+ "futures 0.3.31",
  "http 1.3.1",
  "http-body-util",
  "hyper 1.6.0",
@@ -5605,9 +5559,9 @@ dependencies = [
 
 [[package]]
 name = "rangeset"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e60e90dbde8afa699f8956a7f29b6533b860963ef9c7a7e993e145ffa6f7e0c"
+checksum = "1fc7af00a06ad692080d87495a904677592c662610edb82b4fc8782f4ed2f01f"
 dependencies = [
  "serde",
 ]
@@ -6476,19 +6430,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha-1"
-version = "0.9.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99cd6713db3cf16b6c84e06321e049a9b9f699826e16096d23bbcc44d15d51a6"
-dependencies = [
- "block-buffer 0.9.0",
- "cfg-if",
- "cpufeatures",
- "digest 0.9.0",
- "opaque-debug",
-]
-
-[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6663,7 +6604,7 @@ dependencies = [
 [[package]]
 name = "spansy"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6650a95#6650a956d3597d3a662fd9c15a64a1651afac399"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f2c1b2c1734dc276cecc4d36ef1"
 dependencies = [
  "bytes",
  "httparse",
@@ -7168,6 +7109,7 @@ name = "tlsn-benches-browser-wasm"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "rayon",
  "serio",
  "tlsn-benches-browser-core",
  "tlsn-benches-library",
@@ -7175,6 +7117,7 @@ dependencies = [
  "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-spawn",
  "web-time 0.2.4",
  "ws_stream_wasm",
 ]
@@ -7198,7 +7141,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-cipher"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "aes 0.8.4",
  "async-trait",
@@ -7218,7 +7161,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-common"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "async-trait",
  "derive_builder 0.12.0",
@@ -7247,7 +7190,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-core"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -7274,7 +7217,7 @@ dependencies = [
  "tiny-keccak",
  "tlsn-data-fixtures",
  "tlsn-tls-core",
- "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=6650a95)",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=6168663)",
  "web-time 0.2.4",
  "webpki-roots",
 ]
@@ -7285,7 +7228,7 @@ version = "0.0.0"
 
 [[package]]
 name = "tlsn-deap"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -7330,7 +7273,6 @@ dependencies = [
  "tlsn-server-fixture",
  "tlsn-server-fixture-certs",
  "tlsn-tls-core",
- "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=6650a95)",
  "tlsn-verifier",
  "tokio",
  "tokio-util",
@@ -7340,7 +7282,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-formats"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "bytes",
  "rstest",
@@ -7352,7 +7294,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-hmac-sha256"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "criterion",
  "derive_builder 0.12.0",
@@ -7372,7 +7314,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-hmac-sha256-circuits"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "mpz-circuits",
  "ring 0.17.14",
@@ -7381,7 +7323,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-key-exchange"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "async-trait",
  "derive_builder 0.12.0",
@@ -7407,7 +7349,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-mpc-tls"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
@@ -7449,7 +7391,6 @@ dependencies = [
  "tlsn-tls-client",
  "tlsn-tls-client-async",
  "tlsn-tls-core",
- "tlsn-utils-aio",
  "tokio",
  "tokio-util",
  "tracing",
@@ -7459,7 +7400,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-prover"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "derive_builder 0.12.0",
  "futures 0.3.31",
@@ -7516,7 +7457,7 @@ version = "0.0.0"
 
 [[package]]
 name = "tlsn-tls-backend"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -7526,7 +7467,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-tls-client"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -7553,7 +7494,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-tls-client-async"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "bytes",
  "futures 0.3.31",
@@ -7571,7 +7512,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-tls-core"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "futures 0.3.31",
  "hmac",
@@ -7598,31 +7539,11 @@ dependencies = [
 [[package]]
 name = "tlsn-utils"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6650a95#6650a956d3597d3a662fd9c15a64a1651afac399"
-
-[[package]]
-name = "tlsn-utils-aio"
-version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6650a95#6650a956d3597d3a662fd9c15a64a1651afac399"
-dependencies = [
- "async-std",
- "async-trait",
- "async-tungstenite 0.16.1",
- "bytes",
- "futures 0.3.31",
- "futures-util",
- "rayon",
- "serde",
- "thiserror 1.0.69",
- "tokio",
- "tokio-serde",
- "tokio-util",
- "wasm-bindgen-futures",
-]
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f2c1b2c1734dc276cecc4d36ef1"
 
 [[package]]
 name = "tlsn-verifier"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "derive_builder 0.12.0",
  "futures 0.3.31",
@@ -7653,7 +7574,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-wasm"
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.11-pre"
 dependencies = [
  "bincode",
  "console_error_panic_hook",
@@ -7759,21 +7680,6 @@ checksum = "c28327cf380ac148141087fbfb9de9d7bd4e84ab5d2c28fbc911d753de8a7081"
 dependencies = [
  "rustls 0.21.12",
  "tokio",
-]
-
-[[package]]
-name = "tokio-serde"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "911a61637386b789af998ee23f50aa30d5fd7edcec8d6d3dedae5e5815205466"
-dependencies = [
- "bincode",
- "bytes",
- "educe",
- "futures-core",
- "futures-sink",
- "pin-project 1.1.10",
- "serde",
 ]
 
 [[package]]
@@ -8060,25 +7966,6 @@ name = "ttf-parser"
 version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
-
-[[package]]
-name = "tungstenite"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ad3713a14ae247f22a728a0456a545df14acf3867f905adff84be99e23b3ad1"
-dependencies = [
- "base64 0.13.1",
- "byteorder",
- "bytes",
- "http 0.2.12",
- "httparse",
- "log",
- "rand 0.8.5",
- "sha-1",
- "thiserror 1.0.69",
- "url",
- "utf-8",
-]
 
 [[package]]
 name = "tungstenite"
@@ -8680,7 +8567,7 @@ dependencies = [
 [[package]]
 name = "websocket-relay"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6650a95#6650a956d3597d3a662fd9c15a64a1651afac399"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f2c1b2c1734dc276cecc4d36ef1"
 dependencies = [
  "anyhow",
  "form_urlencoded",
