@@ -129,7 +129,7 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
+        let (attestation, _) = attestation_fixture(
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
@@ -152,7 +152,7 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
+        let (attestation, _) = attestation_fixture(
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
@@ -178,7 +178,7 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
+        let (attestation, _) = attestation_fixture(
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
@@ -204,7 +204,7 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
+        let (attestation, _) = attestation_fixture(
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,
@@ -240,7 +240,7 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
+        let (attestation, _) = attestation_fixture(
             request.clone(),
             connection,
             SignatureAlgId::SECP256K1,

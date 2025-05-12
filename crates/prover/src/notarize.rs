@@ -7,7 +7,7 @@ use super::{state::Notarize, Prover, ProverError};
 use serio::{stream::IoStreamExt as _, SinkExt as _};
 use tlsn_common::encoding;
 use tlsn_core::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestationUnchecked},
     request::{Request, RequestConfig},
     transcript::{encoding::EncodingTree, Transcript, TranscriptCommitConfig},
     Secrets,
@@ -95,7 +95,9 @@ impl Prover<Notarize> {
 
                 ctx.io_mut().send(request.clone()).await?;
 
-                let attestation: Attestation = ctx.io_mut().expect_next().await?;
+                let unchecked: AttestationUnchecked = ctx.io_mut().expect_next().await?;
+                let attestation = Attestation::try_from_unchecked(unchecked, provider)
+                    .map_err(ProverError::attestation)?;
 
                 Ok::<_, ProverError>(attestation)
             })

@@ -507,14 +507,13 @@ mod tests {
         let transcript_proof = builder.build().unwrap();
 
         request.encoding_commitment_root = None;
-        let attestation = attestation_fixture(
+        let (attestation, provider) = attestation_fixture(
             request,
             connection,
             SignatureAlgId::SECP256K1,
             encoder_secret(),
         );
 
-        let provider = CryptoProvider::default();
         let err = transcript_proof
             .verify_with_provider(&provider, &attestation.body)
             .err()

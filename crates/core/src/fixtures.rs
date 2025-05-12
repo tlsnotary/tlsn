@@ -223,13 +223,13 @@ pub fn request_fixture(
     }
 }
 
-/// Returns an attestation fixture for testing.
+/// Returns an attestation fixture and a crypto provider for testing.
 pub fn attestation_fixture(
     request: Request,
     connection: ConnectionFixture,
     signature_alg: SignatureAlgId,
     secret: EncoderSecret,
-) -> Attestation {
+) -> (Attestation, CryptoProvider) {
     let ConnectionFixture {
         connection_info,
         server_cert_data,
@@ -262,11 +262,11 @@ pub fn attestation_fixture(
         .server_ephemeral_key(server_ephemeral_key)
         .encoder_secret(secret);
 
-    attestation_builder.build(&provider).unwrap()
+    (attestation_builder.build(&provider).unwrap(), provider)
 }
 
-/// Returns a basic attestation fixture for testing.
-pub fn basic_attestation_fixture() -> Attestation {
+/// Returns a basic attestation fixture and a crypto provider for testing.
+pub fn basic_attestation_fixture() -> (Attestation, CryptoProvider) {
     let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
     let connection = ConnectionFixture::tlsnotary(transcript.length());
 
