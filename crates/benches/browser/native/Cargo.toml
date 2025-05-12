@@ -4,6 +4,9 @@ name = "tlsn-benches-browser-native"
 publish = false
 version = "0.0.0"
 
+[lints]
+workspace = true
+
 [dependencies]
 tlsn-benches-browser-core = { workspace = true }
 tlsn-benches-library = { workspace = true }

@@ -16,6 +16,7 @@ pub use config::{
     NotarySigningKeyProperties, ServerProperties, TLSProperties,
 };
 pub use domain::{
+    auth::X_API_KEY_HEADER,
     cli::CliFields,
     notary::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse},
 };

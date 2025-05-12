@@ -380,16 +380,39 @@ pub enum CertificateVerificationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{fixtures::ConnectionFixture, transcript::Transcript};
+    use crate::{
+        fixtures::ConnectionFixture, provider::default_cert_verifier, transcript::Transcript,
+    };
 
     use hex::FromHex;
     use rstest::*;
+    use tls_core::verify::WebPkiVerifier;
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     #[fixture]
     #[once]
     fn crypto_provider() -> CryptoProvider {
-        CryptoProvider::default()
+        let mut store = default_cert_verifier().root_store().clone();
+
+        // Add a cert which is no longer included in the Mozilla root store.
+        let cert = tls_core::key::Certificate(
+            appliedzkp()
+                .server_cert_data
+                .certs
+                .last()
+                .expect("chain is valid")
+                .0
+                .clone(),
+        );
+
+        store.add(&cert).unwrap();
+
+        CryptoProvider {
+            hash: Default::default(),
+            cert: WebPkiVerifier::new(store, None),
+            signer: Default::default(),
+            signature: Default::default(),
+        }
     }
 
     fn tlsnotary() -> ConnectionFixture {
