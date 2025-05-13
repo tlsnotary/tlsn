@@ -20,7 +20,7 @@ default = []
 [dependencies]
 tlsn-cipher = { workspace = true }
 tlsn-common = { workspace = true }
-tlsn-hmac-sha256 = { workspace = true }
+#tlsn-hmac-sha256 = { workspace = true }
 tlsn-key-exchange = { workspace = true }
 tlsn-tls-backend = { workspace = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
@@ -47,7 +47,6 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
-rand06-compat = { workspace = true }
 opaque-debug = { workspace = true }
 aes = { workspace = true }
 aes-gcm = { workspace = true }

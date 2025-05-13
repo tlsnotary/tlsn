@@ -107,7 +107,7 @@ impl Verifier<state::Initialized> {
             })
             .await?;
 
-        let delta = Delta::random(&mut rand::rng().compat());
+        let delta = Delta::random(&mut rand::rng());
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta, ctx);
 
         // Allocate resources for MPC-TLS in VM.
@@ -345,7 +345,7 @@ fn build_mpc_tls(
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect("ferret config is valid"),
-        Block::random(&mut rng.compat_by_ref()),
+        Block::random(&mut rng),
         rcot_send,
     );
     let rcot_recv =

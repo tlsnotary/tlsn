@@ -6,7 +6,7 @@ use crate::{
 use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
-use mpz_common::{scoped_futures::ScopedFutureExt, Context, Flush};
+use mpz_common::{Context, Flush};
 use mpz_core::{bitvec::BitVec, Block};
 use mpz_memory_core::{DecodeFutureTyped, MemoryExt};
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
@@ -18,7 +18,6 @@ use mpz_ot::{
     },
 };
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
-use rand06_compat::Rand0_6CompatExt;
 use serio::stream::IoStreamExt;
 use std::mem;
 use tls_core::msgs::{
@@ -59,7 +58,7 @@ impl MpcTlsFollower {
                 RandomizeRCOTReceiver::new(cot_recv.0),
             ))),
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send)),
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
@@ -177,34 +176,25 @@ impl MpcTlsFollower {
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?;
             self.ctx
                 .try_join3(
-                    |ctx| {
-                        async move {
-                            ke.setup(ctx)
-                                .await
-                                .map(|_| ke)
-                                .map_err(MpcTlsError::preprocess)
-                        }
-                        .scope_boxed()
+                    async move |ctx| {
+                        ke.setup(ctx)
+                            .await
+                            .map(|_| ke)
+                            .map_err(MpcTlsError::preprocess)
                     },
-                    |ctx| {
-                        async move {
-                            record_layer
-                                .preprocess(ctx)
-                                .await
-                                .map(|_| record_layer)
-                                .map_err(MpcTlsError::preprocess)
-                        }
-                        .scope_boxed()
+                    async move |ctx| {
+                        record_layer
+                            .preprocess(ctx)
+                            .await
+                            .map(|_| record_layer)
+                            .map_err(MpcTlsError::preprocess)
                     },
-                    |ctx| {
-                        async move {
-                            vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
-                            vm.preprocess(ctx).await.map_err(MpcTlsError::preprocess)?;
-                            vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                    async move |ctx| {
+                        vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                        vm.preprocess(ctx).await.map_err(MpcTlsError::preprocess)?;
+                        vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
-                            Ok::<_, MpcTlsError>(())
-                        }
-                        .scope_boxed()
+                        Ok::<_, MpcTlsError>(())
                     },
                 )
                 .await
