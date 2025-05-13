@@ -78,6 +78,10 @@ impl Request {
                     "encoding commitment root does not match".to_string(),
                 ));
             }
+        } else if attestation.body.encoding_commitment().is_some() {
+            return Err(InconsistentAttestation(
+                "encoding commitment is present even though it was not requested".to_string(),
+            ));
         }
 
         // TODO: improve the O(M*N) complexity of this check.
