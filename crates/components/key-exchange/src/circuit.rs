@@ -29,13 +29,13 @@ pub(crate) fn build_pms_circuit() -> Arc<Circuit> {
 
     /// assumes input is provided as big endian
     fn to_little_endian(input: &[Node<Feed>]) -> Vec<Node<Feed>> {
-        let mut be_lsb0_output = vec![];
+        let mut le_lsb0_output = vec![];
         for node in input.chunks_exact(8).rev() {
             for &bit in node.iter() {
-                be_lsb0_output.push(bit);
+                le_lsb0_output.push(bit);
             }
         }
-        be_lsb0_output
+        le_lsb0_output
     }
 
     let pms_0 = add_mod(
