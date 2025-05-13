@@ -41,6 +41,9 @@ pub struct ProtocolConfig {
     /// of the MPC-TLS connection.
     #[builder(default = "true")]
     defer_decryption_from_start: bool,
+    /// Network settings.
+    #[builder(default)]
+    network: NetworkSetting,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -94,6 +97,11 @@ impl ProtocolConfig {
     /// start of the MPC-TLS connection.
     pub fn defer_decryption_from_start(&self) -> bool {
         self.defer_decryption_from_start
+    }
+
+    /// Returns the network settings.
+    pub fn network(&self) -> NetworkSetting {
+        self.network
     }
 }
 
@@ -213,6 +221,24 @@ impl ProtocolConfigValidator {
         }
 
         Ok(())
+    }
+}
+
+/// Settings for the network environment.
+///
+/// Provides optimization options to adapt the protocol to different network
+/// situations.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum NetworkSetting {
+    /// Prefers a bandwidth-heavy protocol.
+    Bandwidth,
+    /// Prefers a latency-heavy protocol.
+    Latency,
+}
+
+impl Default for NetworkSetting {
+    fn default() -> Self {
+        Self::Bandwidth
     }
 }
 

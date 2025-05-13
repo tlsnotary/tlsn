@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mpc_tls::Config;
-use tlsn_common::config::ProtocolConfig;
+use tlsn_common::config::{NetworkSetting, ProtocolConfig};
 use tlsn_core::{connection::ServerName, CryptoProvider};
 
 /// Configuration for the prover
@@ -53,6 +53,10 @@ impl ProverConfig {
 
         if let Some(max_recv_records) = self.protocol_config.max_recv_records() {
             builder.max_recv_records(max_recv_records);
+        }
+
+        if let NetworkSetting::Latency = self.protocol_config.network() {
+            builder.low_bandwidth();
         }
 
         builder.build().unwrap()

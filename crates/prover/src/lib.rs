@@ -17,7 +17,6 @@ pub use future::ProverFuture;
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use rand06_compat::Rand0_6CompatExt;
 use state::{Notarize, Prove};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
