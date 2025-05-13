@@ -184,6 +184,10 @@ where
 {
     type Error = VmError;
 
+    fn is_alloc_raw(&self, slice: Slice) -> bool {
+        self.mpc.try_lock().unwrap().is_alloc_raw(slice)
+    }
+
     fn alloc_raw(&mut self, size: usize) -> Result<Slice, VmError> {
         if self.desync.load(Ordering::Relaxed) {
             return Err(VmError::memory(
@@ -195,12 +199,20 @@ where
         self.mpc.try_lock().unwrap().alloc_raw(size)
     }
 
+    fn is_assigned_raw(&self, slice: Slice) -> bool {
+        self.mpc.try_lock().unwrap().is_assigned_raw(slice)
+    }
+
     fn assign_raw(&mut self, slice: Slice, data: BitVec) -> Result<(), VmError> {
         self.zk
             .try_lock()
             .unwrap()
             .assign_raw(slice, data.clone())?;
         self.mpc.try_lock().unwrap().assign_raw(slice, data)
+    }
+
+    fn is_committed_raw(&self, slice: Slice) -> bool {
+        self.mpc.try_lock().unwrap().is_committed_raw(slice)
     }
 
     fn commit_raw(&mut self, slice: Slice) -> Result<(), VmError> {

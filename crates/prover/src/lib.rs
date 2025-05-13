@@ -364,16 +364,16 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
         rcot_recv,
     );
 
-    let mut rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(4, rcot_send);
-    let mut rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(2, rcot_recv);
+    let rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
+    let rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
 
     let mpc = Mpc::new(
-        mpz_ot::cot::DerandCOTSender::new(rcot_send.next().expect("enough senders are available")),
+        mpz_ot::cot::DerandCOTSender::new(rcot_send.clone()),
         rng.random(),
         delta,
     );
 
-    let zk = Zk::new(rcot_recv.next().expect("enough receivers are available"));
+    let zk = Zk::new(rcot_recv.clone());
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
 
@@ -383,12 +383,8 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
             config.build_mpc_tls_config(),
             ctx,
             vm,
-            (
-                rcot_send.next().expect("enough senders are available"),
-                rcot_send.next().expect("enough senders are available"),
-                rcot_send.next().expect("enough senders are available"),
-            ),
-            rcot_recv.next().expect("enough receivers are available"),
+            (rcot_send.clone(), rcot_send.clone(), rcot_send),
+            rcot_recv,
         ),
     )
 }
