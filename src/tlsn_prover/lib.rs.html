@@ -364,16 +364,16 @@
 <a href=#364 id=364 data-nosnippet>364</a>        rcot_recv,
 <a href=#365 id=365 data-nosnippet>365</a>    );
 <a href=#366 id=366 data-nosnippet>366</a>
-<a href=#367 id=367 data-nosnippet>367</a>    <span class="kw">let </span><span class="kw-2">mut </span>rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(<span class="number">4</span>, rcot_send);
-<a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">let </span><span class="kw-2">mut </span>rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(<span class="number">2</span>, rcot_recv);
+<a href=#367 id=367 data-nosnippet>367</a>    <span class="kw">let </span>rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
+<a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">let </span>rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
 <a href=#369 id=369 data-nosnippet>369</a>
 <a href=#370 id=370 data-nosnippet>370</a>    <span class="kw">let </span>mpc = Mpc::new(
-<a href=#371 id=371 data-nosnippet>371</a>        mpz_ot::cot::DerandCOTSender::new(rcot_send.next().expect(<span class="string">"enough senders are available"</span>)),
+<a href=#371 id=371 data-nosnippet>371</a>        mpz_ot::cot::DerandCOTSender::new(rcot_send.clone()),
 <a href=#372 id=372 data-nosnippet>372</a>        rng.random(),
 <a href=#373 id=373 data-nosnippet>373</a>        delta,
 <a href=#374 id=374 data-nosnippet>374</a>    );
 <a href=#375 id=375 data-nosnippet>375</a>
-<a href=#376 id=376 data-nosnippet>376</a>    <span class="kw">let </span>zk = Zk::new(rcot_recv.next().expect(<span class="string">"enough receivers are available"</span>));
+<a href=#376 id=376 data-nosnippet>376</a>    <span class="kw">let </span>zk = Zk::new(rcot_recv.clone());
 <a href=#377 id=377 data-nosnippet>377</a>
 <a href=#378 id=378 data-nosnippet>378</a>    <span class="kw">let </span>vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
 <a href=#379 id=379 data-nosnippet>379</a>
@@ -383,38 +383,34 @@
 <a href=#383 id=383 data-nosnippet>383</a>            config.build_mpc_tls_config(),
 <a href=#384 id=384 data-nosnippet>384</a>            ctx,
 <a href=#385 id=385 data-nosnippet>385</a>            vm,
-<a href=#386 id=386 data-nosnippet>386</a>            (
-<a href=#387 id=387 data-nosnippet>387</a>                rcot_send.next().expect(<span class="string">"enough senders are available"</span>),
-<a href=#388 id=388 data-nosnippet>388</a>                rcot_send.next().expect(<span class="string">"enough senders are available"</span>),
-<a href=#389 id=389 data-nosnippet>389</a>                rcot_send.next().expect(<span class="string">"enough senders are available"</span>),
-<a href=#390 id=390 data-nosnippet>390</a>            ),
-<a href=#391 id=391 data-nosnippet>391</a>            rcot_recv.next().expect(<span class="string">"enough receivers are available"</span>),
-<a href=#392 id=392 data-nosnippet>392</a>        ),
-<a href=#393 id=393 data-nosnippet>393</a>    )
-<a href=#394 id=394 data-nosnippet>394</a>}
-<a href=#395 id=395 data-nosnippet>395</a>
-<a href=#396 id=396 data-nosnippet>396</a><span class="doccomment">/// A controller for the prover.
-<a href=#397 id=397 data-nosnippet>397</a></span><span class="attr">#[derive(Clone)]
-<a href=#398 id=398 data-nosnippet>398</a></span><span class="kw">pub struct </span>ProverControl {
-<a href=#399 id=399 data-nosnippet>399</a>    mpc_ctrl: LeaderCtrl,
-<a href=#400 id=400 data-nosnippet>400</a>}
-<a href=#401 id=401 data-nosnippet>401</a>
-<a href=#402 id=402 data-nosnippet>402</a><span class="kw">impl </span>ProverControl {
-<a href=#403 id=403 data-nosnippet>403</a>    <span class="doccomment">/// Defers decryption of data from the server until the server has closed
-<a href=#404 id=404 data-nosnippet>404</a>    /// the connection.
-<a href=#405 id=405 data-nosnippet>405</a>    ///
-<a href=#406 id=406 data-nosnippet>406</a>    /// This is a performance optimization which will significantly reduce the
-<a href=#407 id=407 data-nosnippet>407</a>    /// amount of upload bandwidth used by the prover.
-<a href=#408 id=408 data-nosnippet>408</a>    ///
-<a href=#409 id=409 data-nosnippet>409</a>    /// # Notes
-<a href=#410 id=410 data-nosnippet>410</a>    ///
-<a href=#411 id=411 data-nosnippet>411</a>    /// * The prover may need to close the connection to the server in order for
-<a href=#412 id=412 data-nosnippet>412</a>    ///   it to close the connection on its end. If neither the prover or server
-<a href=#413 id=413 data-nosnippet>413</a>    ///   close the connection this will cause a deadlock.
-<a href=#414 id=414 data-nosnippet>414</a>    </span><span class="kw">pub async fn </span>defer_decryption(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
-<a href=#415 id=415 data-nosnippet>415</a>        <span class="self">self</span>.mpc_ctrl
-<a href=#416 id=416 data-nosnippet>416</a>            .defer_decryption()
-<a href=#417 id=417 data-nosnippet>417</a>            .<span class="kw">await
-<a href=#418 id=418 data-nosnippet>418</a>            </span>.map_err(ProverError::from)
-<a href=#419 id=419 data-nosnippet>419</a>    }
-<a href=#420 id=420 data-nosnippet>420</a>}</code></pre></div></section></main></body></html>
+<a href=#386 id=386 data-nosnippet>386</a>            (rcot_send.clone(), rcot_send.clone(), rcot_send),
+<a href=#387 id=387 data-nosnippet>387</a>            rcot_recv,
+<a href=#388 id=388 data-nosnippet>388</a>        ),
+<a href=#389 id=389 data-nosnippet>389</a>    )
+<a href=#390 id=390 data-nosnippet>390</a>}
+<a href=#391 id=391 data-nosnippet>391</a>
+<a href=#392 id=392 data-nosnippet>392</a><span class="doccomment">/// A controller for the prover.
+<a href=#393 id=393 data-nosnippet>393</a></span><span class="attr">#[derive(Clone)]
+<a href=#394 id=394 data-nosnippet>394</a></span><span class="kw">pub struct </span>ProverControl {
+<a href=#395 id=395 data-nosnippet>395</a>    mpc_ctrl: LeaderCtrl,
+<a href=#396 id=396 data-nosnippet>396</a>}
+<a href=#397 id=397 data-nosnippet>397</a>
+<a href=#398 id=398 data-nosnippet>398</a><span class="kw">impl </span>ProverControl {
+<a href=#399 id=399 data-nosnippet>399</a>    <span class="doccomment">/// Defers decryption of data from the server until the server has closed
+<a href=#400 id=400 data-nosnippet>400</a>    /// the connection.
+<a href=#401 id=401 data-nosnippet>401</a>    ///
+<a href=#402 id=402 data-nosnippet>402</a>    /// This is a performance optimization which will significantly reduce the
+<a href=#403 id=403 data-nosnippet>403</a>    /// amount of upload bandwidth used by the prover.
+<a href=#404 id=404 data-nosnippet>404</a>    ///
+<a href=#405 id=405 data-nosnippet>405</a>    /// # Notes
+<a href=#406 id=406 data-nosnippet>406</a>    ///
+<a href=#407 id=407 data-nosnippet>407</a>    /// * The prover may need to close the connection to the server in order for
+<a href=#408 id=408 data-nosnippet>408</a>    ///   it to close the connection on its end. If neither the prover or server
+<a href=#409 id=409 data-nosnippet>409</a>    ///   close the connection this will cause a deadlock.
+<a href=#410 id=410 data-nosnippet>410</a>    </span><span class="kw">pub async fn </span>defer_decryption(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
+<a href=#411 id=411 data-nosnippet>411</a>        <span class="self">self</span>.mpc_ctrl
+<a href=#412 id=412 data-nosnippet>412</a>            .defer_decryption()
+<a href=#413 id=413 data-nosnippet>413</a>            .<span class="kw">await
+<a href=#414 id=414 data-nosnippet>414</a>            </span>.map_err(ProverError::from)
+<a href=#415 id=415 data-nosnippet>415</a>    }
+<a href=#416 id=416 data-nosnippet>416</a>}</code></pre></div></section></main></body></html>
