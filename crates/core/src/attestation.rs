@@ -43,11 +43,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     connection::{ConnectionInfo, ServerCertCommitment, ServerEphemKey},
     hash::{impl_domain_separator, Hash, HashAlgorithm, HashAlgorithmExt, TypedHash},
-    index::Index,
     merkle::MerkleTree,
     presentation::PresentationBuilder,
     signing::{Signature, VerifyingKey},
-    transcript::{encoding::EncodingCommitment, hash::PlaintextHash},
+    transcript::encoding::EncodingCommitment,
     CryptoProvider,
 };
 
@@ -152,7 +151,6 @@ pub struct Body {
     server_ephemeral_key: Field<ServerEphemKey>,
     cert_commitment: Field<ServerCertCommitment>,
     encoding_commitment: Option<Field<EncodingCommitment>>,
-    plaintext_hashes: Index<Field<PlaintextHash>>,
     extensions: Vec<Field<Extension>>,
 }
 
@@ -198,7 +196,6 @@ impl Body {
             server_ephemeral_key,
             cert_commitment,
             encoding_commitment,
-            plaintext_hashes,
             extensions,
         } = self;
 
@@ -220,10 +217,6 @@ impl Body {
                 encoding_commitment.id,
                 hasher.hash_separated(&encoding_commitment.data),
             ));
-        }
-
-        for field in plaintext_hashes.iter() {
-            fields.push((field.id, hasher.hash_separated(&field.data)));
         }
 
         for field in extensions.iter() {
@@ -252,11 +245,6 @@ impl Body {
     /// Returns the encoding commitment.
     pub(crate) fn encoding_commitment(&self) -> Option<&EncodingCommitment> {
         self.encoding_commitment.as_ref().map(|field| &field.data)
-    }
-
-    /// Returns the plaintext hash commitments.
-    pub(crate) fn plaintext_hashes(&self) -> &Index<Field<PlaintextHash>> {
-        &self.plaintext_hashes
     }
 }
 

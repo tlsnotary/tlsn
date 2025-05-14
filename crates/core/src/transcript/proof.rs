@@ -6,11 +6,9 @@ use std::{collections::HashSet, fmt};
 
 use crate::{
     attestation::Body,
-    index::Index,
     transcript::{
-        commit::{TranscriptCommitmentKind, MAX_TOTAL_COMMITTED_DATA},
+        commit::TranscriptCommitmentKind,
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
-        hash::{PlaintextHashProof, PlaintextHashProofError, PlaintextHashSecret},
         Direction, Idx, PartialTranscript, Transcript,
     },
     CryptoProvider,
@@ -23,8 +21,8 @@ const DEFAULT_COMMITMENT_KINDS: &[TranscriptCommitmentKind] = &[TranscriptCommit
 /// Proof of the contents of a transcript.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TranscriptProof {
+    transcript: PartialTranscript,
     encoding_proof: Option<EncodingProof>,
-    hash_proofs: Vec<PlaintextHashProof>,
 }
 
 opaque_debug::implement!(TranscriptProof);
@@ -45,10 +43,17 @@ impl TranscriptProof {
     ) -> Result<PartialTranscript, TranscriptProofError> {
         let info = attestation_body.connection_info();
 
-        let mut transcript = PartialTranscript::new(
-            info.transcript_length.sent as usize,
-            info.transcript_length.received as usize,
-        );
+        if self.transcript.sent_unsafe().len() != info.transcript_length.sent as usize
+            || self.transcript.received_unsafe().len() != info.transcript_length.received as usize
+        {
+            return Err(TranscriptProofError::new(
+                ErrorKind::Proof,
+                "transcript has incorrect length",
+            ));
+        }
+
+        let mut total_auth_sent = Idx::default();
+        let mut total_auth_recv = Idx::default();
 
         // Verify encoding proof.
         if let Some(proof) = self.encoding_proof {
@@ -58,39 +63,30 @@ impl TranscriptProof {
                     "contains an encoding proof but attestation is missing encoding commitment",
                 )
             })?;
-            let seq = proof.verify_with_provider(provider, &info.transcript_length, commitment)?;
-            transcript.union_transcript(&seq);
+            let (auth_sent, auth_recv) = proof.verify_with_provider(
+                provider,
+                commitment,
+                self.transcript.sent_unsafe(),
+                self.transcript.received_unsafe(),
+            )?;
+
+            total_auth_sent.union_mut(&auth_sent);
+            total_auth_recv.union_mut(&auth_recv);
         }
 
-        // Verify hash openings.
-        let mut total_opened = 0u128;
+        // TODO: Support hash openings.
 
-        for proof in self.hash_proofs {
-            let commitment = attestation_body
-                .plaintext_hashes()
-                .get_by_field_id(proof.commitment_id())
-                .map(|field| &field.data)
-                .ok_or_else(|| {
-                    TranscriptProofError::new(
-                        ErrorKind::Hash,
-                        format!("contains a hash opening but attestation is missing corresponding commitment (id: {})", proof.commitment_id()),
-                    )
-                })?;
-
-            // Make sure the amount of data being proved is bounded.
-            total_opened += commitment.idx.len() as u128;
-            if total_opened > MAX_TOTAL_COMMITTED_DATA as u128 {
-                return Err(TranscriptProofError::new(
-                    ErrorKind::Hash,
-                    "exceeded maximum allowed data",
-                ))?;
-            }
-
-            let (direction, seq) = proof.verify(&provider.hash, commitment)?;
-            transcript.union_subsequence(direction, &seq);
+        // Assert that all the authenticated data are covered by the proof.
+        if &total_auth_sent != self.transcript.sent_authed()
+            || &total_auth_recv != self.transcript.received_authed()
+        {
+            return Err(TranscriptProofError::new(
+                ErrorKind::Proof,
+                "transcript proof contains unauthenticated data",
+            ));
         }
 
-        Ok(transcript)
+        Ok(self.transcript)
     }
 }
 
@@ -116,7 +112,9 @@ impl TranscriptProofError {
 #[derive(Debug)]
 enum ErrorKind {
     Encoding,
+    #[allow(dead_code)]
     Hash,
+    Proof,
 }
 
 impl fmt::Display for TranscriptProofError {
@@ -126,6 +124,7 @@ impl fmt::Display for TranscriptProofError {
         match self.kind {
             ErrorKind::Encoding => f.write_str("encoding error")?,
             ErrorKind::Hash => f.write_str("hash error")?,
+            ErrorKind::Proof => f.write_str("proof error")?,
         }
 
         if let Some(source) = &self.source {
@@ -142,12 +141,6 @@ impl From<EncodingProofError> for TranscriptProofError {
     }
 }
 
-impl From<PlaintextHashProofError> for TranscriptProofError {
-    fn from(e: PlaintextHashProofError) -> Self {
-        TranscriptProofError::new(ErrorKind::Hash, e)
-    }
-}
-
 /// Union of committed ranges of all commitment kinds.
 #[derive(Debug)]
 struct CommittedIdx {
@@ -156,12 +149,9 @@ struct CommittedIdx {
 }
 
 impl CommittedIdx {
-    fn new(
-        encoding_tree: Option<&EncodingTree>,
-        plaintext_hashes: &Index<PlaintextHashSecret>,
-    ) -> Self {
-        let mut sent = plaintext_hashes.idx(Direction::Sent).clone();
-        let mut recv = plaintext_hashes.idx(Direction::Received).clone();
+    fn new(encoding_tree: Option<&EncodingTree>) -> Self {
+        let mut sent = Idx::default();
+        let mut recv = Idx::default();
 
         if let Some(tree) = encoding_tree {
             sent.union_mut(tree.idx(Direction::Sent));
@@ -219,25 +209,18 @@ pub struct TranscriptProofBuilder<'a> {
     commitment_kinds: Vec<TranscriptCommitmentKind>,
     transcript: &'a Transcript,
     encoding_tree: Option<&'a EncodingTree>,
-    #[allow(dead_code)]
-    plaintext_hashes: &'a Index<PlaintextHashSecret>,
     committed_idx: CommittedIdx,
     query_idx: QueryIdx,
 }
 
 impl<'a> TranscriptProofBuilder<'a> {
     /// Creates a new proof config builder.
-    pub(crate) fn new(
-        transcript: &'a Transcript,
-        encoding_tree: Option<&'a EncodingTree>,
-        plaintext_hashes: &'a Index<PlaintextHashSecret>,
-    ) -> Self {
+    pub(crate) fn new(transcript: &'a Transcript, encoding_tree: Option<&'a EncodingTree>) -> Self {
         Self {
             commitment_kinds: DEFAULT_COMMITMENT_KINDS.to_vec(),
             transcript,
             encoding_tree,
-            plaintext_hashes,
-            committed_idx: CommittedIdx::new(encoding_tree, plaintext_hashes),
+            committed_idx: CommittedIdx::new(encoding_tree),
             query_idx: QueryIdx::new(),
         }
     }
@@ -321,8 +304,10 @@ impl<'a> TranscriptProofBuilder<'a> {
     /// Builds the transcript proof.
     pub fn build(self) -> Result<TranscriptProof, TranscriptProofBuilderError> {
         let mut transcript_proof = TranscriptProof {
+            transcript: self
+                .transcript
+                .to_partial(self.query_idx.sent.clone(), self.query_idx.recv.clone()),
             encoding_proof: None,
-            hash_proofs: Vec::new(),
         };
         let mut uncovered_query_idx = self.query_idx.clone();
         let mut commitment_kinds_iter = self.commitment_kinds.iter();
@@ -370,7 +355,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                         if !dir_idxs.is_empty() {
                             transcript_proof.encoding_proof = Some(
                                 encoding_tree
-                                    .proof(self.transcript, dir_idxs.into_iter())
+                                    .proof(dir_idxs.into_iter())
                                     .expect("subsequences were checked to be in tree"),
                             );
                         }
@@ -471,7 +456,6 @@ mod tests {
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     use crate::{
-        attestation::FieldId,
         fixtures::{
             attestation_fixture, encoder_secret, encoding_provider, request_fixture,
             ConnectionFixture, RequestFixture,
@@ -499,8 +483,7 @@ mod tests {
             Vec::new(),
         );
 
-        let index = Index::default();
-        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
+        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree));
 
         builder.reveal_recv(&(0..transcript.len().1)).unwrap();
 
@@ -528,8 +511,7 @@ mod tests {
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         );
-        let index = Index::default();
-        let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
+        let mut builder = TranscriptProofBuilder::new(&transcript, None);
 
         let err = builder.reveal(&(10..15), Direction::Sent).unwrap_err();
         assert!(matches!(err.kind, BuilderErrorKind::Index));
@@ -547,8 +529,7 @@ mod tests {
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         );
-        let index = Index::default();
-        let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
+        let mut builder = TranscriptProofBuilder::new(&transcript, None);
 
         let err = builder.reveal_recv(&(9..11)).unwrap_err();
         assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
@@ -557,8 +538,7 @@ mod tests {
     #[rstest]
     fn test_set_commitment_kinds_with_duplicates() {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let index = Index::default();
-        let mut builder = TranscriptProofBuilder::new(&transcript, None, &index);
+        let mut builder = TranscriptProofBuilder::new(&transcript, None);
         builder.commitment_kinds(&[
             TranscriptCommitmentKind::Hash {
                 alg: HashAlgId::SHA256,
@@ -644,8 +624,7 @@ mod tests {
         )
         .unwrap();
 
-        let index = Index::default();
-        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
+        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree));
 
         if success {
             assert!(builder.reveal_recv(&reveal_recv_rangeset).is_ok());
@@ -653,92 +632,6 @@ mod tests {
             let err = builder.reveal_recv(&reveal_recv_rangeset).unwrap_err();
             assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
         }
-
-        // Hash commitment kind
-        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
-        transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash {
-            alg: HashAlgId::SHA256,
-        });
-        for rangeset in commit_recv_rangesets.iter() {
-            transcript_commitment_builder.commit_recv(rangeset).unwrap();
-        }
-        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        let plaintext_hash_secrets: Index<PlaintextHashSecret> = transcripts_commitment_config
-            .iter_hash()
-            .map(|(&(direction, ref idx), _)| PlaintextHashSecret {
-                direction,
-                idx: idx.clone(),
-                commitment: FieldId::default(),
-                blinder: rand::random(),
-            })
-            .collect::<Vec<_>>()
-            .into();
-        let mut builder = TranscriptProofBuilder::new(&transcript, None, &plaintext_hash_secrets);
-        builder.commitment_kinds(&[TranscriptCommitmentKind::Hash {
-            alg: HashAlgId::SHA256,
-        }]);
-
-        if success {
-            assert!(builder.reveal_recv(&reveal_recv_rangeset).is_ok());
-        } else {
-            let err = builder.reveal_recv(&reveal_recv_rangeset).unwrap_err();
-            assert!(matches!(err.kind, BuilderErrorKind::MissingCommitment));
-        }
-    }
-
-    #[rstest]
-    fn test_reveal_commitments_from_different_kinds() {
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        // Commit encoding
-        let encoding_rangeset = RangeSet::from(1..6);
-        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
-        transcript_commitment_builder
-            .commit_recv(&encoding_rangeset)
-            .unwrap();
-        // Commit hash
-        let hash_rangeset = RangeSet::from(9..12);
-        transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash {
-            alg: HashAlgId::SHA256,
-        });
-        transcript_commitment_builder
-            .commit_recv(&hash_rangeset)
-            .unwrap();
-
-        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        let encoding_tree = EncodingTree::new(
-            &Blake3::default(),
-            transcripts_commitment_config.iter_encoding(),
-            &encoding_provider(GET_WITH_HEADER, OK_JSON),
-            &transcript.length(),
-        )
-        .unwrap();
-
-        let plaintext_hash_secrets: Index<PlaintextHashSecret> = transcripts_commitment_config
-            .iter_hash()
-            .map(|(&(direction, ref idx), _)| PlaintextHashSecret {
-                direction,
-                idx: idx.clone(),
-                commitment: FieldId::default(),
-                blinder: rand::random(),
-            })
-            .collect::<Vec<_>>()
-            .into();
-
-        let mut builder =
-            TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &plaintext_hash_secrets);
-        builder.commitment_kinds(&[
-            TranscriptCommitmentKind::Hash {
-                alg: HashAlgId::BLAKE3,
-            },
-            TranscriptCommitmentKind::Encoding,
-        ]);
-
-        // Reveal encoding commitments
-        assert!(builder.reveal_recv(&encoding_rangeset).is_ok());
-        // Reveal hash commitments
-        assert!(builder.reveal_recv(&hash_rangeset).is_ok());
     }
 
     #[rstest]
@@ -804,8 +697,7 @@ mod tests {
         )
         .unwrap();
 
-        let index = Index::default();
-        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree), &index);
+        let mut builder = TranscriptProofBuilder::new(&transcript, Some(&encoding_tree));
         builder.reveal_sent(&reveal_sent_rangeset).unwrap();
         builder.reveal_recv(&reveal_recv_rangeset).unwrap();
 

@@ -1,15 +1,15 @@
 use std::{collections::HashMap, fmt};
 
+use rangeset::{RangeSet, UnionMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    connection::TranscriptLength,
-    hash::{Blinded, Blinder, HashAlgorithmExt, HashProviderError},
+    hash::{Blinder, HashProviderError},
     merkle::{MerkleError, MerkleProof},
     transcript::{
         commit::MAX_TOTAL_COMMITTED_DATA,
-        encoding::{new_encoder, tree::EncodingLeaf, Encoder, EncodingCommitment},
-        Direction, PartialTranscript, Subsequence,
+        encoding::{new_encoder, Encoder, EncodingCommitment},
+        Direction, Idx,
     },
     CryptoProvider,
 };
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct Opening {
     pub(super) direction: Direction,
-    pub(super) seq: Subsequence,
+    pub(super) idx: Idx,
     pub(super) blinder: Blinder,
 }
 
@@ -37,18 +37,22 @@ pub struct EncodingProof {
 impl EncodingProof {
     /// Verifies the proof against the commitment.
     ///
-    /// Returns the partial sent and received transcripts, respectively.
+    /// Returns the authenticated indices of the sent and received data,
+    /// respectively.
     ///
     /// # Arguments
     ///
-    /// * `transcript_length` - The length of the transcript.
-    /// * `commitment` - The encoding commitment to verify against.
+    /// * `provider` - Crypto provider.
+    /// * `commitment` - Encoding commitment to verify against.
+    /// * `sent` - Sent data to authenticate.
+    /// * `recv` - Received data to authenticate.
     pub fn verify_with_provider(
-        self,
+        &self,
         provider: &CryptoProvider,
-        transcript_length: &TranscriptLength,
         commitment: &EncodingCommitment,
-    ) -> Result<PartialTranscript, EncodingProofError> {
+        sent: &[u8],
+        recv: &[u8],
+    ) -> Result<(Idx, Idx), EncodingProofError> {
         let hasher = provider.hash.get(&commitment.root.alg)?;
 
         let encoder = new_encoder(&commitment.secret);
@@ -56,25 +60,23 @@ impl EncodingProof {
             inclusion_proof,
             openings,
         } = self;
-        let (sent_len, recv_len) = (
-            transcript_length.sent as usize,
-            transcript_length.received as usize,
-        );
 
         let mut leaves = Vec::with_capacity(openings.len());
-        let mut transcript = PartialTranscript::new(sent_len, recv_len);
+        let mut expected_leaf = Vec::default();
         let mut total_opened = 0u128;
+        let mut auth_sent = RangeSet::default();
+        let mut auth_recv = RangeSet::default();
         for (
             id,
             Opening {
                 direction,
-                seq,
+                idx,
                 blinder,
             },
         ) in openings
         {
             // Make sure the amount of data being proved is bounded.
-            total_opened += seq.len() as u128;
+            total_opened += idx.len() as u128;
             if total_opened > MAX_TOTAL_COMMITTED_DATA as u128 {
                 return Err(EncodingProofError::new(
                     ErrorKind::Proof,
@@ -82,34 +84,35 @@ impl EncodingProof {
                 ))?;
             }
 
-            // Make sure the ranges are within the bounds of the transcript.
-            let transcript_len = match direction {
-                Direction::Sent => sent_len,
-                Direction::Received => recv_len,
+            let (data, auth) = match direction {
+                Direction::Sent => (sent, &mut auth_sent),
+                Direction::Received => (recv, &mut auth_recv),
             };
 
-            if seq.index().end() > transcript_len {
+            // Make sure the ranges are within the bounds of the transcript.
+            if idx.end() > data.len() {
                 return Err(EncodingProofError::new(
                     ErrorKind::Proof,
                     format!(
                         "index out of bounds of the transcript ({}): {} > {}",
                         direction,
-                        seq.index().end(),
-                        transcript_len
+                        idx.end(),
+                        data.len()
                     ),
                 ));
             }
 
-            let expected_encoding = encoder.encode_subsequence(direction, &seq);
-            let expected_leaf =
-                Blinded::new_with_blinder(EncodingLeaf::new(expected_encoding), blinder);
+            expected_leaf.clear();
+            for range in idx.iter_ranges() {
+                encoder.encode_data(*direction, range.clone(), &data[range], &mut expected_leaf);
+            }
+            expected_leaf.extend_from_slice(blinder.as_bytes());
 
             // Compute the expected hash of the commitment to make sure it is
             // present in the merkle tree.
-            leaves.push((id, hasher.hash_canonical(&expected_leaf)));
+            leaves.push((*id, hasher.hash(&expected_leaf)));
 
-            // Union the authenticated subsequence into the transcript.
-            transcript.union_subsequence(direction, &seq);
+            auth.union_mut(idx.as_range_set());
         }
 
         // Verify that the expected hashes are present in the merkle tree.
@@ -119,7 +122,7 @@ impl EncodingProof {
         // data is authentic.
         inclusion_proof.verify(hasher, &commitment.root, leaves)?;
 
-        Ok(transcript)
+        Ok((Idx(auth_sent), Idx(auth_recv)))
     }
 }
 
@@ -228,6 +231,7 @@ mod test {
     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
     use crate::{
+        connection::TranscriptLength,
         fixtures::{encoder_secret, encoder_secret_tampered_seed, encoding_provider},
         hash::Blake3,
         transcript::{
@@ -263,9 +267,7 @@ mod test {
         )
         .unwrap();
 
-        let proof = tree
-            .proof(&transcript, [&idx_0, &idx_1].into_iter())
-            .unwrap();
+        let proof = tree.proof([&idx_0, &idx_1].into_iter()).unwrap();
 
         let commitment = EncodingCommitment {
             root: tree.root(),
@@ -290,8 +292,9 @@ mod test {
         let err = proof
             .verify_with_provider(
                 &CryptoProvider::default(),
-                &transcript.length(),
                 &commitment,
+                transcript.sent(),
+                transcript.received(),
             )
             .unwrap_err();
 
@@ -306,37 +309,34 @@ mod test {
             commitment,
         } = new_encoding_fixture(encoder_secret());
 
+        let sent = &transcript.sent()[transcript.sent().len() - 1..];
+        let recv = &transcript.received()[transcript.received().len() - 2..];
+
         let err = proof
-            .verify_with_provider(
-                &CryptoProvider::default(),
-                &TranscriptLength {
-                    sent: (transcript.len_of_direction(Direction::Sent) - 1) as u32,
-                    received: (transcript.len_of_direction(Direction::Received) - 2) as u32,
-                },
-                &commitment,
-            )
+            .verify_with_provider(&CryptoProvider::default(), &commitment, sent, recv)
             .unwrap_err();
 
         assert!(matches!(err.kind, ErrorKind::Proof));
     }
 
     #[test]
-    fn test_verify_encoding_proof_tampered_encoding_seq() {
+    fn test_verify_encoding_proof_tampered_idx() {
         let EncodingFixture {
             transcript,
             mut proof,
             commitment,
         } = new_encoding_fixture(encoder_secret());
 
-        let Opening { seq, .. } = proof.openings.values_mut().next().unwrap();
+        let Opening { idx, .. } = proof.openings.values_mut().next().unwrap();
 
-        *seq = Subsequence::new(Idx::new([0..3, 13..15]), [0, 1, 2, 5, 6].into()).unwrap();
+        *idx = Idx::new([0..3, 13..15]);
 
         let err = proof
             .verify_with_provider(
                 &CryptoProvider::default(),
-                &transcript.length(),
                 &commitment,
+                transcript.sent(),
+                transcript.received(),
             )
             .unwrap_err();
 
@@ -358,8 +358,9 @@ mod test {
         let err = proof
             .verify_with_provider(
                 &CryptoProvider::default(),
-                &transcript.length(),
                 &commitment,
+                transcript.sent(),
+                transcript.received(),
             )
             .unwrap_err();
 

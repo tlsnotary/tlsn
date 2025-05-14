@@ -1,4 +1,6 @@
-use crate::transcript::{Direction, Idx, Subsequence};
+use std::ops::Range;
+
+use crate::transcript::Direction;
 use itybity::ToBits;
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
@@ -71,19 +73,22 @@ impl ChaChaEncoder {
 /// This is an internal implementation detail that should not be exposed to the
 /// public API.
 pub trait Encoder {
-    /// Returns the zero encoding for the given index.
-    fn encode_idx(&self, direction: Direction, idx: &Idx) -> Vec<u8>;
+    /// Writes the zero encoding for the given range of the transcript into the
+    /// destination buffer.
+    fn encode_range(&self, direction: Direction, range: Range<usize>, dest: &mut Vec<u8>);
 
-    /// Returns the encoding for the given subsequence of the transcript.
-    ///
-    /// # Arguments
-    ///
-    /// * `seq` - The subsequence to encode.
-    fn encode_subsequence(&self, direction: Direction, seq: &Subsequence) -> Vec<u8>;
+    /// Writes the encoding for the given data into the destination buffer.
+    fn encode_data(
+        &self,
+        direction: Direction,
+        range: Range<usize>,
+        data: &[u8],
+        dest: &mut Vec<u8>,
+    );
 }
 
 impl Encoder for ChaChaEncoder {
-    fn encode_idx(&self, direction: Direction, idx: &Idx) -> Vec<u8> {
+    fn encode_range(&self, direction: Direction, range: Range<usize>, dest: &mut Vec<u8>) {
         // ChaCha encoder works with 32-bit words. Each encoded bit is 128 bits long.
         const WORDS_PER_BYTE: u128 = 8 * 128 / 32;
 
@@ -93,33 +98,40 @@ impl Encoder for ChaChaEncoder {
         };
 
         let mut prg = self.new_prg(stream_id);
-        let mut encoding: Vec<u8> = vec![0u8; idx.len() * BYTE_ENCODING_SIZE];
+        let len = range.len() * BYTE_ENCODING_SIZE;
+        let pos = dest.len();
 
-        let mut pos = 0;
-        for range in idx.iter_ranges() {
-            let len = range.len() * BYTE_ENCODING_SIZE;
-            prg.set_word_pos(range.start as u128 * WORDS_PER_BYTE);
-            prg.fill_bytes(&mut encoding[pos..pos + len]);
-            pos += len;
-        }
+        // Write 0s to the destination buffer.
+        dest.resize(pos + len, 0);
 
-        encoding
+        // Fill the destination buffer with the PRG.
+        prg.set_word_pos(range.start as u128 * WORDS_PER_BYTE);
+        prg.fill_bytes(&mut dest[pos..pos + len]);
     }
 
-    fn encode_subsequence(&self, direction: Direction, seq: &Subsequence) -> Vec<u8> {
+    fn encode_data(
+        &self,
+        direction: Direction,
+        range: Range<usize>,
+        data: &[u8],
+        dest: &mut Vec<u8>,
+    ) {
         const ZERO: [u8; 16] = [0; BIT_ENCODING_SIZE];
 
-        let mut encoding = self.encode_idx(direction, seq.index());
-        for (pos, bit) in seq.data().iter_lsb0().enumerate() {
+        let pos = dest.len();
+
+        // Write the zero encoding for the given range.
+        self.encode_range(direction, range, dest);
+        let dest = &mut dest[pos..];
+
+        for (pos, bit) in data.iter_lsb0().enumerate() {
             // Add the delta to the encoding whenever the encoded bit is 1,
             // otherwise add a zero.
             let summand = if bit { &self.delta } else { &ZERO };
-            encoding[pos * BIT_ENCODING_SIZE..(pos + 1) * BIT_ENCODING_SIZE]
+            dest[pos * BIT_ENCODING_SIZE..(pos + 1) * BIT_ENCODING_SIZE]
                 .iter_mut()
                 .zip(summand)
                 .for_each(|(a, b)| *a ^= *b);
         }
-
-        encoding
     }
 }
