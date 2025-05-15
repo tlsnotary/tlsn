@@ -44,7 +44,7 @@ pub(crate) fn hmac_sha256(
     mut outer_partial: Sha256,
     inner_local: Array<U8, 32>,
 ) -> Result<Array<U8, 32>, PrfError> {
-    outer_partial.update(&inner_local);
+    outer_partial.update(&inner_local.into());
     outer_partial.compress(vm)?;
     outer_partial.finalize(vm).map_err(PrfError::from)
 }
