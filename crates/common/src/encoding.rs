@@ -1,12 +1,14 @@
 //! Encoding commitment protocol.
 
+use std::ops::Range;
+
 use mpz_common::Context;
 use mpz_core::Block;
 use serde::{Deserialize, Serialize};
 use serio::{stream::IoStreamExt, SinkExt};
 use tlsn_core::transcript::{
-    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider},
-    Direction, Idx,
+    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider, EncodingProviderError},
+    Direction,
 };
 
 /// Bytes of encoding, per byte.
@@ -43,13 +45,18 @@ pub async fn transfer(
     assert_eq!(sent_keys.len() % ENCODING_SIZE, 0);
     assert_eq!(recv_keys.len() % ENCODING_SIZE, 0);
 
-    let mut sent_encoding = encoder.encode_idx(
+    let mut sent_encoding = Vec::with_capacity(sent_keys.len());
+    let mut recv_encoding = Vec::with_capacity(recv_keys.len());
+
+    encoder.encode_range(
         Direction::Sent,
-        &Idx::new(0..sent_keys.len() / ENCODING_SIZE),
+        0..sent_keys.len() / ENCODING_SIZE,
+        &mut sent_encoding,
     );
-    let mut recv_encoding = encoder.encode_idx(
+    encoder.encode_range(
         Direction::Received,
-        &Idx::new(0..recv_keys.len() / ENCODING_SIZE),
+        0..recv_keys.len() / ENCODING_SIZE,
+        &mut recv_encoding,
     );
 
     sent_encoding
@@ -130,25 +137,27 @@ struct Provider {
 }
 
 impl EncodingProvider for Provider {
-    fn provide_encoding(&self, direction: Direction, idx: &Idx) -> Option<Vec<u8>> {
+    fn provide_encoding(
+        &self,
+        direction: Direction,
+        range: Range<usize>,
+        dest: &mut Vec<u8>,
+    ) -> Result<(), EncodingProviderError> {
         let encodings = match direction {
             Direction::Sent => &self.sent,
             Direction::Received => &self.recv,
         };
 
-        let mut encoding = Vec::with_capacity(idx.len() * ENCODING_SIZE);
-        for range in idx.iter_ranges() {
-            let start = range.start * ENCODING_SIZE;
-            let end = range.end * ENCODING_SIZE;
+        let start = range.start * ENCODING_SIZE;
+        let end = range.end * ENCODING_SIZE;
 
-            if end > encodings.len() {
-                return None;
-            }
-
-            encoding.extend_from_slice(&encodings[start..end]);
+        if end > encodings.len() {
+            return Err(EncodingProviderError);
         }
 
-        Some(encoding)
+        dest.extend_from_slice(&encodings[start..end]);
+
+        Ok(())
     }
 }
 
