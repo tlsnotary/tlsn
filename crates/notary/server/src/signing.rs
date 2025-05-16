@@ -65,7 +65,7 @@ impl AttestationKey {
                     &mut rand::rng().compat(),
                 )),
             }),
-            alg_id => Err(eyre!("unsupported signature algorithm: {alg_id} — only secp256k1 and secp256r1 are supported now")),
+            alg_id => Err(eyre!("unsupported signature algorithm: {alg_id} — only secp256k1 and secp256r1 are supported")),
         }
     }
 

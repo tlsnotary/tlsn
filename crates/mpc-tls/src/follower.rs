@@ -3,10 +3,10 @@ use crate::{
     record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, FollowerData, MpcTlsError, Role, SessionKeys, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
+use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
-use mpz_common::{scoped_futures::ScopedFutureExt, Context, Flush};
+use mpz_common::{Context, Flush};
 use mpz_core::{bitvec::BitVec, Block};
 use mpz_memory_core::{DecodeFutureTyped, MemoryExt};
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
@@ -18,7 +18,6 @@ use mpz_ot::{
     },
 };
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
-use rand06_compat::Rand0_6CompatExt;
 use serio::stream::IoStreamExt;
 use std::mem;
 use tls_core::msgs::{
@@ -59,17 +58,12 @@ impl MpcTlsFollower {
                 RandomizeRCOTReceiver::new(cot_recv.0),
             ))),
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send)),
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(
-            PrfConfig::builder()
-                .role(hmac_sha256::Role::Follower)
-                .build()
-                .expect("PRF config is valid"),
-        );
+        let prf = MpcPrf::new(config.prf);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -124,8 +118,6 @@ impl MpcTlsFollower {
                 keys.server_iv,
             )?;
 
-            prf.set_client_random(vm, None)?;
-
             let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
             let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
 
@@ -177,34 +169,25 @@ impl MpcTlsFollower {
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?;
             self.ctx
                 .try_join3(
-                    |ctx| {
-                        async move {
-                            ke.setup(ctx)
-                                .await
-                                .map(|_| ke)
-                                .map_err(MpcTlsError::preprocess)
-                        }
-                        .scope_boxed()
+                    async move |ctx| {
+                        ke.setup(ctx)
+                            .await
+                            .map(|_| ke)
+                            .map_err(MpcTlsError::preprocess)
                     },
-                    |ctx| {
-                        async move {
-                            record_layer
-                                .preprocess(ctx)
-                                .await
-                                .map(|_| record_layer)
-                                .map_err(MpcTlsError::preprocess)
-                        }
-                        .scope_boxed()
+                    async move |ctx| {
+                        record_layer
+                            .preprocess(ctx)
+                            .await
+                            .map(|_| record_layer)
+                            .map_err(MpcTlsError::preprocess)
                     },
-                    |ctx| {
-                        async move {
-                            vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
-                            vm.preprocess(ctx).await.map_err(MpcTlsError::preprocess)?;
-                            vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                    async move |ctx| {
+                        vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                        vm.preprocess(ctx).await.map_err(MpcTlsError::preprocess)?;
+                        vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
-                            Ok::<_, MpcTlsError>(())
-                        }
-                        .scope_boxed()
+                        Ok::<_, MpcTlsError>(())
                     },
                 )
                 .await
@@ -240,6 +223,7 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in ready state to run"));
         };
 
+        let mut client_random = None;
         let mut server_random = None;
         let mut server_key = None;
         let mut cf_vd = None;
@@ -247,17 +231,20 @@ impl MpcTlsFollower {
         loop {
             let msg: Message = self.ctx.io_mut().expect_next().await?;
             match msg {
+                Message::SetClientRandom(random) => {
+                    if client_random.is_some() {
+                        return Err(MpcTlsError::hs("client random already set"));
+                    }
+
+                    prf.set_client_random(random.random)?;
+                    client_random = Some(random);
+                }
                 Message::SetServerRandom(random) => {
                     if server_random.is_some() {
                         return Err(MpcTlsError::hs("server random already set"));
                     }
 
-                    let mut vm = vm
-                        .try_lock()
-                        .map_err(|_| MpcTlsError::other("VM lock is held"))?;
-
-                    prf.set_server_random(&mut (*vm), random.random)?;
-
+                    prf.set_server_random(random.random)?;
                     server_random = Some(random);
                 }
                 Message::SetServerKey(key) => {
@@ -284,9 +271,12 @@ impl MpcTlsFollower {
                     ke.compute_shares(&mut self.ctx).await?;
                     ke.assign(&mut (*vm))?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    while prf.wants_flush() {
+                        prf.flush(&mut *vm)?;
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+                    }
 
                     ke.finalize().await?;
                     record_layer.setup(&mut self.ctx).await?;
@@ -300,11 +290,14 @@ impl MpcTlsFollower {
                         .try_lock()
                         .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-                    prf.set_cf_hash(&mut (*vm), vd.handshake_hash)?;
+                    prf.set_cf_hash(vd.handshake_hash)?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    while prf.wants_flush() {
+                        prf.flush(&mut *vm)?;
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+                    }
 
                     cf_vd = Some(
                         cf_vd_fut
@@ -322,11 +315,14 @@ impl MpcTlsFollower {
                         .try_lock()
                         .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-                    prf.set_sf_hash(&mut (*vm), vd.handshake_hash)?;
+                    prf.set_sf_hash(vd.handshake_hash)?;
 
-                    vm.execute_all(&mut self.ctx)
-                        .await
-                        .map_err(MpcTlsError::hs)?;
+                    while prf.wants_flush() {
+                        prf.flush(&mut *vm)?;
+                        vm.execute_all(&mut self.ctx)
+                            .await
+                            .map_err(MpcTlsError::hs)?;
+                    }
 
                     sf_vd = Some(
                         sf_vd_fut

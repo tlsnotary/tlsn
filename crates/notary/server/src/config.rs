@@ -99,7 +99,7 @@ pub struct NotarizationProperties {
 pub struct TLSProperties {
     /// Flag to turn on/off TLS between prover and notary — should always be
     /// turned on unless either
-    /// (1) TLS is handled by external setup e.g. reverse proxy cloud; or
+    /// (1) TLS is handled by external setup e.g. reverse proxy, cloud; or
     /// (2) For local testing
     pub enabled: bool,
     /// File path of TLS private key (in PEM format)
@@ -191,51 +191,5 @@ impl Default for LogProperties {
             filter: None,
             format: LogFormat::Compact,
         }
-    }
-}
-
-impl std::fmt::Display for NotaryServerProperties {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "host: {}", self.host)?;
-        writeln!(f, "port: {}", self.port)?;
-        writeln!(f, "html_info: {}", self.html_info)?;
-        writeln!(f, "concurrency: {}", self.concurrency)?;
-        writeln!(f, "notarization: \n{}", self.notarization)?;
-        writeln!(f, "tls: \n{}", self.tls)?;
-        writeln!(f, "log: \n{}", self.log)?;
-        write!(f, "auth: \n{}", self.auth)
-    }
-}
-
-impl std::fmt::Display for NotarizationProperties {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "   max_sent_data: {}", self.max_sent_data)?;
-        writeln!(f, "   max_recv_data: {}", self.max_recv_data)?;
-        writeln!(f, "   timeout: {}", self.timeout)?;
-        writeln!(f, "   private_key_path: {:?}", self.private_key_path)?;
-        write!(f, "   signature_algorithm: {}", self.signature_algorithm)
-    }
-}
-
-impl std::fmt::Display for TLSProperties {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "   enabled: {}", self.enabled)?;
-        writeln!(f, "   private_key_path: {:?}", self.private_key_path)?;
-        write!(f, "   certificate_path: {:?}", self.certificate_path)
-    }
-}
-
-impl std::fmt::Display for LogProperties {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "   level: {}", self.level)?;
-        writeln!(f, "   filter: {:?}", self.filter)?;
-        write!(f, "   format: {:?}", self.format)
-    }
-}
-
-impl std::fmt::Display for AuthorizationProperties {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "   enabled: {}", self.enabled)?;
-        write!(f, "   whitelist_path: {:?}", self.whitelist_path)
     }
 }

@@ -10,7 +10,7 @@ mod tree;
 
 pub use encoder::{new_encoder, Encoder, EncoderSecret};
 pub use proof::{EncodingProof, EncodingProofError};
-pub use provider::EncodingProvider;
+pub use provider::{EncodingProvider, EncodingProviderError};
 pub use tree::EncodingTree;
 
 use serde::{Deserialize, Serialize};

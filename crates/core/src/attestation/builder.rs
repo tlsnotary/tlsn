@@ -187,7 +187,6 @@ impl AttestationBuilder<'_, Sign> {
             })?),
             cert_commitment: field_id.next(cert_commitment),
             encoding_commitment: encoding_commitment.map(|commitment| field_id.next(commitment)),
-            plaintext_hashes: Default::default(),
             extensions: extensions
                 .into_iter()
                 .map(|extension| field_id.next(extension))

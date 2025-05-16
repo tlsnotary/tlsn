@@ -1,6 +1,5 @@
 use crate::{
     connection::{ServerCertData, ServerCertOpening, ServerName},
-    index::Index,
     request::{Request, RequestConfig},
     secrets::Secrets,
     transcript::{encoding::EncodingTree, Transcript},
@@ -101,7 +100,6 @@ impl<'a> RequestBuilder<'a> {
             server_name,
             server_cert_opening,
             encoding_tree,
-            plaintext_hashes: Index::default(),
             transcript,
         };
 

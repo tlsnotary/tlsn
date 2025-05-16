@@ -4,14 +4,7 @@
 //! components. The native component is responsible for starting the browser,
 //! loading the wasm component and driving it.
 
-use std::{env, net::IpAddr};
-
-use serio::{stream::IoStreamExt, SinkExt as _};
-use tlsn_benches_browser_core::{
-    msg::{Config, Runtime},
-    FramedIo,
-};
-use tlsn_benches_library::{AsyncIo, ProverKind, ProverTrait};
+use std::{env, net::IpAddr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -24,9 +17,16 @@ use chromiumoxide::{
 };
 use futures::{Future, FutureExt, StreamExt};
 use rust_embed::RustEmbed;
+use serio::{stream::IoStreamExt, SinkExt as _};
 use tokio::{io, io::AsyncWriteExt, net::TcpListener, task::JoinHandle};
 use tracing::{debug, error, info};
 use warp::Filter;
+
+use tlsn_benches_browser_core::{
+    msg::{Config, Runtime},
+    FramedIo,
+};
+use tlsn_benches_library::{AsyncIo, ProverKind, ProverTrait};
 
 /// The IP on which the wasm component is served.
 pub static DEFAULT_WASM_IP: &str = "127.0.0.1";
@@ -100,6 +100,12 @@ impl ProverTrait for BrowserProver {
 
         relays.push(spawn_websocket_relay(ws_ip, ws_port).await?);
 
+        // Create a framed connection to the wasm component.
+        let (wasm_left, wasm_right) = tokio::io::duplex(1 << 16);
+
+        relays.push(spawn_port_relay(wasm_to_native_port, Box::new(wasm_right)).await?);
+        let mut wasm_io = FramedIo::new(Box::new(wasm_left));
+
         let http_server = spawn_http_server(wasm_ip, wasm_port)?;
 
         // Relay data from the wasm component to the server.
@@ -107,12 +113,6 @@ impl ProverTrait for BrowserProver {
 
         // Relay data from the wasm component to the verifier.
         relays.push(spawn_port_relay(wasm_to_verifier_port, verifier_io).await?);
-
-        // Create a framed connection to the wasm component.
-        let (wasm_left, wasm_right) = tokio::io::duplex(1 << 16);
-
-        relays.push(spawn_port_relay(wasm_to_native_port, Box::new(wasm_right)).await?);
-        let mut wasm_io = FramedIo::new(Box::new(wasm_left));
 
         info!("spawning browser");
 
@@ -128,6 +128,10 @@ impl ProverTrait for BrowserProver {
             wasm_to_native_port,
         )
         .await?;
+
+        // Without this sleep, it was observed that `wasm_io.send(Config)`
+        // msg does not reach the browser component.
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         info!("sending config to the browser component");
 
@@ -267,14 +271,15 @@ async fn spawn_browser(
     tokio::spawn(register_listeners(&page).await?);
 
     page.wait_for_navigation().await?;
+
     // Note that `format!` needs double {{ }} in order to escape them.
     let _ = page
         .evaluate_function(&format!(
             r#"
                 async function() {{
-                    await window.worker.init();
+                    await window.benchWorker.init();
                     // Do not `await` run() or else it will block the browser. 
-                    window.worker.run("{}", {}, {}, {}, {});
+                    window.benchWorker.run("{}", {}, {}, {}, {});
                 }}
             "#,
             ws_ip, ws_port, wasm_to_server_port, wasm_to_verifier_port, wasm_to_native_port

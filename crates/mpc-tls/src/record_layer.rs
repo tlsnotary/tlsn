@@ -9,7 +9,7 @@ use std::{collections::VecDeque, mem::take, sync::Arc};
 
 use aead::MpcAesGcm;
 use futures::TryFutureExt;
-use mpz_common::{scoped_futures::ScopedFutureExt, Context, Task};
+use mpz_common::{Context, Task};
 use mpz_memory_core::{
     binary::{Binary, U8},
     Array,
@@ -205,8 +205,8 @@ impl RecordLayer {
 
         // Preprocesses GHASH keys in parallel.
         ctx.try_join(
-            |ctx| async move { encrypt.preprocess(ctx).await }.scope_boxed(),
-            |ctx| async move { decrypt.preprocess(ctx).await }.scope_boxed(),
+            async move |ctx| encrypt.preprocess(ctx).await,
+            async move |ctx| decrypt.preprocess(ctx).await,
         )
         .await
         .map_err(MpcTlsError::record_layer)?
@@ -256,8 +256,8 @@ impl RecordLayer {
 
         // Computes GHASH keys in parallel.
         ctx.try_join(
-            |ctx| async move { encrypt.setup(ctx).await }.scope_boxed(),
-            |ctx| async move { decrypt.setup(ctx).await }.scope_boxed(),
+            async move |ctx| encrypt.setup(ctx).await,
+            async move |ctx| decrypt.setup(ctx).await,
         )
         .await
         .map_err(MpcTlsError::record_layer)?
@@ -451,22 +451,19 @@ impl RecordLayer {
         // Run tag computation and VM in parallel.
         let (mut tags, _, _) = ctx
             .try_join3(
-                |ctx| {
+                async move |ctx| {
                     compute_tags
                         .run(ctx)
                         .map_err(MpcTlsError::record_layer)
-                        .scope_boxed()
+                        .await
                 },
-                |ctx| {
+                async move |ctx| {
                     verify_tags
                         .run(ctx)
                         .map_err(MpcTlsError::record_layer)
-                        .scope_boxed()
+                        .await
                 },
-                |ctx| {
-                    async move { vm.execute_all(ctx).map_err(MpcTlsError::record_layer).await }
-                        .scope_boxed()
-                },
+                async move |ctx| vm.execute_all(ctx).map_err(MpcTlsError::record_layer).await,
             )
             .await
             .map_err(MpcTlsError::record_layer)??;

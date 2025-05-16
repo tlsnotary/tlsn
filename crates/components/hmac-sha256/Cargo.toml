@@ -14,22 +14,15 @@ workspace = true
 [lib]
 name = "hmac_sha256"
 
-[features]
-default = ["mock"]
-rayon = ["mpz-common/rayon"]
-mock = []
-
 [dependencies]
-tlsn-hmac-sha256-circuits = { workspace = true }
-
 mpz-vm-core = { workspace = true }
+mpz-core = { workspace = true }
 mpz-circuits = { workspace = true }
-mpz-common = { workspace = true, features = ["cpu"] }
+mpz-hash = { workspace = true }
 
-derive_builder = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-futures = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 mpz-ot = { workspace = true, features = ["ideal"] }
@@ -39,7 +32,8 @@ mpz-common = { workspace = true, features = ["test-utils"] }
 criterion = { workspace = true, features = ["async_tokio"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 rand = { workspace = true }
-rand06-compat = { workspace = true }
+hex = { workspace = true }
+ring = { workspace = true }
 
 [[bench]]
 name = "prf"

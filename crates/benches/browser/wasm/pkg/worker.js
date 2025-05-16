@@ -1,18 +1,14 @@
 import * as Comlink from "./comlink.mjs";
 
-import init, { wasm_main, initialize } from './tlsn_benches_browser_wasm.js';
+import init_wasm, * as wasm from './tlsn_benches_browser_wasm.js';
 
-class Worker {
+class BenchWorker {
   async init() {
     try {
-      await init();
-      // Tracing may interfere with the benchmark results. We should enable it only for debugging.
-      // init_logging({
-      //   level: 'Debug',
-      //   crate_filters: undefined,
-      //   span_events: undefined,
-      // });
-      await initialize({ thread_count: navigator.hardwareConcurrency });
+      await init_wasm();
+      // Using Error level since excessive logging may interfere with the
+      // benchmark results. 
+      await wasm.initialize_bench({ level: "Error" }, navigator.hardwareConcurrency);
     } catch (e) {
       console.error(e);
       throw e;
@@ -27,7 +23,7 @@ class Worker {
     wasm_to_native_port
   ) {
     try {
-      await wasm_main(
+      await wasm.wasm_main(
         ws_ip,
         ws_port,
         wasm_to_server_port,
@@ -40,6 +36,6 @@ class Worker {
   }
 }
 
-const worker = new Worker();
+const worker = new BenchWorker();
 
 Comlink.expose(worker);

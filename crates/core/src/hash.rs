@@ -239,6 +239,7 @@ pub trait HashAlgorithm {
 }
 
 pub(crate) trait HashAlgorithmExt: HashAlgorithm {
+    #[allow(dead_code)]
     fn hash_canonical<T: CanonicalSerialize>(&self, data: &T) -> Hash {
         self.hash(&data.serialize())
     }
@@ -255,6 +256,12 @@ impl<T: HashAlgorithm + ?Sized> HashAlgorithmExt for T {}
 pub(crate) struct Blinder([u8; 16]);
 
 opaque_debug::implement!(Blinder);
+
+impl Blinder {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 impl Distribution<Blinder> for StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Blinder {
@@ -280,16 +287,8 @@ impl<T> Blinded<T> {
         }
     }
 
-    pub(crate) fn new_with_blinder(data: T, blinder: Blinder) -> Self {
-        Self { data, blinder }
-    }
-
     pub(crate) fn data(&self) -> &T {
         &self.data
-    }
-
-    pub(crate) fn into_parts(self) -> (T, Blinder) {
-        (self.data, self.blinder)
     }
 }
 

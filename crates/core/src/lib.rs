@@ -181,7 +181,6 @@ pub mod connection;
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
 pub mod hash;
-pub(crate) mod index;
 pub(crate) mod merkle;
 pub mod presentation;
 mod provider;
