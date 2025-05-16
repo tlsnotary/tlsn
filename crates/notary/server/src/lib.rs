@@ -15,7 +15,8 @@ mod util;
 pub use auth::X_API_KEY_HEADER;
 pub use cli::CliFields;
 pub use config::{
-    AuthorizationProperties, LogProperties, NotarizationProperties, NotaryServerProperties,
+    AuthorizationModeProperties, AuthorizationProperties, JwtAuthorizationProperties, JwtClaim,
+    JwtClaimValueType, LogProperties, NotarizationProperties, NotaryServerProperties,
     TLSProperties,
 };
 pub use error::NotaryServerError;
