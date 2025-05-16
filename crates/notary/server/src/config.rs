@@ -102,7 +102,7 @@ pub struct NotarizationProperties {
 pub struct TLSProperties {
     /// Flag to turn on/off TLS between prover and notary — should always be
     /// turned on unless either
-    /// (1) TLS is handled by external setup e.g. reverse proxy cloud; or
+    /// (1) TLS is handled by external setup e.g. reverse proxy, cloud; or
     /// (2) For local testing
     pub enabled: bool,
     /// File path of TLS private key (in PEM format)
