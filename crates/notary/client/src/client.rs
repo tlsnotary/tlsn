@@ -61,11 +61,12 @@ pub struct Accepted {
 
 /// A notary server connection.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum NotaryConnection {
     /// Unencrypted TCP connection.
     Tcp(TcpStream),
     /// TLS connection.
-    Tls(Box<TlsStream<TcpStream>>),
+    Tls(TlsStream<TcpStream>),
 }
 
 impl AsyncRead for NotaryConnection {
@@ -205,7 +206,7 @@ impl NotaryClient {
                 .await
                 .map(|(connection, session_id)| Accepted {
                     id: session_id,
-                    io: NotaryConnection::Tls(Box::new(connection)),
+                    io: NotaryConnection::Tls(connection),
                 })
         } else {
             debug!("Setting up tcp connection...");
