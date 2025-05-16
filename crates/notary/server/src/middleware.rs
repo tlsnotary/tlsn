@@ -4,10 +4,8 @@ use std::collections::HashMap;
 use tracing::{error, trace};
 
 use crate::{
-    domain::{
-        auth::{AuthorizationWhitelistRecord, X_API_KEY_HEADER},
-        notary::NotaryGlobals,
-    },
+    auth::{AuthorizationWhitelistRecord, X_API_KEY_HEADER},
+    types::NotaryGlobals,
     NotaryServerError,
 };
 
@@ -64,9 +62,7 @@ fn api_key_is_valid(
 #[cfg(test)]
 mod test {
     use super::{api_key_is_valid, HashMap};
-    use crate::domain::auth::{
-        authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord,
-    };
+    use crate::auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord};
     use std::sync::Arc;
 
     fn get_whitelist_fixture() -> HashMap<String, AuthorizationWhitelistRecord> {
