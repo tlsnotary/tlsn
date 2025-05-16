@@ -134,8 +134,9 @@ mod test {
     #[tokio::test]
     async fn test_watch_and_reload_authorization_whitelist() {
         // Clone fixture auth whitelist for testing
-        let original_whitelist_csv_path = "./fixture/auth/whitelist.csv";
-        let whitelist_csv_path = "./fixture/auth/whitelist_copied.csv".to_string();
+        let original_whitelist_csv_path = "../tests-integration/fixture/auth/whitelist.csv";
+        let whitelist_csv_path =
+            "../tests-integration/fixture/auth/whitelist_copied.csv".to_string();
         std::fs::copy(original_whitelist_csv_path, &whitelist_csv_path).unwrap();
 
         // Setup watcher
