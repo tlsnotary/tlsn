@@ -3,19 +3,19 @@ mod actor;
 use crate::{
     error::MpcTlsError,
     msg::{
-        ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetServerKey,
-        SetServerRandom,
+        ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetClientRandom,
+        SetServerKey, SetServerRandom,
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
     Config, LeaderOutput, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfConfig, PrfOutput};
+use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use ludi::Context as LudiContext;
-use mpz_common::{scoped_futures::ScopedFutureExt, Context, Flush};
+use mpz_common::{Context, Flush};
 use mpz_core::{bitvec::BitVec, Block};
 use mpz_memory_core::DecodeFutureTyped;
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
@@ -28,7 +28,6 @@ use mpz_ot::{
 };
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use mpz_vm_core::prelude::*;
-use rand06_compat::Rand0_6CompatExt;
 use serio::SinkExt;
 use tls_backend::{Backend, BackendError, BackendNotifier, BackendNotify};
 use tls_core::{
@@ -80,7 +79,7 @@ impl MpcTlsLeader {
         let ke = Box::new(MpcKeyExchange::new(
             key_exchange::Role::Leader,
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.0)),
             )),
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -88,23 +87,18 @@ impl MpcTlsLeader {
             ))),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(
-            PrfConfig::builder()
-                .role(hmac_sha256::Role::Leader)
-                .build()
-                .expect("prf config is valid"),
-        );
+        let prf = MpcPrf::new(config.prf);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.1)),
             )),
             Role::Leader,
         );
         let decrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
-                Block::random(&mut rng.compat_by_ref()),
+                Block::random(&mut rng),
                 AnySender::new(RandomizeRCOTSender::new(cot_send.2)),
             )),
             Role::Leader,
@@ -158,8 +152,6 @@ impl MpcTlsLeader {
             keys.server_iv,
         )?;
 
-        prf.set_client_random(&mut (*vm_lock), Some(client_random.0))?;
-
         let cf_vd = vm_lock.decode(cf_vd).map_err(MpcTlsError::alloc)?;
         let sf_vd = vm_lock.decode(sf_vd).map_err(MpcTlsError::alloc)?;
 
@@ -195,7 +187,7 @@ impl MpcTlsLeader {
             vm,
             keys,
             mut ke,
-            prf,
+            mut prf,
             mut record_layer,
             cf_vd,
             sf_vd,
@@ -212,41 +204,41 @@ impl MpcTlsLeader {
 
         let (ke, record_layer, _) = ctx
             .try_join3(
-                |ctx| {
-                    async move {
-                        ke.setup(ctx)
-                            .await
-                            .map(|_| ke)
-                            .map_err(MpcTlsError::preprocess)
-                    }
-                    .scope_boxed()
+                async move |ctx| {
+                    ke.setup(ctx)
+                        .await
+                        .map(|_| ke)
+                        .map_err(MpcTlsError::preprocess)
                 },
-                |ctx| {
-                    async move {
-                        record_layer
-                            .preprocess(ctx)
-                            .await
-                            .map(|_| record_layer)
-                            .map_err(MpcTlsError::preprocess)
-                    }
-                    .scope_boxed()
+                async move |ctx| {
+                    record_layer
+                        .preprocess(ctx)
+                        .await
+                        .map(|_| record_layer)
+                        .map_err(MpcTlsError::preprocess)
                 },
-                |ctx| {
-                    async move {
-                        vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
-                        vm_lock
-                            .preprocess(ctx)
-                            .await
-                            .map_err(MpcTlsError::preprocess)?;
-                        vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                async move |ctx| {
+                    vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                    vm_lock
+                        .preprocess(ctx)
+                        .await
+                        .map_err(MpcTlsError::preprocess)?;
+                    vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
-                        Ok::<_, MpcTlsError>(())
-                    }
-                    .scope_boxed()
+                    Ok::<_, MpcTlsError>(())
                 },
             )
             .await
             .map_err(MpcTlsError::preprocess)??;
+
+        ctx.io_mut()
+            .send(Message::SetClientRandom(SetClientRandom {
+                random: client_random.0,
+            }))
+            .await
+            .map_err(MpcTlsError::from)?;
+
+        prf.set_client_random(client_random.0)?;
 
         self.state = State::Handshake {
             ctx,
@@ -418,7 +410,6 @@ impl Backend for MpcTlsLeader {
     async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError> {
         let State::Handshake {
             ctx,
-            vm,
             prf,
             server_random,
             ..
@@ -436,13 +427,7 @@ impl Backend for MpcTlsLeader {
             .await
             .map_err(MpcTlsError::from)?;
 
-        let mut vm = vm
-            .try_lock()
-            .map_err(|_| MpcTlsError::other("VM lock is held"))?;
-
-        prf.set_server_random(&mut (*vm), random.0)
-            .map_err(MpcTlsError::hs)?;
-
+        prf.set_server_random(random.0).map_err(MpcTlsError::hs)?;
         *server_random = Some(random);
 
         Ok(())
@@ -553,9 +538,12 @@ impl Backend for MpcTlsLeader {
         let mut vm = vm
             .try_lock()
             .map_err(|_| MpcTlsError::other("VM lock is held"))?;
-        prf.set_sf_hash(&mut (*vm), hash).map_err(MpcTlsError::hs)?;
+        prf.set_sf_hash(hash).map_err(MpcTlsError::hs)?;
 
-        vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        while prf.wants_flush() {
+            prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
+            vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        }
 
         let sf_vd = sf_vd
             .try_recv()
@@ -596,9 +584,12 @@ impl Backend for MpcTlsLeader {
         let mut vm = vm
             .try_lock()
             .map_err(|_| MpcTlsError::hs("VM lock is held"))?;
-        prf.set_cf_hash(&mut (*vm), hash).map_err(MpcTlsError::hs)?;
+        prf.set_cf_hash(hash).map_err(MpcTlsError::hs)?;
 
-        vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        while prf.wants_flush() {
+            prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
+            vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+        }
 
         let cf_vd = cf_vd
             .try_recv()
@@ -615,7 +606,7 @@ impl Backend for MpcTlsLeader {
             vm,
             keys,
             mut ke,
-            prf,
+            mut prf,
             mut record_layer,
             cf_vd,
             sf_vd,
@@ -660,10 +651,15 @@ impl Backend for MpcTlsLeader {
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
             ke.assign(&mut (*vm_lock)).map_err(MpcTlsError::hs)?;
-            vm_lock
-                .execute_all(&mut ctx)
-                .await
-                .map_err(MpcTlsError::hs)?;
+
+            while prf.wants_flush() {
+                prf.flush(&mut *vm_lock).map_err(MpcTlsError::hs)?;
+                vm_lock
+                    .execute_all(&mut ctx)
+                    .await
+                    .map_err(MpcTlsError::hs)?;
+            }
+
             ke.finalize().await.map_err(MpcTlsError::hs)?;
             record_layer.setup(&mut ctx).await?;
         }

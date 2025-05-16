@@ -61,11 +61,11 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let prover = Prover::new(
         ProverConfig::builder()
             .server_name(SERVER_DOMAIN)
-            .defer_decryption_from_start(true)
             .protocol_config(
                 ProtocolConfig::builder()
                     .max_sent_data(MAX_SENT_DATA)
                     .max_recv_data(MAX_RECV_DATA)
+                    .defer_decryption_from_start(true)
                     .build()
                     .unwrap(),
             )

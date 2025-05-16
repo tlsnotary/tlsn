@@ -1,4 +1,5 @@
 use derive_builder::Builder;
+use hmac_sha256::Mode as PrfMode;
 
 /// Number of TLS protocol bytes that will be sent.
 const PROTOCOL_DATA_SENT: usize = 32;
@@ -55,6 +56,9 @@ pub struct Config {
     /// Maximum number of received bytes.
     #[allow(unused)]
     pub(crate) max_recv: usize,
+    /// Configuration options for the PRF.
+    #[builder(setter(custom))]
+    pub(crate) prf: PrfMode,
 }
 
 impl Config {
@@ -65,6 +69,12 @@ impl Config {
 }
 
 impl ConfigBuilder {
+    /// Optimizes the protocol for low bandwidth networks.
+    pub fn low_bandwidth(&mut self) -> &mut Self {
+        self.prf = Some(PrfMode::Reduced);
+        self
+    }
+
     /// Builds the configuration.
     pub fn build(&self) -> Result<Config, ConfigBuilderError> {
         let defer_decryption = self.defer_decryption.unwrap_or(true);
@@ -95,6 +105,8 @@ impl ConfigBuilder {
             .max_recv_records
             .unwrap_or_else(|| PROTOCOL_RECORD_COUNT_RECV + default_record_count(max_recv));
 
+        let prf = self.prf.unwrap_or_default();
+
         Ok(Config {
             defer_decryption,
             max_sent_records,
@@ -102,6 +114,7 @@ impl ConfigBuilder {
             max_recv_records,
             max_recv_online,
             max_recv,
+            prf,
         })
     }
 }

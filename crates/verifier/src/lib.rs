@@ -16,17 +16,21 @@ pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderErr
 pub use error::VerifierError;
 
 use futures::{AsyncRead, AsyncWrite};
-use mpc_tls::{FollowerData, MpcTlsFollower};
+use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use rand06_compat::Rand0_6CompatExt;
 use serio::stream::IoStreamExt;
 use state::{Notarize, Verify};
 use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
-    commit::commit_records, config::ProtocolConfig, context::build_mt_context, mux::attach_mux,
-    zk_aes::ZkAesCtr, Role,
+    commit::commit_records,
+    config::ProtocolConfig,
+    context::build_mt_context,
+    mux::attach_mux,
+    transcript::{Record, TlsTranscript},
+    zk_aes::ZkAesCtr,
+    Role,
 };
 use tlsn_core::{
     attestation::{Attestation, AttestationConfig},
@@ -107,11 +111,13 @@ impl Verifier<state::Initialized> {
             })
             .await?;
 
-        let delta = Delta::random(&mut rand::rng().compat());
+        let delta = Delta::random(&mut rand::rng());
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta, ctx);
 
         // Allocate resources for MPC-TLS in VM.
-        let keys = mpc_tls.alloc()?;
+        let mut keys = mpc_tls.alloc()?;
+        translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
+
         // Allocate for committing to plaintext.
         let mut zk_aes = ZkAesCtr::new(Role::Verifier);
         zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
@@ -222,6 +228,8 @@ impl Verifier<state::Setup> {
 
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
+
+            translate_transcript(&mut transcript, &vm)?;
 
             // Prepare for the prover to prove received plaintext.
             let proof = commit_records(
@@ -345,23 +353,18 @@ fn build_mpc_tls(
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect("ferret config is valid"),
-        Block::random(&mut rng.compat_by_ref()),
+        Block::random(&mut rng),
         rcot_send,
     );
     let rcot_recv =
         mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
 
-    let mut rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(2, rcot_send);
-    let mut rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(4, rcot_recv);
+    let rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
+    let rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
 
-    let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(
-        rcot_recv.next().expect("receivers should be available"),
-    ));
+    let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(rcot_recv.clone()));
 
-    let zk = Zk::new(
-        delta,
-        rcot_send.next().expect("senders should be available"),
-    );
+    let zk = Zk::new(delta, rcot_send.clone());
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
 
@@ -371,12 +374,44 @@ fn build_mpc_tls(
             config.build_mpc_tls_config(protocol_config),
             ctx,
             vm,
-            rcot_send.next().expect("senders should be available"),
-            (
-                rcot_recv.next().expect("receivers should be available"),
-                rcot_recv.next().expect("receivers should be available"),
-                rcot_recv.next().expect("receivers should be available"),
-            ),
+            rcot_send,
+            (rcot_recv.clone(), rcot_recv.clone(), rcot_recv),
         ),
     )
+}
+
+/// Translates VM references to the ZK address space.
+fn translate_keys<Mpc, Zk>(
+    keys: &mut SessionKeys,
+    vm: &Deap<Mpc, Zk>,
+) -> Result<(), VerifierError> {
+    keys.client_write_key = vm
+        .translate(keys.client_write_key)
+        .map_err(VerifierError::mpc)?;
+    keys.client_write_iv = vm
+        .translate(keys.client_write_iv)
+        .map_err(VerifierError::mpc)?;
+    keys.server_write_key = vm
+        .translate(keys.server_write_key)
+        .map_err(VerifierError::mpc)?;
+    keys.server_write_iv = vm
+        .translate(keys.server_write_iv)
+        .map_err(VerifierError::mpc)?;
+
+    Ok(())
+}
+
+/// Translates VM references to the ZK address space.
+fn translate_transcript<Mpc, Zk>(
+    transcript: &mut TlsTranscript,
+    vm: &Deap<Mpc, Zk>,
+) -> Result<(), VerifierError> {
+    for Record { plaintext_ref, .. } in transcript.sent.iter_mut().chain(transcript.recv.iter_mut())
+    {
+        if let Some(plaintext_ref) = plaintext_ref.as_mut() {
+            *plaintext_ref = vm.translate(*plaintext_ref).map_err(VerifierError::mpc)?;
+        }
+    }
+
+    Ok(())
 }

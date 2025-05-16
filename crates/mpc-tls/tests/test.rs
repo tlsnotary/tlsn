@@ -4,7 +4,7 @@ use futures::{AsyncReadExt, AsyncWriteExt};
 use mpc_tls::{Config, MpcTlsFollower, MpcTlsLeader};
 use mpz_common::context::test_mt_context;
 use mpz_core::Block;
-use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
 use mpz_memory_core::correlated::Delta;
 use mpz_ot::{
     cot::{DerandCOTReceiver, DerandCOTSender},
@@ -12,7 +12,6 @@ use mpz_ot::{
     rcot::shared::{SharedRCOTReceiver, SharedRCOTSender},
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use rand06_compat::Rand0_6CompatExt;
 use tls_client::Certificate;
 use tls_client_async::bind_client;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
@@ -117,7 +116,7 @@ async fn follower_task(mut follower: MpcTlsFollower) {
 }
 
 fn build_pair(config: Config) -> (MpcTlsLeader, MpcTlsFollower) {
-    let mut rng = StdRng::seed_from_u64(0).compat();
+    let mut rng = StdRng::seed_from_u64(0);
 
     let (mut mt_a, mut mt_b) = test_mt_context(8);
 
@@ -130,42 +129,34 @@ fn build_pair(config: Config) -> (MpcTlsLeader, MpcTlsFollower) {
     let (rcot_send_a, rcot_recv_b) = ideal_rcot(Block::random(&mut rng), delta_a.into_inner());
     let (rcot_send_b, rcot_recv_a) = ideal_rcot(Block::random(&mut rng), delta_b.into_inner());
 
-    let mut rcot_send_a = SharedRCOTSender::new(4, rcot_send_a);
-    let mut rcot_send_b = SharedRCOTSender::new(1, rcot_send_b);
-    let mut rcot_recv_a = SharedRCOTReceiver::new(1, rcot_recv_a);
-    let mut rcot_recv_b = SharedRCOTReceiver::new(4, rcot_recv_b);
+    let rcot_send_a = SharedRCOTSender::new(rcot_send_a);
+    let rcot_send_b = SharedRCOTSender::new(rcot_send_b);
+    let rcot_recv_a = SharedRCOTReceiver::new(rcot_recv_a);
+    let rcot_recv_b = SharedRCOTReceiver::new(rcot_recv_b);
 
-    let mpc_a = Arc::new(Mutex::new(Generator::new(
-        DerandCOTSender::new(rcot_send_a.next().unwrap()),
+    let mpc_a = Arc::new(Mutex::new(Garbler::new(
+        DerandCOTSender::new(rcot_send_a.clone()),
         rand::rng().random(),
         delta_a,
     )));
     let mpc_b = Arc::new(Mutex::new(Evaluator::new(DerandCOTReceiver::new(
-        rcot_recv_b.next().unwrap(),
+        rcot_recv_b.clone(),
     ))));
 
     let leader = MpcTlsLeader::new(
         config.clone(),
         ctx_a,
         mpc_a,
-        (
-            rcot_send_a.next().unwrap(),
-            rcot_send_a.next().unwrap(),
-            rcot_send_a.next().unwrap(),
-        ),
-        rcot_recv_a.next().unwrap(),
+        (rcot_send_a.clone(), rcot_send_a.clone(), rcot_send_a),
+        rcot_recv_a,
     );
 
     let follower = MpcTlsFollower::new(
         config,
         ctx_b,
         mpc_b,
-        rcot_send_b.next().unwrap(),
-        (
-            rcot_recv_b.next().unwrap(),
-            rcot_recv_b.next().unwrap(),
-            rcot_recv_b.next().unwrap(),
-        ),
+        rcot_send_b,
+        (rcot_recv_b.clone(), rcot_recv_b.clone(), rcot_recv_b),
     );
 
     (leader, follower)

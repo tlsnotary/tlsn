@@ -54,18 +54,13 @@ impl ZkAesCtr {
 
         let input = vm.alloc_vec::<U8>(len).map_err(ZkAesCtrError::vm)?;
         let keystream = self.aes.alloc_keystream(vm, len)?;
-        let output = keystream.apply(vm, input)?;
 
         match self.role {
             Role::Prover => vm.mark_private(input).map_err(ZkAesCtrError::vm)?,
             Role::Verifier => vm.mark_blind(input).map_err(ZkAesCtrError::vm)?,
         }
 
-        self.state = State::Ready {
-            input,
-            keystream,
-            output,
-        };
+        self.state = State::Ready { input, keystream };
 
         Ok(())
     }
@@ -96,12 +91,7 @@ impl ZkAesCtr {
         explicit_nonce: Vec<u8>,
         len: usize,
     ) -> Result<(Vector<U8>, Vector<U8>), ZkAesCtrError> {
-        let State::Ready {
-            input,
-            keystream,
-            output,
-        } = &mut self.state
-        else {
+        let State::Ready { input, keystream } = &mut self.state else {
             Err(ErrorRepr::State {
                 reason: "must be in ready state to encrypt",
             })?
@@ -128,7 +118,7 @@ impl ZkAesCtr {
 
         let mut input = input.split_off(input.len() - padded_len);
         let keystream = keystream.consume(padded_len)?;
-        let mut output = output.split_off(output.len() - padded_len);
+        let mut output = keystream.apply(vm, input)?;
 
         // Assign counter block inputs.
         let mut ctr = START_CTR..;
@@ -158,7 +148,6 @@ enum State {
     Ready {
         input: Vector<U8>,
         keystream: Keystream<Nonce, Ctr, Block>,
-        output: Vector<U8>,
     },
     Error,
 }

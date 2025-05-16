@@ -2,11 +2,11 @@
 
 use crate::{Cipher, CtrBlock, Keystream};
 use async_trait::async_trait;
+use mpz_circuits::circuits::AES128;
 use mpz_memory_core::binary::{Binary, U8};
 use mpz_vm_core::{prelude::*, Call, Vm};
 use std::fmt::Debug;
 
-mod circuit;
 mod error;
 
 pub use error::AesError;
@@ -55,7 +55,7 @@ impl Cipher for Aes128 {
 
         let output = vm
             .call(
-                Call::builder(circuit::AES128_ECB.clone())
+                Call::builder(AES128.clone())
                     .arg(key)
                     .arg(input)
                     .build()
@@ -91,7 +91,7 @@ impl Cipher for Aes128 {
 
         let output = vm
             .call(
-                Call::builder(circuit::AES128_CTR.clone())
+                Call::builder(AES128.clone())
                     .arg(key)
                     .arg(iv)
                     .arg(explicit_nonce)
@@ -145,7 +145,7 @@ impl Cipher for Aes128 {
             .map(|(explicit_nonce, counter)| {
                 let output = vm
                     .call(
-                        Call::builder(circuit::AES128_CTR.clone())
+                        Call::builder(AES128.clone())
                             .arg(key)
                             .arg(iv)
                             .arg(explicit_nonce)
@@ -172,7 +172,7 @@ mod tests {
     use super::*;
     use crate::Cipher;
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_memory_core::{
         binary::{Binary, U8},
         correlated::Delta,
@@ -181,7 +181,6 @@ mod tests {
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_vm_core::{Execute, Vm};
     use rand::{rngs::StdRng, SeedableRng};
-    use rand06_compat::Rand0_6CompatExt;
 
     #[tokio::test]
     async fn test_aes_ctr() {
@@ -297,11 +296,11 @@ mod tests {
 
     fn mock_vm() -> (impl Vm<Binary>, impl Vm<Binary>) {
         let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng.compat_by_ref());
+        let delta = Delta::random(&mut rng);
 
         let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
 
-        let gen = Generator::new(cot_send, [0u8; 16], delta);
+        let gen = Garbler::new(cot_send, [0u8; 16], delta);
         let ev = Evaluator::new(cot_recv);
 
         (gen, ev)

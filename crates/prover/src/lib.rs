@@ -17,11 +17,10 @@ pub use future::ProverFuture;
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use rand06_compat::Rand0_6CompatExt;
 use state::{Notarize, Prove};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{LeaderCtrl, MpcTlsLeader};
+use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
 use std::sync::Arc;
@@ -29,7 +28,12 @@ use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, TlsConnection};
 use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
-    commit::commit_records, context::build_mt_context, mux::attach_mux, zk_aes::ZkAesCtr, Role,
+    commit::commit_records,
+    context::build_mt_context,
+    mux::attach_mux,
+    transcript::{Record, TlsTranscript},
+    zk_aes::ZkAesCtr,
+    Role,
 };
 use tlsn_core::{
     connection::{
@@ -53,7 +57,7 @@ pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
     mpz_core::Block,
 >;
 pub(crate) type Mpc =
-    mpz_garble::protocol::semihonest::Generator<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
+    mpz_garble::protocol::semihonest::Garbler<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
 pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
 
 /// A prover instance.
@@ -104,7 +108,9 @@ impl Prover<state::Initialized> {
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, ctx);
 
         // Allocate resources for MPC-TLS in VM.
-        let keys = mpc_tls.alloc()?;
+        let mut keys = mpc_tls.alloc()?;
+        translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
+
         // Allocate for committing to plaintext.
         let mut zk_aes = ZkAesCtr::new(Role::Prover);
         zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
@@ -205,6 +211,8 @@ impl Prover<state::Setup> {
 
                 {
                     let mut vm = vm.try_lock().expect("VM should not be locked");
+
+                    translate_transcript(&mut data.transcript, &vm)?;
 
                     // Prove received plaintext. Prover drops the proof output, as they trust
                     // themselves.
@@ -345,7 +353,7 @@ impl Prover<state::Closed> {
 
 fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsLeader) {
     let mut rng = rand::rng();
-    let delta = Delta::new(Block::random(&mut rng.compat_by_ref()));
+    let delta = Delta::new(Block::random(&mut rng));
 
     let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
     let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
@@ -361,20 +369,20 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect("ferret config is valid"),
-        Block::random(&mut rng.compat_by_ref()),
+        Block::random(&mut rng),
         rcot_recv,
     );
 
-    let mut rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(4, rcot_send);
-    let mut rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(2, rcot_recv);
+    let rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
+    let rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
 
     let mpc = Mpc::new(
-        mpz_ot::cot::DerandCOTSender::new(rcot_send.next().expect("enough senders are available")),
+        mpz_ot::cot::DerandCOTSender::new(rcot_send.clone()),
         rng.random(),
         delta,
     );
 
-    let zk = Zk::new(rcot_recv.next().expect("enough receivers are available"));
+    let zk = Zk::new(rcot_recv.clone());
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
 
@@ -384,12 +392,8 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
             config.build_mpc_tls_config(),
             ctx,
             vm,
-            (
-                rcot_send.next().expect("enough senders are available"),
-                rcot_send.next().expect("enough senders are available"),
-                rcot_send.next().expect("enough senders are available"),
-            ),
-            rcot_recv.next().expect("enough receivers are available"),
+            (rcot_send.clone(), rcot_send.clone(), rcot_send),
+            rcot_recv,
         ),
     )
 }
@@ -418,4 +422,37 @@ impl ProverControl {
             .await
             .map_err(ProverError::from)
     }
+}
+
+/// Translates VM references to the ZK address space.
+fn translate_keys<Mpc, Zk>(keys: &mut SessionKeys, vm: &Deap<Mpc, Zk>) -> Result<(), ProverError> {
+    keys.client_write_key = vm
+        .translate(keys.client_write_key)
+        .map_err(ProverError::mpc)?;
+    keys.client_write_iv = vm
+        .translate(keys.client_write_iv)
+        .map_err(ProverError::mpc)?;
+    keys.server_write_key = vm
+        .translate(keys.server_write_key)
+        .map_err(ProverError::mpc)?;
+    keys.server_write_iv = vm
+        .translate(keys.server_write_iv)
+        .map_err(ProverError::mpc)?;
+
+    Ok(())
+}
+
+/// Translates VM references to the ZK address space.
+fn translate_transcript<Mpc, Zk>(
+    transcript: &mut TlsTranscript,
+    vm: &Deap<Mpc, Zk>,
+) -> Result<(), ProverError> {
+    for Record { plaintext_ref, .. } in transcript.sent.iter_mut().chain(transcript.recv.iter_mut())
+    {
+        if let Some(plaintext_ref) = plaintext_ref.as_mut() {
+            *plaintext_ref = vm.translate(*plaintext_ref).map_err(ProverError::mpc)?;
+        }
+    }
+
+    Ok(())
 }
