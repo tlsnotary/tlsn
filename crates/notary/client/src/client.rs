@@ -65,7 +65,7 @@ pub enum NotaryConnection {
     /// Unencrypted TCP connection.
     Tcp(TcpStream),
     /// TLS connection.
-    Tls(TlsStream<TcpStream>),
+    Tls(Box<TlsStream<TcpStream>>),
 }
 
 impl AsyncRead for NotaryConnection {
@@ -205,7 +205,7 @@ impl NotaryClient {
                 .await
                 .map(|(connection, session_id)| Accepted {
                     id: session_id,
-                    io: NotaryConnection::Tls(connection),
+                    io: NotaryConnection::Tls(Box::new(connection)),
                 })
         } else {
             debug!("Setting up tcp connection...");
