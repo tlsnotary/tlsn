@@ -8,6 +8,7 @@ pub(crate) mod config;
 mod error;
 mod notarize;
 pub mod state;
+mod tag;
 mod verify;
 
 use std::sync::Arc;
@@ -16,6 +17,7 @@ pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderErr
 pub use error::VerifierError;
 
 use futures::{AsyncRead, AsyncWrite};
+
 use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
@@ -28,8 +30,9 @@ use tlsn_common::{
     config::ProtocolConfig,
     context::build_mt_context,
     mux::attach_mux,
+    tag::commit_j0,
     transcript::{Record, TlsTranscript},
-    zk_aes::ZkAesCtr,
+    zk_aes_ctr::ZkAesCtr,
     Role,
 };
 use tlsn_core::{
@@ -119,9 +122,9 @@ impl Verifier<state::Initialized> {
         translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
 
         // Allocate for committing to plaintext.
-        let mut zk_aes = ZkAesCtr::new(Role::Verifier);
-        zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
-        zk_aes.alloc(
+        let mut zk_aes_ctr = ZkAesCtr::new(Role::Verifier);
+        zk_aes_ctr.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes_ctr.alloc(
             &mut (*vm.try_lock().expect("VM is not locked").zk()),
             protocol_config.max_recv_data(),
         )?;
@@ -141,7 +144,7 @@ impl Verifier<state::Initialized> {
                 mt,
                 delta,
                 mpc_tls,
-                zk_aes,
+                zk_aes_ctr,
                 _keys: keys,
                 vm,
             },
@@ -203,7 +206,7 @@ impl Verifier<state::Setup> {
             mt,
             delta,
             mpc_tls,
-            mut zk_aes,
+            mut zk_aes_ctr,
             vm,
             ..
         } = self.state;
@@ -220,7 +223,9 @@ impl Verifier<state::Setup> {
             FollowerData {
                 server_key,
                 mut transcript,
+                unauthenticated_transcript,
                 keys,
+                server_mac_key,
             },
         ) = mux_fut.poll_with(mpc_tls.run()).await?;
 
@@ -229,12 +234,31 @@ impl Verifier<state::Setup> {
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
 
+            let mut translated_keys = keys.clone();
+            translate_keys(&mut translated_keys, &vm)?;
+
+            // Prepare for the prover to prove j0s of the unauthenticated
+            // records.
+            let j0_proof = commit_j0(
+                &mut (*vm.zk()),
+                (
+                    translated_keys.server_write_key,
+                    translated_keys.server_write_iv,
+                ),
+                unauthenticated_transcript.recv.iter(),
+            )
+            .map_err(VerifierError::zk)?;
+
+            // At this point the entire TLS transcript is authenticated.
+            transcript
+                .join(&mut unauthenticated_transcript.clone())
+                .map_err(VerifierError::internal)?;
             translate_transcript(&mut transcript, &vm)?;
 
             // Prepare for the prover to prove received plaintext.
             let proof = commit_records(
                 &mut (*vm.zk()),
-                &mut zk_aes,
+                &mut zk_aes_ctr,
                 transcript
                     .recv
                     .iter_mut()
@@ -244,13 +268,22 @@ impl Verifier<state::Setup> {
 
             debug!("finalizing mpc");
 
-            // Finalize DEAP and execute the plaintext proofs.
+            // Finalize DEAP and execute the j0 proofs and plaintext proofs.
             mux_fut
                 .poll_with(vm.finalize(&mut ctx))
                 .await
                 .map_err(VerifierError::mpc)?;
 
             debug!("mpc finalized");
+
+            // Verify the AES-GCM tags.
+            // After the verification the entire TLS trancript is becomes
+            // authenticated from the verifier's perspective.
+            tag::verify_tags(
+                j0_proof,
+                server_mac_key,
+                unauthenticated_transcript.recv.iter(),
+            )?;
 
             // Verify the plaintext proofs.
             proof.verify().map_err(VerifierError::zk)?;

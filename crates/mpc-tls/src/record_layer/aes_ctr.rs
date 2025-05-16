@@ -131,7 +131,10 @@ impl AesCtr {
         Ok(())
     }
 
-    pub(crate) fn finish_decode(&mut self) -> Result<(), MpcTlsError> {
+    /// Finishes the decoding of key and IV, returning them.
+    pub(crate) fn finish_decode(
+        &mut self,
+    ) -> Result<(Option<[u8; 16]>, Option<[u8; 4]>), MpcTlsError> {
         let State::Decode {
             mut masked_key,
             mut masked_iv,
@@ -175,7 +178,7 @@ impl AesCtr {
 
         self.state = State::Ready { key, iv };
 
-        Ok(())
+        Ok((key, iv))
     }
 
     pub(crate) fn decrypt(

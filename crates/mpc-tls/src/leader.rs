@@ -62,7 +62,7 @@ pub struct MpcTlsLeader {
 }
 
 impl MpcTlsLeader {
-    /// Create a new leader instance
+    /// Creates a new leader instance.
     pub fn new<CS, CR>(
         config: Config,
         ctx: Context,
@@ -158,7 +158,7 @@ impl MpcTlsLeader {
         record_layer.alloc(
             &mut (*vm_lock),
             self.config.max_sent_records,
-            self.config.max_recv_records,
+            self.config.max_recv_records_online,
             self.config.max_sent,
             self.config.max_recv_online,
             self.config.max_recv,
@@ -290,7 +290,8 @@ impl MpcTlsLeader {
 
         debug!("committing to transcript");
 
-        let transcript = record_layer.commit(&mut ctx, vm.clone()).await?;
+        let (transcript, unauthenticated_transcript) =
+            record_layer.commit(&mut ctx, vm.clone()).await?;
 
         debug!("committed to transcript");
 
@@ -312,6 +313,7 @@ impl MpcTlsLeader {
                 client_random,
                 server_random,
                 transcript,
+                unauthenticated_transcript,
                 keys,
             },
         };

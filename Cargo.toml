@@ -112,6 +112,7 @@ futures = { version = "0.3" }
 futures-rustls = { version = "0.26" }
 futures-util = { version = "0.3" }
 generic-array = { version = "0.14" }
+ghash = { version = "0.5" }
 hex = { version = "0.4" }
 hmac = { version = "0.12" }
 http = { version = "1.1" }

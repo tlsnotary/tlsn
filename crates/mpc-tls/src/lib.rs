@@ -90,6 +90,9 @@ pub struct LeaderOutput {
     pub server_random: Random,
     /// TLS transcript.
     pub transcript: TlsTranscript,
+    /// A TLS transcript which has not yet been authenticated from the
+    /// verifier's perspective.
+    pub unauthenticated_transcript: TlsTranscript,
     /// TLS session keys.
     pub keys: SessionKeys,
 }
@@ -99,8 +102,12 @@ pub struct LeaderOutput {
 pub struct FollowerData {
     /// Server ephemeral public key.
     pub server_key: PublicKey,
-    /// TLS transcript.
+    /// Authenticated TLS transcript.
     pub transcript: TlsTranscript,
+    /// Unauthenticated TLS transcript.
+    pub unauthenticated_transcript: TlsTranscript,
     /// TLS session keys.
     pub keys: SessionKeys,
+    /// Server write MAC key.
+    pub server_mac_key: [u8; 16],
 }

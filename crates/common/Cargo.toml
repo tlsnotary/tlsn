@@ -28,6 +28,7 @@ opaque-debug = { workspace = true }
 rangeset = { workspace = true }
 serio = { workspace = true, features = ["codec", "bincode"] }
 thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 uid-mux = { workspace = true, features = ["serio"] }
 serde = { workspace = true, features = ["derive"] }

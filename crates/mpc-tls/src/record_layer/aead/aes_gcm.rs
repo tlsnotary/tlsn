@@ -1,5 +1,17 @@
 use std::{future::Future, sync::Arc};
 
+use cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
+use mpz_common::{Context, Flush};
+use mpz_core::bitvec::BitVec;
+use mpz_fields::gf2_128::Gf2_128;
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    DecodeFutureTyped, Vector,
+};
+use mpz_share_conversion::ShareConvert;
+use mpz_vm_core::{prelude::*, Vm};
+use tracing::instrument;
+
 use crate::{
     decode::OneTimePadShared,
     record_layer::{
@@ -11,16 +23,6 @@ use crate::{
     },
     Role,
 };
-use cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
-use mpz_common::{Context, Flush};
-use mpz_fields::gf2_128::Gf2_128;
-use mpz_memory_core::{
-    binary::{Binary, U8},
-    Vector,
-};
-use mpz_share_conversion::ShareConvert;
-use mpz_vm_core::{prelude::*, Vm};
-use tracing::instrument;
 
 const START_CTR: u32 = 2;
 
@@ -33,15 +35,18 @@ enum State {
         input: Vector<U8>,
         keystream: Keystream<Nonce, Ctr, Block>,
         j0s: Vec<(CtrBlock<Nonce, Ctr, Block>, OneTimePadShared<[u8; 16]>)>,
-        ghash_key: OneTimePadShared<[u8; 16]>,
+        ghash_key_share: OneTimePadShared<[u8; 16]>,
         ghash: Box<dyn Ghash + Send + Sync>,
+        ghash_key: Array<U8, 16>,
     },
     Ready {
         input: Vector<U8>,
         keystream: Keystream<Nonce, Ctr, Block>,
         j0s: Vec<(CtrBlock<Nonce, Ctr, Block>, OneTimePadShared<[u8; 16]>)>,
         ghash: Arc<dyn Ghash + Send + Sync>,
+        ghash_key: Array<U8, 16>,
     },
+    Complete {},
     Error,
 }
 
@@ -96,7 +101,7 @@ impl MpcAesGcm {
 
         ghash.alloc()?;
         let ghash_key = self.aes.alloc_block(vm, zero_block)?;
-        let ghash_key = OneTimePadShared::<[u8; 16]>::new(self.role, ghash_key, vm)?;
+        let ghash_key_share = OneTimePadShared::<[u8; 16]>::new(self.role, ghash_key, vm)?;
 
         // Allocate J0 secret sharing for GHASH.
         let mut j0s = Vec::with_capacity(records);
@@ -129,6 +134,7 @@ impl MpcAesGcm {
             keystream,
             j0s,
             ghash,
+            ghash_key_share,
             ghash_key,
         };
 
@@ -158,6 +164,7 @@ impl MpcAesGcm {
             input,
             keystream,
             j0s,
+            ghash_key_share,
             mut ghash,
             ghash_key,
         } = self.state.take()
@@ -165,7 +172,7 @@ impl MpcAesGcm {
             return Err(AeadError::state("must be in setup state to set up"));
         };
 
-        let key = ghash_key.await.map_err(AeadError::tag)?;
+        let key = ghash_key_share.await.map_err(AeadError::tag)?;
         ghash.set_key(key.to_vec())?;
         ghash.setup(ctx).await?;
 
@@ -174,6 +181,7 @@ impl MpcAesGcm {
             keystream,
             j0s,
             ghash: Arc::from(ghash),
+            ghash_key,
         };
 
         Ok(())
@@ -298,6 +306,27 @@ impl MpcAesGcm {
         })?;
 
         Ok(keystream.to_vector(vm, len)?)
+    }
+
+    /// Decodes the server write MAC key, returning it.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    #[instrument(level = "debug", skip_all, err)]
+    pub(crate) fn decode_mac_key(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+    ) -> Result<DecodeFutureTyped<BitVec, [u8; 16]>, AeadError> {
+        let State::Ready { ghash_key, .. } = &self.state else {
+            return Err(AeadError::state("must be in ready state to decode mac key"));
+        };
+
+        let fut = vm.decode(*ghash_key)?;
+
+        self.state = State::Complete {};
+
+        Ok(fut)
     }
 
     /// Computes tags for the provided ciphertext. See
