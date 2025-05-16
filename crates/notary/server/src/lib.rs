@@ -12,7 +12,6 @@ mod tee;
 mod types;
 mod util;
 
-pub use auth::X_API_KEY_HEADER;
 pub use cli::CliFields;
 pub use config::{
     AuthorizationProperties, LogProperties, NotarizationProperties, NotaryServerProperties,
@@ -21,5 +20,4 @@ pub use config::{
 pub use error::NotaryServerError;
 pub use server::{read_pem_file, run_server};
 pub use server_tracing::init_tracing;
-pub use types::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 pub use util::parse_config_file;
