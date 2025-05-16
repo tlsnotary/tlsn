@@ -1222,12 +1222,6 @@ checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
 
 [[package]]
 name = "base64"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
-
-[[package]]
-name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
@@ -3841,6 +3835,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonwebtoken"
+version = "9.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
+dependencies = [
+ "base64 0.22.1",
+ "js-sys",
+ "pem",
+ "ring 0.17.14",
+ "serde",
+ "serde_json",
+ "simple_asn1",
+]
+
+[[package]]
 name = "k256"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4695,6 +4704,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "config",
+ "const-oid",
  "csv",
  "eyre",
  "futures-util",
@@ -4704,22 +4714,20 @@ dependencies = [
  "http-body-util",
  "hyper 1.6.0",
  "hyper-util",
+ "jsonwebtoken",
  "k256",
- "lazy_static",
  "mc-sgx-dcap-types",
  "notify",
- "once_cell",
  "p256",
- "pem",
  "pkcs8",
  "rand 0.9.1",
  "rand06-compat",
  "rustls 0.21.12",
  "rustls-pemfile",
  "serde",
+ "serde_json",
  "serde_yaml",
  "sha1",
- "simple_asn1",
  "structopt",
  "thiserror 1.0.69",
  "tlsn-common",
@@ -4749,6 +4757,7 @@ dependencies = [
  "hyper 1.6.0",
  "hyper-tls",
  "hyper-util",
+ "jsonwebtoken",
  "notary-client",
  "notary-server",
  "rstest",
@@ -5048,11 +5057,12 @@ checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 
 [[package]]
 name = "pem"
-version = "1.1.1"
+version = "3.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8835c273a76a90455d7344889b0964598e3316e2a79ede8e36f16bdcf2228b8"
+checksum = "38af38e8470ac9dee3ce1bae1af9c1671fffc44ddfd8bd1d0a3445bf349a8ef3"
 dependencies = [
- "base64 0.13.1",
+ "base64 0.22.1",
+ "serde",
 ]
 
 [[package]]

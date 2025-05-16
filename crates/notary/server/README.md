@@ -145,11 +145,32 @@ After calling the configuration endpoint above, the prover can proceed to start 
 Currently, both the private key (and cert) used to establish a TLS connection with the prover, and the private key used by the notary server to sign the notarized transcript, are hardcoded PEM keys stored in this repository. Though the paths of these keys can be changed in the config (`notary-key` field) to use different keys instead.
 
 #### Authorization
-An optional authorization module is available to only allow requests with a valid API key attached in the custom HTTP header `X-API-Key`. The API key whitelist path (as well as the flag to enable/disable this module) can be changed in the config (`authorization` field).
+An optional authorization module is available to only allow requests with a valid credential attached. Currently, two modes are supported: whitelist and JWT.
+
+Please note that only *one* mode can be active at any one time.
+
+##### Whitelist mode
+In whitelist mode, an API key is attached in the custom HTTP header `X-API-Key`. The API key whitelist path (as well as the flag to enable/disable this module) can be changed in the config (`authorization` field).
 
 Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following
 - Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads
 - Once the edit is saved, ensure that it has been reloaded successfully by checking the server log
+
+##### JWT mode
+In JWT mode, JSON Web Token is attached in the standard `Authorization` HTTP header as a bearer token. The path to decoding key as well as custom user claims can be changed in the 
+config (`authorization` field).
+
+An example JWT config may look something like this:
+
+```yaml
+authorization:
+  enabled: true
+  jwt:
+    public_key_pem_path: "./fixture/auth/jwt.key.pub"
+    claims:
+      - name: sub
+        values: ["tlsnotary"]
+```
 
 #### Optional TLS
 TLS between the prover and the notary is currently manually handled in this server, though it can be turned off if any of the following is true
