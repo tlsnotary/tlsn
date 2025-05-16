@@ -30,6 +30,7 @@ notarization:
   timeout: 1800
   private_key_path: "../notary/notary.key"
   signature_algorithm: secp256k1
+  allow_extensions: false
 
 tls:
   enabled: false
