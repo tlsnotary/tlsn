@@ -10,8 +10,10 @@ pub mod context;
 pub mod encoding;
 pub mod msg;
 pub mod mux;
+pub mod tag;
 pub mod transcript;
-pub mod zk_aes;
+pub mod zk_aes_ctr;
+pub mod zk_aes_ecb;
 
 /// The party's role in the TLSN protocol.
 ///

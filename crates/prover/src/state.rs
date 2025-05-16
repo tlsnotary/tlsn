@@ -8,7 +8,7 @@ use mpc_tls::{MpcTlsLeader, SessionKeys};
 use tlsn_common::{
     mux::{MuxControl, MuxFuture},
     transcript::TranscriptRefs,
-    zk_aes::ZkAesCtr,
+    zk_aes_ctr::ZkAesCtr,
 };
 use tlsn_core::{
     connection::{ConnectionInfo, ServerCertData},
@@ -30,7 +30,7 @@ pub struct Setup {
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mt: Multithread,
     pub(crate) mpc_tls: MpcTlsLeader,
-    pub(crate) zk_aes: ZkAesCtr,
+    pub(crate) zk_aes_ctr: ZkAesCtr,
     pub(crate) keys: SessionKeys,
     pub(crate) vm: Arc<Mutex<Deap<Mpc, Zk>>>,
 }

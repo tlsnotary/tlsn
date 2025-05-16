@@ -124,7 +124,7 @@ impl MpcTlsFollower {
             record_layer.alloc(
                 vm,
                 self.config.max_sent_records,
-                self.config.max_recv_records,
+                self.config.max_recv_records_online,
                 self.config.max_sent,
                 self.config.max_recv_online,
                 self.config.max_recv,
@@ -371,7 +371,8 @@ impl MpcTlsFollower {
 
         debug!("committing");
 
-        let transcript = record_layer.commit(&mut self.ctx, vm).await?;
+        let (transcript, unauthenticated_transcript) =
+            record_layer.commit(&mut self.ctx, vm).await?;
 
         debug!("committed");
 
@@ -379,14 +380,23 @@ impl MpcTlsFollower {
         let cf_vd = cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
         let sf_vd = sf_vd.ok_or(MpcTlsError::hs("server finished VD not computed"))?;
 
-        validate_transcript(cf_vd, sf_vd, &transcript)?;
+        let mut full_transcript = transcript.clone();
+        full_transcript
+            .join(&mut unauthenticated_transcript.clone())
+            .unwrap();
+
+        validate_transcript(cf_vd, sf_vd, &full_transcript)?;
 
         Ok((
             self.ctx,
             FollowerData {
                 server_key,
                 transcript,
+                unauthenticated_transcript,
                 keys,
+                server_mac_key: record_layer
+                    .server_mac_key()
+                    .expect("record layer is complete"),
             },
         ))
     }
@@ -470,7 +480,7 @@ fn validate_transcript(
             )));
         }
     } else {
-        return Err(MpcTlsError::record_layer("no records were sent"));
+        return Err(MpcTlsError::record_layer("client finished was not sent"));
     }
 
     // Make sure the server finished verify data message was consistent.
@@ -498,7 +508,9 @@ fn validate_transcript(
             )));
         }
     } else {
-        return Err(MpcTlsError::record_layer("no records were received"));
+        return Err(MpcTlsError::record_layer(
+            "server finished was not received",
+        ));
     }
 
     // Verify last record sent was either application data or close notify.

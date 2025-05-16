@@ -42,6 +42,7 @@ async fn mpc_tls_test() {
 
 async fn leader_task(mut leader: MpcTlsLeader) {
     leader.alloc().unwrap();
+
     leader.preprocess().await.unwrap();
 
     let (leader_ctrl, leader_fut) = leader.run();

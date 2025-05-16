@@ -20,8 +20,6 @@ const MAX_SENT_DATA: usize = 1 << 12;
 const MAX_SENT_RECORDS: usize = 4;
 // Maximum number of bytes that can be received by prover from server
 const MAX_RECV_DATA: usize = 1 << 14;
-// Maximum number of application records received by prover from server
-const MAX_RECV_RECORDS: usize = 6;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
@@ -57,7 +55,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
                     .max_sent_data(MAX_SENT_DATA)
                     .max_sent_records(MAX_SENT_RECORDS)
                     .max_recv_data(MAX_RECV_DATA)
-                    .max_recv_records(MAX_RECV_RECORDS)
                     .build()
                     .unwrap(),
             )
