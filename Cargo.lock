@@ -1222,12 +1222,6 @@ checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
 
 [[package]]
 name = "base64"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
-
-[[package]]
-name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
@@ -4675,13 +4669,20 @@ dependencies = [
  "http-body-util",
  "hyper 1.6.0",
  "hyper-util",
- "notary-server",
+ "notary-common",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tokio-rustls",
  "tracing",
  "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "notary-common"
+version = "0.1.0-alpha.11-pre"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -4695,6 +4696,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "config",
+ "const-oid",
  "csv",
  "eyre",
  "futures-util",
@@ -4705,12 +4707,10 @@ dependencies = [
  "hyper 1.6.0",
  "hyper-util",
  "k256",
- "lazy_static",
  "mc-sgx-dcap-types",
+ "notary-common",
  "notify",
- "once_cell",
  "p256",
- "pem",
  "pkcs8",
  "rand 0.9.1",
  "rand06-compat",
@@ -4719,7 +4719,6 @@ dependencies = [
  "serde",
  "serde_yaml",
  "sha1",
- "simple_asn1",
  "structopt",
  "thiserror 1.0.69",
  "tlsn-common",
@@ -4750,6 +4749,7 @@ dependencies = [
  "hyper-tls",
  "hyper-util",
  "notary-client",
+ "notary-common",
  "notary-server",
  "rstest",
  "rustls 0.21.12",
@@ -5045,15 +5045,6 @@ name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
-
-[[package]]
-name = "pem"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8835c273a76a90455d7344889b0964598e3316e2a79ede8e36f16bdcf2228b8"
-dependencies = [
- "base64 0.13.1",
-]
 
 [[package]]
 name = "pem-rfc7468"
@@ -6539,18 +6530,6 @@ name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
-
-[[package]]
-name = "simple_asn1"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "297f631f50729c8c99b84667867963997ec0b50f32b2a7dbcab828ef0541e8bb"
-dependencies = [
- "num-bigint",
- "num-traits",
- "thiserror 2.0.12",
- "time",
-]
 
 [[package]]
 name = "simplecss"
