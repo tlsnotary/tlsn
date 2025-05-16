@@ -1,5 +1,6 @@
 use config::{Config, Environment};
 use eyre::{eyre, Result};
+use jsonwebtoken::Algorithm;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -53,8 +54,24 @@ impl NotaryServerProperties {
                 config.tls.certificate_path = Some(prepend_file_path(path, &parent_dir)?);
             }
             // Prepend auth whitelist path.
-            if let Some(path) = &config.auth.whitelist_path {
-                config.auth.whitelist_path = Some(prepend_file_path(path, &parent_dir)?);
+            if let Some(mode) = &config.auth.mode {
+                config.auth.mode = Some(match mode {
+                    AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
+                        algorithm,
+                        public_key_path,
+                        claims,
+                    }) => AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
+                        algorithm: algorithm.clone(),
+                        public_key_path: prepend_file_path(public_key_path, &parent_dir)?,
+                        claims: claims.clone(),
+                    }),
+                    AuthorizationModeProperties::Whitelist(path) => {
+                        AuthorizationModeProperties::Whitelist(prepend_file_path(
+                            path,
+                            &parent_dir,
+                        )?)
+                    }
+                });
             }
 
             Ok(config)
@@ -134,8 +151,57 @@ pub struct LogProperties {
 pub struct AuthorizationProperties {
     /// Flag to turn on or off auth middleware
     pub enabled: bool,
+    /// Authorization mode to use: JWT or whitelist
+    #[serde(flatten)]
+    pub mode: Option<AuthorizationModeProperties>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AuthorizationModeProperties {
+    /// JWT authorization properties
+    Jwt(JwtAuthorizationProperties),
     /// File path of the API key whitelist (in CSV format)
-    pub whitelist_path: Option<String>,
+    Whitelist(String),
+}
+
+impl AuthorizationModeProperties {
+    pub fn as_whitelist(&self) -> Option<String> {
+        match self {
+            Self::Jwt(..) => None,
+            Self::Whitelist(path) => Some(path.clone()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct JwtAuthorizationProperties {
+    /// Algorithm used for signing the JWT
+    pub algorithm: Algorithm,
+    /// File path to JWT public key (in PEM format) for verifying token signatures
+    pub public_key_path: String,
+    /// Set of required JWT claims
+    #[serde(default)]
+    pub claims: Vec<JwtClaim>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct JwtClaim {
+    /// Name of the claim
+    pub name: String,
+    /// Optional set of expected values for the claim
+    #[serde(default)]
+    pub values: Vec<String>,
+    /// Optional expected type for the claim
+    #[serde(default)]
+    pub value_type: JwtClaimValueType,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum JwtClaimValueType {
+    #[default]
+    String,
 }
 
 impl Default for NotaryServerProperties {

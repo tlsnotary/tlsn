@@ -32,6 +32,7 @@ http = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1", "server"] }
 hyper-util = { workspace = true, features = ["full"] }
+jsonwebtoken = { version = "9.3.1", features = ["use_pem"] }
 k256 = { workspace = true }
 notify = { version = "6.1.1", default-features = false, features = [
 	"macos_kqueue",
@@ -43,6 +44,7 @@ rand06-compat = { workspace = true }
 rustls = { workspace = true }
 rustls-pemfile = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 serde_yaml = { version = "0.9" }
 sha1 = { version = "0.10" }
 structopt = { version = "0.3" }
