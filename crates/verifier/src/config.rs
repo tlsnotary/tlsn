@@ -58,8 +58,8 @@ impl VerifierConfig {
             builder.max_recv_records(max_recv_records);
         }
 
-        if let NetworkSetting::Latency = protocol_config.network() {
-            builder.low_bandwidth();
+        if let NetworkSetting::Bandwidth = protocol_config.network() {
+            builder.high_bandwidth();
         }
 
         builder.build().unwrap()
