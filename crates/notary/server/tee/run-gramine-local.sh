@@ -45,5 +45,4 @@ zip -r notary-server-sgx.zip \
     notary-server.sig \
     notary-server.manifest \
     notary-server.manifest.sgx \
-    config \
     README.md

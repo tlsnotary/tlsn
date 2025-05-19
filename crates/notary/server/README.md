@@ -1,102 +1,132 @@
 # notary-server
-
 An implementation of the notary server in Rust.
 
 ## ⚠️ Notice
-
 This crate is currently under active development and should not be used in production. Expect bugs and regular major breaking changes.
 
 ---
 ## Running the server
 ### ⚠️ Notice
-- When running this server against a prover (e.g. [Rust](../../examples/) or [browser extension](https://github.com/tlsnotary/tlsn-extension)), please ensure that the prover's version is the same as the version of this server
-- When running this server in a *production environment*, please first read this [page](https://docs.tlsnotary.org/developers/notary_server.html)
-- When running this server in a *local environment* with a browser extension, please turn off this server's TLS in the config (refer [here](#optional-tls))
+- When running this server against a prover (e.g. [Rust](../../examples/) or [browser extension](https://github.com/tlsnotary/tlsn-extension)), please ensure that the prover's version is the same as the version of this server.
+- When running this server in a *production environment*, please first read this [page](https://docs.tlsnotary.org/developers/notary_server.html).
 
 ### Using Cargo
-1. Configure the server setting in this config [file](./config/config.yaml) — refer [here](./src/config.rs) for more information on the definition of the setting parameters.
-2. Start the server by running the following in a terminal at the root of this crate.
+Start the server at the root of this crate.
 ```bash
 cargo run --release
 ```
-3. To use a config file from a different location, run the following command to override the default config file location.
-```bash
-cargo run --release -- --config-file <path-of-new-config-file>
-```
 
 ### Using Docker
-There are two ways to obtain the notary server's Docker image:
+There are two ways to obtain the notary server's Docker image.
 - [GitHub](#obtaining-the-image-via-github)
 - [Building from source](#building-from-source)
 
 #### GitHub
-1. Obtain the latest image with:
+1. Obtain the latest image.
 ```bash
 docker pull ghcr.io/tlsnotary/tlsn/notary-server:latest
 ```
-2. Run the docker container with:
+2. Run the docker container.
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 ghcr.io/tlsnotary/tlsn/notary-server:latest
 ```
-3. If you want to change the default configuration, create a `config` folder locally, that contains a `config.yaml`, whose content follows the format of the default config file [here](./config/config.yaml).
-4. Instead of step 2, run the docker container with the following (remember to change the port mapping if you have changed that in the config):
-```bash
-docker run --init -p 127.0.0.1:7047:7047 -v <your config folder path>:/root/.notary-server/config ghcr.io/tlsnotary/tlsn/notary-server:latest
-```
 
 #### Building from source
-1. Configure the server setting in this config [file](./config/config.yaml).
-2. Build the docker image by running the following in a terminal at the root of this *repository*.
+1. Build the docker image at the root of this *repository*.
 ```bash
 docker build . -t notary-server:local -f crates/notary/server/notary-server.Dockerfile
 ```
-3. Run the docker container and specify the port specified in the config file, e.g. for the default port 7047
+2. Run the docker container and bind the default port.
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 notary-server:local
 ```
+---
+## Configuration
+### Default
+The default setting of the notary server is as follows. Refer to [config.rs](./src/config.rs) for more information on the definition of these setting parameters.
+```yaml
+host: "0.0.0.0"
+port: 7047
+html_info: |
+  <head>
+    <meta charset="UTF-8">
+    <meta name="author" content="tlsnotary">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body>
+    <svg width="86" height="88" viewBox="0 0 86 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M25.5484 0.708986C25.5484 0.17436 26.1196 -0.167376 26.5923 0.0844205L33.6891 3.86446C33.9202 3.98756 34.0645 4.22766 34.0645 4.48902V9.44049H37.6129C38.0048 9.44049 38.3226 9.75747 38.3226 10.1485V21.4766L36.1936 20.0606V11.5645H34.0645V80.9919C34.0645 81.1134 34.0332 81.2328 33.9735 81.3388L30.4251 87.6388C30.1539 88.1204 29.459 88.1204 29.1878 87.6388L25.6394 81.3388C25.5797 81.2328 25.5484 81.1134 25.5484 80.9919V0.708986Z" fill="#243F5F"/>
+      <path d="M21.2903 25.7246V76.7012H12.7742V34.2207H0V25.7246H21.2903Z" fill="#243F5F"/>
+      <path d="M63.871 76.7012H72.3871V34.2207H76.6452V76.7012H85.1613V25.7246H63.871V76.7012Z" fill="#243F5F"/>
+      <path d="M38.3226 25.7246H59.6129V34.2207H46.8387V46.9649H59.6129V76.7012H38.3226V68.2051H51.0968V55.4609H38.3226V25.7246Z" fill="#243F5F"/>
+    </svg>
+    <h1>Notary Server {version}!</h1>
+    <ul>
+      <li>public key: <pre>{public_key}</pre></li>
+      <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{git_commit_hash}">{git_commit_hash}</a></li>
+      <li><a href="healthcheck">health check</a></li>
+      <li><a href="info">info</a></li>
+    </ul>
+  </body>
 
-### Using different setting files with Docker
-1. Instead of changing the key/cert/auth file path(s) in the config file, create a folder containing your key/cert/auth files by following the folder structure [here](./fixture/).
-2. When launching the docker container, mount your folder onto the docker container at the relevant path prefixed by `/root/.notary-server`.
-- Example 1: Using different key, cert, and auth files:
-```bash
-docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture notary-server:local
+concurrency: 32
+
+notarization:
+  max_sent_data: 4096
+  max_recv_data: 16384
+  timeout: 1800
+  private_key_path: null
+  signature_algorithm: secp256k1
+
+tls:
+  enabled: false
+  private_key_path: null
+  certificate_path: null
+
+log:
+  level: DEBUG
+  filter: null
+  format: COMPACT
+
+auth:
+  enabled: false
+  whitelist_path: null
 ```
-- Example 2: Using a different key for notarizations:
+⚠️ Note that when `notarization.private_key_path` is `null` (the default), a random, ephemeral signing key will be generated at runtime (see [Signing](#signing) for more details).
+
+### Overriding default
+The default setting can be overriden with either (1) environment variables, or (2) a configuration file (yaml).
+
+#### Environment Variables
+This will override each corresponding default value. It uses the prefix `NS_` followed by the configuration key(s) in uppercase. Double underscores are used in nested configuration keys, e.g. `tls.enabled` will be `NS_TLS__ENABLED`.
 ```bash
-docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture/notary notary-server:local
+NS_PORT=8080 NS_NOTARIZATION__MAX_SENT_DATA=2048 cargo run --release
 ```
 
-### Configuration
+#### Configuration File
+This will override all the default values, hence it needs to **contain all compulsory** configuration keys and values (refer to the [default yaml](#default) above). This will take precedence over environment variables.
+```bash
+cargo run --release -- --config <path to your config.yaml>
+```
+⚠️ Note that all file paths defined in the config file should be relative to the config file itself.
 
-The notary server can be configured using three methods: a configuration file, command-line interface (CLI) arguments, and environment variables. These methods provide flexibility in how you set up and run the server.
+### When using Docker
+1. Override the port.
+```bash
+docker run --init -p 127.0.0.1:7070:7070 -e NS_PORT=7070 notary-server:local
+```
+2. Override the notarization private key path, and map a local private key into the container.
+```bash
+docker run --init -p 127.0.0.1:7047:7047 -e NS_NOTARIZATION__PRIVATE_KEY_PATH="/root/.notary-server/notary.key" -v <your private key>:/root/.notary-server/notary.key notary-server:local
+```
+3. Override with a configuration file.
+```bash
+docker run --init -p 127.0.0.1:7047:7047 -v <your config.yaml>:/root/.notary/config.yaml notary-server:local --config /root/.notary/config.yaml
+```
+⚠️ Note that the default workdir of the container is `/root/.notary-server`.
 
-1. Configuration File - By default, the server looks for a config.yaml file in the `notary/server/config/` directory. This file contains all the configurable settings for the server, e.g.
-   ```yaml
-   server:
-     name: "notary-server"
-     host: "0.0.0.0"
-     port: 7047
-
-   notarization:
-     max_sent_data: 4096
-     max_recv_data: 16384
-   
-   ...
-    ```
-
-2. Command-Line Interface (CLI) Arguments - You can override *some* configuration file settings using CLI arguments when starting the server. This also takes precedence over the environment variable method below. E.g.
-   ```shell
-   cargo run -- --port 8080 --tls-enabled false --log-level INFO
-   ```
-
-3. Environment Variables - This can be used to configure all the server settings, where it will override the config file. It uses the prefix `NOTARY_SERVER__` followed by the configuration key(s) in uppercase. Double underscores are used in nested configuration keys, e.g. `tls.enabled` in the config file will be `NOTARY_SERVER__TLS__ENABLED`. E.g.   
-   ```shell
-   NOTARY_SERVER__SERVER__PORT=8080 NOTARY_SERVER__NOTARIZATION__MAX_SENT_DATA=2048 NOTARY_SERVER__TLS__ENABLED=false cargo run
-   ```
 ---
 ## API
-All APIs are TLS-protected, hence please use `https://` or `wss://`.
 ### HTTP APIs
 Defined in the [OpenAPI specification](./openapi.yaml).
 
@@ -112,51 +142,54 @@ To perform a notarization using a session id (an unique id returned upon calling
 String
 
 ---
-## Logging
-The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic:
+## Features
+### Notarization Configuration
+To perform a notarization, some parameters need to be configured by the prover and the notary server (more details in the [OpenAPI specification](./openapi.yaml)), i.e.
+- maximum data that can be sent and received.
+- unique session id.
+
+To streamline this process, a single HTTP endpoint (`/session`) is used by both TCP and WebSocket clients.
+
+### Notarization
+After calling the configuration endpoint above, the prover can proceed to start the notarization. For a TCP client, that means calling the `/notarize` endpoint using HTTP, while a WebSocket client should call the same endpoint but using WebSocket. Example implementations of these clients can be found in the [integration test](../tests-integration/tests/notary.rs).
+
+### Signing
+To sign the notarized transcript, the notary server requires a signing key. If this signing key (`notarization.private_key_path` in the config) is not provided by the user, then **by default, a random, ephemeral** signing key will be generated at runtime. 
+
+This ephemeral key, along with its public key, will disappear once the server is stopped. This makes it only suitable for testing, unless relevant PKI (public key infrastructure) components are built.
+
+### TLS
+TLS needs to be turned on between the prover and the notary for security. It can be turned off though, if any of the following is true.
+
+1. This server is run locally.
+2. TLS is to be handled by an external environment, e.g. reverse proxy, cloud setup.
+
+The toggle to turn on TLS, as well as paths to the TLS private key and certificate can be defined in the config (`tls` field).
+
+### Authorization
+An optional authorization module is available to only allow requests with a valid API key attached in the custom HTTP header `X-API-Key`. The API key whitelist path, as well as the flag to enable/disable this module, can be changed in the config (`authorization` field).
+
+Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following.
+- Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads.
+- Once the edit is saved, ensure that it has been reloaded successfully by checking the server log.
+
+### Logging
+The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic.
 
 `notary_server=DEBUG,tlsn_verifier=DEBUG,mpc_tls=DEBUG,tls_client_async=DEBUG`
 
-In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field under `logging`. Alternatively, use the CLI argument `--log-level` (see [this](#configuration)).
+In the configuration, one can toggle the verbosity level for these crates using the `level` field under `logging`.
 
-One can also provide a custom filtering logic by adding a `filter` field under `logging` in the config file above, and use a value that follows the tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+One can also provide a custom filtering logic by adding a `filter` field under `logging`, and use a value that follows the tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
 
-Logs can be printed in two formats. Compact and JSON. Compact is human-readable and is best suited for console. JSON is machine-readable and is used to send logs to log collection services. One can change log format by switching the `format` field under `logging`. Accepted values are `compact` and `json`. If the config key is not set - `compact` is used by default.
+Logs can be printed in two formats. Compact and JSON. Compact is human-readable and is best suited for console. JSON is machine-readable and is used to send logs to log collection services. One can change log format by switching the `format` field under `logging`. Accepted values are `COMPACT` and `JSON`. `COMPACT` is used by default.
 
 ---
 ## Architecture
 ### Objective
 The main objective of a notary server is to perform notarizations together with a prover. In this case, the prover can either be a
-1. TCP client — which has access and control over the transport layer, i.e. TCP
-2. WebSocket client — which has no access over TCP and instead uses WebSocket for notarizations
-
-### Features
-#### Notarization Configuration
-To perform a notarization, some parameters need to be configured by the prover and the notary server (more details in the [OpenAPI specification](./openapi.yaml)), i.e.
-- maximum data that can be sent and received
-- unique session id
-
-To streamline this process, a single HTTP endpoint (`/session`) is used by both TCP and WebSocket clients.
-
-#### Notarization
-After calling the configuration endpoint above, the prover can proceed to start the notarization. For a TCP client, that means calling the `/notarize` endpoint using HTTP (`https`), while a WebSocket client should call the same endpoint but using WebSocket (`wss`). Example implementations of these clients can be found in the [integration test](../tests-integration/tests/notary.rs).
-
-#### Signatures
-Currently, both the private key (and cert) used to establish a TLS connection with the prover, and the private key used by the notary server to sign the notarized transcript, are hardcoded PEM keys stored in this repository. Though the paths of these keys can be changed in the config (`notary-key` field) to use different keys instead.
-
-#### Authorization
-An optional authorization module is available to only allow requests with a valid API key attached in the custom HTTP header `X-API-Key`. The API key whitelist path (as well as the flag to enable/disable this module) can be changed in the config (`authorization` field).
-
-Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following
-- Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads
-- Once the edit is saved, ensure that it has been reloaded successfully by checking the server log
-
-#### Optional TLS
-TLS between the prover and the notary is currently manually handled in this server, though it can be turned off if any of the following is true
-- This server is run locally
-- TLS is to be handled by an external environment, e.g. reverse proxy, cloud setup
-
-The toggle to turn on/off TLS is in the config (`tls` field). Alternatively, use the CLI argument `--tls-enabled` (see [this](#configuration)).
+1. TCP client — which has access and control over the transport layer, i.e. TCP.
+2. WebSocket client — which has no access over TCP and instead uses WebSocket for notarizations.
 
 ### Design Choices
 #### Web Framework
