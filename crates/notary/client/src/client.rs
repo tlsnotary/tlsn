@@ -61,6 +61,7 @@ pub struct Accepted {
 
 /// A notary server connection.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum NotaryConnection {
     /// Unencrypted TCP connection.
     Tcp(TcpStream),
