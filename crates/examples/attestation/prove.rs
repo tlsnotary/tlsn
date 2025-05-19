@@ -6,9 +6,14 @@ use std::env;
 
 use clap::Parser;
 use http_body_util::Empty;
-use hyper::{body::Bytes, Request, StatusCode};
+use hyper::{
+    body::Bytes,
+    header::{HeaderValue, ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE, HOST},
+    HeaderMap, Request, StatusCode,
+};
 use hyper_util::rt::TokioIo;
 use spansy::Spanned;
+use tokio::net::lookup_host;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
@@ -77,7 +82,7 @@ async fn notarize(
         // We must configure the amount of data we expect to exchange beforehand, which will
         // be preprocessed prior to the connection. Reducing these limits will improve
         // performance.
-        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
+        .max_sent_data(1 << 18)
         .max_recv_data(tlsn_examples::MAX_RECV_DATA)
         .build()?;
 
@@ -113,7 +118,7 @@ async fn notarize(
                 // We must configure the amount of data we expect to exchange beforehand, which will
                 // be preprocessed prior to the connection. Reducing these limits will improve
                 // performance.
-                .max_sent_data(tlsn_examples::MAX_SENT_DATA)
+                .max_sent_data(1 << 18)
                 .max_recv_data(tlsn_examples::MAX_RECV_DATA)
                 .build()?,
         )
@@ -126,7 +131,10 @@ async fn notarize(
         .await?;
 
     // Open a TCP connection to the server.
-    let client_socket = tokio::net::TcpStream::connect((server_host, server_port)).await?;
+    let mut host = lookup_host("youtube.com:443").await.unwrap();
+    let host = host.next().unwrap();
+    println!("host is {:?}", host);
+    let client_socket = tokio::net::TcpStream::connect("142.250.185.78:443").await?;
 
     // Bind the prover to the server connection.
     // The returned `mpc_tls_connection` is an MPC TLS connection to the server: all
@@ -146,20 +154,172 @@ async fn notarize(
     tokio::spawn(connection);
 
     // Build a simple HTTP request with common headers.
-    let request_builder = Request::builder()
-        .uri(uri)
-        .header("Host", SERVER_DOMAIN)
-        .header("Accept", "*/*")
-        // Using "identity" instructs the Server not to use compression for its HTTP response.
-        // TLSNotary tooling does not support compression.
-        .header("Accept-Encoding", "identity")
-        .header("Connection", "close")
-        .header("User-Agent", USER_AGENT);
-    let mut request_builder = request_builder;
-    for (key, value) in extra_headers {
-        request_builder = request_builder.header(key, value);
+    let mut headers = HeaderMap::new();
+    headers.insert("Accept-Encoding", HeaderValue::from_static("identity"));
+    headers.insert(HOST, HeaderValue::from_static("youtube.com"));
+    headers.insert(ACCEPT, HeaderValue::from_static("*/*"));
+    headers.insert(
+        ACCEPT_LANGUAGE,
+        HeaderValue::from_static("en-GB,en-US;q=0.9,en;q=0.8"),
+    );
+    headers.insert(AUTHORIZATION, HeaderValue::from_static(
+        "SAPISIDHASH 1744286082_09d2d0be97bc35e0a44d2bd824209e6b5570f845_u SAPISID1PHASH 1744286082_09d2d0be97bc35e0a44d2bd824209e6b5570f845_u SAPISID3PHASH 1744286082_09d2d0be97bc35e0a44d2bd824209e6b5570f845_u"
+    ));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert("priority", HeaderValue::from_static("u=1, i"));
+    headers.insert(
+        "sec-ch-ua",
+        HeaderValue::from_static(
+            r#""Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135""#,
+        ),
+    );
+    headers.insert("sec-ch-ua-arch", HeaderValue::from_static("\"arm\""));
+    headers.insert("sec-ch-ua-bitness", HeaderValue::from_static("\"64\""));
+    headers.insert(
+        "sec-ch-ua-form-factors",
+        HeaderValue::from_static("\"Desktop\""),
+    );
+    headers.insert(
+        "sec-ch-ua-full-version",
+        HeaderValue::from_static("\"135.0.7049.42\""),
+    );
+    headers.insert("sec-ch-ua-full-version-list", HeaderValue::from_static(r#""Google Chrome";v="135.0.7049.42", "Not-A.Brand";v="8.0.0.0", "Chromium";v="135.0.7049.42""#));
+    headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
+    headers.insert("sec-ch-ua-model", HeaderValue::from_static("\"\""));
+    headers.insert("sec-ch-ua-platform", HeaderValue::from_static("\"macOS\""));
+    headers.insert(
+        "sec-ch-ua-platform-version",
+        HeaderValue::from_static("\"14.4.0\""),
+    );
+    headers.insert("sec-ch-ua-wow64", HeaderValue::from_static("?0"));
+    headers.insert("sec-fetch-dest", HeaderValue::from_static("empty"));
+    headers.insert("sec-fetch-mode", HeaderValue::from_static("same-origin"));
+    headers.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
+    headers.insert(
+        "x-client-data",
+        HeaderValue::from_static(
+            "CIe2yQEIorbJAQipncoBCLvcygEIkqHLAQiRo8sBCIagzQEI3dbOAQi25c4BCLnmzgEIvOfOARin5s4B",
+        ),
+    );
+    headers.insert("x-goog-authuser", HeaderValue::from_static("0"));
+    headers.insert(
+        "x-goog-visitor-id",
+        HeaderValue::from_static(
+            "Cgt4bzFrMUE5SzBCcyiY3t6_BjInCgJQTBIhEh0SGwsMDg8QERITFBUWFxgZGhscHR4fICEiIyQlJiAz",
+        ),
+    );
+    headers.insert(
+        "x-origin",
+        HeaderValue::from_static("https://www.youtube.com"),
+    );
+    headers.insert(
+        "x-youtube-bootstrap-logged-in",
+        HeaderValue::from_static("true"),
+    );
+    headers.insert("x-youtube-client-name", HeaderValue::from_static("1"));
+    headers.insert(
+        "x-youtube-client-version",
+        HeaderValue::from_static("2.20250409.00.00"),
+    );
+    let mut request_builder = Request::builder()
+        .method("POST")
+        .uri("https://www.youtube.com/youtubei/v1/subscription/subscribe?prettyPrint=false");
+    // Using "identity" instructs the Server not to use compression for its HTTP response.
+    // TLSNotary tooling does not support compression.
+
+    *request_builder.headers_mut().unwrap() = headers;
+
+    let body = r#"
+{
+  "context": {
+    "client": {
+      "hl": "en",
+      "gl": "PL",
+      "remoteHost": "195.136.151.237",
+      "deviceMake": "Apple",
+      "deviceModel": "",
+      "visitorData": "Cgt4bzFrMUE5SzBCcyiY3t6_BjInCgJQTBIhEh0SGwsMDg8QERITFBUWFxgZGhscHR4fICEiIyQlJiAz",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36,gzip(gfe)",
+      "clientName": "WEB",
+      "clientVersion": "2.20250409.00.00",
+      "osName": "Macintosh",
+      "osVersion": "10_15_7",
+      "originalUrl": "https://www.youtube.com/@vlayerxyz",
+      "screenPixelDensity": 2,
+      "platform": "DESKTOP",
+      "clientFormFactor": "UNKNOWN_FORM_FACTOR",
+      "configInfo": {
+        "appInstallData": "CJje3r8GEJ35zhwQvZmwBRDN0bEFEPirsQUQvbauBRCD7s4cEMn3rwUQ26-vBRC52c4cEODNsQUQo-_...",
+        "coldConfigData": "CJje3r8GEPG6rQUQxIWuBRC9tq4FEOLUrgUQvYqwBRCe0LAFEM_SsAUQ4_iwBRCkvrEFENK_sQUQ18G...",
+        "coldHashData": "CJje3r8GEhMzODk1ODM2OTIwNzIzMTUzNzYwGJje3r8GMjJBT2pGb3gyNDBtVDBHQklDbkNnX28wcE5...",
+        "hotHashData": "CJje3r8GEhM4MzY3MjA3NjYxMzA1MzUyNzg1GJje3r8GKJTk_BIopdD9Eiiekf4SKMjK_hIot-r-Eij..."
+      },
+      "screenDensityFloat": 2,
+      "userInterfaceTheme": "USER_INTERFACE_THEME_LIGHT",
+      "timeZone": "Europe/Warsaw",
+      "browserName": "Chrome",
+      "browserVersion": "135.0.0.0",
+      "acceptHeader": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+      "deviceExperimentId": "ChxOelE1TVRZME9UQXlOREF4TVRVNE9Ua3lOUT09EJje3r8GGJje3r8G",
+      "rolloutToken": "CJjB6ajg5a-cZhCvs6T95vWKAxji_Pr0kcuMAw==",
+      "screenWidthPoints": 1349,
+      "screenHeightPoints": 524,
+      "utcOffsetMinutes": 120,
+      "connectionType": "CONN_CELLULAR_4G",
+      "memoryTotalKbytes": "8000000",
+      "mainAppWebInfo": {
+        "graftUrl": "https://www.youtube.com/@vlayerxyz",
+        "pwaInstallabilityStatus": "PWA_INSTALLABILITY_STATUS_CAN_BE_INSTALLED",
+        "webDisplayMode": "WEB_DISPLAY_MODE_BROWSER",
+        "isWebNativeShareAvailable": true
+      }
+    },
+    "user": {
+      "lockedSafetyMode": false
+    },
+    "request": {
+      "useSsl": true,
+      "internalExperimentFlags": [],
+      "consistencyTokenJars": [
+        {
+          "encryptedTokenJarContents": "AKreu9ue4BdEK43XUApuBMcxffPRC_N4DgEbNoJOF1QinpT0pgPTKSAjSEKSA1Sl9H0Bl0zpO7Q_bTo_6e1d743UK6OgjDYAQgJUThBZnK3KJwj1ZwwzKfyBRw",
+          "expirationSeconds": "600"
+        }
+      ]
+    },
+    "clientScreenNonce": "VXDEcL0-zoS2TxS5",
+    "clickTracking": {
+      "clickTrackingParams": "CCQQmysYASITCIfohNyxzYwDFapzegUdVIgRsjIJY2hhbm5lbHM0"
+    },
+    "adSignalsInfo": {
+      "params": [
+        {"key": "dt", "value": "1744285464875"},
+        {"key": "flash", "value": "0"},
+        {"key": "frm", "value": "0"},
+        {"key": "u_tz", "value": "120"},
+        {"key": "u_his", "value": "1"},
+        {"key": "u_h", "value": "1117"},
+        {"key": "u_w", "value": "1728"},
+        {"key": "u_ah", "value": "1010"},
+        {"key": "u_aw", "value": "1728"},
+        {"key": "u_cd", "value": "30"},
+        {"key": "bc", "value": "31"},
+        {"key": "bih", "value": "524"},
+        {"key": "biw", "value": "1334"},
+        {"key": "brdim", "value": "0,38,0,38,1728,38,1728,1009,1349,524"},
+        {"key": "vis", "value": "1"},
+        {"key": "wgl", "value": "true"},
+        {"key": "ca_type", "value": "image"}
+      ],
+      "bid": "ANyPxKoqWUeyzHCtjzeyJvKJ1gFjRq1MEMoOBl3rSI9PbRHprV-D2A45DTSmc6DB_InmaVjo5-G0-aonf7XBvMUCEVrbHAUwow"
     }
-    let request = request_builder.body(Empty::<Bytes>::new())?;
+  },
+  "channelIds": ["UCm933GmbDBEV7tiOuYkMeWQ"],
+  "params": "EgIIAhgA"
+}"#;
+
+    let request = request_builder.body(body.to_string())?;
+    println!("Request is {:?}", request);
 
     println!("Starting an MPC TLS connection with the server");
 

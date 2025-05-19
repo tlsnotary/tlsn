@@ -175,7 +175,7 @@ impl Default for NotaryServerProperties {
 impl Default for NotarizationProperties {
     fn default() -> Self {
         Self {
-            max_sent_data: 4096,
+            max_sent_data: 1 << 18,
             max_recv_data: 16384,
             timeout: 1800,
             private_key_path: None,
