@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 pub const X_API_KEY_HEADER: &str = "X-API-Key";
 
 /// Types of client that the prover is using.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ClientType {
     /// Client that has access to the transport layer.
     Tcp,
@@ -14,7 +14,7 @@ pub enum ClientType {
 }
 
 /// Request object of the /session API.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotarizationSessionRequest {
     pub client_type: ClientType,
