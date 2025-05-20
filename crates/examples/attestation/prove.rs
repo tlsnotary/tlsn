@@ -134,11 +134,13 @@ async fn notarize(example_type: &ExampleType) -> Result<(), Box<dyn std::error::
     let prover = prover_task.await??;
 
     assert!(response.status() == StatusCode::OK);
-    let response = response.into_body();
-    let response = response.collect().await.unwrap().to_bytes().to_vec();
+    let (response_header, response_body) = response.into_parts();
+    let response_body = response_body.collect().await.unwrap().to_bytes().to_vec();
 
-    let utf8_response = std::str::from_utf8(&response).expect("Response should contain only utf8");
-    println!("Response is: {}", utf8_response);
+    println!("Response headers: {:?}", response_header.headers);
+    let utf8_response_body =
+        std::str::from_utf8(&response_body).expect("Response should contain only utf8");
+    println!("Response is: {}", utf8_response_body);
 
     // Prepare for notarization.
     let mut prover = prover.start_notarize();
@@ -269,8 +271,7 @@ fn build_request() -> Request<String> {
 
     *request_builder.headers_mut().unwrap() = headers;
 
-    let body = r#"
-{
+    let body = r#"{
   "context": {
     "client": {
       "hl": "en",
@@ -356,8 +357,7 @@ fn build_request() -> Request<String> {
   },
   "channelIds": ["UCm933GmbDBEV7tiOuYkMeWQ"],
   "params": "EgIIAhgA"
-}
-"#;
+}"#;
 
     let request = request_builder.body(body.to_string()).unwrap();
     request
