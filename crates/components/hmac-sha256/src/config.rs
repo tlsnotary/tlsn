@@ -8,9 +8,3 @@ pub enum Mode {
     /// Computes the whole PRF in MPC.
     Normal,
 }
-
-impl Default for Mode {
-    fn default() -> Self {
-        Self::Reduced
-    }
-}
