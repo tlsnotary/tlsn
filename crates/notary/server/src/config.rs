@@ -93,6 +93,8 @@ pub struct NotarizationProperties {
     /// Signature algorithm used to generate a random private key when
     /// private_key_path is not set
     pub signature_algorithm: String,
+    /// Flag to allow any custom extensions from the prover.
+    pub allow_extensions: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -180,6 +182,7 @@ impl Default for NotarizationProperties {
             timeout: 1800,
             private_key_path: None,
             signature_algorithm: "secp256k1".to_string(),
+            allow_extensions: false,
         }
     }
 }
