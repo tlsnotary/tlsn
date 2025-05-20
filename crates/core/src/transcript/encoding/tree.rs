@@ -4,7 +4,6 @@ use bimap::BiMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    connection::TranscriptLength,
     hash::{Blinder, HashAlgId, HashAlgorithm, TypedHash},
     merkle::MerkleTree,
     transcript::{
@@ -67,12 +66,10 @@ impl EncodingTree {
     /// * `hasher` - The hash algorithm to use.
     /// * `idxs` - The subsequence indices to commit to.
     /// * `provider` - The encoding provider.
-    /// * `transcript_length` - The length of the transcript.
     pub fn new<'idx>(
         hasher: &dyn HashAlgorithm,
         idxs: impl IntoIterator<Item = &'idx (Direction, Idx)>,
         provider: &dyn EncodingProvider,
-        transcript_length: &TranscriptLength,
     ) -> Result<Self, EncodingTreeError> {
         let mut this = Self {
             tree: MerkleTree::new(hasher.id()),
@@ -91,18 +88,6 @@ impl EncodingTree {
             // Ignore empty indices.
             if idx.is_empty() {
                 continue;
-            }
-
-            let len = match direction {
-                Direction::Sent => transcript_length.sent as usize,
-                Direction::Received => transcript_length.received as usize,
-            };
-
-            if idx.end() > len {
-                return Err(EncodingTreeError::OutOfBounds {
-                    index: idx.clone(),
-                    transcript_length: len,
-                });
             }
 
             if this.idxs.contains_right(dir_idx) {
@@ -219,11 +204,8 @@ mod tests {
         idxs: impl Iterator<Item = &'seq (Direction, Idx)>,
     ) -> Result<EncodingTree, EncodingTreeError> {
         let provider = encoding_provider(transcript.sent(), transcript.received());
-        let transcript_length = TranscriptLength {
-            sent: transcript.sent().len() as u32,
-            received: transcript.received().len() as u32,
-        };
-        EncodingTree::new(&Blake3::default(), idxs, &provider, &transcript_length)
+
+        EncodingTree::new(&Blake3::default(), idxs, &provider)
     }
 
     #[test]
@@ -337,16 +319,11 @@ mod tests {
     #[test]
     fn test_encoding_tree_missing_encoding() {
         let provider = encoding_provider(&[], &[]);
-        let transcript_length = TranscriptLength {
-            sent: 8,
-            received: 8,
-        };
 
         let result = EncodingTree::new(
             &Blake3::default(),
             [(Direction::Sent, Idx::new(0..8))].iter(),
             &provider,
-            &transcript_length,
         )
         .unwrap_err();
         assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));

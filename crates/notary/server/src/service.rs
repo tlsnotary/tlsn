@@ -225,6 +225,7 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .crypto_provider(crypto_provider)
         .build()?;
 
+    #[allow(deprecated)]
     timeout(
         Duration::from_secs(notary_globals.notarization_config.timeout),
         Verifier::new(config).notarize(socket.compat(), &att_config),

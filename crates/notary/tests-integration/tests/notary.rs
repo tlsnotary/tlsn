@@ -249,7 +249,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     server_task.await.unwrap().unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
+    let mut prover = prover_task.await.unwrap().unwrap();
 
     let (sent_len, recv_len) = prover.transcript().len();
 
@@ -258,13 +258,17 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     builder.commit_sent(&(0..sent_len)).unwrap();
     builder.commit_recv(&(0..recv_len)).unwrap();
 
-    let commit_config = builder.build().unwrap();
+    let transcript_commit = builder.build().unwrap();
 
-    prover.transcript_commit(commit_config);
+    let mut builder = RequestConfig::builder();
 
-    let request = RequestConfig::builder().build().unwrap();
+    builder.transcript_commit(transcript_commit);
 
-    _ = prover.finalize(&request).await.unwrap();
+    let request = builder.build().unwrap();
+
+    #[allow(deprecated)]
+    prover.notarize(&request).await.unwrap();
+    prover.close().await.unwrap();
 
     debug!("Done notarization!");
 }
@@ -438,7 +442,7 @@ async fn test_websocket_prover() {
 
     server_task.await.unwrap().unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
+    let mut prover = prover_task.await.unwrap().unwrap();
 
     let (sent_len, recv_len) = prover.transcript().len();
 
@@ -447,14 +451,17 @@ async fn test_websocket_prover() {
     builder.commit_sent(&(0..sent_len)).unwrap();
     builder.commit_recv(&(0..recv_len)).unwrap();
 
-    let commit_config = builder.build().unwrap();
+    let transcript_commit = builder.build().unwrap();
 
-    prover.transcript_commit(commit_config);
+    let mut builder = RequestConfig::builder();
 
-    let request = RequestConfig::builder().build().unwrap();
+    builder.transcript_commit(transcript_commit);
 
-    _ = prover.finalize(&request).await.unwrap();
+    let request = builder.build().unwrap();
 
+    #[allow(deprecated)]
+    prover.notarize(&request).await.unwrap();
+    prover.close().await.unwrap();
     debug!("Done notarization!");
 }
 
