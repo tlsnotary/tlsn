@@ -2,35 +2,23 @@
 // an HTTP request sent to example.com. The attestation and secrets are saved to
 // disk.
 
-use std::{env, net::SocketAddr};
-
 use clap::Parser;
-use http_body_util::Empty;
+use http_body_util::BodyExt;
 use hyper::{
-    body::{Body, Bytes},
-    header::{
-        HeaderValue, ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONNECTION, CONTENT_TYPE, HOST,
-        USER_AGENT as USER_AGENT_HEADER,
-    },
+    header::{HeaderValue, ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONNECTION, CONTENT_TYPE, HOST},
     HeaderMap, Request, StatusCode,
 };
 use hyper_util::rt::TokioIo;
-use spansy::Spanned;
-use tokio::net::lookup_host;
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
-use tracing::debug;
-
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
-use tls_core::verify::WebPkiVerifier;
+use std::{env, net::SocketAddr};
 use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_examples::ExampleType;
-use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
-use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
+use tokio::net::lookup_host;
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 // Setting of the application server.
-const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 const SERVER_DOMAIN: &str = "youtube.com";
 
 #[derive(Parser, Debug)]
@@ -131,16 +119,6 @@ async fn notarize(example_type: &ExampleType) -> Result<(), Box<dyn std::error::
     // Spawn the HTTP task to be run concurrently in the background.
     tokio::spawn(connection);
 
-    // let request = Request::builder()
-    //     .method("GET")
-    //     .uri(format!("https://{}", SERVER_DOMAIN))
-    //     .header(HOST, HeaderValue::from_static(SERVER_DOMAIN))
-    //     .header(ACCEPT, HeaderValue::from_static("*/*"))
-    //     .header(USER_AGENT_HEADER, USER_AGENT)
-    //     .header("Accept-Encoding", HeaderValue::from_static("identity"))
-    //     .header(CONNECTION, "close")
-    //     .body(Empty::<Bytes>::new())
-    //     .unwrap();
     let request = build_request();
     println!("Request is {:?}", request);
 
@@ -151,52 +129,33 @@ async fn notarize(example_type: &ExampleType) -> Result<(), Box<dyn std::error::
 
     println!("Got a response from the server: {}", response.status());
 
-    assert!(response.status() == StatusCode::OK);
-
     // The prover task should be done now, so we can await it.
     let prover = prover_task.await??;
+
+    assert!(response.status() == StatusCode::OK);
+    let response = response.into_body();
+    let response = response.collect().await.unwrap().to_bytes().to_vec();
+
+    let utf8_response = std::str::from_utf8(&response).expect("Response should contain only utf8");
+    println!("Response is: {}", utf8_response);
 
     // Prepare for notarization.
     let mut prover = prover.start_notarize();
 
-    // Parse the HTTP transcript.
-    let transcript = HttpTranscript::parse(prover.transcript())?;
-
-    let body_content = &transcript.responses[0].body.as_ref().unwrap().content;
-    let body = String::from_utf8_lossy(body_content.span().as_bytes());
-
-    match body_content {
-        tlsn_formats::http::BodyContent::Json(_json) => {
-            let parsed = serde_json::from_str::<serde_json::Value>(&body)?;
-            debug!("{}", serde_json::to_string_pretty(&parsed)?);
-        }
-        tlsn_formats::http::BodyContent::Unknown(_span) => {
-            debug!("{}", &body);
-        }
-        _ => {}
-    }
-
     // Commit to the transcript.
+    let transcript = prover.transcript();
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
-
-    // This commits to various parts of the transcript separately (e.g. request
-    // headers, response headers, response body and more). See https://docs.tlsnotary.org//protocol/commit_strategy.html
-    // for other strategies that can be used to generate commitments.
-    DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
+    builder.commit_sent(&(0..transcript.sent().len())).unwrap();
+    builder
+        .commit_recv(&(0..transcript.received().len()))
+        .unwrap();
 
     prover.transcript_commit(builder.build()?);
 
     // Build an attestation request.
     let builder = RequestConfig::builder();
 
-    // Optionally, add an extension to the attestation if the notary supports it.
-    // builder.extension(Extension {
-    //     id: b"example.name".to_vec(),
-    //     value: b"Bobert".to_vec(),
-    // });
-
     let request_config = builder.build()?;
-
     let (attestation, secrets) = prover.finalize(&request_config).await?;
 
     println!("Notarization complete!");
