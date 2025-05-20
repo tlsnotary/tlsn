@@ -6,6 +6,7 @@ pub use provider::FixtureEncodingProvider;
 
 use hex::FromHex;
 use p256::ecdsa::SigningKey;
+use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
 use crate::{
     attestation::{Attestation, AttestationConfig, Extension},
@@ -13,7 +14,7 @@ use crate::{
         Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerCertData,
         ServerEphemKey, ServerName, ServerSignature, SignatureScheme, TlsVersion, TranscriptLength,
     },
-    hash::HashAlgorithm,
+    hash::{Blake3, HashAlgorithm},
     request::{Request, RequestConfig},
     signing::SignatureAlgId,
     transcript::{
@@ -222,13 +223,13 @@ pub fn request_fixture(
     }
 }
 
-/// Returns an attestation fixture for testing.
+/// Returns an attestation fixture and a crypto provider for testing.
 pub fn attestation_fixture(
     request: Request,
     connection: ConnectionFixture,
     signature_alg: SignatureAlgId,
     secret: EncoderSecret,
-) -> Attestation {
+) -> (Attestation, CryptoProvider) {
     let ConnectionFixture {
         connection_info,
         server_cert_data,
@@ -261,5 +262,30 @@ pub fn attestation_fixture(
         .server_ephemeral_key(server_ephemeral_key)
         .encoder_secret(secret);
 
-    attestation_builder.build(&provider).unwrap()
+    (attestation_builder.build(&provider).unwrap(), provider)
+}
+
+/// Returns a basic attestation fixture and a crypto provider for testing.
+pub fn basic_attestation_fixture() -> (Attestation, CryptoProvider) {
+    let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+    let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+    let RequestFixture {
+        mut request,
+        encoding_tree: _,
+    } = request_fixture(
+        transcript.clone(),
+        encoding_provider(GET_WITH_HEADER, OK_JSON),
+        connection.clone(),
+        Blake3::default(),
+        Vec::new(),
+    );
+
+    request.encoding_commitment_root = None;
+    attestation_fixture(
+        request,
+        connection,
+        SignatureAlgId::SECP256K1,
+        encoder_secret(),
+    )
 }

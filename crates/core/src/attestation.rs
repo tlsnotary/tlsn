@@ -45,6 +45,7 @@ use crate::{
     hash::{impl_domain_separator, Hash, HashAlgorithm, HashAlgorithmExt, TypedHash},
     merkle::MerkleTree,
     presentation::PresentationBuilder,
+    serialize::CanonicalSerialize,
     signing::{Signature, VerifyingKey},
     transcript::encoding::EncodingCommitment,
     CryptoProvider,
@@ -251,7 +252,7 @@ impl Body {
 /// An attestation document.
 ///
 /// See [module level documentation](crate::attestation) for more information.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Attestation {
     /// The signature of the attestation.
     pub signature: Signature,
@@ -273,5 +274,87 @@ impl Attestation {
         provider: &'a CryptoProvider,
     ) -> PresentationBuilder<'a> {
         PresentationBuilder::new(provider, self)
+    }
+
+    /// Validates the `unchecked` attestation, returning a validated one.
+    pub fn try_from_unchecked(
+        unchecked: AttestationUnchecked,
+        provider: &CryptoProvider,
+    ) -> Result<Attestation, InvalidAttestation> {
+        let verifier = provider
+            .signature
+            .get(&unchecked.signature.alg)
+            .map_err(|_| {
+                InvalidAttestation(format!(
+                    "invalid signature algorithm id {:?}",
+                    unchecked.signature.alg
+                ))
+            })?;
+
+        verifier
+            .verify(
+                &unchecked.body.verifying_key.data,
+                &CanonicalSerialize::serialize(&unchecked.header),
+                &unchecked.signature.data,
+            )
+            .map_err(|_| InvalidAttestation("failed to verify the signature".into()))?;
+
+        Ok(Self {
+            body: unchecked.body,
+            header: unchecked.header,
+            signature: unchecked.signature,
+        })
+    }
+}
+
+#[doc(hidden)]
+#[derive(Debug, Deserialize)]
+#[serde(from = "Attestation")]
+pub struct AttestationUnchecked {
+    signature: Signature,
+    header: Header,
+    body: Body,
+}
+
+impl From<Attestation> for AttestationUnchecked {
+    fn from(attestation: Attestation) -> Self {
+        Self {
+            body: attestation.body,
+            header: attestation.header,
+            signature: attestation.signature,
+        }
+    }
+}
+
+/// Invalid attestation error.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid attestation: {0}")]
+pub struct InvalidAttestation(String);
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        attestation::{Attestation, AttestationUnchecked},
+        fixtures::basic_attestation_fixture,
+    };
+
+    #[test]
+    fn test_validation_ok() {
+        let (attestation, provider) = basic_attestation_fixture();
+        let unchecked: AttestationUnchecked = attestation.into();
+        let result = Attestation::try_from_unchecked(unchecked, &provider);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validation_err() {
+        let (mut attestation, provider) = basic_attestation_fixture();
+
+        // Corrupt the signature.
+        attestation.signature.data[1] = attestation.signature.data[1].wrapping_add(1);
+
+        let unchecked: AttestationUnchecked = attestation.into();
+        let result = Attestation::try_from_unchecked(unchecked, &provider);
+        assert!(result.is_err());
     }
 }
