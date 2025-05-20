@@ -1748,6 +1748,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "clmul"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -4087,6 +4088,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matrix-transpose"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "thiserror 1.0.69",
 ]
@@ -4246,6 +4248,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "bincode",
  "itybity 0.3.1",
@@ -4261,6 +4264,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "futures 0.3.31",
  "mpz-cointoss-core",
@@ -4273,6 +4277,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "mpz-core",
  "opaque-debug",
@@ -4283,6 +4288,7 @@ dependencies = [
 [[package]]
 name = "mpz-common"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4304,6 +4310,7 @@ dependencies = [
 [[package]]
 name = "mpz-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "aes 0.9.0-pre.3",
  "bcs",
@@ -4329,6 +4336,7 @@ dependencies = [
 [[package]]
 name = "mpz-fields"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-secp256r1",
@@ -4348,6 +4356,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "async-trait",
  "derive_builder 0.11.2",
@@ -4363,10 +4372,10 @@ dependencies = [
  "mpz-vm-core",
  "opaque-debug",
  "rand 0.9.1",
- "rangeset",
  "serde",
  "serio",
  "thiserror 1.0.69",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=425614e)",
  "tokio",
  "tracing",
 ]
@@ -4374,6 +4383,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "aes 0.9.0-pre.3",
  "bitvec",
@@ -4393,17 +4403,18 @@ dependencies = [
  "rand 0.9.1",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "rangeset",
  "rayon",
  "serde",
  "serde_arrays",
  "thiserror 1.0.69",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=425614e)",
  "tokio",
 ]
 
 [[package]]
 name = "mpz-hash"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "itybity 0.3.1",
  "mpz-circuits",
@@ -4415,20 +4426,22 @@ dependencies = [
 [[package]]
 name = "mpz-memory-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "blake3",
  "futures 0.3.31",
  "itybity 0.3.1",
  "mpz-core",
  "rand 0.9.1",
- "rangeset",
  "serde",
  "thiserror 1.0.69",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=425614e)",
 ]
 
 [[package]]
 name = "mpz-ole"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -4446,6 +4459,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "hybrid-array",
  "itybity 0.3.1",
@@ -4461,6 +4475,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -4484,6 +4499,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "aes 0.9.0-pre.3",
  "blake3",
@@ -4507,6 +4523,7 @@ dependencies = [
  "rayon",
  "serde",
  "thiserror 1.0.69",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=425614e)",
  "tokio",
  "zerocopy",
 ]
@@ -4514,6 +4531,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "async-trait",
  "mpz-common",
@@ -4529,6 +4547,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "mpz-common",
  "mpz-core",
@@ -4542,6 +4561,7 @@ dependencies = [
 [[package]]
 name = "mpz-vm-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -4549,11 +4569,13 @@ dependencies = [
  "mpz-common",
  "mpz-memory-core",
  "thiserror 1.0.69",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=425614e)",
 ]
 
 [[package]]
 name = "mpz-zk"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4565,11 +4587,13 @@ dependencies = [
  "mpz-zk-core",
  "serio",
  "thiserror 1.0.69",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=425614e)",
 ]
 
 [[package]]
 name = "mpz-zk-core"
 version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=9f62955#9f629559e9a6e4900253db5a5688ca8186d582b9"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -4578,10 +4602,10 @@ dependencies = [
  "mpz-core",
  "mpz-memory-core",
  "mpz-vm-core",
- "rangeset",
  "rayon",
  "serde",
  "thiserror 1.0.69",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=425614e)",
  "zerocopy",
 ]
 
@@ -7183,7 +7207,7 @@ dependencies = [
  "tiny-keccak",
  "tlsn-data-fixtures",
  "tlsn-tls-core",
- "tlsn-utils",
+ "tlsn-utils 0.1.0 (git+https://github.com/tlsnotary/tlsn-utils?rev=6168663)",
  "web-time 0.2.4",
  "webpki-roots 0.26.11",
 ]
@@ -7482,6 +7506,14 @@ dependencies = [
  "tracing",
  "web-time 0.2.4",
  "webpki",
+]
+
+[[package]]
+name = "tlsn-utils"
+version = "0.1.0"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=425614e#425614e45783946d1636ff629ffade549e4e1426"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
