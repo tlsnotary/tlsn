@@ -31,7 +31,7 @@ use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 
 // Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
-const SERVER_DOMAIN: &str = "example.com";
+const SERVER_DOMAIN: &str = "youtube.com";
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -45,20 +45,10 @@ struct Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let (uri, extra_headers) = match args.example_type {
-        ExampleType::Json => ("/formats/json", vec![]),
-        ExampleType::Html => ("/formats/html", vec![]),
-        ExampleType::Authenticated => ("/protected", vec![("Authorization", "random_auth_token")]),
-    };
-
-    notarize(uri, extra_headers, &args.example_type).await
+    notarize(&args.example_type).await
 }
 
-async fn notarize(
-    uri: &str,
-    extra_headers: Vec<(&str, &str)>,
-    example_type: &ExampleType,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn notarize(example_type: &ExampleType) -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     let notary_host: String = env::var("NOTARY_HOST").unwrap_or("127.0.0.1".into());
@@ -141,16 +131,17 @@ async fn notarize(
     // Spawn the HTTP task to be run concurrently in the background.
     tokio::spawn(connection);
 
-    let request = Request::builder()
-        .method("GET")
-        .uri(format!("https://{}", SERVER_DOMAIN))
-        .header(HOST, HeaderValue::from_static(SERVER_DOMAIN))
-        .header(ACCEPT, HeaderValue::from_static("*/*"))
-        .header(USER_AGENT_HEADER, USER_AGENT)
-        .header("Accept-Encoding", HeaderValue::from_static("identity"))
-        .header(CONNECTION, "close")
-        .body(Empty::<Bytes>::new())
-        .unwrap();
+    // let request = Request::builder()
+    //     .method("GET")
+    //     .uri(format!("https://{}", SERVER_DOMAIN))
+    //     .header(HOST, HeaderValue::from_static(SERVER_DOMAIN))
+    //     .header(ACCEPT, HeaderValue::from_static("*/*"))
+    //     .header(USER_AGENT_HEADER, USER_AGENT)
+    //     .header("Accept-Encoding", HeaderValue::from_static("identity"))
+    //     .header(CONNECTION, "close")
+    //     .body(Empty::<Bytes>::new())
+    //     .unwrap();
+    let request = build_request();
     println!("Request is {:?}", request);
 
     println!("Starting an MPC TLS connection with the server");
@@ -233,6 +224,7 @@ fn build_request() -> Request<String> {
     headers.insert("Accept-Encoding", HeaderValue::from_static("identity"));
     headers.insert(HOST, HeaderValue::from_static("youtube.com"));
     headers.insert(ACCEPT, HeaderValue::from_static("*/*"));
+    headers.insert(CONNECTION, HeaderValue::from_static("close"));
     headers.insert(
         ACCEPT_LANGUAGE,
         HeaderValue::from_static("en-GB,en-US;q=0.9,en;q=0.8"),
@@ -391,7 +383,8 @@ fn build_request() -> Request<String> {
   },
   "channelIds": ["UCm933GmbDBEV7tiOuYkMeWQ"],
   "params": "EgIIAhgA"
-}"#;
+}
+"#;
 
     let request = request_builder.body(body.to_string()).unwrap();
     request
