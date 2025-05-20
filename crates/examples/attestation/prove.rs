@@ -9,7 +9,7 @@ use http_body_util::Empty;
 use hyper::{
     body::{Body, Bytes},
     header::{
-        HeaderValue, ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE, HOST,
+        HeaderValue, ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONNECTION, CONTENT_TYPE, HOST,
         USER_AGENT as USER_AGENT_HEADER,
     },
     HeaderMap, Request, StatusCode,
@@ -148,6 +148,7 @@ async fn notarize(
         .header(ACCEPT, HeaderValue::from_static("*/*"))
         .header(USER_AGENT_HEADER, USER_AGENT)
         .header("Accept-Encoding", HeaderValue::from_static("identity"))
+        .header(CONNECTION, "close")
         .body(Empty::<Bytes>::new())
         .unwrap();
     println!("Request is {:?}", request);
