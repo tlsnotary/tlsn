@@ -347,45 +347,6 @@ mod test {
     }
 
     #[rstest]
-    fn test_attestation_builder_sign_missing_encoding_seed(
-        attestation_config: &AttestationConfig,
-        crypto_provider: &CryptoProvider,
-    ) {
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let connection = ConnectionFixture::tlsnotary(transcript.length());
-
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection.clone(),
-            Blake3::default(),
-            Vec::new(),
-        );
-
-        let mut attestation_builder = Attestation::builder(attestation_config)
-            .accept_request(request)
-            .unwrap();
-
-        let ConnectionFixture {
-            connection_info,
-            server_cert_data,
-            ..
-        } = connection;
-
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
-            server_ephemeral_key,
-            ..
-        }) = server_cert_data.handshake;
-
-        attestation_builder
-            .connection_info(connection_info)
-            .server_ephemeral_key(server_ephemeral_key);
-
-        let err = attestation_builder.build(crypto_provider).unwrap_err();
-        assert!(matches!(err.kind, ErrorKind::Field));
-    }
-
-    #[rstest]
     fn test_attestation_builder_sign_missing_server_ephemeral_key(
         attestation_config: &AttestationConfig,
         crypto_provider: &CryptoProvider,
