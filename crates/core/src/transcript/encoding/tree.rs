@@ -310,10 +310,10 @@ mod tests {
         let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len() + 1));
 
         let result = new_tree(&transcript, [&idx_0].into_iter()).unwrap_err();
-        assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
+        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
 
         let result = new_tree(&transcript, [&idx_1].into_iter()).unwrap_err();
-        assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
+        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
     }
 
     #[test]
