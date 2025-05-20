@@ -36,14 +36,14 @@ docker run --init -p 127.0.0.1:7047:7047 ghcr.io/tlsnotary/tlsn/notary-server:la
 ```bash
 docker build . -t notary-server:local -f crates/notary/server/notary-server.Dockerfile
 ```
-2. Run the docker container and bind the default port.
+2. Run the docker container.
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 notary-server:local
 ```
 ---
 ## Configuration
 ### Default
-The default setting of the notary server is as follows. Refer to [config.rs](./src/config.rs) for more information on the definition of these setting parameters.
+Refer to [config.rs](./src/config.rs) for more information on the definition of these setting parameters.
 ```yaml
 host: "0.0.0.0"
 port: 7047
@@ -92,23 +92,25 @@ auth:
   enabled: false
   whitelist_path: null
 ```
-⚠️ Note that when `notarization.private_key_path` is `null` (the default), a random, ephemeral signing key will be generated at runtime (see [Signing](#signing) for more details).
+⚠️ By default, `notarization.private_key_path` is `null`, which means a **random, ephemeral** signing key will be generated at runtime (see [Signing](#signing) for more details).
 
 ### Overriding default
 The default setting can be overriden with either (1) environment variables, or (2) a configuration file (yaml).
 
 #### Environment Variables
-This will override each corresponding default value. It uses the prefix `NS_` followed by the configuration key(s) in uppercase. Double underscores are used in nested configuration keys, e.g. `tls.enabled` will be `NS_TLS__ENABLED`.
+This will override each corresponding default value. It uses the prefix `NS_` followed by the configuration key(s) in uppercase. Double underscores are used for nested configuration keys, e.g. `tls.enabled` will be `NS_TLS__ENABLED`.
+
+Example:
 ```bash
 NS_PORT=8080 NS_NOTARIZATION__MAX_SENT_DATA=2048 cargo run --release
 ```
 
 #### Configuration File
-This will override all the default values, hence it needs to **contain all compulsory** configuration keys and values (refer to the [default yaml](#default) above). This will take precedence over environment variables.
+This will override all the default values, hence it needs to **contain all compulsory** configuration keys and values (refer to the [default yaml](#default)). This will take precedence over environment variables.
 ```bash
 cargo run --release -- --config <path to your config.yaml>
 ```
-⚠️ Note that all file paths defined in the config file should be relative to the config file itself.
+⚠️ All file paths defined in the config file should be relative to the config file itself.
 
 ### When using Docker
 1. Override the port.
@@ -123,7 +125,7 @@ docker run --init -p 127.0.0.1:7047:7047 -e NS_NOTARIZATION__PRIVATE_KEY_PATH="/
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your config.yaml>:/root/.notary/config.yaml notary-server:local --config /root/.notary/config.yaml
 ```
-⚠️ Note that the default workdir of the container is `/root/.notary-server`.
+⚠️ The default `workdir` of the container is `/root/.notary-server`.
 
 ---
 ## API
@@ -133,7 +135,7 @@ Defined in the [OpenAPI specification](./openapi.yaml).
 ### WebSocket APIs
 #### /notarize
 ##### Description
-To perform a notarization using a session id (an unique id returned upon calling the `/session` endpoint successfully).
+To perform a notarization using a session id — an unique id returned upon calling the `/session` endpoint successfully.
 
 ##### Query Parameter
 `sessionId`
@@ -156,10 +158,10 @@ After calling the configuration endpoint above, the prover can proceed to start 
 ### Signing
 To sign the notarized transcript, the notary server requires a signing key. If this signing key (`notarization.private_key_path` in the config) is not provided by the user, then **by default, a random, ephemeral** signing key will be generated at runtime. 
 
-This ephemeral key, along with its public key, will disappear once the server is stopped. This makes it only suitable for testing, unless relevant PKI (public key infrastructure) components are built.
+This ephemeral key, along with its public key, are not saved anywhere by default. They will disappear once the server stops. This makes them only suitable for testing, unless relevant public key infrastructure is used.
 
 ### TLS
-TLS needs to be turned on between the prover and the notary for security. It can be turned off though, if any of the following is true.
+TLS needs to be turned on between the prover and the notary for security purposes. It can be turned off though, if any of the following is true.
 
 1. This server is run locally.
 2. TLS is to be handled by an external environment, e.g. reverse proxy, cloud setup.
@@ -183,6 +185,9 @@ In the configuration, one can toggle the verbosity level for these crates using 
 One can also provide a custom filtering logic by adding a `filter` field under `logging`, and use a value that follows the tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
 
 Logs can be printed in two formats. Compact and JSON. Compact is human-readable and is best suited for console. JSON is machine-readable and is used to send logs to log collection services. One can change log format by switching the `format` field under `logging`. Accepted values are `COMPACT` and `JSON`. `COMPACT` is used by default.
+
+### Concurrency
+One can limit the number of concurrent notarization requests from provers via `concurrency` in the config. This is to limit resource utilization and mitigate potential DoS attacks.
 
 ---
 ## Architecture
