@@ -9,6 +9,7 @@ workspace = true
 
 [dev-dependencies]
 notary-client = { workspace = true }
+notary-common = { workspace = true }
 notary-server = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-common = { workspace = true }

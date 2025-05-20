@@ -10,6 +10,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
 };
 use notary_client::{Accepted, ClientError, NotarizationRequest, NotaryClient, NotaryConnection};
+use notary_common::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 use rstest::rstest;
 use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
@@ -29,7 +30,7 @@ use ws_stream_tungstenite::WsStream;
 
 use notary_server::{
     read_pem_file, run_server, AuthorizationProperties, NotarizationProperties,
-    NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties, TLSProperties,
+    NotaryServerProperties, TLSProperties,
 };
 
 const MAX_SENT_DATA: usize = 1 << 13;
@@ -301,7 +302,7 @@ async fn test_websocket_prover() {
 
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
-        client_type: notary_server::ClientType::Websocket,
+        client_type: ClientType::Websocket,
         max_sent_data: Some(MAX_SENT_DATA),
         max_recv_data: Some(MAX_RECV_DATA),
     })
