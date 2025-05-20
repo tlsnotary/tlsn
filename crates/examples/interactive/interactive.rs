@@ -52,11 +52,11 @@ async fn main() {
     println!("Successfully verified {}", &uri);
     println!(
         "Verified sent data:\n{}",
-        bytes_to_redacted_string(&transcript.sent_unsafe())
+        bytes_to_redacted_string(transcript.sent_unsafe())
     );
     println!(
         "Verified received data:\n{}",
-        bytes_to_redacted_string(&transcript.received_unsafe())
+        bytes_to_redacted_string(transcript.received_unsafe())
     );
 }
 

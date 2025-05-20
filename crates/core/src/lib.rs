@@ -355,7 +355,7 @@ impl VerifyConfig {
 }
 
 /// Builder for [`VerifyConfig`].
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VerifyConfigBuilder {}
 
 impl VerifyConfigBuilder {

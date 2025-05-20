@@ -390,7 +390,7 @@ impl Prover<state::Committed> {
                         encoding::receive(
                             ctx,
                             hasher,
-                            &transcript_refs,
+                            transcript_refs,
                             |plaintext| vm.get_macs(plaintext).expect("reference is valid"),
                             commit_config.iter_encoding(),
                         )

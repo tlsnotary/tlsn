@@ -349,7 +349,7 @@ impl Verifier<state::Committed> {
         let server_name = if let Some((name, cert_data)) = server_identity {
             cert_data
                 .verify_with_provider(
-                    &self.config.crypto_provider(),
+                    self.config.crypto_provider(),
                     connection_info.time,
                     server_ephemeral_key,
                     &name,
@@ -387,7 +387,7 @@ impl Verifier<state::Committed> {
                 let commitment = mux_fut
                     .poll_with(encoding::transfer(
                         ctx,
-                        &transcript_refs,
+                        transcript_refs,
                         delta,
                         |plaintext| vm.get_keys(plaintext).expect("reference is valid"),
                     ))
@@ -405,7 +405,7 @@ impl Verifier<state::Committed> {
 
         // Verify revealed data.
         if let Some(partial_transcript) = &transcript {
-            verify_transcript(vm, partial_transcript, &transcript_refs)
+            verify_transcript(vm, partial_transcript, transcript_refs)
                 .map_err(VerifierError::verify)?;
         }
 
