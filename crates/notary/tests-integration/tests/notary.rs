@@ -29,7 +29,7 @@ use tracing_subscriber::EnvFilter;
 use ws_stream_tungstenite::WsStream;
 
 use notary_server::{
-    read_pem_file, run_server, AuthorizationProperties, LogProperties, NotarizationProperties,
+    read_pem_file, run_server, AuthorizationProperties, NotarizationProperties,
     NotaryServerProperties, TLSProperties,
 };
 
@@ -51,7 +51,6 @@ fn get_server_config(
     NotaryServerProperties {
         host: NOTARY_HOST.to_string(),
         port,
-        html_info: "example html response".to_string(),
         notarization: NotarizationProperties {
             max_sent_data: 1 << 13,
             max_recv_data: 1 << 14,
@@ -63,14 +62,12 @@ fn get_server_config(
             private_key_path: Some("./fixture/tls/notary.key".to_string()),
             certificate_path: Some("./fixture/tls/notary.crt".to_string()),
         },
-        log: LogProperties {
-            ..Default::default()
-        },
         auth: AuthorizationProperties {
             enabled: auth_enabled,
             whitelist_path: Some("./fixture/auth/whitelist.csv".to_string()),
         },
         concurrency,
+        ..Default::default()
     }
 }
 
