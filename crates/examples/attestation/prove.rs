@@ -144,6 +144,10 @@ async fn notarize(example_type: &ExampleType) -> Result<(), Box<dyn std::error::
 
     // Commit to the transcript.
     let transcript = prover.transcript();
+    let request_from_transcript = std::str::from_utf8(transcript.sent())
+        .expect("Request from transcript should contain only utf8");
+    println!("Request from transcript is: {request_from_transcript}");
+
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
     builder.commit_sent(&(0..transcript.sent().len())).unwrap();
     builder
