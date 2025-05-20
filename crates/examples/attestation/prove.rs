@@ -14,6 +14,7 @@ use std::{env, net::SocketAddr};
 use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_examples::ExampleType;
+use tlsn_formats::http::{self, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
 use tokio::net::lookup_host;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -148,11 +149,20 @@ async fn notarize(example_type: &ExampleType) -> Result<(), Box<dyn std::error::
         .expect("Request from transcript should contain only utf8");
     println!("Request from transcript is: {request_from_transcript}");
 
-    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
-    builder.commit_sent(&(0..transcript.sent().len())).unwrap();
-    builder
-        .commit_recv(&(0..transcript.received().len()))
-        .unwrap();
+    let mut builder = TranscriptCommitConfig::builder(transcript);
+
+    // direct commitment without parsing is working
+    //
+    // builder.commit_sent(&(0..transcript.sent().len())).unwrap();
+    // builder
+    // .commit_recv(&(0..transcript.received().len()))
+    // .unwrap();
+
+    // but http parsing does not work
+    //
+    let transcript =
+        HttpTranscript::parse(transcript).expect("Error during parsing http transcript");
+    http::DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
 
     prover.transcript_commit(builder.build()?);
 
