@@ -23,6 +23,7 @@ env:
   # 32 seems to be big enough for the foreseeable future
   RAYON_NUM_THREADS: 32
   GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
+  RUST_VERSION: 1.87.0
 
 jobs:
   clippy:
@@ -35,7 +36,7 @@ jobs:
       - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
       - name: Use caching
@@ -74,7 +75,7 @@ jobs:
       - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.7
@@ -96,7 +97,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Install nightly rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -149,7 +150,7 @@ jobs:
       - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.7
@@ -169,7 +170,7 @@ jobs:
       - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
