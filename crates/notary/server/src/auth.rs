@@ -12,9 +12,6 @@ use tracing::{debug, error, info};
 
 use crate::{util::parse_csv_file, NotaryServerProperties};
 
-/// Custom HTTP header used for specifying a whitelisted API key
-pub const X_API_KEY_HEADER: &str = "X-API-Key";
-
 /// Structure of each whitelisted record of the API key whitelist for
 /// authorization purpose
 #[derive(Clone, Debug, Deserialize, Serialize)]

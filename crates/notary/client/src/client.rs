@@ -10,7 +10,7 @@ use hyper::{
     Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
-use notary_server::{
+use notary_common::{
     ClientType, NotarizationSessionRequest, NotarizationSessionResponse, X_API_KEY_HEADER,
 };
 use std::{
@@ -61,6 +61,7 @@ pub struct Accepted {
 
 /// A notary server connection.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum NotaryConnection {
     /// Unencrypted TCP connection.
     Tcp(TcpStream),

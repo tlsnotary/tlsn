@@ -10,6 +10,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use eyre::eyre;
+use notary_common::{NotarizationSessionRequest, NotarizationSessionResponse};
 use std::time::Duration;
 use tlsn_common::config::ProtocolConfigValidator;
 use tlsn_core::attestation::AttestationConfig;
@@ -29,10 +30,7 @@ use crate::{
         tcp::{tcp_notarize, TcpUpgrade},
         websocket::websocket_notarize,
     },
-    types::{
-        NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
-        NotaryGlobals,
-    },
+    types::{NotarizationRequestQuery, NotaryGlobals},
 };
 
 /// A wrapper enum to facilitate extracting TCP connection for either WebSocket
@@ -202,8 +200,16 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let crypto_provider = notary_globals.crypto_provider.clone();
 
-    let att_config = AttestationConfig::builder()
-        .supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()))
+    let mut att_config_builder = AttestationConfig::builder();
+    att_config_builder
+        .supported_signature_algs(Vec::from_iter(crypto_provider.signer.supported_algs()));
+
+    // If enabled, accepts any custom extensions from the prover.
+    if notary_globals.notarization_config.allow_extensions {
+        att_config_builder.extension_validator(|_| Ok(()));
+    }
+
+    let att_config = att_config_builder
         .build()
         .map_err(|err| NotaryServerError::Notarization(Box::new(err)))?;
 

@@ -10,6 +10,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
 };
 use notary_client::{Accepted, ClientError, NotarizationRequest, NotaryClient, NotaryConnection};
+use notary_common::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 use rstest::rstest;
 use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
@@ -28,8 +29,8 @@ use tracing_subscriber::EnvFilter;
 use ws_stream_tungstenite::WsStream;
 
 use notary_server::{
-    read_pem_file, run_server, AuthorizationProperties, LogProperties, NotarizationProperties,
-    NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties, TLSProperties,
+    read_pem_file, run_server, AuthorizationProperties, NotarizationProperties,
+    NotaryServerProperties, TLSProperties,
 };
 
 const MAX_SENT_DATA: usize = 1 << 13;
@@ -50,7 +51,6 @@ fn get_server_config(
     NotaryServerProperties {
         host: NOTARY_HOST.to_string(),
         port,
-        html_info: "example html response".to_string(),
         notarization: NotarizationProperties {
             max_sent_data: 1 << 13,
             max_recv_data: 1 << 14,
@@ -62,14 +62,12 @@ fn get_server_config(
             private_key_path: Some("./fixture/tls/notary.key".to_string()),
             certificate_path: Some("./fixture/tls/notary.crt".to_string()),
         },
-        log: LogProperties {
-            ..Default::default()
-        },
         auth: AuthorizationProperties {
             enabled: auth_enabled,
             whitelist_path: Some("./fixture/auth/whitelist.csv".to_string()),
         },
         concurrency,
+        ..Default::default()
     }
 }
 
@@ -304,7 +302,7 @@ async fn test_websocket_prover() {
 
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
-        client_type: notary_server::ClientType::Websocket,
+        client_type: ClientType::Websocket,
         max_sent_data: Some(MAX_SENT_DATA),
         max_recv_data: Some(MAX_RECV_DATA),
     })
