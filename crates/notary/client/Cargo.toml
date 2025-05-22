@@ -7,7 +7,7 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-notary-server = { workspace = true }
+notary-common = { workspace = true }
 
 derive_builder = { workspace = true }
 futures = { workspace = true }

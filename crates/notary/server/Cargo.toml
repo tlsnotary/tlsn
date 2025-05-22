@@ -13,6 +13,7 @@ tee_quote = [
 ]
 
 [dependencies]
+notary-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-common = { workspace = true }
 tlsn-verifier = { workspace = true }

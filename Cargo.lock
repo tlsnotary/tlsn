@@ -4669,13 +4669,20 @@ dependencies = [
  "http-body-util",
  "hyper 1.6.0",
  "hyper-util",
- "notary-server",
+ "notary-common",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tokio-rustls",
  "tracing",
  "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "notary-common"
+version = "0.1.0-alpha.11-pre"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -4701,6 +4708,7 @@ dependencies = [
  "hyper-util",
  "k256",
  "mc-sgx-dcap-types",
+ "notary-common",
  "notify",
  "p256",
  "pkcs8",
@@ -4741,6 +4749,7 @@ dependencies = [
  "hyper-tls",
  "hyper-util",
  "notary-client",
+ "notary-common",
  "notary-server",
  "rstest",
  "rustls 0.21.12",
