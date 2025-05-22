@@ -100,7 +100,7 @@ impl Display for HashAlgId {
 }
 
 /// A typed hash value.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TypedHash {
     /// The algorithm of the hash.
     pub alg: HashAlgId,
@@ -109,7 +109,7 @@ pub struct TypedHash {
 }
 
 /// A hash value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Hash {
     // To avoid heap allocation, we use a fixed-size array.
     // 64 bytes should be sufficient for most hash algorithms.
@@ -253,12 +253,13 @@ impl<T: HashAlgorithm + ?Sized> HashAlgorithmExt for T {}
 
 /// A hash blinder.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Blinder([u8; 16]);
+pub struct Blinder([u8; 16]);
 
 opaque_debug::implement!(Blinder);
 
 impl Blinder {
-    pub(crate) fn as_bytes(&self) -> &[u8] {
+    /// Returns the blinder as a byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 }

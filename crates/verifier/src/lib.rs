@@ -23,7 +23,7 @@ use mpz_vm_core::prelude::*;
 use serio::{stream::IoStreamExt, SinkExt};
 use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
-    commit::commit_records,
+    commit::{commit_records, hash::verify_hash},
     config::ProtocolConfig,
     context::build_mt_context,
     encoding,
@@ -382,6 +382,7 @@ impl Verifier<state::Committed> {
         }
 
         let mut transcript_commitments = Vec::new();
+        let mut hash_commitments = None;
         if let Some(commit_config) = transcript_commit {
             if commit_config.encoding() {
                 let commitment = mux_fut
@@ -396,7 +397,12 @@ impl Verifier<state::Committed> {
                 transcript_commitments.push(TranscriptCommitment::Encoding(commitment));
             }
 
-            // TODO: Other commitment types.
+            if commit_config.has_hash() {
+                hash_commitments = Some(
+                    verify_hash(vm, transcript_refs, commit_config.iter_hash().cloned())
+                        .map_err(VerifierError::verify)?,
+                );
+            }
         }
 
         mux_fut
@@ -407,6 +413,12 @@ impl Verifier<state::Committed> {
         if let Some(partial_transcript) = &transcript {
             verify_transcript(vm, partial_transcript, transcript_refs)
                 .map_err(VerifierError::verify)?;
+        }
+
+        if let Some(hash_commitments) = hash_commitments {
+            for commitment in hash_commitments.try_recv().map_err(VerifierError::verify)? {
+                transcript_commitments.push(TranscriptCommitment::Hash(commitment));
+            }
         }
 
         Ok(VerifierOutput {

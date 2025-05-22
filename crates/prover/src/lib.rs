@@ -28,7 +28,7 @@ use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, TlsConnection};
 use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
-    commit::commit_records,
+    commit::{commit_records, hash::prove_hash},
     context::build_mt_context,
     encoding,
     mux::attach_mux,
@@ -43,7 +43,7 @@ use tlsn_core::{
         TranscriptLength,
     },
     request::{Request, RequestConfig},
-    transcript::{Transcript, TranscriptCommitment, TranscriptSecret},
+    transcript::{Direction, Transcript, TranscriptCommitment, TranscriptSecret},
     ProvePayload, Secrets,
 };
 use tlsn_deap::Deap;
@@ -376,6 +376,7 @@ impl Prover<state::Committed> {
             .map_err(ProverError::zk)?;
         }
 
+        let mut hash_commitments = None;
         if let Some(commit_config) = config.transcript_commit() {
             if commit_config.has_encoding() {
                 let hasher = self
@@ -406,12 +407,35 @@ impl Prover<state::Committed> {
                     .push(TranscriptSecret::Encoding(tree));
             }
 
-            // TODO: Other commitment types.
+            if commit_config.has_hash() {
+                hash_commitments = Some(
+                    prove_hash(
+                        vm,
+                        transcript_refs,
+                        commit_config
+                            .iter_hash()
+                            .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg)),
+                    )
+                    .map_err(ProverError::commit)?,
+                );
+            }
         }
 
         mux_fut
             .poll_with(vm.execute_all(ctx).map_err(ProverError::zk))
             .await?;
+
+        if let Some((hash_fut, hash_secrets)) = hash_commitments {
+            let hash_commitments = hash_fut.try_recv().map_err(ProverError::commit)?;
+            for (commitment, secret) in hash_commitments.into_iter().zip(hash_secrets) {
+                output
+                    .transcript_commitments
+                    .push(TranscriptCommitment::Hash(commitment));
+                output
+                    .transcript_secrets
+                    .push(TranscriptSecret::Hash(secret));
+            }
+        }
 
         Ok(output)
     }
@@ -432,6 +456,23 @@ impl Prover<state::Committed> {
         let mut builder = ProveConfig::builder(self.transcript());
 
         if let Some(config) = config.transcript_commit() {
+            // Temporarily, we reject attestation requests which contain hash commitments to
+            // subsets of the transcript. We do this because we want to preserve the
+            // obliviousness of the reference notary, and hash commitments currently leak
+            // the ranges which are being committed.
+            for ((direction, idx), _) in config.iter_hash() {
+                let len = match direction {
+                    Direction::Sent => self.transcript().sent().len(),
+                    Direction::Received => self.transcript().received().len(),
+                };
+
+                if idx.start() > 0 || idx.end() < len || idx.count() != 1 {
+                    return Err(ProverError::attestation(
+                        "hash commitments to subsets of the transcript are currently not supported in attestation requests",
+                    ));
+                }
+            }
+
             builder.transcript_commit(config.clone());
         }
 

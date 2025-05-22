@@ -34,6 +34,7 @@
 mod commit;
 #[doc(hidden)]
 pub mod encoding;
+pub mod hash;
 mod proof;
 
 use std::{fmt, ops::Range};
