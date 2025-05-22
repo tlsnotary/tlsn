@@ -61,7 +61,7 @@ impl NotaryServerProperties {
                         public_key_path,
                         claims,
                     }) => AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
-                        algorithm: algorithm.clone(),
+                        algorithm: *algorithm,
                         public_key_path: prepend_file_path(public_key_path, &parent_dir)?,
                         claims: claims.clone(),
                     }),
@@ -178,7 +178,8 @@ impl AuthorizationModeProperties {
 pub struct JwtAuthorizationProperties {
     /// Algorithm used for signing the JWT
     pub algorithm: Algorithm,
-    /// File path to JWT public key (in PEM format) for verifying token signatures
+    /// File path to JWT public key (in PEM format) for verifying token
+    /// signatures
     pub public_key_path: String,
     /// Set of required JWT claims
     #[serde(default)]

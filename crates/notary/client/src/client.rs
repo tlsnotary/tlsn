@@ -138,8 +138,8 @@ pub struct NotaryClient {
     /// in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
-    /// JWT token used to callnotary server endpoints if JWT authorization is enabled
-    /// in notary server.
+    /// JWT token used to callnotary server endpoints if JWT authorization is
+    /// enabled in notary server.
     #[builder(setter(into, strip_option), default)]
     jwt: Option<String>,
     /// The duration of notarization request timeout in seconds.
