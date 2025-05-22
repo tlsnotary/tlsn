@@ -6,7 +6,11 @@ use tlsn_core::{
     presentation::PresentationOutput,
     request::{Request, RequestConfig},
     signing::SignatureAlgId,
-    transcript::{encoding::EncodingTree, Direction, Transcript, TranscriptCommitConfigBuilder},
+    transcript::{
+        encoding::{EncodingCommitment, EncodingTree},
+        Direction, Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment,
+        TranscriptSecret,
+    },
     CryptoProvider,
 };
 use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
@@ -54,9 +58,13 @@ fn test_api() {
         &Blake3::default(),
         transcripts_commitment_config.iter_encoding(),
         &encodings_provider,
-        &transcript.length(),
     )
     .unwrap();
+
+    let encoding_commitment = EncodingCommitment {
+        root: encoding_tree.root(),
+        secret: encoder_secret(),
+    };
 
     let request_config = RequestConfig::default();
     let mut request_builder = Request::builder(&request_config);
@@ -65,7 +73,10 @@ fn test_api() {
         .server_name(server_name.clone())
         .server_cert_data(server_cert_data)
         .transcript(transcript)
-        .encoding_tree(encoding_tree);
+        .transcript_commitments(
+            vec![TranscriptSecret::Encoding(encoding_tree)],
+            vec![TranscriptCommitment::Encoding(encoding_commitment.clone())],
+        );
 
     let (request, secrets) = request_builder.build(&provider).unwrap();
 
@@ -84,7 +95,7 @@ fn test_api() {
         .connection_info(connection_info.clone())
         // Server key Notary received during handshake
         .server_ephemeral_key(server_ephemeral_key)
-        .encoder_secret(encoder_secret());
+        .transcript_commitments(vec![TranscriptCommitment::Encoding(encoding_commitment)]);
 
     let attestation = attestation_builder.build(&provider).unwrap();
 

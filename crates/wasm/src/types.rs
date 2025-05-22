@@ -304,9 +304,9 @@ pub struct NotarizationOutput {
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct VerifierOutput {
-    pub server_name: String,
+    pub server_name: Option<String>,
     pub connection_info: ConnectionInfo,
-    pub transcript: PartialTranscript,
+    pub transcript: Option<PartialTranscript>,
 }
 
 #[derive(Debug, Tsify, Serialize)]

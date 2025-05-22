@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt};
 
 use crate::{
-    attestation::Body,
+    connection::TranscriptLength,
     transcript::{
-        commit::TranscriptCommitmentKind,
+        commit::{TranscriptCommitment, TranscriptCommitmentKind},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         Direction, Idx, PartialTranscript, Transcript,
     },
@@ -36,15 +36,16 @@ impl TranscriptProof {
     ///
     /// * `provider` - The crypto provider to use for verification.
     /// * `attestation_body` - The attestation body to verify against.
-    pub fn verify_with_provider(
+    pub fn verify_with_provider<'a>(
         self,
         provider: &CryptoProvider,
-        attestation_body: &Body,
+        length: &TranscriptLength,
+        commitments: impl IntoIterator<Item = &'a TranscriptCommitment>,
     ) -> Result<PartialTranscript, TranscriptProofError> {
-        let info = attestation_body.connection_info();
+        let commitments: Vec<_> = commitments.into_iter().collect();
 
-        if self.transcript.sent_unsafe().len() != info.transcript_length.sent as usize
-            || self.transcript.received_unsafe().len() != info.transcript_length.received as usize
+        if self.transcript.sent_unsafe().len() != length.sent as usize
+            || self.transcript.received_unsafe().len() != length.received as usize
         {
             return Err(TranscriptProofError::new(
                 ErrorKind::Proof,
@@ -57,12 +58,23 @@ impl TranscriptProof {
 
         // Verify encoding proof.
         if let Some(proof) = self.encoding_proof {
-            let commitment = attestation_body.encoding_commitment().ok_or_else(|| {
-                TranscriptProofError::new(
-                    ErrorKind::Encoding,
-                    "contains an encoding proof but attestation is missing encoding commitment",
-                )
-            })?;
+            let commitment = commitments
+                .iter()
+                .find_map(|commitment| {
+                    #[allow(irrefutable_let_patterns)]
+                    if let TranscriptCommitment::Encoding(encoding) = commitment {
+                        Some(encoding)
+                    } else {
+                        None
+                    }
+                })
+                .ok_or_else(|| {
+                    TranscriptProofError::new(
+                        ErrorKind::Encoding,
+                        "contains an encoding proof but attestation is missing encoding commitment",
+                    )
+                })?;
+
             let (auth_sent, auth_recv) = proof.verify_with_provider(
                 provider,
                 commitment,
@@ -456,12 +468,8 @@ mod tests {
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     use crate::{
-        fixtures::{
-            attestation_fixture, encoder_secret, encoding_provider, request_fixture,
-            ConnectionFixture, RequestFixture,
-        },
+        fixtures::{encoding_provider, request_fixture, ConnectionFixture, RequestFixture},
         hash::{Blake3, HashAlgId},
-        signing::SignatureAlgId,
         transcript::TranscriptCommitConfigBuilder,
     };
 
@@ -472,10 +480,7 @@ mod tests {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture {
-            mut request,
-            encoding_tree,
-        } = request_fixture(
+        let RequestFixture { encoding_tree, .. } = request_fixture(
             transcript.clone(),
             encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
@@ -489,19 +494,12 @@ mod tests {
 
         let transcript_proof = builder.build().unwrap();
 
-        request.encoding_commitment_root = None;
-        let attestation = attestation_fixture(
-            request,
-            connection,
-            SignatureAlgId::SECP256K1,
-            encoder_secret(),
-        );
-
         let provider = CryptoProvider::default();
         let err = transcript_proof
-            .verify_with_provider(&provider, &attestation.body)
+            .verify_with_provider(&provider, &transcript.length(), &[])
             .err()
             .unwrap();
+
         assert!(matches!(err.kind, ErrorKind::Encoding));
     }
 
@@ -620,7 +618,6 @@ mod tests {
             &Blake3::default(),
             transcripts_commitment_config.iter_encoding(),
             &encoding_provider(GET_WITH_HEADER, OK_JSON),
-            &transcript.length(),
         )
         .unwrap();
 
@@ -693,7 +690,6 @@ mod tests {
             &Blake3::default(),
             transcripts_commitment_config.iter_encoding(),
             &encoding_provider(GET_WITH_HEADER, OK_JSON),
-            &transcript.length(),
         )
         .unwrap();
 

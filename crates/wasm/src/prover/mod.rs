@@ -7,11 +7,8 @@ use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tls_client_async::TlsConnection;
-use tlsn_core::{
-    request::RequestConfig,
-    transcript::{Idx, TranscriptCommitConfigBuilder},
-};
-use tlsn_prover::{state, Prover};
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfigBuilder};
+use tlsn_prover::{state, ProveConfig, Prover};
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
 use wasm_bindgen_futures::spawn_local;
@@ -31,7 +28,7 @@ pub struct JsProver {
 enum State {
     Initialized(Prover<state::Initialized>),
     Setup(Prover<state::Setup>),
-    Closed(Prover<state::Closed>),
+    Committed(Prover<state::Committed>),
     Complete,
     Error,
 }
@@ -96,21 +93,21 @@ impl JsProver {
 
         info!("response received");
 
-        self.state = State::Closed(prover);
+        self.state = State::Committed(prover);
 
         Ok(response)
     }
 
     /// Returns the transcript.
     pub fn transcript(&self) -> Result<Transcript> {
-        let prover = self.state.try_as_closed()?;
+        let prover = self.state.try_as_committed()?;
 
         Ok(Transcript::from(prover.transcript()))
     }
 
     /// Runs the notarization protocol.
     pub async fn notarize(&mut self, commit: Commit) -> Result<NotarizationOutput> {
-        let mut prover = self.state.take().try_into_closed()?.start_notarize();
+        let mut prover = self.state.take().try_into_committed()?;
 
         info!("starting notarization");
 
@@ -124,12 +121,17 @@ impl JsProver {
             builder.commit_recv(&range)?;
         }
 
-        let config = builder.build()?;
+        let transcript_commit = builder.build()?;
 
-        prover.transcript_commit(config);
+        let mut builder = RequestConfig::builder();
 
-        let request_config = RequestConfig::default();
-        let (attestation, secrets) = prover.finalize(&request_config).await?;
+        builder.transcript_commit(transcript_commit);
+
+        let request_config = builder.build()?;
+
+        #[allow(deprecated)]
+        let (attestation, secrets) = prover.notarize(&request_config).await?;
+        prover.close().await?;
 
         info!("notarization complete");
 
@@ -143,15 +145,24 @@ impl JsProver {
 
     /// Reveals data to the verifier and finalizes the protocol.
     pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
-        let mut prover = self.state.take().try_into_closed()?.start_prove();
+        let mut prover = self.state.take().try_into_committed()?;
 
         info!("revealing data");
 
-        let sent = Idx::new(reveal.sent);
-        let recv = Idx::new(reveal.recv);
+        let mut builder = ProveConfig::builder(prover.transcript());
 
-        prover.prove_transcript(sent, recv).await?;
-        prover.finalize().await?;
+        for range in reveal.sent {
+            builder.reveal_sent(&range)?;
+        }
+
+        for range in reveal.recv {
+            builder.reveal_recv(&range)?;
+        }
+
+        let config = builder.build()?;
+
+        prover.prove(&config).await?;
+        prover.close().await?;
 
         info!("Finalized");
 

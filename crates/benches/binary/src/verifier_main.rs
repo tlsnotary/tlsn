@@ -8,7 +8,7 @@ use crate::{
 };
 use tls_core::verify::WebPkiVerifier;
 use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::CryptoProvider;
+use tlsn_core::{CryptoProvider, VerifyConfig};
 use tlsn_server_fixture_certs::CA_CERT_DER;
 use tlsn_verifier::{Verifier, VerifierConfig};
 
@@ -100,7 +100,9 @@ async fn run_instance<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
             .build()?,
     );
 
-    verifier.verify(io.compat()).await?;
+    verifier
+        .verify(io.compat(), &VerifyConfig::default())
+        .await?;
 
     println!("verifier done");
 

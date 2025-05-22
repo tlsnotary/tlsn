@@ -4,15 +4,15 @@ use rand::{rng, Rng};
 
 use crate::{
     attestation::{
-        Attestation, AttestationConfig, Body, EncodingCommitment, Extension, FieldId, FieldKind,
-        Header, ServerCertCommitment, VERSION,
+        Attestation, AttestationConfig, Body, Extension, FieldId, Header, ServerCertCommitment,
+        VERSION,
     },
     connection::{ConnectionInfo, ServerEphemKey},
-    hash::{HashAlgId, TypedHash},
+    hash::HashAlgId,
     request::Request,
     serialize::CanonicalSerialize,
     signing::SignatureAlgId,
-    transcript::encoding::EncoderSecret,
+    transcript::TranscriptCommitment,
     CryptoProvider,
 };
 
@@ -27,9 +27,8 @@ pub struct Sign {
     connection_info: Option<ConnectionInfo>,
     server_ephemeral_key: Option<ServerEphemKey>,
     cert_commitment: ServerCertCommitment,
-    encoding_commitment_root: Option<TypedHash>,
-    encoder_secret: Option<EncoderSecret>,
     extensions: Vec<Extension>,
+    transcript_commitments: Vec<TranscriptCommitment>,
 }
 
 /// An attestation builder.
@@ -59,7 +58,6 @@ impl<'a> AttestationBuilder<'a, Accept> {
             signature_alg,
             hash_alg,
             server_cert_commitment: cert_commitment,
-            encoding_commitment_root,
             extensions,
         } = request;
 
@@ -77,17 +75,6 @@ impl<'a> AttestationBuilder<'a, Accept> {
             ));
         }
 
-        if encoding_commitment_root.is_some()
-            && !config
-                .supported_fields()
-                .contains(&FieldKind::EncodingCommitment)
-        {
-            return Err(AttestationBuilderError::new(
-                ErrorKind::Request,
-                "encoding commitment is not supported",
-            ));
-        }
-
         if let Some(validator) = config.extension_validator() {
             validator(&extensions)
                 .map_err(|err| AttestationBuilderError::new(ErrorKind::Extension, err))?;
@@ -101,8 +88,7 @@ impl<'a> AttestationBuilder<'a, Accept> {
                 connection_info: None,
                 server_ephemeral_key: None,
                 cert_commitment,
-                encoding_commitment_root,
-                encoder_secret: None,
+                transcript_commitments: Vec::new(),
                 extensions,
             },
         })
@@ -122,15 +108,18 @@ impl AttestationBuilder<'_, Sign> {
         self
     }
 
-    /// Sets the encoder secret.
-    pub fn encoder_secret(&mut self, secret: EncoderSecret) -> &mut Self {
-        self.state.encoder_secret = Some(secret);
-        self
-    }
-
     /// Adds an extension to the attestation.
     pub fn extension(&mut self, extension: Extension) -> &mut Self {
         self.state.extensions.push(extension);
+        self
+    }
+
+    /// Sets the transcript commitments.
+    pub fn transcript_commitments(
+        &mut self,
+        transcript_commitments: Vec<TranscriptCommitment>,
+    ) -> &mut Self {
+        self.state.transcript_commitments = transcript_commitments;
         self
     }
 
@@ -142,9 +131,8 @@ impl AttestationBuilder<'_, Sign> {
             connection_info,
             server_ephemeral_key,
             cert_commitment,
-            encoding_commitment_root,
-            encoder_secret,
             extensions,
+            transcript_commitments,
         } = self.state;
 
         let hasher = provider.hash.get(&hash_alg).map_err(|_| {
@@ -162,19 +150,6 @@ impl AttestationBuilder<'_, Sign> {
             )
         })?;
 
-        let encoding_commitment = if let Some(root) = encoding_commitment_root {
-            let Some(secret) = encoder_secret else {
-                return Err(AttestationBuilderError::new(
-                    ErrorKind::Field,
-                    "encoding commitment requested but encoder_secret was not set",
-                ));
-            };
-
-            Some(EncodingCommitment { root, secret })
-        } else {
-            None
-        };
-
         let mut field_id = FieldId::default();
 
         let body = Body {
@@ -186,10 +161,13 @@ impl AttestationBuilder<'_, Sign> {
                 AttestationBuilderError::new(ErrorKind::Field, "handshake data was not set")
             })?),
             cert_commitment: field_id.next(cert_commitment),
-            encoding_commitment: encoding_commitment.map(|commitment| field_id.next(commitment)),
             extensions: extensions
                 .into_iter()
                 .map(|extension| field_id.next(extension))
+                .collect(),
+            transcript_commitments: transcript_commitments
+                .into_iter()
+                .map(|commitment| field_id.next(commitment))
                 .collect(),
         };
 
@@ -269,9 +247,7 @@ mod test {
 
     use crate::{
         connection::{HandshakeData, HandshakeDataV1_2},
-        fixtures::{
-            encoder_secret, encoding_provider, request_fixture, ConnectionFixture, RequestFixture,
-        },
+        fixtures::{encoding_provider, request_fixture, ConnectionFixture, RequestFixture},
         hash::Blake3,
         transcript::Transcript,
     };
@@ -347,36 +323,6 @@ mod test {
     }
 
     #[rstest]
-    fn test_attestation_builder_accept_unsupported_encoding_commitment() {
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let connection = ConnectionFixture::tlsnotary(transcript.length());
-
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection,
-            Blake3::default(),
-            Vec::new(),
-        );
-
-        let attestation_config = AttestationConfig::builder()
-            .supported_signature_algs([SignatureAlgId::SECP256K1])
-            .supported_fields([
-                FieldKind::ConnectionInfo,
-                FieldKind::ServerEphemKey,
-                FieldKind::ServerIdentityCommitment,
-            ])
-            .build()
-            .unwrap();
-
-        let err = Attestation::builder(&attestation_config)
-            .accept_request(request)
-            .err()
-            .unwrap();
-        assert!(err.is_request());
-    }
-
-    #[rstest]
     fn test_attestation_builder_sign_missing_signer(attestation_config: &AttestationConfig) {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
@@ -396,47 +342,8 @@ mod test {
         let mut provider = CryptoProvider::default();
         provider.signer.set_secp256r1(&[42u8; 32]).unwrap();
 
-        let err = attestation_builder.build(&provider).err().unwrap();
+        let err = attestation_builder.build(&provider).unwrap_err();
         assert!(matches!(err.kind, ErrorKind::Config));
-    }
-
-    #[rstest]
-    fn test_attestation_builder_sign_missing_encoding_seed(
-        attestation_config: &AttestationConfig,
-        crypto_provider: &CryptoProvider,
-    ) {
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let connection = ConnectionFixture::tlsnotary(transcript.length());
-
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection.clone(),
-            Blake3::default(),
-            Vec::new(),
-        );
-
-        let mut attestation_builder = Attestation::builder(attestation_config)
-            .accept_request(request)
-            .unwrap();
-
-        let ConnectionFixture {
-            connection_info,
-            server_cert_data,
-            ..
-        } = connection;
-
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
-            server_ephemeral_key,
-            ..
-        }) = server_cert_data.handshake;
-
-        attestation_builder
-            .connection_info(connection_info)
-            .server_ephemeral_key(server_ephemeral_key);
-
-        let err = attestation_builder.build(crypto_provider).err().unwrap();
-        assert!(matches!(err.kind, ErrorKind::Field));
     }
 
     #[rstest]
@@ -463,11 +370,9 @@ mod test {
             connection_info, ..
         } = connection;
 
-        attestation_builder
-            .connection_info(connection_info)
-            .encoder_secret(encoder_secret());
+        attestation_builder.connection_info(connection_info);
 
-        let err = attestation_builder.build(crypto_provider).err().unwrap();
+        let err = attestation_builder.build(crypto_provider).unwrap_err();
         assert!(matches!(err.kind, ErrorKind::Field));
     }
 
@@ -500,11 +405,9 @@ mod test {
             ..
         }) = server_cert_data.handshake;
 
-        attestation_builder
-            .server_ephemeral_key(server_ephemeral_key)
-            .encoder_secret(encoder_secret());
+        attestation_builder.server_ephemeral_key(server_ephemeral_key);
 
-        let err = attestation_builder.build(crypto_provider).err().unwrap();
+        let err = attestation_builder.build(crypto_provider).unwrap_err();
         assert!(matches!(err.kind, ErrorKind::Field));
     }
 
@@ -572,8 +475,7 @@ mod test {
 
         attestation_builder
             .connection_info(connection_info)
-            .server_ephemeral_key(server_ephemeral_key)
-            .encoder_secret(encoder_secret());
+            .server_ephemeral_key(server_ephemeral_key);
 
         let attestation = attestation_builder.build(crypto_provider).unwrap();
 

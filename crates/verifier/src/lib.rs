@@ -6,36 +6,38 @@
 
 pub(crate) mod config;
 mod error;
-mod notarize;
 pub mod state;
-mod verify;
 
 use std::sync::Arc;
 
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
+pub use tlsn_core::{VerifierOutput, VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError};
 
-use futures::{AsyncRead, AsyncWrite};
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use serio::stream::IoStreamExt;
-use state::{Notarize, Verify};
+use mpz_vm_core::prelude::*;
+use serio::{stream::IoStreamExt, SinkExt};
 use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
     commit::commit_records,
     config::ProtocolConfig,
     context::build_mt_context,
+    encoding,
     mux::attach_mux,
-    transcript::{Record, TlsTranscript},
+    transcript::{decode_transcript, verify_transcript, Record, TlsTranscript},
     zk_aes::ZkAesCtr,
     Role,
 };
 use tlsn_core::{
     attestation::{Attestation, AttestationConfig},
     connection::{ConnectionInfo, ServerName, TlsVersion, TranscriptLength},
-    transcript::PartialTranscript,
+    request::Request,
+    transcript::TranscriptCommitment,
+    ProvePayload,
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
@@ -66,7 +68,7 @@ pub struct SessionInfo {
 }
 
 /// A Verifier instance.
-pub struct Verifier<T: state::VerifierState> {
+pub struct Verifier<T: state::VerifierState = state::Initialized> {
     config: VerifierConfig,
     span: Span,
     state: T,
@@ -138,7 +140,6 @@ impl Verifier<state::Initialized> {
             state: state::Setup {
                 mux_ctrl,
                 mux_fut,
-                mt,
                 delta,
                 mpc_tls,
                 zk_aes,
@@ -148,7 +149,7 @@ impl Verifier<state::Initialized> {
         })
     }
 
-    /// Runs the TLS verifier to completion, notarizing the TLS session.
+    /// Runs the verifier to completion and attests to the TLS session.
     ///
     /// This is a convenience method which runs all the steps needed for
     /// notarization.
@@ -158,18 +159,22 @@ impl Verifier<state::Initialized> {
     /// * `socket` - The socket to the prover.
     /// * `config` - The attestation configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    #[deprecated(
+        note = "attestation functionality will be removed from this API in future releases."
+    )]
     pub async fn notarize<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
         config: &AttestationConfig,
     ) -> Result<Attestation, VerifierError> {
-        self.setup(socket)
-            .await?
-            .run()
-            .await?
-            .start_notarize()
-            .finalize(config)
-            .await
+        let mut verifier = self.setup(socket).await?.run().await?;
+
+        #[allow(deprecated)]
+        let attestation = verifier.notarize(config).await?;
+
+        verifier.close().await?;
+
+        Ok(attestation)
     }
 
     /// Runs the TLS verifier to completion, verifying the TLS session.
@@ -184,23 +189,25 @@ impl Verifier<state::Initialized> {
     pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<(PartialTranscript, SessionInfo), VerifierError> {
-        let mut verifier = self.setup(socket).await?.run().await?.start_verify();
-        let transcript = verifier.receive().await?;
+        config: &VerifyConfig,
+    ) -> Result<VerifierOutput, VerifierError> {
+        let mut verifier = self.setup(socket).await?.run().await?;
 
-        let session_info = verifier.finalize().await?;
-        Ok((transcript, session_info))
+        let output = verifier.verify(config).await?;
+
+        verifier.close().await?;
+
+        Ok(output)
     }
 }
 
 impl Verifier<state::Setup> {
     /// Runs the verifier until the TLS connection is closed.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
+    pub async fn run(self) -> Result<Verifier<state::Committed>, VerifierError> {
         let state::Setup {
             mux_ctrl,
             mut mux_fut,
-            mt,
             delta,
             mpc_tls,
             mut zk_aes,
@@ -220,7 +227,7 @@ impl Verifier<state::Setup> {
             FollowerData {
                 server_key,
                 mut transcript,
-                keys,
+                ..
             },
         ) = mux_fut.poll_with(mpc_tls.run()).await?;
 
@@ -288,13 +295,11 @@ impl Verifier<state::Setup> {
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::Closed {
+            state: state::Committed {
                 mux_ctrl,
                 mux_fut,
-                mt,
                 delta,
                 ctx,
-                keys,
                 vm,
                 server_ephemeral_key: server_key
                     .try_into()
@@ -306,30 +311,192 @@ impl Verifier<state::Setup> {
     }
 }
 
-impl Verifier<state::Closed> {
-    /// Starts notarization of the TLS session.
-    ///
-    /// If the verifier is a Notary, this function will transition the verifier
-    /// to the next state where it can sign the prover's commitments to the
-    /// transcript.
-    pub fn start_notarize(self) -> Verifier<Notarize> {
-        Verifier {
-            config: self.config,
-            span: self.span,
-            state: self.state.into(),
-        }
+impl Verifier<state::Committed> {
+    /// Returns the connection information.
+    pub fn connection_info(&self) -> &ConnectionInfo {
+        &self.state.connection_info
     }
 
-    /// Starts verification of the TLS session.
+    /// Verifies information from the prover.
     ///
-    /// This function transitions the verifier into a state where it can verify
-    /// the contents of the transcript.
-    pub fn start_verify(self) -> Verifier<Verify> {
-        Verifier {
-            config: self.config,
-            span: self.span,
-            state: self.state.into(),
+    /// # Arguments
+    ///
+    /// * `config` - Verification configuration.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn verify(
+        &mut self,
+        #[allow(unused_variables)] config: &VerifyConfig,
+    ) -> Result<VerifierOutput, VerifierError> {
+        let state::Committed {
+            mux_fut,
+            ctx,
+            delta,
+            vm,
+            connection_info,
+            server_ephemeral_key,
+            transcript_refs,
+            ..
+        } = &mut self.state;
+
+        let ProvePayload {
+            server_identity,
+            transcript,
+            transcript_commit,
+        } = mux_fut
+            .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
+            .await?;
+
+        let server_name = if let Some((name, cert_data)) = server_identity {
+            cert_data
+                .verify_with_provider(
+                    self.config.crypto_provider(),
+                    connection_info.time,
+                    server_ephemeral_key,
+                    &name,
+                )
+                .map_err(VerifierError::verify)?;
+
+            Some(name)
+        } else {
+            None
+        };
+
+        if let Some(partial_transcript) = &transcript {
+            // Check ranges.
+            if partial_transcript.len_sent() != connection_info.transcript_length.sent as usize
+                || partial_transcript.len_received()
+                    != connection_info.transcript_length.received as usize
+            {
+                return Err(VerifierError::verify(
+                    "prover sent transcript with incorrect length",
+                ));
+            }
+
+            decode_transcript(
+                vm,
+                partial_transcript.sent_authed(),
+                partial_transcript.received_authed(),
+                transcript_refs,
+            )
+            .map_err(VerifierError::zk)?;
         }
+
+        let mut transcript_commitments = Vec::new();
+        if let Some(commit_config) = transcript_commit {
+            if commit_config.encoding() {
+                let commitment = mux_fut
+                    .poll_with(encoding::transfer(
+                        ctx,
+                        transcript_refs,
+                        delta,
+                        |plaintext| vm.get_keys(plaintext).expect("reference is valid"),
+                    ))
+                    .await?;
+
+                transcript_commitments.push(TranscriptCommitment::Encoding(commitment));
+            }
+
+            // TODO: Other commitment types.
+        }
+
+        mux_fut
+            .poll_with(vm.execute_all(ctx).map_err(VerifierError::zk))
+            .await?;
+
+        // Verify revealed data.
+        if let Some(partial_transcript) = &transcript {
+            verify_transcript(vm, partial_transcript, transcript_refs)
+                .map_err(VerifierError::verify)?;
+        }
+
+        Ok(VerifierOutput {
+            server_name,
+            transcript,
+            transcript_commitments,
+        })
+    }
+
+    /// Attests to the TLS session.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Attestation configuration.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    #[deprecated(
+        note = "attestation functionality will be removed from this API in future releases."
+    )]
+    pub async fn notarize(
+        &mut self,
+        config: &AttestationConfig,
+    ) -> Result<Attestation, VerifierError> {
+        let VerifierOutput {
+            server_name,
+            transcript,
+            transcript_commitments,
+        } = self.verify(&VerifyConfig::default()).await?;
+
+        if server_name.is_some() {
+            return Err(VerifierError::attestation(
+                "server name can not be revealed to a notary",
+            ));
+        } else if transcript.is_some() {
+            return Err(VerifierError::attestation(
+                "transcript data can not be revealed to a notary",
+            ));
+        }
+
+        let state::Committed {
+            mux_fut,
+            ctx,
+            server_ephemeral_key,
+            connection_info,
+            ..
+        } = &mut self.state;
+
+        let request: Request = mux_fut
+            .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
+            .await?;
+
+        let mut builder = Attestation::builder(config)
+            .accept_request(request)
+            .map_err(VerifierError::attestation)?;
+
+        builder
+            .connection_info(connection_info.clone())
+            .server_ephemeral_key(server_ephemeral_key.clone())
+            .transcript_commitments(transcript_commitments);
+
+        let attestation = builder
+            .build(self.config.crypto_provider())
+            .map_err(VerifierError::attestation)?;
+
+        mux_fut
+            .poll_with(
+                ctx.io_mut()
+                    .send(attestation.clone())
+                    .map_err(VerifierError::from),
+            )
+            .await?;
+
+        info!("Sent attestation");
+
+        Ok(attestation)
+    }
+
+    /// Closes the connection with the prover.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn close(self) -> Result<(), VerifierError> {
+        let state::Committed {
+            mux_ctrl, mux_fut, ..
+        } = self.state;
+
+        // Wait for the prover to correctly close the connection.
+        if !mux_fut.is_complete() {
+            mux_ctrl.close();
+            mux_fut.await?;
+        }
+
+        Ok(())
     }
 }
 

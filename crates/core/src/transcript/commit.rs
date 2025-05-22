@@ -6,8 +6,11 @@ use rangeset::ToRangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    hash::HashAlgId,
-    transcript::{Direction, Idx, Transcript},
+    hash::{impl_domain_separator, HashAlgId},
+    transcript::{
+        encoding::{EncodingCommitment, EncodingTree},
+        Direction, Idx, Transcript,
+    },
 };
 
 /// The maximum allowed total bytelength of committed data for a single
@@ -41,10 +44,31 @@ impl fmt::Display for TranscriptCommitmentKind {
     }
 }
 
+/// Transcript commitment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TranscriptCommitment {
+    /// Encoding commitment.
+    Encoding(EncodingCommitment),
+}
+
+impl_domain_separator!(TranscriptCommitment);
+
+/// Secret for a transcript commitment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TranscriptSecret {
+    /// Encoding tree.
+    Encoding(EncodingTree),
+}
+
+impl_domain_separator!(TranscriptSecret);
+
 /// Configuration for transcript commitments.
 #[derive(Debug, Clone)]
 pub struct TranscriptCommitConfig {
     encoding_hash_alg: HashAlgId,
+    has_encoding: bool,
     commits: Vec<((Direction, Idx), TranscriptCommitmentKind)>,
 }
 
@@ -61,9 +85,7 @@ impl TranscriptCommitConfig {
 
     /// Returns whether the configuration has any encoding commitments.
     pub fn has_encoding(&self) -> bool {
-        self.commits
-            .iter()
-            .any(|(_, kind)| matches!(kind, TranscriptCommitmentKind::Encoding))
+        self.has_encoding
     }
 
     /// Returns an iterator over the encoding commitment indices.
@@ -81,6 +103,13 @@ impl TranscriptCommitConfig {
             _ => None,
         })
     }
+
+    /// Returns a request for the transcript commitments.
+    pub fn to_request(&self) -> TranscriptCommitRequest {
+        TranscriptCommitRequest {
+            encoding: self.has_encoding,
+        }
+    }
 }
 
 /// A builder for [`TranscriptCommitConfig`].
@@ -91,6 +120,7 @@ impl TranscriptCommitConfig {
 pub struct TranscriptCommitConfigBuilder<'a> {
     transcript: &'a Transcript,
     encoding_hash_alg: HashAlgId,
+    has_encoding: bool,
     default_kind: TranscriptCommitmentKind,
     commits: HashSet<((Direction, Idx), TranscriptCommitmentKind)>,
 }
@@ -101,6 +131,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         Self {
             transcript,
             encoding_hash_alg: HashAlgId::BLAKE3,
+            has_encoding: false,
             default_kind: TranscriptCommitmentKind::Encoding,
             commits: HashSet::default(),
         }
@@ -143,6 +174,10 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
                     self.transcript.len_of_direction(direction)
                 ),
             ));
+        }
+
+        if let TranscriptCommitmentKind::Encoding = kind {
+            self.has_encoding = true;
         }
 
         self.commits.insert(((direction, idx), kind));
@@ -192,6 +227,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     pub fn build(self) -> Result<TranscriptCommitConfig, TranscriptCommitConfigBuilderError> {
         Ok(TranscriptCommitConfig {
             encoding_hash_alg: self.encoding_hash_alg,
+            has_encoding: self.has_encoding,
             commits: Vec::from_iter(self.commits),
         })
     }
@@ -232,6 +268,19 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
         }
 
         Ok(())
+    }
+}
+
+/// Request to compute transcript commitments.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptCommitRequest {
+    encoding: bool,
+}
+
+impl TranscriptCommitRequest {
+    /// Returns `true` if an encoding commitment is requested.
+    pub fn encoding(&self) -> bool {
+        self.encoding
     }
 }
 
