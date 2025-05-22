@@ -22,6 +22,7 @@ use crate::{transcript::TranscriptRefs, Role};
 /// Future which will resolve to the committed hash values.
 #[derive(Debug)]
 pub struct HashCommitFuture {
+    #[allow(clippy::type_complexity)]
     futs: Vec<(
         Direction,
         Idx,
@@ -55,7 +56,7 @@ impl HashCommitFuture {
 }
 
 /// Prove plaintext hash commitments.
-pub fn prove_hash<'a>(
+pub fn prove_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
     idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
@@ -85,7 +86,7 @@ pub fn prove_hash<'a>(
 }
 
 /// Verify plaintext hash commitments.
-pub fn verify_hash<'a>(
+pub fn verify_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
     idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
@@ -105,7 +106,8 @@ pub fn verify_hash<'a>(
 }
 
 /// Commit plaintext hashes of the transcript.
-fn hash_commit_inner<'a>(
+#[allow(clippy::type_complexity)]
+fn hash_commit_inner(
     vm: &mut dyn Vm<Binary>,
     role: Role,
     refs: &TranscriptRefs,
@@ -134,10 +136,7 @@ fn hash_commit_inner<'a>(
                     hasher.update(&plaintext);
                 }
                 hasher.update(&blinder);
-
-                let hash = hasher.finalize(vm).map_err(HashCommitError::hasher)?;
-
-                hash
+                hasher.finalize(vm).map_err(HashCommitError::hasher)?
             }
             alg => {
                 return Err(HashCommitError::unsupported_alg(alg));
