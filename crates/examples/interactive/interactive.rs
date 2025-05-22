@@ -162,7 +162,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .reveal_sent(&(pos + SECRET.len()..prover.transcript().sent().len()))
         .unwrap();
 
-    // Find the substring "illustrative".
+    // Find the substring "Dick".
     let pos = prover
         .transcript()
         .received()
