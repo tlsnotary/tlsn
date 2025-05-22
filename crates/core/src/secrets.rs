@@ -35,17 +35,6 @@ impl Secrets {
 
     /// Returns a transcript proof builder.
     pub fn transcript_proof_builder(&self) -> TranscriptProofBuilder<'_> {
-        let encoding_secret = self
-            .transcript_commitment_secrets
-            .iter()
-            .find_map(|secret| {
-                #[allow(irrefutable_let_patterns)]
-                if let TranscriptSecret::Encoding(secret) = secret {
-                    Some(secret)
-                } else {
-                    None
-                }
-            });
-        TranscriptProofBuilder::new(&self.transcript, encoding_secret)
+        TranscriptProofBuilder::new(&self.transcript, &self.transcript_commitment_secrets)
     }
 }

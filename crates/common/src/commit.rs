@@ -1,5 +1,7 @@
 //! Plaintext commitment and proof of encryption.
 
+pub mod hash;
+
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
 use mpz_vm_core::{prelude::*, Vm};
