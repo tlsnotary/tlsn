@@ -12,7 +12,7 @@ use futures::TryFutureExt;
 use mpz_common::{Context, Task};
 use mpz_memory_core::{
     binary::{Binary, U8},
-    Array,
+    Array, MemoryExt,
 };
 use mpz_vm_core::Vm as VmTrait;
 use rand::RngCore;
@@ -59,9 +59,7 @@ enum State {
         sent_records: Vec<Record>,
         recv_records: Vec<Record>,
     },
-    Complete {
-        server_mac_key: [u8; 16],
-    },
+    Complete {},
     Error,
 }
 
@@ -126,7 +124,8 @@ impl RecordLayer {
         }
     }
 
-    /// Allocates resources for the record layer.
+    /// Allocates resources for the record layer, returning a reference
+    /// to the server write MAC key.
     ///
     /// # Arguments
     ///
@@ -145,7 +144,7 @@ impl RecordLayer {
         sent_len: usize,
         recv_len_online: usize,
         recv_len: usize,
-    ) -> Result<(), MpcTlsError> {
+    ) -> Result<Array<U8, 16>, MpcTlsError> {
         let State::Init = self.state.take() else {
             return Err(MpcTlsError::other("record layer is already allocated"));
         };
@@ -190,7 +189,7 @@ impl RecordLayer {
             recv_records: Vec::new(),
         };
 
-        Ok(())
+        Ok(decrypt.ghash_key().map_err(MpcTlsError::record_layer)?)
     }
 
     pub(crate) async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), MpcTlsError> {
@@ -572,8 +571,12 @@ impl RecordLayer {
 
         // Reveal server write MAC key to both parties.
         let server_mac_key = &mut decrypter
-            .decode_mac_key(&mut (*vm))
+            .ghash_key()
             .map_err(|_| MpcTlsError::record_layer("decrypt lock is held"))?;
+
+        let mut server_mac_key = vm
+            .decode(*server_mac_key)
+            .map_err(MpcTlsError::record_layer)?;
 
         vm.execute_all(ctx)
             .await
@@ -582,7 +585,7 @@ impl RecordLayer {
         let server_mac_key = server_mac_key
             .try_recv()
             .map_err(MpcTlsError::record_layer)?
-            .expect("mac key should be decoded");
+            .expect("server mac key should be decoded");
 
         if self.role == Role::Leader {
             // The leader locally verifies the tags of buffered ciphertexts.
@@ -617,7 +620,7 @@ impl RecordLayer {
             });
         }
 
-        self.state = State::Complete { server_mac_key };
+        self.state = State::Complete {};
 
         Ok((
             TlsTranscript {
@@ -629,15 +632,6 @@ impl RecordLayer {
                 recv: recv_unauthenticated,
             },
         ))
-    }
-
-    pub(crate) fn server_mac_key(&self) -> Result<[u8; 16], MpcTlsError> {
-        let State::Complete { server_mac_key } = &self.state else {
-            return Err(MpcTlsError::state(
-                "record layer must be in complete state to return the server mac key",
-            ));
-        };
-        Ok(server_mac_key.clone())
     }
 
     fn next_write(

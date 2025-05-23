@@ -104,7 +104,7 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in init state to allocate"));
         };
 
-        let (keys, cf_vd, sf_vd) = {
+        let (keys, cf_vd, sf_vd, sw_mac_key) = {
             let vm = &mut (*vm
                 .try_lock()
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?);
@@ -121,7 +121,7 @@ impl MpcTlsFollower {
             let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
             let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
 
-            record_layer.alloc(
+            let server_write_mac_key = record_layer.alloc(
                 vm,
                 self.config.max_sent_records,
                 self.config.max_recv_records_online,
@@ -130,12 +130,20 @@ impl MpcTlsFollower {
                 self.config.max_recv,
             )?;
 
-            (keys, cf_vd, sf_vd)
+            (keys, cf_vd, sf_vd, server_write_mac_key)
+        };
+
+        let keys: SessionKeys = SessionKeys {
+            client_write_key: keys.client_write_key,
+            client_write_iv: keys.client_iv,
+            server_write_key: keys.server_write_key,
+            server_write_iv: keys.server_iv,
+            server_write_mac_key: sw_mac_key,
         };
 
         self.state = State::Setup {
             vm,
-            keys: keys.into(),
+            keys: keys.clone(),
             ke,
             prf,
             record_layer,
@@ -143,7 +151,7 @@ impl MpcTlsFollower {
             sf_vd,
         };
 
-        Ok(keys.into())
+        Ok(keys)
     }
 
     /// Preprocesses the connection.
@@ -394,9 +402,6 @@ impl MpcTlsFollower {
                 transcript,
                 unauthenticated_transcript,
                 keys,
-                server_mac_key: record_layer
-                    .server_mac_key()
-                    .expect("record layer is complete"),
             },
         ))
     }

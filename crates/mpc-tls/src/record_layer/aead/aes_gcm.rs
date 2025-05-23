@@ -2,11 +2,10 @@ use std::{future::Future, sync::Arc};
 
 use cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
 use mpz_common::{Context, Flush};
-use mpz_core::bitvec::BitVec;
 use mpz_fields::gf2_128::Gf2_128;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    DecodeFutureTyped, Vector,
+    Vector,
 };
 use mpz_share_conversion::ShareConvert;
 use mpz_vm_core::{prelude::*, Vm};
@@ -46,7 +45,6 @@ enum State {
         ghash: Arc<dyn Ghash + Send + Sync>,
         ghash_key: Array<U8, 16>,
     },
-    Complete {},
     Error,
 }
 
@@ -308,25 +306,20 @@ impl MpcAesGcm {
         Ok(keystream.to_vector(vm, len)?)
     }
 
-    /// Decodes the server write MAC key, returning it.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
+    /// Returns the VM reference to the GHASH key.
     #[instrument(level = "debug", skip_all, err)]
-    pub(crate) fn decode_mac_key(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-    ) -> Result<DecodeFutureTyped<BitVec, [u8; 16]>, AeadError> {
-        let State::Ready { ghash_key, .. } = &self.state else {
-            return Err(AeadError::state("must be in ready state to decode mac key"));
+    pub(crate) fn ghash_key(&mut self) -> Result<Array<U8, 16>, AeadError> {
+        let key = match self.state {
+            State::Setup { ghash_key, .. } => ghash_key,
+            State::Ready { ghash_key, .. } => ghash_key,
+            _ => {
+                return Err(AeadError::state(
+                    "must be in setup or ready state to return ghash key",
+                ))
+            }
         };
 
-        let fut = vm.decode(*ghash_key)?;
-
-        self.state = State::Complete {};
-
-        Ok(fut)
+        Ok(key)
     }
 
     /// Computes tags for the provided ciphertext. See

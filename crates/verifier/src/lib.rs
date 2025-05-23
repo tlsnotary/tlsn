@@ -22,6 +22,7 @@ use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
+use mpz_memory_core::MemoryExt;
 use serio::stream::IoStreamExt;
 use state::{Notarize, Verify};
 use tls_core::msgs::enums::ContentType;
@@ -225,7 +226,6 @@ impl Verifier<state::Setup> {
                 mut transcript,
                 unauthenticated_transcript,
                 keys,
-                server_mac_key,
             },
         ) = mux_fut.poll_with(mpc_tls.run()).await?;
 
@@ -279,6 +279,12 @@ impl Verifier<state::Setup> {
             // Verify the AES-GCM tags.
             // After the verification the entire TLS trancript is becomes
             // authenticated from the verifier's perspective.
+            let server_mac_key = vm
+                .decode(keys.server_write_mac_key)
+                .expect("the key was decoded before")
+                .try_recv()
+                .expect("the key was decoded before")
+                .expect("the key was decoded before");
             tag::verify_tags(
                 j0_proof,
                 server_mac_key,

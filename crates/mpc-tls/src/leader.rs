@@ -155,7 +155,7 @@ impl MpcTlsLeader {
         let cf_vd = vm_lock.decode(cf_vd).map_err(MpcTlsError::alloc)?;
         let sf_vd = vm_lock.decode(sf_vd).map_err(MpcTlsError::alloc)?;
 
-        record_layer.alloc(
+        let server_write_mac_key = record_layer.alloc(
             &mut (*vm_lock),
             self.config.max_sent_records,
             self.config.max_recv_records_online,
@@ -164,10 +164,18 @@ impl MpcTlsLeader {
             self.config.max_recv,
         )?;
 
+        let keys: SessionKeys = SessionKeys {
+            client_write_key: keys.client_write_key,
+            client_write_iv: keys.client_iv,
+            server_write_key: keys.server_write_key,
+            server_write_iv: keys.server_iv,
+            server_write_mac_key,
+        };
+
         self.state = State::Setup {
             ctx,
             vm,
-            keys: keys.into(),
+            keys: keys.clone(),
             ke,
             prf,
             record_layer,
@@ -176,7 +184,7 @@ impl MpcTlsLeader {
             client_random,
         };
 
-        Ok(keys.into())
+        Ok(keys)
     }
 
     /// Preprocesses the connection.
