@@ -61,3 +61,21 @@ Comments for function arguments must adhere to this pattern:
 /// * `arg2` - The second argument.
 pub fn compute(...
 ```
+
+## Cargo.lock
+
+We check in `Cargo.lock` to ensure reproducible builds. It must be updated whenever `Cargo.toml` changes. The TLSNotary team typically updates `Cargo.lock` in a separate commit after dependency changes.
+
+If you want to hide `Cargo.lock` changes from your local `git diff`, run:
+
+```sh
+git update-index --assume-unchanged Cargo.lock
+```
+
+To start tracking changes again:
+```sh
+git update-index --no-assume-unchanged Cargo.lock
+```
+
+> ⚠️ Note: This only affects your local view. The file is still tracked in the repository and will be checked and used in CI.
+
