@@ -4,7 +4,7 @@ use serde_json::Value;
 use strum::EnumString;
 use tracing::error;
 
-use crate::{JwtClaim, JwtClaimValueType};
+use crate::JwtClaim;
 
 /// Custom error for JWT handling
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -39,21 +39,17 @@ impl Jwt {
             expected.name
         )))?;
 
-        match expected.value_type {
-            JwtClaimValueType::String => {
-                let field_typed = field.as_str().ok_or(JwtValidationError(format!(
-                    "unexpected type for claim '{}': expected '{:?}'",
-                    expected.name, expected.value_type
-                )))?;
-                if !expected.values.is_empty() {
-                    expected.values.iter().any(|exp| exp == field_typed).then_some(()).ok_or_else(|| {
+        let field_typed = field.as_str().ok_or(JwtValidationError(format!(
+            "unexpected type for claim '{}': only strings are supported for claim values",
+            expected.name,
+        )))?;
+        if !expected.values.is_empty() {
+            expected.values.iter().any(|exp| exp == field_typed).then_some(()).ok_or_else(|| {
                         let expected_values = expected.values.iter().map(|x| format!("'{x}'")).collect::<Vec<String>>().join(", ");
                         JwtValidationError(format!(
                             "unexpected value for claim '{}': expected one of [ {expected_values} ], received '{field_typed}'", expected.name
                         ))
                     })?;
-                }
-            }
         }
 
         Ok(())
@@ -135,7 +131,7 @@ mod test {
             "exp": 12345,
             "sub": "test",
         });
-        assert!(Jwt::validate_claim(&expected, &given).is_ok());
+        Jwt::validate_claim(&expected, &given).unwrap();
     }
 
     #[test]
@@ -143,7 +139,6 @@ mod test {
         let expected = JwtClaim {
             name: "custom.host".to_string(),
             values: vec!["tlsn.com".to_string(), "api.tlsn.com".to_string()],
-            ..Default::default()
         };
         let given = json!({
             "exp": 12345,
@@ -151,7 +146,7 @@ mod test {
                 "host": "api.tlsn.com",
             },
         });
-        assert!(Jwt::validate_claim(&expected, &given).is_ok())
+        Jwt::validate_claim(&expected, &given).unwrap();
     }
 
     #[test]
@@ -161,7 +156,7 @@ mod test {
             "sub": "test",
             "what": "is_this",
         });
-        assert!(Jwt::validate_claims(&[], &given).is_ok())
+        Jwt::validate_claims(&[], &given).unwrap();
     }
 
     #[test]
@@ -185,7 +180,6 @@ mod test {
         let expected = JwtClaim {
             name: "sub".to_string(),
             values: vec!["tlsn_prod".to_string(), "tlsn_test".to_string()],
-            ..Default::default()
         };
         let given = json!({
             "sub": "tlsn",

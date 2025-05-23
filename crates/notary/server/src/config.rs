@@ -183,16 +183,6 @@ pub struct JwtClaim {
     /// Optional set of expected values for the claim
     #[serde(default)]
     pub values: Vec<String>,
-    /// Optional expected type for the claim
-    #[serde(default)]
-    pub value_type: JwtClaimValueType,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
-pub enum JwtClaimValueType {
-    #[default]
-    String,
 }
 
 impl Default for NotaryServerProperties {

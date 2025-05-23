@@ -15,8 +15,7 @@ mod util;
 pub use cli::CliFields;
 pub use config::{
     AuthorizationModeProperties, AuthorizationProperties, JwtAuthorizationProperties, JwtClaim,
-    JwtClaimValueType, LogProperties, NotarizationProperties, NotaryServerProperties,
-    TLSProperties,
+    LogProperties, NotarizationProperties, NotaryServerProperties, TLSProperties,
 };
 pub use error::NotaryServerError;
 pub use server::{read_pem_file, run_server};
