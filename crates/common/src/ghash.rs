@@ -8,9 +8,9 @@ use ghash::{
 };
 
 /// Computes a GHASH tag.
-pub fn ghash(aad: &Vec<u8>, ciphertext: &Vec<u8>, key: &[u8; 16]) -> [u8; 16] {
+pub fn ghash(aad: &[u8], ciphertext: &[u8], key: &[u8; 16]) -> [u8; 16] {
     let mut ghash = GHash::new(key.into());
-    ghash.update_padded(&build_ghash_data(aad.to_vec(), ciphertext.clone()));
+    ghash.update_padded(&build_ghash_data(aad.to_vec(), ciphertext.to_owned()));
     let out = ghash.finalize();
     out.into()
 }

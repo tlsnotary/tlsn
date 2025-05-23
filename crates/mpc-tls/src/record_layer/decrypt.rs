@@ -166,7 +166,7 @@ use aes::{
 };
 
 /// Verifies AES-GCM tags locally.
-pub(crate) fn verify_tags_locally<'record>(
+pub(crate) fn verify_tags_locally(
     key: [u8; 16],
     iv: [u8; 4],
     mac_key: [u8; 16],
@@ -183,7 +183,7 @@ pub(crate) fn verify_tags_locally<'record>(
         let aes = Aes128::new_from_slice(&key).expect("key length is 16 bytes");
         let mut j0 = [0; 16];
         j0[0..4].copy_from_slice(&iv);
-        j0[4..12].copy_from_slice(&explicit_nonce);
+        j0[4..12].copy_from_slice(explicit_nonce);
         j0[12..16].copy_from_slice(&1u32.to_be_bytes());
 
         let mut j0 = j0.into();

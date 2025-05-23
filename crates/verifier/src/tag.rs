@@ -18,7 +18,7 @@ pub(crate) fn verify_tags<'record>(
 
         let aad = make_tls12_aad(rec.seq, rec.typ, rec.version, rec.ciphertext.len());
 
-        let ghash_tag = ghash(&aad.to_vec(), &rec.ciphertext, &mac_key);
+        let ghash_tag = ghash(aad.as_ref(), &rec.ciphertext, &mac_key);
 
         let aes_gcm_tag = match rec.tag.as_ref() {
             Some(tag) => tag,

@@ -132,6 +132,7 @@ impl AesCtr {
     }
 
     /// Finishes the decoding of key and IV, returning them.
+    #[allow(clippy::type_complexity)]
     pub(crate) fn finish_decode(
         &mut self,
     ) -> Result<(Option<[u8; 16]>, Option<[u8; 4]>), MpcTlsError> {

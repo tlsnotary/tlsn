@@ -115,6 +115,12 @@ impl ZkAesEcb {
     }
 }
 
+impl Default for ZkAesEcb {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 enum State {
     Init,
     Ready {

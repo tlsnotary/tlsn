@@ -189,7 +189,7 @@ impl RecordLayer {
             recv_records: Vec::new(),
         };
 
-        Ok(decrypt.ghash_key().map_err(MpcTlsError::record_layer)?)
+        decrypt.ghash_key().map_err(MpcTlsError::record_layer)
     }
 
     pub(crate) async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), MpcTlsError> {
