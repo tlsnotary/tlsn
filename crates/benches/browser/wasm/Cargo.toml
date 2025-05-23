@@ -28,7 +28,3 @@ web-time = { workspace = true }
 ws_stream_wasm = { version = "0.7.4", git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51", features = [
     "tokio_io",
 ] }
-
-[profile.release]
-# Note: these wasm-pack options should match those in crates/wasm/Cargo.toml
-opt-level = "z"
