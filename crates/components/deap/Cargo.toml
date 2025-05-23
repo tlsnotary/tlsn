@@ -17,8 +17,6 @@ serio = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
-tlsn-common = { workspace = true }
-
 
 [dev-dependencies]
 mpz-circuits = { workspace = true }
