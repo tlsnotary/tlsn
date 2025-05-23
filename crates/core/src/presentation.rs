@@ -84,7 +84,13 @@ impl Presentation {
             .transpose()?;
 
         let transcript = transcript
-            .map(|transcript| transcript.verify_with_provider(provider, &attestation.body))
+            .map(|transcript| {
+                transcript.verify_with_provider(
+                    provider,
+                    &attestation.body.connection_info().transcript_length,
+                    attestation.body.transcript_commitments(),
+                )
+            })
             .transpose()?;
 
         let connection_info = attestation.body.connection_info().clone();

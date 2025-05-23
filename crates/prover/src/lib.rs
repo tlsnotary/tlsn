@@ -7,40 +7,44 @@
 mod config;
 mod error;
 mod future;
-mod notarize;
-mod prove;
 pub mod state;
 
 pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 pub use future::ProverFuture;
+pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
+
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use state::{Notarize, Prove};
+use mpz_vm_core::prelude::*;
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
-use serio::SinkExt;
+use serio::{stream::IoStreamExt, SinkExt};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, TlsConnection};
 use tls_core::msgs::enums::ContentType;
 use tlsn_common::{
-    commit::commit_records,
+    commit::{commit_records, hash::prove_hash},
     context::build_mt_context,
+    encoding,
     mux::attach_mux,
-    transcript::{Record, TlsTranscript},
+    transcript::{decode_transcript, Record, TlsTranscript},
     zk_aes::ZkAesCtr,
     Role,
 };
 use tlsn_core::{
+    attestation::Attestation,
     connection::{
         ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerCertData, ServerSignature,
         TranscriptLength,
     },
-    transcript::Transcript,
+    request::{Request, RequestConfig},
+    transcript::{Direction, Transcript, TranscriptCommitment, TranscriptSecret},
+    ProvePayload, Secrets,
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
@@ -62,7 +66,7 @@ pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
 
 /// A prover instance.
 #[derive(Debug)]
-pub struct Prover<T: state::ProverState> {
+pub struct Prover<T: state::ProverState = state::Initialized> {
     config: ProverConfig,
     span: Span,
     state: T,
@@ -131,7 +135,6 @@ impl Prover<state::Initialized> {
             state: state::Setup {
                 mux_ctrl,
                 mux_fut,
-                mt,
                 mpc_tls,
                 zk_aes,
                 keys,
@@ -158,11 +161,11 @@ impl Prover<state::Setup> {
         let state::Setup {
             mux_ctrl,
             mut mux_fut,
-            mt,
             mpc_tls,
             mut zk_aes,
             keys,
             vm,
+            ..
         } = self.state;
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
@@ -292,10 +295,9 @@ impl Prover<state::Setup> {
                 Ok(Prover {
                     config: self.config,
                     span: self.span,
-                    state: state::Closed {
+                    state: state::Committed {
                         mux_ctrl,
                         mux_fut,
-                        mt,
                         ctx,
                         _keys: keys,
                         vm,
@@ -319,35 +321,223 @@ impl Prover<state::Setup> {
     }
 }
 
-impl Prover<state::Closed> {
+impl Prover<state::Committed> {
+    /// Returns the connection information.
+    pub fn connection_info(&self) -> &ConnectionInfo {
+        &self.state.connection_info
+    }
+
     /// Returns the transcript.
     pub fn transcript(&self) -> &Transcript {
         &self.state.transcript
     }
 
-    /// Starts notarization of the TLS session.
+    /// Proves information to the verifier.
     ///
-    /// Used when the TLS verifier is a Notary to transition the prover to the
-    /// next state where it can generate commitments to the transcript prior
-    /// to finalization.
-    pub fn start_notarize(self) -> Prover<Notarize> {
-        Prover {
-            config: self.config,
-            span: self.span,
-            state: self.state.into(),
+    /// # Arguments
+    ///
+    /// * `config` - The disclosure configuration.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn prove(&mut self, config: &ProveConfig) -> Result<ProverOutput, ProverError> {
+        let state::Committed {
+            mux_fut,
+            ctx,
+            vm,
+            server_cert_data,
+            transcript_refs,
+            ..
+        } = &mut self.state;
+
+        let mut output = ProverOutput {
+            transcript_commitments: Vec::new(),
+            transcript_secrets: Vec::new(),
+        };
+
+        let payload = ProvePayload {
+            server_identity: config
+                .server_identity()
+                .then(|| (self.config.server_name().clone(), server_cert_data.clone())),
+            transcript: config.transcript().cloned(),
+            transcript_commit: config.transcript_commit().map(|config| config.to_request()),
+        };
+
+        // Send payload.
+        mux_fut
+            .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
+            .await?;
+
+        if let Some(partial_transcript) = config.transcript() {
+            decode_transcript(
+                vm,
+                partial_transcript.sent_authed(),
+                partial_transcript.received_authed(),
+                transcript_refs,
+            )
+            .map_err(ProverError::zk)?;
         }
+
+        let mut hash_commitments = None;
+        if let Some(commit_config) = config.transcript_commit() {
+            if commit_config.has_encoding() {
+                let hasher = self
+                    .config
+                    .crypto_provider()
+                    .hash
+                    .get(commit_config.encoding_hash_alg())
+                    .map_err(ProverError::config)?;
+
+                let (commitment, tree) = mux_fut
+                    .poll_with(
+                        encoding::receive(
+                            ctx,
+                            hasher,
+                            transcript_refs,
+                            |plaintext| vm.get_macs(plaintext).expect("reference is valid"),
+                            commit_config.iter_encoding(),
+                        )
+                        .map_err(ProverError::commit),
+                    )
+                    .await?;
+
+                output
+                    .transcript_commitments
+                    .push(TranscriptCommitment::Encoding(commitment));
+                output
+                    .transcript_secrets
+                    .push(TranscriptSecret::Encoding(tree));
+            }
+
+            if commit_config.has_hash() {
+                hash_commitments = Some(
+                    prove_hash(
+                        vm,
+                        transcript_refs,
+                        commit_config
+                            .iter_hash()
+                            .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg)),
+                    )
+                    .map_err(ProverError::commit)?,
+                );
+            }
+        }
+
+        mux_fut
+            .poll_with(vm.execute_all(ctx).map_err(ProverError::zk))
+            .await?;
+
+        if let Some((hash_fut, hash_secrets)) = hash_commitments {
+            let hash_commitments = hash_fut.try_recv().map_err(ProverError::commit)?;
+            for (commitment, secret) in hash_commitments.into_iter().zip(hash_secrets) {
+                output
+                    .transcript_commitments
+                    .push(TranscriptCommitment::Hash(commitment));
+                output
+                    .transcript_secrets
+                    .push(TranscriptSecret::Hash(secret));
+            }
+        }
+
+        Ok(output)
     }
 
-    /// Starts proving the TLS session.
+    /// Requests an attestation from the verifier.
     ///
-    /// This function transitions the prover into a state where it can prove
-    /// content of the transcript.
-    pub fn start_prove(self) -> Prover<Prove> {
-        Prover {
-            config: self.config,
-            span: self.span,
-            state: self.state.into(),
+    /// # Arguments
+    ///
+    /// * `config` - The attestation request configuration.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    #[deprecated(
+        note = "attestation functionality will be removed from this API in future releases."
+    )]
+    pub async fn notarize(
+        &mut self,
+        config: &RequestConfig,
+    ) -> Result<(Attestation, Secrets), ProverError> {
+        let mut builder = ProveConfig::builder(self.transcript());
+
+        if let Some(config) = config.transcript_commit() {
+            // Temporarily, we reject attestation requests which contain hash commitments to
+            // subsets of the transcript. We do this because we want to preserve the
+            // obliviousness of the reference notary, and hash commitments currently leak
+            // the ranges which are being committed.
+            for ((direction, idx), _) in config.iter_hash() {
+                let len = match direction {
+                    Direction::Sent => self.transcript().sent().len(),
+                    Direction::Received => self.transcript().received().len(),
+                };
+
+                if idx.start() > 0 || idx.end() < len || idx.count() != 1 {
+                    return Err(ProverError::attestation(
+                        "hash commitments to subsets of the transcript are currently not supported in attestation requests",
+                    ));
+                }
+            }
+
+            builder.transcript_commit(config.clone());
         }
+
+        let disclosure_config = builder.build().map_err(ProverError::attestation)?;
+
+        let ProverOutput {
+            transcript_commitments,
+            transcript_secrets,
+            ..
+        } = self.prove(&disclosure_config).await?;
+
+        let state::Committed {
+            mux_fut,
+            ctx,
+            server_cert_data,
+            transcript,
+            ..
+        } = &mut self.state;
+
+        let mut builder = Request::builder(config);
+
+        builder
+            .server_name(self.config.server_name().clone())
+            .server_cert_data(server_cert_data.clone())
+            .transcript(transcript.clone())
+            .transcript_commitments(transcript_secrets, transcript_commitments);
+
+        let (request, secrets) = builder
+            .build(self.config.crypto_provider())
+            .map_err(ProverError::attestation)?;
+
+        let attestation = mux_fut
+            .poll_with(async {
+                debug!("sending attestation request");
+
+                ctx.io_mut().send(request.clone()).await?;
+
+                let attestation: Attestation = ctx.io_mut().expect_next().await?;
+
+                Ok::<_, ProverError>(attestation)
+            })
+            .await?;
+
+        // Check the attestation is consistent with the Prover's view.
+        request
+            .validate(&attestation)
+            .map_err(ProverError::attestation)?;
+
+        Ok((attestation, secrets))
+    }
+
+    /// Closes the connection with the verifier.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn close(self) -> Result<(), ProverError> {
+        let state::Committed {
+            mux_ctrl, mux_fut, ..
+        } = self.state;
+
+        // Wait for the verifier to correctly close the connection.
+        if !mux_fut.is_complete() {
+            mux_ctrl.close();
+            mux_fut.await?;
+        }
+
+        Ok(())
     }
 }
 

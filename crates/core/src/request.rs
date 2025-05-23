@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     attestation::{Attestation, Extension},
     connection::ServerCertCommitment,
-    hash::{HashAlgId, TypedHash},
+    hash::HashAlgId,
     signing::SignatureAlgId,
 };
 
@@ -34,7 +34,6 @@ pub struct Request {
     pub(crate) signature_alg: SignatureAlgId,
     pub(crate) hash_alg: HashAlgId,
     pub(crate) server_cert_commitment: ServerCertCommitment,
-    pub(crate) encoding_commitment_root: Option<TypedHash>,
     pub(crate) extensions: Vec<Extension>,
 }
 
@@ -66,20 +65,6 @@ impl Request {
             ));
         }
 
-        if let Some(encoding_commitment_root) = &self.encoding_commitment_root {
-            let Some(encoding_commitment) = attestation.body.encoding_commitment() else {
-                return Err(InconsistentAttestation(
-                    "encoding commitment is missing".to_string(),
-                ));
-            };
-
-            if &encoding_commitment.root != encoding_commitment_root {
-                return Err(InconsistentAttestation(
-                    "encoding commitment root does not match".to_string(),
-                ));
-            }
-        }
-
         // TODO: improve the O(M*N) complexity of this check.
         for extension in &self.extensions {
             if !attestation.body.extensions().any(|e| e == extension) {
@@ -102,15 +87,13 @@ pub struct InconsistentAttestation(String);
 mod test {
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
-    use super::*;
-
     use crate::{
         connection::{ServerCertOpening, TranscriptLength},
         fixtures::{
-            attestation_fixture, encoder_secret, encoding_provider, request_fixture,
-            ConnectionFixture, RequestFixture,
+            attestation_fixture, encoding_provider, request_fixture, ConnectionFixture,
+            RequestFixture,
         },
-        hash::{Blake3, Hash, HashAlgId},
+        hash::{Blake3, HashAlgId},
         signing::SignatureAlgId,
         transcript::Transcript,
         CryptoProvider,
@@ -129,12 +112,8 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
-            request.clone(),
-            connection,
-            SignatureAlgId::SECP256K1,
-            encoder_secret(),
-        );
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
 
         assert!(request.validate(&attestation).is_ok())
     }
@@ -152,12 +131,8 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
-            request.clone(),
-            connection,
-            SignatureAlgId::SECP256K1,
-            encoder_secret(),
-        );
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
 
         request.signature_alg = SignatureAlgId::SECP256R1;
 
@@ -178,12 +153,8 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
-            request.clone(),
-            connection,
-            SignatureAlgId::SECP256K1,
-            encoder_secret(),
-        );
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
 
         request.hash_alg = HashAlgId::SHA256;
 
@@ -204,12 +175,8 @@ mod test {
             Vec::new(),
         );
 
-        let attestation = attestation_fixture(
-            request.clone(),
-            connection,
-            SignatureAlgId::SECP256K1,
-            encoder_secret(),
-        );
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
 
         let ConnectionFixture {
             server_cert_data, ..
@@ -222,35 +189,6 @@ mod test {
         let crypto_provider = CryptoProvider::default();
         request.server_cert_commitment =
             opening.commit(crypto_provider.hash.get(&HashAlgId::BLAKE3).unwrap());
-
-        let res = request.validate(&attestation);
-        assert!(res.is_err())
-    }
-
-    #[test]
-    fn test_wrong_encoding_commitment_root() {
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let connection = ConnectionFixture::tlsnotary(transcript.length());
-
-        let RequestFixture { mut request, .. } = request_fixture(
-            transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection.clone(),
-            Blake3::default(),
-            Vec::new(),
-        );
-
-        let attestation = attestation_fixture(
-            request.clone(),
-            connection,
-            SignatureAlgId::SECP256K1,
-            encoder_secret(),
-        );
-
-        request.encoding_commitment_root = Some(TypedHash {
-            alg: HashAlgId::BLAKE3,
-            value: Hash::default(),
-        });
 
         let res = request.validate(&attestation);
         assert!(res.is_err())
