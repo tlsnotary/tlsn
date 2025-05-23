@@ -234,17 +234,11 @@ impl Verifier<state::Setup> {
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
 
-            let mut translated_keys = keys.clone();
-            translate_keys(&mut translated_keys, &vm)?;
-
             // Prepare for the prover to prove j0s of the unauthenticated
             // records.
             let j0_proof = commit_j0(
                 &mut (*vm.zk()),
-                (
-                    translated_keys.server_write_key,
-                    translated_keys.server_write_iv,
-                ),
+                (keys.server_write_key, keys.server_write_iv),
                 unauthenticated_transcript.recv.iter(),
             )
             .map_err(VerifierError::zk)?;
@@ -277,7 +271,7 @@ impl Verifier<state::Setup> {
             debug!("mpc finalized");
 
             // Verify the AES-GCM tags.
-            // After the verification the entire TLS trancript is becomes
+            // After the verification, the entire TLS trancript becomes
             // authenticated from the verifier's perspective.
             let server_mac_key = vm
                 .decode(keys.server_write_mac_key)
@@ -435,6 +429,9 @@ fn translate_keys<Mpc, Zk>(
         .map_err(VerifierError::mpc)?;
     keys.server_write_iv = vm
         .translate(keys.server_write_iv)
+        .map_err(VerifierError::mpc)?;
+    keys.server_write_mac_key = vm
+        .translate(keys.server_write_mac_key)
         .map_err(VerifierError::mpc)?;
 
     Ok(())

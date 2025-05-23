@@ -213,17 +213,11 @@ impl Prover<state::Setup> {
                 {
                     let mut vm = vm.try_lock().expect("VM should not be locked");
 
-                    let mut translated_keys = data.keys.clone();
-                    translate_keys(&mut translated_keys, &vm)?;
-
                     // Prove j0 blocks of unauthenticated records.
                     // The prover drops the proof output.
                     let _ = commit_j0(
                         &mut (*vm.zk()),
-                        (
-                            translated_keys.server_write_key,
-                            translated_keys.server_write_iv,
-                        ),
+                        (data.keys.server_write_key, data.keys.server_write_iv),
                         data.unauthenticated_transcript.recv.iter(),
                     )
                     .map_err(ProverError::zk)?;
@@ -460,6 +454,9 @@ fn translate_keys<Mpc, Zk>(keys: &mut SessionKeys, vm: &Deap<Mpc, Zk>) -> Result
         .map_err(ProverError::mpc)?;
     keys.server_write_iv = vm
         .translate(keys.server_write_iv)
+        .map_err(ProverError::mpc)?;
+    keys.server_write_mac_key = vm
+        .translate(keys.server_write_mac_key)
         .map_err(ProverError::mpc)?;
 
     Ok(())
