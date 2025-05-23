@@ -14,12 +14,11 @@ workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[package.metadata.wasm-pack.profile.debug]
+[profile.dev]
 debug = false
 
-[package.metadata.wasm-pack.profile.release]
+[profile.release]
 opt-level = "z"
-wasm-opt = true
 
 [features]
 default = []
