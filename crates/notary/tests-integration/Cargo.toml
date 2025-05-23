@@ -26,6 +26,7 @@ hyper-tls = { version = "0.6", features = [
     "vendored",
 ] } # specify vendored feature to use statically linked copy of OpenSSL
 hyper-util = { workspace = true, features = ["full"] }
+jsonwebtoken = { version = "9.3.1", features = ["use_pem"] }
 rstest = { workspace = true }
 rustls = { workspace = true }
 rustls-pemfile = { workspace = true }

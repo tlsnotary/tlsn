@@ -7,6 +7,7 @@ use http_body_util::{BodyExt as _, Either, Empty, Full};
 use hyper::{
     body::{Bytes, Incoming},
     client::conn::http1::Parts,
+    header::AUTHORIZATION,
     Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
@@ -137,6 +138,10 @@ pub struct NotaryClient {
     /// in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
+    /// JWT token used to call notary server endpoints if JWT authorization is
+    /// enabled in notary server.
+    #[builder(setter(into, strip_option), default)]
+    jwt: Option<String>,
     /// The duration of notarization request timeout in seconds.
     #[builder(default = "60")]
     request_timeout: usize,
@@ -289,6 +294,11 @@ impl NotaryClient {
             if let Some(api_key) = &self.api_key {
                 configuration_request_builder =
                     configuration_request_builder.header(X_API_KEY_HEADER, api_key);
+            }
+
+            if let Some(jwt) = &self.jwt {
+                configuration_request_builder =
+                    configuration_request_builder.header(AUTHORIZATION, format!("Bearer {jwt}"));
             }
 
             let configuration_request = configuration_request_builder

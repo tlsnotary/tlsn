@@ -43,4 +43,4 @@ log:
 
 auth:
   enabled: false
-  whitelist_path: "../auth/whitelist.csv"
+  whitelist: "../auth/whitelist.csv"

@@ -15,6 +15,7 @@ paths:
       security:
         - {} # make security optional
         - ApiKeyAuth: []
+        - BearerAuth: []
       responses:
         '200':
           description: Ok response from server
@@ -38,6 +39,7 @@ paths:
       security:
         - {} # make security optional
         - ApiKeyAuth: []
+        - BearerAuth: []
       responses:
         '200':
           description: Info response from server
@@ -60,6 +62,7 @@ paths:
       security:
         - {} # make security optional
         - ApiKeyAuth: []
+        - BearerAuth: []
       parameters:
       - in: header
         name: Content-Type
@@ -212,4 +215,9 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
-      description: Whitelisted API key if auth module is turned on
+      description: Whitelisted API key if auth module is turned on and in whitelist mode
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JSON Web Token if auth module is turned on and in JWT mode
