@@ -5,7 +5,7 @@ use futures::{stream::FuturesOrdered, StreamExt};
 use mpz_common::{Context, Task};
 use mpz_core::commit::{Decommitment, HashCommit};
 use serio::{stream::IoStreamExt, SinkExt};
-use tls_core::ghash::build_ghash_data;
+use tlsn_common::ghash::build_ghash_data;
 
 use crate::{
     decode::OneTimePadShared,

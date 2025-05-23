@@ -7,7 +7,6 @@ pub mod anchors;
 pub mod cert;
 pub mod cipher;
 pub mod dns;
-pub mod ghash;
 pub mod handshake;
 pub mod ke;
 #[cfg(feature = "prf")]

@@ -23,6 +23,7 @@ mpz-zk = { workspace = true }
 async-trait = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
+ghash = { workspace = true }
 once_cell = { workspace = true }
 opaque-debug = { workspace = true }
 rangeset = { workspace = true }

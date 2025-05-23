@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use futures::{stream::FuturesOrdered, StreamExt as _};
 use mpz_common::{Context, Task};
 use serio::{stream::IoStreamExt, SinkExt};
-use tls_core::ghash::build_ghash_data;
+use tlsn_common::ghash::build_ghash_data;
 
 use crate::{
     decode::OneTimePadShared,

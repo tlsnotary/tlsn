@@ -1,3 +1,7 @@
+//! GHASH methods.
+
+// This module belongs in tls/core. It was moved out here temporarily.
+
 use ghash::{
     universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
     GHash,

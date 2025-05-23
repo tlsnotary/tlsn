@@ -2,10 +2,8 @@ use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
 use mpz_vm_core::{prelude::*, Vm};
 use serde::{Deserialize, Serialize};
-use tls_core::{
-    ghash::ghash,
-    msgs::enums::{ContentType, ProtocolVersion},
-};
+use tls_core::msgs::enums::{ContentType, ProtocolVersion};
+use tlsn_common::ghash::ghash;
 
 use crate::{
     record_layer::{

@@ -1,7 +1,7 @@
 //! TLS 1.2 record AES-GCM tag verification.
 
-use tls_core::{cipher::make_tls12_aad, ghash::ghash};
-use tlsn_common::{tag::J0Proof, transcript::Record};
+use tls_core::cipher::make_tls12_aad;
+use tlsn_common::{ghash::ghash, tag::J0Proof, transcript::Record};
 
 use crate::VerifierError;
 
