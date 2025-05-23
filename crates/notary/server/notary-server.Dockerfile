@@ -3,7 +3,7 @@ FROM rust:latest AS builder
 RUN apt-get update && apt-get install -y clang libclang-dev
 WORKDIR /usr/src/tlsn
 COPY . .
-RUN cargo install --path crates/notary/server
+RUN cargo install --locked --path crates/notary/server
 
 FROM ubuntu:latest
 WORKDIR /root/.notary
