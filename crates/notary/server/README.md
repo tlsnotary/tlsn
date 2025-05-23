@@ -118,13 +118,13 @@ docker run --init -p 127.0.0.1:7070:7070 -e NS_PORT=7070 notary-server:local
 ```
 2. Override the notarization private key path, and map a local private key into the container.
 ```bash
-docker run --init -p 127.0.0.1:7047:7047 -e NS_NOTARIZATION__PRIVATE_KEY_PATH="/root/.notary-server/notary.key" -v <your private key>:/root/.notary-server/notary.key notary-server:local
+docker run --init -p 127.0.0.1:7047:7047 -e NS_NOTARIZATION__PRIVATE_KEY_PATH="/root/.notary/notary.key" -v <your private key>:/root/.notary/notary.key notary-server:local
 ```
 3. Override with a configuration file.
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your config.yaml>:/root/.notary/config.yaml notary-server:local --config /root/.notary/config.yaml
 ```
-⚠️ The default `workdir` of the container is `/root/.notary-server`.
+⚠️ The default `workdir` of the container is `/root/.notary`.
 
 ---
 ## API
