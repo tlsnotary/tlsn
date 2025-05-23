@@ -11,9 +11,9 @@ This crate is currently under active development and should not be used in produ
 - When running this server in a *production environment*, please first read this [page](https://docs.tlsnotary.org/developers/notary_server.html).
 
 ### Using Cargo
-Start the server at the root of this crate.
+Start the server with:
 ```bash
-cargo run --release
+cargo run --release --bin notary-server
 ```
 
 ### Using Docker
@@ -98,19 +98,18 @@ auth:
 The default setting can be overriden with either (1) environment variables, or (2) a configuration file (yaml).
 
 #### Environment Variables
-This will override each corresponding default value. It uses the prefix `NS_` followed by the configuration key(s) in uppercase. Double underscores are used for nested configuration keys, e.g. `tls.enabled` will be `NS_TLS__ENABLED`.
+Default values can be overriden by setting environment variables. The variables have a `NS_`-prefix followed by the configuration key in uppercase. Double underscores are used for nested configuration keys, e.g. `tls.enabled` will be `NS_TLS__ENABLED`.
 
 Example:
 ```bash
-NS_PORT=8080 NS_NOTARIZATION__MAX_SENT_DATA=2048 cargo run --release
+NS_PORT=8080 NS_NOTARIZATION__MAX_SENT_DATA=2048 cargo run --release --bin notary-server
 ```
 
 #### Configuration File
-This will override all the default values, hence it needs to **contain all compulsory** configuration keys and values (refer to the [default yaml](#default)). This will take precedence over environment variables.
+This will override all the default values, hence it needs to **contain all compulsory** configuration keys and values (refer to the [default yaml](#default)). The config file has precedence over environment variables.
 ```bash
-cargo run --release -- --config <path to your config.yaml>
+cargo run --release --bin notary-server -- --config <path to your config.yaml>
 ```
-⚠️ All file paths defined in the config file should be relative to the config file itself.
 
 ### When using Docker
 1. Override the port.
@@ -158,7 +157,7 @@ After calling the configuration endpoint above, the prover can proceed to start 
 ### Signing
 To sign the notarized transcript, the notary server requires a signing key. If this signing key (`notarization.private_key_path` in the config) is not provided by the user, then **by default, a random, ephemeral** signing key will be generated at runtime. 
 
-This ephemeral key, along with its public key, are not saved anywhere by default. They will disappear once the server stops. This makes them only suitable for testing, unless relevant public key infrastructure is used.
+This ephemeral key, along with its public key, are not persisted. The keys disappear once the server stops. This makes the keys only suitable for testing.
 
 ### TLS
 TLS needs to be turned on between the prover and the notary for security purposes. It can be turned off though, if any of the following is true.
@@ -171,9 +170,7 @@ The toggle to turn on TLS, as well as paths to the TLS private key and certifica
 ### Authorization
 An optional authorization module is available to only allow requests with a valid API key attached in the custom HTTP header `X-API-Key`. The API key whitelist path, as well as the flag to enable/disable this module, can be changed in the config (`authorization` field).
 
-Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following.
-- Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads.
-- Once the edit is saved, ensure that it has been reloaded successfully by checking the server log.
+Hot reloading of the whitelist is supported, i.e. changes to the whitelist file are automatically applied without needing to restart the server.
 
 ### Logging
 The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic.
