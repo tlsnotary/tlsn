@@ -12,7 +12,7 @@ use futures::TryFutureExt;
 use mpz_common::{Context, Task};
 use mpz_memory_core::{
     binary::{Binary, U8},
-    Array,
+    Array, MemoryExt,
 };
 use mpz_vm_core::Vm as VmTrait;
 use rand::RngCore;
@@ -59,7 +59,7 @@ enum State {
         sent_records: Vec<Record>,
         recv_records: Vec<Record>,
     },
-    Complete,
+    Complete {},
     Error,
 }
 
@@ -124,7 +124,8 @@ impl RecordLayer {
         }
     }
 
-    /// Allocates resources for the record layer.
+    /// Allocates resources for the record layer, returning a reference
+    /// to the server write MAC key.
     ///
     /// # Arguments
     ///
@@ -143,7 +144,7 @@ impl RecordLayer {
         sent_len: usize,
         recv_len_online: usize,
         recv_len: usize,
-    ) -> Result<(), MpcTlsError> {
+    ) -> Result<Array<U8, 16>, MpcTlsError> {
         let State::Init = self.state.take() else {
             return Err(MpcTlsError::other("record layer is already allocated"));
         };
@@ -188,7 +189,7 @@ impl RecordLayer {
             recv_records: Vec::new(),
         };
 
-        Ok(())
+        decrypt.ghash_key().map_err(MpcTlsError::record_layer)
     }
 
     pub(crate) async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), MpcTlsError> {
@@ -475,12 +476,14 @@ impl RecordLayer {
 
         for (op, pending) in encrypt_ops.into_iter().zip(pending_encrypt) {
             let ciphertext = pending.output.try_encrypt()?;
+            let tag = tags.as_mut().and_then(Vec::pop);
+
             self.encrypted_buffer.push_back(EncryptedRecord {
                 typ: op.typ,
                 version: op.version,
                 explicit_nonce: op.explicit_nonce.clone(),
                 ciphertext: ciphertext.clone(),
-                tag: tags.as_mut().and_then(Vec::pop),
+                tag: tag.clone(),
             });
 
             sent_records.push(Record {
@@ -490,6 +493,8 @@ impl RecordLayer {
                 plaintext_ref: pending.plaintext_ref,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext,
+                tag,
+                version: op.version,
             });
         }
 
@@ -508,20 +513,24 @@ impl RecordLayer {
                 plaintext_ref: None,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
+                tag: Some(op.tag),
+                version: op.version,
             });
         }
 
         Ok(())
     }
 
+    /// Commits to the record layer, returning an authenticated transcript and
+    /// one which is unauthenticated from the follower perspective.
     pub(crate) async fn commit(
         &mut self,
         ctx: &mut Context,
         vm: Vm,
-    ) -> Result<TlsTranscript, MpcTlsError> {
+    ) -> Result<(TlsTranscript, TlsTranscript), MpcTlsError> {
         let State::Online {
             sent_records,
-            mut recv_records,
+            recv_records,
             ..
         } = self.state.take()
         else {
@@ -547,22 +556,10 @@ impl RecordLayer {
 
         let buffered_ops = take(&mut self.decrypt_buffer);
 
-        // Verify tags of buffered ciphertexts.
-        let verify_tags = decrypt::verify_tags(&mut (*vm), &mut decrypter, &buffered_ops)?;
-
-        vm.execute_all(ctx)
-            .await
-            .map_err(MpcTlsError::record_layer)?;
-
-        verify_tags
-            .run(ctx)
-            .await
-            .map_err(MpcTlsError::record_layer)?;
-
-        // Reveal decrypt key to the leader.
+        // Reveal decryption key to the leader.
         self.aes_ctr.decode_key(&mut (*vm))?;
         vm.flush(ctx).await.map_err(MpcTlsError::record_layer)?;
-        self.aes_ctr.finish_decode()?;
+        let (key, iv) = self.aes_ctr.finish_decode()?;
 
         let pending_decrypts = decrypt::decrypt_local(
             self.role,
@@ -572,9 +569,36 @@ impl RecordLayer {
             &buffered_ops,
         )?;
 
+        // Reveal server write MAC key to both parties.
+        let server_mac_key = &mut decrypter
+            .ghash_key()
+            .map_err(|_| MpcTlsError::record_layer("decrypt lock is held"))?;
+
+        let mut server_mac_key = vm
+            .decode(*server_mac_key)
+            .map_err(MpcTlsError::record_layer)?;
+
         vm.execute_all(ctx)
             .await
             .map_err(MpcTlsError::record_layer)?;
+
+        let server_mac_key = server_mac_key
+            .try_recv()
+            .map_err(MpcTlsError::record_layer)?
+            .expect("server mac key should be decoded");
+
+        if self.role == Role::Leader {
+            // The leader locally verifies the tags of buffered ciphertexts.
+            decrypt::verify_tags_locally(
+                key.expect("leader knows the key"),
+                iv.expect("leader knows the iv"),
+                server_mac_key,
+                &buffered_ops,
+            )?;
+        }
+
+        // Records which are unauthenticated from the follower's perspective.
+        let mut recv_unauthenticated = Vec::with_capacity(buffered_ops.len());
 
         for (op, pending) in buffered_ops.into_iter().zip(pending_decrypts) {
             let plaintext = pending.output.try_decrypt()?;
@@ -584,22 +608,30 @@ impl RecordLayer {
                 plaintext: plaintext.clone(),
             });
 
-            recv_records.push(Record {
+            recv_unauthenticated.push(Record {
                 seq: op.seq,
                 typ: op.typ,
                 plaintext,
                 plaintext_ref: None,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
+                tag: Some(op.tag),
+                version: op.version,
             });
         }
 
-        self.state = State::Complete;
+        self.state = State::Complete {};
 
-        Ok(TlsTranscript {
-            sent: sent_records,
-            recv: recv_records,
-        })
+        Ok((
+            TlsTranscript {
+                sent: sent_records,
+                recv: recv_records,
+            },
+            TlsTranscript {
+                sent: Vec::default(),
+                recv: recv_unauthenticated,
+            },
+        ))
     }
 
     fn next_write(
