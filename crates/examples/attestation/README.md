@@ -17,8 +17,7 @@ Before starting the notarization, set up the local test server and local notary.
     ```
 2. Run the notary server:
     ```shell
-    cd crates/notary/server
-    cargo run -r -- --tls-enabled false
+    cargo run --release --bin notary-server
     ```
 3. Run the prove example:
     ```shell
