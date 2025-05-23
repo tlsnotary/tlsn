@@ -29,7 +29,7 @@ use zeroize::Zeroize;
 
 use crate::{
     auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode},
-    config::{AuthorizationModeProperties, NotarizationProperties, NotaryServerProperties},
+    config::{NotarizationProperties, NotaryServerProperties},
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
@@ -93,14 +93,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let watcher = authorization_mode
         .as_ref()
         .and_then(AuthorizationMode::as_whitelist)
-        .zip(
-            config
-                .auth
-                .mode
-                .as_ref()
-                .and_then(AuthorizationModeProperties::as_whitelist),
-        )
-        .map(|(whitelist, path)| watch_and_reload_authorization_whitelist(whitelist, path))
+        .map(watch_and_reload_authorization_whitelist)
         .transpose()?;
     if watcher.is_some() {
         debug!("Successfully setup watcher for hot reload of authorization whitelist!");

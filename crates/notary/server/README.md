@@ -213,7 +213,7 @@ An optional authorization module is available to only allow requests with a vali
 Please note that only *one* mode can be active at any one time.
 
 ##### Whitelist mode
-In whitelist mode, an API key is attached in the custom HTTP header `X-API-Key`. The API key whitelist path (as well as the flag to enable/disable this module) can be changed in the config (`authorization` field).
+In whitelist mode, a valid API key needs to be attached in the custom HTTP header `X-API-Key`. The path of the API key whitelist, path (as well as the flag to enable/disable this module), can be changed in the config (`authorization` field).
 
 Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following
 - Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads
@@ -222,6 +222,10 @@ Hot reloading of the whitelist is supported, i.e. modification of the whitelist 
 ##### JWT mode
 In JWT mode, JSON Web Token is attached in the standard `Authorization` HTTP header as a bearer token. The path to decoding key as well as custom user claims can be changed in the 
 config (`authorization` field).
+
+Care should be taken when defining custom user claims as the middleware will:
+- accept any claim if no custom claim is defined,
+- as long as user defined claims are found, other unknown claims will be ignored.
 
 An example JWT config may look something like this:
 

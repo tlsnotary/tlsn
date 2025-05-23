@@ -25,7 +25,7 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let notary_globals = NotaryGlobals::from_ref(state);
         let Some(mode) = notary_globals.authorization_mode else {
-            trace!("Skipping authorization as not enabled.");
+            trace!("Skipping authorization as it's not enabled.");
             return Ok(Self);
         };
 
@@ -36,14 +36,14 @@ where
                     .get(X_API_KEY_HEADER)
                     .and_then(|value| std::str::from_utf8(value.as_bytes()).ok())
                 else {
-                    return Err(missing_api_key());
+                    return Err(unauthorized("Missing API key"));
                 };
-                let whitelist = whitelist.lock().unwrap();
-                if api_key_is_valid(auth_header, &whitelist) {
+                let entries = whitelist.entries.lock().unwrap();
+                if api_key_is_valid(auth_header, &entries) {
                     trace!("Request authorized.");
                     Ok(Self)
                 } else {
-                    Err(invalid_api_key())
+                    Err(unauthorized("Invalid API key"))
                 }
             }
             AuthorizationMode::Jwt(jwt_config) => {
@@ -52,19 +52,16 @@ where
                     .get(header::AUTHORIZATION)
                     .and_then(|value| std::str::from_utf8(value.as_bytes()).ok())
                 else {
-                    return Err(missing_api_key());
+                    return Err(unauthorized("Missing JWT token"));
                 };
-                let raw_token = auth_header
-                    .strip_prefix("Bearer ")
-                    .ok_or_else(invalid_api_key)?;
-                let mut validation = Validation::new(jwt_config.algorithm);
-                validation.validate_exp = true;
+                let raw_token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+                    unauthorized("Invalid Authorization header: expected 'Bearer <token>'")
+                })?;
+                let validation = Validation::new(jwt_config.algorithm.into());
                 let TokenData { claims, .. } =
-                    decode::<Value>(raw_token, &jwt_config.key, &validation).map_err(|err| {
-                        error!("{err:#?}");
-                        invalid_api_key()
-                    })?;
-                jwt_config.validate(claims)?;
+                    decode::<Value>(raw_token, &jwt_config.key, &validation)
+                        .map_err(|err| unauthorized(format!("Invalid JWT token: {err:#?}")))?;
+                jwt_config.validate(&claims)?;
                 trace!("Request authorized.");
                 Ok(Self)
             }
@@ -72,14 +69,8 @@ where
     }
 }
 
-fn missing_api_key() -> NotaryServerError {
-    let err_msg = "Missing API key.".to_string();
-    error!(err_msg);
-    NotaryServerError::UnauthorizedProverRequest(err_msg)
-}
-
-fn invalid_api_key() -> NotaryServerError {
-    let err_msg = "Invalid API key.".to_string();
+fn unauthorized(err_msg: impl ToString) -> NotaryServerError {
+    let err_msg = err_msg.to_string();
     error!(err_msg);
     NotaryServerError::UnauthorizedProverRequest(err_msg)
 }

@@ -1,21 +1,17 @@
 use eyre::Result;
-use jsonwebtoken::{Algorithm, DecodingKey};
+use jsonwebtoken::{Algorithm as JwtAlgorithm, DecodingKey};
 use serde_json::Value;
-use std::io::Read;
+use strum::EnumString;
 use tracing::error;
 
-use crate::{read_pem_file, JwtClaim, JwtClaimValueType};
+use crate::{JwtClaim, JwtClaimValueType};
 
 /// Custom error for JWT handling
 #[derive(Debug, thiserror::Error, PartialEq)]
-pub enum JwtError {
-    #[error("unsupported algorithm: {0:?}")]
-    UnsupportedAlgorithm(Algorithm),
-    #[error("JWT validation error: {0}")]
-    Validation(String),
-}
+#[error("JWT validation error: {0}")]
+pub struct JwtValidationError(String);
 
-type JwtResult<T> = std::result::Result<T, JwtError>;
+type JwtResult<T> = std::result::Result<T, JwtValidationError>;
 
 /// JWT config which also encapsulates claims validation logic.
 #[derive(Clone)]
@@ -26,32 +22,33 @@ pub struct Jwt {
 }
 
 impl Jwt {
-    pub fn validate(&self, claims: Value) -> JwtResult<()> {
+    pub fn validate(&self, claims: &Value) -> JwtResult<()> {
         Jwt::validate_claims(&self.claims, claims)
     }
 
-    fn validate_claims(expected: &[JwtClaim], claims: Value) -> JwtResult<()> {
+    fn validate_claims(expected: &[JwtClaim], claims: &Value) -> JwtResult<()> {
         expected
             .iter()
-            .try_for_each(|expected| Self::validate_claim(expected, claims.clone()))
+            .try_for_each(|expected| Self::validate_claim(expected, claims))
     }
 
-    fn validate_claim(expected: &JwtClaim, given: Value) -> JwtResult<()> {
-        let field = Jwt::get_field(&expected.name, &given).ok_or(JwtError::Validation(format!(
+    fn validate_claim(expected: &JwtClaim, given: &Value) -> JwtResult<()> {
+        let pointer = format!("/{}", expected.name.replace(".", "/"));
+        let field = given.pointer(&pointer).ok_or(JwtValidationError(format!(
             "missing claim '{}'",
             expected.name
         )))?;
 
         match expected.value_type {
             JwtClaimValueType::String => {
-                let field_typed = field.as_str().ok_or(JwtError::Validation(format!(
+                let field_typed = field.as_str().ok_or(JwtValidationError(format!(
                     "unexpected type for claim '{}': expected '{:?}'",
                     expected.name, expected.value_type
                 )))?;
                 if !expected.values.is_empty() {
                     expected.values.iter().any(|exp| exp == field_typed).then_some(()).ok_or_else(|| {
                         let expected_values = expected.values.iter().map(|x| format!("'{x}'")).collect::<Vec<String>>().join(", ");
-                        JwtError::Validation(format!(
+                        JwtValidationError(format!(
                             "unexpected value for claim '{}': expected one of [ {expected_values} ], received '{field_typed}'", expected.name
                         ))
                     })?;
@@ -61,19 +58,44 @@ impl Jwt {
 
         Ok(())
     }
+}
 
-    fn get_field<'a>(path: &'a str, value: &'a Value) -> Option<&'a Value> {
-        let (field, path) = match path.split_once('.') {
-            Some((field, path)) => (field, Some(path)),
-            None => (path, None),
-        };
-        if let Some(value) = value.get(field) {
-            match path {
-                Some(path) => Jwt::get_field(path, value),
-                None => Some(value),
-            }
-        } else {
-            None
+#[derive(EnumString, Debug, Clone, Copy, PartialEq, Eq)]
+#[strum(ascii_case_insensitive)]
+/// Supported JWT signing algorithms
+pub enum Algorithm {
+    /// RSASSA-PSS using SHA-512
+    RS256,
+    /// RSASSA-PKCS1-v1_5 using SHA-384
+    RS384,
+    /// RSASSA-PKCS1-v1_5 using SHA-384
+    RS512,
+    /// RSASSA-PSS using SHA-256
+    PS256,
+    /// RSASSA-PSS using SHA-384
+    PS384,
+    /// RSASSA-PSS using SHA-512
+    PS512,
+    /// ECDSA using SHA-256
+    ES256,
+    /// ECDSA using SHA-384
+    ES384,
+    /// Edwards-curve Digital Signature Algorithm (EdDSA)
+    EdDSA,
+}
+
+impl From<Algorithm> for JwtAlgorithm {
+    fn from(value: Algorithm) -> Self {
+        match value {
+            Algorithm::RS256 => Self::RS256,
+            Algorithm::RS384 => Self::RS384,
+            Algorithm::RS512 => Self::RS512,
+            Algorithm::PS256 => Self::PS256,
+            Algorithm::PS384 => Self::PS384,
+            Algorithm::PS512 => Self::PS512,
+            Algorithm::ES256 => Self::ES256,
+            Algorithm::ES384 => Self::ES384,
+            Algorithm::EdDSA => Self::EdDSA,
         }
     }
 }
@@ -83,9 +105,7 @@ pub(super) async fn load_jwt_key(
     public_key_pem_path: &str,
     algorithm: Algorithm,
 ) -> Result<DecodingKey> {
-    let mut reader = read_pem_file(public_key_pem_path).await?;
-    let mut key_pem_bytes: Vec<u8> = Vec::new();
-    reader.read_to_end(&mut key_pem_bytes)?;
+    let key_pem_bytes = tokio::fs::read(public_key_pem_path).await?;
     let key = match algorithm {
         Algorithm::RS256
         | Algorithm::RS384
@@ -95,7 +115,6 @@ pub(super) async fn load_jwt_key(
         | Algorithm::PS512 => DecodingKey::from_rsa_pem(&key_pem_bytes)?,
         Algorithm::ES256 | Algorithm::ES384 => DecodingKey::from_ec_pem(&key_pem_bytes)?,
         Algorithm::EdDSA => DecodingKey::from_ed_pem(&key_pem_bytes)?,
-        _ => return Err(JwtError::UnsupportedAlgorithm(algorithm).into()),
     };
     Ok(key)
 }
@@ -116,7 +135,7 @@ mod test {
             "exp": 12345,
             "sub": "test",
         });
-        assert!(Jwt::validate_claim(&expected, given).is_ok());
+        assert!(Jwt::validate_claim(&expected, &given).is_ok());
     }
 
     #[test]
@@ -132,7 +151,7 @@ mod test {
                 "host": "api.tlsn.com",
             },
         });
-        assert!(Jwt::validate_claim(&expected, given).is_ok())
+        assert!(Jwt::validate_claim(&expected, &given).is_ok())
     }
 
     #[test]
@@ -142,7 +161,7 @@ mod test {
             "sub": "test",
             "what": "is_this",
         });
-        assert!(Jwt::validate_claims(&[], given).is_ok())
+        assert!(Jwt::validate_claims(&[], &given).is_ok())
     }
 
     #[test]
@@ -156,8 +175,8 @@ mod test {
             "host": "localhost",
         });
         assert_eq!(
-            Jwt::validate_claim(&expected, given),
-            Err(JwtError::Validation("missing claim 'sub'".to_string()))
+            Jwt::validate_claim(&expected, &given),
+            Err(JwtValidationError("missing claim 'sub'".to_string()))
         )
     }
 
@@ -172,8 +191,8 @@ mod test {
             "sub": "tlsn",
         });
         assert_eq!(
-                Jwt::validate_claim(&expected, given),
-                Err(JwtError::Validation("unexpected value for claim 'sub': expected one of [ 'tlsn_prod', 'tlsn_test' ], received 'tlsn'".to_string()))
+                Jwt::validate_claim(&expected, &given),
+                Err(JwtValidationError("unexpected value for claim 'sub': expected one of [ 'tlsn_prod', 'tlsn_test' ], received 'tlsn'".to_string()))
             )
     }
 }

@@ -85,7 +85,7 @@ fn get_server_config(
             enabled: auth.is_some(),
             mode: auth.map(|mode| match mode {
                 AuthMode::Jwt => AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
-                    algorithm: Algorithm::RS256,
+                    algorithm: "rs256".to_string(),
                     public_key_path: "./fixture/auth/jwt.key.pub".to_string(),
                     claims: vec![JwtClaim {
                         name: "sub".to_string(),
@@ -319,7 +319,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 #[ignore = "expensive"]
 async fn test_websocket_prover() {
     // Notary server configuration setup
-    let notary_config = setup_config_and_server(100, 7050, true, None, 100).await;
+    let notary_config = setup_config_and_server(100, 7051, true, None, 100).await;
     let notary_host = notary_config.host.clone();
     let notary_port = notary_config.port;
 
@@ -511,7 +511,7 @@ async fn test_websocket_prover() {
 async fn test_concurrency_limit() {
     const CONCURRENCY: usize = 5;
 
-    let notary_config = setup_config_and_server(100, 7051, false, None, CONCURRENCY).await;
+    let notary_config = setup_config_and_server(100, 7052, false, None, CONCURRENCY).await;
 
     async fn do_test(config: NotaryServerProperties) -> Vec<(NotaryConnection, String)> {
         // Start notarization requests in parallel.
@@ -550,7 +550,7 @@ async fn test_concurrency_limit() {
 async fn test_notarization_request_retry() {
     const CONCURRENCY: usize = 5;
 
-    let config = setup_config_and_server(100, 7052, false, None, CONCURRENCY).await;
+    let config = setup_config_and_server(100, 7053, false, None, CONCURRENCY).await;
 
     // Max out the concurrency limit.
     let connections = (0..CONCURRENCY).map(|_| tcp_prover(config.clone()));

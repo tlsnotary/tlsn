@@ -4,14 +4,16 @@ pub(crate) mod whitelist;
 use eyre::{eyre, Result};
 use jwt::load_jwt_key;
 use std::{
-    collections::HashMap,
+    str::FromStr,
     sync::{Arc, Mutex},
 };
 use tracing::debug;
 use whitelist::load_authorization_whitelist;
 
-pub use jwt::{Jwt, JwtError};
-pub use whitelist::{watch_and_reload_authorization_whitelist, AuthorizationWhitelistRecord};
+pub use jwt::{Algorithm, Jwt, JwtValidationError};
+pub use whitelist::{
+    watch_and_reload_authorization_whitelist, AuthorizationWhitelistRecord, Whitelist,
+};
 
 use crate::{AuthorizationModeProperties, NotaryServerProperties};
 
@@ -19,16 +21,14 @@ use crate::{AuthorizationModeProperties, NotaryServerProperties};
 #[derive(Clone)]
 pub enum AuthorizationMode {
     Jwt(Jwt),
-    Whitelist(Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>),
+    Whitelist(Whitelist),
 }
 
 impl AuthorizationMode {
-    pub fn as_whitelist(
-        &self,
-    ) -> Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>> {
+    pub fn as_whitelist(&self) -> Option<&Whitelist> {
         match self {
             Self::Jwt(..) => None,
-            Self::Whitelist(whitelist) => Some(whitelist.clone()),
+            Self::Whitelist(whitelist) => Some(whitelist),
         }
     }
 }
@@ -44,11 +44,16 @@ pub async fn load_authorization_mode(
 
     let auth_mode = match config.auth.mode.as_ref().ok_or_else(|| {
         eyre!(
-            "Authorization enabled but neither whitelist nor jwt properties provided in the config"
+            "Authorization enabled but failed to load either whitelist or jwt properties. They are either absent or malformed."
         )
     })? {
         AuthorizationModeProperties::Jwt(jwt_opts) => {
-            let algorithm = jwt_opts.algorithm;
+            let algorithm = Algorithm::from_str(&jwt_opts.algorithm).map_err(|_| {
+                eyre!(
+                    "Unexpected JWT signing algorithm specified: '{}'",
+                    jwt_opts.algorithm
+                )
+            })?;
             let claims = jwt_opts.claims.clone();
             let key = load_jwt_key(&jwt_opts.public_key_path, algorithm).await?;
             AuthorizationMode::Jwt(Jwt {
@@ -58,8 +63,11 @@ pub async fn load_authorization_mode(
             })
         }
         AuthorizationModeProperties::Whitelist(whitelist_csv_path) => {
-            let whitelist = load_authorization_whitelist(whitelist_csv_path)?;
-            AuthorizationMode::Whitelist(Arc::new(Mutex::new(whitelist)))
+            let entries = load_authorization_whitelist(whitelist_csv_path)?;
+            AuthorizationMode::Whitelist(Whitelist {
+                entries: Arc::new(Mutex::new(entries)),
+                csv_path: whitelist_csv_path.clone(),
+            })
         }
     };
 

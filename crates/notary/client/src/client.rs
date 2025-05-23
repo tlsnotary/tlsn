@@ -138,7 +138,7 @@ pub struct NotaryClient {
     /// in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
-    /// JWT token used to callnotary server endpoints if JWT authorization is
+    /// JWT token used to call notary server endpoints if JWT authorization is
     /// enabled in notary server.
     #[builder(setter(into, strip_option), default)]
     jwt: Option<String>,

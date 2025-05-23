@@ -1,6 +1,5 @@
 use config::{Config, Environment};
 use eyre::{eyre, Result};
-use jsonwebtoken::Algorithm;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -43,31 +42,31 @@ impl NotaryServerProperties {
                 .to_string();
 
             // Prepend notarization key path.
-            if let Some(path) = &config.notarization.private_key_path {
-                config.notarization.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
+            if let Some(path) = config.notarization.private_key_path {
+                config.notarization.private_key_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
             // Prepend TLS key paths.
-            if let Some(path) = &config.tls.private_key_path {
-                config.tls.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
+            if let Some(path) = config.tls.private_key_path {
+                config.tls.private_key_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
-            if let Some(path) = &config.tls.certificate_path {
-                config.tls.certificate_path = Some(prepend_file_path(path, &parent_dir)?);
+            if let Some(path) = config.tls.certificate_path {
+                config.tls.certificate_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
-            // Prepend auth whitelist path.
-            if let Some(mode) = &config.auth.mode {
+            // Prepend auth file path.
+            if let Some(mode) = config.auth.mode {
                 config.auth.mode = Some(match mode {
                     AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
                         algorithm,
                         public_key_path,
                         claims,
                     }) => AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
-                        algorithm: *algorithm,
-                        public_key_path: prepend_file_path(public_key_path, &parent_dir)?,
-                        claims: claims.clone(),
+                        algorithm,
+                        public_key_path: prepend_file_path(&public_key_path, &parent_dir)?,
+                        claims,
                     }),
                     AuthorizationModeProperties::Whitelist(path) => {
                         AuthorizationModeProperties::Whitelist(prepend_file_path(
-                            path,
+                            &path,
                             &parent_dir,
                         )?)
                     }
@@ -151,7 +150,7 @@ pub struct LogProperties {
 pub struct AuthorizationProperties {
     /// Flag to turn on or off auth middleware
     pub enabled: bool,
-    /// Authorization mode to use: JWT or whitelist
+    /// Authorization mode to use: JWT or Whitelist
     #[serde(flatten)]
     pub mode: Option<AuthorizationModeProperties>,
 }
@@ -165,19 +164,10 @@ pub enum AuthorizationModeProperties {
     Whitelist(String),
 }
 
-impl AuthorizationModeProperties {
-    pub fn as_whitelist(&self) -> Option<String> {
-        match self {
-            Self::Jwt(..) => None,
-            Self::Whitelist(path) => Some(path.clone()),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct JwtAuthorizationProperties {
     /// Algorithm used for signing the JWT
-    pub algorithm: Algorithm,
+    pub algorithm: String,
     /// File path to JWT public key (in PEM format) for verifying token
     /// signatures
     pub public_key_path: String,

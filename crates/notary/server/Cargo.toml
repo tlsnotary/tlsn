@@ -48,6 +48,7 @@ serde_json = { workspace = true }
 serde_yaml = { version = "0.9" }
 sha1 = { version = "0.10" }
 structopt = { version = "0.3" }
+strum = { version = "0.27", features = ["derive"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-rustls = { workspace = true }

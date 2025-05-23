@@ -12,6 +12,12 @@ use tracing::{debug, error, info};
 
 use crate::util::parse_csv_file;
 
+#[derive(Clone)]
+pub struct Whitelist {
+    pub entries: Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>,
+    pub csv_path: String,
+}
+
 /// Structure of each whitelisted record of the API key whitelist for
 /// authorization purpose
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -51,10 +57,10 @@ pub(super) fn load_authorization_whitelist(
 // The watcher is setup in a separate thread by the notify library which is
 // synchronous
 pub fn watch_and_reload_authorization_whitelist(
-    authorization_whitelist: Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>,
-    whitelist_csv_path: String,
+    whitelist: &Whitelist,
 ) -> Result<RecommendedWatcher> {
-    let whitelist_csv_path_cloned = whitelist_csv_path.clone();
+    let whitelist_csv_path_cloned = whitelist.csv_path.clone();
+    let entries = whitelist.entries.clone();
     // Setup watcher by giving it a function that will be triggered when an event is
     // detected
     let mut watcher = RecommendedWatcher::new(
@@ -66,8 +72,7 @@ pub fn watch_and_reload_authorization_whitelist(
                         debug!("Authorization whitelist is modified");
                         match load_authorization_whitelist(&whitelist_csv_path_cloned) {
                             Ok(new_authorization_whitelist) => {
-                                *authorization_whitelist.lock().unwrap() =
-                                    new_authorization_whitelist;
+                                *entries.lock().unwrap() = new_authorization_whitelist;
                                 info!("Successfully reloaded authorization whitelist!");
                             }
                             // Ensure that error from reloading doesn't bring the server down
@@ -86,7 +91,7 @@ pub fn watch_and_reload_authorization_whitelist(
 
     // Start watcher to listen to any changes on the whitelist file
     watcher
-        .watch(Path::new(&whitelist_csv_path), RecursiveMode::Recursive)
+        .watch(Path::new(&whitelist.csv_path), RecursiveMode::Recursive)
         .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
     // Need to return the watcher to parent function, else it will be dropped and
@@ -111,16 +116,16 @@ mod test {
         std::fs::copy(original_whitelist_csv_path, &whitelist_csv_path).unwrap();
 
         // Setup watcher
-        let authorization_whitelist = load_authorization_whitelist(&whitelist_csv_path).expect(
+        let entries = load_authorization_whitelist(&whitelist_csv_path).expect(
             "Authorization whitelist csv from fixture should be able
     to be loaded",
         );
-        let authorization_whitelist = Arc::new(Mutex::new(authorization_whitelist));
-        let _watcher = watch_and_reload_authorization_whitelist(
-            authorization_whitelist.clone(),
-            whitelist_csv_path.clone(),
-        )
-        .expect("Watcher should be able to be setup successfully");
+        let whitelist = Whitelist {
+            entries: Arc::new(Mutex::new(entries)),
+            csv_path: whitelist_csv_path.clone(),
+        };
+        let _watcher = watch_and_reload_authorization_whitelist(&whitelist)
+            .expect("Watcher should be able to be setup successfully");
 
         // Sleep to buy a bit of time for hot reload task and watcher thread to run
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -144,7 +149,8 @@ mod test {
         // Sleep to buy a bit of time for updated whitelist to be hot reloaded
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        assert!(authorization_whitelist
+        assert!(whitelist
+            .entries
             .lock()
             .unwrap()
             .contains_key("unit-test-api-key"));
