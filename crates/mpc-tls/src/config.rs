@@ -73,9 +73,9 @@ impl Config {
 }
 
 impl ConfigBuilder {
-    /// Optimizes the protocol for low bandwidth networks.
-    pub fn low_bandwidth(&mut self) -> &mut Self {
-        self.prf = Some(PrfMode::Reduced);
+    /// Optimizes the protocol for high bandwidth networks.
+    pub fn high_bandwidth(&mut self) -> &mut Self {
+        self.prf = Some(PrfMode::Normal);
         self
     }
 
@@ -109,7 +109,7 @@ impl ConfigBuilder {
             .max_recv_records_online
             .unwrap_or_else(|| PROTOCOL_RECORD_COUNT_RECV + default_record_count(max_recv_online));
 
-        let prf = self.prf.unwrap_or_default();
+        let prf = self.prf.unwrap_or(PrfMode::Reduced);
 
         Ok(Config {
             defer_decryption,

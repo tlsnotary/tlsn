@@ -6,7 +6,7 @@ We use [Gramine](https://github.com/gramineproject/gramine) to run the Notary Se
 
 The isolated environment is defined via the manifest template (`notary-server.manifest.template`).
 
-The Notary Server for SGX is compiled with the Rust feature flag `tee_quote`. This enables the server to use an ephemeral private notary key for signing attestations (`private_key_pem_path: "/ephemeral/notary.key"`) and also adds the SGX *quote* to the server's `/info` endpoint.
+The Notary Server for SGX is compiled with the Rust feature flag `tee_quote`. This enables the server to add the SGX *quote* to the server's `/info` endpoint.
 
 ### CI
 

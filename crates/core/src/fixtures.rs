@@ -18,7 +18,7 @@ use crate::{
     signing::SignatureAlgId,
     transcript::{
         encoding::{EncoderSecret, EncodingProvider, EncodingTree},
-        Transcript, TranscriptCommitConfigBuilder,
+        Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment,
     },
     CryptoProvider,
 };
@@ -195,7 +195,6 @@ pub fn request_fixture(
         &encoding_hasher,
         transcripts_commitment_config.iter_encoding(),
         &encodings_provider,
-        &transcript.length(),
     )
     .unwrap();
 
@@ -211,8 +210,7 @@ pub fn request_fixture(
     request_builder
         .server_name(server_name)
         .server_cert_data(server_cert_data)
-        .transcript(transcript)
-        .encoding_tree(encoding_tree.clone());
+        .transcript(transcript);
 
     let (request, _) = request_builder.build(&provider).unwrap();
 
@@ -227,7 +225,7 @@ pub fn attestation_fixture(
     request: Request,
     connection: ConnectionFixture,
     signature_alg: SignatureAlgId,
-    secret: EncoderSecret,
+    transcript_commitments: &[TranscriptCommitment],
 ) -> Attestation {
     let ConnectionFixture {
         connection_info,
@@ -259,7 +257,7 @@ pub fn attestation_fixture(
     attestation_builder
         .connection_info(connection_info)
         .server_ephemeral_key(server_ephemeral_key)
-        .encoder_secret(secret);
+        .transcript_commitments(transcript_commitments.to_vec());
 
     attestation_builder.build(&provider).unwrap()
 }

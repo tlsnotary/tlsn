@@ -1,13 +1,14 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{
-    transcript::{Idx, PartialTranscript},
-    CryptoProvider,
+    hash::HashAlgId,
+    transcript::{Idx, TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
+    CryptoProvider, ProveConfig, VerifierOutput, VerifyConfig,
 };
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_verifier::{SessionInfo, Verifier, VerifierConfig};
+use tlsn_verifier::{Verifier, VerifierConfig};
 
 use http_body_util::{BodyExt as _, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
@@ -29,17 +30,32 @@ async fn verify() {
 
     let (socket_0, socket_1) = tokio::io::duplex(1 << 23);
 
-    let (_, (partial_transcript, info)) = tokio::join!(prover(socket_0), verifier(socket_1));
+    let (
+        _,
+        VerifierOutput {
+            server_name,
+            transcript,
+            transcript_commitments,
+        },
+    ) = tokio::join!(prover(socket_0), verifier(socket_1));
+
+    let server_name = server_name.unwrap();
+    let transcript = transcript.unwrap();
 
     assert_eq!(
-        partial_transcript.sent_authed(),
-        &Idx::new(0..partial_transcript.len_sent() - 1)
+        transcript.sent_authed(),
+        &Idx::new(0..transcript.len_sent() - 1)
     );
     assert_eq!(
-        partial_transcript.received_authed(),
-        &Idx::new(2..partial_transcript.len_received())
+        transcript.received_authed(),
+        &Idx::new(2..transcript.len_received())
     );
-    assert_eq!(info.server_name.as_str(), SERVER_DOMAIN);
+    assert_eq!(server_name.as_str(), SERVER_DOMAIN);
+    assert!(transcript_commitments
+        .iter()
+        .any(|commitment| matches!(commitment, TranscriptCommitment::Hash { .. })));
+
+    println!("{:?}", transcript_commitments);
 }
 
 #[instrument(skip(notary_socket))]
@@ -89,7 +105,11 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     tokio::spawn(connection);
 
     let request = Request::builder()
-        .uri(format!("https://{}", SERVER_DOMAIN))
+        .uri(format!(
+            "https://{}/bytes?size={recv}",
+            SERVER_DOMAIN,
+            recv = MAX_RECV_DATA - 256
+        ))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("GET")
@@ -100,27 +120,45 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     assert!(response.status() == StatusCode::OK);
 
-    let payload = response.into_body().collect().await.unwrap().to_bytes();
-    println!("{:?}", &String::from_utf8_lossy(&payload));
+    let _ = response.into_body().collect().await.unwrap().to_bytes();
 
     let _ = server_task.await.unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap().start_prove();
+    let mut prover = prover_task.await.unwrap().unwrap();
 
     let (sent_len, recv_len) = prover.transcript().len();
 
-    let idx_sent = Idx::new(0..sent_len - 1);
-    let idx_recv = Idx::new(2..recv_len);
+    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
-    // Reveal parts of the transcript
-    prover.prove_transcript(idx_sent, idx_recv).await.unwrap();
-    prover.finalize().await.unwrap();
+    builder.default_kind(TranscriptCommitmentKind::Hash {
+        alg: HashAlgId::SHA256,
+    });
+
+    builder.commit_sent(&(0..sent_len)).unwrap();
+    builder.commit_recv(&(0..recv_len)).unwrap();
+
+    let transcript_commit = builder.build().unwrap();
+
+    let mut builder = ProveConfig::builder(prover.transcript());
+
+    builder
+        .server_identity()
+        .reveal_sent(&(0..sent_len - 1))
+        .unwrap()
+        .reveal_recv(&(2..recv_len))
+        .unwrap()
+        .transcript_commit(transcript_commit);
+
+    let config = builder.build().unwrap();
+
+    prover.prove(&config).await.unwrap();
+    prover.close().await.unwrap();
 }
 
 #[instrument(skip(socket))]
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
-) -> (PartialTranscript, SessionInfo) {
+) -> VerifierOutput {
     let mut root_store = RootCertStore::empty();
     root_store
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
@@ -145,5 +183,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let verifier = Verifier::new(config);
 
-    verifier.verify(socket.compat()).await.unwrap()
+    verifier
+        .verify(socket.compat(), &VerifyConfig::default())
+        .await
+        .unwrap()
 }

@@ -1,7 +1,7 @@
+use crate::types::NetworkSetting;
 use serde::Deserialize;
-use tlsn_common::config::{NetworkSetting, ProtocolConfig};
+use tlsn_common::config::ProtocolConfig;
 use tsify_next::Tsify;
-
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct ProverConfig {
@@ -38,7 +38,7 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
             builder.defer_decryption_from_start(value);
         }
 
-        builder.network(value.network);
+        builder.network(value.network.into());
         let protocol_config = builder.build().unwrap();
 
         let mut builder = tlsn_prover::ProverConfig::builder();

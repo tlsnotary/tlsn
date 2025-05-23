@@ -5,7 +5,8 @@ use futures::{AsyncReadExt, AsyncWriteExt, Future};
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{
-    attestation::AttestationConfig, signing::SignatureAlgId, transcript::Idx, CryptoProvider,
+    attestation::AttestationConfig, signing::SignatureAlgId, CryptoProvider, ProveConfig,
+    VerifyConfig,
 };
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -90,7 +91,9 @@ async fn handle_verifier(io: TcpStream) -> Result<()> {
 
     let verifier = Verifier::new(config);
 
-    verifier.verify(io.compat()).await?;
+    verifier
+        .verify(io.compat(), &VerifyConfig::default())
+        .await?;
 
     Ok(())
 }
@@ -120,6 +123,7 @@ async fn handle_notary(io: TcpStream) -> Result<()> {
 
     let attestation_config = builder.build().unwrap();
 
+    #[allow(deprecated)]
     verifier.notarize(io.compat(), &attestation_config).await?;
 
     Ok(())
@@ -176,18 +180,20 @@ async fn handle_prover(io: TcpStream) -> Result<()> {
     let mut response = vec![0u8; 1024];
     tls_connection.read_to_end(&mut response).await.unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap().start_prove();
+    let mut prover = prover_task.await.unwrap().unwrap();
 
     let sent_transcript_len = prover.transcript().sent().len();
     let recv_transcript_len = prover.transcript().received().len();
 
-    let sent_idx = Idx::new(0..sent_transcript_len - 1);
-    let recv_idx = Idx::new(2..recv_transcript_len);
+    let mut builder = ProveConfig::builder(prover.transcript());
 
-    // Reveal parts of the transcript
-    prover.prove_transcript(sent_idx, recv_idx).await.unwrap();
+    builder.reveal_sent(&(0..sent_transcript_len - 1)).unwrap();
+    builder.reveal_recv(&(2..recv_transcript_len)).unwrap();
 
-    prover.finalize().await.unwrap();
+    let config = builder.build().unwrap();
+
+    prover.prove(&config).await.unwrap();
+    prover.close().await.unwrap();
 
     Ok(())
 }

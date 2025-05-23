@@ -304,9 +304,9 @@ pub struct NotarizationOutput {
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct VerifierOutput {
-    pub server_name: String,
+    pub server_name: Option<String>,
     pub connection_info: ConnectionInfo,
-    pub transcript: PartialTranscript,
+    pub transcript: Option<PartialTranscript>,
 }
 
 #[derive(Debug, Tsify, Serialize)]
@@ -321,6 +321,24 @@ impl From<&tlsn_core::signing::VerifyingKey> for VerifyingKey {
         Self {
             alg: value.alg.as_u8(),
             data: value.data.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub enum NetworkSetting {
+    /// Prefers a bandwidth-heavy protocol.
+    Bandwidth,
+    /// Prefers a latency-heavy protocol.
+    Latency,
+}
+
+impl From<NetworkSetting> for tlsn_common::config::NetworkSetting {
+    fn from(value: NetworkSetting) -> Self {
+        match value {
+            NetworkSetting::Bandwidth => Self::Bandwidth,
+            NetworkSetting::Latency => Self::Latency,
         }
     }
 }

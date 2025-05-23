@@ -239,7 +239,7 @@ pub enum NetworkSetting {
 
 impl Default for NetworkSetting {
     fn default() -> Self {
-        Self::Bandwidth
+        Self::Latency
     }
 }
 

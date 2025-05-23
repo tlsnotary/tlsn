@@ -19,13 +19,16 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    group.bench_function("prf", |b| b.to_async(&rt).iter(prf));
+    group.bench_function("prf_normal", |b| b.to_async(&rt).iter(|| prf(Mode::Normal)));
+    group.bench_function("prf_reduced", |b| {
+        b.to_async(&rt).iter(|| prf(Mode::Reduced))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
 
-async fn prf() {
+async fn prf(mode: Mode) {
     let mut rng = StdRng::seed_from_u64(0);
 
     let pms = [42u8; 32];
@@ -52,8 +55,8 @@ async fn prf() {
     follower_vm.assign(follower_pms, pms).unwrap();
     follower_vm.commit(follower_pms).unwrap();
 
-    let mut leader = MpcPrf::new(Mode::default());
-    let mut follower = MpcPrf::new(Mode::default());
+    let mut leader = MpcPrf::new(mode);
+    let mut follower = MpcPrf::new(mode);
 
     let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
     let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();

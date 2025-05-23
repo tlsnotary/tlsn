@@ -171,10 +171,7 @@ async fn notarize(
     assert!(response.status() == StatusCode::OK);
 
     // The prover task should be done now, so we can await it.
-    let prover = prover_task.await??;
-
-    // Prepare for notarization.
-    let mut prover = prover.start_notarize();
+    let mut prover = prover_task.await??;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -201,10 +198,12 @@ async fn notarize(
     // for other strategies that can be used to generate commitments.
     DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
 
-    prover.transcript_commit(builder.build()?);
+    let transcript_commit = builder.build()?;
 
     // Build an attestation request.
-    let builder = RequestConfig::builder();
+    let mut builder = RequestConfig::builder();
+
+    builder.transcript_commit(transcript_commit);
 
     // Optionally, add an extension to the attestation if the notary supports it.
     // builder.extension(Extension {
@@ -214,7 +213,8 @@ async fn notarize(
 
     let request_config = builder.build()?;
 
-    let (attestation, secrets) = prover.finalize(&request_config).await?;
+    #[allow(deprecated)]
+    let (attestation, secrets) = prover.notarize(&request_config).await?;
 
     println!("Notarization complete!");
 

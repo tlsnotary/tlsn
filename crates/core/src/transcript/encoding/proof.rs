@@ -231,7 +231,6 @@ mod test {
     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
     use crate::{
-        connection::TranscriptLength,
         fixtures::{encoder_secret, encoder_secret_tampered_seed, encoding_provider},
         hash::Blake3,
         transcript::{
@@ -255,17 +254,7 @@ mod test {
         let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()));
 
         let provider = encoding_provider(transcript.sent(), transcript.received());
-        let transcript_length = TranscriptLength {
-            sent: transcript.sent().len() as u32,
-            received: transcript.received().len() as u32,
-        };
-        let tree = EncodingTree::new(
-            &Blake3::default(),
-            [&idx_0, &idx_1],
-            &provider,
-            &transcript_length,
-        )
-        .unwrap();
+        let tree = EncodingTree::new(&Blake3::default(), [&idx_0, &idx_1], &provider).unwrap();
 
         let proof = tree.proof([&idx_0, &idx_1].into_iter()).unwrap();
 

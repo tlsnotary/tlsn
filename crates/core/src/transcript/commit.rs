@@ -6,8 +6,12 @@ use rangeset::ToRangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    hash::HashAlgId,
-    transcript::{Direction, Idx, Transcript},
+    hash::{impl_domain_separator, HashAlgId},
+    transcript::{
+        encoding::{EncodingCommitment, EncodingTree},
+        hash::{PlaintextHash, PlaintextHashSecret},
+        Direction, Idx, Transcript,
+    },
 };
 
 /// The maximum allowed total bytelength of committed data for a single
@@ -41,10 +45,36 @@ impl fmt::Display for TranscriptCommitmentKind {
     }
 }
 
+/// Transcript commitment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TranscriptCommitment {
+    /// Encoding commitment.
+    Encoding(EncodingCommitment),
+    /// Plaintext hash commitment.
+    Hash(PlaintextHash),
+}
+
+impl_domain_separator!(TranscriptCommitment);
+
+/// Secret for a transcript commitment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TranscriptSecret {
+    /// Encoding tree.
+    Encoding(EncodingTree),
+    /// Plaintext hash secret.
+    Hash(PlaintextHashSecret),
+}
+
+impl_domain_separator!(TranscriptSecret);
+
 /// Configuration for transcript commitments.
 #[derive(Debug, Clone)]
 pub struct TranscriptCommitConfig {
     encoding_hash_alg: HashAlgId,
+    has_encoding: bool,
+    has_hash: bool,
     commits: Vec<((Direction, Idx), TranscriptCommitmentKind)>,
 }
 
@@ -59,11 +89,14 @@ impl TranscriptCommitConfig {
         &self.encoding_hash_alg
     }
 
-    /// Returns whether the configuration has any encoding commitments.
+    /// Returns `true` if the configuration has any encoding commitments.
     pub fn has_encoding(&self) -> bool {
-        self.commits
-            .iter()
-            .any(|(_, kind)| matches!(kind, TranscriptCommitmentKind::Encoding))
+        self.has_encoding
+    }
+
+    /// Returns `true` if the configuration has any hash commitments.
+    pub fn has_hash(&self) -> bool {
+        self.has_hash
     }
 
     /// Returns an iterator over the encoding commitment indices.
@@ -81,6 +114,17 @@ impl TranscriptCommitConfig {
             _ => None,
         })
     }
+
+    /// Returns a request for the transcript commitments.
+    pub fn to_request(&self) -> TranscriptCommitRequest {
+        TranscriptCommitRequest {
+            encoding: self.has_encoding,
+            hash: self
+                .iter_hash()
+                .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg))
+                .collect(),
+        }
+    }
 }
 
 /// A builder for [`TranscriptCommitConfig`].
@@ -91,6 +135,8 @@ impl TranscriptCommitConfig {
 pub struct TranscriptCommitConfigBuilder<'a> {
     transcript: &'a Transcript,
     encoding_hash_alg: HashAlgId,
+    has_encoding: bool,
+    has_hash: bool,
     default_kind: TranscriptCommitmentKind,
     commits: HashSet<((Direction, Idx), TranscriptCommitmentKind)>,
 }
@@ -101,6 +147,8 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         Self {
             transcript,
             encoding_hash_alg: HashAlgId::BLAKE3,
+            has_encoding: false,
+            has_hash: false,
             default_kind: TranscriptCommitmentKind::Encoding,
             commits: HashSet::default(),
         }
@@ -143,6 +191,11 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
                     self.transcript.len_of_direction(direction)
                 ),
             ));
+        }
+
+        match kind {
+            TranscriptCommitmentKind::Encoding => self.has_encoding = true,
+            TranscriptCommitmentKind::Hash { .. } => self.has_hash = true,
         }
 
         self.commits.insert(((direction, idx), kind));
@@ -192,6 +245,8 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     pub fn build(self) -> Result<TranscriptCommitConfig, TranscriptCommitConfigBuilderError> {
         Ok(TranscriptCommitConfig {
             encoding_hash_alg: self.encoding_hash_alg,
+            has_encoding: self.has_encoding,
+            has_hash: self.has_hash,
             commits: Vec::from_iter(self.commits),
         })
     }
@@ -232,6 +287,30 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
         }
 
         Ok(())
+    }
+}
+
+/// Request to compute transcript commitments.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptCommitRequest {
+    encoding: bool,
+    hash: Vec<(Direction, Idx, HashAlgId)>,
+}
+
+impl TranscriptCommitRequest {
+    /// Returns `true` if an encoding commitment is requested.
+    pub fn encoding(&self) -> bool {
+        self.encoding
+    }
+
+    /// Returns `true` if a hash commitment is requested.
+    pub fn has_hash(&self) -> bool {
+        !self.hash.is_empty()
+    }
+
+    /// Returns an iterator over the hash commitments.
+    pub fn iter_hash(&self) -> impl Iterator<Item = &(Direction, Idx, HashAlgId)> {
+        self.hash.iter()
     }
 }
 
