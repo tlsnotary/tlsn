@@ -46,7 +46,7 @@ use crate::{
     merkle::MerkleTree,
     presentation::PresentationBuilder,
     signing::{Signature, VerifyingKey},
-    transcript::encoding::EncodingCommitment,
+    transcript::TranscriptCommitment,
     CryptoProvider,
 };
 
@@ -150,8 +150,8 @@ pub struct Body {
     connection_info: Field<ConnectionInfo>,
     server_ephemeral_key: Field<ServerEphemKey>,
     cert_commitment: Field<ServerCertCommitment>,
-    encoding_commitment: Option<Field<EncodingCommitment>>,
     extensions: Vec<Field<Extension>>,
+    transcript_commitments: Vec<Field<TranscriptCommitment>>,
 }
 
 impl Body {
@@ -195,8 +195,8 @@ impl Body {
             connection_info: conn_info,
             server_ephemeral_key,
             cert_commitment,
-            encoding_commitment,
             extensions,
+            transcript_commitments,
         } = self;
 
         let mut fields: Vec<(FieldId, Hash)> = vec![
@@ -212,14 +212,11 @@ impl Body {
             ),
         ];
 
-        if let Some(encoding_commitment) = encoding_commitment {
-            fields.push((
-                encoding_commitment.id,
-                hasher.hash_separated(&encoding_commitment.data),
-            ));
+        for field in extensions.iter() {
+            fields.push((field.id, hasher.hash_separated(&field.data)));
         }
 
-        for field in extensions.iter() {
+        for field in transcript_commitments.iter() {
             fields.push((field.id, hasher.hash_separated(&field.data)));
         }
 
@@ -242,9 +239,9 @@ impl Body {
         &self.cert_commitment.data
     }
 
-    /// Returns the encoding commitment.
-    pub(crate) fn encoding_commitment(&self) -> Option<&EncodingCommitment> {
-        self.encoding_commitment.as_ref().map(|field| &field.data)
+    /// Returns the transcript commitments.
+    pub(crate) fn transcript_commitments(&self) -> impl Iterator<Item = &TranscriptCommitment> {
+        self.transcript_commitments.iter().map(|field| &field.data)
     }
 }
 

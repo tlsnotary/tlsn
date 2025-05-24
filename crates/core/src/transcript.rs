@@ -34,6 +34,7 @@
 mod commit;
 #[doc(hidden)]
 pub mod encoding;
+pub mod hash;
 mod proof;
 
 use std::{fmt, ops::Range};
@@ -45,7 +46,7 @@ use crate::connection::TranscriptLength;
 
 pub use commit::{
     TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitConfigBuilderError,
-    TranscriptCommitmentKind,
+    TranscriptCommitRequest, TranscriptCommitment, TranscriptCommitmentKind, TranscriptSecret,
 };
 pub use proof::{
     TranscriptProof, TranscriptProofBuilder, TranscriptProofBuilderError, TranscriptProofError,

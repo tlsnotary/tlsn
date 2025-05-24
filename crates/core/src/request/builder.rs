@@ -2,7 +2,7 @@ use crate::{
     connection::{ServerCertData, ServerCertOpening, ServerName},
     request::{Request, RequestConfig},
     secrets::Secrets,
-    transcript::{encoding::EncodingTree, Transcript},
+    transcript::{Transcript, TranscriptCommitment, TranscriptSecret},
     CryptoProvider,
 };
 
@@ -11,8 +11,9 @@ pub struct RequestBuilder<'a> {
     config: &'a RequestConfig,
     server_name: Option<ServerName>,
     server_cert_data: Option<ServerCertData>,
-    encoding_tree: Option<EncodingTree>,
     transcript: Option<Transcript>,
+    transcript_commitments: Vec<TranscriptCommitment>,
+    transcript_commitment_secrets: Vec<TranscriptSecret>,
 }
 
 impl<'a> RequestBuilder<'a> {
@@ -22,8 +23,9 @@ impl<'a> RequestBuilder<'a> {
             config,
             server_name: None,
             server_cert_data: None,
-            encoding_tree: None,
             transcript: None,
+            transcript_commitments: Vec::new(),
+            transcript_commitment_secrets: Vec::new(),
         }
     }
 
@@ -39,15 +41,20 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    /// Sets the tree to commit to the transcript encodings.
-    pub fn encoding_tree(&mut self, tree: EncodingTree) -> &mut Self {
-        self.encoding_tree = Some(tree);
-        self
-    }
-
     /// Sets the transcript.
     pub fn transcript(&mut self, transcript: Transcript) -> &mut Self {
         self.transcript = Some(transcript);
+        self
+    }
+
+    /// Sets the transcript commitments.
+    pub fn transcript_commitments(
+        &mut self,
+        secrets: Vec<TranscriptSecret>,
+        commitments: Vec<TranscriptCommitment>,
+    ) -> &mut Self {
+        self.transcript_commitment_secrets = secrets;
+        self.transcript_commitments = commitments;
         self
     }
 
@@ -60,8 +67,9 @@ impl<'a> RequestBuilder<'a> {
             config,
             server_name,
             server_cert_data,
-            encoding_tree,
             transcript,
+            transcript_commitments,
+            transcript_commitment_secrets,
         } = self;
 
         let signature_alg = *config.signature_alg();
@@ -84,23 +92,21 @@ impl<'a> RequestBuilder<'a> {
 
         let server_cert_commitment = server_cert_opening.commit(hasher);
 
-        let encoding_commitment_root = encoding_tree.as_ref().map(|tree| tree.root());
-
         let extensions = config.extensions().to_vec();
 
         let request = Request {
             signature_alg,
             hash_alg,
             server_cert_commitment,
-            encoding_commitment_root,
             extensions,
         };
 
         let secrets = Secrets {
             server_name,
             server_cert_opening,
-            encoding_tree,
             transcript,
+            transcript_commitments,
+            transcript_commitment_secrets,
         };
 
         Ok((request, secrets))

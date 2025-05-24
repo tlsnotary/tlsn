@@ -34,6 +34,7 @@ async fn test_defer_decryption() {
 }
 
 #[instrument(skip(notary_socket))]
+#[allow(deprecated)]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
@@ -83,7 +84,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let _ = server_task.await.unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
+    let mut prover = prover_task.await.unwrap().unwrap();
     let sent_tx_len = prover.transcript().sent().len();
     let recv_tx_len = prover.transcript().received().len();
 
@@ -93,16 +94,20 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     builder.commit_sent(&(0..sent_tx_len)).unwrap();
     builder.commit_recv(&(0..recv_tx_len)).unwrap();
 
+    let transcript_commit = builder.build().unwrap();
+
+    let mut builder = RequestConfig::builder();
+
+    builder.transcript_commit(transcript_commit);
+
     let config = builder.build().unwrap();
 
-    prover.transcript_commit(config);
-
-    let config = RequestConfig::default();
-
-    prover.finalize(&config).await.unwrap();
+    prover.notarize(&config).await.unwrap();
+    prover.close().await.unwrap();
 }
 
 #[instrument(skip(socket))]
+#[allow(deprecated)]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store

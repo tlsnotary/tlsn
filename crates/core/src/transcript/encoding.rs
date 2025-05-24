@@ -11,7 +11,7 @@ mod tree;
 pub use encoder::{new_encoder, Encoder, EncoderSecret};
 pub use proof::{EncodingProof, EncodingProofError};
 pub use provider::{EncodingProvider, EncodingProviderError};
-pub use tree::EncodingTree;
+pub use tree::{EncodingTree, EncodingTreeError};
 
 use serde::{Deserialize, Serialize};
 

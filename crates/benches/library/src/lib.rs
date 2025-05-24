@@ -1,6 +1,6 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{transcript::Idx, CryptoProvider};
+use tlsn_core::{CryptoProvider, ProveConfig};
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
@@ -111,15 +111,19 @@ pub async fn run_prover(
         Ok::<(), anyhow::Error>(())
     };
 
-    let (prover_task, _) = try_join(prover_fut.map_err(anyhow::Error::from), tls_fut).await?;
-
-    let mut prover = prover_task.start_prove();
+    let (mut prover, _) = try_join(prover_fut.map_err(anyhow::Error::from), tls_fut).await?;
 
     let (sent_len, recv_len) = prover.transcript().len();
-    prover
-        .prove_transcript(Idx::new(0..sent_len), Idx::new(0..recv_len))
-        .await?;
-    prover.finalize().await?;
+
+    let mut builder = ProveConfig::builder(prover.transcript());
+
+    builder.reveal_sent(&(0..sent_len)).unwrap();
+    builder.reveal_recv(&(0..recv_len)).unwrap();
+
+    let config = builder.build().unwrap();
+
+    prover.prove(&config).await?;
+    prover.close().await?;
 
     Ok(())
 }

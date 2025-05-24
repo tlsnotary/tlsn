@@ -1,9 +1,13 @@
 //! TLS transcript.
 
-use mpz_memory_core::{binary::U8, Vector};
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    MemoryExt, Vector,
+};
+use mpz_vm_core::{Vm, VmError};
 use rangeset::Intersection;
 use tls_core::msgs::enums::ContentType;
-use tlsn_core::transcript::{Direction, Idx, Transcript};
+use tlsn_core::transcript::{Direction, Idx, PartialTranscript, Transcript};
 
 /// A transcript of sent and received TLS records.
 #[derive(Debug, Default, Clone)]
@@ -167,6 +171,69 @@ impl TranscriptRefs {
 #[derive(Debug, thiserror::Error)]
 #[error("not all application plaintext was committed to in the TLS transcript")]
 pub struct IncompleteTranscript {}
+
+/// Decodes the transcript.
+pub fn decode_transcript(
+    vm: &mut dyn Vm<Binary>,
+    sent: &Idx,
+    recv: &Idx,
+    refs: &TranscriptRefs,
+) -> Result<(), VmError> {
+    let sent_refs = refs.get(Direction::Sent, sent).expect("index is in bounds");
+    let recv_refs = refs
+        .get(Direction::Received, recv)
+        .expect("index is in bounds");
+
+    for slice in sent_refs.into_iter().chain(recv_refs) {
+        // Drop the future, we don't need it.
+        drop(vm.decode(slice)?);
+    }
+
+    Ok(())
+}
+
+/// Verifies a partial transcript.
+pub fn verify_transcript(
+    vm: &mut dyn Vm<Binary>,
+    transcript: &PartialTranscript,
+    refs: &TranscriptRefs,
+) -> Result<(), InconsistentTranscript> {
+    let sent_refs = refs
+        .get(Direction::Sent, transcript.sent_authed())
+        .expect("index is in bounds");
+    let recv_refs = refs
+        .get(Direction::Received, transcript.received_authed())
+        .expect("index is in bounds");
+
+    let mut authenticated_data = Vec::new();
+    for data in sent_refs.into_iter().chain(recv_refs) {
+        let plaintext = vm
+            .get(data)
+            .expect("reference is valid")
+            .expect("plaintext is decoded");
+        authenticated_data.extend_from_slice(&plaintext);
+    }
+
+    let mut purported_data = Vec::with_capacity(authenticated_data.len());
+    for range in transcript.sent_authed().iter_ranges() {
+        purported_data.extend_from_slice(&transcript.sent_unsafe()[range]);
+    }
+
+    for range in transcript.received_authed().iter_ranges() {
+        purported_data.extend_from_slice(&transcript.received_unsafe()[range]);
+    }
+
+    if purported_data != authenticated_data {
+        return Err(InconsistentTranscript {});
+    }
+
+    Ok(())
+}
+
+/// Error for [`verify_transcript`].
+#[derive(Debug, thiserror::Error)]
+#[error("inconsistent transcript")]
+pub struct InconsistentTranscript {}
 
 #[cfg(test)]
 mod tests {
