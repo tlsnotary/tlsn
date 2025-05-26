@@ -171,7 +171,7 @@ pub struct JwtAuthorizationProperties {
     /// File path to JWT public key (in PEM format) for verifying token
     /// signatures
     pub public_key_path: String,
-    /// Set of required JWT claims
+    /// Optional set of required JWT claims
     #[serde(default)]
     pub claims: Vec<JwtClaim>,
 }

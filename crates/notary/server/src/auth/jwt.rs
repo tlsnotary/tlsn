@@ -1,7 +1,7 @@
 use eyre::Result;
 use jsonwebtoken::{Algorithm as JwtAlgorithm, DecodingKey};
 use serde_json::Value;
-use strum::EnumString;
+use strum::{EnumString, VariantNames};
 use tracing::error;
 
 use crate::JwtClaim;
@@ -56,15 +56,15 @@ impl Jwt {
     }
 }
 
-#[derive(EnumString, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(EnumString, Debug, Clone, Copy, PartialEq, Eq, VariantNames)]
 #[strum(ascii_case_insensitive)]
 /// Supported JWT signing algorithms
 pub enum Algorithm {
-    /// RSASSA-PSS using SHA-512
+    /// RSASSA-PKCS1-v1_5 using SHA-256
     RS256,
     /// RSASSA-PKCS1-v1_5 using SHA-384
     RS384,
-    /// RSASSA-PKCS1-v1_5 using SHA-384
+    /// RSASSA-PKCS1-v1_5 using SHA-512
     RS512,
     /// RSASSA-PSS using SHA-256
     PS256,
@@ -188,5 +188,23 @@ mod test {
                 Jwt::validate_claim(&expected, &given),
                 Err(JwtValidationError("unexpected value for claim 'sub': expected one of [ 'tlsn_prod', 'tlsn_test' ], received 'tlsn'".to_string()))
             )
+    }
+
+    #[test]
+    fn fails_if_claim_has_invalid_value_type() {
+        let expected = JwtClaim {
+            name: "sub".to_string(),
+            ..Default::default()
+        };
+        let given = json!({
+            "sub": { "name": "john" }
+        });
+        assert_eq!(
+            Jwt::validate_claim(&expected, &given),
+            Err(JwtValidationError(
+                "unexpected type for claim 'sub': only strings are supported for claim values"
+                    .to_string()
+            ))
+        )
     }
 }

@@ -90,7 +90,7 @@ log:
 
 auth:
   enabled: false
-  whitelist_path: null
+  whitelist: null
 ```
 ⚠️ By default, `notarization.private_key_path` is `null`, which means a **random, ephemeral** signing key will be generated at runtime (see [Signing](#signing) for more details).
 
@@ -168,9 +168,37 @@ TLS needs to be turned on between the prover and the notary for security purpose
 The toggle to turn on TLS, as well as paths to the TLS private key and certificate can be defined in the config (`tls` field).
 
 ### Authorization
-An optional authorization module is available to only allow requests with a valid API key attached in the custom HTTP header `X-API-Key`. The API key whitelist path, as well as the flag to enable/disable this module, can be changed in the config (`authorization` field).
+An optional authorization module is available to only allow requests with a valid credential attached. Currently, two modes are supported: whitelist and JWT.
 
-Hot reloading of the whitelist is supported, i.e. changes to the whitelist file are automatically applied without needing to restart the server.
+Please note that only *one* mode can be active at any one time.
+
+#### Whitelist mode
+In whitelist mode, a valid API key needs to be attached in the custom HTTP header `X-API-Key`. The path of the API key whitelist, as well as the flag to enable/disable this module, can be changed in the config (`auth` field).
+
+Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following
+- Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads
+- Once the edit is saved, ensure that it has been reloaded successfully by checking the server log
+
+#### JWT mode
+In JWT mode, JSON Web Token is attached in the standard `Authorization` HTTP header as a bearer token. The algorithm, the path to verifying key, as well as custom user claims, can be changed in the 
+config (`auth` field).
+
+Care should be taken when defining custom user claims as the middleware will:
+- accept any claim if no custom claim is defined,
+- as long as user defined claims are found, other unknown claims will be ignored.
+
+An example JWT config may look something like this:
+
+```yaml
+auth:
+  enabled: true
+  jwt:
+    algorithm: "RS256"
+    public_key_path: "./fixture/auth/jwt.key.pub"
+    claims:
+      - name: sub
+        values: ["tlsnotary"]
+```
 
 ### Logging
 The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic.
@@ -192,60 +220,6 @@ One can limit the number of concurrent notarization requests from provers via `c
 The main objective of a notary server is to perform notarizations together with a prover. In this case, the prover can either be a
 1. TCP client — which has access and control over the transport layer, i.e. TCP.
 2. WebSocket client — which has no access over TCP and instead uses WebSocket for notarizations.
-
-### Features
-#### Notarization Configuration
-To perform a notarization, some parameters need to be configured by the prover and the notary server (more details in the [OpenAPI specification](./openapi.yaml)), i.e.
-- maximum data that can be sent and received
-- unique session id
-
-To streamline this process, a single HTTP endpoint (`/session`) is used by both TCP and WebSocket clients.
-
-#### Notarization
-After calling the configuration endpoint above, the prover can proceed to start the notarization. For a TCP client, that means calling the `/notarize` endpoint using HTTP (`https`), while a WebSocket client should call the same endpoint but using WebSocket (`wss`). Example implementations of these clients can be found in the [integration test](../tests-integration/tests/notary.rs).
-
-#### Signatures
-Currently, both the private key (and cert) used to establish a TLS connection with the prover, and the private key used by the notary server to sign the notarized transcript, are hardcoded PEM keys stored in this repository. Though the paths of these keys can be changed in the config (`notary-key` field) to use different keys instead.
-
-#### Authorization
-An optional authorization module is available to only allow requests with a valid credential attached. Currently, two modes are supported: whitelist and JWT.
-
-Please note that only *one* mode can be active at any one time.
-
-##### Whitelist mode
-In whitelist mode, a valid API key needs to be attached in the custom HTTP header `X-API-Key`. The path of the API key whitelist, as well as the flag to enable/disable this module, can be changed in the config (`authorization` field).
-
-Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following
-- Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads
-- Once the edit is saved, ensure that it has been reloaded successfully by checking the server log
-
-##### JWT mode
-In JWT mode, JSON Web Token is attached in the standard `Authorization` HTTP header as a bearer token. The algorithm, the path to verifying key, as well as custom user claims, can be changed in the 
-config (`authorization` field).
-
-Care should be taken when defining custom user claims as the middleware will:
-- accept any claim if no custom claim is defined,
-- as long as user defined claims are found, other unknown claims will be ignored.
-
-An example JWT config may look something like this:
-
-```yaml
-authorization:
-  enabled: true
-  jwt:
-    algorithm: "RS256"
-    public_key_path: "./fixture/auth/jwt.key.pub"
-    claims:
-      - name: sub
-        values: ["tlsnotary"]
-```
-
-#### Optional TLS
-TLS between the prover and the notary is currently manually handled in this server, though it can be turned off if any of the following is true
-- This server is run locally
-- TLS is to be handled by an external environment, e.g. reverse proxy, cloud setup
-
-The toggle to turn on/off TLS is in the config (`tls` field). Alternatively, use the CLI argument `--tls-enabled` (see [this](#configuration)).
 
 ### Design Choices
 #### Web Framework

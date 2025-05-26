@@ -7,6 +7,7 @@ use std::{
     str::FromStr,
     sync::{Arc, Mutex},
 };
+use strum::VariantNames;
 use tracing::debug;
 use whitelist::load_authorization_whitelist;
 
@@ -50,8 +51,8 @@ pub async fn load_authorization_mode(
         AuthorizationModeProperties::Jwt(jwt_opts) => {
             let algorithm = Algorithm::from_str(&jwt_opts.algorithm).map_err(|_| {
                 eyre!(
-                    "Unexpected JWT signing algorithm specified: '{}'",
-                    jwt_opts.algorithm
+                    "Unexpected JWT signing algorithm specified: '{}'. Possible values are: {:?}",
+                    jwt_opts.algorithm, Algorithm::VARIANTS,
                 )
             })?;
             let claims = jwt_opts.claims.clone();
