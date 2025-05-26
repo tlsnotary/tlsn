@@ -1,0 +1,23 @@
+name: Create PR from dev to main on Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  ff-main-to-dev:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fast-forward main to dev
+        run: |
+          git fetch origin dev
+          git merge --ff-only origin/dev
+          git push origin main
