@@ -298,8 +298,7 @@ impl MpcTlsLeader {
 
         debug!("committing to transcript");
 
-        let (transcript, unauthenticated_transcript) =
-            record_layer.commit(&mut ctx, vm.clone()).await?;
+        let transcript = record_layer.commit(&mut ctx, vm.clone()).await?;
 
         debug!("committed to transcript");
 
@@ -321,7 +320,6 @@ impl MpcTlsLeader {
                 client_random,
                 server_random,
                 transcript,
-                unauthenticated_transcript,
                 keys,
             },
         };

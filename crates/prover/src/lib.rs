@@ -216,20 +216,14 @@ impl Prover<state::Setup> {
                 {
                     let mut vm = vm.try_lock().expect("VM should not be locked");
 
-                    // Prove j0 blocks of unauthenticated records.
+                    // Prove j0 blocks of received records.
                     // The prover drops the proof output.
                     let _ = commit_j0(
                         &mut (*vm.zk()),
                         (data.keys.server_write_key, data.keys.server_write_iv),
-                        data.unauthenticated_transcript.recv.iter(),
+                        data.transcript.recv.iter(),
                     )
                     .map_err(ProverError::zk)?;
-
-                    // From the prover's perspective the entire transcript is
-                    // authenticated.
-                    data.transcript
-                        .join(&mut data.unauthenticated_transcript)
-                        .map_err(ProverError::internal)?;
 
                     translate_transcript(&mut data.transcript, &vm)?;
 

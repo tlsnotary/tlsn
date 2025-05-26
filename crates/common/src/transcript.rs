@@ -84,26 +84,6 @@ impl TlsTranscript {
 
         Ok(TranscriptRefs { sent, recv })
     }
-
-    /// Joins `other` transcript to this transcript.
-    ///
-    /// Assumes that all records in each direction have unique sequence
-    /// numbers.
-    pub fn join(&mut self, other: &mut TlsTranscript) -> Result<(), TlsTranscriptError> {
-        self.sent.append(&mut other.sent);
-        self.sent.sort_by(|a, b| a.seq.cmp(&b.seq));
-        if self.sent.windows(2).any(|pair| pair[0].seq == pair[1].seq) {
-            return Err(TlsTranscriptError(ErrorRepr::DuplicateSequenceNumber {}));
-        }
-
-        self.recv.append(&mut other.recv);
-        self.recv.sort_by(|a, b| a.seq.cmp(&b.seq));
-        if self.recv.windows(2).any(|pair| pair[0].seq == pair[1].seq) {
-            return Err(TlsTranscriptError(ErrorRepr::DuplicateSequenceNumber {}));
-        }
-
-        Ok(())
-    }
 }
 
 /// A TLS record.
@@ -201,8 +181,6 @@ pub struct TlsTranscriptError(#[from] ErrorRepr);
 enum ErrorRepr {
     #[error("not all application plaintext was committed to in the TLS transcript")]
     IncompleteTranscript {},
-    #[error("the TLS transcript contains records with duplicate sequence numbers")]
-    DuplicateSequenceNumber {},
 }
 
 /// Decodes the transcript.

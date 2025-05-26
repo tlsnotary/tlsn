@@ -379,8 +379,7 @@ impl MpcTlsFollower {
 
         debug!("committing");
 
-        let (transcript, unauthenticated_transcript) =
-            record_layer.commit(&mut self.ctx, vm).await?;
+        let transcript = record_layer.commit(&mut self.ctx, vm).await?;
 
         debug!("committed");
 
@@ -388,19 +387,13 @@ impl MpcTlsFollower {
         let cf_vd = cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
         let sf_vd = sf_vd.ok_or(MpcTlsError::hs("server finished VD not computed"))?;
 
-        let mut full_transcript = transcript.clone();
-        full_transcript
-            .join(&mut unauthenticated_transcript.clone())
-            .unwrap();
-
-        validate_transcript(cf_vd, sf_vd, &full_transcript)?;
+        validate_transcript(cf_vd, sf_vd, &transcript)?;
 
         Ok((
             self.ctx,
             FollowerData {
                 server_key,
                 transcript,
-                unauthenticated_transcript,
                 keys,
             },
         ))

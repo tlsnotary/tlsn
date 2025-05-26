@@ -521,16 +521,16 @@ impl RecordLayer {
         Ok(())
     }
 
-    /// Commits to the record layer, returning an authenticated transcript and
-    /// one which is unauthenticated from the follower perspective.
+    /// Commits to the record layer, returning a transcript in which the
+    /// received records are unauthenticated from the follower's perspective.
     pub(crate) async fn commit(
         &mut self,
         ctx: &mut Context,
         vm: Vm,
-    ) -> Result<(TlsTranscript, TlsTranscript), MpcTlsError> {
+    ) -> Result<TlsTranscript, MpcTlsError> {
         let State::Online {
             sent_records,
-            recv_records,
+            mut recv_records,
             ..
         } = self.state.take()
         else {
@@ -597,9 +597,6 @@ impl RecordLayer {
             )?;
         }
 
-        // Records which are unauthenticated from the follower's perspective.
-        let mut recv_unauthenticated = Vec::with_capacity(buffered_ops.len());
-
         for (op, pending) in buffered_ops.into_iter().zip(pending_decrypts) {
             let plaintext = pending.output.try_decrypt()?;
             self.decrypted_buffer.push_back(PlainRecord {
@@ -608,7 +605,7 @@ impl RecordLayer {
                 plaintext: plaintext.clone(),
             });
 
-            recv_unauthenticated.push(Record {
+            recv_records.push(Record {
                 seq: op.seq,
                 typ: op.typ,
                 plaintext,
@@ -622,16 +619,10 @@ impl RecordLayer {
 
         self.state = State::Complete {};
 
-        Ok((
-            TlsTranscript {
-                sent: sent_records,
-                recv: recv_records,
-            },
-            TlsTranscript {
-                sent: Vec::default(),
-                recv: recv_unauthenticated,
-            },
-        ))
+        Ok(TlsTranscript {
+            sent: sent_records,
+            recv: recv_records,
+        })
     }
 
     fn next_write(

@@ -230,7 +230,6 @@ impl Verifier<state::Setup> {
             FollowerData {
                 server_key,
                 mut transcript,
-                unauthenticated_transcript,
                 keys,
                 ..
             },
@@ -241,19 +240,15 @@ impl Verifier<state::Setup> {
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
 
-            // Prepare for the prover to prove j0s of the unauthenticated
+            // Prepare for the prover to prove j0s of the received
             // records.
             let j0_proof = commit_j0(
                 &mut (*vm.zk()),
                 (keys.server_write_key, keys.server_write_iv),
-                unauthenticated_transcript.recv.iter(),
+                transcript.recv.iter(),
             )
             .map_err(VerifierError::zk)?;
 
-            // At this point the entire TLS transcript is authenticated.
-            transcript
-                .join(&mut unauthenticated_transcript.clone())
-                .map_err(VerifierError::internal)?;
             translate_transcript(&mut transcript, &vm)?;
 
             // Prepare for the prover to prove received plaintext.
@@ -286,11 +281,7 @@ impl Verifier<state::Setup> {
                 .try_recv()
                 .expect("the key was decoded before")
                 .expect("the key was decoded before");
-            tag::verify_tags(
-                j0_proof,
-                server_mac_key,
-                unauthenticated_transcript.recv.iter(),
-            )?;
+            tag::verify_tags(j0_proof, server_mac_key, transcript.recv.iter())?;
 
             // Verify the plaintext proofs.
             proof.verify().map_err(VerifierError::zk)?;
