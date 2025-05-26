@@ -1,11 +1,11 @@
-name: Create PR from dev to main on Release
+name: Fast-forward main branch to published release tag
 
 on:
   release:
     types: [published]
 
 jobs:
-  ff-main-to-dev:
+  ff-main-to-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -16,8 +16,9 @@ jobs:
         with:
           ref: main
 
-      - name: Fast-forward main to dev
+      - name: Fast-forward main to release tag
         run: |
-          git fetch origin dev
-          git merge --ff-only origin/dev
+          tag="${{ github.event.release.tag_name }}"
+          git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          git merge --ff-only "refs/tags/$tag"
           git push origin main
