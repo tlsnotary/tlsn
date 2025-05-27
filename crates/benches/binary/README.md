@@ -25,7 +25,7 @@ Make sure you're in the `crates/benches/` directory, build the binaries, and the
 
 ```sh
 cd binary
-cargo build --release
+cargo build --release --locked
 sudo ./bench.sh
 ```
 
@@ -38,9 +38,9 @@ With a Chrome browser installed on your system, make sure you're in the `crates/
 directory, build the wasm module, build the binaries, and then run the script:
 ```sh
 cd browser/wasm
-wasm-pack build --release --target web
+wasm-pack build --release --locked --target web
 cd ../../binary
-cargo build --release --features browser-bench
+cargo build --release --locked --features browser-bench
 sudo ./bench.sh
 ```
 
