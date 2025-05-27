@@ -58,10 +58,17 @@ where
                     unauthorized("Invalid Authorization header: expected 'Bearer <token>'")
                 })?;
                 let validation = Validation::new(jwt_config.algorithm.into());
-                let TokenData { claims, .. } =
-                    decode::<Value>(raw_token, &jwt_config.key, &validation)
-                        .map_err(|err| unauthorized(format!("Invalid JWT token: {err:#?}")))?;
-                jwt_config.validate(&claims)?;
+                let claims = match decode::<Value>(raw_token, &jwt_config.key, &validation) {
+                    Ok(TokenData { claims, .. }) => claims,
+                    Err(err) => {
+                        error!("Decoding JWT failed with error: {err:?}");
+                        return Err(unauthorized("Invalid JWT token"));
+                    }
+                };
+                if let Err(err) = jwt_config.validate(&claims) {
+                    error!("Validating JWT failed with error: {err:?}");
+                    return Err(unauthorized("Invalid JWT token"));
+                };
                 trace!("Request authorized.");
                 Ok(Self)
             }

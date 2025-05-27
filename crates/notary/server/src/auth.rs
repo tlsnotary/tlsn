@@ -11,7 +11,7 @@ use strum::VariantNames;
 use tracing::debug;
 use whitelist::load_authorization_whitelist;
 
-pub use jwt::{Algorithm, Jwt, JwtValidationError};
+pub use jwt::{Algorithm, Jwt};
 pub use whitelist::{
     watch_and_reload_authorization_whitelist, AuthorizationWhitelistRecord, Whitelist,
 };
@@ -49,14 +49,18 @@ pub async fn load_authorization_mode(
         )
     })? {
         AuthorizationModeProperties::Jwt(jwt_opts) => {
+            debug!("Using JWT for authorization");
             let algorithm = Algorithm::from_str(&jwt_opts.algorithm).map_err(|_| {
                 eyre!(
                     "Unexpected JWT signing algorithm specified: '{}'. Possible values are: {:?}",
-                    jwt_opts.algorithm, Algorithm::VARIANTS,
+                    jwt_opts.algorithm,
+                    Algorithm::VARIANTS,
                 )
             })?;
             let claims = jwt_opts.claims.clone();
-            let key = load_jwt_key(&jwt_opts.public_key_path, algorithm).await?;
+            let key = load_jwt_key(&jwt_opts.public_key_path, algorithm)
+                .await
+                .map_err(|err| eyre!("Failed to parse JWT public key: {:?}", err))?;
             AuthorizationMode::Jwt(Jwt {
                 key,
                 claims,
@@ -64,6 +68,7 @@ pub async fn load_authorization_mode(
             })
         }
         AuthorizationModeProperties::Whitelist(whitelist_csv_path) => {
+            debug!("Using whitelist for authorization");
             let entries = load_authorization_whitelist(whitelist_csv_path)?;
             AuthorizationMode::Whitelist(Whitelist {
                 entries: Arc::new(Mutex::new(entries)),

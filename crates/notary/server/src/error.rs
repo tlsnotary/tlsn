@@ -6,8 +6,6 @@ use tlsn_common::config::ProtocolConfigValidatorBuilderError;
 
 use tlsn_verifier::{VerifierConfigBuilderError, VerifierError};
 
-use crate::auth::JwtValidationError;
-
 #[derive(Debug, thiserror::Error)]
 pub enum NotaryServerError {
     #[error(transparent)]
@@ -20,8 +18,6 @@ pub enum NotaryServerError {
     BadProverRequest(String),
     #[error("Unauthorized request from prover: {0}")]
     UnauthorizedProverRequest(String),
-    #[error(transparent)]
-    JwtValidation(#[from] JwtValidationError),
 }
 
 impl From<VerifierError> for NotaryServerError {
@@ -54,9 +50,6 @@ impl AxumCoreIntoResponse for NotaryServerError {
                 unauthorized_request_error.to_string(),
             )
                 .into_response(),
-            jwt_validation_error @ NotaryServerError::JwtValidation(..) => {
-                (StatusCode::UNAUTHORIZED, jwt_validation_error.to_string()).into_response()
-            }
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Something wrong happened.",
