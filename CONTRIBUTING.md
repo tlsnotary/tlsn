@@ -69,7 +69,7 @@ We check in `Cargo.lock` to ensure reproducible builds. It must be updated whene
 If you want to hide `Cargo.lock` changes from your local `git diff`, run:
 
 ```sh
-git update-index --assume-unchanged Cargo.lock
+git update-index --skip-worktree Cargo.lock
 ```
 
 To start tracking changes again:
