@@ -5,7 +5,7 @@ description = "A library for the TLSNotary verifier"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 edition = "2021"
 
 [lints]
