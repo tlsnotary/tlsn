@@ -44,6 +44,10 @@ resolver = "2"
 inherits = "release"
 opt-level = 1
 
+
+[profile.release.package."tlsn-wasm"]
+opt-level = "z"
+
 [workspace.dependencies]
 notary-client = { path = "crates/notary/client" }
 notary-common = { path = "crates/notary/common" }
