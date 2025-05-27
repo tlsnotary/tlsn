@@ -74,7 +74,7 @@ git update-index --skip-worktree Cargo.lock
 
 To start tracking changes again:
 ```sh
-git update-index --no-assume-unchanged Cargo.lock
+git update-index --no-skip-worktree Cargo.lock
 ```
 
 > ⚠️ Note: This only affects your local view. The file is still tracked in the repository and will be checked and used in CI.
