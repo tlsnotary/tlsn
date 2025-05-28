@@ -90,7 +90,7 @@ log:
 
 auth:
   enabled: false
-  whitelist_path: null
+  whitelist: null
 ```
 ⚠️ By default, `notarization.private_key_path` is `null`, which means a **random, ephemeral** signing key will be generated at runtime (see [Signing](#signing) for more details).
 
@@ -168,9 +168,34 @@ TLS needs to be turned on between the prover and the notary for security purpose
 The toggle to turn on TLS, as well as paths to the TLS private key and certificate can be defined in the config (`tls` field).
 
 ### Authorization
-An optional authorization module is available to only allow requests with a valid API key attached in the custom HTTP header `X-API-Key`. The API key whitelist path, as well as the flag to enable/disable this module, can be changed in the config (`authorization` field).
+An optional authorization module is available to only allow requests with a valid credential attached. Currently, two modes are supported: whitelist and JWT.
+
+Please note that only *one* mode can be active at any one time.
+
+#### Whitelist mode
+In whitelist mode, a valid API key needs to be attached in the custom HTTP header `X-API-Key`. The path of the API key whitelist, as well as the flag to enable/disable this module, can be changed in the config (`auth` field).
 
 Hot reloading of the whitelist is supported, i.e. changes to the whitelist file are automatically applied without needing to restart the server.
+
+#### JWT mode
+In JWT mode, JSON Web Token is attached in the standard `Authorization` HTTP header as a bearer token. The algorithm, the path to verifying key, as well as custom user claims, can be changed in the config (`auth` field).
+
+Care should be taken when defining custom user claims as the middleware will:
+- accept any claim if no custom claim is defined,
+- as long as user defined claims are found, other unknown claims will be ignored.
+
+An example JWT config may look something like this:
+
+```yaml
+auth:
+  enabled: true
+  jwt:
+    algorithm: "RS256"
+    public_key_path: "./fixture/auth/jwt.key.pub"
+    claims:
+      - name: sub
+        values: ["tlsnotary"]
+```
 
 ### Logging
 The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic.

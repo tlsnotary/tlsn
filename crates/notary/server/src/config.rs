@@ -42,19 +42,35 @@ impl NotaryServerProperties {
                 .to_string();
 
             // Prepend notarization key path.
-            if let Some(path) = &config.notarization.private_key_path {
-                config.notarization.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
+            if let Some(path) = config.notarization.private_key_path {
+                config.notarization.private_key_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
             // Prepend TLS key paths.
-            if let Some(path) = &config.tls.private_key_path {
-                config.tls.private_key_path = Some(prepend_file_path(path, &parent_dir)?);
+            if let Some(path) = config.tls.private_key_path {
+                config.tls.private_key_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
-            if let Some(path) = &config.tls.certificate_path {
-                config.tls.certificate_path = Some(prepend_file_path(path, &parent_dir)?);
+            if let Some(path) = config.tls.certificate_path {
+                config.tls.certificate_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
-            // Prepend auth whitelist path.
-            if let Some(path) = &config.auth.whitelist_path {
-                config.auth.whitelist_path = Some(prepend_file_path(path, &parent_dir)?);
+            // Prepend auth file path.
+            if let Some(mode) = config.auth.mode {
+                config.auth.mode = Some(match mode {
+                    AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
+                        algorithm,
+                        public_key_path,
+                        claims,
+                    }) => AuthorizationModeProperties::Jwt(JwtAuthorizationProperties {
+                        algorithm,
+                        public_key_path: prepend_file_path(&public_key_path, &parent_dir)?,
+                        claims,
+                    }),
+                    AuthorizationModeProperties::Whitelist(path) => {
+                        AuthorizationModeProperties::Whitelist(prepend_file_path(
+                            &path,
+                            &parent_dir,
+                        )?)
+                    }
+                });
             }
 
             Ok(config)
@@ -134,8 +150,39 @@ pub struct LogProperties {
 pub struct AuthorizationProperties {
     /// Flag to turn on or off auth middleware
     pub enabled: bool,
+    /// Authorization mode to use: JWT or Whitelist
+    #[serde(flatten)]
+    pub mode: Option<AuthorizationModeProperties>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AuthorizationModeProperties {
+    /// JWT authorization properties
+    Jwt(JwtAuthorizationProperties),
     /// File path of the API key whitelist (in CSV format)
-    pub whitelist_path: Option<String>,
+    Whitelist(String),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct JwtAuthorizationProperties {
+    /// Algorithm used for signing the JWT
+    pub algorithm: String,
+    /// File path to JWT public key (in PEM format) for verifying token
+    /// signatures
+    pub public_key_path: String,
+    /// Optional set of required JWT claims
+    #[serde(default)]
+    pub claims: Vec<JwtClaim>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct JwtClaim {
+    /// Name of the claim
+    pub name: String,
+    /// Optional set of expected values for the claim
+    #[serde(default)]
+    pub values: Vec<String>,
 }
 
 impl Default for NotaryServerProperties {
