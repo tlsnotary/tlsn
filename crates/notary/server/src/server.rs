@@ -17,7 +17,7 @@ use std::{
     io::BufReader,
     net::{IpAddr, SocketAddr},
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 use tlsn_core::CryptoProvider;
 use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
@@ -28,7 +28,7 @@ use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
 
 use crate::{
-    auth::{load_authorization_whitelist, watch_and_reload_authorization_whitelist},
+    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode},
     config::{NotarizationProperties, NotaryServerProperties},
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
@@ -87,12 +87,14 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         Some(TlsAcceptor::from(tls_config))
     };
 
-    // Load the authorization whitelist csv if it is turned on
-    let authorization_whitelist =
-        load_authorization_whitelist(config)?.map(|whitelist| Arc::new(Mutex::new(whitelist)));
+    // Set up authorization if it is turned on
+    let authorization_mode = load_authorization_mode(config).await?;
     // Enable hot reload if authorization whitelist is available
-    let watcher =
-        watch_and_reload_authorization_whitelist(config.clone(), authorization_whitelist.clone())?;
+    let watcher = authorization_mode
+        .as_ref()
+        .and_then(AuthorizationMode::as_whitelist)
+        .map(watch_and_reload_authorization_whitelist)
+        .transpose()?;
     if watcher.is_some() {
         debug!("Successfully setup watcher for hot reload of authorization whitelist!");
     }
@@ -113,7 +115,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let notary_globals = NotaryGlobals::new(
         Arc::new(crypto_provider),
         config.notarization.clone(),
-        authorization_whitelist,
+        authorization_mode,
         Arc::new(Semaphore::new(config.concurrency)),
     );
 
