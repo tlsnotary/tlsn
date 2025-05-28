@@ -54,8 +54,8 @@ impl VerifierConfig {
             builder.max_sent_records(max_sent_records);
         }
 
-        if let Some(max_recv_records) = protocol_config.max_recv_records() {
-            builder.max_recv_records(max_recv_records);
+        if let Some(max_recv_records_online) = protocol_config.max_recv_records_online() {
+            builder.max_recv_records_online(max_recv_records_online);
         }
 
         if let NetworkSetting::Bandwidth = protocol_config.network() {

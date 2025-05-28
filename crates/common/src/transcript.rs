@@ -6,21 +6,21 @@ use mpz_memory_core::{
 };
 use mpz_vm_core::{Vm, VmError};
 use rangeset::Intersection;
-use tls_core::msgs::enums::ContentType;
+use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 use tlsn_core::transcript::{Direction, Idx, PartialTranscript, Transcript};
 
-/// A transcript of sent and received TLS records.
+/// A transcript of TLS records sent and received by the prover.
 #[derive(Debug, Default, Clone)]
 pub struct TlsTranscript {
-    /// Records sent by the prover.
+    /// Sent records.
     pub sent: Vec<Record>,
-    /// Records received by the prover.
+    /// Received records.
     pub recv: Vec<Record>,
 }
 
 impl TlsTranscript {
     /// Returns the application data transcript.
-    pub fn to_transcript(&self) -> Result<Transcript, IncompleteTranscript> {
+    pub fn to_transcript(&self) -> Result<Transcript, TlsTranscriptError> {
         let mut sent = Vec::new();
         let mut recv = Vec::new();
 
@@ -32,7 +32,7 @@ impl TlsTranscript {
             let plaintext = record
                 .plaintext
                 .as_ref()
-                .ok_or(IncompleteTranscript {})?
+                .ok_or(ErrorRepr::IncompleteTranscript {})?
                 .clone();
             sent.extend_from_slice(&plaintext);
         }
@@ -45,7 +45,7 @@ impl TlsTranscript {
             let plaintext = record
                 .plaintext
                 .as_ref()
-                .ok_or(IncompleteTranscript {})?
+                .ok_or(ErrorRepr::IncompleteTranscript {})?
                 .clone();
             recv.extend_from_slice(&plaintext);
         }
@@ -54,7 +54,7 @@ impl TlsTranscript {
     }
 
     /// Returns the application data transcript references.
-    pub fn to_transcript_refs(&self) -> Result<TranscriptRefs, IncompleteTranscript> {
+    pub fn to_transcript_refs(&self) -> Result<TranscriptRefs, TlsTranscriptError> {
         let mut sent = Vec::new();
         let mut recv = Vec::new();
 
@@ -66,7 +66,7 @@ impl TlsTranscript {
             let plaintext_ref = record
                 .plaintext_ref
                 .as_ref()
-                .ok_or(IncompleteTranscript {})?;
+                .ok_or(ErrorRepr::IncompleteTranscript {})?;
             sent.push(*plaintext_ref);
         }
 
@@ -78,7 +78,7 @@ impl TlsTranscript {
             let plaintext_ref = record
                 .plaintext_ref
                 .as_ref()
-                .ok_or(IncompleteTranscript {})?;
+                .ok_or(ErrorRepr::IncompleteTranscript {})?;
             recv.push(*plaintext_ref);
         }
 
@@ -101,6 +101,10 @@ pub struct Record {
     pub explicit_nonce: Vec<u8>,
     /// Ciphertext.
     pub ciphertext: Vec<u8>,
+    /// Tag.
+    pub tag: Option<Vec<u8>>,
+    /// Version.
+    pub version: ProtocolVersion,
 }
 
 opaque_debug::implement!(Record);
@@ -167,10 +171,17 @@ impl TranscriptRefs {
     }
 }
 
-/// Error for [`TranscriptRefs::from_transcript`].
+/// Error for [`TlsTranscript`].
 #[derive(Debug, thiserror::Error)]
-#[error("not all application plaintext was committed to in the TLS transcript")]
-pub struct IncompleteTranscript {}
+#[error(transparent)]
+pub struct TlsTranscriptError(#[from] ErrorRepr);
+
+#[derive(Debug, thiserror::Error)]
+#[error("TLS transcript error")]
+enum ErrorRepr {
+    #[error("not all application plaintext was committed to in the TLS transcript")]
+    IncompleteTranscript {},
+}
 
 /// Decodes the transcript.
 pub fn decode_transcript(

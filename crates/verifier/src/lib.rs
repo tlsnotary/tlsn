@@ -7,6 +7,7 @@
 pub(crate) mod config;
 mod error;
 pub mod state;
+mod tag;
 
 use std::sync::Arc;
 
@@ -19,6 +20,7 @@ use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
+use mpz_memory_core::MemoryExt;
 use mpz_vm_core::prelude::*;
 use serio::{stream::IoStreamExt, SinkExt};
 use tls_core::msgs::enums::ContentType;
@@ -28,8 +30,9 @@ use tlsn_common::{
     context::build_mt_context,
     encoding,
     mux::attach_mux,
+    tag::commit_j0,
     transcript::{decode_transcript, verify_transcript, Record, TlsTranscript},
-    zk_aes::ZkAesCtr,
+    zk_aes_ctr::ZkAesCtr,
     Role,
 };
 use tlsn_core::{
@@ -121,9 +124,9 @@ impl Verifier<state::Initialized> {
         translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
 
         // Allocate for committing to plaintext.
-        let mut zk_aes = ZkAesCtr::new(Role::Verifier);
-        zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
-        zk_aes.alloc(
+        let mut zk_aes_ctr = ZkAesCtr::new(Role::Verifier);
+        zk_aes_ctr.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes_ctr.alloc(
             &mut (*vm.try_lock().expect("VM is not locked").zk()),
             protocol_config.max_recv_data(),
         )?;
@@ -142,7 +145,7 @@ impl Verifier<state::Initialized> {
                 mux_fut,
                 delta,
                 mpc_tls,
-                zk_aes,
+                zk_aes_ctr,
                 _keys: keys,
                 vm,
             },
@@ -210,7 +213,7 @@ impl Verifier<state::Setup> {
             mut mux_fut,
             delta,
             mpc_tls,
-            mut zk_aes,
+            mut zk_aes_ctr,
             vm,
             ..
         } = self.state;
@@ -227,6 +230,7 @@ impl Verifier<state::Setup> {
             FollowerData {
                 server_key,
                 mut transcript,
+                keys,
                 ..
             },
         ) = mux_fut.poll_with(mpc_tls.run()).await?;
@@ -236,12 +240,21 @@ impl Verifier<state::Setup> {
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
 
+            // Prepare for the prover to prove j0s of the received
+            // records.
+            let j0_proof = commit_j0(
+                &mut (*vm.zk()),
+                (keys.server_write_key, keys.server_write_iv),
+                transcript.recv.iter(),
+            )
+            .map_err(VerifierError::zk)?;
+
             translate_transcript(&mut transcript, &vm)?;
 
             // Prepare for the prover to prove received plaintext.
             let proof = commit_records(
                 &mut (*vm.zk()),
-                &mut zk_aes,
+                &mut zk_aes_ctr,
                 transcript
                     .recv
                     .iter_mut()
@@ -251,13 +264,24 @@ impl Verifier<state::Setup> {
 
             debug!("finalizing mpc");
 
-            // Finalize DEAP and execute the plaintext proofs.
+            // Finalize DEAP and execute the j0 proofs and plaintext proofs.
             mux_fut
                 .poll_with(vm.finalize(&mut ctx))
                 .await
                 .map_err(VerifierError::mpc)?;
 
             debug!("mpc finalized");
+
+            // Verify the AES-GCM tags.
+            // After the verification, the entire TLS trancript becomes
+            // authenticated from the verifier's perspective.
+            let server_mac_key = vm
+                .decode(keys.server_write_mac_key)
+                .expect("the key was decoded before")
+                .try_recv()
+                .expect("the key was decoded before")
+                .expect("the key was decoded before");
+            tag::verify_tags(j0_proof, server_mac_key, transcript.recv.iter())?;
 
             // Verify the plaintext proofs.
             proof.verify().map_err(VerifierError::zk)?;
@@ -575,6 +599,9 @@ fn translate_keys<Mpc, Zk>(
         .map_err(VerifierError::mpc)?;
     keys.server_write_iv = vm
         .translate(keys.server_write_iv)
+        .map_err(VerifierError::mpc)?;
+    keys.server_write_mac_key = vm
+        .translate(keys.server_write_mac_key)
         .map_err(VerifierError::mpc)?;
 
     Ok(())

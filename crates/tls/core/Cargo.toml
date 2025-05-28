@@ -25,6 +25,7 @@ prf = ["dep:hmac", "dep:sha2"]
 
 [dependencies]
 futures = { workspace = true }
+ghash = { workspace = true }
 hmac = { workspace = true, optional = true }
 rand = { workspace = true }
 ring = { workspace = true }

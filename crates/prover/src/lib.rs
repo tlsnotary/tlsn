@@ -32,8 +32,9 @@ use tlsn_common::{
     context::build_mt_context,
     encoding,
     mux::attach_mux,
+    tag::commit_j0,
     transcript::{decode_transcript, Record, TlsTranscript},
-    zk_aes::ZkAesCtr,
+    zk_aes_ctr::ZkAesCtr,
     Role,
 };
 use tlsn_core::{
@@ -111,14 +112,14 @@ impl Prover<state::Initialized> {
 
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, ctx);
 
-        // Allocate resources for MPC-TLS in VM.
+        // Allocate resources for MPC-TLS in the VM.
         let mut keys = mpc_tls.alloc()?;
         translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
 
         // Allocate for committing to plaintext.
-        let mut zk_aes = ZkAesCtr::new(Role::Prover);
-        zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
-        zk_aes.alloc(
+        let mut zk_aes_ctr = ZkAesCtr::new(Role::Prover);
+        zk_aes_ctr.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes_ctr.alloc(
             &mut (*vm.try_lock().expect("VM is not locked").zk()),
             self.config.protocol_config().max_recv_data(),
         )?;
@@ -136,7 +137,7 @@ impl Prover<state::Initialized> {
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
-                zk_aes,
+                zk_aes_ctr,
                 keys,
                 vm,
             },
@@ -162,7 +163,7 @@ impl Prover<state::Setup> {
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
-            mut zk_aes,
+            mut zk_aes_ctr,
             keys,
             vm,
             ..
@@ -207,7 +208,7 @@ impl Prover<state::Setup> {
                     Ok::<_, ProverError>(())
                 };
 
-                let (_, (mut ctx, mut data)) = futures::try_join!(
+                let (_, (mut ctx, mut data, ..)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
@@ -215,13 +216,22 @@ impl Prover<state::Setup> {
                 {
                     let mut vm = vm.try_lock().expect("VM should not be locked");
 
+                    // Prove j0 blocks of received records.
+                    // The prover drops the proof output.
+                    let _ = commit_j0(
+                        &mut (*vm.zk()),
+                        (data.keys.server_write_key, data.keys.server_write_iv),
+                        data.transcript.recv.iter(),
+                    )
+                    .map_err(ProverError::zk)?;
+
                     translate_transcript(&mut data.transcript, &vm)?;
 
                     // Prove received plaintext. Prover drops the proof output, as they trust
                     // themselves.
                     _ = commit_records(
                         &mut (*vm.zk()),
-                        &mut zk_aes,
+                        &mut zk_aes_ctr,
                         data.transcript
                             .recv
                             .iter_mut()
@@ -231,7 +241,8 @@ impl Prover<state::Setup> {
 
                     debug!("finalizing mpc");
 
-                    // Finalize DEAP and execute the plaintext proofs.
+                    // Finalize DEAP and execute the j0 proofs and plaintext
+                    // proofs.
                     mux_fut
                         .poll_with(vm.finalize(&mut ctx))
                         .await
@@ -627,6 +638,9 @@ fn translate_keys<Mpc, Zk>(keys: &mut SessionKeys, vm: &Deap<Mpc, Zk>) -> Result
         .map_err(ProverError::mpc)?;
     keys.server_write_iv = vm
         .translate(keys.server_write_iv)
+        .map_err(ProverError::mpc)?;
+    keys.server_write_mac_key = vm
+        .translate(keys.server_write_mac_key)
         .map_err(ProverError::mpc)?;
 
     Ok(())
