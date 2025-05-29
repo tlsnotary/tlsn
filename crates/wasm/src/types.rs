@@ -171,7 +171,6 @@ pub struct Commit {
 pub struct Reveal {
     pub sent: Vec<Range<usize>>,
     pub recv: Vec<Range<usize>>,
-    #[serde(default)]
     pub server_identity: bool,
 }
 
