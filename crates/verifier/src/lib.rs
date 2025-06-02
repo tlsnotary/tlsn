@@ -258,6 +258,11 @@ impl Verifier<state::Setup> {
             .into_inner()
             .into_inner();
 
+        // Decode server write MAC key .
+        let mac_key = vm
+            .decode(keys.server_write_mac_key)
+            .map_err(VerifierError::zk)?;
+
         // Prepare for the prover to prove j0s of the received
         // records.
         let j0_proof = commit_j0(
@@ -285,13 +290,7 @@ impl Verifier<state::Setup> {
         // Verify the AES-GCM tags.
         // After the verification, the entire TLS trancript becomes
         // authenticated from the verifier's perspective.
-        let server_mac_key = vm
-            .decode(keys.server_write_mac_key)
-            .expect("the key was decoded earlier")
-            .try_recv()
-            .expect("the key was decoded earlier")
-            .expect("the key was decoded earlier");
-        tag::verify_tags(j0_proof, server_mac_key, transcript.recv.iter())?;
+        tag::verify_tags(j0_proof, mac_key, transcript.recv.iter())?;
 
         // Verify the plaintext proofs.
         proof.verify().map_err(VerifierError::zk)?;

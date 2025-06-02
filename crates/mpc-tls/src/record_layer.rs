@@ -1,7 +1,7 @@
 //! TLS record layer.
 
 pub(crate) mod aead;
-mod aes_ctr;
+mod aes_gcm;
 mod decrypt;
 mod encrypt;
 
@@ -12,7 +12,7 @@ use futures::TryFutureExt;
 use mpz_common::{Context, Task};
 use mpz_memory_core::{
     binary::{Binary, U8},
-    Array, MemoryExt,
+    Array,
 };
 use mpz_vm_core::Vm as VmTrait;
 use rand::RngCore;
@@ -26,7 +26,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use crate::{
-    record_layer::{aes_ctr::AesCtr, decrypt::DecryptOp, encrypt::EncryptOp},
+    record_layer::{aes_gcm::AesGcm, decrypt::DecryptOp, encrypt::EncryptOp},
     MpcTlsError, Role, Vm,
 };
 pub(crate) use decrypt::DecryptMode;
@@ -76,7 +76,7 @@ pub(crate) struct RecordLayer {
     read_seq: u64,
     encrypter: Arc<Mutex<MpcAesGcm>>,
     decrypt: Arc<Mutex<MpcAesGcm>>,
-    aes_ctr: AesCtr,
+    aes_gcm: AesGcm,
     state: State,
     /// Whether the record layer has started processing application data.
     started: bool,
@@ -108,7 +108,7 @@ impl RecordLayer {
             read_seq: 0,
             encrypter: Arc::new(Mutex::new(encrypt)),
             decrypt: Arc::new(Mutex::new(decrypt)),
-            aes_ctr: AesCtr::new(role),
+            aes_gcm: AesGcm::new(role),
             state: State::Init,
             started: false,
             sent: 0,
@@ -177,7 +177,7 @@ impl RecordLayer {
             Role::Follower => None,
         };
 
-        self.aes_ctr.alloc(vm)?;
+        self.aes_gcm.alloc(vm)?;
 
         self.max_sent += sent_len;
         self.max_recv_online += recv_len_online;
@@ -237,7 +237,7 @@ impl RecordLayer {
         encrypt.set_iv(client_iv);
         decrypt.set_key(server_write_key);
         decrypt.set_iv(server_iv);
-        self.aes_ctr.set_key(server_write_key, server_iv);
+        self.aes_gcm.set_key(server_write_key, server_iv);
 
         Ok(())
     }
@@ -557,45 +557,21 @@ impl RecordLayer {
         let buffered_ops = take(&mut self.decrypt_buffer);
 
         // Reveal decryption key to the leader.
-        self.aes_ctr.decode_key(&mut (*vm))?;
+        self.aes_gcm.decode_key(&mut (*vm))?;
         vm.flush(ctx).await.map_err(MpcTlsError::record_layer)?;
-        let (key, iv) = self.aes_ctr.finish_decode()?;
+        self.aes_gcm.finish_decode()?;
 
         let pending_decrypts = decrypt::decrypt_local(
             self.role,
             &mut (*vm),
             &mut decrypter,
-            &mut self.aes_ctr,
+            &mut self.aes_gcm,
             &buffered_ops,
         )?;
-
-        // Reveal server write MAC key to both parties.
-        let server_mac_key = &mut decrypter
-            .ghash_key()
-            .map_err(|_| MpcTlsError::record_layer("decrypt lock is held"))?;
-
-        let mut server_mac_key = vm
-            .decode(*server_mac_key)
-            .map_err(MpcTlsError::record_layer)?;
 
         vm.execute_all(ctx)
             .await
             .map_err(MpcTlsError::record_layer)?;
-
-        let server_mac_key = server_mac_key
-            .try_recv()
-            .map_err(MpcTlsError::record_layer)?
-            .expect("server mac key should be decoded");
-
-        if self.role == Role::Leader {
-            // The leader locally verifies the tags of buffered ciphertexts.
-            decrypt::verify_tags_locally(
-                key.expect("leader knows the key"),
-                iv.expect("leader knows the iv"),
-                server_mac_key,
-                &buffered_ops,
-            )?;
-        }
 
         for (op, pending) in buffered_ops.into_iter().zip(pending_decrypts) {
             let plaintext = pending.output.try_decrypt()?;

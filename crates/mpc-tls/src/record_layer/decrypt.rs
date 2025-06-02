@@ -3,12 +3,11 @@ use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
 use mpz_vm_core::{prelude::*, Vm};
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
-use tlsn_common::ghash::ghash;
 
 use crate::{
     record_layer::{
         aead::{MpcAesGcm, VerifyTags},
-        aes_ctr::AesCtr,
+        aes_gcm::AesGcm,
         TagData,
     },
     MpcTlsError, Role,
@@ -99,7 +98,7 @@ pub(crate) fn decrypt_local(
     role: Role,
     vm: &mut dyn Vm<Binary>,
     mpc_decrypter: &mut MpcAesGcm,
-    local_decrypter: &mut AesCtr,
+    local_decrypter: &mut AesGcm,
     ops: &[DecryptOp],
 ) -> Result<Vec<PendingDecrypt>, MpcTlsError> {
     let mut pending_decrypt = Vec::with_capacity(ops.len());
@@ -107,8 +106,12 @@ pub(crate) fn decrypt_local(
         match op.mode {
             DecryptMode::Private => {
                 let plaintext = if let Role::Leader = role {
-                    let plaintext = local_decrypter
-                        .decrypt(op.explicit_nonce.clone(), op.ciphertext.clone())?;
+                    let plaintext = local_decrypter.decrypt(
+                        op.explicit_nonce.clone(),
+                        op.aad.clone(),
+                        op.ciphertext.clone(),
+                        op.tag.clone(),
+                    )?;
                     Some(plaintext)
                 } else {
                     None
@@ -158,58 +161,6 @@ pub(crate) fn verify_tags(
     decrypter
         .verify_tags(vm, tags_data, ciphertexts, tags)
         .map_err(MpcTlsError::record_layer)
-}
-
-use aes::{
-    cipher::{BlockEncrypt, KeyInit},
-    Aes128,
-};
-
-/// Verifies AES-GCM tags locally.
-pub(crate) fn verify_tags_locally(
-    key: [u8; 16],
-    iv: [u8; 4],
-    mac_key: [u8; 16],
-    ops: &[DecryptOp],
-) -> Result<(), MpcTlsError> {
-    for DecryptOp {
-        ciphertext,
-        tag,
-        explicit_nonce,
-        aad,
-        ..
-    } in ops
-    {
-        let aes = Aes128::new_from_slice(&key).expect("key length is 16 bytes");
-        let mut j0 = [0; 16];
-        j0[0..4].copy_from_slice(&iv);
-        j0[4..12].copy_from_slice(explicit_nonce);
-        j0[12..16].copy_from_slice(&1u32.to_be_bytes());
-
-        let mut j0 = j0.into();
-        aes.encrypt_block(&mut j0);
-
-        debug_assert!({
-            // MAC key is an encryption of a zero block.
-            let mut zero_block = [0; 16].into();
-            aes.encrypt_block(&mut zero_block);
-            zero_block == mac_key.into()
-        });
-
-        let ghash_tag = ghash(aad, ciphertext, &mac_key);
-
-        if j0
-            .iter()
-            .zip(ghash_tag)
-            .map(|(a, b)| a ^ b)
-            .collect::<Vec<_>>()
-            != *tag
-        {
-            return Err(MpcTlsError::record_layer("local tag verification failed"));
-        }
-    }
-
-    Ok(())
 }
 
 pub(crate) struct DecryptOp {
@@ -347,49 +298,5 @@ pub(crate) struct DecryptLocal {
 impl DecryptLocal {
     pub(crate) fn try_decrypt(self) -> Result<Option<Vec<u8>>, MpcTlsError> {
         Ok(self.plaintext)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use aes_gcm::{aead::AeadMutInPlace, Aes128Gcm, NewAead};
-    use cipher_crate::{BlockEncrypt, KeyInit};
-
-    #[test]
-    fn test_verify_tags_locally() {
-        let key = [0u8; 16];
-        let iv = [42u8; 4];
-        let explicit_nonce = [69u8; 8];
-        let aad = [33u8; 10];
-        let msg: &'static [u8; 11] = b"hello world";
-
-        let mut nonce = [0u8; 12];
-        nonce[..4].copy_from_slice(&iv);
-        nonce[4..].copy_from_slice(&explicit_nonce);
-
-        let mut aes_gcm = Aes128Gcm::new(&key.into());
-
-        let mut ciphertext = msg.to_vec();
-        let expected_tag = aes_gcm
-            .encrypt_in_place_detached(&nonce.into(), &aad, &mut ciphertext)
-            .unwrap();
-
-        let aes = Aes128::new_from_slice(&key).expect("key length is 16 bytes");
-        let mut zero_block = [0; 16].into();
-        aes.encrypt_block(&mut zero_block);
-
-        let ops = [DecryptOp {
-            aad: aad.to_vec(),
-            ciphertext,
-            explicit_nonce: explicit_nonce.to_vec(),
-            mode: DecryptMode::Private,
-            seq: 1,
-            tag: expected_tag.to_vec(),
-            typ: ContentType::ApplicationData,
-            version: ProtocolVersion::TLSv1_2,
-        }];
-
-        assert!(verify_tags_locally(key, iv, zero_block.into(), &ops).is_ok());
     }
 }

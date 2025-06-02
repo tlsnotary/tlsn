@@ -1,5 +1,7 @@
 //! TLS 1.2 record AES-GCM tag verification.
 
+use mpz_core::bitvec::BitVec;
+use mpz_memory_core::DecodeFutureTyped;
 use tls_core::cipher::make_tls12_aad;
 use tlsn_common::{ghash::ghash, tag::J0Proof, transcript::Record};
 
@@ -7,9 +9,14 @@ use crate::VerifierError;
 
 pub(crate) fn verify_tags<'record>(
     proof: J0Proof,
-    mac_key: [u8; 16],
+    mut mac_key: DecodeFutureTyped<BitVec, [u8; 16]>,
     records: impl Iterator<Item = &'record Record>,
 ) -> Result<(), VerifierError> {
+    let mac_key = mac_key
+        .try_recv()
+        .map_err(VerifierError::zk)?
+        .expect("the key should be decoded");
+
     for (mut j0, rec) in proof.j0s.into_iter().zip(records) {
         let j0 = j0
             .try_recv()
