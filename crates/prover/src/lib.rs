@@ -50,7 +50,7 @@ use tlsn_core::{
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use tracing::{debug, info_span, instrument, Instrument, Span};
+use tracing::{debug, info, info_span, instrument, Instrument, Span};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,
@@ -208,41 +208,23 @@ impl Prover<state::Setup> {
                     Ok::<_, ProverError>(())
                 };
 
+                info!("starting MPC-TLS");
+
                 let (_, (mut ctx, mut data, ..)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
 
+                info!("finished MPC-TLS");
+
                 {
                     let mut vm = vm.try_lock().expect("VM should not be locked");
 
-                    // Prove j0 blocks of received records.
-                    // The prover drops the proof output.
-                    let _ = commit_j0(
-                        &mut (*vm.zk()),
-                        (data.keys.server_write_key, data.keys.server_write_iv),
-                        data.transcript.recv.iter(),
-                    )
-                    .map_err(ProverError::zk)?;
-
                     translate_transcript(&mut data.transcript, &vm)?;
-
-                    // Prove received plaintext. Prover drops the proof output, as they trust
-                    // themselves.
-                    _ = commit_records(
-                        &mut (*vm.zk()),
-                        &mut zk_aes_ctr,
-                        data.transcript
-                            .recv
-                            .iter_mut()
-                            .filter(|record| record.typ == ContentType::ApplicationData),
-                    )
-                    .map_err(ProverError::zk)?;
 
                     debug!("finalizing mpc");
 
-                    // Finalize DEAP and execute the j0 proofs and plaintext
-                    // proofs.
+                    // Finalize DEAP.
                     mux_fut
                         .poll_with(vm.finalize(&mut ctx))
                         .await
@@ -250,6 +232,37 @@ impl Prover<state::Setup> {
 
                     debug!("mpc finalized");
                 }
+
+                // Pull out ZK VM.
+                let (_, mut vm) = Arc::into_inner(vm)
+                    .expect("vm should have only 1 reference")
+                    .into_inner()
+                    .into_inner();
+
+                // Prove j0 blocks of received records.
+                // The prover drops the proof output.
+                let _ = commit_j0(
+                    &mut vm,
+                    (data.keys.server_write_key, data.keys.server_write_iv),
+                    data.transcript.recv.iter(),
+                )
+                .map_err(ProverError::zk)?;
+
+                // Prove received plaintext. Prover drops the proof output, as
+                // they trust themselves.
+                _ = commit_records(
+                    &mut vm,
+                    &mut zk_aes_ctr,
+                    data.transcript
+                        .recv
+                        .iter_mut()
+                        .filter(|record| record.typ == ContentType::ApplicationData),
+                )
+                .map_err(ProverError::zk)?;
+
+                mux_fut
+                    .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
+                    .await?;
 
                 let transcript = data
                     .transcript
@@ -296,12 +309,6 @@ impl Prover<state::Setup> {
                                 .expect("only supported key scheme should have been accepted"),
                         }),
                     };
-
-                // Pull out ZK VM.
-                let (_, vm) = Arc::into_inner(vm)
-                    .expect("vm should have only 1 reference")
-                    .into_inner()
-                    .into_inner();
 
                 Ok(Prover {
                     config: self.config,

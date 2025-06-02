@@ -240,52 +240,61 @@ impl Verifier<state::Setup> {
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
 
-            // Prepare for the prover to prove j0s of the received
-            // records.
-            let j0_proof = commit_j0(
-                &mut (*vm.zk()),
-                (keys.server_write_key, keys.server_write_iv),
-                transcript.recv.iter(),
-            )
-            .map_err(VerifierError::zk)?;
-
             translate_transcript(&mut transcript, &vm)?;
-
-            // Prepare for the prover to prove received plaintext.
-            let proof = commit_records(
-                &mut (*vm.zk()),
-                &mut zk_aes_ctr,
-                transcript
-                    .recv
-                    .iter_mut()
-                    .filter(|record| record.typ == ContentType::ApplicationData),
-            )
-            .map_err(VerifierError::zk)?;
 
             debug!("finalizing mpc");
 
-            // Finalize DEAP and execute the j0 proofs and plaintext proofs.
             mux_fut
                 .poll_with(vm.finalize(&mut ctx))
                 .await
                 .map_err(VerifierError::mpc)?;
 
             debug!("mpc finalized");
-
-            // Verify the AES-GCM tags.
-            // After the verification, the entire TLS trancript becomes
-            // authenticated from the verifier's perspective.
-            let server_mac_key = vm
-                .decode(keys.server_write_mac_key)
-                .expect("the key was decoded before")
-                .try_recv()
-                .expect("the key was decoded before")
-                .expect("the key was decoded before");
-            tag::verify_tags(j0_proof, server_mac_key, transcript.recv.iter())?;
-
-            // Verify the plaintext proofs.
-            proof.verify().map_err(VerifierError::zk)?;
         }
+
+        // Pull out ZK VM.
+        let (_, mut vm) = Arc::into_inner(vm)
+            .expect("vm should have only 1 reference")
+            .into_inner()
+            .into_inner();
+
+        // Prepare for the prover to prove j0s of the received
+        // records.
+        let j0_proof = commit_j0(
+            &mut vm,
+            (keys.server_write_key, keys.server_write_iv),
+            transcript.recv.iter(),
+        )
+        .map_err(VerifierError::zk)?;
+
+        // Prepare for the prover to prove received plaintext.
+        let proof = commit_records(
+            &mut vm,
+            &mut zk_aes_ctr,
+            transcript
+                .recv
+                .iter_mut()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+        )
+        .map_err(VerifierError::zk)?;
+
+        mux_fut
+            .poll_with(vm.execute_all(&mut ctx).map_err(VerifierError::zk))
+            .await?;
+
+        // Verify the AES-GCM tags.
+        // After the verification, the entire TLS trancript becomes
+        // authenticated from the verifier's perspective.
+        let server_mac_key = vm
+            .decode(keys.server_write_mac_key)
+            .expect("the key was decoded earlier")
+            .try_recv()
+            .expect("the key was decoded earlier")
+            .expect("the key was decoded earlier");
+        tag::verify_tags(j0_proof, server_mac_key, transcript.recv.iter())?;
+
+        // Verify the plaintext proofs.
+        proof.verify().map_err(VerifierError::zk)?;
 
         let sent = transcript
             .sent
@@ -309,12 +318,6 @@ impl Verifier<state::Setup> {
             version: TlsVersion::V1_2,
             transcript_length: TranscriptLength { sent, received },
         };
-
-        // Pull out ZK VM.
-        let (_, vm) = Arc::into_inner(vm)
-            .expect("vm should have only 1 reference")
-            .into_inner()
-            .into_inner();
 
         Ok(Verifier {
             config: self.config,
