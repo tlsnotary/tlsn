@@ -373,3 +373,22 @@ jobs:
           tags: ${{ steps.meta-notary-server.outputs.tags }}
           labels: ${{ steps.meta-notary-server.outputs.labels }}
           file: ./crates/notary/server/notary-server.Dockerfile
+
+  create-release-draft:
+    name: Create Release Draft
+    needs: build_and_publish_notary_server_image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '.')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release Draft
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: ${{ github.ref_name }}
+          prerelease: true
+          generate_release_notes: true

@@ -159,6 +159,10 @@ impl JsProver {
             builder.reveal_recv(&range)?;
         }
 
+        if reveal.server_identity {
+            builder.server_identity();
+        }
+
         let config = builder.build()?;
 
         prover.prove(&config).await?;

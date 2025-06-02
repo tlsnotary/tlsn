@@ -171,6 +171,7 @@ pub struct Commit {
 pub struct Reveal {
     pub sent: Vec<Range<usize>>,
     pub recv: Vec<Range<usize>>,
+    pub server_identity: bool,
 }
 
 #[derive(Debug, Tsify, Deserialize)]
