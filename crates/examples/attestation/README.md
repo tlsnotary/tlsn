@@ -13,7 +13,7 @@ Before starting the notarization, set up the local test server and local notary.
 
 1. Run the test server:
     ```shell
-    PORT=4000 cargo run --bin tlsn-server-fixture
+    RUST_LOG=info PORT=4000 cargo run --bin tlsn-server-fixture
     ```
 2. Run the notary server:
     ```shell

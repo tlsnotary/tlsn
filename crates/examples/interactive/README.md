@@ -4,7 +4,7 @@ This example demonstrates how to use TLSNotary in a simple interactive session b
 
 This example fetches data from a local test server. To start this server, run:
 ```shell
-PORT=4000 cargo run --bin tlsn-server-fixture
+RUST_LOG=info PORT=4000 cargo run --bin tlsn-server-fixture
 ```
 Next, run the interactive example with:
 ```shell
