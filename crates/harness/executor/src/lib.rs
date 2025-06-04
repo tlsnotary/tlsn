@@ -1,0 +1,74 @@
+mod bench;
+mod io;
+mod provider;
+pub(crate) mod spawn;
+pub mod test;
+mod tests;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+
+pub use provider::IoProvider;
+pub use spawn::spawn;
+
+use harness_core::{
+    ExecutorConfig, Role,
+    bench::BenchOutput,
+    rpc::{BenchCmd, Cmd, CmdOutput, Result, RpcError, TestCmd},
+    test::{TestOutput, TestStatus},
+};
+
+use crate::bench::{bench_prover, bench_verifier};
+
+pub struct Executor {
+    config: ExecutorConfig,
+}
+
+impl Executor {
+    pub fn new(config: ExecutorConfig) -> Self {
+        Self { config }
+    }
+
+    pub async fn process(&self, cmd: Cmd) -> Result<CmdOutput> {
+        match cmd {
+            Cmd::GetTests => Ok(CmdOutput::GetTests(test::collect_tests())),
+            Cmd::Test(TestCmd { name, role }) => {
+                let test = test::get_test(&name).ok_or(RpcError::new("test not found"))?;
+
+                let provider =
+                    IoProvider::new(*self.config.io_mode(), self.config.network().clone());
+
+                let f = match role {
+                    Role::Prover => test.prover,
+                    Role::Verifier => test.verifier,
+                };
+
+                f(&provider).await;
+
+                Ok(CmdOutput::Test(TestOutput {
+                    status: TestStatus::Passed,
+                }))
+            }
+            Cmd::Bench(BenchCmd { config, role }) => {
+                let provider =
+                    IoProvider::new(*self.config.io_mode(), self.config.network().clone());
+
+                match role {
+                    Role::Prover => {
+                        let metrics = bench_prover(&provider, &config).await.map_err(|e| {
+                            RpcError::new(format!("prover bench failed: {}", e.to_string()))
+                        })?;
+
+                        Ok(CmdOutput::Bench(BenchOutput::Prover { metrics }))
+                    }
+                    Role::Verifier => {
+                        bench_verifier(&provider, &config).await.map_err(|e| {
+                            RpcError::new(format!("verifier bench failed: {}", e.to_string()))
+                        })?;
+
+                        Ok(CmdOutput::Bench(BenchOutput::Verifier))
+                    }
+                }
+            }
+        }
+    }
+}

@@ -7,10 +7,7 @@ edition = "2021"
 workspace = true
 
 [features]
-tee_quote = [
-	"dep:mc-sgx-dcap-types",
-    "dep:hex",
-]
+tee_quote = ["dep:mc-sgx-dcap-types", "dep:hex"]
 
 [dependencies]
 notary-common = { workspace = true }
@@ -53,9 +50,9 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-rustls = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
-tower-http = { version = "0.5", features = ["cors"] }
-tower-service = { version = "0.3" }
-tower-util = { version = "0.3.1" }
+tower-http = { workspace = true, features = ["cors"] }
+tower-service = { workspace = true }
+tower-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
