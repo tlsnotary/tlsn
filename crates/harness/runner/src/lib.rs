@@ -6,7 +6,7 @@ mod server_fixture;
 pub mod wasm_server;
 mod ws_proxy;
 
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
@@ -52,7 +52,8 @@ struct Runner {
 impl Runner {
     fn new(cli: &Cli) -> Result<Self> {
         let Cli { target, subnet, .. } = cli;
-        let fixture_path = PathBuf::from("./bin/server-fixture");
+        let current_path = std::env::current_exe().unwrap();
+        let fixture_path = current_path.parent().unwrap().join("server-fixture");
         let network_config = NetworkConfig::new(subnet.clone());
         let network = Network::new(network_config.clone())?;
 
@@ -60,7 +61,7 @@ impl Runner {
             ServerFixture::new(fixture_path, network.ns_app().clone(), network_config.app);
         let wasm_server = WasmServer::new(
             network.ns_0().clone(),
-            PathBuf::from("./bin/wasm-server"),
+            current_path.parent().unwrap().join("wasm-server"),
             network_config.wasm,
         );
         let proto_proxy = WsProxy::new(network_config.proto_proxy);
