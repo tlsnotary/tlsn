@@ -13,12 +13,12 @@ RUN \
     rustup component add rust-src --toolchain nightly; \
     cargo install wasm-pack; \
     cd crates/benches/browser/wasm; \
-    wasm-pack build --release --target web; \
+    wasm-pack build --release  --locked --target web; \
     cd ../../binary; \
-    cargo build --release --features browser-bench; \
+    cargo build --release --features browser-bench --locked; \
   else \
     cd crates/benches/binary; \
-    cargo build --release; \
+    cargo build --release --locked; \
   fi
 
 FROM debian:latest

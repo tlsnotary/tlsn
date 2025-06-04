@@ -29,6 +29,3 @@ target/
 
 # metrics
 *.csv
-
-# Cargo.lock
-Cargo.lock
