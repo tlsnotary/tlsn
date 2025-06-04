@@ -3405,6 +3405,9 @@ name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "469fb0b9cefa57e3ef31275ee7cacb78f2fdca44e4765491884a2b119d4eb130"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "iri-string"
@@ -6476,6 +6479,7 @@ version = "0.1.0"
 dependencies = [
  "bon",
  "enum-try-as-inner",
+ "ipnet",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -6486,11 +6490,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures",
+ "getrandom 0.2.16",
+ "getrandom 0.3.3",
  "gloo-utils",
  "http-body-util",
  "hyper",
- "hyper-util",
  "inventory",
+ "js-sys",
  "pin-project-lite",
  "serde_json",
  "serio",
@@ -6522,6 +6528,7 @@ dependencies = [
  "csv",
  "duct",
  "futures",
+ "ipnet",
  "serde_json",
  "serio",
  "tlsn-harness-core",
@@ -6818,7 +6825,6 @@ dependencies = [
  "time",
  "tlsn-common",
  "tlsn-core",
- "tlsn-hmac-sha256",
  "tlsn-prover",
  "tlsn-server-fixture-certs",
  "tlsn-tls-client-async",
@@ -6831,7 +6837,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-spawn",
- "web-time 0.2.4",
  "ws_stream_wasm",
 ]
 

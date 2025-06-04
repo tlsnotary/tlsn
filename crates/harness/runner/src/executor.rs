@@ -110,6 +110,7 @@ impl Executor {
                     chrome_path,
                     format!("--remote-debugging-port={PORT_BROWSER}"),
                     "--headless",
+                    "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--disable-cache",
                     "--disable-application-cache",
@@ -122,7 +123,7 @@ impl Executor {
                 .start()?;
 
                 // Give the browser time to start.
-                tokio::time::sleep(Duration::from_millis(250)).await;
+                tokio::time::sleep(Duration::from_millis(1000)).await;
 
                 let (browser, mut handler) =
                     Browser::connect(format!("http://{}:{}", rpc_addr.0, PORT_BROWSER)).await?;
