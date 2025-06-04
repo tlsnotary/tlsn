@@ -10,6 +10,7 @@ This example demonstrates the simplest possible use case for TLSNotary. A Prover
 ### 1. Notarize
 
 Before starting the notarization, set up the local test server and local notary.
+Run the following commands from the root of this repository (not from this example's folder):
 
 1. Run the test server:
     ```shell
