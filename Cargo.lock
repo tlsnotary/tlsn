@@ -4668,7 +4668,7 @@ dependencies = [
 
 [[package]]
 name = "notary-client"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "derive_builder 0.12.0",
  "futures 0.3.31",
@@ -4686,14 +4686,14 @@ dependencies = [
 
 [[package]]
 name = "notary-common"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "notary-server"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "async-tungstenite 0.28.2",
  "axum 0.8.4",
@@ -4736,7 +4736,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-util",
- "tower-http",
+ "tower-http 0.5.2",
  "tower-service",
  "tower-util",
  "tracing",
@@ -7201,7 +7201,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-cipher"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "aes 0.8.4",
  "async-trait",
@@ -7220,7 +7220,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-common"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "async-trait",
  "derive_builder 0.12.0",
@@ -7251,7 +7251,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-core"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -7289,7 +7289,7 @@ version = "0.0.0"
 
 [[package]]
 name = "tlsn-deap"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -7343,7 +7343,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-formats"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "bytes",
  "rstest",
@@ -7355,7 +7355,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-hmac-sha256"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "criterion",
  "hex",
@@ -7376,7 +7376,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-key-exchange"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "async-trait",
  "derive_builder 0.12.0",
@@ -7402,7 +7402,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-mpc-tls"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
@@ -7452,7 +7452,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-prover"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "derive_builder 0.12.0",
  "futures 0.3.31",
@@ -7499,7 +7499,10 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tower 0.5.2",
+ "tower-http 0.6.5",
  "tower-service",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -7508,7 +7511,7 @@ version = "0.0.0"
 
 [[package]]
 name = "tlsn-tls-backend"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -7518,7 +7521,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-tls-client"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -7545,7 +7548,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-tls-client-async"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "bytes",
  "futures 0.3.31",
@@ -7563,7 +7566,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-tls-core"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "futures 0.3.31",
  "hmac",
@@ -7586,7 +7589,7 @@ source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f
 
 [[package]]
 name = "tlsn-verifier"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "derive_builder 0.12.0",
  "futures 0.3.31",
@@ -7616,7 +7619,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-wasm"
-version = "0.1.0-alpha.11"
+version = "0.1.0-alpha.12-pre"
 dependencies = [
  "bincode",
  "console_error_panic_hook",
@@ -7669,7 +7672,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tower 0.4.13",
- "tower-http",
+ "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
  "websocket-relay",
@@ -7862,6 +7865,22 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cc2d9e086a412a451384326f521c8123a99a466b329941a9403696bff9b0da2"
+dependencies = [
+ "bitflags 2.9.1",
+ "bytes",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "pin-project-lite",
  "tower-layer",
  "tower-service",
  "tracing",
