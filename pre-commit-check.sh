@@ -17,6 +17,3 @@ cargo clippy --all-features --all-targets -- -D warnings
 
 # Run tests
 # cargo test
-
-# Run wasm tests
-# ./crates/wasm-test-runner/run.sh

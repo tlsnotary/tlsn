@@ -22,7 +22,7 @@ tlsn-server-fixture-certs = { workspace = true }
 
 [[bin]]
 name = "tlsn-server-fixture"
-path = "src/main.rs"
+path = "bin/main.rs"
 
 [dev-dependencies]
 axum-test = { version = "16.2.0" }
