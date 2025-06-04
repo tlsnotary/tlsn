@@ -28,13 +28,7 @@ use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
 
 use crate::{
-    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode},
-    config::{NotarizationProperties, NotaryServerProperties},
-    error::NotaryServerError,
-    middleware::AuthorizationMiddleware,
-    service::{initialize, upgrade_protocol},
-    signing::AttestationKey,
-    types::{InfoResponse, NotaryGlobals},
+    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode}, config::{NotarizationProperties, NotaryServerProperties}, error::NotaryServerError, middleware::AuthorizationMiddleware, plugin::run_plugin, service::{initialize, upgrade_protocol}, signing::AttestationKey, types::{InfoResponse, NotaryGlobals}
 };
 
 #[cfg(feature = "tee_quote")]
@@ -98,6 +92,8 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     if watcher.is_some() {
         debug!("Successfully setup watcher for hot reload of authorization whitelist!");
     }
+
+    run_plugin(config.plugin.clone());
 
     let notary_address = SocketAddr::new(
         IpAddr::V4(config.host.parse().map_err(|err| {

@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod error;
 mod middleware;
+mod plugin;
 mod server;
 mod server_tracing;
 mod service;

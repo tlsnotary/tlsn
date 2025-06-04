@@ -18,6 +18,7 @@ members = [
     "crates/notary/common",
     "crates/notary/server",
     "crates/notary/tests-integration",
+    "crates/notary/plugin",
     "crates/prover",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",
@@ -48,6 +49,7 @@ opt-level = 1
 notary-client = { path = "crates/notary/client" }
 notary-common = { path = "crates/notary/common" }
 notary-server = { path = "crates/notary/server" }
+notary-plugin = { path = "crates/notary/plugin" }
 tls-server-fixture = { path = "crates/tls/server-fixture" }
 tlsn-cipher = { path = "crates/components/cipher" }
 tlsn-benches-browser-core = { path = "crates/benches/browser/core" }

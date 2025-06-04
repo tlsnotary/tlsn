@@ -23,6 +23,8 @@ pub struct NotaryServerProperties {
     pub log: LogProperties,
     /// Setting for authorization
     pub auth: AuthorizationProperties,
+    /// Plugin properties
+    pub plugin: PluginProperties,
 }
 
 impl NotaryServerProperties {
@@ -51,6 +53,10 @@ impl NotaryServerProperties {
             }
             if let Some(path) = config.tls.certificate_path {
                 config.tls.certificate_path = Some(prepend_file_path(&path, &parent_dir)?);
+            }
+            // Prepend plugin path.
+            if let Some(path) = config.plugin.path {
+                config.plugin.path = Some(prepend_file_path(&path, &parent_dir)?);
             }
             // Prepend auth file path.
             if let Some(mode) = config.auth.mode {
@@ -93,6 +99,13 @@ impl NotaryServerProperties {
             Ok(config)
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct PluginProperties {
+    pub enabled: bool,
+    /// Path to the plugin directory
+    pub path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -217,6 +230,7 @@ impl Default for NotaryServerProperties {
             tls: Default::default(),
             log: Default::default(),
             auth: Default::default(),
+            plugin: Default::default(),
         }
     }
 }

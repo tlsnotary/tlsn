@@ -44,3 +44,7 @@ log:
 auth:
   enabled: false
   whitelist: "../auth/whitelist.csv"
+
+plugin:
+  enabled: true
+  path: "../../../../../target/wasm32-unknown-unknown/release/plugin.wasm"
