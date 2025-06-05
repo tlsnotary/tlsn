@@ -58,17 +58,8 @@ pub struct SessionKeys {
     pub server_write_key: Array<U8, 16>,
     /// Server write IV.
     pub server_write_iv: Array<U8, 4>,
-}
-
-impl From<hmac_sha256::SessionKeys> for SessionKeys {
-    fn from(keys: hmac_sha256::SessionKeys) -> Self {
-        Self {
-            client_write_key: keys.client_write_key,
-            client_write_iv: keys.client_iv,
-            server_write_key: keys.server_write_key,
-            server_write_iv: keys.server_iv,
-        }
-    }
+    /// Server write MAC key.
+    pub server_write_mac_key: Array<U8, 16>,
 }
 
 /// MPC-TLS Leader output.
@@ -99,7 +90,8 @@ pub struct LeaderOutput {
 pub struct FollowerData {
     /// Server ephemeral public key.
     pub server_key: PublicKey,
-    /// TLS transcript.
+    /// TLS transcript in which the received records are unauthenticated
+    /// from the follower's perspective.
     pub transcript: TlsTranscript,
     /// TLS session keys.
     pub keys: SessionKeys,

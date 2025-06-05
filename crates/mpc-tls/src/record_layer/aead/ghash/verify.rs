@@ -5,11 +5,12 @@ use futures::{stream::FuturesOrdered, StreamExt};
 use mpz_common::{Context, Task};
 use mpz_core::commit::{Decommitment, HashCommit};
 use serio::{stream::IoStreamExt, SinkExt};
+use tlsn_common::ghash::build_ghash_data;
 
 use crate::{
     decode::OneTimePadShared,
     record_layer::aead::{
-        ghash::{build_ghash_data, Ghash, TagShare},
+        ghash::{Ghash, TagShare},
         AeadError,
     },
     Role,
@@ -26,6 +27,7 @@ pub(crate) struct VerifyTagData {
 pub(crate) struct VerifyTags {
     role: Role,
     data: Vec<VerifyTagData>,
+    /// MPC implementation to use for computing GHASH.
     ghash: Arc<dyn Ghash + Send + Sync>,
 }
 
@@ -64,6 +66,7 @@ impl Task for VerifyTags {
 
         let mut tag_shares = Vec::with_capacity(data.len());
         let mut tags = Vec::with_capacity(data.len());
+
         for (mut tag_share, data) in j0_shares.into_iter().zip(data) {
             let ghash_share = ghash
                 .compute(&build_ghash_data(data.aad, data.ciphertext))

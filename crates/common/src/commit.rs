@@ -8,7 +8,7 @@ use mpz_vm_core::{prelude::*, Vm};
 
 use crate::{
     transcript::Record,
-    zk_aes::{ZkAesCtr, ZkAesCtrError},
+    zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
     Role,
 };
 

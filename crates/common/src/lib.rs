@@ -8,10 +8,12 @@ pub mod commit;
 pub mod config;
 pub mod context;
 pub mod encoding;
+pub mod ghash;
 pub mod msg;
 pub mod mux;
+pub mod tag;
 pub mod transcript;
-pub mod zk_aes;
+pub mod zk_aes_ctr;
 
 /// The party's role in the TLSN protocol.
 ///

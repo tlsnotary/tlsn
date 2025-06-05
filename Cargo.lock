@@ -7232,6 +7232,7 @@ dependencies = [
  "async-trait",
  "derive_builder 0.12.0",
  "futures 0.3.31",
+ "ghash 0.5.1",
  "mpz-common",
  "mpz-core",
  "mpz-hash",

@@ -104,7 +104,7 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in init state to allocate"));
         };
 
-        let (keys, cf_vd, sf_vd) = {
+        let (keys, cf_vd, sf_vd, sw_mac_key) = {
             let vm = &mut (*vm
                 .try_lock()
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?);
@@ -121,21 +121,29 @@ impl MpcTlsFollower {
             let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
             let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
 
-            record_layer.alloc(
+            let server_write_mac_key = record_layer.alloc(
                 vm,
                 self.config.max_sent_records,
-                self.config.max_recv_records,
+                self.config.max_recv_records_online,
                 self.config.max_sent,
                 self.config.max_recv_online,
                 self.config.max_recv,
             )?;
 
-            (keys, cf_vd, sf_vd)
+            (keys, cf_vd, sf_vd, server_write_mac_key)
+        };
+
+        let keys: SessionKeys = SessionKeys {
+            client_write_key: keys.client_write_key,
+            client_write_iv: keys.client_iv,
+            server_write_key: keys.server_write_key,
+            server_write_iv: keys.server_iv,
+            server_write_mac_key: sw_mac_key,
         };
 
         self.state = State::Setup {
             vm,
-            keys: keys.into(),
+            keys: keys.clone(),
             ke,
             prf,
             record_layer,
@@ -143,7 +151,7 @@ impl MpcTlsFollower {
             sf_vd,
         };
 
-        Ok(keys.into())
+        Ok(keys)
     }
 
     /// Preprocesses the connection.
@@ -470,7 +478,7 @@ fn validate_transcript(
             )));
         }
     } else {
-        return Err(MpcTlsError::record_layer("no records were sent"));
+        return Err(MpcTlsError::record_layer("client finished was not sent"));
     }
 
     // Make sure the server finished verify data message was consistent.
@@ -498,7 +506,9 @@ fn validate_transcript(
             )));
         }
     } else {
-        return Err(MpcTlsError::record_layer("no records were received"));
+        return Err(MpcTlsError::record_layer(
+            "server finished was not received",
+        ));
     }
 
     // Verify last record sent was either application data or close notify.

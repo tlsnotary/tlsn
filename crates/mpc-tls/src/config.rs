@@ -17,7 +17,7 @@ const PROTOCOL_RECORD_COUNT_RECV: usize = 2;
 ///
 /// Accurately estimating a good default is challenging as we do not
 /// know exactly how much data will be packed into each record in advance.
-fn default_record_count(max_data: usize) -> usize {
+pub(crate) fn default_record_count(max_data: usize) -> usize {
     // We assume a minimum of 8 records for the first 4KB.
     const MIN: usize = 8;
 
@@ -46,12 +46,16 @@ pub struct Config {
     pub(crate) max_sent_records: usize,
     /// Maximum number of sent bytes.
     pub(crate) max_sent: usize,
-    /// Maximum number of received TLS records. Data is transmitted in records
-    /// up to 16KB long.
-    pub(crate) max_recv_records: usize,
+    /// Maximum number of received TLS records to be decrypted online, i.e
+    /// while the TLS connection is active.
+    ///
+    /// Data is transmitted in records up to 16KB long.
+    pub(crate) max_recv_records_online: usize,
     /// Maximum number of received bytes which will be decrypted while
-    /// the TLS connection is active. Data which can be decrypted after the TLS
-    /// connection will be decrypted for free.
+    /// the TLS connection is active.
+    ///
+    /// Data which can be decrypted after the TLS connection will be
+    /// decrypted for free.
     pub(crate) max_recv_online: usize,
     /// Maximum number of received bytes.
     #[allow(unused)]
@@ -101,9 +105,9 @@ impl ConfigBuilder {
         let max_sent_records = self
             .max_sent_records
             .unwrap_or_else(|| PROTOCOL_RECORD_COUNT_SENT + default_record_count(max_sent));
-        let max_recv_records = self
-            .max_recv_records
-            .unwrap_or_else(|| PROTOCOL_RECORD_COUNT_RECV + default_record_count(max_recv));
+        let max_recv_records_online = self
+            .max_recv_records_online
+            .unwrap_or_else(|| PROTOCOL_RECORD_COUNT_RECV + default_record_count(max_recv_online));
 
         let prf = self.prf.unwrap_or(PrfMode::Reduced);
 
@@ -111,7 +115,7 @@ impl ConfigBuilder {
             defer_decryption,
             max_sent_records,
             max_sent,
-            max_recv_records,
+            max_recv_records_online,
             max_recv_online,
             max_recv,
             prf,

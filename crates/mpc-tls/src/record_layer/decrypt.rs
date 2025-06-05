@@ -7,7 +7,7 @@ use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 use crate::{
     record_layer::{
         aead::{MpcAesGcm, VerifyTags},
-        aes_ctr::AesCtr,
+        aes_gcm::AesGcm,
         TagData,
     },
     MpcTlsError, Role,
@@ -98,7 +98,7 @@ pub(crate) fn decrypt_local(
     role: Role,
     vm: &mut dyn Vm<Binary>,
     mpc_decrypter: &mut MpcAesGcm,
-    local_decrypter: &mut AesCtr,
+    local_decrypter: &mut AesGcm,
     ops: &[DecryptOp],
 ) -> Result<Vec<PendingDecrypt>, MpcTlsError> {
     let mut pending_decrypt = Vec::with_capacity(ops.len());
@@ -106,8 +106,12 @@ pub(crate) fn decrypt_local(
         match op.mode {
             DecryptMode::Private => {
                 let plaintext = if let Role::Leader = role {
-                    let plaintext = local_decrypter
-                        .decrypt(op.explicit_nonce.clone(), op.ciphertext.clone())?;
+                    let plaintext = local_decrypter.decrypt(
+                        op.explicit_nonce.clone(),
+                        op.aad.clone(),
+                        op.ciphertext.clone(),
+                        op.tag.clone(),
+                    )?;
                     Some(plaintext)
                 } else {
                     None

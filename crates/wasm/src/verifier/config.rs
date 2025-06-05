@@ -8,7 +8,7 @@ pub struct VerifierConfig {
     pub max_sent_data: usize,
     pub max_recv_data: usize,
     pub max_sent_records: Option<usize>,
-    pub max_recv_records: Option<usize>,
+    pub max_recv_records_online: Option<usize>,
 }
 
 impl From<VerifierConfig> for tlsn_verifier::VerifierConfig {
@@ -22,8 +22,8 @@ impl From<VerifierConfig> for tlsn_verifier::VerifierConfig {
             builder.max_sent_records(value);
         }
 
-        if let Some(value) = value.max_recv_records {
-            builder.max_recv_records(value);
+        if let Some(value) = value.max_recv_records_online {
+            builder.max_recv_records_online(value);
         }
 
         let validator = builder.build().unwrap();

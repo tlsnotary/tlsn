@@ -1,7 +1,7 @@
 //! TLS record layer.
 
 pub(crate) mod aead;
-mod aes_ctr;
+mod aes_gcm;
 mod decrypt;
 mod encrypt;
 
@@ -26,7 +26,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use crate::{
-    record_layer::{aes_ctr::AesCtr, decrypt::DecryptOp, encrypt::EncryptOp},
+    record_layer::{aes_gcm::AesGcm, decrypt::DecryptOp, encrypt::EncryptOp},
     MpcTlsError, Role, Vm,
 };
 pub(crate) use decrypt::DecryptMode;
@@ -59,7 +59,7 @@ enum State {
         sent_records: Vec<Record>,
         recv_records: Vec<Record>,
     },
-    Complete,
+    Complete {},
     Error,
 }
 
@@ -76,7 +76,7 @@ pub(crate) struct RecordLayer {
     read_seq: u64,
     encrypter: Arc<Mutex<MpcAesGcm>>,
     decrypt: Arc<Mutex<MpcAesGcm>>,
-    aes_ctr: AesCtr,
+    aes_gcm: AesGcm,
     state: State,
     /// Whether the record layer has started processing application data.
     started: bool,
@@ -108,7 +108,7 @@ impl RecordLayer {
             read_seq: 0,
             encrypter: Arc::new(Mutex::new(encrypt)),
             decrypt: Arc::new(Mutex::new(decrypt)),
-            aes_ctr: AesCtr::new(role),
+            aes_gcm: AesGcm::new(role),
             state: State::Init,
             started: false,
             sent: 0,
@@ -124,7 +124,8 @@ impl RecordLayer {
         }
     }
 
-    /// Allocates resources for the record layer.
+    /// Allocates resources for the record layer, returning a reference
+    /// to the server write MAC key.
     ///
     /// # Arguments
     ///
@@ -143,7 +144,7 @@ impl RecordLayer {
         sent_len: usize,
         recv_len_online: usize,
         recv_len: usize,
-    ) -> Result<(), MpcTlsError> {
+    ) -> Result<Array<U8, 16>, MpcTlsError> {
         let State::Init = self.state.take() else {
             return Err(MpcTlsError::other("record layer is already allocated"));
         };
@@ -176,7 +177,7 @@ impl RecordLayer {
             Role::Follower => None,
         };
 
-        self.aes_ctr.alloc(vm)?;
+        self.aes_gcm.alloc(vm)?;
 
         self.max_sent += sent_len;
         self.max_recv_online += recv_len_online;
@@ -188,7 +189,7 @@ impl RecordLayer {
             recv_records: Vec::new(),
         };
 
-        Ok(())
+        decrypt.ghash_key().map_err(MpcTlsError::record_layer)
     }
 
     pub(crate) async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), MpcTlsError> {
@@ -236,7 +237,7 @@ impl RecordLayer {
         encrypt.set_iv(client_iv);
         decrypt.set_key(server_write_key);
         decrypt.set_iv(server_iv);
-        self.aes_ctr.set_key(server_write_key, server_iv);
+        self.aes_gcm.set_key(server_write_key, server_iv);
 
         Ok(())
     }
@@ -475,12 +476,14 @@ impl RecordLayer {
 
         for (op, pending) in encrypt_ops.into_iter().zip(pending_encrypt) {
             let ciphertext = pending.output.try_encrypt()?;
+            let tag = tags.as_mut().and_then(Vec::pop);
+
             self.encrypted_buffer.push_back(EncryptedRecord {
                 typ: op.typ,
                 version: op.version,
                 explicit_nonce: op.explicit_nonce.clone(),
                 ciphertext: ciphertext.clone(),
-                tag: tags.as_mut().and_then(Vec::pop),
+                tag: tag.clone(),
             });
 
             sent_records.push(Record {
@@ -490,6 +493,8 @@ impl RecordLayer {
                 plaintext_ref: pending.plaintext_ref,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext,
+                tag,
+                version: op.version,
             });
         }
 
@@ -508,12 +513,16 @@ impl RecordLayer {
                 plaintext_ref: None,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
+                tag: Some(op.tag),
+                version: op.version,
             });
         }
 
         Ok(())
     }
 
+    /// Commits to the record layer, returning a transcript in which the
+    /// received records are unauthenticated from the follower's perspective.
     pub(crate) async fn commit(
         &mut self,
         ctx: &mut Context,
@@ -547,28 +556,16 @@ impl RecordLayer {
 
         let buffered_ops = take(&mut self.decrypt_buffer);
 
-        // Verify tags of buffered ciphertexts.
-        let verify_tags = decrypt::verify_tags(&mut (*vm), &mut decrypter, &buffered_ops)?;
-
-        vm.execute_all(ctx)
-            .await
-            .map_err(MpcTlsError::record_layer)?;
-
-        verify_tags
-            .run(ctx)
-            .await
-            .map_err(MpcTlsError::record_layer)?;
-
-        // Reveal decrypt key to the leader.
-        self.aes_ctr.decode_key(&mut (*vm))?;
+        // Reveal decryption key to the leader.
+        self.aes_gcm.decode_key(&mut (*vm))?;
         vm.flush(ctx).await.map_err(MpcTlsError::record_layer)?;
-        self.aes_ctr.finish_decode()?;
+        self.aes_gcm.finish_decode()?;
 
         let pending_decrypts = decrypt::decrypt_local(
             self.role,
             &mut (*vm),
             &mut decrypter,
-            &mut self.aes_ctr,
+            &mut self.aes_gcm,
             &buffered_ops,
         )?;
 
@@ -591,10 +588,12 @@ impl RecordLayer {
                 plaintext_ref: None,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
+                tag: Some(op.tag),
+                version: op.version,
             });
         }
 
-        self.state = State::Complete;
+        self.state = State::Complete {};
 
         Ok(TlsTranscript {
             sent: sent_records,

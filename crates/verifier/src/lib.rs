@@ -28,8 +28,9 @@ use tlsn_common::{
     context::build_mt_context,
     encoding,
     mux::attach_mux,
+    tag::verify_tags,
     transcript::{decode_transcript, verify_transcript, Record, TlsTranscript},
-    zk_aes::ZkAesCtr,
+    zk_aes_ctr::ZkAesCtr,
     Role,
 };
 use tlsn_core::{
@@ -121,9 +122,9 @@ impl Verifier<state::Initialized> {
         translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
 
         // Allocate for committing to plaintext.
-        let mut zk_aes = ZkAesCtr::new(Role::Verifier);
-        zk_aes.set_key(keys.server_write_key, keys.server_write_iv);
-        zk_aes.alloc(
+        let mut zk_aes_ctr = ZkAesCtr::new(Role::Verifier);
+        zk_aes_ctr.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes_ctr.alloc(
             &mut (*vm.try_lock().expect("VM is not locked").zk()),
             protocol_config.max_recv_data(),
         )?;
@@ -142,7 +143,7 @@ impl Verifier<state::Initialized> {
                 mux_fut,
                 delta,
                 mpc_tls,
-                zk_aes,
+                zk_aes_ctr,
                 _keys: keys,
                 vm,
             },
@@ -210,7 +211,7 @@ impl Verifier<state::Setup> {
             mut mux_fut,
             delta,
             mpc_tls,
-            mut zk_aes,
+            mut zk_aes_ctr,
             vm,
             ..
         } = self.state;
@@ -227,6 +228,7 @@ impl Verifier<state::Setup> {
             FollowerData {
                 server_key,
                 mut transcript,
+                keys,
                 ..
             },
         ) = mux_fut.poll_with(mpc_tls.run()).await?;
@@ -238,30 +240,54 @@ impl Verifier<state::Setup> {
 
             translate_transcript(&mut transcript, &vm)?;
 
-            // Prepare for the prover to prove received plaintext.
-            let proof = commit_records(
-                &mut (*vm.zk()),
-                &mut zk_aes,
-                transcript
-                    .recv
-                    .iter_mut()
-                    .filter(|record| record.typ == ContentType::ApplicationData),
-            )
-            .map_err(VerifierError::zk)?;
-
             debug!("finalizing mpc");
 
-            // Finalize DEAP and execute the plaintext proofs.
             mux_fut
                 .poll_with(vm.finalize(&mut ctx))
                 .await
                 .map_err(VerifierError::mpc)?;
 
             debug!("mpc finalized");
-
-            // Verify the plaintext proofs.
-            proof.verify().map_err(VerifierError::zk)?;
         }
+
+        // Pull out ZK VM.
+        let (_, mut vm) = Arc::into_inner(vm)
+            .expect("vm should have only 1 reference")
+            .into_inner()
+            .into_inner();
+
+        // Prepare for the prover to prove tag verification of the received
+        // records.
+        let tag_proof = verify_tags(
+            &mut vm,
+            (keys.server_write_key, keys.server_write_iv),
+            keys.server_write_mac_key,
+            transcript.recv.clone(),
+        )
+        .map_err(VerifierError::zk)?;
+
+        // Prepare for the prover to prove received plaintext.
+        let proof = commit_records(
+            &mut vm,
+            &mut zk_aes_ctr,
+            transcript
+                .recv
+                .iter_mut()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+        )
+        .map_err(VerifierError::zk)?;
+
+        mux_fut
+            .poll_with(vm.execute_all(&mut ctx).map_err(VerifierError::zk))
+            .await?;
+
+        // Verify the tags.
+        // After the verification, the entire TLS trancript becomes
+        // authenticated from the verifier's perspective.
+        tag_proof.verify().map_err(VerifierError::zk)?;
+
+        // Verify the plaintext proofs.
+        proof.verify().map_err(VerifierError::zk)?;
 
         let sent = transcript
             .sent
@@ -285,12 +311,6 @@ impl Verifier<state::Setup> {
             version: TlsVersion::V1_2,
             transcript_length: TranscriptLength { sent, received },
         };
-
-        // Pull out ZK VM.
-        let (_, vm) = Arc::into_inner(vm)
-            .expect("vm should have only 1 reference")
-            .into_inner()
-            .into_inner();
 
         Ok(Verifier {
             config: self.config,
@@ -575,6 +595,9 @@ fn translate_keys<Mpc, Zk>(
         .map_err(VerifierError::mpc)?;
     keys.server_write_iv = vm
         .translate(keys.server_write_iv)
+        .map_err(VerifierError::mpc)?;
+    keys.server_write_mac_key = vm
+        .translate(keys.server_write_mac_key)
         .map_err(VerifierError::mpc)?;
 
     Ok(())

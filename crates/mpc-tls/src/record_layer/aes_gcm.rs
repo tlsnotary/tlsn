@@ -1,4 +1,4 @@
-use cipher_crate::{KeyIvInit, StreamCipher as _, StreamCipherSeek};
+use aes_gcm::{aead::AeadMutInPlace, Aes128Gcm, NewAead};
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
     binary::{Binary, U8},
@@ -8,8 +8,6 @@ use mpz_vm_core::{prelude::*, Vm};
 use rand::RngCore;
 
 use crate::{MpcTlsError, Role};
-
-type LocalAesCtr = ctr::Ctr32BE<aes::Aes128>;
 
 enum State {
     Init,
@@ -38,14 +36,14 @@ impl State {
     }
 }
 
-pub(crate) struct AesCtr {
+pub(crate) struct AesGcm {
     role: Role,
     key: Option<Array<U8, 16>>,
     iv: Option<Array<U8, 4>>,
     state: State,
 }
 
-impl AesCtr {
+impl AesGcm {
     pub(crate) fn new(role: Role) -> Self {
         Self {
             role,
@@ -131,6 +129,8 @@ impl AesCtr {
         Ok(())
     }
 
+    /// Finishes the decoding of key and IV.
+    #[allow(clippy::type_complexity)]
     pub(crate) fn finish_decode(&mut self) -> Result<(), MpcTlsError> {
         let State::Decode {
             mut masked_key,
@@ -181,7 +181,9 @@ impl AesCtr {
     pub(crate) fn decrypt(
         &mut self,
         explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+        mut ciphertext: Vec<u8>,
+        tag: Vec<u8>,
     ) -> Result<Vec<u8>, MpcTlsError> {
         let State::Ready { key, iv, .. } = &self.state else {
             Err(MpcTlsError::record_layer(
@@ -198,29 +200,22 @@ impl AesCtr {
         let key = key.as_ref().expect("leader knows key");
         let iv = iv.as_ref().expect("leader knows iv");
 
-        let explicit_nonce: [u8; 8] =
-            explicit_nonce
-                .try_into()
-                .map_err(|explicit_nonce: Vec<_>| {
-                    MpcTlsError::record_layer(format!(
-                        "incorrect explicit nonce length: {} != 8",
-                        explicit_nonce.len()
-                    ))
-                })?;
+        let mut aes_gcm = Aes128Gcm::new(key.into());
 
-        let mut full_iv = [0u8; 16];
+        let mut full_iv = [0u8; 12];
         full_iv[..4].copy_from_slice(iv);
         full_iv[4..12].copy_from_slice(&explicit_nonce);
 
-        let mut aes = LocalAesCtr::new(key.into(), &full_iv.into());
+        aes_gcm
+            .decrypt_in_place_detached(
+                (&full_iv).into(),
+                &aad,
+                &mut ciphertext,
+                tag.as_slice().into(),
+            )
+            .map_err(|_| MpcTlsError::record_layer("tag verification failed"))?;
 
-        // Skip the first 32 bytes of the keystream to match the AES-GCM implementation.
-        aes.seek(32);
-
-        let mut plaintext = ciphertext;
-        aes.apply_keystream(&mut plaintext);
-
-        Ok(plaintext)
+        Ok(ciphertext)
     }
 }
 
@@ -230,17 +225,18 @@ mod tests {
     use aes_gcm::{aead::AeadMutInPlace, Aes128Gcm, NewAead};
 
     #[test]
-    fn test_aes_ctr_local() {
+    fn test_aes_gcm_local() {
         let key = [0u8; 16];
         let iv = [42u8; 4];
         let explicit_nonce = [69u8; 8];
+        let aad = [33u8; 13];
 
         let mut nonce = [0u8; 12];
         nonce[..4].copy_from_slice(&iv);
         nonce[4..].copy_from_slice(&explicit_nonce);
 
-        let mut aes_ctr = AesCtr::new(Role::Leader);
-        aes_ctr.state = State::Ready {
+        let mut aes_gcm_local = AesGcm::new(Role::Leader);
+        aes_gcm_local.state = State::Ready {
             key: Some(key),
             iv: Some(iv),
         };
@@ -250,12 +246,17 @@ mod tests {
         let msg = b"hello world";
 
         let mut ciphertext = msg.to_vec();
-        _ = aes_gcm
-            .encrypt_in_place_detached(&nonce.into(), &[], &mut ciphertext)
+        let tag = aes_gcm
+            .encrypt_in_place_detached(&nonce.into(), &aad, &mut ciphertext)
             .unwrap();
 
-        let decrypted = aes_ctr
-            .decrypt(explicit_nonce.to_vec(), ciphertext)
+        let decrypted = aes_gcm_local
+            .decrypt(
+                explicit_nonce.to_vec(),
+                aad.to_vec(),
+                ciphertext,
+                tag.to_vec(),
+            )
             .unwrap();
 
         assert_eq!(msg, decrypted.as_slice());
