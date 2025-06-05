@@ -213,7 +213,7 @@ impl AesGcm {
                 &mut ciphertext,
                 tag.as_slice().into(),
             )
-            .unwrap();
+            .map_err(|_| MpcTlsError::record_layer("tag verification failed"))?;
 
         Ok(ciphertext)
     }
