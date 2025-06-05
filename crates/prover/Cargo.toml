@@ -17,7 +17,6 @@ rayon = ["mpz-common/rayon"]
 force-st = ["mpz-common/force-st"]
 
 [dependencies]
-tlsn-cipher = { workspace = true }
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }

@@ -19,7 +19,7 @@ use tls_core::cipher::make_tls12_aad;
 /// * `key_iv` - Cipher key and IV.
 /// * `mac_key` - MAC key.
 /// * `records` - Records for which the verification is to be proven.
-pub fn verify_tags<'record>(
+pub fn verify_tags(
     vm: &mut dyn Vm<Binary>,
     key_iv: (Array<U8, 16>, Array<U8, 4>),
     mac_key: Array<U8, 16>,
