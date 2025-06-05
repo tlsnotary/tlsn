@@ -7,7 +7,6 @@
 pub(crate) mod config;
 mod error;
 pub mod state;
-mod tag;
 
 use std::sync::Arc;
 
@@ -20,7 +19,6 @@ use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use mpz_memory_core::MemoryExt;
 use mpz_vm_core::prelude::*;
 use serio::{stream::IoStreamExt, SinkExt};
 use tls_core::msgs::enums::ContentType;
@@ -30,7 +28,7 @@ use tlsn_common::{
     context::build_mt_context,
     encoding,
     mux::attach_mux,
-    tag::commit_j0,
+    tag::verify_tags,
     transcript::{decode_transcript, verify_transcript, Record, TlsTranscript},
     zk_aes_ctr::ZkAesCtr,
     Role,
@@ -258,17 +256,13 @@ impl Verifier<state::Setup> {
             .into_inner()
             .into_inner();
 
-        // Decode server write MAC key .
-        let mac_key = vm
-            .decode(keys.server_write_mac_key)
-            .map_err(VerifierError::zk)?;
-
-        // Prepare for the prover to prove j0s of the received
+        // Prepare for the prover to prove tag verification of the received
         // records.
-        let j0_proof = commit_j0(
+        let tag_proof = verify_tags(
             &mut vm,
             (keys.server_write_key, keys.server_write_iv),
-            transcript.recv.iter(),
+            keys.server_write_mac_key,
+            transcript.recv.clone(),
         )
         .map_err(VerifierError::zk)?;
 
@@ -287,10 +281,10 @@ impl Verifier<state::Setup> {
             .poll_with(vm.execute_all(&mut ctx).map_err(VerifierError::zk))
             .await?;
 
-        // Verify the AES-GCM tags.
+        // Verify the tags.
         // After the verification, the entire TLS trancript becomes
         // authenticated from the verifier's perspective.
-        tag::verify_tags(j0_proof, mac_key, transcript.recv.iter())?;
+        tag_proof.verify().map_err(VerifierError::zk)?;
 
         // Verify the plaintext proofs.
         proof.verify().map_err(VerifierError::zk)?;

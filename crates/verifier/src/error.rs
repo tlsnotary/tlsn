@@ -47,13 +47,6 @@ impl VerifierError {
     {
         Self::new(ErrorKind::Verify, source)
     }
-
-    pub(crate) fn internal<E>(source: E) -> Self
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self::new(ErrorKind::Internal, source)
-    }
 }
 
 #[derive(Debug)]
@@ -65,7 +58,6 @@ enum ErrorKind {
     Commit,
     Attestation,
     Verify,
-    Internal,
 }
 
 impl fmt::Display for VerifierError {
@@ -80,7 +72,6 @@ impl fmt::Display for VerifierError {
             ErrorKind::Commit => f.write_str("commit error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
             ErrorKind::Verify => f.write_str("verification error")?,
-            ErrorKind::Internal => f.write_str("internal error")?,
         }
 
         if let Some(source) = &self.source {

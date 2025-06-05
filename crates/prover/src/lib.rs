@@ -32,7 +32,7 @@ use tlsn_common::{
     context::build_mt_context,
     encoding,
     mux::attach_mux,
-    tag::commit_j0,
+    tag::verify_tags,
     transcript::{decode_transcript, Record, TlsTranscript},
     zk_aes_ctr::ZkAesCtr,
     Role,
@@ -239,19 +239,13 @@ impl Prover<state::Setup> {
                     .into_inner()
                     .into_inner();
 
-                // Decode server write MAC key to the verifier.
-                let _fut = vm
-                    .decode(data.keys.server_write_mac_key)
-                    .map_err(ProverError::zk)?;
-                // Drop the future explicitely to avoid clippy lints.
-                drop(_fut);
-
-                // Prove j0 blocks of received records.
+                // Prove tag verification of received records.
                 // The prover drops the proof output.
-                let _ = commit_j0(
+                let _ = verify_tags(
                     &mut vm,
                     (data.keys.server_write_key, data.keys.server_write_iv),
-                    data.transcript.recv.iter(),
+                    data.keys.server_write_mac_key,
+                    data.transcript.recv.clone(),
                 )
                 .map_err(ProverError::zk)?;
 
