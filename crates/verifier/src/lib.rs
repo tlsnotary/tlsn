@@ -27,6 +27,7 @@ use tlsn_common::{
     config::ProtocolConfig,
     context::build_mt_context,
     encoding,
+    error::PeerError,
     mux::attach_mux,
     tag::verify_tags,
     transcript::{decode_transcript, verify_transcript, Record, TlsTranscript},
@@ -103,16 +104,22 @@ impl Verifier<state::Initialized> {
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Receives protocol configuration from prover to perform compatibility check.
-        let protocol_config = mux_fut
-            .poll_with(async {
-                let peer_configuration: ProtocolConfig = ctx.io_mut().expect_next().await?;
-                self.config
-                    .protocol_config_validator()
-                    .validate(&peer_configuration)?;
+        let protocol_config: ProtocolConfig = mux_fut.poll_with(ctx.io_mut().expect_next()).await?;
 
-                Ok::<_, VerifierError>(peer_configuration)
-            })
-            .await?;
+        if let Err(e) = self
+            .config
+            .protocol_config_validator()
+            .validate(&protocol_config)
+        {
+            mux_fut
+                .poll_with(
+                    ctx.io_mut()
+                        .send::<Result<(), PeerError>>(Err(PeerError::from(&e))),
+                )
+                .await?;
+
+            return Err(e.into());
+        }
 
         let delta = Delta::random(&mut rand::rng());
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta, ctx);

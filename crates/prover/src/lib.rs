@@ -31,6 +31,7 @@ use tlsn_common::{
     commit::{commit_records, hash::prove_hash},
     context::build_mt_context,
     encoding,
+    error::PeerError,
     mux::attach_mux,
     tag::verify_tags,
     transcript::{decode_transcript, Record, TlsTranscript},
@@ -109,6 +110,11 @@ impl Prover<state::Initialized> {
         mux_fut
             .poll_with(ctx.io_mut().send(self.config.protocol_config().clone()))
             .await?;
+
+        // Check that the verifier has accepted the protocol configuration.
+        mux_fut
+            .poll_with(ctx.io_mut().expect_next::<Result<(), PeerError>>())
+            .await??;
 
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, ctx);
 
