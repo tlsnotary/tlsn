@@ -4362,6 +4362,7 @@ dependencies = [
  "sha1",
  "structopt",
  "strum",
+ "tempfile",
  "thiserror 1.0.69",
  "tlsn-common",
  "tlsn-core",

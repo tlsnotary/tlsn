@@ -105,6 +105,35 @@ Example:
 NS_PORT=8080 NS_NOTARIZATION__MAX_SENT_DATA=2048 cargo run --release --bin notary-server
 ```
 
+##### JWT Claims
+Custom user JWT claims can be specified via `NS_AUTH__JWT__CLAIMS=` environment variable where the input format is as follows:
+
+```
+NS_AUTH__JWT__CLAIMS="<name> <name>:<value>:...:<value>"
+```
+
+Each user claim starts with `<name>` of the claim followed by zero or more values `<value>`, where `:` is used as separator. Therefore, in order to represent a claim:
+
+```yaml
+claims:
+ - name: sub
+   values: ["something"]  
+```
+
+one would write `sub:something`.
+
+Next, each user claim is separated by ` `. Therefore, in order to represent claims:
+
+```yaml
+claims:
+ - name: sub
+ - name: custom
+   values: ["something"]
+```
+
+one would write `NS_AUTH__JWT__CLAIMS="sub custom:something"`.
+
+
 #### Configuration File
 This will override all the default values, hence it needs to **contain all compulsory** configuration keys and values (refer to the [default yaml](#default)). The config file has precedence over environment variables.
 ```bash
