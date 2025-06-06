@@ -450,16 +450,15 @@ impl RecordLayer {
         let verify_tags = decrypt::verify_tags(&mut (*vm), &mut decrypter, &decrypt_ops)?;
 
         // Run tag computation and VM in parallel.
-        let (mut tags, _, _) = ctx
-            .try_join3(
-                async move |ctx| {
-                    compute_tags
-                        .run(ctx)
-                        .map_err(MpcTlsError::record_layer)
-                        .await
-                },
+        let (mut tags, _) = ctx
+            .try_join(
                 async move |ctx| {
                     verify_tags
+                        .run(ctx)
+                        .map_err(MpcTlsError::record_layer)
+                        .await?;
+
+                    compute_tags
                         .run(ctx)
                         .map_err(MpcTlsError::record_layer)
                         .await

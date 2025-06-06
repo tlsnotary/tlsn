@@ -323,7 +323,7 @@ impl MpcAesGcm {
     }
 
     /// Computes tags for the provided ciphertext. See
-    /// [`verify_tags`](MpcAesGcm::verify_tags) for a method that verifies an
+    /// [`verify_tags`](MpcAesGcm::verify_tags) for a method that verifies
     /// tags instead.
     ///
     /// # Arguments
@@ -378,6 +378,8 @@ impl MpcAesGcm {
     }
 
     /// Verifies the tags for the provided ciphertexts.
+    ///
+    /// Ciphertexts are only authenticated from the leader's perspective.
     ///
     /// # Arguments
     ///

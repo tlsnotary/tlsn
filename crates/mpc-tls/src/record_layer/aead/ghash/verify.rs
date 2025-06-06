@@ -3,7 +3,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::{stream::FuturesOrdered, StreamExt};
 use mpz_common::{Context, Task};
-use mpz_core::commit::{Decommitment, HashCommit};
 use serio::{stream::IoStreamExt, SinkExt};
 use tlsn_common::ghash::build_ghash_data;
 
@@ -81,51 +80,29 @@ impl Task for VerifyTags {
         }
 
         let io = ctx.io_mut();
-        let peer_tag_shares = match role {
+        match role {
             Role::Leader => {
-                // Send commitment to follower.
-                let (decommitment, commitment) = tag_shares.clone().hash_commit();
-
-                io.send(commitment).await.map_err(AeadError::tag)?;
-
-                let follower_tag_shares: Vec<TagShare> =
+                let peer_tag_shares: Vec<TagShare> =
                     io.expect_next().await.map_err(AeadError::tag)?;
 
-                if follower_tag_shares.len() != tag_shares.len() {
+                if peer_tag_shares.len() != tag_shares.len() {
                     return Err(AeadError::tag("follower tag shares length mismatch"));
                 }
 
-                // Send decommitment to follower.
-                io.send(decommitment).await.map_err(AeadError::tag)?;
+                let expected_tags = tag_shares
+                    .into_iter()
+                    .zip(peer_tag_shares)
+                    .map(|(tag_share, peer_tag_share)| tag_share + peer_tag_share)
+                    .collect::<Vec<_>>();
 
-                follower_tag_shares
+                if tags != expected_tags {
+                    return Err(AeadError::tag("failed to verify tags"));
+                }
             }
             Role::Follower => {
-                // Wait for commitment from leader.
-                let commitment = io.expect_next().await.map_err(AeadError::tag)?;
-
                 // Send tag shares to leader.
-                io.send(tag_shares.clone()).await.map_err(AeadError::tag)?;
-
-                // Expect decommitment from leader.
-                let decommitment: Decommitment<Vec<TagShare>> =
-                    io.expect_next().await.map_err(AeadError::tag)?;
-
-                // Verify decommitment.
-                decommitment.verify(&commitment).map_err(AeadError::tag)?;
-
-                decommitment.into_inner()
+                io.send(tag_shares).await.map_err(AeadError::tag)?;
             }
-        };
-
-        let expected_tags = tag_shares
-            .into_iter()
-            .zip(peer_tag_shares)
-            .map(|(tag_share, peer_tag_share)| tag_share + peer_tag_share)
-            .collect::<Vec<_>>();
-
-        if tags != expected_tags {
-            return Err(AeadError::tag("failed to verify tags"));
         }
 
         Ok(())
