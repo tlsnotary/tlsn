@@ -3,6 +3,8 @@ pub mod network;
 pub mod rpc;
 pub mod test;
 
+use std::fmt::{self, Display};
+
 use serde::{Deserialize, Serialize};
 
 use crate::network::NetworkConfig;
@@ -42,11 +44,11 @@ impl TryFrom<&str> for IoMode {
     }
 }
 
-impl ToString for IoMode {
-    fn to_string(&self) -> String {
+impl Display for IoMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IoMode::Client => "client".to_string(),
-            IoMode::Server => "server".to_string(),
+            IoMode::Client => write!(f, "client"),
+            IoMode::Server => write!(f, "server"),
         }
     }
 }
