@@ -281,10 +281,13 @@ pub async fn main() -> Result<()> {
     }
 
     // Shut down the executors before exiting.
-    tokio::time::timeout(Duration::from_secs(5), async move {
+    if let Err(_) = tokio::time::timeout(Duration::from_secs(5), async move {
         _ = tokio::join!(runner.exec_p.shutdown(), runner.exec_v.shutdown());
     })
-    .await?;
+    .await
+    {
+        eprintln!("executor shutdown timed out");
+    }
 
     if exit_code != 0 {
         std::process::exit(exit_code);
