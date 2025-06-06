@@ -1,6 +1,6 @@
 use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
-use tlsn_common::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
+use tlsn_common::{encoding::EncodingError, error::PeerError, zk_aes_ctr::ZkAesCtrError};
 
 /// Error for [`Prover`](crate::Prover).
 #[derive(Debug, thiserror::Error)]
@@ -64,6 +64,7 @@ enum ErrorKind {
     Config,
     Commit,
     Attestation,
+    Peer,
 }
 
 impl fmt::Display for ProverError {
@@ -77,6 +78,7 @@ impl fmt::Display for ProverError {
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Commit => f.write_str("commit error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
+            ErrorKind::Peer => f.write_str("peer error")?,
         }
 
         if let Some(source) = &self.source {
@@ -126,5 +128,11 @@ impl From<ZkAesCtrError> for ProverError {
 impl From<EncodingError> for ProverError {
     fn from(e: EncodingError) -> Self {
         Self::new(ErrorKind::Commit, e)
+    }
+}
+
+impl From<PeerError> for ProverError {
+    fn from(e: PeerError) -> Self {
+        Self::new(ErrorKind::Peer, e)
     }
 }
