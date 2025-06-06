@@ -3400,6 +3400,9 @@ name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "469fb0b9cefa57e3ef31275ee7cacb78f2fdca44e4765491884a2b119d4eb130"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "iri-string"
@@ -4358,7 +4361,7 @@ dependencies = [
  "serde_yaml",
  "sha1",
  "structopt",
- "strum 0.27.1",
+ "strum",
  "thiserror 1.0.69",
  "tlsn-common",
  "tlsn-core",
@@ -5291,7 +5294,7 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tower",
- "tower-http 0.6.4",
+ "tower-http 0.6.6",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -5997,6 +6000,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "simple_asn1"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "297f631f50729c8c99b84667867963997ec0b50f32b2a7dbcab828ef0541e8bb"
+dependencies = [
+ "num-bigint",
+ "num-traits",
+ "thiserror 2.0.12",
+ "time",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6106,6 +6121,28 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "strum"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f64def088c51c9510a8579e3c5d67c65349dcf755e5479ad3d010aa6454e2c32"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c77a8c5abcaf0f9ce05d62342b7d298c346515365c36b673df4ebe3ced01fde8"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -6366,6 +6403,7 @@ dependencies = [
  "async-trait",
  "derive_builder 0.12.0",
  "futures",
+ "ghash 0.5.1",
  "mpz-common",
  "mpz-core",
  "mpz-hash",
@@ -6500,6 +6538,7 @@ version = "0.1.0"
 dependencies = [
  "bon",
  "enum-try-as-inner",
+ "ipnet",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -6510,11 +6549,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures",
+ "getrandom 0.2.16",
+ "getrandom 0.3.3",
  "gloo-utils",
  "http-body-util",
  "hyper",
- "hyper-util",
  "inventory",
+ "js-sys",
  "pin-project-lite",
  "serde_json",
  "serio",
@@ -6542,10 +6583,11 @@ dependencies = [
  "anyhow",
  "axum 0.8.4",
  "chromiumoxide",
- "clap 4.5.38",
+ "clap 4.5.39",
  "csv",
  "duct",
  "futures",
+ "ipnet",
  "serde_json",
  "serio",
  "tlsn-harness-core",
@@ -6706,6 +6748,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tower",
+ "tower-http 0.6.6",
  "tower-service",
  "tracing",
  "tracing-subscriber",
@@ -6844,7 +6887,6 @@ dependencies = [
  "time",
  "tlsn-common",
  "tlsn-core",
- "tlsn-hmac-sha256",
  "tlsn-prover",
  "tlsn-server-fixture-certs",
  "tlsn-tls-client-async",
@@ -6857,7 +6899,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-spawn",
- "web-time 0.2.4",
  "ws_stream_wasm",
 ]
 
@@ -7032,9 +7073,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.4"
+version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fdb0c213ca27a9f57ab69ddb290fd80d970922355b83ae380b395d3986b8a2e"
+checksum = "adc82fd73de2a9722ac5da747f12383d2bfdb93591ee6c58486e0097890f05f2"
 dependencies = [
  "bitflags 2.9.1",
  "bytes",
@@ -7046,6 +7087,7 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
