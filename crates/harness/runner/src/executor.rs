@@ -118,15 +118,26 @@ impl Executor {
                     format!("--user-data-dir={tmp}"),
                     format!("--allowed-ips=10.250.0.1"),
                 )
-                //.stderr_capture()
-                //.stdout_capture()
+                .stderr_capture()
+                .stdout_capture()
                 .start()?;
 
-                // Give the browser time to start.
-                tokio::time::sleep(Duration::from_millis(250)).await;
-
-                let (browser, mut handler) =
-                    Browser::connect(format!("http://{}:{}", rpc_addr.0, PORT_BROWSER)).await?;
+                const TIMEOUT: usize = 10000;
+                const DELAY: usize = 100;
+                let mut retries = 0;
+                let (browser, mut handler) = loop {
+                    match Browser::connect(format!("http://{}:{}", rpc_addr.0, PORT_BROWSER)).await
+                    {
+                        Ok(browser) => break browser,
+                        Err(e) => {
+                            retries += 1;
+                            if retries * DELAY > TIMEOUT {
+                                return Err(e.into());
+                            }
+                            tokio::time::sleep(Duration::from_millis(DELAY as u64)).await;
+                        }
+                    }
+                };
 
                 tokio::spawn(async move {
                     while let Some(res) = handler.next().await {
