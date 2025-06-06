@@ -8,7 +8,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "tee_quote")]
 use crate::tee::Quote;
-use crate::{auth::AuthorizationMode, config::NotarizationProperties};
+use crate::{auth::AuthorizationMode, config::{NotarizationProperties, PluginProperties}};
 
 /// Response object of the /info API
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +38,7 @@ pub struct NotarizationRequestQuery {
 pub struct NotaryGlobals {
     pub crypto_provider: Arc<CryptoProvider>,
     pub notarization_config: NotarizationProperties,
+    pub plugin_config: PluginProperties,
     /// A temporary storage to store session_id
     pub store: Arc<Mutex<HashMap<String, ()>>>,
     /// Selected authorization mode if any
@@ -50,12 +51,14 @@ impl NotaryGlobals {
     pub fn new(
         crypto_provider: Arc<CryptoProvider>,
         notarization_config: NotarizationProperties,
+        plugin_config: PluginProperties,
         authorization_mode: Option<AuthorizationMode>,
         semaphore: Arc<Semaphore>,
     ) -> Self {
         Self {
             crypto_provider,
             notarization_config,
+            plugin_config,
             store: Default::default(),
             authorization_mode,
             semaphore,

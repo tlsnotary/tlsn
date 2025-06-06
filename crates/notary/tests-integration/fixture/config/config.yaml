@@ -46,5 +46,7 @@ auth:
   whitelist: "../auth/whitelist.csv"
 
 plugin:
-  enabled: true
-  path: "../../../../../target/wasm32-unknown-unknown/release/plugin.wasm"
+  path: "../../../../../target/wasm32-wasip1/release/plugin.wasm"
+  max_sent_data: 4096
+  max_recv_data: 16384
+  timeout: 1800

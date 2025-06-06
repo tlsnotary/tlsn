@@ -26,6 +26,7 @@ base64 = { version = "0.21" }
 config = { version = "0.14", features = ["yaml"] }
 const-oid = { version = "0.9.6", features = ["db"] }
 csv = { version = "1.3" }
+extism = { version = "1.11.1" }
 eyre = { version = "0.6" }
 futures-util = { workspace = true }
 http = { workspace = true }
@@ -64,8 +65,6 @@ zeroize = { workspace = true }
 
 hex = { workspace = true, optional = true }
 mc-sgx-dcap-types = { version = "0.11.0", optional = true }
-
-extism = { version = "1.11.1" }
 
 [build-dependencies]
 git2 = "0.19.0"

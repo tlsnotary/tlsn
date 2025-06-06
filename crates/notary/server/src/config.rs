@@ -55,9 +55,8 @@ impl NotaryServerProperties {
                 config.tls.certificate_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
             // Prepend plugin path.
-            if let Some(path) = config.plugin.path {
-                config.plugin.path = Some(prepend_file_path(&path, &parent_dir)?);
-            }
+            config.plugin.path = prepend_file_path(&config.plugin.path, &parent_dir)?;
+
             // Prepend auth file path.
             if let Some(mode) = config.auth.mode {
                 config.auth.mode = Some(match mode {
@@ -101,11 +100,17 @@ impl NotaryServerProperties {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginProperties {
-    pub enabled: bool,
     /// Path to the plugin directory
-    pub path: Option<String>,
+    pub path: String,
+       /// Global limit for maximum number of bytes that can be sent
+    pub max_sent_data: usize,
+    /// Global limit for maximum number of bytes that can be received
+    pub max_recv_data: usize,
+    /// Number of seconds before verification timeouts to prevent unreleased
+    /// memory
+    pub timeout: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -244,6 +249,18 @@ impl Default for NotarizationProperties {
             private_key_path: None,
             signature_algorithm: "secp256k1".to_string(),
             allow_extensions: false,
+        }
+    }
+}
+
+impl Default for PluginProperties {
+    fn default() -> Self {
+        Self {
+            // Todo: Remove default path
+            path: "../../../target/wasm32-wasip1/release/plugin.wasm".to_string(),
+            max_sent_data: 4096,
+            max_recv_data: 16384,
+            timeout: 1800,
         }
     }
 }

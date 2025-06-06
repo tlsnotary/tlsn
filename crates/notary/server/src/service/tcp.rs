@@ -10,7 +10,7 @@ use std::future::Future;
 use tokio::time::Instant;
 use tracing::{debug, error, info};
 
-use crate::{service::notary_service, types::NotaryGlobals, NotaryServerError};
+use crate::{plugin::verifier_service, service::notary_service, types::NotaryGlobals, NotaryServerError};
 
 /// Custom extractor used to extract underlying TCP connection for TCP client —
 /// using the same upgrade primitives used by the WebSocket implementation where
@@ -87,7 +87,7 @@ pub async fn tcp_notarize(
 ) {
     let start = Instant::now();
     debug!(?session_id, "Upgraded to tcp connection");
-    match notary_service(stream, notary_globals, &session_id).await {
+    match verifier_service(stream, notary_globals, &session_id).await {
         Ok(_) => {
             info!(
                 ?session_id,
