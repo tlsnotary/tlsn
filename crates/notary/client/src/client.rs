@@ -189,6 +189,10 @@ impl NotaryClient {
             let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
                 .await
                 .map_err(|err| ClientError::new(ErrorKind::Connection, Some(Box::new(err))))?;
+            // Setting TCP_NODELAY will improve prover latency.
+            notary_socket
+                .set_nodelay(true)
+                .map_err(|err| ClientError::new(ErrorKind::Connection, Some(Box::new(err))))?;
 
             let notary_connector = TlsConnector::from(Arc::new(notary_client_config));
             let notary_tls_socket = notary_connector
