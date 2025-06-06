@@ -1748,7 +1748,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "clmul"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -4105,7 +4105,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matrix-transpose"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "thiserror 1.0.69",
 ]
@@ -4265,7 +4265,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "bincode",
  "itybity 0.3.1",
@@ -4281,7 +4281,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "futures 0.3.31",
  "mpz-cointoss-core",
@@ -4294,7 +4294,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "mpz-core",
  "opaque-debug",
@@ -4305,7 +4305,7 @@ dependencies = [
 [[package]]
 name = "mpz-common"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4327,7 +4327,7 @@ dependencies = [
 [[package]]
 name = "mpz-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "aes 0.9.0-rc.0",
  "bcs",
@@ -4353,7 +4353,7 @@ dependencies = [
 [[package]]
 name = "mpz-fields"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-secp256r1",
@@ -4373,7 +4373,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "async-trait",
  "derive_builder 0.11.2",
@@ -4400,7 +4400,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "aes 0.9.0-rc.0",
  "bitvec",
@@ -4431,7 +4431,7 @@ dependencies = [
 [[package]]
 name = "mpz-hash"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "itybity 0.3.1",
  "mpz-circuits",
@@ -4443,7 +4443,7 @@ dependencies = [
 [[package]]
 name = "mpz-memory-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "blake3",
  "futures 0.3.31",
@@ -4458,7 +4458,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -4476,7 +4476,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "hybrid-array",
  "itybity 0.3.1",
@@ -4492,7 +4492,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -4516,7 +4516,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "aes 0.9.0-rc.0",
  "blake3",
@@ -4547,7 +4547,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "async-trait",
  "mpz-common",
@@ -4563,7 +4563,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "mpz-common",
  "mpz-core",
@@ -4577,7 +4577,7 @@ dependencies = [
 [[package]]
 name = "mpz-vm-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "async-trait",
  "futures 0.3.31",
@@ -4590,7 +4590,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4607,7 +4607,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk-core"
 version = "0.1.0-alpha.3"
-source = "git+https://github.com/privacy-scaling-explorations/mpz?tag=v0.1.0-alpha.3#3bd2f557a541797d50e0aaac41be1e1a03e895d7"
+source = "git+https://github.com/privacy-scaling-explorations/mpz?rev=2159fcc#2159fccca21a07f66a0823fd41c901432be48f26"
 dependencies = [
  "blake3",
  "cfg-if",
