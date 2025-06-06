@@ -1,9 +1,10 @@
 use std::{env, fs};
 
 fn main() {
-    let out_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let plugin_dir = format!("{}/test_plugins", out_dir);
-    let out_path = format!("{}/src/tests.rs", out_dir);
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let plugin_dir = format!("{manifest_dir}/test_plugins");
+    let out_path = format!("{out_dir}/tests.rs");
 
     let mut content = String::new();
 
