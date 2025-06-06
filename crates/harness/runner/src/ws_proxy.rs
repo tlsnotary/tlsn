@@ -28,7 +28,7 @@ impl WsProxy {
 
     /// Shuts down the ws proxy.
     pub fn shutdown(&self) {
-        self.handle.as_ref().inspect(|handle| _ = handle.abort());
+        self.handle.as_ref().inspect(|handle| handle.abort());
     }
 }
 

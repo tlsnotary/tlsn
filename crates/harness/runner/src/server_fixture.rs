@@ -50,7 +50,9 @@ impl ServerFixture {
 
     /// Shuts down the server fixture.
     pub fn shutdown(&self) {
-        self.handle.as_ref().inspect(|handle| _ = handle.kill());
+        self.handle.as_ref().inspect(|handle| {
+            _ = handle.kill();
+        });
     }
 }
 

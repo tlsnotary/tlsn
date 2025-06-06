@@ -52,7 +52,9 @@ impl WasmServer {
 
     /// Shuts down the wasm server.
     pub fn shutdown(&self) {
-        self.handle.as_ref().inspect(|handle| _ = handle.kill());
+        self.handle.as_ref().inspect(|handle| {
+            _ = handle.kill();
+        });
     }
 }
 

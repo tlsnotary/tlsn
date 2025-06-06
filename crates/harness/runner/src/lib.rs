@@ -54,7 +54,7 @@ impl Runner {
         let Cli { target, subnet, .. } = cli;
         let current_path = std::env::current_exe().unwrap();
         let fixture_path = current_path.parent().unwrap().join("server-fixture");
-        let network_config = NetworkConfig::new(subnet.clone());
+        let network_config = NetworkConfig::new(*subnet);
         let network = Network::new(network_config.clone())?;
 
         let server_fixture =
