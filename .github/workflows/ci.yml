@@ -117,20 +117,23 @@ jobs:
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.7
 
+      - name: Build harness
+        working-directory: crates/harness
+        run: ./build.sh
+
       - name: Run tests
+        working-directory: crates/harness
         run: |
-          cd crates/wasm-test-runner
-          ./run.sh
+          ./bin/runner setup
+          ./bin/runner --target browser test
 
       - name: Run build
-        run: |
-          cd crates/wasm
-          ./build.sh
+        working-directory: crates/wasm
+        run: ./build.sh
 
       - name: Dry Run NPM Publish
-        run: |
-          cd crates/wasm/pkg
-          npm publish --dry-run
+        working-directory: crates/wasm/pkg
+        run: npm publish --dry-run
 
       - name: Save tlsn-wasm package for tagged builds
         if: startsWith(github.ref, 'refs/tags/')
