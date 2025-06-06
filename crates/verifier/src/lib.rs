@@ -118,6 +118,9 @@ impl Verifier<state::Initialized> {
                 )
                 .await?;
 
+            mux_ctrl.close();
+            mux_fut.await?;
+
             return Err(e.into());
         }
 
