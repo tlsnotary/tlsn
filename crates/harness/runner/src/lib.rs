@@ -280,8 +280,11 @@ pub async fn main() -> Result<()> {
         },
     }
 
-    runner.exec_p.shutdown().await?;
-    runner.exec_v.shutdown().await?;
+    // Shut down the executors before exiting.
+    tokio::time::timeout(Duration::from_secs(5), async move {
+        _ = tokio::join!(runner.exec_p.shutdown(), runner.exec_v.shutdown());
+    })
+    .await?;
 
     if exit_code != 0 {
         std::process::exit(exit_code);
