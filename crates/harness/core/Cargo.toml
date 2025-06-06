@@ -1,0 +1,15 @@
+[package]
+name = "tlsn-harness-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "harness_core"
+
+[dependencies]
+bon = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+enum-try-as-inner = { workspace = true }
+ipnet = { workspace = true, features = ["serde"] }
