@@ -141,16 +141,8 @@ impl Network {
         ip_route(&self.ns_0, "default", &self.veth_rpc_0.0.name)?;
         ip_route(&self.ns_1, "default", &self.veth_rpc_1.0.name)?;
         ip_route(&self.ns_app, "default", &self.veth_app.0.name)?;
-        ip_route(
-            &self.ns_0,
-            self.config.proto_1.0,
-            &self.veth_proto_0.0.name,
-        )?;
-        ip_route(
-            &self.ns_1,
-            self.config.proto_0.0,
-            &self.veth_proto_1.0.name,
-        )?;
+        ip_route(&self.ns_0, self.config.proto_1.0, &self.veth_proto_0.0.name)?;
+        ip_route(&self.ns_1, self.config.proto_0.0, &self.veth_proto_1.0.name)?;
         ip_route(&self.ns_0, self.config.app.0, &self.veth_app_0.0.name)?;
         ip_route(&self.ns_1, self.config.app.0, &self.veth_app_1.0.name)?;
         ip_route(
@@ -163,16 +155,8 @@ impl Network {
             self.config.proto_proxy.0,
             &self.veth_proto_1.0.name,
         )?;
-        ip_route(
-            &self.ns_0,
-            self.config.app_proxy.0,
-            &self.veth_app_0.0.name,
-        )?;
-        ip_route(
-            &self.ns_1,
-            self.config.app_proxy.0,
-            &self.veth_app_1.0.name,
-        )?;
+        ip_route(&self.ns_0, self.config.app_proxy.0, &self.veth_app_0.0.name)?;
+        ip_route(&self.ns_1, self.config.app_proxy.0, &self.veth_app_1.0.name)?;
 
         ip_forward(
             &self.ns_0,
