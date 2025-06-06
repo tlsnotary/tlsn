@@ -281,10 +281,11 @@ pub async fn main() -> Result<()> {
     }
 
     // Shut down the executors before exiting.
-    if let Err(_) = tokio::time::timeout(Duration::from_secs(5), async move {
+    if tokio::time::timeout(Duration::from_secs(5), async move {
         _ = tokio::join!(runner.exec_p.shutdown(), runner.exec_v.shutdown());
     })
     .await
+    .is_err()
     {
         eprintln!("executor shutdown timed out");
     }
