@@ -169,11 +169,11 @@ pub enum BenchOutput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProverMetrics {
-    /// Time taken to preprocess the connection in seconds.
+    /// Time taken to preprocess the connection in milliseconds.
     pub time_preprocess: u64,
-    /// TLS connection online time in seconds.
+    /// TLS connection online time in milliseconds.
     pub time_online: u64,
-    /// Total runtime of the benchmark in seconds.
+    /// Total runtime of the benchmark in milliseconds.
     pub time_total: u64,
     /// Total amount of data uploaded to the verifier in bytes during
     /// preprocessing.
@@ -204,11 +204,11 @@ pub struct Measurement {
     pub upload_size: usize,
     pub download_size: usize,
     pub defer_decryption: bool,
-    /// Time taken to preprocess the connection in seconds.
+    /// Time taken to preprocess the connection in milliseconds.
     pub time_preprocess: u64,
-    /// TLS connection online time in seconds.
+    /// TLS connection online time in milliseconds.
     pub time_online: u64,
-    /// Total runtime of the benchmark in seconds.
+    /// Total runtime of the benchmark in milliseconds.
     pub time_total: u64,
     /// Total amount of data uploaded to the verifier in bytes during
     /// preprocessing.
