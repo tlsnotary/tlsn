@@ -17,7 +17,7 @@ pub async fn websocket_notarize(
     // Wrap the websocket in WsStream so that we have AsyncRead and AsyncWrite
     // implemented
     let stream = WsStream::new(socket.into_inner());
-    match verifier_service(stream, notary_globals, &session_id).await {
+    match notary_service(stream, notary_globals, &session_id).await {
         Ok(_) => {
             info!(
                 ?session_id,

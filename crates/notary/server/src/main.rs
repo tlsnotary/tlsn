@@ -16,8 +16,6 @@ async fn main() -> Result<(), NotaryServerError> {
     // Set up tracing for logging
     init_tracing(&config).map_err(|err| eyre!("Failed to set up tracing: {err}"))?;
 
-    // debug!("Server config loaded: \n{}", config);
-
     debug!(
         "Server config loaded: \n{}",
         serde_yaml::to_string(&config).map_err(|err| eyre!("Failed to print config: {err}"))?

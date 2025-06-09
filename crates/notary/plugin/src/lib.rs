@@ -1,8 +1,8 @@
-use extism_pdk::{host_fn, debug, plugin_fn, FnResult, FromBytes, Json, ToBytes};
+use extism_pdk::{debug, plugin_fn, FnResult, FromBytes, Json, ToBytes};
 use serde::{Deserialize, Serialize};
 use tlsn_core::VerifierOutput;
 
-#[derive(Serialize, Deserialize, FromBytes, ToBytes, Debug)]
+#[derive(Serialize, Deserialize, FromBytes, ToBytes, Debug, Default)]
 #[encoding(Json)]
 struct PluginVerifierConfig {
     /// Maximum number of bytes that can be sent.
@@ -12,26 +12,42 @@ struct PluginVerifierConfig {
     /// Maximum number of bytes that can be received.
     max_recv_data: Option<usize>,
     /// Maximum number of application data records that can be received.
-    max_recv_records: Option<usize>,
+    max_recv_records_online: Option<usize>,
 }
 
-#[host_fn]
-extern "ExtismHost" {
-    fn verify(verifier_config: PluginVerifierConfig) -> Json<VerifierOutput>;
+
+#[plugin_fn]
+pub fn config() -> FnResult<PluginVerifierConfig> {
+    debug!("Getting plugin configuration...");
+
+    Ok(PluginVerifierConfig::default())
 }
 
 #[plugin_fn]
-pub unsafe fn plugin() -> FnResult<()> {
-    debug!("Plugin called...");
+pub fn verify(output: Json<VerifierOutput>) -> FnResult<()> {
+    debug!("Verifying output: {:?}", output);
 
-    let verifier_config = PluginVerifierConfig { 
-        max_sent_data: None, max_sent_records: None, max_recv_data: None, max_recv_records: None
-    };
-    let output = unsafe { verify(verifier_config)? };
-
-    debug!("Verifier output: {:?}", output);
     Ok(())
 }
+
+
+// !!! Experiment with plugin controlled `verify` host function
+// #[host_fn]
+// extern "ExtismHost" {
+//     fn verify(verifier_config: PluginVerifierConfig) -> Json<VerifierOutput>;
+// }
+// #[plugin_fn]
+// pub unsafe fn plugin() -> FnResult<()> {
+//     debug!("Plugin called...");
+
+//     let verifier_config = PluginVerifierConfig { 
+//         max_sent_data: None, max_sent_records: None, max_recv_data: None, max_recv_records: None
+//     };
+//     let output = unsafe { verify(verifier_config)? };
+
+//     debug!("Verifier output: {:?}", output);
+//     Ok(())
+// }
 
 // !!! Works
 // #[plugin_fn]

@@ -87,7 +87,7 @@ pub async fn tcp_notarize(
 ) {
     let start = Instant::now();
     debug!(?session_id, "Upgraded to tcp connection");
-    match verifier_service(stream, notary_globals, &session_id).await {
+    match notary_service(stream, notary_globals, &session_id).await {
         Ok(_) => {
             info!(
                 ?session_id,
