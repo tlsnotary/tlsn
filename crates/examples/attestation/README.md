@@ -10,10 +10,11 @@ This example demonstrates the simplest possible use case for TLSNotary. A Prover
 ### 1. Notarize
 
 Before starting the notarization, set up the local test server and local notary.
+Run the following commands from the root of this repository (not from this example's folder):
 
 1. Run the test server:
     ```shell
-    PORT=4000 cargo run --bin tlsn-server-fixture
+    RUST_LOG=info PORT=4000 cargo run --bin tlsn-server-fixture
     ```
 2. Run the notary server:
     ```shell

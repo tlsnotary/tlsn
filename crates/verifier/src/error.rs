@@ -1,6 +1,6 @@
 use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
-use tlsn_common::{encoding::EncodingError, zk_aes::ZkAesCtrError};
+use tlsn_common::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
 
 /// Error for [`Verifier`](crate::Verifier).
 #[derive(Debug, thiserror::Error)]

@@ -51,8 +51,8 @@ impl ProverConfig {
             builder.max_sent_records(max_sent_records);
         }
 
-        if let Some(max_recv_records) = self.protocol_config.max_recv_records() {
-            builder.max_recv_records(max_recv_records);
+        if let Some(max_recv_records_online) = self.protocol_config.max_recv_records_online() {
+            builder.max_recv_records_online(max_recv_records_online);
         }
 
         if let NetworkSetting::Bandwidth = self.protocol_config.network() {

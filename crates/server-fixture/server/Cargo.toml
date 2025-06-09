@@ -19,10 +19,13 @@ tokio-util = { workspace = true, features = ["compat", "io"] }
 tower-service = { version = "0.3" }
 serde_json = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tower-http = { version = "0.6.5", features = ["trace"] }
 
 [[bin]]
 name = "tlsn-server-fixture"
-path = "src/main.rs"
+path = "bin/main.rs"
 
 [dev-dependencies]
 axum-test = { version = "16.2.0" }

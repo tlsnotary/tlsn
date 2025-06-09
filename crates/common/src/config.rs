@@ -34,9 +34,10 @@ pub struct ProtocolConfig {
     max_recv_data_online: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
-    /// Maximum number of application data records that can be received.
+    /// Maximum number of received application data records that can be
+    /// decrypted online, i.e. while the MPC-TLS connection is active.
     #[builder(setter(strip_option), default)]
-    max_recv_records: Option<usize>,
+    max_recv_records_online: Option<usize>,
     /// Whether the `deferred decryption` feature is toggled on from the start
     /// of the MPC-TLS connection.
     #[builder(default = "true")]
@@ -87,10 +88,10 @@ impl ProtocolConfig {
         self.max_recv_data
     }
 
-    /// Returns the maximum number of application data records that can
-    /// be received.
-    pub fn max_recv_records(&self) -> Option<usize> {
-        self.max_recv_records
+    /// Returns the maximum number of received application data records that
+    /// can be decrypted online.
+    pub fn max_recv_records_online(&self) -> Option<usize> {
+        self.max_recv_records_online
     }
 
     /// Returns whether the `deferred decryption` feature is toggled on from the
@@ -116,9 +117,9 @@ pub struct ProtocolConfigValidator {
     max_sent_records: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
-    /// Maximum number of application data records that can be received.
+    /// Maximum number of application data records that can be received online.
     #[builder(default = "DEFAULT_RECORDS_LIMIT")]
-    max_recv_records: usize,
+    max_recv_records_online: usize,
     /// Version that is being run by checker.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -147,16 +148,16 @@ impl ProtocolConfigValidator {
     }
 
     /// Returns the maximum number of application data records that can
-    /// be received.
-    pub fn max_recv_records(&self) -> usize {
-        self.max_recv_records
+    /// be received online.
+    pub fn max_recv_records_online(&self) -> usize {
+        self.max_recv_records_online
     }
 
     /// Performs compatibility check of the protocol configuration between
     /// prover and verifier.
     pub fn validate(&self, config: &ProtocolConfig) -> Result<(), ProtocolConfigError> {
         self.check_max_transcript_size(config.max_sent_data, config.max_recv_data)?;
-        self.check_max_records(config.max_sent_records, config.max_recv_records)?;
+        self.check_max_records(config.max_sent_records, config.max_recv_records_online)?;
         self.check_version(&config.version)?;
         Ok(())
     }
@@ -187,7 +188,7 @@ impl ProtocolConfigValidator {
     fn check_max_records(
         &self,
         max_sent_records: Option<usize>,
-        max_recv_records: Option<usize>,
+        max_recv_records_online: Option<usize>,
     ) -> Result<(), ProtocolConfigError> {
         if let Some(max_sent_records) = max_sent_records {
             if max_sent_records > self.max_sent_records {
@@ -198,11 +199,11 @@ impl ProtocolConfigValidator {
             }
         }
 
-        if let Some(max_recv_records) = max_recv_records {
-            if max_recv_records > self.max_recv_records {
+        if let Some(max_recv_records_online) = max_recv_records_online {
+            if max_recv_records_online > self.max_recv_records_online {
                 return Err(ProtocolConfigError::max_record_count(format!(
-                    "max_recv_records {} is greater than the configured limit {}",
-                    max_recv_records, self.max_recv_records,
+                    "max_recv_records_online {} is greater than the configured limit {}",
+                    max_recv_records_online, self.max_recv_records_online,
                 )));
             }
         }

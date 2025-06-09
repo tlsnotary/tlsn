@@ -1,0 +1,51 @@
+#### Latency ####
+
+[[group]]
+name = "latency"
+bandwidth = 1000
+
+[[bench]]
+group = "latency"
+latency = 10
+
+[[bench]]
+group = "latency"
+latency = 25
+
+[[bench]]
+group = "latency"
+latency = 50
+
+[[bench]]
+group = "latency"
+latency = 100
+
+[[bench]]
+group = "latency"
+latency = 200
+
+#### Bandwidth ####
+
+[[group]]
+name = "bandwidth"
+latency = 25
+
+[[bench]]
+group = "bandwidth"
+bandwidth = 10
+
+[[bench]]
+group = "bandwidth"
+bandwidth = 50
+
+[[bench]]
+group = "bandwidth"
+bandwidth = 100
+
+[[bench]]
+group = "bandwidth"
+bandwidth = 250
+
+[[bench]]
+group = "bandwidth"
+bandwidth = 1000
