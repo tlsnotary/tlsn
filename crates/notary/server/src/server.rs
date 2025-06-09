@@ -182,9 +182,10 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             }
         };
         // Setting TCP_NODELAY will improve notary latency.
-        let _ = stream
-            .set_nodelay(true)
-            .map_err(|err| error!("{}", NotaryServerError::Connection(err.to_string())));
+        let _ = stream.set_nodelay(true).map_err(|_| {
+            info!("An error occured when setting TCP_NODELAY. This will result in higher protocol latency.");
+        });
+
         debug!("Received a prover's TCP connection");
 
         let tower_service = router.clone();
