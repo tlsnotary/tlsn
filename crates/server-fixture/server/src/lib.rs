@@ -14,7 +14,7 @@ use tower_http::trace::TraceLayer;
 use futures::{channel::oneshot, AsyncRead, AsyncWrite};
 use futures_rustls::{
     pki_types::{CertificateDer, PrivateKeyDer},
-    rustls::ServerConfig,
+    rustls::{crypto::aws_lc_rs::default_provider, ServerConfig},
     TlsAcceptor,
 };
 use hyper::{
@@ -55,6 +55,10 @@ fn app(state: AppState) -> Router {
 pub async fn bind<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
 ) -> anyhow::Result<()> {
+    // Need to do this as notary server's dependency (ureq used by extism) uses ring
+    // as rustls crypto provider.
+    let _ = default_provider().install_default();
+
     let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
     let cert = CertificateDer::from(SERVER_CERT_DER);
 

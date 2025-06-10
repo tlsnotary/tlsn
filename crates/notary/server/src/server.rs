@@ -28,13 +28,7 @@ use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
 
 use crate::{
-    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode},
-    config::{NotarizationProperties, NotaryServerProperties},
-    error::NotaryServerError,
-    middleware::AuthorizationMiddleware,
-    service::{initialize, upgrade_protocol},
-    signing::AttestationKey,
-    types::{InfoResponse, NotaryGlobals},
+    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode}, config::{NotarizationProperties, NotaryServerProperties}, error::NotaryServerError, middleware::AuthorizationMiddleware, service::{initialize, upgrade_protocol}, signing::AttestationKey, types::{InfoResponse, NotaryGlobals}
 };
 
 #[cfg(feature = "tee_quote")]

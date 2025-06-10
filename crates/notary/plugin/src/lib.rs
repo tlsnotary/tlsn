@@ -1,6 +1,9 @@
-use extism_pdk::{debug, plugin_fn, FnResult, FromBytes, Json, ToBytes};
+use anyhow::anyhow;
+use extism_pdk::{debug, info, plugin_fn, FnResult, FromBytes, Json, ToBytes};
 use serde::{Deserialize, Serialize};
 use tlsn_core::VerifierOutput;
+
+const SERVER_DOMAIN: &str = "raw.githubusercontent.com";
 
 #[derive(Serialize, Deserialize, FromBytes, ToBytes, Debug, Default)]
 #[encoding(Json)]
@@ -15,21 +18,66 @@ struct PluginVerifierConfig {
     max_recv_records_online: Option<usize>,
 }
 
-
 #[plugin_fn]
 pub fn config() -> FnResult<PluginVerifierConfig> {
-    debug!("Getting plugin configuration...");
-
+    debug!("Composing verifier configuration...");
     Ok(PluginVerifierConfig::default())
 }
 
 #[plugin_fn]
 pub fn verify(output: Json<VerifierOutput>) -> FnResult<()> {
-    debug!("Verifying output: {:?}", output);
+    debug!("Starting verification...");
+    let VerifierOutput {
+        server_name,
+        transcript,
+        ..
+    } = output.into_inner();
+
+    let transcript = transcript.
+        ok_or(anyhow!("prover should have revealed transcript data"))?;
+    let server_name = server_name.
+        ok_or(anyhow!("prover should have revealed server name"))?;
+
+    // Check sent data: check host.
+    debug!("Starting sent data verification...");
+    let sent = transcript.sent_unsafe().to_vec();
+    let sent_data = String::from_utf8(sent.clone())
+        .map_err(|err| anyhow!("Verifier expected sent data: {err}"))?;
+    sent_data
+        .find(SERVER_DOMAIN)
+        .ok_or(anyhow!("Verification failed: Expected host {}", SERVER_DOMAIN))?;
+
+    // Check received data: check json and version number.
+    debug!("Starting received data verification...");
+    let received = transcript.received_unsafe().to_vec();
+    let response = String::from_utf8(received.clone())
+        .map_err(|err| anyhow!("Verifier expected received data: {err}"))?;
+
+    response
+        .find("123 Elm Street")
+        .ok_or(anyhow!("Verification failed: missing data in received data"))?;
+
+    // Check Session info: server name.
+    if server_name.as_str() != SERVER_DOMAIN {
+        return Err(anyhow!("Verification failed: server name mismatches").into());
+    }
+
+    let sent_string = bytes_to_redacted_string(&sent)?;
+    let received_string = bytes_to_redacted_string(&received)?;
+
+    info!("Successfully verified {}", SERVER_DOMAIN);
+    info!("Verified sent data:\n{}", sent_string);
+    info!("Verified received data:\n{received_string}",);
 
     Ok(())
 }
 
+/// Render redacted bytes as `🙈`.
+fn bytes_to_redacted_string(bytes: &[u8]) -> FnResult<String> {
+    Ok(String::from_utf8(bytes.to_vec())
+        .map_err(|err| anyhow!("Failed to parse bytes to redacted string: {err}"))?
+        .replace('\0', "🙈"))
+}
 
 // !!! Experiment with plugin controlled `verify` host function
 // #[host_fn]

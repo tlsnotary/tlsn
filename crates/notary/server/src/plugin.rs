@@ -22,7 +22,7 @@ struct PluginVerifierConfig {
     /// Maximum number of bytes that can be received.
     max_recv_data: Option<usize>,
     /// Maximum number of application data records that can be received.
-    max_recv_records: Option<usize>,
+    max_recv_records_online: Option<usize>,
 }
 
 pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
@@ -44,6 +44,8 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
 
     let plugin_config = plugin.call::<(), PluginVerifierConfig>("config", ())
         .map_err(|e| eyre!("Failed to get plugin config: {}", e))?;
+
+    debug!("Plugin configuration: {:?}", plugin_config);
     
     let max_sent_data = plugin_config.max_sent_data.unwrap_or(notary_globals.notarization_config.max_sent_data);
     let max_recv_data = plugin_config.max_recv_data.unwrap_or(notary_globals.notarization_config.max_recv_data);
@@ -56,8 +58,8 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
     if let Some(max_sent_records) = plugin_config.max_sent_records {
         validator_builder.max_sent_records(max_sent_records);
     }
-    if let Some(max_recv_records) = plugin_config.max_recv_records {
-        validator_builder.max_recv_records_online(max_recv_records);
+    if let Some(max_recv_records_online) = plugin_config.max_recv_records_online {
+        validator_builder.max_recv_records_online(max_recv_records_online);
     }
     let validator = validator_builder.build()?;
 
@@ -74,7 +76,10 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
     .map_err(|_| eyre!("Timeout reached before verification completes"))??;
 
     plugin.call::<Json<VerifierOutput>, ()>("verify", Json(output))
-        .map_err(|e| eyre!("Failed to call verify on plugin: {}", e))?;
+        .map_err(|e| eyre!("Failed to verify on plugin: {}", e))?;
+
+    plugin.reset()
+        .map_err(|e| eyre!("Failed to reset plugin memory: {}", e))?;
 
     Ok(())
 }

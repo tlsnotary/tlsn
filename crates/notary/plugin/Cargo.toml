@@ -12,5 +12,6 @@ crate-type = ["cdylib"]
 [dependencies]
 tlsn-core.workspace = true
 
+anyhow.workspace = true
 extism-pdk = { version = "1.4.1" }
 serde = { workspace = true, features = ["derive"] }

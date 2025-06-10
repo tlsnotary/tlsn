@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies]
 notary-client = { workspace = true }
+notary-common = { workspace = true }
 tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-prover = { workspace = true }
@@ -20,6 +21,7 @@ tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 spansy = { workspace = true }
 
+async-tungstenite = { workspace = true, features = ["tokio-runtime"] }
 bincode = { workspace = true }
 chrono = { workspace = true }
 clap = { version = "4.5", features = ["derive"] }
@@ -30,6 +32,7 @@ hex = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
 k256 = { workspace = true, features = ["ecdsa"] }
+rangeset = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = [
   "rt",
@@ -42,6 +45,8 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+uuid = { workspace = true, features = ["v4", "fast-rng"] }
+ws_stream_tungstenite = { workspace = true, features = ["tokio_io"] }
 
 [[example]]
 name = "attestation_prove"
@@ -58,3 +63,7 @@ path = "attestation/verify.rs"
 [[example]]
 name = "interactive"
 path = "interactive/interactive.rs"
+
+[[example]]
+name = "plugin"
+path = "plugin/plugin.rs"
