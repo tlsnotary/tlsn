@@ -226,7 +226,6 @@ impl MpcTlsLeader {
                         .map_err(MpcTlsError::preprocess)
                 },
                 async move |ctx| {
-                    vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
                     vm_lock
                         .preprocess(ctx)
                         .await

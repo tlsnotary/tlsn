@@ -191,7 +191,6 @@ impl MpcTlsFollower {
                             .map_err(MpcTlsError::preprocess)
                     },
                     async move |ctx| {
-                        vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
                         vm.preprocess(ctx).await.map_err(MpcTlsError::preprocess)?;
                         vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
