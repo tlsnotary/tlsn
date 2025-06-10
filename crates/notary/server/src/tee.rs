@@ -58,7 +58,7 @@ impl From<QlError> for QuoteError {
 
 #[instrument(level = "debug", skip_all)]
 async fn gramine_quote(public_key: Vec<u8>) -> Result<Quote, QuoteError> {
-    //// Check if the the gramine pseudo-hardware exists
+    //// Check if the gramine pseudo-hardware exists
     if !Path::new("/dev/attestation/quote").exists() {
         return Ok(Quote::default());
     }
