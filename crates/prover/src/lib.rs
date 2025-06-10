@@ -186,7 +186,7 @@ impl Prover<state::Setup> {
         let config = match self.config.client_auth() {
             Some((cert, key)) => config
                 .with_single_cert(cert.clone(), key.clone())
-                .map_err(|e| ProverError::config(e))?,
+                .map_err(ProverError::config)?,
             None => config.with_no_client_auth(),
         };
 

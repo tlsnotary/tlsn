@@ -121,9 +121,9 @@ async fn notarize(
         .crypto_provider(crypto_provider);
 
     // (Optional) Set up TLS client authentication if required by the server.
-    // prover_config_builder
-    //     .client_auth((CLIENT_CERT.to_vec(), CLIENT_KEY.to_vec()))
-    //     .unwrap();
+    prover_config_builder
+        .client_auth((CLIENT_CERT.to_vec(), CLIENT_KEY.to_vec()))
+        .unwrap();
 
     let prover_config = prover_config_builder.build()?;
 
