@@ -21,6 +21,7 @@ use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
+use tlsn_server_fixture_certs::{CLIENT_CERT, CLIENT_KEY};
 
 // Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
@@ -105,8 +106,8 @@ async fn notarize(
     };
 
     // Set up protocol configuration for prover.
-    // Prover configuration.
-    let prover_config = ProverConfig::builder()
+    let mut prover_config_builder = ProverConfig::builder();
+    prover_config_builder
         .server_name(SERVER_DOMAIN)
         .protocol_config(
             ProtocolConfig::builder()
@@ -117,8 +118,14 @@ async fn notarize(
                 .max_recv_data(tlsn_examples::MAX_RECV_DATA)
                 .build()?,
         )
-        .crypto_provider(crypto_provider)
-        .build()?;
+        .crypto_provider(crypto_provider);
+
+    // (Optional) Set up TLS client authentication if required by the server.
+    // prover_config_builder
+    //     .client_auth((CLIENT_CERT.to_vec(), CLIENT_KEY.to_vec()))
+    //     .unwrap();
+
+    let prover_config = prover_config_builder.build()?;
 
     // Create a new prover and perform necessary setup.
     let prover = Prover::new(prover_config)

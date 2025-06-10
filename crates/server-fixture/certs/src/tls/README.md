@@ -21,3 +21,17 @@ openssl x509 -in test_server.crt -outform der -out test_server_cert.der
 
 # Convert the end entity certificate private key to DER format
 openssl pkcs8 -topk8 -inform PEM -outform DER -in test_server.key -out test_server_private_key.der -nocrypt
+
+# ------------------------CLIENT AUTHENTICATION-------------------------
+
+# Create a private key for the client certificate in PEM format
+openssl genpkey -algorithm RSA -out client_cert.key -pkeyopt rsa_keygen_bits:2048
+
+# Create a certificate signing request (CSR) for the client certificate
+openssl req -new -key client_cert.key -out client_cert.csr -subj "/C=US/ST=State/L=City/O=tlsnotary/OU=IT/CN=client-authentication.io"
+
+# Sign the CSR with the root CA to create the end entity certificate (100 years validity)
+openssl x509 -req -in client_cert.csr -CA root_ca.crt -CAkey root_ca.key -CAcreateserial -out client_cert.crt -days 36525 -sha256 -extfile openssl.cnf -extensions v3_req
+
+# Convert the end entity certificate to PEM format
+openssl x509 -in client_cert.crt -outform pem -out client_cert.pem
