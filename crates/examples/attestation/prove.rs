@@ -19,7 +19,7 @@ use tlsn_common::config::ProtocolConfig;
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::{Prover, ProverConfig, TlsConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CLIENT_CERT, CLIENT_KEY};
 
@@ -121,9 +121,12 @@ async fn notarize(
         .crypto_provider(crypto_provider);
 
     // (Optional) Set up TLS client authentication if required by the server.
-    prover_config_builder
-        .client_auth((CLIENT_CERT.to_vec(), CLIENT_KEY.to_vec()))
-        .unwrap();
+    prover_config_builder.tls_config(
+        TlsConfig::builder()
+            .client_auth((CLIENT_CERT.to_vec(), CLIENT_KEY.to_vec()))
+            .unwrap()
+            .build()?,
+    );
 
     let prover_config = prover_config_builder.build()?;
 
