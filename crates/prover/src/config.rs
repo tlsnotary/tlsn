@@ -55,8 +55,8 @@ impl ProverConfig {
             builder.max_recv_records_online(max_recv_records_online);
         }
 
-        if let NetworkSetting::Bandwidth = self.protocol_config.network() {
-            builder.high_bandwidth();
+        if let NetworkSetting::Latency = self.protocol_config.network() {
+            builder.low_bandwidth();
         }
 
         builder.build().unwrap()
