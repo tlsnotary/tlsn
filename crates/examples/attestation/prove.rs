@@ -4,31 +4,31 @@
 
 use std::env;
 
+use clap::Parser;
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use spansy::Spanned;
-use tlsn_examples::ExampleType;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tracing::debug;
 
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
-use tls_server_fixture::SERVER_DOMAIN;
+use tls_core::verify::WebPkiVerifier;
+use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig};
+use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
+use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
-use tracing::debug;
 
-use clap::Parser;
-
-// Setting of the application server
+// Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// What data to notarize
+    /// What data to notarize.
     #[clap(default_value_t, value_enum)]
     example_type: ExampleType,
 }
@@ -90,6 +90,20 @@ async fn notarize(
         .await
         .expect("Could not connect to notary. Make sure it is running.");
 
+    // Create a crypto provider accepting the server-fixture's self-signed
+    // root certificate.
+    //
+    // This is only required for offline testing with the server-fixture. In
+    // production, use `CryptoProvider::default()` instead.
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+    let crypto_provider = CryptoProvider {
+        cert: WebPkiVerifier::new(root_store, None),
+        ..Default::default()
+    };
+
     // Set up protocol configuration for prover.
     // Prover configuration.
     let prover_config = ProverConfig::builder()
@@ -103,7 +117,7 @@ async fn notarize(
                 .max_recv_data(tlsn_examples::MAX_RECV_DATA)
                 .build()?,
         )
-        .crypto_provider(tlsn_examples::get_crypto_provider_with_server_fixture())
+        .crypto_provider(crypto_provider)
         .build()?;
 
     // Create a new prover and perform necessary setup.
@@ -131,7 +145,7 @@ async fn notarize(
     // Spawn the HTTP task to be run concurrently in the background.
     tokio::spawn(connection);
 
-    // Build a simple HTTP request with common headers
+    // Build a simple HTTP request with common headers.
     let request_builder = Request::builder()
         .uri(uri)
         .header("Host", SERVER_DOMAIN)
@@ -157,10 +171,7 @@ async fn notarize(
     assert!(response.status() == StatusCode::OK);
 
     // The prover task should be done now, so we can await it.
-    let prover = prover_task.await??;
-
-    // Prepare for notarization.
-    let mut prover = prover.start_notarize();
+    let mut prover = prover_task.await??;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -187,12 +198,23 @@ async fn notarize(
     // for other strategies that can be used to generate commitments.
     DefaultHttpCommitter::default().commit_transcript(&mut builder, &transcript)?;
 
-    prover.transcript_commit(builder.build()?);
+    let transcript_commit = builder.build()?;
 
-    // Request an attestation.
-    let request_config = RequestConfig::default();
+    // Build an attestation request.
+    let mut builder = RequestConfig::builder();
 
-    let (attestation, secrets) = prover.finalize(&request_config).await?;
+    builder.transcript_commit(transcript_commit);
+
+    // Optionally, add an extension to the attestation if the notary supports it.
+    // builder.extension(Extension {
+    //     id: b"example.name".to_vec(),
+    //     value: b"Bobert".to_vec(),
+    // });
+
+    let request_config = builder.build()?;
+
+    #[allow(deprecated)]
+    let (attestation, secrets) = prover.notarize(&request_config).await?;
 
     println!("Notarization complete!");
 

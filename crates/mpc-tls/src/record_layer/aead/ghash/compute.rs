@@ -4,11 +4,12 @@ use async_trait::async_trait;
 use futures::{stream::FuturesOrdered, StreamExt as _};
 use mpz_common::{Context, Task};
 use serio::{stream::IoStreamExt, SinkExt};
+use tlsn_common::ghash::build_ghash_data;
 
 use crate::{
     decode::OneTimePadShared,
     record_layer::aead::{
-        ghash::{build_ghash_data, Ghash, TagShare},
+        ghash::{Ghash, TagShare},
         AeadError,
     },
     Role,

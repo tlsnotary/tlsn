@@ -1,0 +1,24 @@
+name: Fast-forward main branch to published release tag
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  ff-main-to-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fast-forward main to release tag
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          git merge --ff-only "refs/tags/$tag"
+          git push origin main

@@ -70,6 +70,7 @@ pub async fn test_prove() -> Result<(), JsValue> {
         .reveal(Reveal {
             sent: vec![0..10],
             recv: vec![0..10],
+            server_identity: true,
         })
         .await?;
 
@@ -144,6 +145,7 @@ pub async fn test_notarize() -> Result<(), JsValue> {
         Reveal {
             sent: vec![(0..10)],
             recv: vec![(0..10)],
+            server_identity: false,
         },
     )?;
 

@@ -7,6 +7,10 @@ use std::error::Error;
 
 // Default is 32 bytes to decrypt the TLS protocol messages.
 const DEFAULT_MAX_RECV_ONLINE: usize = 32;
+// Default maximum number of TLS records to allow.
+//
+// This would allow for up to 50Mb upload from prover to verifier.
+const DEFAULT_RECORDS_LIMIT: usize = 256;
 
 // Current version that is running.
 static VERSION: Lazy<Version> = Lazy::new(|| {
@@ -21,12 +25,26 @@ static VERSION: Lazy<Version> = Lazy::new(|| {
 pub struct ProtocolConfig {
     /// Maximum number of bytes that can be sent.
     max_sent_data: usize,
+    /// Maximum number of application data records that can be sent.
+    #[builder(setter(strip_option), default)]
+    max_sent_records: Option<usize>,
     /// Maximum number of bytes that can be decrypted online, i.e. while the
     /// MPC-TLS connection is active.
     #[builder(default = "DEFAULT_MAX_RECV_ONLINE")]
     max_recv_data_online: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
+    /// Maximum number of received application data records that can be
+    /// decrypted online, i.e. while the MPC-TLS connection is active.
+    #[builder(setter(strip_option), default)]
+    max_recv_records_online: Option<usize>,
+    /// Whether the `deferred decryption` feature is toggled on from the start
+    /// of the MPC-TLS connection.
+    #[builder(default = "true")]
+    defer_decryption_from_start: bool,
+    /// Network settings.
+    #[builder(default)]
+    network: NetworkSetting,
     /// Version that is being run by prover/verifier.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -54,6 +72,12 @@ impl ProtocolConfig {
         self.max_sent_data
     }
 
+    /// Returns the maximum number of application data records that can
+    /// be sent.
+    pub fn max_sent_records(&self) -> Option<usize> {
+        self.max_sent_records
+    }
+
     /// Returns the maximum number of bytes that can be decrypted online.
     pub fn max_recv_data_online(&self) -> usize {
         self.max_recv_data_online
@@ -63,6 +87,23 @@ impl ProtocolConfig {
     pub fn max_recv_data(&self) -> usize {
         self.max_recv_data
     }
+
+    /// Returns the maximum number of received application data records that
+    /// can be decrypted online.
+    pub fn max_recv_records_online(&self) -> Option<usize> {
+        self.max_recv_records_online
+    }
+
+    /// Returns whether the `deferred decryption` feature is toggled on from the
+    /// start of the MPC-TLS connection.
+    pub fn defer_decryption_from_start(&self) -> bool {
+        self.defer_decryption_from_start
+    }
+
+    /// Returns the network settings.
+    pub fn network(&self) -> NetworkSetting {
+        self.network
+    }
 }
 
 /// Protocol configuration validator used by checker (i.e. verifier) to perform
@@ -71,8 +112,14 @@ impl ProtocolConfig {
 pub struct ProtocolConfigValidator {
     /// Maximum number of bytes that can be sent.
     max_sent_data: usize,
+    /// Maximum number of application data records that can be sent.
+    #[builder(default = "DEFAULT_RECORDS_LIMIT")]
+    max_sent_records: usize,
     /// Maximum number of bytes that can be received.
     max_recv_data: usize,
+    /// Maximum number of application data records that can be received online.
+    #[builder(default = "DEFAULT_RECORDS_LIMIT")]
+    max_recv_records_online: usize,
     /// Version that is being run by checker.
     #[builder(setter(skip), default = "VERSION.clone()")]
     version: Version,
@@ -89,15 +136,28 @@ impl ProtocolConfigValidator {
         self.max_sent_data
     }
 
+    /// Returns the maximum number of application data records that can
+    /// be sent.
+    pub fn max_sent_records(&self) -> usize {
+        self.max_sent_records
+    }
+
     /// Returns the maximum number of bytes that can be received.
     pub fn max_recv_data(&self) -> usize {
         self.max_recv_data
+    }
+
+    /// Returns the maximum number of application data records that can
+    /// be received online.
+    pub fn max_recv_records_online(&self) -> usize {
+        self.max_recv_records_online
     }
 
     /// Performs compatibility check of the protocol configuration between
     /// prover and verifier.
     pub fn validate(&self, config: &ProtocolConfig) -> Result<(), ProtocolConfigError> {
         self.check_max_transcript_size(config.max_sent_data, config.max_recv_data)?;
+        self.check_max_records(config.max_sent_records, config.max_recv_records_online)?;
         self.check_version(&config.version)?;
         Ok(())
     }
@@ -125,6 +185,32 @@ impl ProtocolConfigValidator {
         Ok(())
     }
 
+    fn check_max_records(
+        &self,
+        max_sent_records: Option<usize>,
+        max_recv_records_online: Option<usize>,
+    ) -> Result<(), ProtocolConfigError> {
+        if let Some(max_sent_records) = max_sent_records {
+            if max_sent_records > self.max_sent_records {
+                return Err(ProtocolConfigError::max_record_count(format!(
+                    "max_sent_records {} is greater than the configured limit {}",
+                    max_sent_records, self.max_sent_records,
+                )));
+            }
+        }
+
+        if let Some(max_recv_records_online) = max_recv_records_online {
+            if max_recv_records_online > self.max_recv_records_online {
+                return Err(ProtocolConfigError::max_record_count(format!(
+                    "max_recv_records_online {} is greater than the configured limit {}",
+                    max_recv_records_online, self.max_recv_records_online,
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
     // Checks if both versions are the same (might support check for different but
     // compatible versions in the future).
     fn check_version(&self, peer_version: &Version) -> Result<(), ProtocolConfigError> {
@@ -136,6 +222,24 @@ impl ProtocolConfigValidator {
         }
 
         Ok(())
+    }
+}
+
+/// Settings for the network environment.
+///
+/// Provides optimization options to adapt the protocol to different network
+/// situations.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum NetworkSetting {
+    /// Prefers a bandwidth-heavy protocol.
+    Bandwidth,
+    /// Prefers a latency-heavy protocol.
+    Latency,
+}
+
+impl Default for NetworkSetting {
+    fn default() -> Self {
+        Self::Bandwidth
     }
 }
 
@@ -165,6 +269,13 @@ impl ProtocolConfigError {
         }
     }
 
+    fn max_record_count(msg: impl Into<String>) -> Self {
+        Self {
+            kind: ErrorKind::MaxRecordCount,
+            source: Some(msg.into().into()),
+        }
+    }
+
     fn version(msg: impl Into<String>) -> Self {
         Self {
             kind: ErrorKind::Version,
@@ -176,7 +287,8 @@ impl ProtocolConfigError {
 impl fmt::Display for ProtocolConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
-            ErrorKind::MaxTranscriptSize => write!(f, "max transcript size error")?,
+            ErrorKind::MaxTranscriptSize => write!(f, "max transcript size exceeded")?,
+            ErrorKind::MaxRecordCount => write!(f, "max record count exceeded")?,
             ErrorKind::Version => write!(f, "version error")?,
         }
 
@@ -191,6 +303,7 @@ impl fmt::Display for ProtocolConfigError {
 #[derive(Debug)]
 enum ErrorKind {
     MaxTranscriptSize,
+    MaxRecordCount,
     Version,
 }
 

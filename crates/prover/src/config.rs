@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mpc_tls::Config;
-use tlsn_common::config::ProtocolConfig;
+use tlsn_common::config::{NetworkSetting, ProtocolConfig};
 use tlsn_core::{connection::ServerName, CryptoProvider};
 
 /// Configuration for the prover
@@ -12,10 +12,6 @@ pub struct ProverConfig {
     server_name: ServerName,
     /// Protocol configuration to be checked with the verifier.
     protocol_config: ProtocolConfig,
-    /// Whether the `deferred decryption` feature is toggled on from the start
-    /// of the MPC-TLS connection.
-    #[builder(default = "true")]
-    defer_decryption_from_start: bool,
     /// Cryptography provider.
     #[builder(default, setter(into))]
     crypto_provider: Arc<CryptoProvider>,
@@ -42,19 +38,27 @@ impl ProverConfig {
         &self.protocol_config
     }
 
-    /// Returns whether the `deferred decryption` feature is toggled on from the
-    /// start of the MPC-TLS connection.
-    pub fn defer_decryption_from_start(&self) -> bool {
-        self.defer_decryption_from_start
-    }
-
     pub(crate) fn build_mpc_tls_config(&self) -> Config {
-        Config::builder()
-            .defer_decryption(self.defer_decryption_from_start)
+        let mut builder = Config::builder();
+
+        builder
+            .defer_decryption(self.protocol_config.defer_decryption_from_start())
             .max_sent(self.protocol_config.max_sent_data())
             .max_recv_online(self.protocol_config.max_recv_data_online())
-            .max_recv(self.protocol_config.max_recv_data())
-            .build()
-            .unwrap()
+            .max_recv(self.protocol_config.max_recv_data());
+
+        if let Some(max_sent_records) = self.protocol_config.max_sent_records() {
+            builder.max_sent_records(max_sent_records);
+        }
+
+        if let Some(max_recv_records_online) = self.protocol_config.max_recv_records_online() {
+            builder.max_recv_records_online(max_recv_records_online);
+        }
+
+        if let NetworkSetting::Bandwidth = self.protocol_config.network() {
+            builder.high_bandwidth();
+        }
+
+        builder.build().unwrap()
     }
 }

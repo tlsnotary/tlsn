@@ -4,8 +4,12 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 
+[lints]
+workspace = true
+
 [dev-dependencies]
 notary-client = { workspace = true }
+notary-common = { workspace = true }
 notary-server = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-common = { workspace = true }
@@ -14,6 +18,7 @@ tlsn-tls-core = { workspace = true }
 tlsn-core = { workspace = true }
 
 async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
+futures = { workspace = true }
 http = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1", "server"] }
@@ -21,6 +26,7 @@ hyper-tls = { version = "0.6", features = [
     "vendored",
 ] } # specify vendored feature to use statically linked copy of OpenSSL
 hyper-util = { workspace = true, features = ["full"] }
+jsonwebtoken = { version = "9.3.1", features = ["use_pem"] }
 rstest = { workspace = true }
 rustls = { workspace = true }
 rustls-pemfile = { workspace = true }

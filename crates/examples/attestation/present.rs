@@ -2,12 +2,12 @@
 // attestation and the corresponding connection secrets. See the `prove.rs`
 // example to learn how to acquire an attestation from a Notary.
 
+use clap::Parser;
 use hyper::header;
+
 use tlsn_core::{attestation::Attestation, presentation::Presentation, CryptoProvider, Secrets};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
-
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -64,7 +64,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         }
     }
 
-    // Reveal only parts of the response
+    // Reveal only parts of the response.
     let response = &transcript.responses[0];
     // Reveal the structure of the response without the headers or body.
     builder.reveal_recv(&response.without_data())?;
@@ -76,7 +76,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     let content = &response.body.as_ref().unwrap().content;
     match content {
         tlsn_formats::http::BodyContent::Json(json) => {
-            // For experimentation, reveal the entire response or just a selection
+            // For experimentation, reveal the entire response or just a selection.
             let reveal_all = false;
             if reveal_all {
                 builder.reveal_recv(response)?;

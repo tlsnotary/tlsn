@@ -56,19 +56,6 @@ fn test_arstechnica_cert() {
 }
 
 #[test]
-fn test_servo_cert() {
-    Context::new(
-        "servo",
-        "servo.org",
-        &[
-            include_bytes!("testdata/cert-servo.0.der"),
-            include_bytes!("testdata/cert-servo.1.der"),
-        ],
-    )
-    .bench(100)
-}
-
-#[test]
 fn test_twitter_cert() {
     Context::new(
         "twitter",

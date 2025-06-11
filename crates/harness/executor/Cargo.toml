@@ -1,0 +1,49 @@
+[package]
+name = "tlsn-harness-executor"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "harness_executor"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tlsn-harness-core = { workspace = true }
+tlsn-prover = { workspace = true }
+tlsn-common = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-verifier = { workspace = true }
+tlsn-tls-core = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+
+inventory = { workspace = true }
+pin-project-lite = { workspace = true }
+futures = { workspace = true }
+serio = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+web-time = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["compat"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }
+tlsn-wasm = { workspace = true }
+js-sys = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-spawn = { workspace = true, features = ["no-bundler"] }
+ws_stream_wasm = { workspace = true }
+gloo-utils = { version = "0.2", features = ["serde"] }
+getrandom = { version = "0.2", features = ["js"] }
+getrandom_03 = { package = "getrandom", version = "0.3", features = [
+    "wasm_js",
+] }
+
+[[bin]]
+name = "tlsn-harness-executor-native"
+path = "src/bin/native.rs"

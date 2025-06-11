@@ -4,9 +4,16 @@
 //! subsequent requests for notarization.
 
 use http_body_util::{BodyExt as _, Either, Empty, Full};
-use hyper::{body::Bytes, client::conn::http1::Parts, Request, StatusCode};
+use hyper::{
+    body::{Bytes, Incoming},
+    client::conn::http1::Parts,
+    header::AUTHORIZATION,
+    Request, Response, StatusCode,
+};
 use hyper_util::rt::TokioIo;
-use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
+use notary_common::{
+    ClientType, NotarizationSessionRequest, NotarizationSessionResponse, X_API_KEY_HEADER,
+};
 use std::{
     io::Error as IoError,
     pin::Pin,
@@ -16,13 +23,14 @@ use std::{
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
+    time::{sleep, timeout, Duration},
 };
 use tokio_rustls::{
     client::TlsStream,
-    rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore},
+    rustls::{self, ClientConfig, OwnedTrustAnchor, RootCertStore},
     TlsConnector,
 };
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::error::{ClientError, ErrorKind};
 
@@ -54,6 +62,7 @@ pub struct Accepted {
 
 /// A notary server connection.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum NotaryConnection {
     /// Unencrypted TCP connection.
     Tcp(TcpStream),
@@ -129,6 +138,18 @@ pub struct NotaryClient {
     /// in notary server.
     #[builder(setter(into, strip_option), default)]
     api_key: Option<String>,
+    /// JWT token used to call notary server endpoints if JWT authorization is
+    /// enabled in notary server.
+    #[builder(setter(into, strip_option), default)]
+    jwt: Option<String>,
+    /// The duration of notarization request timeout in seconds.
+    #[builder(default = "60")]
+    request_timeout: usize,
+    /// The number of seconds to wait between notarization request retries.
+    ///
+    /// By default uses the value suggested by the server.
+    #[builder(default = "None")]
+    request_retry_override: Option<u64>,
 }
 
 impl NotaryClientBuilder {
@@ -157,6 +178,15 @@ impl NotaryClient {
         &self,
         notarization_request: NotarizationRequest,
     ) -> Result<Accepted, ClientError> {
+        let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
+            .await
+            .map_err(|err| ClientError::new(ErrorKind::Connection, Some(Box::new(err))))?;
+
+        // Setting TCP_NODELAY will improve prover latency.
+        let _ = notary_socket
+            .set_nodelay(true)
+            .map_err(|_|  info!("An error occured when setting TCP_NODELAY. This will result in higher protocol latency."));
+
         if self.tls {
             debug!("Setting up tls connection...");
 
@@ -164,10 +194,6 @@ impl NotaryClient {
                 .with_safe_defaults()
                 .with_root_certificates(self.root_cert_store.clone())
                 .with_no_client_auth();
-
-            let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
-                .await
-                .map_err(|err| ClientError::new(ErrorKind::Connection, Some(Box::new(err))))?;
 
             let notary_connector = TlsConnector::from(Arc::new(notary_client_config));
             let notary_tls_socket = notary_connector
@@ -179,7 +205,12 @@ impl NotaryClient {
                     notary_socket,
                 )
                 .await
-                .map_err(|err| ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err))))?;
+                .map_err(|err| {
+                    if is_tls_mismatch_error(&err) {
+                        error!("Perhaps the notary server is not accepting our TLS connection");
+                    }
+                    ClientError::new(ErrorKind::TlsSetup, Some(Box::new(err)))
+                })?;
 
             self.send_request(notary_tls_socket, notarization_request)
                 .await
@@ -189,10 +220,6 @@ impl NotaryClient {
                 })
         } else {
             debug!("Setting up tcp connection...");
-
-            let notary_socket = tokio::net::TcpStream::connect((self.host.as_str(), self.port))
-                .await
-                .map_err(|err| ClientError::new(ErrorKind::Connection, Some(Box::new(err))))?;
 
             self.send_request(notary_socket, notarization_request)
                 .await
@@ -267,7 +294,12 @@ impl NotaryClient {
 
             if let Some(api_key) = &self.api_key {
                 configuration_request_builder =
-                    configuration_request_builder.header("Authorization", api_key);
+                    configuration_request_builder.header(X_API_KEY_HEADER, api_key);
+            }
+
+            if let Some(jwt) = &self.jwt {
+                configuration_request_builder =
+                    configuration_request_builder.header(AUTHORIZATION, format!("Bearer {jwt}"));
             }
 
             let configuration_request = configuration_request_builder
@@ -355,15 +387,56 @@ impl NotaryClient {
 
             debug!("Sending notarization request: {:?}", notarization_request);
 
-            let notarization_response = notary_request_sender
-                .send_request(notarization_request)
-                .await
-                .map_err(|err| {
-                    error!("Failed to send http request for notarization");
-                    ClientError::new(ErrorKind::Http, Some(Box::new(err)))
-                })?;
+            let notarize_with_retry_fut = async {
+                loop {
+                    let notarization_response = notary_request_sender
+                        .send_request(notarization_request.clone())
+                        .await
+                        .map_err(|err| {
+                            error!("Failed to send http request for notarization");
+                            ClientError::new(ErrorKind::Http, Some(Box::new(err)))
+                        })?;
 
-            debug!("Sent notarization request");
+                    if notarization_response.status() == StatusCode::SWITCHING_PROTOCOLS {
+                        return Ok::<Response<Incoming>, ClientError>(notarization_response);
+                    } else if notarization_response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                        let retry_after = self
+                            .request_retry_override
+                            .unwrap_or(parse_retry_after(&notarization_response)?);
+
+                        debug!("Retrying notarization request in {:?}", retry_after);
+
+                        sleep(Duration::from_secs(retry_after)).await;
+                    } else {
+                        return Err(ClientError::new(
+                            ErrorKind::Internal,
+                            Some(
+                                format!(
+                                    "Server sent unexpected status code {:?}",
+                                    notarization_response.status()
+                                )
+                                .into(),
+                            ),
+                        ));
+                    }
+                }
+            };
+
+            let notarization_response = timeout(
+                Duration::from_secs(self.request_timeout as u64),
+                notarize_with_retry_fut,
+            )
+            .await
+            .map_err(|_| {
+                ClientError::new(
+                    ErrorKind::Internal,
+                    Some(
+                        "Timed out while waiting for server to accept notarization request".into(),
+                    ),
+                )
+            })??;
+
+            debug!("Notarization request was accepted by the server");
 
             if notarization_response.status() != StatusCode::SWITCHING_PROTOCOLS {
                 return Err(ClientError::new(
@@ -388,6 +461,17 @@ impl NotaryClient {
 
         Ok((notary_socket.into_inner(), session_id))
     }
+
+    /// Sets notarization request timeout duration in seconds.
+    pub fn request_timeout(&mut self, timeout: usize) {
+        self.request_timeout = timeout;
+    }
+
+    /// Sets the number of seconds to wait between notarization request
+    /// retries.
+    pub fn request_retry_override(&mut self, seconds: u64) {
+        self.request_retry_override = Some(seconds);
+    }
 }
 
 /// Default root store using mozilla certs.
@@ -402,4 +486,47 @@ fn default_root_store() -> RootCertStore {
     }));
 
     root_store
+}
+
+// Checks whether the error is potentially related to a mismatch in TLS
+// configuration between the client and the server.
+fn is_tls_mismatch_error(err: &std::io::Error) -> bool {
+    if let Some(rustls::Error::InvalidMessage(rustls::InvalidMessage::InvalidContentType)) = err
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+    {
+        return true;
+    }
+    false
+}
+
+// Attempts to parse the value of the "Retry-After" header from the given
+// `response`.
+fn parse_retry_after(response: &Response<Incoming>) -> Result<u64, ClientError> {
+    let seconds = match response.headers().get("Retry-After") {
+        Some(value) => {
+            let value_str = value.to_str().map_err(|err| {
+                ClientError::new(
+                    ErrorKind::Internal,
+                    Some(format!("Invalid Retry-After header: {}", err).into()),
+                )
+            })?;
+
+            let seconds: u64 = value_str.parse().map_err(|err| {
+                ClientError::new(
+                    ErrorKind::Internal,
+                    Some(format!("Could not parse Retry-After header as number: {}", err).into()),
+                )
+            })?;
+            seconds
+        }
+        None => {
+            return Err(ClientError::new(
+                ErrorKind::Internal,
+                Some("The expected Retry-After header was not found in server response".into()),
+            ));
+        }
+    };
+
+    Ok(seconds)
 }

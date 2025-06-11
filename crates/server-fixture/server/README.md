@@ -16,6 +16,14 @@ Set the enviroment variable `PORT` to configured the port the server runs on.
 PORT=3001 cargo run --release
 ```
 
+## Logging
+
+Enable server logs by setting the log level:
+
+```bash
+RUST_LOG=info cargo run --release
+```
+
 ## Testing
 
 You can test the server works using curl:

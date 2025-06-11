@@ -9,6 +9,8 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use tower_http::trace::TraceLayer;
+
 use futures::{channel::oneshot, AsyncRead, AsyncWrite};
 use futures_rustls::{
     pki_types::{CertificateDer, PrivateKeyDer},
@@ -30,6 +32,7 @@ use axum::extract::FromRequest;
 use hyper::header;
 
 use tlsn_server_fixture_certs::*;
+use tracing::info;
 
 pub const DEFAULT_FIXTURE_PORT: u16 = 3000;
 
@@ -44,6 +47,7 @@ fn app(state: AppState) -> Router {
         .route("/formats/json", get(json))
         .route("/formats/html", get(html))
         .route("/protected", get(protected_route))
+        .layer(TraceLayer::new_for_http())
         .with_state(Arc::new(Mutex::new(state)))
 }
 
@@ -89,6 +93,8 @@ async fn bytes(
     State(state): State<Arc<Mutex<AppState>>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Bytes, StatusCode> {
+    info!("Handling /bytes with params: {:?}", params);
+
     let size = params
         .get("size")
         .and_then(|size| size.parse::<usize>().ok())
@@ -113,6 +119,8 @@ async fn json(
     State(state): State<Arc<Mutex<AppState>>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
+    info!("Handling /json with params: {:?}", params);
+
     let size = params
         .get("size")
         .and_then(|size| size.parse::<usize>().ok())
@@ -134,6 +142,8 @@ async fn html(
     State(state): State<Arc<Mutex<AppState>>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Html<&'static str> {
+    info!("Handling /html with params: {:?}", params);
+
     if params.contains_key("shutdown") {
         _ = state.lock().unwrap().shutdown.take().unwrap().send(());
     }
@@ -173,6 +183,8 @@ where
 }
 
 async fn protected_route(_: AuthenticatedUser) -> Result<Json<Value>, StatusCode> {
+    info!("Handling /protected");
+
     get_json_value(include_str!("data/protected_data.json"))
 }
 

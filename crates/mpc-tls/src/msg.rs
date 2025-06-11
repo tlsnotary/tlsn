@@ -9,6 +9,7 @@ use crate::record_layer::{DecryptMode, EncryptMode};
 /// MPC-TLS protocol message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Message {
+    SetClientRandom(SetClientRandom),
     SetServerRandom(SetServerRandom),
     SetServerKey(SetServerKey),
     ClientFinishedVd(ClientFinishedVd),
@@ -18,6 +19,11 @@ pub(crate) enum Message {
     StartTraffic,
     Flush { is_decrypting: bool },
     CloseConnection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct SetClientRandom {
+    pub(crate) random: [u8; 32],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

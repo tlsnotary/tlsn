@@ -1,8 +1,11 @@
 [package]
 name = "tlsn-common"
 description = "Common code shared between tlsn-prover and tlsn-verifier"
-version = "0.1.0-alpha.10-pre"
+version = "0.1.0-alpha.12-pre"
 edition = "2021"
+
+[lints]
+workspace = true
 
 [features]
 default = []
@@ -14,14 +17,17 @@ tlsn-cipher = { workspace = true }
 mpz-core = { workspace = true }
 mpz-common = { workspace = true }
 mpz-memory-core = { workspace = true }
+mpz-hash = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-zk = { workspace = true }
 
 async-trait = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
+ghash = { workspace = true }
 once_cell = { workspace = true }
 opaque-debug = { workspace = true }
+rand = { workspace = true }
 rangeset = { workspace = true }
 serio = { workspace = true, features = ["codec", "bincode"] }
 thiserror = { workspace = true }

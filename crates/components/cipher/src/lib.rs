@@ -10,17 +10,15 @@
 #![forbid(unsafe_code)]
 
 pub mod aes;
-mod circuit;
 
 use async_trait::async_trait;
-use circuit::build_xor_circuit;
-use mpz_circuits::types::ValueType;
+use mpz_circuits::circuits::xor;
 use mpz_memory_core::{
     binary::{Binary, U8},
-    FromRaw, MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
+    MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
 };
-use mpz_vm_core::{prelude::*, CallBuilder, CallError, Vm};
-use std::collections::VecDeque;
+use mpz_vm_core::{prelude::*, Call, CallBuilder, CallError, Vm};
+use std::{collections::VecDeque, sync::Arc};
 
 /// Provides computation of 2PC ciphers in counter and ECB mode.
 ///
@@ -118,25 +116,7 @@ where
     O: Repr<Binary> + StaticSize<Binary> + Copy,
 {
     /// Creates a new keystream from the provided blocks.
-    ///
-    /// # Panics
-    ///
-    /// * If the output of the keystream is not ordered and contiguous in
-    ///   memory.
     pub fn new(blocks: &[CtrBlock<N, C, O>]) -> Self {
-        let mut pos = blocks
-            .first()
-            .map(|block| block.output.to_raw().ptr().as_usize())
-            .unwrap_or(0);
-
-        for block in blocks {
-            if block.output.to_raw().ptr().as_usize() != pos {
-                panic!("output of keystream blocks must be ordered and contiguous in memory");
-            }
-
-            pos += O::SIZE;
-        }
-
         Self {
             blocks: VecDeque::from_iter(blocks.iter().copied()),
         }
@@ -179,7 +159,7 @@ where
             return Err(CipherError::new("no keystream material available"));
         }
 
-        let xor = build_xor_circuit(&[ValueType::new_array::<u8>(self.block_size())]);
+        let xor = Arc::new(xor(self.block_size() * 8));
         let mut pos = 0;
         let mut outputs = Vec::with_capacity(self.blocks.len());
         for block in &self.blocks {
@@ -196,20 +176,17 @@ where
             pos += self.block_size();
         }
 
-        // Calls were performed contiguously, so the output data is contiguous.
-        let ptr = outputs
-            .first()
-            .map(|output| output.to_raw().ptr())
-            .expect("keystream is not empty");
-        let size = self.blocks.len() * O::SIZE;
-
-        let output = Vector::<U8>::from_raw(Slice::new_unchecked(ptr, size));
+        let output = flatten_blocks(vm, outputs.iter().map(|block| block.to_raw()))?;
 
         Ok(output)
     }
 
     /// Returns `len` bytes of the keystream as a vector.
-    pub fn to_vector(&self, len: usize) -> Result<Vector<U8>, CipherError> {
+    pub fn to_vector(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+        len: usize,
+    ) -> Result<Vector<U8>, CipherError> {
         if len == 0 {
             return Err(CipherError::new("length must be greater than 0"));
         } else if self.blocks.is_empty() {
@@ -221,14 +198,8 @@ where
             return Err(CipherError::new("length does not match keystream length"));
         }
 
-        let ptr = self
-            .blocks
-            .front()
-            .map(|block| block.output.to_raw().ptr())
-            .expect("block count should be greater than 0");
-        let size = block_count * O::SIZE;
-
-        let mut keystream = Vector::<U8>::from_raw(Slice::new_unchecked(ptr, size));
+        let mut keystream =
+            flatten_blocks(vm, self.blocks.iter().map(|block| block.output.to_raw()))?;
         keystream.truncate(len);
 
         Ok(keystream)
@@ -272,6 +243,34 @@ where
     fn len(&self) -> usize {
         self.block_size() * self.blocks.len()
     }
+}
+
+fn flatten_blocks(
+    vm: &mut dyn Vm<Binary>,
+    blocks: impl IntoIterator<Item = Slice>,
+) -> Result<Vector<U8>, CipherError> {
+    use mpz_circuits::CircuitBuilder;
+
+    let blocks = blocks.into_iter().collect::<Vec<_>>();
+    let len: usize = blocks.iter().map(|block| block.len()).sum();
+
+    let mut builder = CircuitBuilder::new();
+    for _ in 0..len {
+        let i = builder.add_input();
+        let o = builder.add_id_gate(i);
+        builder.add_output(o);
+    }
+
+    let circuit = builder.build().expect("flatten circuit should be valid");
+
+    let mut builder = Call::builder(Arc::new(circuit));
+    for block in blocks {
+        builder = builder.arg(block);
+    }
+
+    let call = builder.build().map_err(CipherError::new)?;
+
+    vm.call(call).map_err(CipherError::new)
 }
 
 /// A cipher error.

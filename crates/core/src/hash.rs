@@ -100,7 +100,7 @@ impl Display for HashAlgId {
 }
 
 /// A typed hash value.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TypedHash {
     /// The algorithm of the hash.
     pub alg: HashAlgId,
@@ -109,7 +109,7 @@ pub struct TypedHash {
 }
 
 /// A hash value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Hash {
     // To avoid heap allocation, we use a fixed-size array.
     // 64 bytes should be sufficient for most hash algorithms.
@@ -239,6 +239,7 @@ pub trait HashAlgorithm {
 }
 
 pub(crate) trait HashAlgorithmExt: HashAlgorithm {
+    #[allow(dead_code)]
     fn hash_canonical<T: CanonicalSerialize>(&self, data: &T) -> Hash {
         self.hash(&data.serialize())
     }
@@ -252,9 +253,16 @@ impl<T: HashAlgorithm + ?Sized> HashAlgorithmExt for T {}
 
 /// A hash blinder.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Blinder([u8; 16]);
+pub struct Blinder([u8; 16]);
 
 opaque_debug::implement!(Blinder);
+
+impl Blinder {
+    /// Returns the blinder as a byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 impl Distribution<Blinder> for StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Blinder {
@@ -280,16 +288,8 @@ impl<T> Blinded<T> {
         }
     }
 
-    pub(crate) fn new_with_blinder(data: T, blinder: Blinder) -> Self {
-        Self { data, blinder }
-    }
-
     pub(crate) fn data(&self) -> &T {
         &self.data
-    }
-
-    pub(crate) fn into_parts(self) -> (T, Blinder) {
-        (self.data, self.blinder)
     }
 }
 

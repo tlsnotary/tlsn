@@ -1,17 +1,25 @@
+//! Plaintext hash commitments.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    attestation::FieldId,
-    hash::{
-        impl_domain_separator, Blinded, Blinder, HashAlgorithmExt, HashProvider, HashProviderError,
-        TypedHash,
-    },
-    transcript::{Direction, Idx, InvalidSubsequence, Subsequence},
+    hash::{impl_domain_separator, Blinder, HashAlgId, HashAlgorithm, TypedHash},
+    transcript::{Direction, Idx},
 };
 
+/// Hashes plaintext with a blinder.
+///
+/// By convention, plaintext is hashed as `H(msg | blinder)`.
+pub fn hash_plaintext(hasher: &dyn HashAlgorithm, msg: &[u8], blinder: &Blinder) -> TypedHash {
+    TypedHash {
+        alg: hasher.id(),
+        value: hasher.hash_prefixed(msg, blinder.as_bytes()),
+    }
+}
+
 /// Hash of plaintext in the transcript.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct PlaintextHash {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PlaintextHash {
     /// Direction of the plaintext.
     pub direction: Direction,
     /// Index of plaintext.
@@ -22,79 +30,17 @@ pub(crate) struct PlaintextHash {
 
 impl_domain_separator!(PlaintextHash);
 
-/// Secret data for a plaintext hash commitment.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PlaintextHashSecret {
-    pub(crate) direction: Direction,
-    pub(crate) idx: Idx,
-    pub(crate) commitment: FieldId,
-    pub(crate) blinder: Blinder,
+/// Secret component of [`PlaintextHash`].
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PlaintextHashSecret {
+    /// Direction of the plaintext.
+    pub direction: Direction,
+    /// Index of plaintext.
+    pub idx: Idx,
+    /// The algorithm of the hash.
+    pub alg: HashAlgId,
+    /// Blinder for the hash.
+    pub blinder: Blinder,
 }
 
-/// Proof of the plaintext of a hash.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PlaintextHashProof {
-    data: Blinded<Vec<u8>>,
-    commitment: FieldId,
-}
-
-impl PlaintextHashProof {
-    #[allow(unused)]
-    pub(crate) fn new(data: Blinded<Vec<u8>>, commitment: FieldId) -> Self {
-        Self { data, commitment }
-    }
-}
-
-impl PlaintextHashProof {
-    /// Returns the field id of the commitment this opening corresponds to.
-    pub(crate) fn commitment_id(&self) -> &FieldId {
-        &self.commitment
-    }
-
-    /// Verifies the proof, returning the subsequence of plaintext.
-    ///
-    /// # Arguments
-    ///
-    /// * `commitment` - The commitment attested to by a Notary.
-    pub(crate) fn verify(
-        self,
-        provider: &HashProvider,
-        commitment: &PlaintextHash,
-    ) -> Result<(Direction, Subsequence), PlaintextHashProofError> {
-        let alg = provider.get(&commitment.hash.alg)?;
-
-        if commitment.hash.value != alg.hash_canonical(&self.data) {
-            return Err(PlaintextHashProofError::new(
-                "hash does not match commitment",
-            ));
-        }
-
-        Ok((
-            commitment.direction,
-            Subsequence::new(commitment.idx.clone(), self.data.into_parts().0)?,
-        ))
-    }
-}
-
-/// Error for [`PlaintextHashProof`].
-#[derive(Debug, thiserror::Error)]
-#[error("invalid plaintext hash proof: {0}")]
-pub(crate) struct PlaintextHashProofError(String);
-
-impl PlaintextHashProofError {
-    fn new<T: Into<String>>(msg: T) -> Self {
-        Self(msg.into())
-    }
-}
-
-impl From<HashProviderError> for PlaintextHashProofError {
-    fn from(err: HashProviderError) -> Self {
-        Self(err.to_string())
-    }
-}
-
-impl From<InvalidSubsequence> for PlaintextHashProofError {
-    fn from(err: InvalidSubsequence) -> Self {
-        Self(err.to_string())
-    }
-}
+opaque_debug::implement!(PlaintextHashSecret);

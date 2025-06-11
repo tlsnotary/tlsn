@@ -34,7 +34,7 @@
 mod commit;
 #[doc(hidden)]
 pub mod encoding;
-pub(crate) mod hash;
+pub mod hash;
 mod proof;
 
 use std::{fmt, ops::Range};
@@ -46,13 +46,14 @@ use crate::connection::TranscriptLength;
 
 pub use commit::{
     TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitConfigBuilderError,
-    TranscriptCommitmentKind,
+    TranscriptCommitRequest, TranscriptCommitment, TranscriptCommitmentKind, TranscriptSecret,
 };
 pub use proof::{
     TranscriptProof, TranscriptProofBuilder, TranscriptProofBuilderError, TranscriptProofError,
 };
 
-/// A transcript contains all the data communicated over a TLS connection.
+/// A transcript contains the plaintext of all application data communicated
+/// between the Prover and the Server.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Transcript {
     /// Data sent from the Prover to the Server.

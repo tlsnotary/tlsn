@@ -8,7 +8,7 @@ use hex::FromHex;
 use p256::ecdsa::SigningKey;
 
 use crate::{
-    attestation::{Attestation, AttestationConfig},
+    attestation::{Attestation, AttestationConfig, Extension},
     connection::{
         Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerCertData,
         ServerEphemKey, ServerName, ServerSignature, SignatureScheme, TlsVersion, TranscriptLength,
@@ -18,7 +18,7 @@ use crate::{
     signing::SignatureAlgId,
     transcript::{
         encoding::{EncoderSecret, EncodingProvider, EncodingTree},
-        Transcript, TranscriptCommitConfigBuilder,
+        Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment,
     },
     CryptoProvider,
 };
@@ -171,6 +171,7 @@ pub fn request_fixture(
     encodings_provider: impl EncodingProvider,
     connection: ConnectionFixture,
     encoding_hasher: impl HashAlgorithm,
+    extensions: Vec<Extension>,
 ) -> RequestFixture {
     let provider = CryptoProvider::default();
     let (sent_len, recv_len) = transcript.len();
@@ -194,17 +195,22 @@ pub fn request_fixture(
         &encoding_hasher,
         transcripts_commitment_config.iter_encoding(),
         &encodings_provider,
-        &transcript.length(),
     )
     .unwrap();
 
-    let request_config = RequestConfig::default();
+    let mut builder = RequestConfig::builder();
+
+    for extension in extensions {
+        builder.extension(extension);
+    }
+
+    let request_config = builder.build().unwrap();
+
     let mut request_builder = Request::builder(&request_config);
     request_builder
         .server_name(server_name)
         .server_cert_data(server_cert_data)
-        .transcript(transcript)
-        .encoding_tree(encoding_tree.clone());
+        .transcript(transcript);
 
     let (request, _) = request_builder.build(&provider).unwrap();
 
@@ -219,7 +225,7 @@ pub fn attestation_fixture(
     request: Request,
     connection: ConnectionFixture,
     signature_alg: SignatureAlgId,
-    secret: EncoderSecret,
+    transcript_commitments: &[TranscriptCommitment],
 ) -> Attestation {
     let ConnectionFixture {
         connection_info,
@@ -251,7 +257,7 @@ pub fn attestation_fixture(
     attestation_builder
         .connection_info(connection_info)
         .server_ephemeral_key(server_ephemeral_key)
-        .encoder_secret(secret);
+        .transcript_commitments(transcript_commitments.to_vec());
 
     attestation_builder.build(&provider).unwrap()
 }

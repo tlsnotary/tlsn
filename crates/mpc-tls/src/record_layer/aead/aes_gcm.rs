@@ -1,5 +1,16 @@
 use std::{future::Future, sync::Arc};
 
+use cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
+use mpz_common::{Context, Flush};
+use mpz_fields::gf2_128::Gf2_128;
+use mpz_memory_core::{
+    binary::{Binary, U8},
+    Vector,
+};
+use mpz_share_conversion::ShareConvert;
+use mpz_vm_core::{prelude::*, Vm};
+use tracing::instrument;
+
 use crate::{
     decode::OneTimePadShared,
     record_layer::{
@@ -11,16 +22,6 @@ use crate::{
     },
     Role,
 };
-use cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
-use mpz_common::{Context, Flush};
-use mpz_fields::gf2_128::Gf2_128;
-use mpz_memory_core::{
-    binary::{Binary, U8},
-    Vector,
-};
-use mpz_share_conversion::ShareConvert;
-use mpz_vm_core::{prelude::*, Vm};
-use tracing::instrument;
 
 const START_CTR: u32 = 2;
 
@@ -33,16 +34,16 @@ enum State {
         input: Vector<U8>,
         keystream: Keystream<Nonce, Ctr, Block>,
         j0s: Vec<(CtrBlock<Nonce, Ctr, Block>, OneTimePadShared<[u8; 16]>)>,
-        output: Vector<U8>,
-        ghash_key: OneTimePadShared<[u8; 16]>,
+        ghash_key_share: OneTimePadShared<[u8; 16]>,
         ghash: Box<dyn Ghash + Send + Sync>,
+        ghash_key: Array<U8, 16>,
     },
     Ready {
         input: Vector<U8>,
         keystream: Keystream<Nonce, Ctr, Block>,
         j0s: Vec<(CtrBlock<Nonce, Ctr, Block>, OneTimePadShared<[u8; 16]>)>,
-        output: Vector<U8>,
         ghash: Arc<dyn Ghash + Send + Sync>,
+        ghash_key: Array<U8, 16>,
     },
     Error,
 }
@@ -98,7 +99,7 @@ impl MpcAesGcm {
 
         ghash.alloc()?;
         let ghash_key = self.aes.alloc_block(vm, zero_block)?;
-        let ghash_key = OneTimePadShared::<[u8; 16]>::new(self.role, ghash_key, vm)?;
+        let ghash_key_share = OneTimePadShared::<[u8; 16]>::new(self.role, ghash_key, vm)?;
 
         // Allocate J0 secret sharing for GHASH.
         let mut j0s = Vec::with_capacity(records);
@@ -125,14 +126,13 @@ impl MpcAesGcm {
         }
 
         let keystream = self.aes.alloc_keystream(vm, len)?;
-        let output = keystream.apply(vm, input)?;
 
         self.state = State::Setup {
             input,
             keystream,
             j0s,
-            output,
             ghash,
+            ghash_key_share,
             ghash_key,
         };
 
@@ -162,7 +162,7 @@ impl MpcAesGcm {
             input,
             keystream,
             j0s,
-            output,
+            ghash_key_share,
             mut ghash,
             ghash_key,
         } = self.state.take()
@@ -170,7 +170,7 @@ impl MpcAesGcm {
             return Err(AeadError::state("must be in setup state to set up"));
         };
 
-        let key = ghash_key.await.map_err(AeadError::tag)?;
+        let key = ghash_key_share.await.map_err(AeadError::tag)?;
         ghash.set_key(key.to_vec())?;
         ghash.setup(ctx).await?;
 
@@ -178,8 +178,8 @@ impl MpcAesGcm {
             input,
             keystream,
             j0s,
-            output,
             ghash: Arc::from(ghash),
+            ghash_key,
         };
 
         Ok(())
@@ -202,10 +202,7 @@ impl MpcAesGcm {
         len: usize,
     ) -> Result<(Vector<U8>, Vector<U8>), AeadError> {
         let State::Ready {
-            input,
-            keystream,
-            output,
-            ..
+            input, keystream, ..
         } = &mut self.state
         else {
             return Err(AeadError::state(
@@ -235,7 +232,7 @@ impl MpcAesGcm {
 
         let mut input = input.split_off(input.len() - padded_len);
         let keystream = keystream.consume(padded_len)?;
-        let mut output = output.split_off(output.len() - padded_len);
+        let mut output = keystream.apply(vm, input)?;
 
         // Assign counter block inputs.
         let mut ctr = START_CTR..;
@@ -273,10 +270,7 @@ impl MpcAesGcm {
         len: usize,
     ) -> Result<Vector<U8>, AeadError> {
         let State::Ready {
-            input,
-            keystream,
-            output,
-            ..
+            input, keystream, ..
         } = &mut self.state
         else {
             return Err(AeadError::state("must be in ready state to take keystream"));
@@ -301,11 +295,6 @@ impl MpcAesGcm {
             )));
         }
 
-        // Drop the input and output text, we won't be needing them.
-        // This leaves them allocated but unassigned in the VM.
-        _ = input.split_off(input.len() - padded_len);
-        _ = output.split_off(output.len() - padded_len);
-
         let keystream = keystream.consume(len)?;
 
         // Assign counter block inputs.
@@ -314,11 +303,27 @@ impl MpcAesGcm {
             ctr.next().expect("range is unbounded").to_be_bytes()
         })?;
 
-        Ok(keystream.to_vector(len)?)
+        Ok(keystream.to_vector(vm, len)?)
+    }
+
+    /// Returns the VM reference to the GHASH key.
+    #[instrument(level = "debug", skip_all, err)]
+    pub(crate) fn ghash_key(&mut self) -> Result<Array<U8, 16>, AeadError> {
+        let key = match self.state {
+            State::Setup { ghash_key, .. } => ghash_key,
+            State::Ready { ghash_key, .. } => ghash_key,
+            _ => {
+                return Err(AeadError::state(
+                    "must be in setup or ready state to return ghash key",
+                ))
+            }
+        };
+
+        Ok(key)
     }
 
     /// Computes tags for the provided ciphertext. See
-    /// [`verify_tags`](MpcAesGcm::verify_tags) for a method that verifies an
+    /// [`verify_tags`](MpcAesGcm::verify_tags) for a method that verifies
     /// tags instead.
     ///
     /// # Arguments
@@ -373,6 +378,8 @@ impl MpcAesGcm {
     }
 
     /// Verifies the tags for the provided ciphertexts.
+    ///
+    /// Ciphertexts are only authenticated from the leader's perspective.
     ///
     /// # Arguments
     ///
@@ -449,12 +456,11 @@ mod tests {
     };
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
-    use mpz_garble::protocol::semihonest::{Evaluator, Generator};
+    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_memory_core::{binary::U8, correlated::Delta};
     use mpz_ot::ideal::cot::ideal_cot;
     use mpz_share_conversion::ideal::ideal_share_convert;
     use rand::{rngs::StdRng, SeedableRng};
-    use rand06_compat::Rand0_6CompatExt;
     use rstest::*;
 
     static SHORT_MSG: &[u8] = b"hello world";
@@ -568,12 +574,12 @@ mod tests {
     }
 
     fn create_vm(key: [u8; 16], iv: [u8; 4]) -> ((impl Vm<Binary>, Vars), (impl Vm<Binary>, Vars)) {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = StdRng::seed_from_u64(0);
         let block = Block::random(&mut rng);
         let (sender, receiver) = ideal_cot(block);
 
         let delta = Delta::new(block);
-        let mut vm_0 = Generator::new(sender, [0u8; 16], delta);
+        let mut vm_0 = Garbler::new(sender, [0u8; 16], delta);
         let mut vm_1 = Evaluator::new(receiver);
 
         let key_ref_0 = vm_0.alloc::<Array<U8, 16>>().unwrap();
@@ -616,7 +622,7 @@ mod tests {
 
     fn create_pair(vars_0: Vars, vars_1: Vars) -> (MpcAesGcm, MpcAesGcm) {
         let mut rng = StdRng::seed_from_u64(0);
-        let (c_0, c_1) = ideal_share_convert(Block::random(&mut rng.compat_by_ref()));
+        let (c_0, c_1) = ideal_share_convert(Block::random(&mut rng));
         let mut leader = MpcAesGcm::new(c_0, Role::Leader);
         let mut follower = MpcAesGcm::new(c_1, Role::Follower);
 

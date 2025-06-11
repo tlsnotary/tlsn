@@ -1,6 +1,8 @@
+use std::ops::Range;
+
 use crate::transcript::{
-    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider},
-    Direction, Idx, Transcript,
+    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider, EncodingProviderError},
+    Direction, Transcript,
 };
 
 /// A encoding provider fixture.
@@ -20,8 +22,20 @@ impl FixtureEncodingProvider {
 }
 
 impl EncodingProvider for FixtureEncodingProvider {
-    fn provide_encoding(&self, direction: Direction, idx: &Idx) -> Option<Vec<u8>> {
-        let seq = self.transcript.get(direction, idx)?;
-        Some(self.encoder.encode_subsequence(direction, &seq))
+    fn provide_encoding(
+        &self,
+        direction: Direction,
+        range: Range<usize>,
+        dest: &mut Vec<u8>,
+    ) -> Result<(), EncodingProviderError> {
+        let transcript = match direction {
+            Direction::Sent => &self.transcript.sent(),
+            Direction::Received => &self.transcript.received(),
+        };
+
+        let data = transcript.get(range.clone()).ok_or(EncodingProviderError)?;
+        self.encoder.encode_data(direction, range, data, dest);
+
+        Ok(())
     }
 }

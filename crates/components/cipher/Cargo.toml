@@ -5,8 +5,11 @@ description = "This crate provides implementations of ciphers for two parties"
 keywords = ["tls", "mpc", "2pc", "aes"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.10-pre"
+version = "0.1.0-alpha.12-pre"
 edition = "2021"
+
+[lints]
+workspace = true
 
 [lib]
 name = "cipher"
@@ -27,6 +30,5 @@ mpz-ot = { workspace = true }
 
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 rand = { workspace = true }
-rand06-compat = { workspace = true }
 ctr = { workspace = true }
 cipher = { workspace = true }

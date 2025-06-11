@@ -5,7 +5,7 @@ pub use config::VerifierConfig;
 use enum_try_as_inner::EnumTryAsInner;
 use tlsn_verifier::{
     state::{self, Initialized},
-    Verifier,
+    Verifier, VerifyConfig,
 };
 use tracing::info;
 use wasm_bindgen::prelude::*;
@@ -69,14 +69,19 @@ impl JsVerifier {
     pub async fn verify(&mut self) -> Result<VerifierOutput> {
         let (verifier, prover_conn) = self.state.take().try_into_connected()?;
 
-        let (transcript, info) = verifier.verify(prover_conn.into_io()).await?;
+        let mut verifier = verifier.setup(prover_conn.into_io()).await?.run().await?;
+
+        let connection_info = verifier.connection_info().clone();
+
+        let output = verifier.verify(&VerifyConfig::default()).await?;
+        verifier.close().await?;
 
         self.state = State::Complete;
 
         Ok(VerifierOutput {
-            server_name: info.server_name.as_str().to_string(),
-            connection_info: info.connection_info.into(),
-            transcript: transcript.into(),
+            server_name: output.server_name.map(|s| s.as_str().to_string()),
+            connection_info: connection_info.into(),
+            transcript: output.transcript.map(|t| t.into()),
         })
     }
 }

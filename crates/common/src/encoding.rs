@@ -1,13 +1,28 @@
 //! Encoding commitment protocol.
 
+use std::ops::Range;
+
 use mpz_common::Context;
-use mpz_core::Block;
+use mpz_memory_core::{
+    binary::U8,
+    correlated::{Delta, Key, Mac},
+    Vector,
+};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serio::{stream::IoStreamExt, SinkExt};
-use tlsn_core::transcript::{
-    encoding::{new_encoder, Encoder, EncoderSecret, EncodingProvider},
-    Direction, Idx,
+use tlsn_core::{
+    hash::HashAlgorithm,
+    transcript::{
+        encoding::{
+            new_encoder, Encoder, EncoderSecret, EncodingCommitment, EncodingProvider,
+            EncodingProviderError, EncodingTree, EncodingTreeError,
+        },
+        Direction, Idx,
+    },
 };
+
+use crate::transcript::TranscriptRefs;
 
 /// Bytes of encoding, per byte.
 const ENCODING_SIZE: usize = 128;
@@ -19,35 +34,49 @@ struct Encodings {
 }
 
 /// Transfers the encodings using the provided seed and keys.
-pub async fn transfer(
+///
+/// The keys must be consistent with the global delta used in the encodings.
+pub async fn transfer<'a>(
     ctx: &mut Context,
-    secret: &EncoderSecret,
-    sent_keys: impl IntoIterator<Item = &'_ Block>,
-    recv_keys: impl IntoIterator<Item = &'_ Block>,
-) -> Result<(), EncodingError> {
-    let encoder = new_encoder(secret);
+    refs: &TranscriptRefs,
+    delta: &Delta,
+    f: impl Fn(Vector<U8>) -> &'a [Key],
+) -> Result<EncodingCommitment, EncodingError> {
+    let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
+    let encoder = new_encoder(&secret);
 
-    let sent_keys: Vec<u8> = sent_keys
-        .into_iter()
-        .flat_map(|key| key.as_bytes())
+    let sent_keys: Vec<u8> = refs
+        .sent()
+        .iter()
+        .copied()
+        .flat_map(&f)
+        .flat_map(|key| key.as_block().as_bytes())
         .copied()
         .collect();
-    let recv_keys: Vec<u8> = recv_keys
-        .into_iter()
-        .flat_map(|key| key.as_bytes())
+    let recv_keys: Vec<u8> = refs
+        .recv()
+        .iter()
+        .copied()
+        .flat_map(&f)
+        .flat_map(|key| key.as_block().as_bytes())
         .copied()
         .collect();
 
     assert_eq!(sent_keys.len() % ENCODING_SIZE, 0);
     assert_eq!(recv_keys.len() % ENCODING_SIZE, 0);
 
-    let mut sent_encoding = encoder.encode_idx(
+    let mut sent_encoding = Vec::with_capacity(sent_keys.len());
+    let mut recv_encoding = Vec::with_capacity(recv_keys.len());
+
+    encoder.encode_range(
         Direction::Sent,
-        &Idx::new(0..sent_keys.len() / ENCODING_SIZE),
+        0..sent_keys.len() / ENCODING_SIZE,
+        &mut sent_encoding,
     );
-    let mut recv_encoding = encoder.encode_idx(
+    encoder.encode_range(
         Direction::Received,
-        &Idx::new(0..recv_keys.len() / ENCODING_SIZE),
+        0..recv_keys.len() / ENCODING_SIZE,
+        &mut recv_encoding,
     );
 
     sent_encoding
@@ -66,24 +95,40 @@ pub async fn transfer(
         })
         .await?;
 
-    Ok(())
+    let root = ctx.io_mut().expect_next().await?;
+    ctx.io_mut().send(secret.clone()).await?;
+
+    Ok(EncodingCommitment {
+        root,
+        secret: secret.clone(),
+    })
 }
 
 /// Receives the encodings using the provided MACs.
-pub async fn receive(
+///
+/// The MACs must be consistent with the global delta used in the encodings.
+pub async fn receive<'a>(
     ctx: &mut Context,
-    sent_macs: impl IntoIterator<Item = &'_ Block>,
-    recv_macs: impl IntoIterator<Item = &'_ Block>,
-) -> Result<impl EncodingProvider, EncodingError> {
+    hasher: &(dyn HashAlgorithm + Send + Sync),
+    refs: &TranscriptRefs,
+    f: impl Fn(Vector<U8>) -> &'a [Mac],
+    idxs: impl IntoIterator<Item = &(Direction, Idx)>,
+) -> Result<(EncodingCommitment, EncodingTree), EncodingError> {
     let Encodings { mut sent, mut recv } = ctx.io_mut().expect_next().await?;
 
-    let sent_macs: Vec<u8> = sent_macs
-        .into_iter()
+    let sent_macs: Vec<u8> = refs
+        .sent()
+        .iter()
+        .copied()
+        .flat_map(&f)
         .flat_map(|mac| mac.as_bytes())
         .copied()
         .collect();
-    let recv_macs: Vec<u8> = recv_macs
-        .into_iter()
+    let recv_macs: Vec<u8> = refs
+        .recv()
+        .iter()
+        .copied()
+        .flat_map(&f)
         .flat_map(|mac| mac.as_bytes())
         .copied()
         .collect();
@@ -116,7 +161,17 @@ pub async fn receive(
         .zip(recv_macs)
         .for_each(|(enc, mac)| *enc ^= mac);
 
-    Ok(Provider { sent, recv })
+    let provider = Provider { sent, recv };
+
+    let tree = EncodingTree::new(hasher, idxs, &provider)?;
+    let root = tree.root();
+
+    ctx.io_mut().send(root.clone()).await?;
+    let secret = ctx.io_mut().expect_next().await?;
+
+    let commitment = EncodingCommitment { root, secret };
+
+    Ok((commitment, tree))
 }
 
 #[derive(Debug)]
@@ -126,25 +181,27 @@ struct Provider {
 }
 
 impl EncodingProvider for Provider {
-    fn provide_encoding(&self, direction: Direction, idx: &Idx) -> Option<Vec<u8>> {
+    fn provide_encoding(
+        &self,
+        direction: Direction,
+        range: Range<usize>,
+        dest: &mut Vec<u8>,
+    ) -> Result<(), EncodingProviderError> {
         let encodings = match direction {
             Direction::Sent => &self.sent,
             Direction::Received => &self.recv,
         };
 
-        let mut encoding = Vec::with_capacity(idx.len());
-        for range in idx.iter_ranges() {
-            let start = range.start * ENCODING_SIZE;
-            let end = range.end * ENCODING_SIZE;
+        let start = range.start * ENCODING_SIZE;
+        let end = range.end * ENCODING_SIZE;
 
-            if end > encodings.len() {
-                return None;
-            }
-
-            encoding.extend_from_slice(&encodings[start..end]);
+        if end > encodings.len() {
+            return Err(EncodingProviderError);
         }
 
-        Some(encoding)
+        dest.extend_from_slice(&encodings[start..end]);
+
+        Ok(())
     }
 }
 
@@ -164,10 +221,18 @@ enum ErrorRepr {
         expected: usize,
         got: usize,
     },
+    #[error("encoding tree error: {0}")]
+    EncodingTree(EncodingTreeError),
 }
 
 impl From<std::io::Error> for EncodingError {
     fn from(value: std::io::Error) -> Self {
         Self(ErrorRepr::Io(value))
+    }
+}
+
+impl From<EncodingTreeError> for EncodingError {
+    fn from(value: EncodingTreeError) -> Self {
+        Self(ErrorRepr::EncodingTree(value))
     }
 }

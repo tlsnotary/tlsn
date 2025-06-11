@@ -4,7 +4,7 @@ use std::{
 };
 
 use mpc_tls::Config;
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
+use tlsn_common::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
@@ -43,11 +43,25 @@ impl VerifierConfig {
     }
 
     pub(crate) fn build_mpc_tls_config(&self, protocol_config: &ProtocolConfig) -> Config {
-        Config::builder()
+        let mut builder = Config::builder();
+
+        builder
             .max_sent(protocol_config.max_sent_data())
             .max_recv_online(protocol_config.max_recv_data_online())
-            .max_recv(protocol_config.max_recv_data())
-            .build()
-            .unwrap()
+            .max_recv(protocol_config.max_recv_data());
+
+        if let Some(max_sent_records) = protocol_config.max_sent_records() {
+            builder.max_sent_records(max_sent_records);
+        }
+
+        if let Some(max_recv_records_online) = protocol_config.max_recv_records_online() {
+            builder.max_recv_records_online(max_recv_records_online);
+        }
+
+        if let NetworkSetting::Bandwidth = protocol_config.network() {
+            builder.high_bandwidth();
+        }
+
+        builder.build().unwrap()
     }
 }

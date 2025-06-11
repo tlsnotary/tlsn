@@ -5,8 +5,11 @@ description = "TLSNotary MPC-TLS protocol"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.10-pre"
+version = "0.1.0-alpha.12-pre"
 edition = "2021"
+
+[lints]
+workspace = true
 
 [lib]
 name = "mpc_tls"
@@ -44,13 +47,11 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
-rand06-compat = { workspace = true }
 opaque-debug = { workspace = true }
 aes = { workspace = true }
 aes-gcm = { workspace = true }
 ctr = { workspace = true }
 ghash_rc = { package = "ghash", version = "0.5" }
-cipher-crate = { package = "cipher", version = "0.4" }
 tokio = { workspace = true, features = ["sync"] }
 pin-project-lite = { workspace = true }
 
@@ -59,13 +60,14 @@ mpz-ole = { workspace = true, features = ["test-utils"] }
 mpz-ot = { workspace = true }
 mpz-garble = { workspace = true }
 
+cipher-crate = { package = "cipher", version = "0.4" }
+generic-array = { workspace = true }
+rand_chacha = { workspace = true }
+rstest = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing-subscriber = { workspace = true }
-rand_chacha = { workspace = true }
-generic-array = { workspace = true }
 uid-mux = { workspace = true, features = ["serio", "test-utils"] }
-rstest = { workspace = true }

@@ -15,13 +15,6 @@ fs.mounts = [
 
 ]
 
-# allowed enables rw -- will rm this once notary-server drops config file
-# !!!! not hashed !!!!
-# https://gramine.readthedocs.io/en/stable/manifest-syntax.html#allowed-files-1
-sgx.allowed_files = [
-  "file:./config/config.yaml",
-]
-
 # hashed @ buildtime. at runtime => these files are +ro
 # and can be accessed if hash matches manifest
 # !!!! hashed !!!!

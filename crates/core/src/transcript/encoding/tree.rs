@@ -4,16 +4,14 @@ use bimap::BiMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    connection::TranscriptLength,
-    hash::{Blinded, Blinder, HashAlgId, HashAlgorithm, TypedHash},
+    hash::{Blinder, HashAlgId, HashAlgorithm, TypedHash},
     merkle::MerkleTree,
-    serialize::CanonicalSerialize,
     transcript::{
         encoding::{
             proof::{EncodingProof, Opening},
             EncodingProvider,
         },
-        Direction, Idx, Transcript,
+        Direction, Idx,
     },
 };
 
@@ -42,22 +40,13 @@ pub enum EncodingTreeError {
     },
 }
 
-#[derive(Serialize)]
-pub(crate) struct EncodingLeaf(Vec<u8>);
-
-impl EncodingLeaf {
-    pub(super) fn new(encoding: Vec<u8>) -> Self {
-        Self(encoding)
-    }
-}
-
 /// A merkle tree of transcript encodings.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EncodingTree {
     /// Merkle tree of the commitments.
     tree: MerkleTree,
     /// Nonces used to blind the hashes.
-    nonces: Vec<Blinder>,
+    blinders: Vec<Blinder>,
     /// Mapping between the index of a leaf and the transcript index it
     /// corresponds to.
     idxs: BiMap<usize, (Direction, Idx)>,
@@ -77,22 +66,21 @@ impl EncodingTree {
     /// * `hasher` - The hash algorithm to use.
     /// * `idxs` - The subsequence indices to commit to.
     /// * `provider` - The encoding provider.
-    /// * `transcript_length` - The length of the transcript.
     pub fn new<'idx>(
         hasher: &dyn HashAlgorithm,
         idxs: impl IntoIterator<Item = &'idx (Direction, Idx)>,
         provider: &dyn EncodingProvider,
-        transcript_length: &TranscriptLength,
     ) -> Result<Self, EncodingTreeError> {
         let mut this = Self {
             tree: MerkleTree::new(hasher.id()),
-            nonces: Vec::new(),
+            blinders: Vec::new(),
             idxs: BiMap::new(),
             sent_idx: Idx::empty(),
             received_idx: Idx::empty(),
         };
 
         let mut leaves = Vec::new();
+        let mut encoding = Vec::new();
         for dir_idx in idxs {
             let direction = dir_idx.0;
             let idx = &dir_idx.1;
@@ -102,35 +90,29 @@ impl EncodingTree {
                 continue;
             }
 
-            let len = match direction {
-                Direction::Sent => transcript_length.sent as usize,
-                Direction::Received => transcript_length.received as usize,
-            };
-
-            if idx.end() > len {
-                return Err(EncodingTreeError::OutOfBounds {
-                    index: idx.clone(),
-                    transcript_length: len,
-                });
-            }
-
             if this.idxs.contains_right(dir_idx) {
                 // The subsequence is already in the tree.
                 continue;
             }
 
-            let encoding = provider
-                .provide_encoding(direction, idx)
-                .ok_or_else(|| EncodingTreeError::MissingEncoding { index: idx.clone() })?;
+            let blinder: Blinder = rand::random();
 
-            let leaf = Blinded::new(EncodingLeaf::new(encoding));
+            encoding.clear();
+            for range in idx.iter_ranges() {
+                provider
+                    .provide_encoding(direction, range, &mut encoding)
+                    .map_err(|_| EncodingTreeError::MissingEncoding { index: idx.clone() })?;
+            }
+            encoding.extend_from_slice(blinder.as_bytes());
 
-            leaves.push(hasher.hash(&CanonicalSerialize::serialize(&leaf)));
-            this.nonces.push(leaf.into_parts().1);
+            let leaf = hasher.hash(&encoding);
+
+            leaves.push(leaf);
+            this.blinders.push(blinder);
             this.idxs.insert(this.idxs.len(), dir_idx.clone());
             match direction {
-                Direction::Sent => this.sent_idx = this.sent_idx.union(idx),
-                Direction::Received => this.received_idx = this.received_idx.union(idx),
+                Direction::Sent => this.sent_idx.union_mut(idx),
+                Direction::Received => this.received_idx.union_mut(idx),
             }
         }
 
@@ -153,11 +135,9 @@ impl EncodingTree {
     ///
     /// # Arguments
     ///
-    /// * `transcript` - The transcript to prove against.
     /// * `idxs` - The transcript indices to prove.
     pub fn proof<'idx>(
         &self,
-        transcript: &Transcript,
         idxs: impl Iterator<Item = &'idx (Direction, Idx)>,
     ) -> Result<EncodingProof, EncodingTreeError> {
         let mut openings = HashMap::new();
@@ -169,22 +149,14 @@ impl EncodingTree {
                 .idxs
                 .get_by_right(dir_idx)
                 .ok_or_else(|| EncodingTreeError::MissingLeaf { index: idx.clone() })?;
-
-            let seq =
-                transcript
-                    .get(direction, idx)
-                    .ok_or_else(|| EncodingTreeError::OutOfBounds {
-                        index: idx.clone(),
-                        transcript_length: transcript.len_of_direction(direction),
-                    })?;
-            let nonce = self.nonces[leaf_idx].clone();
+            let blinder = self.blinders[leaf_idx].clone();
 
             openings.insert(
                 leaf_idx,
                 Opening {
                     direction,
-                    seq,
-                    blinder: nonce,
+                    idx: idx.clone(),
+                    blinder,
                 },
             );
         }
@@ -222,7 +194,7 @@ mod tests {
     use crate::{
         fixtures::{encoder_secret, encoding_provider},
         hash::Blake3,
-        transcript::encoding::EncodingCommitment,
+        transcript::{encoding::EncodingCommitment, Transcript},
         CryptoProvider,
     };
     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
@@ -232,11 +204,8 @@ mod tests {
         idxs: impl Iterator<Item = &'seq (Direction, Idx)>,
     ) -> Result<EncodingTree, EncodingTreeError> {
         let provider = encoding_provider(transcript.sent(), transcript.received());
-        let transcript_length = TranscriptLength {
-            sent: transcript.sent().len() as u32,
-            received: transcript.received().len() as u32,
-        };
-        EncodingTree::new(&Blake3::default(), idxs, &provider, &transcript_length)
+
+        EncodingTree::new(&Blake3::default(), idxs, &provider)
     }
 
     #[test]
@@ -251,25 +220,24 @@ mod tests {
         assert!(tree.contains(&idx_0));
         assert!(tree.contains(&idx_1));
 
-        let proof = tree
-            .proof(&transcript, [&idx_0, &idx_1].into_iter())
-            .unwrap();
+        let proof = tree.proof([&idx_0, &idx_1].into_iter()).unwrap();
 
         let commitment = EncodingCommitment {
             root: tree.root(),
             secret: encoder_secret(),
         };
 
-        let partial_transcript = proof
+        let (auth_sent, auth_recv) = proof
             .verify_with_provider(
                 &CryptoProvider::default(),
-                &transcript.length(),
                 &commitment,
+                transcript.sent(),
+                transcript.received(),
             )
             .unwrap();
 
-        assert_eq!(partial_transcript.sent_unsafe(), transcript.sent());
-        assert_eq!(partial_transcript.received_unsafe(), transcript.received());
+        assert_eq!(auth_sent, idx_0.1);
+        assert_eq!(auth_recv, idx_1.1);
     }
 
     #[test]
@@ -289,7 +257,7 @@ mod tests {
         assert!(tree.contains(&idx_3));
 
         let proof = tree
-            .proof(&transcript, [&idx_0, &idx_1, &idx_2, &idx_3].into_iter())
+            .proof([&idx_0, &idx_1, &idx_2, &idx_3].into_iter())
             .unwrap();
 
         let commitment = EncodingCommitment {
@@ -297,16 +265,25 @@ mod tests {
             secret: encoder_secret(),
         };
 
-        let partial_transcript = proof
+        let (auth_sent, auth_recv) = proof
             .verify_with_provider(
                 &CryptoProvider::default(),
-                &transcript.length(),
                 &commitment,
+                transcript.sent(),
+                transcript.received(),
             )
             .unwrap();
 
-        assert_eq!(partial_transcript.sent_unsafe(), transcript.sent());
-        assert_eq!(partial_transcript.received_unsafe(), transcript.received());
+        let mut expected_auth_sent = Idx::default();
+        expected_auth_sent.union_mut(&idx_0.1);
+        expected_auth_sent.union_mut(&idx_1.1);
+
+        let mut expected_auth_recv = Idx::default();
+        expected_auth_recv.union_mut(&idx_2.1);
+        expected_auth_recv.union_mut(&idx_3.1);
+
+        assert_eq!(auth_sent, expected_auth_sent);
+        assert_eq!(auth_recv, expected_auth_recv);
     }
 
     #[test]
@@ -320,7 +297,7 @@ mod tests {
         let tree = new_tree(&transcript, [&idx_0, &idx_1].into_iter()).unwrap();
 
         let result = tree
-            .proof(&transcript, [&idx_0, &idx_1, &idx_2].into_iter())
+            .proof([&idx_0, &idx_1, &idx_2].into_iter())
             .unwrap_err();
         assert!(matches!(result, EncodingTreeError::MissingLeaf { .. }));
     }
@@ -333,25 +310,20 @@ mod tests {
         let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len() + 1));
 
         let result = new_tree(&transcript, [&idx_0].into_iter()).unwrap_err();
-        assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
+        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
 
         let result = new_tree(&transcript, [&idx_1].into_iter()).unwrap_err();
-        assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
+        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
     }
 
     #[test]
     fn test_encoding_tree_missing_encoding() {
         let provider = encoding_provider(&[], &[]);
-        let transcript_length = TranscriptLength {
-            sent: 8,
-            received: 8,
-        };
 
         let result = EncodingTree::new(
             &Blake3::default(),
             [(Direction::Sent, Idx::new(0..8))].iter(),
             &provider,
-            &transcript_length,
         )
         .unwrap_err();
         assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
