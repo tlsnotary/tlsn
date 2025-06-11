@@ -1,0 +1,17 @@
+[package]
+name = "tlsn-harness-plot"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+tlsn-harness-core = { workspace = true }
+# tlsn-server-fixture = { workspace = true }
+charming = { version = "0.5.1", features = ["ssr"] }
+csv = "1.3.0"
+clap = { workspace = true, features = ["derive", "env"] }
+itertools = "0.14.0"
+
+[[bin]]
+name = "tlsn-harness-plot"
+path = "bin/plot.rs"

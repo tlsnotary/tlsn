@@ -1,4 +1,4 @@
 *.svg
 *.html
 
-bin/
+/bin/
