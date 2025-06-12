@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use crate::{Mpc, Zk};
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_memory_core::correlated::Delta;
@@ -14,6 +13,8 @@ use tlsn_common::{
 use tlsn_core::connection::{ConnectionInfo, ServerEphemKey};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
+
+use crate::verifier::{Mpc, Zk};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}

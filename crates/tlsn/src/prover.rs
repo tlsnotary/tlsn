@@ -1,8 +1,4 @@
-//! TLSNotary prover library.
-
-#![deny(missing_docs, unreachable_pub, unused_must_use)]
-#![deny(clippy::all)]
-#![forbid(unsafe_code)]
+//! Prover.
 
 mod config;
 mod error;
@@ -19,25 +15,26 @@ use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
-use rand::Rng;
-use serio::{stream::IoStreamExt, SinkExt};
-use std::sync::Arc;
-use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_client_async::{bind_client, TlsConnection};
-use tls_core::msgs::enums::ContentType;
-use tlsn_common::{
+use crate::common::{
+    Role,
     commit::{commit_records, hash::prove_hash},
     context::build_mt_context,
     encoding,
     mux::attach_mux,
     tag::verify_tags,
-    transcript::{decode_transcript, Record, TlsTranscript},
+    transcript::{Record, TlsTranscript, decode_transcript},
     zk_aes_ctr::ZkAesCtr,
-    Role,
 };
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
+use rand::Rng;
+use serio::{SinkExt, stream::IoStreamExt};
+use std::sync::Arc;
+use tls_client::{ClientConnection, ServerName as TlsServerName};
+use tls_client_async::{TlsConnection, bind_client};
+use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
+    ProvePayload, Secrets,
     attestation::Attestation,
     connection::{
         ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerCertData, ServerSignature,
@@ -45,12 +42,11 @@ use tlsn_core::{
     },
     request::{Request, RequestConfig},
     transcript::{Direction, Transcript, TranscriptCommitment, TranscriptSecret},
-    ProvePayload, Secrets,
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use tracing::{debug, info, info_span, instrument, Instrument, Span};
+use tracing::{Instrument, Span, debug, info, info_span, instrument};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,

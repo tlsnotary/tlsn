@@ -1,8 +1,4 @@
-//! TLSNotary verifier library.
-
-#![deny(missing_docs, unreachable_pub, unused_must_use)]
-#![deny(clippy::all)]
-#![forbid(unsafe_code)]
+//! Verifier.
 
 pub(crate) mod config;
 mod error;
@@ -14,37 +10,37 @@ pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderErr
 pub use error::VerifierError;
 pub use tlsn_core::{VerifierOutput, VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError};
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
-use mpz_common::Context;
-use mpz_core::Block;
-use mpz_garble_core::Delta;
-use mpz_vm_core::prelude::*;
-use serio::{stream::IoStreamExt, SinkExt};
-use tls_core::msgs::enums::ContentType;
-use tlsn_common::{
+use crate::common::{
+    Role,
     commit::{commit_records, hash::verify_hash},
     config::ProtocolConfig,
     context::build_mt_context,
     encoding,
     mux::attach_mux,
     tag::verify_tags,
-    transcript::{decode_transcript, verify_transcript, Record, TlsTranscript},
+    transcript::{Record, TlsTranscript, decode_transcript, verify_transcript},
     zk_aes_ctr::ZkAesCtr,
-    Role,
 };
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
+use mpz_common::Context;
+use mpz_core::Block;
+use mpz_garble_core::Delta;
+use mpz_vm_core::prelude::*;
+use serio::{SinkExt, stream::IoStreamExt};
+use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
+    ProvePayload,
     attestation::{Attestation, AttestationConfig},
     connection::{ConnectionInfo, ServerName, TlsVersion, TranscriptLength},
     request::Request,
     transcript::TranscriptCommitment,
-    ProvePayload,
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use web_time::{SystemTime, UNIX_EPOCH};
 
-use tracing::{debug, info, info_span, instrument, Span};
+use tracing::{Span, debug, info, info_span, instrument};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::ferret::Sender<mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>>,
