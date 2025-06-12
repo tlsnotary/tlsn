@@ -42,6 +42,7 @@ derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
+rustls-pki-types = "1.12.0"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }

@@ -14,7 +14,7 @@ use tower_http::trace::TraceLayer;
 use futures::{channel::oneshot, AsyncRead, AsyncWrite};
 use futures_rustls::{
     pki_types::{CertificateDer, PrivateKeyDer},
-    rustls::ServerConfig,
+    rustls::{server::WebPkiClientVerifier, RootCertStore, ServerConfig},
     TlsAcceptor,
 };
 use hyper::{
@@ -58,8 +58,16 @@ pub async fn bind<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
     let cert = CertificateDer::from(SERVER_CERT_DER);
 
+    // Set up a client certificate verifier.
+    let mut root_store = RootCertStore::empty();
+    root_store.add(CA_CERT_DER.into()).unwrap();
+    let client_cert_verifier = WebPkiClientVerifier::builder(root_store.into())
+        .allow_unauthenticated()
+        .build()
+        .unwrap();
+
     let config = ServerConfig::builder()
-        .with_no_client_auth()
+        .with_client_cert_verifier(client_cert_verifier)
         .with_single_cert(vec![cert], key)
         .unwrap();
 
