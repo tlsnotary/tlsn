@@ -183,11 +183,12 @@ impl Prover<state::Setup> {
             .with_safe_defaults()
             .with_root_certificates(self.config.crypto_provider().cert.root_store().clone());
 
-        let config = match self.config.tls_config().client_auth() {
-            Some((cert, key)) => config
+        let config = if let Some((cert, key)) = self.config.tls_config().client_auth() {
+            config
                 .with_single_cert(cert.clone(), key.clone())
-                .map_err(ProverError::config)?,
-            None => config.with_no_client_auth(),
+                .map_err(ProverError::config)?
+        } else {
+            config.with_no_client_auth()
         };
 
         let client =
