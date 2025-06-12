@@ -111,6 +111,7 @@ impl Executor {
                     chrome_path,
                     format!("--remote-debugging-port={PORT_BROWSER}"),
                     "--headless",
+                    "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--disable-cache",
                     "--disable-application-cache",
