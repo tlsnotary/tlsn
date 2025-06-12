@@ -20,13 +20,11 @@ test = []
 no-bundler = ["web-spawn/no-bundler"]
 
 [dependencies]
-tlsn-common = { path = "../common" }
-tlsn-core = { path = "../core" }
-tlsn-prover = { path = "../prover" }
+tlsn-core = { workspace = true }
+tlsn = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
-tlsn-tls-client-async = { path = "../tls/client-async" }
-tlsn-tls-core = { path = "../tls/core" }
-tlsn-verifier = { path = "../verifier" }
+tlsn-tls-client-async = { workspace = true }
+tlsn-tls-core = { workspace = true }
 
 bincode = { workspace = true }
 console_error_panic_hook = { version = "0.1" }

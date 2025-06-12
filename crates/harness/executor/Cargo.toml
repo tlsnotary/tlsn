@@ -10,10 +10,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 tlsn-harness-core = { workspace = true }
-tlsn-prover = { workspace = true }
-tlsn-common = { workspace = true }
+tlsn = { workspace = true }
 tlsn-core = { workspace = true }
-tlsn-verifier = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 

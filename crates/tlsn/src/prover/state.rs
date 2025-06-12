@@ -17,7 +17,7 @@ use tlsn_core::{
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use crate::{Mpc, Zk};
+use crate::prover::{Mpc, Zk};
 
 /// Entry state
 pub struct Initialized;
