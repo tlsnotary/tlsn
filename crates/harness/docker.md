@@ -13,5 +13,5 @@ The `--privileged` parameter is required because this test bench needs permissio
 
 To run the benches in a browser run:
 ```
-docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "runner setup; runner --target browser test"
++docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "cd /; runner setup; runner --target browser test"
 ```
