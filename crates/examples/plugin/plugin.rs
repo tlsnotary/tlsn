@@ -13,7 +13,7 @@ use spansy::{
 };
 use std::env;
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::ProveConfig;
+use tlsn_core::{hash::HashAlgId, transcript::{TranscriptCommitConfig, TranscriptCommitmentKind}, ProveConfig};
 use tlsn_prover::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -212,6 +212,19 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
     // Create proof for the Verifier.
     let mut prover = prover_task.await.unwrap().unwrap();
 
+    let (sent_len, recv_len) = prover.transcript().len();
+
+    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
+
+    builder.default_kind(TranscriptCommitmentKind::Hash {
+        alg: HashAlgId::SHA256,
+    });
+
+    builder.commit_sent(&(0..sent_len)).unwrap();
+    builder.commit_recv(&(0..recv_len)).unwrap();
+
+    let transcript_commit = builder.build().unwrap();
+
     let mut builder: tlsn_core::ProveConfigBuilder<'_> = ProveConfig::builder(prover.transcript());
 
     // Reveal the DNS name.
@@ -222,6 +235,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
 
     let recv_rangeset = redact_and_reveal_received_data(prover.transcript().received());
     let _ = builder.reveal_recv(&recv_rangeset);
+
+    builder
+        .transcript_commit(transcript_commit);
 
     let config = builder.build().unwrap();
 

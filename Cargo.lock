@@ -2884,32 +2884,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "extism-pdk"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "352fcb5a66eb74145a1c4a01f2bd15d59c62c85be73aac8471880c65b26b798f"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "extism-convert",
- "extism-manifest",
- "extism-pdk-derive",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "extism-pdk-derive"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d086daea5fd844e3c5ac69ddfe36df4a9a43e7218cf7d1f888182b089b09806c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.101",
-]
-
-[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5456,16 +5430,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51bae2ac328883f7acdfea3d66a7c35751187f870bc81f94563733a154d7a670"
 dependencies = [
  "plotters-backend",
-]
-
-[[package]]
-name = "plugin"
-version = "0.1.0-alpha.12-pre"
-dependencies = [
- "anyhow",
- "extism-pdk",
- "serde",
- "tlsn-core",
 ]
 
 [[package]]

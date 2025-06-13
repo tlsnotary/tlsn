@@ -1,0 +1,174 @@
+version: v1-draft
+exports: 
+  config:
+    description: |
+      Returns the verifier configuration.
+      The configuration is used to initialize the verifier in the host.
+    output:
+      $ref: "#/components/schemas/PluginVerifierConfig"
+      contentType: application/json
+  verify:
+    description: |
+      Verifies the output from the TLS verifier.
+      This function is called after the MPC-TLS verification is complete
+      and allows the plugin to perform custom verification logic.
+    input:
+      $ref: "#/components/schemas/VerifierOutput"
+      contentType: application/json
+  
+components:
+  schemas:
+    PluginVerifierConfig:
+      description: The verifier configuration.
+      properties:
+        maxSentData:
+          type: integer
+          nullable: true
+          description: Maximum data that can be sent by the prover in bytes
+        maxRecvData:
+          type: integer
+          nullable: true
+          description: Maximum data that can be received by the prover in bytes
+        maxSentRecords:
+          type: integer
+          nullable: true
+          description: Maximum number of application data records that can be sent
+        maxRecvRecordsOnline:
+          type: integer
+          nullable: true
+          description: Maximum number of application data records that can be received online
+    VerifierOutput:
+      description: Output from the MPC-TLS verification containing verified session data
+      properties:
+        serverName:
+          type: string
+          nullable: true
+          description: The server's DNS name if revealed by the prover
+        transcript:
+          $ref: "#/components/schemas/PartialTranscript"
+          nullable: true
+          description: The partial transcript containing authenticated application data
+        transcriptCommitments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptCommitment"
+          description: Cryptographic commitments to transcript data
+      required:
+        - transcriptCommitments
+    PartialTranscript:
+      description: A partial transcript containing authenticated application data
+      properties:
+        sent:
+          type: array
+          items:
+            type: integer
+          description: Data sent from the prover to the server (byte array)
+        received:
+          type: array
+          items:
+            type: integer
+          description: Data received by the prover from the server (byte array)
+        sentAuthedIdx:
+          type: array
+          items:
+            $ref: "#/components/schemas/Range"
+          description: Index ranges of authenticated sent data
+        recvAuthedIdx:
+          type: array
+          items:
+            $ref: "#/components/schemas/Range"
+          description: Index ranges of authenticated received data
+      required:
+        - sent
+        - received
+        - sentAuthedIdx
+        - recvAuthedIdx
+    Range:
+      description: A range with start (inclusive) and end (exclusive) positions
+      properties:
+        start:
+          type: integer
+          description: Start position (inclusive)
+        end:
+          type: integer
+          description: End position (exclusive)
+      required:
+        - start
+        - end
+    TranscriptCommitment:
+      description: Cryptographic commitment to transcript data
+      properties:
+        encodingCommitment:
+          $ref: "#/components/schemas/EncodingCommitment"
+          description: Commitment to the encoding of the transcript data
+          nullable: true
+        plaintextHash:
+          $ref: "#/components/schemas/PlaintextHash"
+          description: Hash of plaintext in the transcript
+          nullable: true
+    EncodingCommitment:
+      description: Commitment to the encoding of the transcript data
+      properties:
+        root:
+          $ref: "#/components/schemas/TypedHash"
+          description: Merkle root of the encoding commitments
+        secret:
+          $ref: "#/components/schemas/EncoderSecret"
+          description: Secret used to generate the encodings
+      required:
+        - root
+        - secret
+    PlaintextHash:
+      description: Hash of plaintext in the transcript
+      properties:
+        direction:
+          $ref: "#/components/schemas/Direction"
+          description: Direction of the plaintext
+        idx:
+          type: array
+          items:
+            $ref: "#/components/schemas/Range"
+          description: Indexes of the plaintext in the transcript
+        hash:
+          $ref: "#/components/schemas/TypedHash"
+          description: The hash of the data
+      required:
+        - direction
+        - idx
+        - hash
+    Direction:
+      description: Direction of the plaintext
+      type: string
+      enum:
+        - Sent
+        - Received
+    EncoderSecret:
+      description: Secret used to generate the encodings
+      properties:
+        seed:
+          type: array
+          items:
+            type: integer
+          description: Seed used to generate the encodings
+        delta:
+          type: array
+          items:
+            type: integer
+          description: Delta used to generate the encodings
+      required:
+        - seed
+        - delta
+    TypedHash:
+      description: Typed hash with algorithm ID and value
+      properties:
+        alg:
+          type: integer
+          description: The algorithm ID of the hash
+        value:
+          type: array
+          items:
+            type: integer
+          description: The hash value in bytes
+      required:
+        - alg
+        - value

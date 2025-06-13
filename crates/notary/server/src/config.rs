@@ -257,7 +257,8 @@ impl Default for PluginProperties {
     fn default() -> Self {
         Self {
             // Todo: Remove default path
-            path: "../../../target/wasm32-wasip1/release/plugin.wasm".to_string(),
+            // path: "../plugin/rust/target/wasm32-wasip1/release/plugin.wasm".to_string(),
+            path: "../plugin/js/dist/plugin.wasm".to_string(),
             max_sent_data: 4096,
             max_recv_data: 16384,
             timeout: 1800,
