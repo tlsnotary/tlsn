@@ -9,7 +9,7 @@ exports:
       contentType: application/json
   verify:
     description: |
-      Verifies the output from the TLS verifier.
+      Verifies the output from the MPC-TLS verifier.
       This function is called after the MPC-TLS verification is complete
       and allows the plugin to perform custom verification logic.
     input:
