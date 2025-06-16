@@ -126,17 +126,9 @@ impl Network {
 
         // Enable forwarding on the bridge interface
         duct::cmd!(
-            "sudo",
-            "iptables",
-            "-I",
-            "FORWARD",
-            "-i",
-            BRIDGE,
-            "-o",
-            BRIDGE,
-            "-j",
-            "ACCEPT"
-        ).run()?;
+            "sudo", "iptables", "-I", "FORWARD", "-i", BRIDGE, "-o", BRIDGE, "-j", "ACCEPT"
+        )
+        .run()?;
 
         duct::cmd!(
             "sudo",
@@ -256,16 +248,7 @@ impl Network {
 
         // Clean iptables forwarding rule
         duct::cmd!(
-            "sudo",
-            "iptables",
-            "-D",
-            "FORWARD",
-            "-i",
-            BRIDGE,
-            "-o",
-            BRIDGE,
-            "-j",
-            "ACCEPT"
+            "sudo", "iptables", "-D", "FORWARD", "-i", BRIDGE, "-o", BRIDGE, "-j", "ACCEPT"
         )
         .unchecked()
         .run()?;
