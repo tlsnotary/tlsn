@@ -20,6 +20,8 @@ pub struct InfoResponse {
     pub public_key: String,
     /// Current git commit hash of notary-server
     pub git_commit_hash: String,
+    /// List of plugins that are loaded
+    pub plugin_names: Vec<String>,
     /// Hardware attestation
     #[cfg(feature = "tee_quote")]
     pub quote: Quote,
@@ -39,8 +41,9 @@ pub struct NotaryGlobals {
     pub crypto_provider: Arc<CryptoProvider>,
     pub notarization_config: NotarizationProperties,
     pub plugin_config: PluginProperties,
-    /// A temporary storage to store session_id
-    pub store: Arc<Mutex<HashMap<String, ()>>>,
+    pub plugin_names: Arc<Vec<String>>,
+    /// A temporary storage to store session_id and name of plugin requested
+    pub store: Arc<Mutex<HashMap<String, String>>>,
     /// Selected authorization mode if any
     pub authorization_mode: Option<AuthorizationMode>,
     /// A semaphore to acquire a permit for notarization
@@ -52,6 +55,7 @@ impl NotaryGlobals {
         crypto_provider: Arc<CryptoProvider>,
         notarization_config: NotarizationProperties,
         plugin_config: PluginProperties,
+        plugin_names: Arc<Vec<String>>,
         authorization_mode: Option<AuthorizationMode>,
         semaphore: Arc<Semaphore>,
     ) -> Self {
@@ -59,6 +63,7 @@ impl NotaryGlobals {
             crypto_provider,
             notarization_config,
             plugin_config,
+            plugin_names,
             store: Default::default(),
             authorization_mode,
             semaphore,

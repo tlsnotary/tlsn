@@ -40,3 +40,7 @@ dist/**/*
 # ignore yarn.lock
 yarn.lock
 
+# include relevant json files
+!package.json
+!package-lock.json
+!tsconfig.json

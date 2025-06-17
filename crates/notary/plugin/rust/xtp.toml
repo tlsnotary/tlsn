@@ -1,14 +1,14 @@
 app_id = ""
 
 # This is where 'xtp plugin push' expects to find the wasm file after the build script has run.
-bin = "target/wasm32-wasip1/release/plugin.wasm"
+bin = "../wasm/plugin_rs.wasm"
 extension_point_id = ""
-name = "plugin"
+name = "plugin_rs"
 
 [scripts]
 
   # xtp plugin build runs this script to generate the wasm file
-  build = "cargo build --release --target wasm32-wasip1"
+  build = "cargo build --release --target wasm32-wasip1 --target-dir ../wasm/ && cp ../wasm/wasm32-wasip1/release/plugin_rs.wasm ../wasm/"
 
   # xtp plugin init runs this script to format the plugin code
   format = "cargo fmt"

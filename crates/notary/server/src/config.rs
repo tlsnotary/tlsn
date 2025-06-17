@@ -55,7 +55,7 @@ impl NotaryServerProperties {
                 config.tls.certificate_path = Some(prepend_file_path(&path, &parent_dir)?);
             }
             // Prepend plugin path.
-            config.plugin.path = prepend_file_path(&config.plugin.path, &parent_dir)?;
+            config.plugin.folder = prepend_file_path(&config.plugin.folder, &parent_dir)?;
 
             // Prepend auth file path.
             if let Some(mode) = config.auth.mode {
@@ -103,8 +103,8 @@ impl NotaryServerProperties {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginProperties {
     /// Path to the plugin directory
-    pub path: String,
-       /// Global limit for maximum number of bytes that can be sent
+    pub folder: String,
+    /// Global limit for maximum number of bytes that can be sent
     pub max_sent_data: usize,
     /// Global limit for maximum number of bytes that can be received
     pub max_recv_data: usize,
@@ -257,8 +257,7 @@ impl Default for PluginProperties {
     fn default() -> Self {
         Self {
             // Todo: Remove default path
-            path: "../plugin/rust/target/wasm32-wasip1/release/plugin.wasm".to_string(),
-            // path: "../plugin/js/dist/plugin.wasm".to_string(),
+            folder: "../plugin/wasm".to_string(),
             max_sent_data: 4096,
             max_recv_data: 16384,
             timeout: 1800,

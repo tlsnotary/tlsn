@@ -84,10 +84,11 @@ pub async fn tcp_notarize(
     stream: TokioIo<Upgraded>,
     notary_globals: NotaryGlobals,
     session_id: String,
+    plugin_name: String,
 ) {
     let start = Instant::now();
     debug!(?session_id, "Upgraded to tcp connection");
-    match verifier_service(stream, notary_globals, &session_id).await {
+    match verifier_service(stream, notary_globals, &session_id, &plugin_name).await {
         Ok(_) => {
             info!(
                 ?session_id,

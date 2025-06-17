@@ -8,7 +8,7 @@ use bytes::Bytes;
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures_rustls::{
     pki_types::{CertificateDer, PrivateKeyDer},
-    rustls::ServerConfig,
+    rustls::{crypto::aws_lc_rs::default_provider, ServerConfig},
     TlsAcceptor,
 };
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
@@ -44,6 +44,10 @@ pub static CLOSE_DELAY: u64 = 1000;
 pub async fn bind_test_server_hyper<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
 ) -> Result<(), hyper::Error> {
+    // Need to do this as notary server's dependency (ureq used by extism) uses ring
+    // as rustls crypto provider.
+    let _ = default_provider().install_default();
+
     let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
     let cert = CertificateDer::from(SERVER_CERT_DER);
 
@@ -74,6 +78,10 @@ pub async fn bind_test_server<
 >(
     socket: Compat<T>,
 ) {
+    // Need to do this as notary server's dependency (ureq used by extism) uses ring
+    // as rustls crypto provider.
+    let _ = default_provider().install_default();
+    
     let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
     let cert = CertificateDer::from(SERVER_CERT_DER);
 

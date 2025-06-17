@@ -1,9 +1,9 @@
 app_id = ""
 
 # This is where 'xtp plugin push' expects to find the wasm file after the build script has run.
-bin = "dist/plugin.wasm"
+bin = "../wasm/plugin-js.wasm"
 extension_point_id = ""
-name = "plugin"
+name = "plugin-js"
 
 [scripts]
 

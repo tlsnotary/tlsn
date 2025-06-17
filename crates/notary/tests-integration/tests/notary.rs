@@ -37,6 +37,7 @@ use notary_server::{
 
 const MAX_SENT_DATA: usize = 1 << 13;
 const MAX_RECV_DATA: usize = 1 << 13;
+const PLUGIN_NAME: &str = "plugin_rs";
 
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_DNS: &str = "tlsnotaryserver.io";
@@ -162,6 +163,7 @@ async fn accepted_client(client: NotaryClient) -> Result<Accepted, ClientError> 
     let notarization_request = NotarizationRequest::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
+        .plugin_name(PLUGIN_NAME.to_string())
         .build()
         .unwrap();
 
@@ -348,6 +350,7 @@ async fn test_websocket_prover() {
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: ClientType::Websocket,
+        plugin_name: PLUGIN_NAME.to_string(),
         max_sent_data: Some(MAX_SENT_DATA),
         max_recv_data: Some(MAX_RECV_DATA),
     })

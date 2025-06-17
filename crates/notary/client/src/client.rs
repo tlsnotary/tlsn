@@ -37,6 +37,8 @@ use crate::error::{ClientError, ErrorKind};
 /// Parameters used to configure notarization.
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct NotarizationRequest {
+    /// Name of verifier plugin that prover wants to interact with.
+    plugin_name: String,
     /// Maximum number of bytes that can be sent.
     max_sent_data: usize,
     /// Maximum number of bytes that can be received.
@@ -273,6 +275,7 @@ impl NotaryClient {
             let configuration_request_payload =
                 serde_json::to_string(&NotarizationSessionRequest {
                     client_type: ClientType::Tcp,
+                    plugin_name: notarization_request.plugin_name,
                     max_sent_data: Some(notarization_request.max_sent_data),
                     max_recv_data: Some(notarization_request.max_recv_data),
                 })

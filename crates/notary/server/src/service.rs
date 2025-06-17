@@ -92,26 +92,24 @@ pub async fn upgrade_protocol(
     let session_id = params.session_id;
     // Check if session_id exists in the store, this also removes session_id from
     // the store as each session_id can only be used once
-    if notary_globals
+    let Some(plugin_name) = notary_globals
         .store
         .lock()
         .unwrap()
-        .remove(&session_id)
-        .is_none()
-    {
-        let err_msg = format!("Session id {} does not exist", session_id);
-        error!(err_msg);
-        return NotaryServerError::BadProverRequest(err_msg).into_response();
+        .remove(&session_id) else {
+            let err_msg = format!("Session id {} does not exist", session_id);
+            error!(err_msg);
+            return NotaryServerError::BadProverRequest(err_msg).into_response();
     };
     // This completes the HTTP Upgrade request and returns a successful response to
     // the client, meanwhile initiating the websocket or tcp connection
     match protocol_upgrade {
         ProtocolUpgrade::Ws(ws) => ws.on_upgrade(move |socket| async move {
-            websocket_notarize(socket, notary_globals, session_id).await;
+            websocket_notarize(socket, notary_globals, session_id, plugin_name).await;
             drop(permit);
         }),
         ProtocolUpgrade::Tcp(tcp) => tcp.on_upgrade(move |stream| async move {
-            tcp_notarize(stream, notary_globals, session_id).await;
+            tcp_notarize(stream, notary_globals, session_id, plugin_name).await;
             drop(permit);
         }),
     }
@@ -137,6 +135,19 @@ pub async fn initialize(
             return NotaryServerError::BadProverRequest(err.to_string()).into_response();
         }
     };
+
+    let plugin_name = payload.plugin_name.clone();
+
+    if !notary_globals.plugin_names.contains(&plugin_name) {
+        error!(
+            "Plugin {} is not supported by the notary server",
+            payload.plugin_name
+        );
+        return NotaryServerError::BadProverRequest(
+            "Plugin is not supported by the notary server".to_string(),
+        )
+        .into_response();
+    }
 
     // Ensure that the max_sent_data, max_recv_data submitted is not larger than the
     // global max limits configured in notary server
@@ -176,7 +187,7 @@ pub async fn initialize(
         .store
         .lock()
         .unwrap()
-        .insert(prover_session_id.clone(), ());
+        .insert(prover_session_id.clone(), plugin_name);
 
     trace!("Latest store state: {:?}", notary_globals.store);
 

@@ -1,0 +1,21 @@
+{
+  "name": "plugin-js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "npx tsc --noEmit && node esbuild.js && extism-js dist/index.js -i src/index.d.ts -o ../wasm/plugin-js.wasm",
+    "format": "npx prettier --write \"src/**/*.{ts,tsx}\" --plugin=prettier-plugin-organize-imports"
+  },
+  "keywords": [],
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@extism/js-pdk": "^1.0.1",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.3.2",
+    "prettier": "^3.3.2",
+    "prettier-plugin-organize-imports": "^4.1.0"
+  }
+}

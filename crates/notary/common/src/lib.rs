@@ -14,10 +14,12 @@ pub enum ClientType {
 }
 
 /// Request object of the /session API.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotarizationSessionRequest {
     pub client_type: ClientType,
+    /// Name of verifier plugin that prover wants to interact with.
+    pub plugin_name: String,
     /// Maximum data that can be sent by the prover.
     pub max_sent_data: Option<usize>,
     /// Maximum data that can be received by the prover.

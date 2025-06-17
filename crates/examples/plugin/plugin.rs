@@ -2,7 +2,10 @@ use async_tungstenite::{tokio::connect_async_with_config, tungstenite::protocol:
 use clap::Parser;
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::{body::Bytes, Request, StatusCode, Uri};
-use hyper_util::{client::legacy::{connect::HttpConnector}, rt::{TokioExecutor, TokioIo}};
+use hyper_util::{
+    client::legacy::connect::HttpConnector,
+    rt::{TokioExecutor, TokioIo},
+};
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use notary_common::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 use rangeset::RangeSet;
@@ -13,7 +16,11 @@ use spansy::{
 };
 use std::env;
 use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{hash::HashAlgId, transcript::{TranscriptCommitConfig, TranscriptCommitmentKind}, ProveConfig};
+use tlsn_core::{
+    hash::HashAlgId,
+    transcript::{TranscriptCommitConfig, TranscriptCommitmentKind},
+    ProveConfig,
+};
 use tlsn_prover::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -36,6 +43,9 @@ struct Args {
     /// What data to notarize.
     #[clap(default_value_t, value_enum)]
     prover_type: ProverType,
+    /// Name of verifier plugin to use — can get available names from `/info` endpoint of verifier server.
+    #[clap(long, default_value = "plugin_rs")]
+    plugin: String,
 }
 
 #[tokio::main]
@@ -49,17 +59,18 @@ async fn main() {
 
     let args = Args::parse();
     match args.prover_type {
-        ProverType::Tcp => run_tcp_prover(&verifier_host, verifier_port).await,
-        ProverType::Ws => run_ws_prover(&verifier_host, verifier_port).await,
+        ProverType::Tcp => run_tcp_prover(&verifier_host, verifier_port, &args.plugin).await,
+        ProverType::Ws => run_ws_prover(&verifier_host, verifier_port, &args.plugin).await,
     }
 }
 
-async fn run_ws_prover(verifier_host: &str, verifier_port: u16) {
+async fn run_ws_prover(verifier_host: &str, verifier_port: u16, plugin_name: &str) {
     info!("Running websocket prover...");
 
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: ClientType::Websocket,
+        plugin_name: plugin_name.to_string(),
         max_sent_data: Some(tlsn_examples::MAX_SENT_DATA),
         max_recv_data: Some(tlsn_examples::MAX_RECV_DATA),
     })
@@ -75,7 +86,8 @@ async fn run_ws_prover(verifier_host: &str, verifier_port: u16) {
         .unwrap();
 
     let hyper_http_connector: HttpConnector = HttpConnector::new();
-    let http_client = hyper_util::client::legacy::Builder::new(TokioExecutor::new()).build(hyper_http_connector);
+    let http_client =
+        hyper_util::client::legacy::Builder::new(TokioExecutor::new()).build(hyper_http_connector);
     let response = http_client.request(session_request).await.unwrap();
     assert!(response.status() == StatusCode::OK);
     let payload = response.into_body().collect().await.unwrap().to_bytes();
@@ -86,7 +98,10 @@ async fn run_ws_prover(verifier_host: &str, verifier_port: u16) {
     debug!("Session request response: {:?}", notarization_response,);
 
     let verification_request = hyper::Request::builder()
-        .uri(format!("ws://{verifier_host}:{verifier_port}/notarize?sessionId={}", notarization_response.session_id))
+        .uri(format!(
+            "ws://{verifier_host}:{verifier_port}/notarize?sessionId={}",
+            notarization_response.session_id
+        ))
         .header("Host", verifier_host)
         .header("Sec-WebSocket-Key", uuid::Uuid::new_v4().to_string())
         .header("Sec-WebSocket-Version", "13")
@@ -106,7 +121,7 @@ async fn run_ws_prover(verifier_host: &str, verifier_port: u16) {
     info!("Websocket proving is successful!");
 }
 
-async fn run_tcp_prover(verifier_host: &str, verifier_port: u16) {
+async fn run_tcp_prover(verifier_host: &str, verifier_port: u16, plugin_name: &str) {
     info!("Running tcp prover...");
 
     // Build a tcp client to connect to the verifier server.
@@ -126,6 +141,7 @@ async fn run_tcp_prover(verifier_host: &str, verifier_port: u16) {
         // performance.
         .max_sent_data(tlsn_examples::MAX_SENT_DATA)
         .max_recv_data(tlsn_examples::MAX_RECV_DATA)
+        .plugin_name(plugin_name.to_string())
         .build()
         .unwrap();
 
@@ -236,8 +252,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
     let recv_rangeset = redact_and_reveal_received_data(prover.transcript().received());
     let _ = builder.reveal_recv(&recv_rangeset);
 
-    builder
-        .transcript_commit(transcript_commit);
+    builder.transcript_commit(transcript_commit);
 
     let config = builder.build().unwrap();
 

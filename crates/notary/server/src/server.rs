@@ -28,7 +28,7 @@ use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
 
 use crate::{
-    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode}, config::{NotarizationProperties, NotaryServerProperties}, error::NotaryServerError, middleware::AuthorizationMiddleware, service::{initialize, upgrade_protocol}, signing::AttestationKey, types::{InfoResponse, NotaryGlobals}
+    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode}, config::{NotarizationProperties, NotaryServerProperties}, error::NotaryServerError, middleware::AuthorizationMiddleware, plugin::get_plugin_names, service::{initialize, upgrade_protocol}, signing::AttestationKey, types::{InfoResponse, NotaryGlobals}
 };
 
 #[cfg(feature = "tee_quote")]
@@ -40,6 +40,10 @@ use tokio::sync::Semaphore;
 /// both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
+    // Get plugin names
+    let plugin_names = get_plugin_names(&config.plugin.folder)?;
+    debug!("Available plugins: {:?}", plugin_names);
+
     let attestation_key = get_attestation_key(&config.notarization).await?;
     let verifying_key_pem = attestation_key
         .verifying_key_pem()
@@ -110,6 +114,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         Arc::new(crypto_provider),
         config.notarization.clone(),
         config.plugin.clone(),
+        Arc::new(plugin_names.clone()),
         authorization_mode,
         Arc::new(Semaphore::new(config.concurrency)),
     );
@@ -145,6 +150,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                         version,
                         public_key: verifying_key_pem,
                         git_commit_hash,
+                        plugin_names,
                         #[cfg(feature = "tee_quote")]
                         quote: quote(verifying_key_bytes).await,
                     }),
