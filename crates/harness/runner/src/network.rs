@@ -124,6 +124,12 @@ impl Network {
         self.veth_app_1.0.up()?;
         self.veth_app_1.1.up()?;
 
+        // Enable forwarding on the bridge interface
+        duct::cmd!(
+            "sudo", "iptables", "-I", "FORWARD", "-i", BRIDGE, "-o", BRIDGE, "-j", "ACCEPT"
+        )
+        .run()?;
+
         duct::cmd!(
             "sudo",
             "ip",
@@ -239,6 +245,14 @@ impl Network {
         self.veth_app_0.delete()?;
         self.veth_app_1.delete()?;
         self.veth_app.delete()?;
+
+        // Clean iptables forwarding rule
+        duct::cmd!(
+            "sudo", "iptables", "-D", "FORWARD", "-i", BRIDGE, "-o", BRIDGE, "-j", "ACCEPT"
+        )
+        .unchecked()
+        .run()?;
+
         Ok(())
     }
 }

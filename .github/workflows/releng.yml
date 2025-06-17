@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Tag to publish to NPM'
         required: true
-        default: 'v0.1.0-alpha.11'
+        default: 'v0.1.0-alpha.12'
 
 jobs:
   release:

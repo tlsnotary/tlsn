@@ -27,7 +27,7 @@ use walkdir::WalkDir;
 #[command(name = "set_tlsn_version")]
 #[command(about = "Sets the TLSNotary version in all relevant files", long_about = None)]
 struct Args {
-    /// Version number to set (example: 0.1.0-alpha.11)
+    /// Version number to set (example: 0.1.0-alpha.12)
     version: String,
 
     /// Workspace path (default is current directory)
