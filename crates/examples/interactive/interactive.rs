@@ -101,7 +101,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     prover_config_builder.tls_config(
         TlsConfig::builder()
             .client_auth((CLIENT_CERT.to_vec(), CLIENT_KEY.to_vec()))
-            .unwrap()
             .build()
             .unwrap(),
     );
