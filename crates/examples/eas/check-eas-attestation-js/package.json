@@ -1,0 +1,14 @@
+{
+  "name": "check-eas-attestation",
+  "version": "1.0.0",
+  "description": "Verify EAS offline attestations with Node.js",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ethers": "^6.0.0",
+    "@ethereum-attestation-service/eas-sdk": "^1.0.0"
+  }
+}

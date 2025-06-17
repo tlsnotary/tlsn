@@ -45,3 +45,7 @@ rand.workspace = true
 [[example]]
 name = "interactive"
 path = "interactive/interactive.rs"
+
+[[example]]
+name = "eas"
+path = "eas/eas.rs"
