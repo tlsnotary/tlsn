@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use derive_builder::UninitializedFieldError;
 use mpc_tls::Config;
 use rustls_pki_types::{pem::PemObject, CertificateDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer};
 use tls_core::key;
@@ -75,6 +76,7 @@ impl ProverConfig {
 
 /// Configuration for the prover's TLS connection.
 #[derive(Debug, Clone, Default, derive_builder::Builder)]
+#[builder(build_fn(error = "TlsConfigError"))]
 pub struct TlsConfig {
     /// Certificate chain and a matching private key for client
     /// authentication.
@@ -96,8 +98,8 @@ impl TlsConfig {
 }
 
 impl TlsConfigBuilder {
-    /// Sets a certificate chain and a matching private key for client
-    /// authentication.
+    /// Sets a DER-encoded certificate chain and a matching private key for
+    /// client authentication.
     ///
     /// Often the chain will consist of a single end-entity certificate.
     ///
@@ -106,43 +108,78 @@ impl TlsConfigBuilder {
     /// * `cert_key` - A tuple containing the certificate chain and the private
     ///   key.
     ///
-    ///   - The chain must be X.509-formatted in one of the following encodings:
-    ///     - a single DER-encoded certificate
-    ///     - a single PEM-encoded certificate
-    ///     - a PEM bundle of multiple certificates
+    ///   - Each certificate in the chain must be in the X.509 format.
+    ///   - The key must be in the ASN.1 format (either PKCS#8 or PKCS#1).
+    pub fn client_auth(&mut self, cert_key: (Vec<Vec<u8>>, Vec<u8>)) -> &mut Self {
+        let certs = cert_key
+            .0
+            .into_iter()
+            .map(key::Certificate)
+            .collect::<Vec<_>>();
+
+        self.client_auth = Some(Some((certs, key::PrivateKey(cert_key.1))));
+        self
+    }
+
+    /// Sets a PEM-encoded certificate chain and a matching private key for
+    /// client authentication.
     ///
-    ///   - The key must be ASN.1-formatted (either PKCS#8 or PKCS#1) in either
-    ///     PEM or DER encoding.
-    pub fn client_auth(&mut self, cert_key: (Vec<u8>, Vec<u8>)) -> &mut Self {
+    /// Often the chain will consist of a single end-entity certificate.
+    ///
+    /// # Arguments
+    ///
+    /// * `cert_key` - A tuple containing the certificate chain and the private
+    ///   key.
+    ///
+    ///   - Each certificate in the chain must be in the X.509 format.
+    ///   - The key must be in the ASN.1 format (either PKCS#8 or PKCS#1).
+    pub fn client_auth_pem(
+        &mut self,
+        cert_key: (Vec<Vec<u8>>, Vec<u8>),
+    ) -> Result<&mut Self, TlsConfigError> {
         let key = match PrivatePkcs8KeyDer::from_pem_slice(&cert_key.1) {
             // Try to parse as PEM PKCS#8.
             Ok(key) => (*key.secret_pkcs8_der()).to_vec(),
             // Otherwise, try to parse as PEM PKCS#1.
             Err(_) => match PrivatePkcs1KeyDer::from_pem_slice(&cert_key.1) {
                 Ok(key) => (*key.secret_pkcs1_der()).to_vec(),
-                Err(_) => {
-                    // Otherwise, treat the key as DER-encoded.
-                    cert_key.1
-                }
+                Err(_) => return Err(ErrorRepr::InvalidKey.into()),
             },
         };
 
-        let certs = CertificateDer::pem_slice_iter(&cert_key.0)
-            .map(|c| match c {
-                Ok(c) => Ok(key::Certificate(c.to_vec())),
-                Err(e) => Err(e),
+        let certs = cert_key
+            .0
+            .iter()
+            .map(|c| {
+                let c =
+                    CertificateDer::from_pem_slice(c).map_err(|_| ErrorRepr::InvalidCertificate)?;
+                Ok::<key::Certificate, TlsConfigError>(key::Certificate(c.as_ref().to_vec()))
             })
-            .collect::<Result<Vec<_>, _>>();
-
-        let certs = match certs {
-            Ok(certs) => certs,
-            Err(_) => {
-                // Treat the cert chain as a single DER-encoded cert.
-                vec![key::Certificate(cert_key.0.to_vec())]
-            }
-        };
+            .collect::<Result<Vec<_>, _>>()?;
 
         self.client_auth = Some(Some((certs, key::PrivateKey(key))));
-        self
+        Ok(self)
+    }
+}
+
+/// TLS configuration error.
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TlsConfigError(#[from] ErrorRepr);
+
+#[derive(Debug, thiserror::Error)]
+#[error("tls config error: {0}")]
+enum ErrorRepr {
+    #[error("missing field: {0:?}")]
+    MissingField(String),
+    #[error("the certificate for client authentication is invalid")]
+    InvalidCertificate,
+    #[error("the private key for client authentication is invalid")]
+    InvalidKey,
+}
+
+impl From<derive_builder::UninitializedFieldError> for TlsConfigError {
+    fn from(e: UninitializedFieldError) -> Self {
+        ErrorRepr::MissingField(e.field_name().to_string()).into()
     }
 }

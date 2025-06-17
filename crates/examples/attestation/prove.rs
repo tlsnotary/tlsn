@@ -123,7 +123,8 @@ async fn notarize(
     // (Optional) Set up TLS client authentication if required by the server.
     prover_config_builder.tls_config(
         TlsConfig::builder()
-            .client_auth((CLIENT_CERT.to_vec(), CLIENT_KEY.to_vec()))
+            .client_auth_pem((vec![CLIENT_CERT.to_vec()], CLIENT_KEY.to_vec()))
+            .unwrap()
             .build()?,
     );
 
