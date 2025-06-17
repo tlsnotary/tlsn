@@ -115,13 +115,13 @@ impl TlsConfigBuilder {
             // If unable to parse as PKCS#8, try PKCS#1.
             Err(_) => match PrivatePkcs1KeyDer::from_pem_slice(&cert_key.1) {
                 Ok(key) => (*key.secret_pkcs1_der()).to_vec(),
-                Err(_) => return Err(TlsConfigError::InvalidKey),
+                Err(_) => return Err(ErrorRepr::InvalidKey.into()),
             },
         };
 
         let certs = CertificateDer::pem_slice_iter(&cert_key.0)
             .map(|c| {
-                let c = c.map_err(|_| TlsConfigError::InvalidCertificate)?;
+                let c = c.map_err(|_| ErrorRepr::InvalidCertificate)?;
                 Ok::<key::Certificate, TlsConfigError>(key::Certificate(c.to_vec()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -131,8 +131,14 @@ impl TlsConfigBuilder {
     }
 }
 
+/// TLS configuration error.
 #[derive(Debug, thiserror::Error)]
-pub enum TlsConfigError {
+#[error(transparent)]
+pub struct TlsConfigError(#[from] ErrorRepr);
+
+#[derive(Debug, thiserror::Error)]
+#[error("tls config error: {0}")]
+enum ErrorRepr {
     #[error("missing field: {0:?}")]
     MissingField(String),
     #[error("the certificate for client authentication is invalid")]
@@ -143,6 +149,6 @@ pub enum TlsConfigError {
 
 impl From<derive_builder::UninitializedFieldError> for TlsConfigError {
     fn from(e: UninitializedFieldError) -> Self {
-        TlsConfigError::MissingField(e.field_name().to_string())
+        ErrorRepr::MissingField(e.field_name().to_string()).into()
     }
 }
