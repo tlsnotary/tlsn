@@ -9,7 +9,7 @@ mod error;
 mod future;
 pub mod state;
 
-pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
+pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
@@ -181,8 +181,16 @@ impl Prover<state::Setup> {
 
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
-            .with_root_certificates(self.config.crypto_provider().cert.root_store().clone())
-            .with_no_client_auth();
+            .with_root_certificates(self.config.crypto_provider().cert.root_store().clone());
+
+        let config = if let Some((cert, key)) = self.config.tls_config().client_auth() {
+            config
+                .with_single_cert(cert.clone(), key.clone())
+                .map_err(ProverError::config)?
+        } else {
+            config.with_no_client_auth()
+        };
+
         let client =
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;

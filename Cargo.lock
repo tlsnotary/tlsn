@@ -6716,6 +6716,7 @@ dependencies = [
  "mpz-zk",
  "opaque-debug",
  "rand 0.9.1",
+ "rustls-pki-types",
  "serio",
  "thiserror 1.0.69",
  "tlsn-common",
