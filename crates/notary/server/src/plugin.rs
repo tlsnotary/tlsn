@@ -141,6 +141,9 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
     let path = Wasm::file(Path::new(&notary_globals.plugin_config.folder).join(format!("{}.wasm", plugin_name)));
     let manifest = Manifest::new([path]);
     let mut plugin = PluginBuilder::new(manifest)
+        // needed this for JS plugins — https://github.com/extism/js-pdk?tab=readme-ov-file#exports
+        // but the plugins can't access filesystem or network calls without whitelisting folder or host
+        .with_wasi(true)
         .build()
         .map_err(|e| eyre!("Failed to build plugin: {}", e))?;
 
