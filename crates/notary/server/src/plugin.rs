@@ -141,9 +141,6 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
     let path = Wasm::file(Path::new(&notary_globals.plugin_config.folder).join(format!("{}.wasm", plugin_name)));
     let manifest = Manifest::new([path]);
     let mut plugin = PluginBuilder::new(manifest)
-        // needed this for wasm32-wasip1 plugins — but the plugins can't access any
-        // filesystem or network calls without explicit whitelisting
-        .with_wasi(true)
         .build()
         .map_err(|e| eyre!("Failed to build plugin: {}", e))?;
 
