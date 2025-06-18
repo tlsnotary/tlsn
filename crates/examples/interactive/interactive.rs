@@ -16,9 +16,9 @@ use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::{
     transcript::PartialTranscript, CryptoProvider, ProveConfig, VerifierOutput, VerifyConfig,
 };
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::{Prover, ProverConfig, TlsConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
-use tlsn_server_fixture_certs::SERVER_DOMAIN;
+use tlsn_server_fixture_certs::{CLIENT_CERT, CLIENT_KEY, SERVER_DOMAIN};
 use tlsn_verifier::{Verifier, VerifierConfig};
 
 const SECRET: &str = "TLSNotary's private key 🤡";
@@ -84,26 +84,37 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         ..Default::default()
     };
 
+    // Set up protocol configuration for prover.
+    let mut prover_config_builder = ProverConfig::builder();
+    prover_config_builder
+        .server_name(server_domain)
+        .protocol_config(
+            ProtocolConfig::builder()
+                .max_sent_data(MAX_SENT_DATA)
+                .max_recv_data(MAX_RECV_DATA)
+                .build()
+                .unwrap(),
+        )
+        .crypto_provider(crypto_provider);
+
+    // (Optional) Set up TLS client authentication if required by the server.
+    prover_config_builder.tls_config(
+        TlsConfig::builder()
+            .client_auth_pem((vec![CLIENT_CERT.to_vec()], CLIENT_KEY.to_vec()))
+            .unwrap()
+            .build()
+            .unwrap(),
+    );
+
+    let prover_config = prover_config_builder.build().unwrap();
+
     // Create prover and connect to verifier.
     //
     // Perform the setup phase with the verifier.
-    let prover = Prover::new(
-        ProverConfig::builder()
-            .server_name(server_domain)
-            .protocol_config(
-                ProtocolConfig::builder()
-                    .max_sent_data(MAX_SENT_DATA)
-                    .max_recv_data(MAX_RECV_DATA)
-                    .build()
-                    .unwrap(),
-            )
-            .crypto_provider(crypto_provider)
-            .build()
-            .unwrap(),
-    )
-    .setup(verifier_socket.compat())
-    .await
-    .unwrap();
+    let prover = Prover::new(prover_config)
+        .setup(verifier_socket.compat())
+        .await
+        .unwrap();
 
     // Connect to TLS Server.
     let tls_client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();

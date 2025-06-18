@@ -68,7 +68,8 @@ impl BenchItems {
 pub struct BenchGroupItem {
     pub name: String,
     pub samples: Option<usize>,
-    pub latency: Option<usize>,
+    pub protocol_latency: Option<usize>,
+    pub app_latency: Option<usize>,
     pub bandwidth: Option<usize>,
     #[serde(rename = "upload-size")]
     pub upload_size: Option<usize>,
@@ -105,7 +106,11 @@ impl BenchItem {
         }
 
         if self.protocol_latency.is_none() {
-            self.protocol_latency = group.latency;
+            self.protocol_latency = group.protocol_latency;
+        }
+
+        if self.app_latency.is_none() {
+            self.app_latency = group.app_latency;
         }
 
         if self.bandwidth.is_none() {

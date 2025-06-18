@@ -6,29 +6,29 @@ bandwidth = 1000
 
 [[bench]]
 group = "latency"
-latency = 10
+protocol_latency = 10
 
 [[bench]]
 group = "latency"
-latency = 25
+protocol_latency = 25
 
 [[bench]]
 group = "latency"
-latency = 50
+protocol_latency = 50
 
 [[bench]]
 group = "latency"
-latency = 100
+protocol_latency = 100
 
 [[bench]]
 group = "latency"
-latency = 200
+protocol_latency = 200
 
 #### Bandwidth ####
 
 [[group]]
 name = "bandwidth"
-latency = 25
+protocol_latency = 25
 
 [[bench]]
 group = "bandwidth"
