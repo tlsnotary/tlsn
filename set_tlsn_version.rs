@@ -13,13 +13,18 @@ toml_edit = "0.22.22"
 walkdir = "2.5.0"
 ---
 
+// On some systems the above shebang should look like
+// #!/usr/bin/env -S cargo +nightly -Zscript
+
 // This scripts sets the TLSNotary version in all relevant files. Run it with:
 // ./set_tlsn_version <version>
 
 use clap::Parser;
 use serde_yaml::Value;
-use std::fs::{self, read_to_string};
-use std::path::Path;
+use std::{
+    fs::{self, read_to_string},
+    path::Path,
+};
 use toml_edit::{value, DocumentMut};
 use walkdir::WalkDir;
 
