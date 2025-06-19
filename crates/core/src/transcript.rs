@@ -18,6 +18,7 @@
 //! always learns the length of the transcript, but sensitive data can be
 //! withheld.
 
+pub mod ciphertext;
 mod commit;
 pub mod encoding;
 pub mod hash;
