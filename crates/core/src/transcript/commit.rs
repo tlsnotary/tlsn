@@ -35,6 +35,7 @@ pub enum TranscriptCommitmentKind {
         /// The hash algorithm used.
         alg: HashAlgId,
     },
+    /// A commitment to the ciphertext of the transcript.
     Ciphertext,
 }
 
@@ -80,6 +81,7 @@ pub struct TranscriptCommitConfig {
     encoding_hash_alg: HashAlgId,
     has_encoding: bool,
     has_hash: bool,
+    has_ciphertext: bool,
     commits: Vec<((Direction, Idx), TranscriptCommitmentKind)>,
 }
 
@@ -102,6 +104,11 @@ impl TranscriptCommitConfig {
     /// Returns `true` if the configuration has any hash commitments.
     pub fn has_hash(&self) -> bool {
         self.has_hash
+    }
+
+    /// Returns `true` if the configuration has any ciphertext commitments.
+    pub fn has_ciphertext(&self) -> bool {
+        self.has_ciphertext
     }
 
     /// Returns an iterator over the encoding commitment indices.
@@ -142,6 +149,7 @@ pub struct TranscriptCommitConfigBuilder<'a> {
     encoding_hash_alg: HashAlgId,
     has_encoding: bool,
     has_hash: bool,
+    has_ciphertext: bool,
     default_kind: TranscriptCommitmentKind,
     commits: HashSet<((Direction, Idx), TranscriptCommitmentKind)>,
 }
@@ -154,6 +162,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
             encoding_hash_alg: HashAlgId::BLAKE3,
             has_encoding: false,
             has_hash: false,
+            has_ciphertext: false,
             default_kind: TranscriptCommitmentKind::Encoding,
             commits: HashSet::default(),
         }
@@ -201,6 +210,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         match kind {
             TranscriptCommitmentKind::Encoding => self.has_encoding = true,
             TranscriptCommitmentKind::Hash { .. } => self.has_hash = true,
+            TranscriptCommitmentKind::Ciphertext => self.has_ciphertext = true,
         }
 
         self.commits.insert(((direction, idx), kind));
@@ -252,6 +262,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
             encoding_hash_alg: self.encoding_hash_alg,
             has_encoding: self.has_encoding,
             has_hash: self.has_hash,
+            has_ciphertext: self.has_ciphertext,
             commits: Vec::from_iter(self.commits),
         })
     }
