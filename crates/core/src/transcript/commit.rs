@@ -310,6 +310,7 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptCommitRequest {
     encoding: bool,
+    ciphertext: bool,
     hash: Vec<(Direction, Idx, HashAlgId)>,
 }
 
@@ -317,6 +318,11 @@ impl TranscriptCommitRequest {
     /// Returns `true` if an encoding commitment is requested.
     pub fn encoding(&self) -> bool {
         self.encoding
+    }
+
+    /// Returns `true` if a ciphertext commitment is requested.
+    pub fn ciphertext(&self) -> bool {
+        self.ciphertext
     }
 
     /// Returns `true` if a hash commitment is requested.
