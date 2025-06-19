@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hash::{impl_domain_separator, HashAlgId},
     transcript::{
+        ciphertext::Ciphertext,
         encoding::{EncodingCommitment, EncodingTree},
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, Idx, Transcript,
@@ -34,6 +35,7 @@ pub enum TranscriptCommitmentKind {
         /// The hash algorithm used.
         alg: HashAlgId,
     },
+    Ciphertext,
 }
 
 impl fmt::Display for TranscriptCommitmentKind {
@@ -41,6 +43,7 @@ impl fmt::Display for TranscriptCommitmentKind {
         match self {
             Self::Encoding => f.write_str("encoding"),
             Self::Hash { alg } => write!(f, "hash ({alg})"),
+            Self::Ciphertext => write!(f, "ciphertext"),
         }
     }
 }
@@ -53,6 +56,8 @@ pub enum TranscriptCommitment {
     Encoding(EncodingCommitment),
     /// Plaintext hash commitment.
     Hash(PlaintextHash),
+    /// Commitment to the ciphertext.
+    Ciphertext(Ciphertext),
 }
 
 impl_domain_separator!(TranscriptCommitment);
