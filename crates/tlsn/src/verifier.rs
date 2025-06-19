@@ -447,6 +447,11 @@ impl Verifier<state::Committed> {
                         .map_err(VerifierError::verify)?,
                 );
             }
+
+            // TODO: Implement verifier part for ciphertext commitments
+            if commit_config.ciphertext() {
+                todo!();
+            }
         }
 
         mux_fut
