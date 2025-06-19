@@ -22,6 +22,7 @@ tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
+tlsn-cipher = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
@@ -30,6 +31,7 @@ mpz-common = { workspace = true }
 mpz-core = { workspace = true }
 mpz-garble = { workspace = true }
 mpz-garble-core = { workspace = true }
+mpz-hash = { workspace = true }
 mpz-memory-core = { workspace = true }
 mpz-ole = { workspace = true }
 mpz-ot = { workspace = true }
@@ -44,3 +46,11 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
+serde = { workspace = true, features = ["derive"] }
+ghash = { workspace = true }
+semver = { workspace = true, features = ["serde"] }
+once_cell = { workspace = true }
+rangeset = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }

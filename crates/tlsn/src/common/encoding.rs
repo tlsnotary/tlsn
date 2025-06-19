@@ -4,25 +4,25 @@ use std::ops::Range;
 
 use mpz_common::Context;
 use mpz_memory_core::{
+    Vector,
     binary::U8,
     correlated::{Delta, Key, Mac},
-    Vector,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serio::{stream::IoStreamExt, SinkExt};
+use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     hash::HashAlgorithm,
     transcript::{
-        encoding::{
-            new_encoder, Encoder, EncoderSecret, EncodingCommitment, EncodingProvider,
-            EncodingProviderError, EncodingTree, EncodingTreeError,
-        },
         Direction, Idx,
+        encoding::{
+            Encoder, EncoderSecret, EncodingCommitment, EncodingProvider, EncodingProviderError,
+            EncodingTree, EncodingTreeError, new_encoder,
+        },
     },
 };
 
-use crate::transcript::TranscriptRefs;
+use crate::common::transcript::TranscriptRefs;
 
 /// Bytes of encoding, per byte.
 const ENCODING_SIZE: usize = 128;

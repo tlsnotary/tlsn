@@ -2,7 +2,7 @@
 
 use mpz_common::context::Multithread;
 
-use crate::mux::MuxControl;
+use crate::common::mux::MuxControl;
 
 /// Maximum concurrency for multi-threaded context.
 pub const MAX_CONCURRENCY: usize = 8;

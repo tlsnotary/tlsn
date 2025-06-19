@@ -5,19 +5,19 @@ use std::collections::HashMap;
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     DecodeFutureTyped, MemoryExt, Vector,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Vm, VmError};
+use mpz_vm_core::{Vm, VmError, prelude::*};
 use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
-        hash::{PlaintextHash, PlaintextHashSecret},
         Direction, Idx,
+        hash::{PlaintextHash, PlaintextHashSecret},
     },
 };
 
-use crate::{transcript::TranscriptRefs, Role};
+use crate::common::{Role, transcript::TranscriptRefs};
 
 /// Future which will resolve to the committed hash values.
 #[derive(Debug)]

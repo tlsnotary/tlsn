@@ -5721,6 +5721,9 @@ name = "semver"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "semver-parser"
@@ -6378,19 +6381,27 @@ version = "0.1.0-alpha.12-pre"
 dependencies = [
  "derive_builder 0.12.0",
  "futures",
+ "ghash 0.5.1",
  "mpz-common",
  "mpz-core",
  "mpz-garble",
  "mpz-garble-core",
+ "mpz-hash",
  "mpz-memory-core",
  "mpz-ole",
  "mpz-ot",
  "mpz-vm-core",
  "mpz-zk",
+ "once_cell",
  "opaque-debug",
  "rand 0.9.1",
+ "rangeset",
+ "rstest",
+ "semver 1.0.26",
+ "serde",
  "serio",
  "thiserror 1.0.69",
+ "tlsn-cipher",
  "tlsn-core",
  "tlsn-deap",
  "tlsn-mpc-tls",
@@ -6675,6 +6686,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tls-server-fixture",
  "tlsn-cipher",
+ "tlsn-core",
  "tlsn-hmac-sha256",
  "tlsn-key-exchange",
  "tlsn-tls-backend",

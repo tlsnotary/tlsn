@@ -1,9 +1,3 @@
-//! Common code shared between `tlsn-prover` and `tlsn-verifier`.
-
-#![deny(missing_docs, unreachable_pub, unused_must_use)]
-#![deny(clippy::all)]
-#![forbid(unsafe_code)]
-
 pub mod commit;
 pub mod config;
 pub mod context;

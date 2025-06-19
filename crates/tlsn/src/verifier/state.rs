@@ -5,7 +5,7 @@ use std::sync::Arc;
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_memory_core::correlated::Delta;
-use tlsn_common::{
+use crate::common::{
     mux::{MuxControl, MuxFuture},
     transcript::TranscriptRefs,
     zk_aes_ctr::ZkAesCtr,

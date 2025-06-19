@@ -148,6 +148,7 @@ rstest = { version = "0.17" }
 rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0" }
 sct = { version = "0.7" }
+semver = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 sha2 = { version = "0.10" }

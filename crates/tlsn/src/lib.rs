@@ -8,5 +8,4 @@ pub(crate) mod common;
 pub mod prover;
 pub mod verifier;
 
-pub use tlsn_common::config;
 pub use tlsn_core::*;

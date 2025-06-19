@@ -2,14 +2,8 @@
 
 use std::sync::Arc;
 
-use mpz_common::Context;
-
 use mpc_tls::{MpcTlsLeader, SessionKeys};
-use tlsn_common::{
-    mux::{MuxControl, MuxFuture},
-    transcript::TranscriptRefs,
-    zk_aes_ctr::ZkAesCtr,
-};
+use mpz_common::Context;
 use tlsn_core::{
     connection::{ConnectionInfo, ServerCertData},
     transcript::Transcript,
@@ -17,7 +11,14 @@ use tlsn_core::{
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use crate::prover::{Mpc, Zk};
+use crate::{
+    common::{
+        mux::{MuxControl, MuxFuture},
+        transcript::TranscriptRefs,
+        zk_aes_ctr::ZkAesCtr,
+    },
+    prover::{Mpc, Zk},
+};
 
 /// Entry state
 pub struct Initialized;

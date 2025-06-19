@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use crate::common::config::{NetworkSetting, ProtocolConfig};
 use mpc_tls::Config;
-use tlsn_common::config::{NetworkSetting, ProtocolConfig};
-use tlsn_core::{connection::ServerName, CryptoProvider};
+use tlsn_core::{CryptoProvider, connection::ServerName};
 
 /// Configuration for the prover
 #[derive(Debug, Clone, derive_builder::Builder)]

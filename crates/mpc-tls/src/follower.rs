@@ -1,7 +1,7 @@
 use crate::{
     msg::Message,
     record_layer::{aead::MpcAesGcm, RecordLayer},
-    Config, FollowerData, MpcTlsError, Role, SessionKeys, Vm,
+    Config, MpcTlsError, Role, SessionKeys, Vm,
 };
 use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
@@ -26,7 +26,7 @@ use tls_core::msgs::{
     enums::{AlertDescription, ContentType, NamedGroup, ProtocolVersion},
     handshake::{HandshakeMessagePayload, HandshakePayload},
 };
-use tlsn_common::transcript::TlsTranscript;
+use tlsn_core::transcript::TlsTranscript;
 use tracing::{debug, instrument};
 
 /// MPC-TLS follower.
@@ -216,7 +216,7 @@ impl MpcTlsFollower {
 
     /// Runs the follower.
     #[instrument(skip_all, err)]
-    pub async fn run(mut self) -> Result<(Context, FollowerData), MpcTlsError> {
+    pub async fn run(mut self) -> Result<(Context, TlsTranscript), MpcTlsError> {
         let State::Ready {
             vm,
             keys,
@@ -378,7 +378,7 @@ impl MpcTlsFollower {
 
         debug!("committing");
 
-        let transcript = record_layer.commit(&mut self.ctx, vm).await?;
+        let (sent_records, recv_records) = record_layer.commit(&mut self.ctx, vm).await?;
 
         debug!("committed");
 
@@ -386,16 +386,11 @@ impl MpcTlsFollower {
         let cf_vd = cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
         let sf_vd = sf_vd.ok_or(MpcTlsError::hs("server finished VD not computed"))?;
 
-        validate_transcript(cf_vd, sf_vd, &transcript)?;
+        //validate_transcript(cf_vd, sf_vd, &transcript)?;
 
-        Ok((
-            self.ctx,
-            FollowerData {
-                server_key,
-                transcript,
-                keys,
-            },
-        ))
+        let transcript = todo!();
+
+        Ok((self.ctx, transcript))
     }
 }
 
@@ -449,8 +444,8 @@ fn validate_transcript(
     sf_vd: [u8; 12],
     transcript: &TlsTranscript,
 ) -> Result<(), MpcTlsError> {
-    let mut sent = transcript.sent.iter();
-    let mut recv = transcript.recv.iter();
+    let mut sent = transcript.sent().iter();
+    let mut recv = transcript.recv().iter();
 
     // Make sure the client finished verify data message was consistent.
     if let Some(record) = sent.next() {

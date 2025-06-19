@@ -22,9 +22,10 @@ use crate::common::{
     encoding,
     mux::attach_mux,
     tag::verify_tags,
-    transcript::{Record, TlsTranscript, decode_transcript},
+    transcript::decode_transcript,
     zk_aes_ctr::ZkAesCtr,
 };
+
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
@@ -206,7 +207,7 @@ impl Prover<state::Setup> {
 
                 info!("starting MPC-TLS");
 
-                let (_, (mut ctx, mut data, ..)) = futures::try_join!(
+                let (_, (mut ctx, transcript)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
@@ -215,8 +216,6 @@ impl Prover<state::Setup> {
 
                 {
                     let mut vm = vm.try_lock().expect("VM should not be locked");
-
-                    translate_transcript(&mut data.transcript, &vm)?;
 
                     debug!("finalizing mpc");
 
@@ -239,9 +238,9 @@ impl Prover<state::Setup> {
                 // The prover drops the proof output.
                 let _ = verify_tags(
                     &mut vm,
-                    (data.keys.server_write_key, data.keys.server_write_iv),
-                    data.keys.server_write_mac_key,
-                    data.transcript.recv.clone(),
+                    (keys.server_write_key, keys.server_write_iv),
+                    keys.server_write_mac_key,
+                    transcript.recv().to_vec(),
                 )
                 .map_err(ProverError::zk)?;
 
@@ -250,8 +249,8 @@ impl Prover<state::Setup> {
                 _ = commit_records(
                     &mut vm,
                     &mut zk_aes_ctr,
-                    data.transcript
-                        .recv
+                    transcript
+                        .recv()
                         .iter_mut()
                         .filter(|record| record.typ == ContentType::ApplicationData),
                 )

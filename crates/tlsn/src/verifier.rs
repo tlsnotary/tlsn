@@ -22,7 +22,7 @@ use crate::common::{
     zk_aes_ctr::ZkAesCtr,
 };
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
+use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
@@ -219,15 +219,7 @@ impl Verifier<state::Setup> {
 
         info!("starting MPC-TLS");
 
-        let (
-            mut ctx,
-            FollowerData {
-                server_key,
-                mut transcript,
-                keys,
-                ..
-            },
-        ) = mux_fut.poll_with(mpc_tls.run()).await?;
+        let (mut ctx, mut transcript) = mux_fut.poll_with(mpc_tls.run()).await?;
 
         info!("finished MPC-TLS");
 

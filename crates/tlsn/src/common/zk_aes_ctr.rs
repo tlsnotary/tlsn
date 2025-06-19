@@ -1,16 +1,16 @@
 //! Zero-knowledge AES-CTR encryption.
 
 use cipher::{
-    aes::{Aes128, AesError},
     Cipher, CipherError, Keystream,
+    aes::{Aes128, AesError},
 };
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Array, Vector,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_vm_core::{Vm, prelude::*};
 
-use crate::Role;
+use crate::common::Role;
 
 type Nonce = Array<U8, 8>;
 type Ctr = Array<U8, 4>;

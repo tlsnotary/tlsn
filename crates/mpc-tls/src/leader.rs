@@ -8,7 +8,7 @@ use crate::{
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
-    Config, LeaderOutput, Role, SessionKeys, Vm,
+    Config, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
 use hmac_sha256::{MpcPrf, PrfOutput};
@@ -42,6 +42,7 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
+use tlsn_core::{connection::TlsVersion, transcript::TlsTranscript};
 use tracing::{debug, instrument, trace, warn};
 
 /// Controller for MPC-TLS leader.
@@ -297,7 +298,7 @@ impl MpcTlsLeader {
 
         debug!("committing to transcript");
 
-        let transcript = record_layer.commit(&mut ctx, vm.clone()).await?;
+        let (sent_records, recv_records) = record_layer.commit(&mut ctx, vm.clone()).await?;
 
         debug!("committed to transcript");
 
@@ -306,21 +307,13 @@ impl MpcTlsLeader {
             self.notifier.set();
         }
 
+        let transcript = todo!();
+
         self.state = State::Closed {
             ctx,
             vm,
             record_layer,
-            data: LeaderOutput {
-                protocol_version,
-                cipher_suite,
-                server_key,
-                server_cert_details,
-                server_kx_details,
-                client_random,
-                server_random,
-                transcript,
-                keys,
-            },
+            transcript,
         };
 
         Ok(())
@@ -1029,7 +1022,7 @@ enum State {
         ctx: Context,
         vm: Vm,
         record_layer: RecordLayer,
-        data: LeaderOutput,
+        transcript: TlsTranscript,
     },
     Error,
 }

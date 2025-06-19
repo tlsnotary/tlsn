@@ -3,13 +3,13 @@
 use std::future::IntoFuture;
 
 use futures::{
-    future::{FusedFuture, FutureExt},
     AsyncRead, AsyncWrite, Future,
+    future::{FusedFuture, FutureExt},
 };
 use tracing::error;
 use uid_mux::yamux;
 
-use crate::Role;
+use crate::common::Role;
 
 /// Multiplexer supporting unique deterministic stream IDs.
 pub type Mux<Io> = yamux::Yamux<Io>;

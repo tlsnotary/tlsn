@@ -3,13 +3,13 @@
 pub mod hash;
 
 use mpz_core::bitvec::BitVec;
-use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_memory_core::{DecodeFutureTyped, binary::Binary};
+use mpz_vm_core::{Vm, prelude::*};
+use tlsn_core::transcript::Record;
 
-use crate::{
-    transcript::Record,
-    zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
+use crate::common::{
     Role,
+    zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
 };
 
 /// Commits the plaintext of the provided records, returning a proof of
@@ -19,19 +19,13 @@ use crate::{
 pub fn commit_records<'record>(
     vm: &mut dyn Vm<Binary>,
     aes: &mut ZkAesCtr,
-    records: impl IntoIterator<Item = &'record mut Record>,
+    records: impl IntoIterator<Item = &'record Record>,
 ) -> Result<RecordProof, RecordProofError> {
     let mut ciphertexts = Vec::new();
     for record in records {
-        if record.plaintext_ref.is_some() {
-            return Err(ErrorRepr::PlaintextRefAlreadySet.into());
-        }
-
         let (plaintext_ref, ciphertext_ref) = aes
             .encrypt(vm, record.explicit_nonce.clone(), record.ciphertext.len())
             .map_err(ErrorRepr::Aes)?;
-
-        record.plaintext_ref = Some(plaintext_ref);
 
         if let Role::Prover = aes.role() {
             let Some(plaintext) = record.plaintext.clone() else {
