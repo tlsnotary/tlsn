@@ -5,7 +5,7 @@ description = "TLSNotary MPC-TLS protocol"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.12-pre"
+version = "0.1.0-alpha.12"
 edition = "2021"
 
 [lints]
