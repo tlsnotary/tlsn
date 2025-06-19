@@ -8,6 +8,7 @@ use crate::{
     connection::TranscriptLength,
     hash::HashAlgId,
     transcript::{
+        ciphertext::PlaintextProof,
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
@@ -32,6 +33,7 @@ pub struct TranscriptProof {
     transcript: PartialTranscript,
     encoding_proof: Option<EncodingProof>,
     hash_secrets: Vec<PlaintextHashSecret>,
+    plaintext_proof: Option<PlaintextProof>,
 }
 
 opaque_debug::implement!(TranscriptProof);
@@ -53,6 +55,8 @@ impl TranscriptProof {
     ) -> Result<PartialTranscript, TranscriptProofError> {
         let mut encoding_commitment = None;
         let mut hash_commitments = HashSet::new();
+        let mut ciphertext_commitment = None;
+
         // Index commitments.
         for commitment in commitments {
             match commitment {
@@ -66,6 +70,14 @@ impl TranscriptProof {
                 }
                 TranscriptCommitment::Hash(plaintext_hash) => {
                     hash_commitments.insert(plaintext_hash);
+                }
+                TranscriptCommitment::Ciphertext(commitment) => {
+                    if ciphertext_commitment.replace(commitment).is_some() {
+                        return Err(TranscriptProofError::new(
+                            ErrorKind::Ciphertext,
+                            "multiple ciphertext commitments are present.",
+                        ));
+                    }
                 }
             }
         }
@@ -150,6 +162,11 @@ impl TranscriptProof {
             auth.union_mut(&expected.idx);
         }
 
+        // TODO: add logic for verifier plaintext proof
+        if let Some(proof) = self.plaintext_proof {
+            todo!();
+        }
+
         // Assert that all the authenticated data are covered by the proof.
         if &total_auth_sent != self.transcript.sent_authed()
             || &total_auth_recv != self.transcript.received_authed()
@@ -187,6 +204,7 @@ impl TranscriptProofError {
 enum ErrorKind {
     Encoding,
     Hash,
+    Ciphertext,
     Proof,
 }
 
@@ -197,6 +215,7 @@ impl fmt::Display for TranscriptProofError {
         match self.kind {
             ErrorKind::Encoding => f.write_str("encoding error")?,
             ErrorKind::Hash => f.write_str("hash error")?,
+            ErrorKind::Ciphertext => f.write_str("ciphertext error")?,
             ErrorKind::Proof => f.write_str("proof error")?,
         }
 
@@ -388,6 +407,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                 .to_partial(self.query_idx.sent.clone(), self.query_idx.recv.clone()),
             encoding_proof: None,
             hash_secrets: Vec::new(),
+            plaintext_proof: None,
         };
         let mut uncovered_query_idx = self.query_idx.clone();
         let mut commitment_kinds_iter = self.commitment_kinds.iter();
