@@ -19,6 +19,7 @@ use crate::{
 /// Default commitment kinds in order of preference for building transcript
 /// proofs.
 const DEFAULT_COMMITMENT_KINDS: &[TranscriptCommitmentKind] = &[
+    TranscriptCommitmentKind::Ciphertext,
     TranscriptCommitmentKind::Hash {
         alg: HashAlgId::SHA256,
     },
