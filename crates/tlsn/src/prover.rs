@@ -429,6 +429,11 @@ impl Prover<state::Committed> {
                     .map_err(ProverError::commit)?,
                 );
             }
+
+            // TODO: add proving part for ciphertexts here
+            if commit_config.has_ciphertext() {
+                todo!()
+            }
         }
 
         mux_fut
