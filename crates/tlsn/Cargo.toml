@@ -44,7 +44,6 @@ opaque-debug = { workspace = true }
 rand = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-web-time = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 serde = { workspace = true, features = ["derive"] }
 ghash = { workspace = true }

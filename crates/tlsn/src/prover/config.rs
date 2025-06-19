@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::common::config::{NetworkSetting, ProtocolConfig};
+use crate::config::{NetworkSetting, ProtocolConfig};
 use mpc_tls::Config;
 use tlsn_core::{CryptoProvider, connection::ServerName};
 

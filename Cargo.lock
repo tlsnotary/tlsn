@@ -6411,7 +6411,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uid-mux",
- "web-time 0.2.4",
 ]
 
 [[package]]

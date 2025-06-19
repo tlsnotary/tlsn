@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::common::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
+use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use mpc_tls::Config;
 use tlsn_core::CryptoProvider;
 

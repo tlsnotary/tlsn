@@ -1,6 +1,6 @@
 //! TLS record tag verification.
 
-use crate::common::ghash::ghash;
+use crate::ghash::ghash;
 
 use cipher::{Cipher, aes::Aes128};
 use mpz_core::bitvec::BitVec;
@@ -23,7 +23,7 @@ use tlsn_core::{connection::TlsVersion, transcript::Record};
 /// * `mac_key` - MAC key.
 /// * `tls_version` - TLS protocol version.
 /// * `records` - Records for which the verification is to be proven.
-pub fn verify_tags(
+pub(crate) fn verify_tags(
     vm: &mut dyn Vm<Binary>,
     key_iv: (Array<U8, 16>, Array<U8, 4>),
     mac_key: Array<U8, 16>,
@@ -77,7 +77,7 @@ pub fn verify_tags(
 /// Proof of tag verification.
 #[derive(Debug)]
 #[must_use]
-pub struct TagProof {
+pub(crate) struct TagProof {
     tls_version: TlsVersion,
     /// The j0 block for each record.
     j0s: Vec<DecodeFutureTyped<BitVec, [u8; 16]>>,
@@ -88,7 +88,7 @@ pub struct TagProof {
 
 impl TagProof {
     /// Verifies the proof.
-    pub fn verify(self) -> Result<(), TagProofError> {
+    pub(crate) fn verify(self) -> Result<(), TagProofError> {
         let Self {
             tls_version,
             j0s,
@@ -143,7 +143,7 @@ impl TagProof {
 /// Error for [`J0Proof`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct TagProofError(#[from] ErrorRepr);
+pub(crate) struct TagProofError(#[from] ErrorRepr);
 
 impl TagProofError {
     fn vm<E>(err: E) -> Self

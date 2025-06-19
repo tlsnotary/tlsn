@@ -22,7 +22,7 @@ use tlsn_core::{
     },
 };
 
-use crate::common::transcript::TranscriptRefs;
+use crate::commit::transcript::TranscriptRefs;
 
 /// Bytes of encoding, per byte.
 const ENCODING_SIZE: usize = 128;
@@ -36,7 +36,7 @@ struct Encodings {
 /// Transfers the encodings using the provided seed and keys.
 ///
 /// The keys must be consistent with the global delta used in the encodings.
-pub async fn transfer<'a>(
+pub(crate) async fn transfer<'a>(
     ctx: &mut Context,
     refs: &TranscriptRefs,
     delta: &Delta,
@@ -107,7 +107,7 @@ pub async fn transfer<'a>(
 /// Receives the encodings using the provided MACs.
 ///
 /// The MACs must be consistent with the global delta used in the encodings.
-pub async fn receive<'a>(
+pub(crate) async fn receive<'a>(
     ctx: &mut Context,
     hasher: &(dyn HashAlgorithm + Send + Sync),
     refs: &TranscriptRefs,

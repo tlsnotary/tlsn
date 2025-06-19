@@ -17,11 +17,12 @@ use tlsn_core::{
     },
 };
 
-use crate::common::{Role, transcript::TranscriptRefs};
+use crate::{Role, commit::transcript::TranscriptRefs};
 
 /// Future which will resolve to the committed hash values.
 #[derive(Debug)]
-pub struct HashCommitFuture {
+
+pub(crate) struct HashCommitFuture {
     #[allow(clippy::type_complexity)]
     futs: Vec<(
         Direction,
@@ -34,7 +35,7 @@ pub struct HashCommitFuture {
 impl HashCommitFuture {
     /// Tries to receive the value, returning an error if the value is not
     /// ready.
-    pub fn try_recv(self) -> Result<Vec<PlaintextHash>, HashCommitError> {
+    pub(crate) fn try_recv(self) -> Result<Vec<PlaintextHash>, HashCommitError> {
         let mut output = Vec::new();
         for (direction, idx, alg, mut fut) in self.futs {
             let hash = fut
@@ -56,7 +57,8 @@ impl HashCommitFuture {
 }
 
 /// Prove plaintext hash commitments.
-pub fn prove_hash(
+
+pub(crate) fn prove_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
     idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
@@ -86,7 +88,8 @@ pub fn prove_hash(
 }
 
 /// Verify plaintext hash commitments.
-pub fn verify_hash(
+
+pub(crate) fn verify_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
     idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
@@ -152,7 +155,7 @@ fn hash_commit_inner(
 /// Error type for hash commitments.
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct HashCommitError(#[from] ErrorRepr);
+pub(crate) struct HashCommitError(#[from] ErrorRepr);
 
 impl HashCommitError {
     fn decode() -> Self {

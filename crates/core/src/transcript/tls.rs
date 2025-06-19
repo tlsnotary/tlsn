@@ -2,8 +2,8 @@
 
 use crate::{
     connection::{
-        Certificate, ConnectionInfo, HandshakeData, ServerCertData, ServerSignature, TlsVersion,
-        VerifyData,
+        Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerCertData,
+        ServerEphemKey, ServerSignature, TlsVersion, VerifyData,
     },
     transcript::{Direction, Transcript},
 };
@@ -55,6 +55,16 @@ impl TlsTranscript {
     /// Returns the server signature.
     pub fn server_signature(&self) -> Option<&ServerSignature> {
         self.server_signature.as_ref()
+    }
+
+    /// Returns the server ephemeral key used in the TLS handshake.
+    pub fn server_ephemeral_key(&self) -> &ServerEphemKey {
+        match &self.handshake_data {
+            HandshakeData::V1_2(HandshakeDataV1_2 {
+                server_ephemeral_key,
+                ..
+            }) => server_ephemeral_key,
+        }
     }
 
     /// Returns the handshake data.

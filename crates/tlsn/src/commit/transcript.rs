@@ -8,25 +8,29 @@ use tlsn_core::transcript::{Direction, Idx, PartialTranscript};
 
 /// References to the application plaintext in the transcript.
 #[derive(Debug, Default, Clone)]
-pub struct TranscriptRefs {
+pub(crate) struct TranscriptRefs {
     sent: Vec<Vector<U8>>,
     recv: Vec<Vector<U8>>,
 }
 
 impl TranscriptRefs {
+    pub(crate) fn new(sent: Vec<Vector<U8>>, recv: Vec<Vector<U8>>) -> Self {
+        Self { sent, recv }
+    }
+
     /// Returns the sent plaintext references.
-    pub fn sent(&self) -> &[Vector<U8>] {
+    pub(crate) fn sent(&self) -> &[Vector<U8>] {
         &self.sent
     }
 
     /// Returns the received plaintext references.
-    pub fn recv(&self) -> &[Vector<U8>] {
+    pub(crate) fn recv(&self) -> &[Vector<U8>] {
         &self.recv
     }
 
     /// Returns VM references for the given direction and index, otherwise
     /// `None` if the index is out of bounds.
-    pub fn get(&self, direction: Direction, idx: &Idx) -> Option<Vec<Vector<U8>>> {
+    pub(crate) fn get(&self, direction: Direction, idx: &Idx) -> Option<Vec<Vector<U8>>> {
         if idx.is_empty() {
             return Some(Vec::new());
         }
@@ -69,7 +73,8 @@ impl TranscriptRefs {
 }
 
 /// Decodes the transcript.
-pub fn decode_transcript(
+
+pub(crate) fn decode_transcript(
     vm: &mut dyn Vm<Binary>,
     sent: &Idx,
     recv: &Idx,
@@ -89,7 +94,8 @@ pub fn decode_transcript(
 }
 
 /// Verifies a partial transcript.
-pub fn verify_transcript(
+
+pub(crate) fn verify_transcript(
     vm: &mut dyn Vm<Binary>,
     transcript: &PartialTranscript,
     refs: &TranscriptRefs,
@@ -129,7 +135,7 @@ pub fn verify_transcript(
 /// Error for [`verify_transcript`].
 #[derive(Debug, thiserror::Error)]
 #[error("inconsistent transcript")]
-pub struct InconsistentTranscript {}
+pub(crate) struct InconsistentTranscript {}
 
 #[cfg(test)]
 mod tests {
