@@ -70,7 +70,7 @@ async fn run_ws_prover(verifier_host: &str, verifier_port: u16, plugin_name: &st
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: ClientType::Websocket,
-        plugin_name: plugin_name.to_string(),
+        plugin: plugin_name.to_string(),
         max_sent_data: Some(tlsn_examples::MAX_SENT_DATA),
         max_recv_data: Some(tlsn_examples::MAX_RECV_DATA),
     })
@@ -141,7 +141,7 @@ async fn run_tcp_prover(verifier_host: &str, verifier_port: u16, plugin_name: &s
         // performance.
         .max_sent_data(tlsn_examples::MAX_SENT_DATA)
         .max_recv_data(tlsn_examples::MAX_RECV_DATA)
-        .plugin_name(plugin_name.to_string())
+        .plugin(plugin_name.to_string())
         .build()
         .unwrap();
 

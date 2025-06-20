@@ -8,7 +8,10 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "tee_quote")]
 use crate::tee::Quote;
-use crate::{auth::AuthorizationMode, config::{NotarizationProperties, PluginProperties}};
+use crate::{
+    auth::AuthorizationMode,
+    config::{NotarizationProperties, PluginProperties},
+};
 
 /// Response object of the /info API
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,7 +24,7 @@ pub struct InfoResponse {
     /// Current git commit hash of notary-server
     pub git_commit_hash: String,
     /// List of plugins that are loaded
-    pub plugin_names: Vec<String>,
+    pub plugins: Vec<String>,
     /// Hardware attestation
     #[cfg(feature = "tee_quote")]
     pub quote: Quote,

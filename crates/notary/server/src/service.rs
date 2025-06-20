@@ -92,14 +92,10 @@ pub async fn upgrade_protocol(
     let session_id = params.session_id;
     // Check if session_id exists in the store, this also removes session_id from
     // the store as each session_id can only be used once
-    let Some(plugin_name) = notary_globals
-        .store
-        .lock()
-        .unwrap()
-        .remove(&session_id) else {
-            let err_msg = format!("Session id {} does not exist", session_id);
-            error!(err_msg);
-            return NotaryServerError::BadProverRequest(err_msg).into_response();
+    let Some(plugin_name) = notary_globals.store.lock().unwrap().remove(&session_id) else {
+        let err_msg = format!("Session id {} does not exist", session_id);
+        error!(err_msg);
+        return NotaryServerError::BadProverRequest(err_msg).into_response();
     };
     // This completes the HTTP Upgrade request and returns a successful response to
     // the client, meanwhile initiating the websocket or tcp connection
@@ -136,12 +132,12 @@ pub async fn initialize(
         }
     };
 
-    let plugin_name = payload.plugin_name.clone();
+    let plugin_name = payload.plugin.clone();
 
     if !notary_globals.plugin_names.contains(&plugin_name) {
         error!(
             "Plugin {} is not supported by the notary server",
-            payload.plugin_name
+            payload.plugin
         );
         return NotaryServerError::BadProverRequest(
             "Plugin is not supported by the notary server".to_string(),

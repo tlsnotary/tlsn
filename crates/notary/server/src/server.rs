@@ -28,7 +28,14 @@ use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
 
 use crate::{
-    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode}, config::{NotarizationProperties, NotaryServerProperties}, error::NotaryServerError, middleware::AuthorizationMiddleware, plugin::get_plugin_names, service::{initialize, upgrade_protocol}, signing::AttestationKey, types::{InfoResponse, NotaryGlobals}
+    auth::{load_authorization_mode, watch_and_reload_authorization_whitelist, AuthorizationMode},
+    config::{NotarizationProperties, NotaryServerProperties},
+    error::NotaryServerError,
+    middleware::AuthorizationMiddleware,
+    plugin::get_plugin_names,
+    service::{initialize, upgrade_protocol},
+    signing::AttestationKey,
+    types::{InfoResponse, NotaryGlobals},
 };
 
 #[cfg(feature = "tee_quote")]
@@ -150,7 +157,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                         version,
                         public_key: verifying_key_pem,
                         git_commit_hash,
-                        plugin_names,
+                        plugins: plugin_names,
                         #[cfg(feature = "tee_quote")]
                         quote: quote(verifying_key_bytes).await,
                     }),

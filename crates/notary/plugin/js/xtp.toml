@@ -8,7 +8,7 @@ name = "plugin-js"
 [scripts]
 
   # xtp plugin build runs this script to generate the wasm file
-  build = "bash prepare.sh && npm run build"
+  build = "mkdir -p ../wasm && bash prepare.sh && npm run build"
 
   # xtp plugin init runs this script to format the plugin code
   format = "npm run format"

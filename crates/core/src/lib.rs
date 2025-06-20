@@ -401,7 +401,6 @@ pub struct ProverOutput {
 opaque_debug::implement!(ProverOutput);
 
 /// Verifier output.
-#[derive(Serialize, Deserialize)]
 pub struct VerifierOutput {
     /// Server identity.
     pub server_name: Option<ServerName>,
