@@ -71,6 +71,8 @@ pub enum TranscriptSecret {
     Encoding(EncodingTree),
     /// Plaintext hash secret.
     Hash(PlaintextHashSecret),
+    /// TLS Session Keys.
+    SessionKeys(SessionKeys),
 }
 
 impl_domain_separator!(TranscriptSecret);
@@ -131,6 +133,7 @@ impl TranscriptCommitConfig {
     pub fn to_request(&self) -> TranscriptCommitRequest {
         TranscriptCommitRequest {
             encoding: self.has_encoding,
+            ciphertext: self.has_ciphertext,
             hash: self
                 .iter_hash()
                 .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg))
@@ -207,6 +210,8 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
             ));
         }
 
+        // TODO: We should restrict the ranges to full ranges only, when using Ciphertext
+        // commitments
         match kind {
             TranscriptCommitmentKind::Encoding => self.has_encoding = true,
             TranscriptCommitmentKind::Hash { .. } => self.has_hash = true,
