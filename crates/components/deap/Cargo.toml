@@ -1,6 +1,6 @@
 [package]
 name = "tlsn-deap"
-version = "0.1.0-alpha.12-pre"
+version = "0.1.0-alpha.12"
 edition = "2021"
 
 [lints]

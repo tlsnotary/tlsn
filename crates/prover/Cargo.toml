@@ -5,7 +5,7 @@ description = "Contains the prover library"
 keywords = ["tls", "mpc", "2pc", "prover"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.12-pre"
+version = "0.1.0-alpha.12"
 edition = "2021"
 
 [lints]
