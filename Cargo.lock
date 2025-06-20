@@ -6697,6 +6697,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uid-mux",
+ "web-time 0.2.4",
 ]
 
 [[package]]

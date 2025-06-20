@@ -21,7 +21,7 @@ use tls_core::{
     cipher::make_tls12_aad,
     msgs::enums::{ContentType, ProtocolVersion},
 };
-use tlsn_core::transcript::{Record, TlsTranscript};
+use tlsn_core::transcript::Record;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 

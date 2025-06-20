@@ -54,6 +54,7 @@ ctr = { workspace = true }
 ghash_rc = { package = "ghash", version = "0.5" }
 tokio = { workspace = true, features = ["sync"] }
 pin-project-lite = { workspace = true }
+web-time = { workspace = true }
 
 [dev-dependencies]
 mpz-ole = { workspace = true, features = ["test-utils"] }

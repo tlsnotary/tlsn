@@ -4,7 +4,7 @@ use crate::{
     error::MpcTlsError,
     msg::{
         ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetClientRandom,
-        SetServerKey, SetServerRandom,
+        SetServerKey, SetServerRandom, StartHandshake,
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
@@ -42,7 +42,10 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
-use tlsn_core::{connection::TlsVersion, transcript::TlsTranscript};
+use tlsn_core::{
+    connection::{Certificate, HandshakeData, HandshakeDataV1_2, ServerSignature, TlsVersion},
+    transcript::TlsTranscript,
+};
 use tracing::{debug, instrument, trace, warn};
 
 /// Controller for MPC-TLS leader.
@@ -257,6 +260,7 @@ impl MpcTlsLeader {
             record_layer,
             cf_vd,
             sf_vd,
+            time: None,
             protocol_version: None,
             cipher_suite: None,
             client_random,
@@ -275,10 +279,9 @@ impl MpcTlsLeader {
         let State::Active {
             mut ctx,
             vm,
-            keys,
             mut record_layer,
+            time,
             protocol_version,
-            cipher_suite,
             client_random,
             server_random,
             server_cert_details,
@@ -307,7 +310,46 @@ impl MpcTlsLeader {
             self.notifier.set();
         }
 
-        let transcript = todo!();
+        let version = match protocol_version {
+            ProtocolVersion::TLSv1_2 => TlsVersion::V1_2,
+            version => {
+                panic!("only TLS 1.2 should have been accepted: {:?}", version)
+            }
+        };
+
+        let server_cert_chain = server_cert_details
+            .cert_chain()
+            .iter()
+            .map(|cert| Certificate(cert.0.clone()))
+            .collect();
+
+        let server_signature = ServerSignature {
+            scheme: server_kx_details
+                .kx_sig()
+                .scheme
+                .try_into()
+                .expect("only supported signature scheme should have been accepted"),
+            sig: server_kx_details.kx_sig().sig.0.clone(),
+        };
+
+        let handshake_data = HandshakeData::V1_2(HandshakeDataV1_2 {
+            client_random: client_random.0,
+            server_random: server_random.0,
+            server_ephemeral_key: server_key
+                .try_into()
+                .expect("only supported key scheme should have been accepted"),
+        });
+
+        let transcript = TlsTranscript::new(
+            time,
+            version,
+            Some(server_cert_chain),
+            Some(server_signature),
+            handshake_data,
+            sent_records,
+            recv_records,
+        )
+        .map_err(MpcTlsError::other)?;
 
         self.state = State::Closed {
             ctx,
@@ -419,6 +461,16 @@ impl Backend for MpcTlsLeader {
                 MpcTlsError::state("must be in handshake state to set server random").into(),
             );
         };
+
+        let time = web_time::UNIX_EPOCH
+            .elapsed()
+            .expect("system time is available")
+            .as_secs();
+
+        ctx.io_mut()
+            .feed(Message::StartHandshake(StartHandshake { time }))
+            .await
+            .map_err(MpcTlsError::from)?;
 
         ctx.io_mut()
             .send(Message::SetServerRandom(SetServerRandom {
@@ -610,6 +662,7 @@ impl Backend for MpcTlsLeader {
             mut record_layer,
             cf_vd,
             sf_vd,
+            time,
             protocol_version,
             cipher_suite,
             client_random,
@@ -626,6 +679,7 @@ impl Backend for MpcTlsLeader {
 
         debug!("preparing encryption");
 
+        let time = time.ok_or_else(|| MpcTlsError::hs("time is not set"))?;
         let protocol_version =
             protocol_version.ok_or_else(|| MpcTlsError::hs("protocol version is not set"))?;
         let cipher_suite =
@@ -675,6 +729,7 @@ impl Backend for MpcTlsLeader {
             record_layer,
             cf_vd,
             sf_vd,
+            time,
             protocol_version,
             cipher_suite,
             client_random,
@@ -993,6 +1048,7 @@ enum State {
         record_layer: RecordLayer,
         cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
+        time: Option<u64>,
         protocol_version: Option<ProtocolVersion>,
         cipher_suite: Option<CipherSuite>,
         client_random: Random,
@@ -1010,6 +1066,7 @@ enum State {
         record_layer: RecordLayer,
         cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
+        time: u64,
         protocol_version: ProtocolVersion,
         cipher_suite: CipherSuite,
         client_random: Random,

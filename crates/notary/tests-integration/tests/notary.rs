@@ -17,9 +17,11 @@ use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
 use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_common::config::ProtocolConfig;
+use tlsn::{
+    config::ProtocolConfig,
+    prover::{Prover, ProverConfig},
+};
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
-use tlsn_prover::{Prover, ProverConfig};
 use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt},
     time::sleep,

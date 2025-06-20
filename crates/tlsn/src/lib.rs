@@ -5,7 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub(crate) mod commit;
-pub(crate) mod config;
+pub mod config;
 pub(crate) mod context;
 pub(crate) mod encoding;
 pub(crate) mod ghash;

@@ -2,10 +2,12 @@ use anyhow::Result;
 
 use harness_core::bench::Bench;
 use tls_core::verify::WebPkiVerifier;
-use tlsn_common::config::ProtocolConfigValidator;
+use tlsn::{
+    config::ProtocolConfigValidator,
+    verifier::{Verifier, VerifierConfig},
+};
 use tlsn_core::{CryptoProvider, VerifyConfig};
 use tlsn_server_fixture_certs::CA_CERT_DER;
-use tlsn_verifier::{Verifier, VerifierConfig};
 
 use crate::{IoProvider, bench::RECV_PADDING};
 

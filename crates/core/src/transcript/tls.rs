@@ -2,12 +2,16 @@
 
 use crate::{
     connection::{
-        Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerCertData,
-        ServerEphemKey, ServerSignature, TlsVersion, VerifyData,
+        Certificate, HandshakeData, HandshakeDataV1_2, ServerEphemKey, ServerSignature, TlsVersion,
     },
     transcript::{Direction, Transcript},
 };
-use tls_core::msgs::enums::ContentType;
+use tls_core::msgs::{
+    alert::AlertMessagePayload,
+    codec::{Codec, Reader},
+    enums::{AlertDescription, ContentType, ProtocolVersion},
+    handshake::{HandshakeMessagePayload, HandshakePayload},
+};
 
 /// A transcript of TLS records sent and received by the prover.
 #[derive(Debug, Clone)]
@@ -17,7 +21,6 @@ pub struct TlsTranscript {
     server_cert_chain: Option<Vec<Certificate>>,
     server_signature: Option<ServerSignature>,
     handshake_data: HandshakeData,
-    verify_data: VerifyData,
     sent: Vec<Record>,
     recv: Vec<Record>,
 }
@@ -27,14 +30,165 @@ impl TlsTranscript {
     pub fn new(
         time: u64,
         version: TlsVersion,
-        server_certs: Option<Vec<Certificate>>,
+        server_cert_chain: Option<Vec<Certificate>>,
         server_signature: Option<ServerSignature>,
         handshake_data: HandshakeData,
-        verify_data: VerifyData,
         sent: Vec<Record>,
         recv: Vec<Record>,
     ) -> Result<Self, TlsTranscriptError> {
-        todo!()
+        let mut sent_iter = sent.iter();
+        let mut recv_iter = recv.iter();
+
+        // Make sure the client finished verify data message was sent first.
+        if let Some(record) = sent_iter.next() {
+            let payload = record
+                .plaintext
+                .as_ref()
+                .ok_or(TlsTranscriptError::validation(
+                    "client finished message was hidden from the follower",
+                ))?;
+
+            let mut reader = Reader::init(payload);
+            let payload =
+                HandshakeMessagePayload::read_version(&mut reader, ProtocolVersion::TLSv1_2)
+                    .ok_or(TlsTranscriptError::validation(
+                        "first record sent was not a handshake message",
+                    ))?;
+
+            let HandshakePayload::Finished(_) = payload.payload else {
+                return Err(TlsTranscriptError::validation(
+                    "first record sent was not a client finished message",
+                ));
+            };
+        } else {
+            return Err(TlsTranscriptError::validation(
+                "client finished was not sent",
+            ));
+        }
+
+        // Make sure the server finished verify data message was received first.
+        if let Some(record) = recv_iter.next() {
+            let payload = record
+                .plaintext
+                .as_ref()
+                .ok_or(TlsTranscriptError::validation(
+                    "server finished message was hidden from the follower",
+                ))?;
+
+            let mut reader = Reader::init(payload);
+            let payload =
+                HandshakeMessagePayload::read_version(&mut reader, ProtocolVersion::TLSv1_2)
+                    .ok_or(TlsTranscriptError::validation(
+                        "first record received was not a handshake message",
+                    ))?;
+
+            let HandshakePayload::Finished(_) = payload.payload else {
+                return Err(TlsTranscriptError::validation(
+                    "first record received was not a server finished message",
+                ));
+            };
+        } else {
+            return Err(TlsTranscriptError::validation(
+                "server finished was not received",
+            ));
+        }
+
+        // Verify last record sent was either application data or close notify.
+        if let Some(record) = sent_iter.next_back() {
+            match record.typ {
+                ContentType::ApplicationData => {}
+                ContentType::Alert => {
+                    // Ensure the alert is a close notify.
+                    let payload =
+                        record
+                            .plaintext
+                            .as_ref()
+                            .ok_or(TlsTranscriptError::validation(
+                                "alert content was hidden from the follower",
+                            ))?;
+
+                    let mut reader = Reader::init(payload);
+                    let payload = AlertMessagePayload::read(&mut reader).ok_or(
+                        TlsTranscriptError::validation("alert message was malformed"),
+                    )?;
+
+                    let AlertDescription::CloseNotify = payload.description else {
+                        return Err(TlsTranscriptError::validation(
+                            "sent alert that is not close notify",
+                        ));
+                    };
+                }
+                typ => {
+                    return Err(TlsTranscriptError::validation(format!(
+                        "sent unexpected record content type: {:?}",
+                        typ
+                    )))
+                }
+            }
+        }
+
+        // Verify last record received was either application data or close notify.
+        if let Some(record) = recv_iter.next_back() {
+            match record.typ {
+                ContentType::ApplicationData => {}
+                ContentType::Alert => {
+                    // Ensure the alert is a close notify.
+                    let payload =
+                        record
+                            .plaintext
+                            .as_ref()
+                            .ok_or(TlsTranscriptError::validation(
+                                "alert content was hidden from the follower",
+                            ))?;
+
+                    let mut reader = Reader::init(payload);
+                    let payload = AlertMessagePayload::read(&mut reader).ok_or(
+                        TlsTranscriptError::validation("alert message was malformed"),
+                    )?;
+
+                    let AlertDescription::CloseNotify = payload.description else {
+                        return Err(TlsTranscriptError::validation(
+                            "received alert that is not close notify",
+                        ));
+                    };
+                }
+                typ => {
+                    return Err(TlsTranscriptError::validation(format!(
+                        "received unexpected record content type: {:?}",
+                        typ
+                    )))
+                }
+            }
+        }
+
+        // Ensure all other records were application data.
+        for record in sent_iter {
+            if record.typ != ContentType::ApplicationData {
+                return Err(TlsTranscriptError::validation(format!(
+                    "sent unexpected record content type: {:?}",
+                    record.typ
+                )));
+            }
+        }
+
+        for record in recv_iter {
+            if record.typ != ContentType::ApplicationData {
+                return Err(TlsTranscriptError::validation(format!(
+                    "received unexpected record content type: {:?}",
+                    record.typ
+                )));
+            }
+        }
+
+        Ok(Self {
+            time,
+            version,
+            server_cert_chain,
+            server_signature,
+            handshake_data,
+            sent,
+            recv,
+        })
     }
 
     /// Returns the start time of the connection.
@@ -72,11 +226,6 @@ impl TlsTranscript {
         &self.handshake_data
     }
 
-    /// Returns the handshake verify data.
-    pub fn verify_data(&self) -> &VerifyData {
-        &self.verify_data
-    }
-
     /// Returns the sent records.
     pub fn sent(&self) -> &[Record] {
         &self.sent
@@ -100,7 +249,7 @@ impl TlsTranscript {
             let plaintext = record
                 .plaintext
                 .as_ref()
-                .ok_or(ErrorRepr::IncompleteTranscript {
+                .ok_or(ErrorRepr::Incomplete {
                     direction: Direction::Sent,
                     seq: record.seq,
                 })?
@@ -116,7 +265,7 @@ impl TlsTranscript {
             let plaintext = record
                 .plaintext
                 .as_ref()
-                .ok_or(ErrorRepr::IncompleteTranscript {
+                .ok_or(ErrorRepr::Incomplete {
                     direction: Direction::Received,
                     seq: record.seq,
                 })?
@@ -148,11 +297,19 @@ pub struct Record {
 opaque_debug::implement!(Record);
 
 #[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[error("TLS transcript error: {0}")]
 pub struct TlsTranscriptError(#[from] ErrorRepr);
+
+impl TlsTranscriptError {
+    fn validation(msg: impl Into<String>) -> Self {
+        Self(ErrorRepr::Validation(msg.into()))
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 enum ErrorRepr {
-    #[error("record is missing application data plaintext ({direction}): sequence number {seq}")]
-    IncompleteTranscript { direction: Direction, seq: u64 },
+    #[error("validation error: {0}")]
+    Validation(String),
+    #[error("incomplete transcript ({direction}): seq {seq}")]
+    Incomplete { direction: Direction, seq: u64 },
 }
