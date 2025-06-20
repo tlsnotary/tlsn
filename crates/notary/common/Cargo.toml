@@ -1,6 +1,6 @@
 [package]
 name = "notary-common"
-version = "0.1.0-alpha.12"
+version = "0.1.0-alpha.13-pre"
 description = "Common code shared between notary-server and notary-client"
 edition = "2021"
 
