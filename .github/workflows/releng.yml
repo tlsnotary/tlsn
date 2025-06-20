@@ -22,7 +22,7 @@ jobs:
           RUN_ID=$(gh api \
             -H "Accept: application/vnd.github+json" \
             "/repos/tlsnotary/tlsn/actions/workflows/ci.yml/runs?per_page=100" \
-            --jq '.workflow_runs[] | select(.head_branch == "${{ github.event.inputs.tag }}") | .id')
+            --jq '.workflow_runs[] | select(.head_branch == "${{ github.event.inputs.tag }}") | .id' | sort | tail -1)
 
           if [ -z "$RUN_ID" ]; then
             echo "No run found for tag ${{ github.event.inputs.tag }}"
