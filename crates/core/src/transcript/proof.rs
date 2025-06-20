@@ -289,6 +289,8 @@ impl<'a> TranscriptProofBuilder<'a> {
 
         let mut encoding_tree = None;
         let mut hash_secrets = Vec::new();
+
+        // TODO: complete match arms here for session keys secret
         for secret in secrets {
             match secret {
                 TranscriptSecret::Encoding(tree) => {
@@ -303,6 +305,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                     }
                     hash_secrets.push(hash);
                 }
+                TranscriptSecret::SessionKeys(session_keys) => todo!(),
             }
         }
 

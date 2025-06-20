@@ -19,5 +19,5 @@ pub struct Ciphertext {
 pub struct PlaintextProof {}
 
 /// TLS session keys.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionKeys {}

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hash::HashAlgId,
     transcript::{
-        ciphertext::Ciphertext,
+        ciphertext::{Ciphertext, SessionKeys},
         encoding::{EncodingCommitment, EncodingTree},
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, Idx, Transcript,
