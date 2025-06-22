@@ -6966,6 +6966,7 @@ dependencies = [
  "csv",
  "itertools 0.14.0",
  "tlsn-harness-core",
+ "toml",
 ]
 
 [[package]]

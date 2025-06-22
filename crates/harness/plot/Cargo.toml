@@ -11,6 +11,8 @@ charming = { version = "0.5.1", features = ["ssr"] }
 csv = "1.3.0"
 clap = { workspace = true, features = ["derive", "env"] }
 itertools = "0.14.0"
+toml = { workspace = true }
+
 
 [[bin]]
 name = "tlsn-harness-plot"

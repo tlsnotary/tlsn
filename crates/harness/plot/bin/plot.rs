@@ -8,7 +8,7 @@ use charming::{
     theme::Theme,
 };
 use clap::Parser;
-use harness_core::bench::Measurement;
+use harness_core::bench::{BenchItems, Measurement};
 use itertools::Itertools;
 
 const THEME: Theme = Theme::Default;
@@ -16,7 +16,10 @@ const THEME: Theme = Theme::Default;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Cli {
-    /// Path to the CSV file with benchmark results    
+    /// Path to the Bench.toml file with benchmark spec
+    toml: String,
+
+    /// Path to the CSV file with benchmark results
     csv: String,
 
     /// Prover kind: native or browser
@@ -48,34 +51,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut rdr = csv::Reader::from_path(&cli.csv)?;
 
+    let items: BenchItems = toml::from_str(&std::fs::read_to_string(&cli.toml)?)?;
+    let groups = items.group;
+
     // Prepare data for plotting.
     let all_data: Vec<Measurement> = rdr
         .deserialize::<Measurement>()
         .collect::<Result<Vec<_>, _>>()?;
 
-    plot_runtime_vs(
-        &all_data,
-        cli.min_max_band,
-        "bandwidth",
-        |r| r.bandwidth as f32 / 1000.0, // Kbps to Mbps
-        |r| r.latency,
-        "Runtime vs Bandwidth",
-        |unique| format!("{} ms Latency, {} mode", unique, cli.prover_kind),
-        "runtime_vs_bandwidth.html",
-        "Bandwidth (Mbps)",
-    )?;
+    for group in groups {
+        if group.protocol_latency.is_some() {
+            let latency = group.protocol_latency.unwrap();
+            plot_runtime_vs(
+                &all_data,
+                cli.min_max_band,
+                &group.name,
+                |r| r.bandwidth as f32 / 1000.0, // Kbps to Mbps
+                "Runtime vs Bandwidth",
+                format!("{} ms Latency, {} mode", latency, cli.prover_kind),
+                "runtime_vs_bandwidth.html",
+                "Bandwidth (Mbps)",
+            )?;
+        }
 
-    plot_runtime_vs(
-        &all_data,
-        cli.min_max_band,
-        "latency",
-        |r| r.latency as f32,
-        |r| r.bandwidth,
-        "Runtime vs Latency",
-        |unique| format!("{} bps bandwidth, {} mode", unique, cli.prover_kind),
-        "runtime_vs_latency.html",
-        "Latency (ms)",
-    )?;
+        if group.bandwidth.is_some() {
+            let bandwidth = group.bandwidth.unwrap();
+            plot_runtime_vs(
+                &all_data,
+                cli.min_max_band,
+                &group.name,
+                |r| r.latency as f32,
+                "Runtime vs Latency",
+                format!("{} bps bandwidth, {} mode", bandwidth, cli.prover_kind),
+                "runtime_vs_latency.html",
+                "Latency (ms)",
+            )?;
+        }
+    }
 
     Ok(())
 }
@@ -93,20 +105,18 @@ struct Points {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn plot_runtime_vs<Fx, Fu>(
+fn plot_runtime_vs<Fx>(
     all_data: &[Measurement],
     show_min_max: bool,
     group: &str,
     x_value: Fx,
-    unique_value: Fu, // TODO: get this from Bench.toml instead
     title: &str,
-    subtitle_fmt: impl Fn(usize) -> String,
+    subtitle: String,
     output_file: &str,
     x_axis_label: &str,
 ) -> Result<Chart, Box<dyn std::error::Error>>
 where
     Fx: Fn(&Measurement) -> f32,
-    Fu: Fn(&Measurement) -> usize,
 {
     fn data_point(values: &[f32]) -> DataPoint {
         let mean = values.iter().copied().sum::<f32>() / values.len() as f32;
@@ -159,22 +169,6 @@ where
             )
         })
         .collect();
-
-    // Find the unique value for the subtitle (latency or bandwidth)
-    let uniques: Vec<usize> = all_data
-        .iter()
-        .filter(|r| r.group.as_deref() == Some(group))
-        .map(unique_value)
-        .unique()
-        .collect();
-    if uniques.len() != 1 {
-        return Err(format!(
-            "Expected exactly one unique value for subtitle, found: {:?}",
-            uniques
-        )
-        .into());
-    }
-    let subtitle = subtitle_fmt(uniques[0]);
 
     let mut chart = Chart::new()
         .title(
