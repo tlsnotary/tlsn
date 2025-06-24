@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use rangeset::{Difference, RangeSet, ToRangeSet};
 use spansy::{json::KeyValue, Spanned};
 use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
@@ -150,15 +151,32 @@ pub trait JsonCommit {
             .map_err(|e| JsonCommitError::new_with_source("failed to commit array", e))?;
 
         if !array.elems.is_empty() {
-            builder
-                .commit(&array.without_values(), direction)
-                .map_err(|e| {
-                    JsonCommitError::new_with_source("failed to commit array excluding values", e)
-                })?;
-        }
+            let without_values = array.without_values();
 
-        // TODO: Commit each value separately, but we need a strategy for handling
-        // separators.
+            // Commit to the array excluding all values and separators.
+            builder.commit(&without_values, direction).map_err(|e| {
+                JsonCommitError::new_with_source("failed to commit array excluding values", e)
+            })?;
+
+            // Commit to the separators and whitespace of the array
+            let array_range: RangeSet<usize> = array.to_range_set().difference(&without_values);
+            let difference = array
+                .elems
+                .iter()
+                .map(|e| e.to_range_set())
+                .fold(array_range.clone(), |acc, range| acc.difference(&range));
+
+            for range in difference.iter_ranges() {
+                builder.commit(&range, direction).map_err(|e| {
+                    JsonCommitError::new_with_source("failed to commit array element", e)
+                })?;
+            }
+
+            // Commit to the values of the array
+            for elem in &array.elems {
+                self.commit_value(builder, elem, direction)?;
+            }
+        }
 
         Ok(())
     }
@@ -250,3 +268,76 @@ pub trait JsonCommit {
 pub struct DefaultJsonCommitter {}
 
 impl JsonCommit for DefaultJsonCommitter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+    use spansy::json::{parse_slice, JsonValue, JsonVisit};
+    use tlsn_core::transcript::{
+        Transcript, TranscriptCommitConfig, TranscriptCommitConfigBuilder,
+    };
+    use tlsn_data_fixtures::json as fixtures;
+
+    #[rstest]
+    #[case::array(fixtures::ARRAY)]
+    #[case::integer(fixtures::INTEGER)]
+    #[case::json_object(fixtures::NESTED_OBJECT)]
+    #[case::values(fixtures::VALUES)]
+    fn test_json_commit(#[case] src: &'static [u8]) {
+        let transcript = Transcript::new([], src);
+        let json_data = parse_slice(src).unwrap();
+        let mut committer = DefaultJsonCommitter::default();
+        let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
+
+        committer
+            .commit_value(&mut builder, &json_data, Direction::Received)
+            .unwrap();
+
+        let config = builder.build().unwrap();
+
+        struct CommitChecker<'a> {
+            config: &'a TranscriptCommitConfig,
+        }
+        impl<'a> JsonVisit for CommitChecker<'a> {
+            fn visit_value(&mut self, node: &JsonValue) {
+                match node {
+                    JsonValue::Object(obj) => {
+                        assert!(self
+                            .config
+                            .contains(&obj.without_pairs(), Direction::Received));
+
+                        for kv in &obj.elems {
+                            assert!(self
+                                .config
+                                .contains(&kv.without_value(), Direction::Received));
+                        }
+
+                        JsonVisit::visit_object(self, obj);
+                    }
+
+                    JsonValue::Array(arr) => {
+                        assert!(self
+                            .config
+                            .contains(&arr.without_values(), Direction::Received));
+
+                        JsonVisit::visit_array(self, arr);
+                    }
+
+                    _ => {
+                        if !node.span().is_empty() {
+                            assert!(
+                                self.config.contains(node, Direction::Received),
+                                "failed to commit to value ({}), at {:?}",
+                                node.span().as_str(),
+                                node.span()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        CommitChecker { config: &config }.visit_value(&json_data);
+    }
+}
