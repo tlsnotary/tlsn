@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tlsn_common::config::ProtocolConfigValidator;
+use tlsn::config::ProtocolConfigValidator;
 use tsify_next::Tsify;
 
 #[derive(Debug, Tsify, Deserialize)]

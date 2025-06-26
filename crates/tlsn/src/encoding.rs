@@ -4,25 +4,25 @@ use std::ops::Range;
 
 use mpz_common::Context;
 use mpz_memory_core::{
+    Vector,
     binary::U8,
     correlated::{Delta, Key, Mac},
-    Vector,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serio::{stream::IoStreamExt, SinkExt};
+use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     hash::HashAlgorithm,
     transcript::{
-        encoding::{
-            new_encoder, Encoder, EncoderSecret, EncodingCommitment, EncodingProvider,
-            EncodingProviderError, EncodingTree, EncodingTreeError,
-        },
         Direction, Idx,
+        encoding::{
+            Encoder, EncoderSecret, EncodingCommitment, EncodingProvider, EncodingProviderError,
+            EncodingTree, EncodingTreeError, new_encoder,
+        },
     },
 };
 
-use crate::transcript::TranscriptRefs;
+use crate::commit::transcript::TranscriptRefs;
 
 /// Bytes of encoding, per byte.
 const ENCODING_SIZE: usize = 128;
@@ -36,7 +36,7 @@ struct Encodings {
 /// Transfers the encodings using the provided seed and keys.
 ///
 /// The keys must be consistent with the global delta used in the encodings.
-pub async fn transfer<'a>(
+pub(crate) async fn transfer<'a>(
     ctx: &mut Context,
     refs: &TranscriptRefs,
     delta: &Delta,
@@ -107,7 +107,7 @@ pub async fn transfer<'a>(
 /// Receives the encodings using the provided MACs.
 ///
 /// The MACs must be consistent with the global delta used in the encodings.
-pub async fn receive<'a>(
+pub(crate) async fn receive<'a>(
     ctx: &mut Context,
     hasher: &(dyn HashAlgorithm + Send + Sync),
     refs: &TranscriptRefs,

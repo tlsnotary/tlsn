@@ -1,7 +1,8 @@
 use crate::types::NetworkSetting;
 use serde::Deserialize;
-use tlsn_common::config::ProtocolConfig;
+use tlsn::config::ProtocolConfig;
 use tsify_next::Tsify;
+
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct ProverConfig {

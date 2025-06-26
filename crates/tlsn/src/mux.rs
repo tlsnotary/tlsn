@@ -3,8 +3,8 @@
 use std::future::IntoFuture;
 
 use futures::{
-    future::{FusedFuture, FutureExt},
     AsyncRead, AsyncWrite, Future,
+    future::{FusedFuture, FutureExt},
 };
 use tracing::error;
 use uid_mux::yamux;
@@ -12,23 +12,23 @@ use uid_mux::yamux;
 use crate::Role;
 
 /// Multiplexer supporting unique deterministic stream IDs.
-pub type Mux<Io> = yamux::Yamux<Io>;
+pub(crate) type Mux<Io> = yamux::Yamux<Io>;
 /// Multiplexer controller providing streams.
-pub type MuxControl = yamux::YamuxCtrl;
+pub(crate) type MuxControl = yamux::YamuxCtrl;
 
 /// Multiplexer future which must be polled for the muxer to make progress.
-pub struct MuxFuture(
+pub(crate) struct MuxFuture(
     Box<dyn FusedFuture<Output = Result<(), yamux::ConnectionError>> + Send + Unpin>,
 );
 
 impl MuxFuture {
     /// Returns true if the muxer is complete.
-    pub fn is_complete(&self) -> bool {
+    pub(crate) fn is_complete(&self) -> bool {
         self.0.is_terminated()
     }
 
     /// Awaits a future, polling the muxer future concurrently.
-    pub async fn poll_with<F, R>(&mut self, fut: F) -> R
+    pub(crate) async fn poll_with<F, R>(&mut self, fut: F) -> R
     where
         F: Future<Output = R>,
     {
@@ -67,7 +67,7 @@ impl Future for MuxFuture {
 ///
 /// * `socket` - The socket to attach the multiplexer to.
 /// * `role` - The role of the party using the multiplexer.
-pub fn attach_mux<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+pub(crate) fn attach_mux<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     socket: T,
     role: Role,
 ) -> (MuxFuture, MuxControl) {

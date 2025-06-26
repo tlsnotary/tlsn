@@ -1,25 +1,28 @@
-//! Common code shared between `tlsn-prover` and `tlsn-verifier`.
+//! TLSNotary library.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod commit;
+pub(crate) mod commit;
 pub mod config;
-pub mod context;
-pub mod encoding;
-pub mod ghash;
-pub mod msg;
-pub mod mux;
-pub mod tag;
-pub mod transcript;
-pub mod zk_aes_ctr;
+pub(crate) mod context;
+pub(crate) mod encoding;
+pub(crate) mod ghash;
+pub(crate) mod msg;
+pub(crate) mod mux;
+pub mod prover;
+pub(crate) mod tag;
+pub mod verifier;
+pub(crate) mod zk_aes_ctr;
+
+pub use tlsn_core::*;
 
 /// The party's role in the TLSN protocol.
 ///
 /// A Notary is classified as a Verifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Role {
+pub(crate) enum Role {
     /// The prover.
     Prover,
     /// The verifier.

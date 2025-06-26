@@ -5,10 +5,10 @@ use mpz_common::context::Multithread;
 use crate::mux::MuxControl;
 
 /// Maximum concurrency for multi-threaded context.
-pub const MAX_CONCURRENCY: usize = 8;
+pub(crate) const MAX_CONCURRENCY: usize = 8;
 
 /// Builds a multi-threaded context with the given muxer.
-pub fn build_mt_context(mux: MuxControl) -> Multithread {
+pub(crate) fn build_mt_context(mux: MuxControl) -> Multithread {
     let builder = Multithread::builder().mux(mux).concurrency(MAX_CONCURRENCY);
 
     #[cfg(target_arch = "wasm32")]

@@ -335,7 +335,7 @@ pub enum NetworkSetting {
     Latency,
 }
 
-impl From<NetworkSetting> for tlsn_common::config::NetworkSetting {
+impl From<NetworkSetting> for tlsn::config::NetworkSetting {
     fn from(value: NetworkSetting) -> Self {
         match value {
             NetworkSetting::Bandwidth => Self::Bandwidth,

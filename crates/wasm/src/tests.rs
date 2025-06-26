@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use tls_core::verify::WebPkiVerifier;
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};

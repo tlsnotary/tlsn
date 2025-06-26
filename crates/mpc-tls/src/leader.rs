@@ -4,11 +4,11 @@ use crate::{
     error::MpcTlsError,
     msg::{
         ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetClientRandom,
-        SetServerKey, SetServerRandom,
+        SetServerKey, SetServerRandom, StartHandshake,
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
-    Config, LeaderOutput, Role, SessionKeys, Vm,
+    Config, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
 use hmac_sha256::{MpcPrf, PrfOutput};
@@ -41,6 +41,12 @@ use tls_core::{
         message::{OpaqueMessage, PlainMessage},
     },
     suites::SupportedCipherSuite,
+};
+use tlsn_core::{
+    connection::{
+        Certificate, HandshakeData, HandshakeDataV1_2, ServerSignature, TlsVersion, VerifyData,
+    },
+    transcript::TlsTranscript,
 };
 use tracing::{debug, instrument, trace, warn};
 
@@ -179,8 +185,8 @@ impl MpcTlsLeader {
             ke,
             prf,
             record_layer,
-            cf_vd,
-            sf_vd,
+            cf_vd_fut: cf_vd,
+            sf_vd_fut: sf_vd,
             client_random,
         };
 
@@ -197,8 +203,8 @@ impl MpcTlsLeader {
             mut ke,
             mut prf,
             mut record_layer,
-            cf_vd,
-            sf_vd,
+            cf_vd_fut,
+            sf_vd_fut,
             client_random,
         } = self.state.take()
         else {
@@ -254,8 +260,9 @@ impl MpcTlsLeader {
             ke,
             prf,
             record_layer,
-            cf_vd,
-            sf_vd,
+            cf_vd_fut,
+            sf_vd_fut,
+            time: None,
             protocol_version: None,
             cipher_suite: None,
             client_random,
@@ -274,10 +281,11 @@ impl MpcTlsLeader {
         let State::Active {
             mut ctx,
             vm,
-            keys,
             mut record_layer,
+            cf_vd,
+            sf_vd,
+            time,
             protocol_version,
-            cipher_suite,
             client_random,
             server_random,
             server_cert_details,
@@ -297,7 +305,7 @@ impl MpcTlsLeader {
 
         debug!("committing to transcript");
 
-        let transcript = record_layer.commit(&mut ctx, vm.clone()).await?;
+        let (sent_records, recv_records) = record_layer.commit(&mut ctx, vm.clone()).await?;
 
         debug!("committed to transcript");
 
@@ -306,21 +314,59 @@ impl MpcTlsLeader {
             self.notifier.set();
         }
 
+        let cf_vd = cf_vd.ok_or(MpcTlsError::state("client finished verify data not set"))?;
+        let sf_vd = sf_vd.ok_or(MpcTlsError::state("server finished verify data not set"))?;
+
+        let version = match protocol_version {
+            ProtocolVersion::TLSv1_2 => TlsVersion::V1_2,
+            version => {
+                panic!("only TLS 1.2 should have been accepted: {:?}", version)
+            }
+        };
+
+        let server_cert_chain = server_cert_details
+            .cert_chain()
+            .iter()
+            .map(|cert| Certificate(cert.0.clone()))
+            .collect();
+
+        let server_signature = ServerSignature {
+            scheme: server_kx_details
+                .kx_sig()
+                .scheme
+                .try_into()
+                .expect("only supported signature scheme should have been accepted"),
+            sig: server_kx_details.kx_sig().sig.0.clone(),
+        };
+
+        let handshake_data = HandshakeData::V1_2(HandshakeDataV1_2 {
+            client_random: client_random.0,
+            server_random: server_random.0,
+            server_ephemeral_key: server_key
+                .try_into()
+                .expect("only supported key scheme should have been accepted"),
+        });
+
+        let transcript = TlsTranscript::new(
+            time,
+            version,
+            Some(server_cert_chain),
+            Some(server_signature),
+            handshake_data,
+            VerifyData {
+                client_finished: cf_vd.to_vec(),
+                server_finished: sf_vd.to_vec(),
+            },
+            sent_records,
+            recv_records,
+        )
+        .map_err(MpcTlsError::other)?;
+
         self.state = State::Closed {
             ctx,
             vm,
             record_layer,
-            data: LeaderOutput {
-                protocol_version,
-                cipher_suite,
-                server_key,
-                server_cert_details,
-                server_kx_details,
-                client_random,
-                server_random,
-                transcript,
-                keys,
-            },
+            transcript,
         };
 
         Ok(())
@@ -419,6 +465,7 @@ impl Backend for MpcTlsLeader {
             ctx,
             prf,
             server_random,
+            time,
             ..
         } = &mut self.state
         else {
@@ -426,6 +473,18 @@ impl Backend for MpcTlsLeader {
                 MpcTlsError::state("must be in handshake state to set server random").into(),
             );
         };
+
+        let now = web_time::UNIX_EPOCH
+            .elapsed()
+            .expect("system time is available")
+            .as_secs();
+
+        *time = Some(now);
+
+        ctx.io_mut()
+            .send(Message::StartHandshake(StartHandshake { time: now }))
+            .await
+            .map_err(MpcTlsError::from)?;
 
         ctx.io_mut()
             .send(Message::SetServerRandom(SetServerRandom {
@@ -520,6 +579,7 @@ impl Backend for MpcTlsLeader {
             ctx,
             vm,
             prf,
+            sf_vd_fut,
             sf_vd,
             ..
         } = &mut self.state
@@ -552,12 +612,14 @@ impl Backend for MpcTlsLeader {
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
         }
 
-        let sf_vd = sf_vd
+        let vd = sf_vd_fut
             .try_recv()
             .map_err(MpcTlsError::hs)?
             .ok_or_else(|| MpcTlsError::hs("sf_vd is not decoded"))?;
 
-        Ok(sf_vd.to_vec())
+        *sf_vd = Some(vd);
+
+        Ok(vd.to_vec())
     }
 
     #[instrument(level = "debug", skip_all, err)]
@@ -566,6 +628,7 @@ impl Backend for MpcTlsLeader {
             ctx,
             vm,
             prf,
+            cf_vd_fut,
             cf_vd,
             ..
         } = &mut self.state
@@ -598,12 +661,14 @@ impl Backend for MpcTlsLeader {
             vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
         }
 
-        let cf_vd = cf_vd
+        let vd = cf_vd_fut
             .try_recv()
             .map_err(MpcTlsError::hs)?
             .ok_or_else(|| MpcTlsError::hs("cf_vd is not decoded"))?;
 
-        Ok(cf_vd.to_vec())
+        *cf_vd = Some(vd);
+
+        Ok(vd.to_vec())
     }
 
     #[instrument(level = "debug", skip_all, err)]
@@ -615,8 +680,9 @@ impl Backend for MpcTlsLeader {
             mut ke,
             mut prf,
             mut record_layer,
-            cf_vd,
-            sf_vd,
+            cf_vd_fut,
+            sf_vd_fut,
+            time,
             protocol_version,
             cipher_suite,
             client_random,
@@ -633,6 +699,7 @@ impl Backend for MpcTlsLeader {
 
         debug!("preparing encryption");
 
+        let time = time.ok_or_else(|| MpcTlsError::hs("time is not set"))?;
         let protocol_version =
             protocol_version.ok_or_else(|| MpcTlsError::hs("protocol version is not set"))?;
         let cipher_suite =
@@ -680,8 +747,11 @@ impl Backend for MpcTlsLeader {
             _ke: ke,
             prf,
             record_layer,
-            cf_vd,
-            sf_vd,
+            cf_vd_fut,
+            sf_vd_fut,
+            cf_vd: None,
+            sf_vd: None,
+            time,
             protocol_version,
             cipher_suite,
             client_random,
@@ -987,8 +1057,8 @@ enum State {
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
-        cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
-        sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
+        cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
+        sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
         client_random: Random,
     },
     Handshake {
@@ -998,8 +1068,9 @@ enum State {
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
-        cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
-        sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
+        cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
+        sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
+        time: Option<u64>,
         protocol_version: Option<ProtocolVersion>,
         cipher_suite: Option<CipherSuite>,
         client_random: Random,
@@ -1015,8 +1086,11 @@ enum State {
         _ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
-        cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
-        sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
+        cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
+        sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
+        cf_vd: Option<[u8; 12]>,
+        sf_vd: Option<[u8; 12]>,
+        time: u64,
         protocol_version: ProtocolVersion,
         cipher_suite: CipherSuite,
         client_random: Random,
@@ -1029,7 +1103,7 @@ enum State {
         ctx: Context,
         vm: Vm,
         record_layer: RecordLayer,
-        data: LeaderOutput,
+        transcript: TlsTranscript,
     },
     Error,
 }

@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use mpc_tls::Config;
-use tlsn_common::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use tlsn_core::CryptoProvider;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).

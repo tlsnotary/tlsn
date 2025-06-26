@@ -1,15 +1,17 @@
-use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
-use tlsn_common::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
 
-/// Error for [`Verifier`](crate::Verifier).
+use mpc_tls::MpcTlsError;
+
+use crate::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
+
+/// Error for [`Prover`](crate::Prover).
 #[derive(Debug, thiserror::Error)]
-pub struct VerifierError {
+pub struct ProverError {
     kind: ErrorKind,
     source: Option<Box<dyn Error + Send + Sync + 'static>>,
 }
 
-impl VerifierError {
+impl ProverError {
     fn new<E>(kind: ErrorKind, source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
@@ -18,6 +20,13 @@ impl VerifierError {
             kind,
             source: Some(source.into()),
         }
+    }
+
+    pub(crate) fn config<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Config, source)
     }
 
     pub(crate) fn mpc<E>(source: E) -> Self
@@ -34,44 +43,42 @@ impl VerifierError {
         Self::new(ErrorKind::Zk, source)
     }
 
+    pub(crate) fn commit<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Commit, source)
+    }
+
     pub(crate) fn attestation<E>(source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
     {
         Self::new(ErrorKind::Attestation, source)
     }
-
-    pub(crate) fn verify<E>(source: E) -> Self
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self::new(ErrorKind::Verify, source)
-    }
 }
 
 #[derive(Debug)]
 enum ErrorKind {
     Io,
-    Config,
     Mpc,
     Zk,
+    Config,
     Commit,
     Attestation,
-    Verify,
 }
 
-impl fmt::Display for VerifierError {
+impl fmt::Display for ProverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("verifier error: ")?;
+        f.write_str("prover error: ")?;
 
         match self.kind {
             ErrorKind::Io => f.write_str("io error")?,
-            ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Mpc => f.write_str("mpc error")?,
             ErrorKind::Zk => f.write_str("zk error")?,
+            ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Commit => f.write_str("commit error")?,
             ErrorKind::Attestation => f.write_str("attestation error")?,
-            ErrorKind::Verify => f.write_str("verification error")?,
         }
 
         if let Some(source) = &self.source {
@@ -82,43 +89,43 @@ impl fmt::Display for VerifierError {
     }
 }
 
-impl From<std::io::Error> for VerifierError {
+impl From<std::io::Error> for ProverError {
     fn from(e: std::io::Error) -> Self {
         Self::new(ErrorKind::Io, e)
     }
 }
 
-impl From<tlsn_common::config::ProtocolConfigError> for VerifierError {
-    fn from(e: tlsn_common::config::ProtocolConfigError) -> Self {
-        Self::new(ErrorKind::Config, e)
+impl From<tls_client_async::ConnectionError> for ProverError {
+    fn from(e: tls_client_async::ConnectionError) -> Self {
+        Self::new(ErrorKind::Io, e)
     }
 }
 
-impl From<uid_mux::yamux::ConnectionError> for VerifierError {
+impl From<uid_mux::yamux::ConnectionError> for ProverError {
     fn from(e: uid_mux::yamux::ConnectionError) -> Self {
         Self::new(ErrorKind::Io, e)
     }
 }
 
-impl From<mpz_common::ContextError> for VerifierError {
+impl From<mpz_common::ContextError> for ProverError {
     fn from(e: mpz_common::ContextError) -> Self {
         Self::new(ErrorKind::Mpc, e)
     }
 }
 
-impl From<MpcTlsError> for VerifierError {
+impl From<MpcTlsError> for ProverError {
     fn from(e: MpcTlsError) -> Self {
         Self::new(ErrorKind::Mpc, e)
     }
 }
 
-impl From<ZkAesCtrError> for VerifierError {
+impl From<ZkAesCtrError> for ProverError {
     fn from(e: ZkAesCtrError) -> Self {
         Self::new(ErrorKind::Zk, e)
     }
 }
 
-impl From<EncodingError> for VerifierError {
+impl From<EncodingError> for ProverError {
     fn from(e: EncodingError) -> Self {
         Self::new(ErrorKind::Commit, e)
     }

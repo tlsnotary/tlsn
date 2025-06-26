@@ -1,8 +1,4 @@
-//! TLSNotary prover library.
-
-#![deny(missing_docs, unreachable_pub, unused_must_use)]
-#![deny(clippy::all)]
-#![forbid(unsafe_code)]
+//! Prover.
 
 mod config;
 mod error;
@@ -19,38 +15,39 @@ use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
-use rand::Rng;
-use serio::{stream::IoStreamExt, SinkExt};
-use std::sync::Arc;
-use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_client_async::{bind_client, TlsConnection};
-use tls_core::msgs::enums::ContentType;
-use tlsn_common::{
-    commit::{commit_records, hash::prove_hash},
+use crate::{
+    Role,
+    commit::{
+        commit_records,
+        hash::prove_hash,
+        transcript::{TranscriptRefs, decode_transcript},
+    },
     context::build_mt_context,
     encoding,
     mux::attach_mux,
     tag::verify_tags,
-    transcript::{decode_transcript, Record, TlsTranscript},
     zk_aes_ctr::ZkAesCtr,
-    Role,
 };
+
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
+use rand::Rng;
+use serio::{SinkExt, stream::IoStreamExt};
+use std::sync::Arc;
+use tls_client::{ClientConnection, ServerName as TlsServerName};
+use tls_client_async::{TlsConnection, bind_client};
+use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
-    attestation::Attestation,
-    connection::{
-        ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerCertData, ServerSignature,
-        TranscriptLength,
-    },
-    request::{Request, RequestConfig},
-    transcript::{Direction, Transcript, TranscriptCommitment, TranscriptSecret},
     ProvePayload, Secrets,
+    attestation::Attestation,
+    connection::ServerCertData,
+    request::{Request, RequestConfig},
+    transcript::{Direction, TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use tracing::{debug, info, info_span, instrument, Instrument, Span};
+use tracing::{Instrument, Span, debug, info, info_span, instrument};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,
@@ -114,15 +111,25 @@ impl Prover<state::Initialized> {
 
         // Allocate resources for MPC-TLS in the VM.
         let mut keys = mpc_tls.alloc()?;
-        translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
+        let vm_lock = vm.try_lock().expect("VM is not locked");
+        translate_keys(&mut keys, &vm_lock)?;
 
         // Allocate for committing to plaintext.
-        let mut zk_aes_ctr = ZkAesCtr::new(Role::Prover);
-        zk_aes_ctr.set_key(keys.server_write_key, keys.server_write_iv);
-        zk_aes_ctr.alloc(
-            &mut (*vm.try_lock().expect("VM is not locked").zk()),
+        let mut zk_aes_ctr_sent = ZkAesCtr::new(Role::Prover);
+        zk_aes_ctr_sent.set_key(keys.client_write_key, keys.client_write_iv);
+        zk_aes_ctr_sent.alloc(
+            &mut *vm_lock.zk(),
+            self.config.protocol_config().max_sent_data(),
+        )?;
+
+        let mut zk_aes_ctr_recv = ZkAesCtr::new(Role::Prover);
+        zk_aes_ctr_recv.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes_ctr_recv.alloc(
+            &mut *vm_lock.zk(),
             self.config.protocol_config().max_recv_data(),
         )?;
+
+        drop(vm_lock);
 
         debug!("setting up mpc-tls");
 
@@ -137,7 +144,8 @@ impl Prover<state::Initialized> {
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
-                zk_aes_ctr,
+                zk_aes_ctr_sent,
+                zk_aes_ctr_recv,
                 keys,
                 vm,
             },
@@ -163,7 +171,8 @@ impl Prover<state::Setup> {
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
-            mut zk_aes_ctr,
+            mut zk_aes_ctr_sent,
+            mut zk_aes_ctr_recv,
             keys,
             vm,
             ..
@@ -197,11 +206,6 @@ impl Prover<state::Setup> {
 
         let (conn, conn_fut) = bind_client(socket, client);
 
-        let start_time = web_time::UNIX_EPOCH
-            .elapsed()
-            .expect("system time is available")
-            .as_secs();
-
         let fut = Box::pin({
             let span = self.span.clone();
             let mpc_ctrl = mpc_ctrl.clone();
@@ -218,7 +222,7 @@ impl Prover<state::Setup> {
 
                 info!("starting MPC-TLS");
 
-                let (_, (mut ctx, mut data, ..)) = futures::try_join!(
+                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
@@ -227,8 +231,6 @@ impl Prover<state::Setup> {
 
                 {
                     let mut vm = vm.try_lock().expect("VM should not be locked");
-
-                    translate_transcript(&mut data.transcript, &vm)?;
 
                     debug!("finalizing mpc");
 
@@ -251,20 +253,31 @@ impl Prover<state::Setup> {
                 // The prover drops the proof output.
                 let _ = verify_tags(
                     &mut vm,
-                    (data.keys.server_write_key, data.keys.server_write_iv),
-                    data.keys.server_write_mac_key,
-                    data.transcript.recv.clone(),
+                    (keys.server_write_key, keys.server_write_iv),
+                    keys.server_write_mac_key,
+                    *tls_transcript.version(),
+                    tls_transcript.recv().to_vec(),
                 )
                 .map_err(ProverError::zk)?;
 
                 // Prove received plaintext. Prover drops the proof output, as
                 // they trust themselves.
-                _ = commit_records(
+                let (sent_refs, _) = commit_records(
                     &mut vm,
-                    &mut zk_aes_ctr,
-                    data.transcript
-                        .recv
-                        .iter_mut()
+                    &mut zk_aes_ctr_sent,
+                    tls_transcript
+                        .sent()
+                        .iter()
+                        .filter(|record| record.typ == ContentType::ApplicationData),
+                )
+                .map_err(ProverError::zk)?;
+
+                let (recv_refs, _) = commit_records(
+                    &mut vm,
+                    &mut zk_aes_ctr_recv,
+                    tls_transcript
+                        .recv()
+                        .iter()
                         .filter(|record| record.typ == ContentType::ApplicationData),
                 )
                 .map_err(ProverError::zk)?;
@@ -273,51 +286,10 @@ impl Prover<state::Setup> {
                     .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
                     .await?;
 
-                let transcript = data
-                    .transcript
+                let transcript = tls_transcript
                     .to_transcript()
                     .expect("transcript is complete");
-                let transcript_refs = data
-                    .transcript
-                    .to_transcript_refs()
-                    .expect("transcript is complete");
-
-                let connection_info = ConnectionInfo {
-                    time: start_time,
-                    version: data
-                        .protocol_version
-                        .try_into()
-                        .expect("only supported version should have been accepted"),
-                    transcript_length: TranscriptLength {
-                        sent: transcript.sent().len() as u32,
-                        received: transcript.received().len() as u32,
-                    },
-                };
-
-                let server_cert_data =
-                    ServerCertData {
-                        certs: data
-                            .server_cert_details
-                            .cert_chain()
-                            .iter()
-                            .cloned()
-                            .map(|c| c.into())
-                            .collect(),
-                        sig: ServerSignature {
-                            scheme: data.server_kx_details.kx_sig().scheme.try_into().expect(
-                                "only supported signature scheme should have been accepted",
-                            ),
-                            sig: data.server_kx_details.kx_sig().sig.0.clone(),
-                        },
-                        handshake: HandshakeData::V1_2(HandshakeDataV1_2 {
-                            client_random: data.client_random.0,
-                            server_random: data.server_random.0,
-                            server_ephemeral_key: data
-                                .server_key
-                                .try_into()
-                                .expect("only supported key scheme should have been accepted"),
-                        }),
-                    };
+                let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
 
                 Ok(Prover {
                     config: self.config,
@@ -326,10 +298,8 @@ impl Prover<state::Setup> {
                         mux_ctrl,
                         mux_fut,
                         ctx,
-                        _keys: keys,
                         vm,
-                        connection_info,
-                        server_cert_data,
+                        tls_transcript,
                         transcript,
                         transcript_refs,
                     },
@@ -349,9 +319,9 @@ impl Prover<state::Setup> {
 }
 
 impl Prover<state::Committed> {
-    /// Returns the connection information.
-    pub fn connection_info(&self) -> &ConnectionInfo {
-        &self.state.connection_info
+    /// Returns the TLS transcript.
+    pub fn tls_transcript(&self) -> &TlsTranscript {
+        &self.state.tls_transcript
     }
 
     /// Returns the transcript.
@@ -370,7 +340,7 @@ impl Prover<state::Committed> {
             mux_fut,
             ctx,
             vm,
-            server_cert_data,
+            tls_transcript,
             transcript_refs,
             ..
         } = &mut self.state;
@@ -381,9 +351,22 @@ impl Prover<state::Committed> {
         };
 
         let payload = ProvePayload {
-            server_identity: config
-                .server_identity()
-                .then(|| (self.config.server_name().clone(), server_cert_data.clone())),
+            server_identity: config.server_identity().then(|| {
+                (
+                    self.config.server_name().clone(),
+                    ServerCertData {
+                        certs: tls_transcript
+                            .server_cert_chain()
+                            .expect("server cert chain is present")
+                            .to_vec(),
+                        sig: tls_transcript
+                            .server_signature()
+                            .expect("server signature is present")
+                            .clone(),
+                        handshake: tls_transcript.handshake_data().clone(),
+                    },
+                )
+            }),
             transcript: config.transcript().cloned(),
             transcript_commit: config.transcript_commit().map(|config| config.to_request()),
         };
@@ -514,7 +497,7 @@ impl Prover<state::Committed> {
         let state::Committed {
             mux_fut,
             ctx,
-            server_cert_data,
+            tls_transcript,
             transcript,
             ..
         } = &mut self.state;
@@ -523,7 +506,17 @@ impl Prover<state::Committed> {
 
         builder
             .server_name(self.config.server_name().clone())
-            .server_cert_data(server_cert_data.clone())
+            .server_cert_data(ServerCertData {
+                certs: tls_transcript
+                    .server_cert_chain()
+                    .expect("server cert chain is present")
+                    .to_vec(),
+                sig: tls_transcript
+                    .server_signature()
+                    .expect("server signature is present")
+                    .clone(),
+                handshake: tls_transcript.handshake_data().clone(),
+            })
             .transcript(transcript.clone())
             .transcript_commitments(transcript_secrets, transcript_commitments);
 
@@ -658,21 +651,6 @@ fn translate_keys<Mpc, Zk>(keys: &mut SessionKeys, vm: &Deap<Mpc, Zk>) -> Result
     keys.server_write_mac_key = vm
         .translate(keys.server_write_mac_key)
         .map_err(ProverError::mpc)?;
-
-    Ok(())
-}
-
-/// Translates VM references to the ZK address space.
-fn translate_transcript<Mpc, Zk>(
-    transcript: &mut TlsTranscript,
-    vm: &Deap<Mpc, Zk>,
-) -> Result<(), ProverError> {
-    for Record { plaintext_ref, .. } in transcript.sent.iter_mut().chain(transcript.recv.iter_mut())
-    {
-        if let Some(plaintext_ref) = plaintext_ref.as_mut() {
-            *plaintext_ref = vm.translate(*plaintext_ref).map_err(ProverError::mpc)?;
-        }
-    }
 
     Ok(())
 }
