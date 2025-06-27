@@ -21,11 +21,11 @@ jobs:
 
     - name: Build Docker Image
       run: |
-        docker build -t tlsn-bench . -f ./crates/benches/binary/benches.Dockerfile --build-arg BENCH_TYPE=${{ github.event.inputs.bench_type }}
+        docker build -t tlsn-bench . -f ./crates/harness/harness.Dockerfile
 
     - name: Run Benchmarks
       run: |
-        docker run --privileged -v ${{ github.workspace }}/crates/benches/binary:/benches tlsn-bench
+        docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "runner setup; runner --target ${{ github.event.inputs.bench_type }} test"
 
     - name: Upload graphs
       uses: actions/upload-artifact@v4
