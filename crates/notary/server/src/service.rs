@@ -99,7 +99,7 @@ pub async fn upgrade_protocol(
         .remove(&session_id)
         .is_none()
     {
-        let err_msg = format!("Session id {} does not exist", session_id);
+        let err_msg = format!("Session id {session_id} does not exist");
         error!(err_msg);
         return NotaryServerError::BadProverRequest(err_msg).into_response();
     };

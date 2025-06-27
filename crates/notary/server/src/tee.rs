@@ -31,9 +31,9 @@ impl Default for Quote {
 impl std::fmt::Debug for QuoteError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            QuoteError::IoError(err) => write!(f, "IoError: {:?}", err),
+            QuoteError::IoError(err) => write!(f, "IoError: {err:?}"),
             QuoteError::IntelQuoteLibrary(err) => {
-                write!(f, "IntelQuoteLibrary: {}", err)
+                write!(f, "IntelQuoteLibrary: {err}")
             }
         }
     }

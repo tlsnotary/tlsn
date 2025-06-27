@@ -200,7 +200,7 @@ impl fmt::Display for TranscriptProofError {
         }
 
         if let Some(source) = &self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())
@@ -546,14 +546,13 @@ impl fmt::Display for TranscriptProofBuilderError {
             BuilderErrorKind::Index => f.write_str("index error")?,
             BuilderErrorKind::MissingCommitment => f.write_str("commitment error")?,
             BuilderErrorKind::Cover { uncovered, kinds } => f.write_str(&format!(
-                "unable to cover the following ranges in transcript using available {:?} commitments: {uncovered}",
-                kinds
+                "unable to cover the following ranges in transcript using available {kinds:?} commitments: {uncovered}"
             ))?,
             BuilderErrorKind::NotSupported => f.write_str("not supported")?,
         }
 
         if let Some(source) = &self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())
@@ -904,7 +903,7 @@ mod tests {
                         assert_eq!(uncovered.recv, Idx(uncovered_recv_rangeset));
                     }
                 }
-                _ => panic!("unexpected error kind: {:?}", kind),
+                _ => panic!("unexpected error kind: {kind:?}"),
             }
         }
     }

@@ -56,7 +56,7 @@ impl fmt::Display for PrfError {
         }
 
         if let Some(ref source) = self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())

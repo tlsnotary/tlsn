@@ -80,7 +80,7 @@ impl fmt::Display for ProverError {
         }
 
         if let Some(source) = &self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())

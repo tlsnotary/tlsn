@@ -186,7 +186,7 @@ impl fmt::Display for PresentationBuilderError {
         }
 
         if let Some(source) = &self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())
@@ -227,7 +227,7 @@ impl fmt::Display for PresentationError {
         }
 
         if let Some(source) = &self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())

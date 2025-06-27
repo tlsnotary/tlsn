@@ -85,9 +85,9 @@ async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     );
     println!("Note that the data which the Prover chose not to disclose are shown as X.\n");
     println!("Data sent:\n");
-    println!("{}\n", sent);
+    println!("{sent}\n");
     println!("Data received:\n");
-    println!("{}\n", recv);
+    println!("{recv}\n");
     println!("-------------------------------------------------------------------");
 
     Ok(())

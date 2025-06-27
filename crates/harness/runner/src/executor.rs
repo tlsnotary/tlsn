@@ -142,13 +142,13 @@ impl Executor {
                 tokio::spawn(async move {
                     while let Some(res) = handler.next().await {
                         if let Err(e) = res {
-                            eprintln!("chromium error: {:?}", e);
+                            eprintln!("chromium error: {e:?}");
                         }
                     }
                 });
 
                 let page = browser
-                    .new_page(&format!("http://{}:{}/index.html", wasm_addr, wasm_port))
+                    .new_page(&format!("http://{wasm_addr}:{wasm_port}/index.html"))
                     .await?;
 
                 page.execute(EnableParams::builder().build()).await?;

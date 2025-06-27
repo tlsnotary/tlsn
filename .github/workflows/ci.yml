@@ -23,7 +23,7 @@ env:
   # 32 seems to be big enough for the foreseeable future
   RAYON_NUM_THREADS: 32
   GIT_COMMIT_HASH: ${{ github.event.pull_request.head.sha || github.sha }}
-  RUST_VERSION: 1.87.0
+  RUST_VERSION: 1.88.0
 
 jobs:
   clippy:
