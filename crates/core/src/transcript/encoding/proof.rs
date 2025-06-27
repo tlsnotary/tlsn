@@ -161,7 +161,7 @@ impl fmt::Display for EncodingProofError {
         }
 
         if let Some(source) = &self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())

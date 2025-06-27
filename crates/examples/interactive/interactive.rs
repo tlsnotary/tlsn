@@ -243,14 +243,14 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let sent_data = String::from_utf8(sent.clone()).expect("Verifier expected sent data");
     sent_data
         .find(SERVER_DOMAIN)
-        .unwrap_or_else(|| panic!("Verification failed: Expected host {}", SERVER_DOMAIN));
+        .unwrap_or_else(|| panic!("Verification failed: Expected host {SERVER_DOMAIN}"));
 
     // Check received data.
     let received = transcript.received_unsafe().to_vec();
     let response = String::from_utf8(received.clone()).expect("Verifier expected received data");
     response
         .find("Herman Melville")
-        .unwrap_or_else(|| panic!("Expected valid data from {}", SERVER_DOMAIN));
+        .unwrap_or_else(|| panic!("Expected valid data from {SERVER_DOMAIN}"));
 
     // Check Session info: server name.
     assert_eq!(server_name.as_str(), SERVER_DOMAIN);

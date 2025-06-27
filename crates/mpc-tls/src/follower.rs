@@ -472,8 +472,7 @@ fn validate_transcript(
 
         if cf_vd != actual_cf_vd.0.as_slice() {
             return Err(MpcTlsError::record_layer(format!(
-                "client finished verify data does not match output from PRF: {:?} != {:?}",
-                cf_vd, actual_cf_vd
+                "client finished verify data does not match output from PRF: {cf_vd:?} != {actual_cf_vd:?}"
             )));
         }
     } else {
@@ -500,8 +499,7 @@ fn validate_transcript(
 
         if sf_vd != actual_sf_vd.0.as_slice() {
             return Err(MpcTlsError::record_layer(format!(
-                "server finished verify data does not match output from PRF: {:?} != {:?}",
-                sf_vd, actual_sf_vd
+                "server finished verify data does not match output from PRF: {sf_vd:?} != {actual_sf_vd:?}"
             )));
         }
     } else {
@@ -532,8 +530,7 @@ fn validate_transcript(
             }
             typ => {
                 return Err(MpcTlsError::record_layer(format!(
-                    "sent unexpected record content type: {:?}",
-                    typ
+                    "sent unexpected record content type: {typ:?}"
                 )))
             }
         }
@@ -561,8 +558,7 @@ fn validate_transcript(
             }
             typ => {
                 return Err(MpcTlsError::record_layer(format!(
-                    "received unexpected record content type: {:?}",
-                    typ
+                    "received unexpected record content type: {typ:?}"
                 )))
             }
         }

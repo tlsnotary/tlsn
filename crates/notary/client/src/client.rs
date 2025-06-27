@@ -328,8 +328,7 @@ impl NotaryClient {
                     ErrorKind::Configuration,
                     Some(
                         format!(
-                            "Configuration response status is not OK: {:?}",
-                            configuration_response
+                            "Configuration response status is not OK: {configuration_response:?}"
                         )
                         .into(),
                     ),
@@ -443,8 +442,7 @@ impl NotaryClient {
                     ErrorKind::Internal,
                     Some(
                         format!(
-                            "Notarization response status is not SWITCHING_PROTOCOL: {:?}",
-                            notarization_response
+                            "Notarization response status is not SWITCHING_PROTOCOL: {notarization_response:?}"
                         )
                         .into(),
                     ),
@@ -508,14 +506,14 @@ fn parse_retry_after(response: &Response<Incoming>) -> Result<u64, ClientError> 
             let value_str = value.to_str().map_err(|err| {
                 ClientError::new(
                     ErrorKind::Internal,
-                    Some(format!("Invalid Retry-After header: {}", err).into()),
+                    Some(format!("Invalid Retry-After header: {err}").into()),
                 )
             })?;
 
             let seconds: u64 = value_str.parse().map_err(|err| {
                 ClientError::new(
                     ErrorKind::Internal,
-                    Some(format!("Could not parse Retry-After header as number: {}", err).into()),
+                    Some(format!("Could not parse Retry-After header as number: {err}").into()),
                 )
             })?;
             seconds

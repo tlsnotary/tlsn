@@ -31,7 +31,7 @@ fn test_read_fuzz_corpus() {
 
         let mut rd = Reader::init(&bytes);
         let msg = OpaqueMessage::read(&mut rd).unwrap().into_plain_message();
-        println!("{:?}", msg);
+        println!("{msg:?}");
 
         let msg = match Message::try_from(msg) {
             Ok(msg) => msg,
@@ -64,7 +64,7 @@ fn can_read_safari_client_hello() {
         \x01\x00\x00\x0a\x00\x0a\x00\x08\x00\x1d\x00\x17\x00\x18\x00\x19";
     let mut rd = Reader::init(bytes);
     let m = OpaqueMessage::read(&mut rd).unwrap();
-    println!("m = {:?}", m);
+    println!("m = {m:?}");
     assert!(Message::try_from(m.into_plain_message()).is_err());
 }
 
@@ -92,8 +92,8 @@ fn construct_all_types() {
     ];
     for &bytes in samples.iter() {
         let m = OpaqueMessage::read(&mut Reader::init(bytes)).unwrap();
-        println!("m = {:?}", m);
+        println!("m = {m:?}");
         let m = Message::try_from(m.into_plain_message());
-        println!("m' = {:?}", m);
+        println!("m' = {m:?}");
     }
 }

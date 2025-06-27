@@ -293,7 +293,7 @@ impl fmt::Display for ProtocolConfigError {
         }
 
         if let Some(ref source) = self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())
