@@ -437,8 +437,7 @@ mod secp256k1eth {
             // Based on Ethereum Yellow Paper Appendix F, only values 0 and 1 are valid.
             if recid > 1 {
                 return Err(SignatureError(format!(
-                    "expected recovery id 0 or 1, got {:?}",
-                    recid
+                    "expected recovery id 0 or 1, got {recid:?}"
                 )));
             }
             // `ecrecover` expects that 0 and 1 are mapped to 27 and 28.

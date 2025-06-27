@@ -19,7 +19,7 @@ fn reads_random() {
     let bytes = [0x01; 32];
     let mut rd = Reader::init(&bytes);
     let rnd = Random::read(&mut rd).unwrap();
-    println!("{:?}", rnd);
+    println!("{rnd:?}");
 
     assert!(!rd.any_left());
 }
@@ -50,7 +50,7 @@ fn accepts_short_sessionid() {
     let bytes = [1; 2];
     let mut rd = Reader::init(&bytes);
     let sess = SessionID::read(&mut rd).unwrap();
-    println!("{:?}", sess);
+    println!("{sess:?}");
 
     assert!(!sess.is_empty());
     assert_eq!(sess.len(), 1);
@@ -62,7 +62,7 @@ fn accepts_empty_sessionid() {
     let bytes = [0; 1];
     let mut rd = Reader::init(&bytes);
     let sess = SessionID::read(&mut rd).unwrap();
-    println!("{:?}", sess);
+    println!("{sess:?}");
 
     assert!(sess.is_empty());
     assert_eq!(sess.len(), 0);
@@ -75,7 +75,7 @@ fn can_roundtrip_unknown_client_ext() {
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
 
-    println!("{:?}", ext);
+    println!("{ext:?}");
     assert_eq!(ext.get_type(), ExtensionType::Unknown(0x1234));
     assert_eq!(bytes.to_vec(), ext.get_encoding());
 }
@@ -127,7 +127,7 @@ fn can_roundtrip_single_sni() {
     let bytes = [0, 0, 0, 7, 0, 5, 0, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     assert_eq!(ext.get_type(), ExtensionType::ServerName);
     assert_eq!(bytes.to_vec(), ext.get_encoding());
@@ -138,7 +138,7 @@ fn can_round_trip_mixed_case_sni() {
     let bytes = [0, 0, 0, 7, 0, 5, 0, 0, 2, 0x4c, 0x6f];
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     assert_eq!(ext.get_type(), ExtensionType::ServerName);
     assert_eq!(bytes.to_vec(), ext.get_encoding());
@@ -149,7 +149,7 @@ fn can_roundtrip_other_sni_name_types() {
     let bytes = [0, 0, 0, 7, 0, 5, 1, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     assert_eq!(ext.get_type(), ExtensionType::ServerName);
     assert_eq!(bytes.to_vec(), ext.get_encoding());
@@ -160,7 +160,7 @@ fn get_single_hostname_returns_none_for_other_sni_name_types() {
     let bytes = [0, 0, 0, 7, 0, 5, 1, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     assert_eq!(ext.get_type(), ExtensionType::ServerName);
     if let ClientExtension::ServerName(snr) = ext {
@@ -176,7 +176,7 @@ fn can_roundtrip_multiname_sni() {
     let bytes = [0, 0, 0, 12, 0, 10, 0, 0, 2, 0x68, 0x69, 0, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     assert_eq!(ext.get_type(), ExtensionType::ServerName);
     assert_eq!(bytes.to_vec(), ext.get_encoding());
@@ -224,13 +224,13 @@ fn rejects_truncated_sni() {
 fn can_roundtrip_psk_identity() {
     let bytes = [0, 0, 0x11, 0x22, 0x33, 0x44];
     let psk_id = PresharedKeyIdentity::read(&mut Reader::init(&bytes)).unwrap();
-    println!("{:?}", psk_id);
+    println!("{psk_id:?}");
     assert_eq!(psk_id.obfuscated_ticket_age, 0x11223344);
     assert_eq!(psk_id.get_encoding(), bytes.to_vec());
 
     let bytes = [0, 5, 0x1, 0x2, 0x3, 0x4, 0x5, 0x11, 0x22, 0x33, 0x44];
     let psk_id = PresharedKeyIdentity::read(&mut Reader::init(&bytes)).unwrap();
-    println!("{:?}", psk_id);
+    println!("{psk_id:?}");
     assert_eq!(psk_id.identity.0, vec![0x1, 0x2, 0x3, 0x4, 0x5]);
     assert_eq!(psk_id.obfuscated_ticket_age, 0x11223344);
     assert_eq!(psk_id.get_encoding(), bytes.to_vec());
@@ -242,7 +242,7 @@ fn can_roundtrip_psk_offer() {
         0, 7, 0, 1, 0x99, 0x11, 0x22, 0x33, 0x44, 0, 4, 3, 0x01, 0x02, 0x3,
     ];
     let psko = PresharedKeyOffer::read(&mut Reader::init(&bytes)).unwrap();
-    println!("{:?}", psko);
+    println!("{psko:?}");
 
     assert_eq!(psko.identities.len(), 1);
     assert_eq!(psko.identities[0].identity.0, vec![0x99]);
@@ -255,7 +255,7 @@ fn can_roundtrip_psk_offer() {
 #[test]
 fn can_roundtrip_certstatusreq_for_ocsp() {
     let ext = ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp());
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     let bytes = [
         0, 5, // CertificateStatusRequest
@@ -264,7 +264,7 @@ fn can_roundtrip_certstatusreq_for_ocsp() {
     ];
 
     let csr = ClientExtension::read(&mut Reader::init(&bytes)).unwrap();
-    println!("{:?}", csr);
+    println!("{csr:?}");
     assert_eq!(csr.get_encoding(), bytes.to_vec());
 }
 
@@ -277,7 +277,7 @@ fn can_roundtrip_certstatusreq_for_other() {
     ];
 
     let csr = ClientExtension::read(&mut Reader::init(&bytes)).unwrap();
-    println!("{:?}", csr);
+    println!("{csr:?}");
     assert_eq!(csr.get_encoding(), bytes.to_vec());
 }
 
@@ -286,7 +286,7 @@ fn can_roundtrip_multi_proto() {
     let bytes = [0, 16, 0, 8, 0, 6, 2, 0x68, 0x69, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     assert_eq!(ext.get_type(), ExtensionType::ALProtocolNegotiation);
     assert_eq!(ext.get_encoding(), bytes.to_vec());
@@ -305,7 +305,7 @@ fn can_roundtrip_single_proto() {
     let bytes = [0, 16, 0, 5, 0, 3, 2, 0x68, 0x69];
     let mut rd = Reader::init(&bytes);
     let ext = ClientExtension::read(&mut rd).unwrap();
-    println!("{:?}", ext);
+    println!("{ext:?}");
 
     assert_eq!(ext.get_type(), ExtensionType::ALProtocolNegotiation);
     assert_eq!(bytes.to_vec(), ext.get_encoding());
@@ -423,7 +423,7 @@ fn test_truncated_psk_offer() {
     });
 
     let mut enc = ext.get_encoding();
-    println!("testing {:?} enc {:?}", ext, enc);
+    println!("testing {ext:?} enc {enc:?}");
     for l in 0..enc.len() {
         if l == 9 {
             continue;
@@ -438,7 +438,7 @@ fn test_truncated_psk_offer() {
 fn test_truncated_client_hello_is_detected() {
     let ch = get_sample_clienthellopayload();
     let enc = ch.get_encoding();
-    println!("testing {:?} enc {:?}", ch, enc);
+    println!("testing {ch:?} enc {enc:?}");
 
     for l in 0..enc.len() {
         println!("len {:?} enc {:?}", l, &enc[..l]);
@@ -455,7 +455,7 @@ fn test_truncated_client_extension_is_detected() {
 
     for ext in &chp.extensions {
         let mut enc = ext.get_encoding();
-        println!("testing {:?} enc {:?}", ext, enc);
+        println!("testing {ext:?} enc {enc:?}");
 
         // "outer" truncation, i.e., where the extension-level length is longer than
         // the input
@@ -475,7 +475,7 @@ fn test_truncated_client_extension_is_detected() {
         // length, but isn't long enough for the type of extension
         for l in 0..(enc.len() - 4) {
             put_u16(l as u16, &mut enc[2..]);
-            println!("  encoding {:?} len {:?}", enc, l);
+            println!("  encoding {enc:?} len {l:?}");
             assert!(ClientExtension::read_bytes(&enc).is_none());
         }
     }
@@ -565,7 +565,7 @@ fn test_truncated_helloretry_extension_is_detected() {
 
     for ext in &hrr.extensions {
         let mut enc = ext.get_encoding();
-        println!("testing {:?} enc {:?}", ext, enc);
+        println!("testing {ext:?} enc {enc:?}");
 
         // "outer" truncation, i.e., where the extension-level length is longer than
         // the input
@@ -582,7 +582,7 @@ fn test_truncated_helloretry_extension_is_detected() {
         // length, but isn't long enough for the type of extension
         for l in 0..(enc.len() - 4) {
             put_u16(l as u16, &mut enc[2..]);
-            println!("  encoding {:?} len {:?}", enc, l);
+            println!("  encoding {enc:?} len {l:?}");
             assert!(HelloRetryExtension::read_bytes(&enc).is_none());
         }
     }
@@ -630,7 +630,7 @@ fn test_truncated_server_extension_is_detected() {
 
     for ext in &shp.extensions {
         let mut enc = ext.get_encoding();
-        println!("testing {:?} enc {:?}", ext, enc);
+        println!("testing {ext:?} enc {enc:?}");
 
         // "outer" truncation, i.e., where the extension-level length is longer than
         // the input
@@ -650,7 +650,7 @@ fn test_truncated_server_extension_is_detected() {
         // length, but isn't long enough for the type of extension
         for l in 0..(enc.len() - 4) {
             put_u16(l as u16, &mut enc[2..]);
-            println!("  encoding {:?} len {:?}", enc, l);
+            println!("  encoding {enc:?} len {l:?}");
             assert!(ServerExtension::read_bytes(&enc).is_none());
         }
     }
@@ -966,8 +966,8 @@ fn can_roundtrip_all_tls12_handshake_payloads() {
         assert!(!rd.any_left());
         assert_eq!(hm.get_encoding(), other.get_encoding());
 
-        println!("{:?}", hm);
-        println!("{:?}", other);
+        println!("{hm:?}");
+        println!("{other:?}");
     }
 }
 
@@ -975,7 +975,7 @@ fn can_roundtrip_all_tls12_handshake_payloads() {
 fn can_detect_truncation_of_all_tls12_handshake_payloads() {
     for hm in get_all_tls12_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
-        println!("test {:?} enc {:?}", hm, enc);
+        println!("test {hm:?} enc {enc:?}");
 
         // outer truncation
         for l in 0..enc.len() {
@@ -985,7 +985,7 @@ fn can_detect_truncation_of_all_tls12_handshake_payloads() {
         // inner truncation
         for l in 0..enc.len() - 4 {
             put_u24(l as u32, &mut enc[1..]);
-            println!("  check len {:?} enc {:?}", l, enc);
+            println!("  check len {l:?} enc {enc:?}");
 
             match (hm.typ, l) {
                 (HandshakeType::ClientHello, 41)
@@ -1107,8 +1107,8 @@ fn can_roundtrip_all_tls13_handshake_payloads() {
         assert!(!rd.any_left());
         assert_eq!(hm.get_encoding(), other.get_encoding());
 
-        println!("{:?}", hm);
-        println!("{:?}", other);
+        println!("{hm:?}");
+        println!("{other:?}");
     }
 }
 
@@ -1122,7 +1122,7 @@ fn put_u24(u: u32, b: &mut [u8]) {
 fn can_detect_truncation_of_all_tls13_handshake_payloads() {
     for hm in get_all_tls13_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
-        println!("test {:?} enc {:?}", hm, enc);
+        println!("test {hm:?} enc {enc:?}");
 
         // outer truncation
         for l in 0..enc.len() {
@@ -1132,7 +1132,7 @@ fn can_detect_truncation_of_all_tls13_handshake_payloads() {
         // inner truncation
         for l in 0..enc.len() - 4 {
             put_u24(l as u32, &mut enc[1..]);
-            println!("  check len {:?} enc {:?}", l, enc);
+            println!("  check len {l:?} enc {enc:?}");
 
             match (hm.typ, l) {
                 (HandshakeType::ClientHello, 41)
@@ -1159,7 +1159,7 @@ fn cannot_read_messagehash_from_network() {
         typ: HandshakeType::MessageHash,
         payload: HandshakePayload::MessageHash(Payload::new(vec![1, 2, 3])),
     };
-    println!("mh {:?}", mh);
+    println!("mh {mh:?}");
     let enc = mh.get_encoding();
     assert!(HandshakeMessagePayload::read_bytes(&enc).is_none());
 }

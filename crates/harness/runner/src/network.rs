@@ -342,8 +342,8 @@ struct VethPair(Veth, Veth);
 impl VethPair {
     fn new(name: &str) -> Self {
         Self(
-            Veth::new(&format!("{}-0", name)),
-            Veth::new(&format!("{}-1", name)),
+            Veth::new(&format!("{name}-0")),
+            Veth::new(&format!("{name}-1")),
         )
     }
 

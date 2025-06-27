@@ -120,8 +120,7 @@ async fn version_test(
     let server_config = make_server_config_with_versions(KeyType::Rsa, server_versions);
 
     println!(
-        "version {:?} {:?} -> {:?}",
-        client_versions, server_versions, result
+        "version {client_versions:?} {server_versions:?} -> {result:?}"
     );
 
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
@@ -1178,7 +1177,7 @@ async fn client_read_returns_wouldblock_when_no_data() {
 async fn client_returns_initial_io_state() {
     let (mut client, _) = make_pair(KeyType::Rsa).await;
     let io_state = client.process_new_packets().await.unwrap();
-    println!("IoState is Debug {:?}", io_state);
+    println!("IoState is Debug {io_state:?}");
     assert_eq!(io_state.plaintext_bytes_to_read(), 0);
     assert!(!io_state.peer_has_closed());
     assert!(io_state.tls_bytes_to_write() > 200);
@@ -1491,7 +1490,7 @@ async fn client_config_is_clone() {
 #[tokio::test]
 async fn client_connection_is_debug() {
     let (client, _) = make_pair(KeyType::Rsa).await;
-    println!("{:?}", client);
+    println!("{client:?}");
 }
 
 async fn do_exporter_test(client_config: ClientConfig, server_config: ServerConfig) {
@@ -2537,7 +2536,7 @@ async fn test_client_mtu_reduction() {
         .unwrap();
         client.start().await.unwrap();
         let writes = collect_write_lengths(&mut client);
-        println!("writes at mtu=64: {:?}", writes);
+        println!("writes at mtu=64: {writes:?}");
         assert!(writes.iter().all(|x| *x <= 64));
         assert!(writes.len() > 1);
     }
@@ -2619,7 +2618,7 @@ async fn bad_client_max_fragment_sizes() {
 
 fn assert_lt(left: usize, right: usize) {
     if left >= right {
-        panic!("expected {} < {}", left, right);
+        panic!("expected {left} < {right}");
     }
 }
 
@@ -2636,7 +2635,7 @@ use tls_client::internal::msgs::message::{Message, MessagePayload};
 async fn test_client_rejects_illegal_tls13_ccs() {
     fn corrupt_ccs(msg: &mut Message) -> Altered {
         if let MessagePayload::ChangeCipherSpec(_) = &mut msg.payload {
-            println!("seen CCS {:?}", msg);
+            println!("seen CCS {msg:?}");
             return Altered::Raw(vec![0x14, 0x03, 0x03, 0x00, 0x02, 0x01, 0x02]);
         }
         Altered::InPlace
