@@ -8,6 +8,7 @@ pub mod commit;
 pub mod config;
 pub mod context;
 pub mod encoding;
+pub mod error;
 pub mod ghash;
 pub mod msg;
 pub mod mux;
