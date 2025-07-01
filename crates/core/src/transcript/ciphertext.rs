@@ -1,32 +1,31 @@
 //! Ciphertext commitments and proof.
 
-use crate::hash::TypedHash;
+use crate::{hash::TypedHash, transcript::Direction};
 use serde::{Deserialize, Serialize};
 
-/// Ciphertext commitments
+/// Ciphertext commitment.
 ///
-/// Also contains commitments to client/sever write keys
+/// Also contains a commitment to the client or sever write key.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Ciphertext {
-    sent: Vec<u8>,
-    recv: Vec<u8>,
-    client_write_key: TypedHash,
-    server_write_key: TypedHash,
+    direction: Direction,
+    ciphertext: Vec<u8>,
+    key: TypedHash,
 }
 
-/// Proof for [`Ciphertext`] commitments.
+/// Proof for a [`Ciphertext`] commitment.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlaintextProof {
-    sent: Vec<u8>,
-    recv: Vec<u8>,
-    keys: SessionKeys,
+    direction: Direction,
+    plaintext: Vec<u8>,
+    key: SessionKey,
 }
 
-/// TLS session keys.
+/// TLS session key.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct SessionKeys {
-    client_write_key: Vec<u8>,
-    server_write_key: Vec<u8>,
+pub struct SessionKey {
+    direction: Direction,
+    key: Vec<u8>,
 }
 
-opaque_debug::implement!(SessionKeys);
+opaque_debug::implement!(SessionKey);

@@ -305,7 +305,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                     }
                     hash_secrets.push(hash);
                 }
-                TranscriptSecret::SessionKeys(session_keys) => todo!(),
+                TranscriptSecret::Ciphertext(session_keys) => todo!(),
             }
         }
 
