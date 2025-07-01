@@ -157,11 +157,10 @@ impl TranscriptProof {
             auth.union_mut(&expected.idx);
         }
 
-        // TODO: add logic for verifier plaintext proof
         for proof in self.plaintext_proof {
-            let (plaintext, auth) = match proof.direction {
-                Direction::Sent => (self.transcript.sent_unsafe(), &mut total_auth_sent),
-                Direction::Received => (self.transcript.received_unsafe(), &mut total_auth_recv),
+            let auth = match proof.direction {
+                Direction::Sent => &mut total_auth_sent,
+                Direction::Received => &mut total_auth_recv,
             };
 
             let auth_range = proof.verify_with_provider(&provider, &ciphertext_commitments)?;
@@ -298,8 +297,8 @@ impl<'a> TranscriptProofBuilder<'a> {
 
         let mut encoding_tree = None;
         let mut hash_secrets = Vec::new();
+        let mut session_secrets = Vec::new();
 
-        // TODO: complete match arms here for session keys secret
         for secret in secrets {
             match secret {
                 TranscriptSecret::Encoding(tree) => {
@@ -314,7 +313,17 @@ impl<'a> TranscriptProofBuilder<'a> {
                     }
                     hash_secrets.push(hash);
                 }
-                TranscriptSecret::Ciphertext(session_keys) => todo!(),
+                TranscriptSecret::Ciphertext(session_key) => {
+                    let len = transcript.len_of_direction(session_key.direction);
+                    let idx = Idx::new(0..len);
+
+                    match session_key.direction {
+                        Direction::Sent => committed_sent.union_mut(&idx),
+                        Direction::Received => committed_recv.union_mut(&idx),
+                    }
+
+                    session_secrets.push(session_key);
+                }
             }
         }
 
