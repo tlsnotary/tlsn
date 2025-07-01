@@ -8,6 +8,9 @@ publish = false
 name = "harness_executor"
 crate-type = ["cdylib", "rlib"]
 
+[package.metadata.wasm-pack.profile.custom]
+wasm-opt = ["-O3"]
+
 [dependencies]
 tlsn-harness-core = { workspace = true }
 tlsn-prover = { workspace = true }
