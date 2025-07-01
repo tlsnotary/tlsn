@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hash::HashAlgId,
     transcript::{
-        ciphertext::{Ciphertext, SessionKey},
+        ciphertext::{Ciphertext, SessionSecret},
         encoding::{EncodingCommitment, EncodingTree},
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, Idx, Transcript,
@@ -70,7 +70,7 @@ pub enum TranscriptSecret {
     /// Plaintext hash secret.
     Hash(PlaintextHashSecret),
     /// TLS Session Keys.
-    Ciphertext(SessionKey),
+    Ciphertext(SessionSecret),
 }
 
 /// Configuration for transcript commitments.

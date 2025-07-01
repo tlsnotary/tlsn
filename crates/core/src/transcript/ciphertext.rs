@@ -15,8 +15,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Ciphertext {
     direction: Direction,
+    idx: Idx,
     ciphertext: Vec<u8>,
     key: TypedHash,
+    iv: TypedHash,
 }
 
 /// Proof for a [`Ciphertext`] commitment.
@@ -28,10 +30,12 @@ pub struct PlaintextProof {
     pub blinder: Blinder,
     /// Direction of the plaintext.
     pub direction: Direction,
-    /// The corresponding plaintext.
+    /// The plaintext.
     pub plaintext: Vec<u8>,
-    /// The session key.
-    pub key: SessionKey,
+    /// The corresponding indices.
+    pub idx: Idx,
+    /// Secret of the session.
+    pub secret: SessionSecret,
 }
 
 impl PlaintextProof {
@@ -44,42 +48,61 @@ impl PlaintextProof {
     /// * `provider` - Provider for the hash algorithm used.
     /// * `commitments` - Commitments to verify with this proof.
     pub fn verify_with_provider(
-        &self,
+        self,
         provider: &CryptoProvider,
         commitments: &HashSet<&Ciphertext>,
     ) -> Result<Idx, PlaintextProofError> {
         let hasher = provider.hash.get(&self.alg)?;
 
+        // TODO: Reconstruct ciphertext from plaintext. Need iv, explicit_nonce, counters...
         let expected = Ciphertext {
             direction: self.direction,
+            idx: self.idx,
             ciphertext: todo!(),
-            key: self.key.hash(hasher, &self.blinder),
+            key: self.secret.hash_key(hasher, &self.blinder),
+            iv: self.secret.hash_iv(hasher, &self.blinder),
         };
 
-        todo!()
+        commitments
+            .get(&expected)
+            .ok_or_else(|| {
+                PlaintextProofError::new(ErrorKind::Proof, "Proof does not match any commitment")
+            })
+            .map(|&commit| commit.idx.clone())
     }
 }
 
 /// TLS session key.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct SessionKey {
+pub struct SessionSecret {
     direction: Direction,
     key: Vec<u8>,
+    iv: Vec<u8>,
 }
 
-impl SessionKey {
+impl SessionSecret {
     /// Hashes the session key with a blinder.
     ///
-    /// By convention, session key is hashed as `H(msg | blinder)`.
-    pub fn hash(&self, hasher: &dyn HashAlgorithm, blinder: &Blinder) -> TypedHash {
+    /// By convention, session key is hashed as `H(key | blinder)`.
+    pub fn hash_key(&self, hasher: &dyn HashAlgorithm, blinder: &Blinder) -> TypedHash {
         TypedHash {
             alg: hasher.id(),
             value: hasher.hash_prefixed(&self.key, blinder.as_bytes()),
         }
     }
+
+    /// Hashes the session iv with a blinder.
+    ///
+    /// By convention, session iv is hashed as `H(iv | blinder)`.
+    pub fn hash_iv(&self, hasher: &dyn HashAlgorithm, blinder: &Blinder) -> TypedHash {
+        TypedHash {
+            alg: hasher.id(),
+            value: hasher.hash_prefixed(&self.iv, blinder.as_bytes()),
+        }
+    }
 }
 
-opaque_debug::implement!(SessionKey);
+opaque_debug::implement!(SessionSecret);
 
 /// Error for [`PlaintextProof`].
 #[derive(Debug, thiserror::Error)]
