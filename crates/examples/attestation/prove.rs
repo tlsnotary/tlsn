@@ -17,7 +17,7 @@ use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn::{
     config::ProtocolConfig,
-    prover::{Prover, ProverConfig},
+    prover::{Prover, ProverConfig, TlsConfig},
 };
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_examples::ExampleType;

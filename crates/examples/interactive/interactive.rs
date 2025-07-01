@@ -14,7 +14,7 @@ use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
     config::{ProtocolConfig, ProtocolConfigValidator},
-    prover::{Prover, ProverConfig},
+    prover::{Prover, ProverConfig, TlsConfig},
     verifier::{Verifier, VerifierConfig},
 };
 use tlsn_core::{
