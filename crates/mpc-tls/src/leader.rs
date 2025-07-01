@@ -181,7 +181,6 @@ impl MpcTlsLeader {
         self.state = State::Setup {
             ctx,
             vm,
-            keys: keys.clone(),
             ke,
             prf,
             record_layer,
@@ -199,13 +198,13 @@ impl MpcTlsLeader {
         let State::Setup {
             mut ctx,
             vm,
-            keys,
             mut ke,
             mut prf,
             mut record_layer,
             cf_vd_fut,
             sf_vd_fut,
             client_random,
+            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("must be in setup state to preprocess"));
@@ -256,7 +255,6 @@ impl MpcTlsLeader {
         self.state = State::Handshake {
             ctx,
             vm,
-            keys,
             ke,
             prf,
             record_layer,
@@ -676,7 +674,6 @@ impl Backend for MpcTlsLeader {
         let State::Handshake {
             mut ctx,
             vm,
-            keys,
             mut ke,
             mut prf,
             mut record_layer,
@@ -684,12 +681,12 @@ impl Backend for MpcTlsLeader {
             sf_vd_fut,
             time,
             protocol_version,
-            cipher_suite,
             client_random,
             server_random,
             server_cert_details,
             server_key,
             server_kx_details,
+            ..
         } = self.state.take()
         else {
             return Err(
@@ -702,8 +699,6 @@ impl Backend for MpcTlsLeader {
         let time = time.ok_or_else(|| MpcTlsError::hs("time is not set"))?;
         let protocol_version =
             protocol_version.ok_or_else(|| MpcTlsError::hs("protocol version is not set"))?;
-        let cipher_suite =
-            cipher_suite.ok_or_else(|| MpcTlsError::hs("cipher suite is not set"))?;
         let server_random =
             server_random.ok_or_else(|| MpcTlsError::hs("server random is not set"))?;
         let server_cert_details =
@@ -743,7 +738,6 @@ impl Backend for MpcTlsLeader {
         self.state = State::Active {
             ctx,
             vm,
-            keys,
             _ke: ke,
             prf,
             record_layer,
@@ -753,7 +747,6 @@ impl Backend for MpcTlsLeader {
             sf_vd: None,
             time,
             protocol_version,
-            cipher_suite,
             client_random,
             server_random,
             server_cert_details,
@@ -1053,7 +1046,6 @@ enum State {
     Setup {
         ctx: Context,
         vm: Vm,
-        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -1064,7 +1056,6 @@ enum State {
     Handshake {
         ctx: Context,
         vm: Vm,
-        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -1082,7 +1073,6 @@ enum State {
     Active {
         ctx: Context,
         vm: Vm,
-        keys: SessionKeys,
         _ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -1092,7 +1082,6 @@ enum State {
         sf_vd: Option<[u8; 12]>,
         time: u64,
         protocol_version: ProtocolVersion,
-        cipher_suite: CipherSuite,
         client_random: Random,
         server_random: Random,
         server_cert_details: ServerCertDetails,

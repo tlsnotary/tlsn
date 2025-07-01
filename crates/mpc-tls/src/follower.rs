@@ -144,7 +144,6 @@ impl MpcTlsFollower {
 
         self.state = State::Setup {
             vm,
-            keys: keys.clone(),
             ke,
             prf,
             record_layer,
@@ -442,7 +441,6 @@ enum State {
     },
     Setup {
         vm: Vm,
-        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
