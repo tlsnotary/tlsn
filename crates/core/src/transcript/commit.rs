@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hash::{impl_domain_separator, HashAlgId},
     transcript::{
-        ciphertext::{Ciphertext, SessionKeys},
+        ciphertext::{Ciphertext, SessionKey},
         encoding::{EncodingCommitment, EncodingTree},
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, Idx, Transcript,
@@ -72,7 +72,7 @@ pub enum TranscriptSecret {
     /// Plaintext hash secret.
     Hash(PlaintextHashSecret),
     /// TLS Session Keys.
-    SessionKeys(SessionKeys),
+    Ciphertext(SessionKey),
 }
 
 impl_domain_separator!(TranscriptSecret);
@@ -125,6 +125,14 @@ impl TranscriptCommitConfig {
     pub fn iter_hash(&self) -> impl Iterator<Item = (&(Direction, Idx), &HashAlgId)> {
         self.commits.iter().filter_map(|(idx, kind)| match kind {
             TranscriptCommitmentKind::Hash { alg } => Some((idx, alg)),
+            _ => None,
+        })
+    }
+
+    /// Returns an iterator over the ciphertext commitment indices.
+    pub fn iter_ciphertext(&self) -> impl Iterator<Item = &(Direction, Idx)> {
+        self.commits.iter().filter_map(|(idx, kind)| match kind {
+            TranscriptCommitmentKind::Ciphertext => Some(idx),
             _ => None,
         })
     }
@@ -210,12 +218,21 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
             ));
         }
 
-        // TODO: We should restrict the ranges to full ranges only, when using Ciphertext
-        // commitments
         match kind {
             TranscriptCommitmentKind::Encoding => self.has_encoding = true,
             TranscriptCommitmentKind::Hash { .. } => self.has_hash = true,
-            TranscriptCommitmentKind::Ciphertext => self.has_ciphertext = true,
+            TranscriptCommitmentKind::Ciphertext => {
+                if idx.len() != self.transcript.len_of_direction(direction) {
+                    return Err(TranscriptCommitConfigBuilderError::new(ErrorKind::Index,
+                        format!("Can only commit to full transcript length when using ciphertext commitments. \
+                            Length of transcript is {}, but committed range was {}",
+                            self.transcript.len_of_direction(direction),
+                            idx.len()
+                        )
+                    ));
+                }
+                self.has_ciphertext = true;
+            }
         }
 
         self.commits.insert(((direction, idx), kind));
