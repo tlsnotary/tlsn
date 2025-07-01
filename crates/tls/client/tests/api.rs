@@ -119,9 +119,7 @@ async fn version_test(
     let client_config = make_client_config_with_versions(KeyType::Rsa, client_versions);
     let server_config = make_server_config_with_versions(KeyType::Rsa, server_versions);
 
-    println!(
-        "version {client_versions:?} {server_versions:?} -> {result:?}"
-    );
+    println!("version {client_versions:?} {server_versions:?} -> {result:?}");
 
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
 

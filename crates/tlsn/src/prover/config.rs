@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-    config::{NetworkSetting, ProtocolConfig},
-};
+use crate::config::{NetworkSetting, ProtocolConfig};
 use derive_builder::UninitializedFieldError;
 use mpc_tls::Config;
 use rustls_pki_types::{CertificateDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer, pem::PemObject};

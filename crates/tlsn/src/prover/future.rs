@@ -1,6 +1,6 @@
 //! This module collects futures which are used by the [Prover].
 
-use super::{state, Prover, ProverControl, ProverError};
+use super::{Prover, ProverControl, ProverError, state};
 use futures::Future;
 use std::pin::Pin;
 
