@@ -8,7 +8,7 @@ use crate::{
     connection::TranscriptLength,
     hash::{HashAlgId, HashProvider},
     transcript::{
-        ciphertext::PlaintextProof,
+        ciphertext::{PlaintextProof, PlaintextProofError},
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
@@ -32,7 +32,7 @@ pub struct TranscriptProof {
     transcript: PartialTranscript,
     encoding_proof: Option<EncodingProof>,
     hash_secrets: Vec<PlaintextHashSecret>,
-    plaintext_proof: Option<PlaintextProof>,
+    plaintext_proof: Vec<PlaintextProof>,
 }
 
 opaque_debug::implement!(TranscriptProof);
@@ -54,7 +54,7 @@ impl TranscriptProof {
     ) -> Result<PartialTranscript, TranscriptProofError> {
         let mut encoding_commitment = None;
         let mut hash_commitments = HashSet::new();
-        let mut ciphertext_commitment = None;
+        let mut ciphertext_commitments = HashSet::new();
 
         // Index commitments.
         for commitment in commitments {
@@ -71,12 +71,7 @@ impl TranscriptProof {
                     hash_commitments.insert(plaintext_hash);
                 }
                 TranscriptCommitment::Ciphertext(commitment) => {
-                    if ciphertext_commitment.replace(commitment).is_some() {
-                        return Err(TranscriptProofError::new(
-                            ErrorKind::Ciphertext,
-                            "multiple ciphertext commitments are present.",
-                        ));
-                    }
+                    ciphertext_commitments.insert(commitment);
                 }
             }
         }
@@ -162,8 +157,15 @@ impl TranscriptProof {
         }
 
         // TODO: add logic for verifier plaintext proof
-        if let Some(proof) = self.plaintext_proof {
-            todo!();
+        for proof in self.plaintext_proof {
+            let (plaintext, auth) = match proof.direction {
+                Direction::Sent => (self.transcript.sent_unsafe(), &mut total_auth_sent),
+                Direction::Received => (self.transcript.received_unsafe(), &mut total_auth_recv),
+            };
+
+            let auth_range = proof.verify_with_provider(&provider, &ciphertext_commitments)?;
+
+            auth.union_mut(&auth_range);
         }
 
         // Assert that all the authenticated data are covered by the proof.
@@ -229,6 +231,12 @@ impl fmt::Display for TranscriptProofError {
 impl From<EncodingProofError> for TranscriptProofError {
     fn from(e: EncodingProofError) -> Self {
         TranscriptProofError::new(ErrorKind::Encoding, e)
+    }
+}
+
+impl From<PlaintextProofError> for TranscriptProofError {
+    fn from(e: PlaintextProofError) -> Self {
+        TranscriptProofError::new(ErrorKind::Ciphertext, e)
     }
 }
 
@@ -409,7 +417,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                 .to_partial(self.query_idx.sent.clone(), self.query_idx.recv.clone()),
             encoding_proof: None,
             hash_secrets: Vec::new(),
-            plaintext_proof: None,
+            plaintext_proof: Vec::new(),
         };
         let mut uncovered_query_idx = self.query_idx.clone();
         let mut commitment_kinds_iter = self.commitment_kinds.iter();
@@ -493,6 +501,10 @@ impl<'a> TranscriptProofBuilder<'a> {
                                 .into_iter()
                                 .map(|s| PlaintextHashSecret::clone(s)),
                         );
+                    }
+                    // TODO: Add implementation for this commitment kind
+                    TranscriptCommitmentKind::Ciphertext => {
+                        todo!()
                     }
                     #[allow(unreachable_patterns)]
                     kind => {
