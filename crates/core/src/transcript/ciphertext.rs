@@ -16,7 +16,10 @@ use serde::{Deserialize, Serialize};
 pub struct Ciphertext {
     direction: Direction,
     idx: Idx,
+    //  TODO: should we use Merkle tree here to reduce commitment size?
     ciphertext: Vec<u8>,
+    explicit_nonces: Vec<u8>,
+    counters: Vec<u8>,
     key: TypedHash,
     iv: TypedHash,
 }
@@ -26,8 +29,6 @@ pub struct Ciphertext {
 pub struct PlaintextProof {
     /// The algorithm of the hash.
     pub alg: HashAlgId,
-    /// Blinder for the hash.
-    pub blinder: Blinder,
     /// Direction of the plaintext.
     pub direction: Direction,
     /// The plaintext.
@@ -59,8 +60,10 @@ impl PlaintextProof {
             direction: self.direction,
             idx: self.idx,
             ciphertext: todo!(),
-            key: self.secret.hash_key(hasher, &self.blinder),
-            iv: self.secret.hash_iv(hasher, &self.blinder),
+            explicit_nonces: todo!(),
+            counters: todo!(),
+            key: self.secret.hash_key(hasher),
+            iv: self.secret.hash_iv(hasher),
         };
 
         commitments
@@ -75,29 +78,36 @@ impl PlaintextProof {
 /// TLS session key.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SessionSecret {
-    direction: Direction,
-    key: Vec<u8>,
-    iv: Vec<u8>,
+    /// Direction of the session key (cwk or swk).
+    pub direction: Direction,
+    /// Session key.
+    pub key: Vec<u8>,
+    /// Blinder for the session key.
+    pub key_blinder: Blinder,
+    /// Iv.
+    pub iv: Vec<u8>,
+    /// Blinder for the iv.
+    pub iv_blinder: Blinder,
 }
 
 impl SessionSecret {
     /// Hashes the session key with a blinder.
     ///
     /// By convention, session key is hashed as `H(key | blinder)`.
-    pub fn hash_key(&self, hasher: &dyn HashAlgorithm, blinder: &Blinder) -> TypedHash {
+    pub fn hash_key(&self, hasher: &dyn HashAlgorithm) -> TypedHash {
         TypedHash {
             alg: hasher.id(),
-            value: hasher.hash_prefixed(&self.key, blinder.as_bytes()),
+            value: hasher.hash_prefixed(&self.key, self.key_blinder.as_bytes()),
         }
     }
 
     /// Hashes the session iv with a blinder.
     ///
     /// By convention, session iv is hashed as `H(iv | blinder)`.
-    pub fn hash_iv(&self, hasher: &dyn HashAlgorithm, blinder: &Blinder) -> TypedHash {
+    pub fn hash_iv(&self, hasher: &dyn HashAlgorithm) -> TypedHash {
         TypedHash {
             alg: hasher.id(),
-            value: hasher.hash_prefixed(&self.iv, blinder.as_bytes()),
+            value: hasher.hash_prefixed(&self.iv, self.iv_blinder.as_bytes()),
         }
     }
 }
