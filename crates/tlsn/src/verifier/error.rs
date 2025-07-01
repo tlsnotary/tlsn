@@ -1,6 +1,6 @@
+use crate::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
 use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
-use tlsn_common::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
 
 /// Error for [`Verifier`](crate::Verifier).
 #[derive(Debug, thiserror::Error)]
@@ -88,8 +88,8 @@ impl From<std::io::Error> for VerifierError {
     }
 }
 
-impl From<tlsn_common::config::ProtocolConfigError> for VerifierError {
-    fn from(e: tlsn_common::config::ProtocolConfigError) -> Self {
+impl From<crate::config::ProtocolConfigError> for VerifierError {
+    fn from(e: crate::config::ProtocolConfigError) -> Self {
         Self::new(ErrorKind::Config, e)
     }
 }

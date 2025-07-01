@@ -19,11 +19,11 @@ default = []
 
 [dependencies]
 tlsn-cipher = { workspace = true }
-tlsn-common = { workspace = true }
 tlsn-hmac-sha256 = { workspace = true }
 tlsn-key-exchange = { workspace = true }
 tlsn-tls-backend = { workspace = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
+tlsn-core = { workspace = true }
 
 mpz-common = { workspace = true }
 mpz-core = { workspace = true }
@@ -54,6 +54,7 @@ ctr = { workspace = true }
 ghash_rc = { package = "ghash", version = "0.5" }
 tokio = { workspace = true, features = ["sync"] }
 pin-project-lite = { workspace = true }
+web-time = { workspace = true }
 
 [dev-dependencies]
 mpz-ole = { workspace = true, features = ["test-utils"] }

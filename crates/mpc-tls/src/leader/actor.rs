@@ -1,5 +1,5 @@
 use crate::{
-    leader::{LeaderOutput, MpcTlsLeader, State},
+    leader::{MpcTlsLeader, State},
     MpcTlsError,
 };
 use async_trait::async_trait;
@@ -18,6 +18,7 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
+use tlsn_core::transcript::TlsTranscript;
 use tracing::{debug, Instrument};
 
 #[derive(Clone)]
@@ -69,7 +70,7 @@ impl MpcTlsLeader {
         mut self,
     ) -> (
         MpcTlsLeaderCtrl,
-        impl Future<Output = Result<(Context, LeaderOutput), MpcTlsError>>,
+        impl Future<Output = Result<(Context, TlsTranscript), MpcTlsError>>,
     ) {
         let (mut mailbox, address) = mailbox(100);
 
@@ -82,17 +83,20 @@ impl MpcTlsLeader {
 }
 
 impl Actor for MpcTlsLeader {
-    type Stop = (Context, LeaderOutput);
+    type Stop = (Context, TlsTranscript);
     type Error = MpcTlsError;
 
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
         debug!("leader actor stopped");
 
-        let State::Closed { ctx, data, .. } = self.state.take() else {
+        let State::Closed {
+            ctx, transcript, ..
+        } = self.state.take()
+        else {
             return Err(MpcTlsError::state("leader actor stopped in invalid state"));
         };
 
-        Ok((ctx, data))
+        Ok((ctx, transcript))
     }
 }
 

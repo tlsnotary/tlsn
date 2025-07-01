@@ -2,9 +2,10 @@ use axum::http::StatusCode;
 use axum_core::response::{IntoResponse as AxumCoreIntoResponse, Response};
 use eyre::Report;
 use std::error::Error;
-use tlsn_common::config::ProtocolConfigValidatorBuilderError;
-
-use tlsn_verifier::{VerifierConfigBuilderError, VerifierError};
+use tlsn::{
+    config::ProtocolConfigValidatorBuilderError,
+    verifier::{VerifierConfigBuilderError, VerifierError},
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum NotaryServerError {

@@ -1,37 +1,36 @@
 //! Plaintext commitment and proof of encryption.
 
-pub mod hash;
+pub(crate) mod hash;
+pub(crate) mod transcript;
 
 use mpz_core::bitvec::BitVec;
-use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_memory_core::{
+    DecodeFutureTyped, Vector,
+    binary::{Binary, U8},
+};
+use mpz_vm_core::{Vm, prelude::*};
+use tlsn_core::transcript::Record;
 
 use crate::{
-    transcript::Record,
-    zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
     Role,
+    zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
 };
 
 /// Commits the plaintext of the provided records, returning a proof of
 /// encryption.
 ///
 /// Writes the plaintext VM reference to the provided records.
-pub fn commit_records<'record>(
+pub(crate) fn commit_records<'record>(
     vm: &mut dyn Vm<Binary>,
     aes: &mut ZkAesCtr,
-    records: impl IntoIterator<Item = &'record mut Record>,
-) -> Result<RecordProof, RecordProofError> {
+    records: impl IntoIterator<Item = &'record Record>,
+) -> Result<(Vec<Vector<U8>>, RecordProof), RecordProofError> {
+    let mut plaintexts = Vec::new();
     let mut ciphertexts = Vec::new();
     for record in records {
-        if record.plaintext_ref.is_some() {
-            return Err(ErrorRepr::PlaintextRefAlreadySet.into());
-        }
-
         let (plaintext_ref, ciphertext_ref) = aes
             .encrypt(vm, record.explicit_nonce.clone(), record.ciphertext.len())
             .map_err(ErrorRepr::Aes)?;
-
-        record.plaintext_ref = Some(plaintext_ref);
 
         if let Role::Prover = aes.role() {
             let Some(plaintext) = record.plaintext.clone() else {
@@ -44,23 +43,25 @@ pub fn commit_records<'record>(
         vm.commit(plaintext_ref).map_err(RecordProofError::vm)?;
 
         let ciphertext = vm.decode(ciphertext_ref).map_err(RecordProofError::vm)?;
+
+        plaintexts.push(plaintext_ref);
         ciphertexts.push((ciphertext, record.ciphertext.clone()));
     }
 
-    Ok(RecordProof { ciphertexts })
+    Ok((plaintexts, RecordProof { ciphertexts }))
 }
 
 /// Proof of encryption.
 #[derive(Debug)]
 #[must_use]
 #[allow(clippy::type_complexity)]
-pub struct RecordProof {
+pub(crate) struct RecordProof {
     ciphertexts: Vec<(DecodeFutureTyped<BitVec, Vec<u8>>, Vec<u8>)>,
 }
 
 impl RecordProof {
     /// Verifies the proof.
-    pub fn verify(self) -> Result<(), RecordProofError> {
+    pub(crate) fn verify(self) -> Result<(), RecordProofError> {
         let Self { ciphertexts } = self;
 
         for (mut ciphertext, expected) in ciphertexts {
@@ -81,7 +82,7 @@ impl RecordProof {
 /// Error for [`RecordProof`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct RecordProofError(#[from] ErrorRepr);
+pub(crate) struct RecordProofError(#[from] ErrorRepr);
 
 impl RecordProofError {
     fn vm<E>(err: E) -> Self
@@ -101,8 +102,6 @@ enum ErrorRepr {
     Aes(ZkAesCtrError),
     #[error("plaintext is missing")]
     MissingPlaintext,
-    #[error("plaintext reference is already set")]
-    PlaintextRefAlreadySet,
     #[error("ciphertext was not decoded")]
     NotDecoded,
     #[error("ciphertext does not match expected")]

@@ -12,14 +12,16 @@ use tracing::instrument;
 
 use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::CA_CERT_DER;
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
+use tlsn::{
+    config::{ProtocolConfig, ProtocolConfigValidator},
+    prover::{Prover, ProverConfig},
+    verifier::{Verifier, VerifierConfig},
+};
 use tlsn_core::{
     transcript::PartialTranscript, CryptoProvider, ProveConfig, VerifierOutput, VerifyConfig,
 };
-use tlsn_prover::{Prover, ProverConfig, TlsConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CLIENT_CERT, CLIENT_KEY, SERVER_DOMAIN};
-use tlsn_verifier::{Verifier, VerifierConfig};
 
 const SECRET: &str = "TLSNotary's private key 🤡";
 

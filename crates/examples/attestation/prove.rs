@@ -15,11 +15,13 @@ use tracing::debug;
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
 use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_common::config::ProtocolConfig;
+use tlsn::{
+    config::ProtocolConfig,
+    prover::{Prover, ProverConfig},
+};
 use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
-use tlsn_prover::{Prover, ProverConfig, TlsConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CLIENT_CERT, CLIENT_KEY};
 

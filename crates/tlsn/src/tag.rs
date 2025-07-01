@@ -1,14 +1,17 @@
 //! TLS record tag verification.
 
-use crate::{ghash::ghash, transcript::Record};
-use cipher::{aes::Aes128, Cipher};
+use crate::ghash::ghash;
+
+use cipher::{Cipher, aes::Aes128};
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     DecodeFutureTyped,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_vm_core::{Vm, prelude::*};
+use tls_client::ProtocolVersion;
 use tls_core::cipher::make_tls12_aad;
+use tlsn_core::{connection::TlsVersion, transcript::Record};
 
 /// Proves the verification of tags of the given `records`,
 /// returning a proof.
@@ -18,11 +21,13 @@ use tls_core::cipher::make_tls12_aad;
 /// * `vm` - Virtual machine.
 /// * `key_iv` - Cipher key and IV.
 /// * `mac_key` - MAC key.
+/// * `tls_version` - TLS protocol version.
 /// * `records` - Records for which the verification is to be proven.
-pub fn verify_tags(
+pub(crate) fn verify_tags(
     vm: &mut dyn Vm<Binary>,
     key_iv: (Array<U8, 16>, Array<U8, 4>),
     mac_key: Array<U8, 16>,
+    tls_version: TlsVersion,
     records: Vec<Record>,
 ) -> Result<TagProof, TagProofError> {
     let mut aes = Aes128::default();
@@ -62,6 +67,7 @@ pub fn verify_tags(
     let mac_key = vm.decode(mac_key).map_err(TagProofError::vm)?;
 
     Ok(TagProof {
+        tls_version,
         j0s,
         records,
         mac_key,
@@ -71,7 +77,8 @@ pub fn verify_tags(
 /// Proof of tag verification.
 #[derive(Debug)]
 #[must_use]
-pub struct TagProof {
+pub(crate) struct TagProof {
+    tls_version: TlsVersion,
     /// The j0 block for each record.
     j0s: Vec<DecodeFutureTyped<BitVec, [u8; 16]>>,
     records: Vec<Record>,
@@ -81,8 +88,9 @@ pub struct TagProof {
 
 impl TagProof {
     /// Verifies the proof.
-    pub fn verify(self) -> Result<(), TagProofError> {
+    pub(crate) fn verify(self) -> Result<(), TagProofError> {
         let Self {
+            tls_version,
             j0s,
             mut mac_key,
             records,
@@ -93,13 +101,18 @@ impl TagProof {
             .map_err(TagProofError::vm)?
             .ok_or_else(|| ErrorRepr::NotDecoded)?;
 
+        let vers = match tls_version {
+            TlsVersion::V1_2 => ProtocolVersion::TLSv1_2,
+            TlsVersion::V1_3 => ProtocolVersion::TLSv1_3,
+        };
+
         for (mut j0, rec) in j0s.into_iter().zip(records) {
             let j0 = j0
                 .try_recv()
                 .map_err(TagProofError::vm)?
                 .ok_or_else(|| ErrorRepr::NotDecoded)?;
 
-            let aad = make_tls12_aad(rec.seq, rec.typ, rec.version, rec.ciphertext.len());
+            let aad = make_tls12_aad(rec.seq, rec.typ, vers, rec.ciphertext.len());
 
             let ghash_tag = ghash(aad.as_ref(), &rec.ciphertext, &mac_key);
 
@@ -130,7 +143,7 @@ impl TagProof {
 /// Error for [`J0Proof`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct TagProofError(#[from] ErrorRepr);
+pub(crate) struct TagProofError(#[from] ErrorRepr);
 
 impl TagProofError {
     fn vm<E>(err: E) -> Self

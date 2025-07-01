@@ -1,6 +1,8 @@
-use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
-use tlsn_common::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
+
+use mpc_tls::MpcTlsError;
+
+use crate::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
 
 /// Error for [`Prover`](crate::Prover).
 #[derive(Debug, thiserror::Error)]

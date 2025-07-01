@@ -1,12 +1,11 @@
 [package]
-name = "tlsn-prover"
+name = "tlsn"
 authors = ["TLSNotary Team"]
-description = "Contains the prover library"
 keywords = ["tls", "mpc", "2pc", "prover"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
 version = "0.1.0-alpha.13-pre"
-edition = "2021"
+edition = "2024"
 
 [lints]
 workspace = true
@@ -17,21 +16,23 @@ rayon = ["mpz-common/rayon"]
 force-st = ["mpz-common/force-st"]
 
 [dependencies]
-tlsn-common = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
 tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
+tlsn-cipher = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
+web-spawn = { workspace = true }
 
 mpz-common = { workspace = true }
 mpz-core = { workspace = true }
 mpz-garble = { workspace = true }
 mpz-garble-core = { workspace = true }
+mpz-hash = { workspace = true }
 mpz-memory-core = { workspace = true }
 mpz-ole = { workspace = true }
 mpz-ot = { workspace = true }
@@ -45,5 +46,19 @@ rand = { workspace = true }
 rustls-pki-types = "1.12.0"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-web-time = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
+serde = { workspace = true, features = ["derive"] }
+ghash = { workspace = true }
+semver = { workspace = true, features = ["serde"] }
+once_cell = { workspace = true }
+rangeset = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+tlsn-server-fixture = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["compat"] }
+hyper = { workspace = true, features = ["client"] }
+http-body-util = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }

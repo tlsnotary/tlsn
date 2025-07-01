@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "crates/common",
     "crates/components/deap",
     "crates/components/cipher",
     "crates/components/hmac-sha256",
@@ -13,7 +12,6 @@ members = [
     "crates/notary/common",
     "crates/notary/server",
     "crates/notary/tests-integration",
-    "crates/prover",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",
     "crates/tls/backend",
@@ -22,11 +20,11 @@ members = [
     "crates/tls/core",
     "crates/mpc-tls",
     "crates/tls/server-fixture",
-    "crates/verifier",
     "crates/wasm",
     "crates/harness/core",
     "crates/harness/executor",
     "crates/harness/runner",
+    "crates/tlsn",
 ]
 resolver = "2"
 
@@ -52,7 +50,6 @@ notary-common = { path = "crates/notary/common" }
 notary-server = { path = "crates/notary/server" }
 tls-server-fixture = { path = "crates/tls/server-fixture" }
 tlsn-cipher = { path = "crates/components/cipher" }
-tlsn-common = { path = "crates/common" }
 tlsn-core = { path = "crates/core" }
 tlsn-data-fixtures = { path = "crates/data-fixtures" }
 tlsn-deap = { path = "crates/components/deap" }
@@ -60,7 +57,6 @@ tlsn-formats = { path = "crates/formats" }
 tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
-tlsn-prover = { path = "crates/prover" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
@@ -72,7 +68,7 @@ tlsn-harness-core = { path = "crates/harness/core" }
 tlsn-harness-executor = { path = "crates/harness/executor" }
 tlsn-harness-runner = { path = "crates/harness/runner" }
 tlsn-wasm = { path = "crates/wasm" }
-tlsn-verifier = { path = "crates/verifier" }
+tlsn = { path = "crates/tlsn" }
 
 mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
 mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
@@ -152,6 +148,7 @@ rstest = { version = "0.17" }
 rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0" }
 sct = { version = "0.7" }
+semver = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 sha2 = { version = "0.10" }

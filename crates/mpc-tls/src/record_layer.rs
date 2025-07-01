@@ -21,7 +21,7 @@ use tls_core::{
     cipher::make_tls12_aad,
     msgs::enums::{ContentType, ProtocolVersion},
 };
-use tlsn_common::transcript::{Record, TlsTranscript};
+use tlsn_core::transcript::Record;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
@@ -489,11 +489,9 @@ impl RecordLayer {
                 seq: op.seq,
                 typ: op.typ,
                 plaintext: op.plaintext,
-                plaintext_ref: pending.plaintext_ref,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext,
                 tag,
-                version: op.version,
             });
         }
 
@@ -509,11 +507,9 @@ impl RecordLayer {
                 seq: op.seq,
                 typ: op.typ,
                 plaintext,
-                plaintext_ref: None,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
                 tag: Some(op.tag),
-                version: op.version,
             });
         }
 
@@ -526,7 +522,7 @@ impl RecordLayer {
         &mut self,
         ctx: &mut Context,
         vm: Vm,
-    ) -> Result<TlsTranscript, MpcTlsError> {
+    ) -> Result<(Vec<Record>, Vec<Record>), MpcTlsError> {
         let State::Online {
             sent_records,
             mut recv_records,
@@ -584,20 +580,15 @@ impl RecordLayer {
                 seq: op.seq,
                 typ: op.typ,
                 plaintext,
-                plaintext_ref: None,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
                 tag: Some(op.tag),
-                version: op.version,
             });
         }
 
         self.state = State::Complete {};
 
-        Ok(TlsTranscript {
-            sent: sent_records,
-            recv: recv_records,
-        })
+        Ok((sent_records, recv_records))
     }
 
     fn next_write(
