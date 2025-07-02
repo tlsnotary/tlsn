@@ -273,417 +273,426 @@
 <a href=#273 id=273 data-nosnippet>273</a>
 <a href=#274 id=274 data-nosnippet>274</a><span class="macro">impl_domain_separator!</span>(HandshakeData);
 <a href=#275 id=275 data-nosnippet>275</a>
-<a href=#276 id=276 data-nosnippet>276</a><span class="doccomment">/// Server certificate and handshake data.
+<a href=#276 id=276 data-nosnippet>276</a><span class="doccomment">/// Verify data from the TLS handshake finished messages.
 <a href=#277 id=277 data-nosnippet>277</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-<a href=#278 id=278 data-nosnippet>278</a></span><span class="kw">pub struct </span>ServerCertData {
-<a href=#279 id=279 data-nosnippet>279</a>    <span class="doccomment">/// Certificate chain.
-<a href=#280 id=280 data-nosnippet>280</a>    </span><span class="kw">pub </span>certs: Vec&lt;Certificate&gt;,
-<a href=#281 id=281 data-nosnippet>281</a>    <span class="doccomment">/// Server signature of the key exchange parameters.
-<a href=#282 id=282 data-nosnippet>282</a>    </span><span class="kw">pub </span>sig: ServerSignature,
-<a href=#283 id=283 data-nosnippet>283</a>    <span class="doccomment">/// TLS handshake data.
-<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="kw">pub </span>handshake: HandshakeData,
-<a href=#285 id=285 data-nosnippet>285</a>}
-<a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a><span class="kw">impl </span>ServerCertData {
-<a href=#288 id=288 data-nosnippet>288</a>    <span class="doccomment">/// Verifies the server certificate data.
-<a href=#289 id=289 data-nosnippet>289</a>    ///
-<a href=#290 id=290 data-nosnippet>290</a>    /// # Arguments
-<a href=#291 id=291 data-nosnippet>291</a>    ///
-<a href=#292 id=292 data-nosnippet>292</a>    /// * `provider` - The crypto provider to use for verification.
-<a href=#293 id=293 data-nosnippet>293</a>    /// * `time` - The time of the connection.
-<a href=#294 id=294 data-nosnippet>294</a>    /// * `server_ephemeral_key` - The server's ephemeral key.
-<a href=#295 id=295 data-nosnippet>295</a>    /// * `server_name` - The server name.
-<a href=#296 id=296 data-nosnippet>296</a>    </span><span class="kw">pub fn </span>verify_with_provider(
-<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#298 id=298 data-nosnippet>298</a>        provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#299 id=299 data-nosnippet>299</a>        time: u64,
-<a href=#300 id=300 data-nosnippet>300</a>        server_ephemeral_key: <span class="kw-2">&amp;</span>ServerEphemKey,
-<a href=#301 id=301 data-nosnippet>301</a>        server_name: <span class="kw-2">&amp;</span>ServerName,
-<a href=#302 id=302 data-nosnippet>302</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CertificateVerificationError&gt; {
-<a href=#303 id=303 data-nosnippet>303</a>        <span class="attr">#[allow(irrefutable_let_patterns)]
-<a href=#304 id=304 data-nosnippet>304</a>        </span><span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 {
-<a href=#305 id=305 data-nosnippet>305</a>            client_random,
-<a href=#306 id=306 data-nosnippet>306</a>            server_random,
-<a href=#307 id=307 data-nosnippet>307</a>            server_ephemeral_key: expected_server_ephemeral_key,
-<a href=#308 id=308 data-nosnippet>308</a>        }) = <span class="kw-2">&amp;</span><span class="self">self</span>.handshake
-<a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">else </span>{
-<a href=#310 id=310 data-nosnippet>310</a>            <span class="macro">unreachable!</span>(<span class="string">"only TLS 1.2 is implemented"</span>)
-<a href=#311 id=311 data-nosnippet>311</a>        };
-<a href=#312 id=312 data-nosnippet>312</a>
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="kw">if </span>server_ephemeral_key != expected_server_ephemeral_key {
-<a href=#314 id=314 data-nosnippet>314</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CertificateVerificationError::InvalidServerEphemeralKey);
-<a href=#315 id=315 data-nosnippet>315</a>        }
-<a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="comment">// Verify server name.
-<a href=#318 id=318 data-nosnippet>318</a>        </span><span class="kw">let </span>server_name = tls_core::dns::ServerName::try_from(server_name.as_ref())
-<a href=#319 id=319 data-nosnippet>319</a>            .map_err(|<span class="kw">_</span>| CertificateVerificationError::InvalidIdentity(server_name.clone()))<span class="question-mark">?</span>;
-<a href=#320 id=320 data-nosnippet>320</a>
-<a href=#321 id=321 data-nosnippet>321</a>        <span class="comment">// Verify server certificate.
-<a href=#322 id=322 data-nosnippet>322</a>        </span><span class="kw">let </span>cert_chain = <span class="self">self
-<a href=#323 id=323 data-nosnippet>323</a>            </span>.certs
-<a href=#324 id=324 data-nosnippet>324</a>            .clone()
-<a href=#325 id=325 data-nosnippet>325</a>            .into_iter()
-<a href=#326 id=326 data-nosnippet>326</a>            .map(|cert| tls_core::key::Certificate(cert.<span class="number">0</span>))
-<a href=#327 id=327 data-nosnippet>327</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#328 id=328 data-nosnippet>328</a>
-<a href=#329 id=329 data-nosnippet>329</a>        <span class="kw">let </span>(end_entity, intermediates) = cert_chain
-<a href=#330 id=330 data-nosnippet>330</a>            .split_first()
-<a href=#331 id=331 data-nosnippet>331</a>            .ok_or(CertificateVerificationError::MissingCerts)<span class="question-mark">?</span>;
-<a href=#332 id=332 data-nosnippet>332</a>
-<a href=#333 id=333 data-nosnippet>333</a>        <span class="comment">// Verify the end entity cert is valid for the provided server name
-<a href=#334 id=334 data-nosnippet>334</a>        // and that it chains to at least one of the roots we trust.
-<a href=#335 id=335 data-nosnippet>335</a>        </span>provider
-<a href=#336 id=336 data-nosnippet>336</a>            .cert
-<a href=#337 id=337 data-nosnippet>337</a>            .verify_server_cert(
-<a href=#338 id=338 data-nosnippet>338</a>                end_entity,
-<a href=#339 id=339 data-nosnippet>339</a>                intermediates,
-<a href=#340 id=340 data-nosnippet>340</a>                <span class="kw-2">&amp;</span>server_name,
-<a href=#341 id=341 data-nosnippet>341</a>                <span class="kw-2">&amp;mut </span>[].into_iter(),
-<a href=#342 id=342 data-nosnippet>342</a>                <span class="kw-2">&amp;</span>[],
-<a href=#343 id=343 data-nosnippet>343</a>                UNIX_EPOCH + Duration::from_secs(time),
-<a href=#344 id=344 data-nosnippet>344</a>            )
-<a href=#345 id=345 data-nosnippet>345</a>            .map_err(|<span class="kw">_</span>| CertificateVerificationError::InvalidCert)<span class="question-mark">?</span>;
-<a href=#346 id=346 data-nosnippet>346</a>
-<a href=#347 id=347 data-nosnippet>347</a>        <span class="comment">// Verify the signature matches the certificate and key exchange parameters.
-<a href=#348 id=348 data-nosnippet>348</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>message = Vec::new();
-<a href=#349 id=349 data-nosnippet>349</a>        message.extend_from_slice(client_random);
-<a href=#350 id=350 data-nosnippet>350</a>        message.extend_from_slice(server_random);
-<a href=#351 id=351 data-nosnippet>351</a>        message.extend_from_slice(<span class="kw-2">&amp;</span>server_ephemeral_key.kx_params());
-<a href=#352 id=352 data-nosnippet>352</a>
-<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">let </span>dss = DigitallySignedStruct::new(<span class="self">self</span>.sig.scheme.into(), <span class="self">self</span>.sig.sig.clone());
-<a href=#354 id=354 data-nosnippet>354</a>
-<a href=#355 id=355 data-nosnippet>355</a>        provider
-<a href=#356 id=356 data-nosnippet>356</a>            .cert
-<a href=#357 id=357 data-nosnippet>357</a>            .verify_tls12_signature(<span class="kw-2">&amp;</span>message, end_entity, <span class="kw-2">&amp;</span>dss)
-<a href=#358 id=358 data-nosnippet>358</a>            .map_err(|<span class="kw">_</span>| CertificateVerificationError::InvalidServerSignature)<span class="question-mark">?</span>;
-<a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a>        <span class="prelude-val">Ok</span>(())
-<a href=#361 id=361 data-nosnippet>361</a>    }
-<a href=#362 id=362 data-nosnippet>362</a>}
+<a href=#278 id=278 data-nosnippet>278</a></span><span class="kw">pub struct </span>VerifyData {
+<a href=#279 id=279 data-nosnippet>279</a>    <span class="doccomment">/// Client finished verify data.
+<a href=#280 id=280 data-nosnippet>280</a>    </span><span class="kw">pub </span>client_finished: Vec&lt;u8&gt;,
+<a href=#281 id=281 data-nosnippet>281</a>    <span class="doccomment">/// Server finished verify data.
+<a href=#282 id=282 data-nosnippet>282</a>    </span><span class="kw">pub </span>server_finished: Vec&lt;u8&gt;,
+<a href=#283 id=283 data-nosnippet>283</a>}
+<a href=#284 id=284 data-nosnippet>284</a>
+<a href=#285 id=285 data-nosnippet>285</a><span class="doccomment">/// Server certificate and handshake data.
+<a href=#286 id=286 data-nosnippet>286</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+<a href=#287 id=287 data-nosnippet>287</a></span><span class="kw">pub struct </span>ServerCertData {
+<a href=#288 id=288 data-nosnippet>288</a>    <span class="doccomment">/// Certificate chain.
+<a href=#289 id=289 data-nosnippet>289</a>    </span><span class="kw">pub </span>certs: Vec&lt;Certificate&gt;,
+<a href=#290 id=290 data-nosnippet>290</a>    <span class="doccomment">/// Server signature of the key exchange parameters.
+<a href=#291 id=291 data-nosnippet>291</a>    </span><span class="kw">pub </span>sig: ServerSignature,
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="doccomment">/// TLS handshake data.
+<a href=#293 id=293 data-nosnippet>293</a>    </span><span class="kw">pub </span>handshake: HandshakeData,
+<a href=#294 id=294 data-nosnippet>294</a>}
+<a href=#295 id=295 data-nosnippet>295</a>
+<a href=#296 id=296 data-nosnippet>296</a><span class="kw">impl </span>ServerCertData {
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="doccomment">/// Verifies the server certificate data.
+<a href=#298 id=298 data-nosnippet>298</a>    ///
+<a href=#299 id=299 data-nosnippet>299</a>    /// # Arguments
+<a href=#300 id=300 data-nosnippet>300</a>    ///
+<a href=#301 id=301 data-nosnippet>301</a>    /// * `provider` - The crypto provider to use for verification.
+<a href=#302 id=302 data-nosnippet>302</a>    /// * `time` - The time of the connection.
+<a href=#303 id=303 data-nosnippet>303</a>    /// * `server_ephemeral_key` - The server's ephemeral key.
+<a href=#304 id=304 data-nosnippet>304</a>    /// * `server_name` - The server name.
+<a href=#305 id=305 data-nosnippet>305</a>    </span><span class="kw">pub fn </span>verify_with_provider(
+<a href=#306 id=306 data-nosnippet>306</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#307 id=307 data-nosnippet>307</a>        provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#308 id=308 data-nosnippet>308</a>        time: u64,
+<a href=#309 id=309 data-nosnippet>309</a>        server_ephemeral_key: <span class="kw-2">&amp;</span>ServerEphemKey,
+<a href=#310 id=310 data-nosnippet>310</a>        server_name: <span class="kw-2">&amp;</span>ServerName,
+<a href=#311 id=311 data-nosnippet>311</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CertificateVerificationError&gt; {
+<a href=#312 id=312 data-nosnippet>312</a>        <span class="attr">#[allow(irrefutable_let_patterns)]
+<a href=#313 id=313 data-nosnippet>313</a>        </span><span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 {
+<a href=#314 id=314 data-nosnippet>314</a>            client_random,
+<a href=#315 id=315 data-nosnippet>315</a>            server_random,
+<a href=#316 id=316 data-nosnippet>316</a>            server_ephemeral_key: expected_server_ephemeral_key,
+<a href=#317 id=317 data-nosnippet>317</a>        }) = <span class="kw-2">&amp;</span><span class="self">self</span>.handshake
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">else </span>{
+<a href=#319 id=319 data-nosnippet>319</a>            <span class="macro">unreachable!</span>(<span class="string">"only TLS 1.2 is implemented"</span>)
+<a href=#320 id=320 data-nosnippet>320</a>        };
+<a href=#321 id=321 data-nosnippet>321</a>
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">if </span>server_ephemeral_key != expected_server_ephemeral_key {
+<a href=#323 id=323 data-nosnippet>323</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CertificateVerificationError::InvalidServerEphemeralKey);
+<a href=#324 id=324 data-nosnippet>324</a>        }
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a>        <span class="comment">// Verify server name.
+<a href=#327 id=327 data-nosnippet>327</a>        </span><span class="kw">let </span>server_name = tls_core::dns::ServerName::try_from(server_name.as_ref())
+<a href=#328 id=328 data-nosnippet>328</a>            .map_err(|<span class="kw">_</span>| CertificateVerificationError::InvalidIdentity(server_name.clone()))<span class="question-mark">?</span>;
+<a href=#329 id=329 data-nosnippet>329</a>
+<a href=#330 id=330 data-nosnippet>330</a>        <span class="comment">// Verify server certificate.
+<a href=#331 id=331 data-nosnippet>331</a>        </span><span class="kw">let </span>cert_chain = <span class="self">self
+<a href=#332 id=332 data-nosnippet>332</a>            </span>.certs
+<a href=#333 id=333 data-nosnippet>333</a>            .clone()
+<a href=#334 id=334 data-nosnippet>334</a>            .into_iter()
+<a href=#335 id=335 data-nosnippet>335</a>            .map(|cert| tls_core::key::Certificate(cert.<span class="number">0</span>))
+<a href=#336 id=336 data-nosnippet>336</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#337 id=337 data-nosnippet>337</a>
+<a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">let </span>(end_entity, intermediates) = cert_chain
+<a href=#339 id=339 data-nosnippet>339</a>            .split_first()
+<a href=#340 id=340 data-nosnippet>340</a>            .ok_or(CertificateVerificationError::MissingCerts)<span class="question-mark">?</span>;
+<a href=#341 id=341 data-nosnippet>341</a>
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="comment">// Verify the end entity cert is valid for the provided server name
+<a href=#343 id=343 data-nosnippet>343</a>        // and that it chains to at least one of the roots we trust.
+<a href=#344 id=344 data-nosnippet>344</a>        </span>provider
+<a href=#345 id=345 data-nosnippet>345</a>            .cert
+<a href=#346 id=346 data-nosnippet>346</a>            .verify_server_cert(
+<a href=#347 id=347 data-nosnippet>347</a>                end_entity,
+<a href=#348 id=348 data-nosnippet>348</a>                intermediates,
+<a href=#349 id=349 data-nosnippet>349</a>                <span class="kw-2">&amp;</span>server_name,
+<a href=#350 id=350 data-nosnippet>350</a>                <span class="kw-2">&amp;mut </span>[].into_iter(),
+<a href=#351 id=351 data-nosnippet>351</a>                <span class="kw-2">&amp;</span>[],
+<a href=#352 id=352 data-nosnippet>352</a>                UNIX_EPOCH + Duration::from_secs(time),
+<a href=#353 id=353 data-nosnippet>353</a>            )
+<a href=#354 id=354 data-nosnippet>354</a>            .map_err(|<span class="kw">_</span>| CertificateVerificationError::InvalidCert)<span class="question-mark">?</span>;
+<a href=#355 id=355 data-nosnippet>355</a>
+<a href=#356 id=356 data-nosnippet>356</a>        <span class="comment">// Verify the signature matches the certificate and key exchange parameters.
+<a href=#357 id=357 data-nosnippet>357</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>message = Vec::new();
+<a href=#358 id=358 data-nosnippet>358</a>        message.extend_from_slice(client_random);
+<a href=#359 id=359 data-nosnippet>359</a>        message.extend_from_slice(server_random);
+<a href=#360 id=360 data-nosnippet>360</a>        message.extend_from_slice(<span class="kw-2">&amp;</span>server_ephemeral_key.kx_params());
+<a href=#361 id=361 data-nosnippet>361</a>
+<a href=#362 id=362 data-nosnippet>362</a>        <span class="kw">let </span>dss = DigitallySignedStruct::new(<span class="self">self</span>.sig.scheme.into(), <span class="self">self</span>.sig.sig.clone());
 <a href=#363 id=363 data-nosnippet>363</a>
-<a href=#364 id=364 data-nosnippet>364</a><span class="doccomment">/// Errors that can occur when verifying a certificate chain or signature.
-<a href=#365 id=365 data-nosnippet>365</a></span><span class="attr">#[derive(Debug, thiserror::Error)]
-<a href=#366 id=366 data-nosnippet>366</a>#[allow(missing_docs)]
-<a href=#367 id=367 data-nosnippet>367</a></span><span class="kw">pub enum </span>CertificateVerificationError {
-<a href=#368 id=368 data-nosnippet>368</a>    <span class="attr">#[error(<span class="string">"invalid server identity: {0}"</span>)]
-<a href=#369 id=369 data-nosnippet>369</a>    </span>InvalidIdentity(ServerName),
-<a href=#370 id=370 data-nosnippet>370</a>    <span class="attr">#[error(<span class="string">"missing server certificates"</span>)]
-<a href=#371 id=371 data-nosnippet>371</a>    </span>MissingCerts,
-<a href=#372 id=372 data-nosnippet>372</a>    <span class="attr">#[error(<span class="string">"invalid server certificate"</span>)]
-<a href=#373 id=373 data-nosnippet>373</a>    </span>InvalidCert,
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="attr">#[error(<span class="string">"invalid server signature"</span>)]
-<a href=#375 id=375 data-nosnippet>375</a>    </span>InvalidServerSignature,
-<a href=#376 id=376 data-nosnippet>376</a>    <span class="attr">#[error(<span class="string">"invalid server ephemeral key"</span>)]
-<a href=#377 id=377 data-nosnippet>377</a>    </span>InvalidServerEphemeralKey,
-<a href=#378 id=378 data-nosnippet>378</a>}
-<a href=#379 id=379 data-nosnippet>379</a>
-<a href=#380 id=380 data-nosnippet>380</a><span class="attr">#[cfg(test)]
-<a href=#381 id=381 data-nosnippet>381</a></span><span class="kw">mod </span>tests {
-<a href=#382 id=382 data-nosnippet>382</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#383 id=383 data-nosnippet>383</a>    <span class="kw">use crate</span>::{
-<a href=#384 id=384 data-nosnippet>384</a>        fixtures::ConnectionFixture, provider::default_cert_verifier, transcript::Transcript,
-<a href=#385 id=385 data-nosnippet>385</a>    };
-<a href=#386 id=386 data-nosnippet>386</a>
-<a href=#387 id=387 data-nosnippet>387</a>    <span class="kw">use </span>hex::FromHex;
-<a href=#388 id=388 data-nosnippet>388</a>    <span class="kw">use </span>rstest::<span class="kw-2">*</span>;
-<a href=#389 id=389 data-nosnippet>389</a>    <span class="kw">use </span>tls_core::verify::WebPkiVerifier;
-<a href=#390 id=390 data-nosnippet>390</a>    <span class="kw">use </span>tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
-<a href=#391 id=391 data-nosnippet>391</a>
-<a href=#392 id=392 data-nosnippet>392</a>    <span class="attr">#[fixture]
-<a href=#393 id=393 data-nosnippet>393</a>    #[once]
-<a href=#394 id=394 data-nosnippet>394</a>    </span><span class="kw">fn </span>crypto_provider() -&gt; CryptoProvider {
-<a href=#395 id=395 data-nosnippet>395</a>        <span class="kw">let </span><span class="kw-2">mut </span>store = default_cert_verifier().root_store().clone();
-<a href=#396 id=396 data-nosnippet>396</a>
-<a href=#397 id=397 data-nosnippet>397</a>        <span class="comment">// Add a cert which is no longer included in the Mozilla root store.
-<a href=#398 id=398 data-nosnippet>398</a>        </span><span class="kw">let </span>cert = tls_core::key::Certificate(
-<a href=#399 id=399 data-nosnippet>399</a>            appliedzkp()
-<a href=#400 id=400 data-nosnippet>400</a>                .server_cert_data
-<a href=#401 id=401 data-nosnippet>401</a>                .certs
-<a href=#402 id=402 data-nosnippet>402</a>                .last()
-<a href=#403 id=403 data-nosnippet>403</a>                .expect(<span class="string">"chain is valid"</span>)
-<a href=#404 id=404 data-nosnippet>404</a>                .<span class="number">0
-<a href=#405 id=405 data-nosnippet>405</a>                </span>.clone(),
-<a href=#406 id=406 data-nosnippet>406</a>        );
-<a href=#407 id=407 data-nosnippet>407</a>
-<a href=#408 id=408 data-nosnippet>408</a>        store.add(<span class="kw-2">&amp;</span>cert).unwrap();
-<a href=#409 id=409 data-nosnippet>409</a>
-<a href=#410 id=410 data-nosnippet>410</a>        CryptoProvider {
-<a href=#411 id=411 data-nosnippet>411</a>            hash: Default::default(),
-<a href=#412 id=412 data-nosnippet>412</a>            cert: WebPkiVerifier::new(store, <span class="prelude-val">None</span>),
-<a href=#413 id=413 data-nosnippet>413</a>            signer: Default::default(),
-<a href=#414 id=414 data-nosnippet>414</a>            signature: Default::default(),
-<a href=#415 id=415 data-nosnippet>415</a>        }
-<a href=#416 id=416 data-nosnippet>416</a>    }
-<a href=#417 id=417 data-nosnippet>417</a>
-<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">fn </span>tlsnotary() -&gt; ConnectionFixture {
-<a href=#419 id=419 data-nosnippet>419</a>        ConnectionFixture::tlsnotary(Transcript::new(GET_WITH_HEADER, OK_JSON).length())
-<a href=#420 id=420 data-nosnippet>420</a>    }
-<a href=#421 id=421 data-nosnippet>421</a>
-<a href=#422 id=422 data-nosnippet>422</a>    <span class="kw">fn </span>appliedzkp() -&gt; ConnectionFixture {
-<a href=#423 id=423 data-nosnippet>423</a>        ConnectionFixture::appliedzkp(Transcript::new(GET_WITH_HEADER, OK_JSON).length())
-<a href=#424 id=424 data-nosnippet>424</a>    }
-<a href=#425 id=425 data-nosnippet>425</a>
-<a href=#426 id=426 data-nosnippet>426</a>    <span class="doccomment">/// Expect chain verification to succeed.
-<a href=#427 id=427 data-nosnippet>427</a>    </span><span class="attr">#[rstest]
-<a href=#428 id=428 data-nosnippet>428</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#429 id=429 data-nosnippet>429</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#430 id=430 data-nosnippet>430</a>    </span><span class="kw">fn </span>test_verify_cert_chain_sucess_ca_implicit(
-<a href=#431 id=431 data-nosnippet>431</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#432 id=432 data-nosnippet>432</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
-<a href=#433 id=433 data-nosnippet>433</a>    ) {
-<a href=#434 id=434 data-nosnippet>434</a>        <span class="comment">// Remove the CA cert
-<a href=#435 id=435 data-nosnippet>435</a>        </span>data.server_cert_data.certs.pop();
-<a href=#436 id=436 data-nosnippet>436</a>
-<a href=#437 id=437 data-nosnippet>437</a>        <span class="macro">assert!</span>(data
-<a href=#438 id=438 data-nosnippet>438</a>            .server_cert_data
-<a href=#439 id=439 data-nosnippet>439</a>            .verify_with_provider(
-<a href=#440 id=440 data-nosnippet>440</a>                crypto_provider,
-<a href=#441 id=441 data-nosnippet>441</a>                data.connection_info.time,
-<a href=#442 id=442 data-nosnippet>442</a>                data.server_ephemeral_key(),
-<a href=#443 id=443 data-nosnippet>443</a>                <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#444 id=444 data-nosnippet>444</a>            )
-<a href=#445 id=445 data-nosnippet>445</a>            .is_ok());
-<a href=#446 id=446 data-nosnippet>446</a>    }
-<a href=#447 id=447 data-nosnippet>447</a>
-<a href=#448 id=448 data-nosnippet>448</a>    <span class="doccomment">/// Expect chain verification to succeed even when a trusted CA is provided
-<a href=#449 id=449 data-nosnippet>449</a>    /// among the intermediate certs. webpki handles such cases properly.
-<a href=#450 id=450 data-nosnippet>450</a>    </span><span class="attr">#[rstest]
-<a href=#451 id=451 data-nosnippet>451</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#452 id=452 data-nosnippet>452</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#453 id=453 data-nosnippet>453</a>    </span><span class="kw">fn </span>test_verify_cert_chain_success_ca_explicit(
-<a href=#454 id=454 data-nosnippet>454</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#455 id=455 data-nosnippet>455</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
-<a href=#456 id=456 data-nosnippet>456</a>    ) {
-<a href=#457 id=457 data-nosnippet>457</a>        <span class="macro">assert!</span>(data
-<a href=#458 id=458 data-nosnippet>458</a>            .server_cert_data
-<a href=#459 id=459 data-nosnippet>459</a>            .verify_with_provider(
-<a href=#460 id=460 data-nosnippet>460</a>                crypto_provider,
-<a href=#461 id=461 data-nosnippet>461</a>                data.connection_info.time,
-<a href=#462 id=462 data-nosnippet>462</a>                data.server_ephemeral_key(),
-<a href=#463 id=463 data-nosnippet>463</a>                <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#464 id=464 data-nosnippet>464</a>            )
-<a href=#465 id=465 data-nosnippet>465</a>            .is_ok());
-<a href=#466 id=466 data-nosnippet>466</a>    }
-<a href=#467 id=467 data-nosnippet>467</a>
-<a href=#468 id=468 data-nosnippet>468</a>    <span class="doccomment">/// Expect to fail since the end entity cert was not valid at the time.
-<a href=#469 id=469 data-nosnippet>469</a>    </span><span class="attr">#[rstest]
-<a href=#470 id=470 data-nosnippet>470</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#471 id=471 data-nosnippet>471</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#472 id=472 data-nosnippet>472</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_bad_time(
-<a href=#473 id=473 data-nosnippet>473</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#474 id=474 data-nosnippet>474</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
-<a href=#475 id=475 data-nosnippet>475</a>    ) {
-<a href=#476 id=476 data-nosnippet>476</a>        <span class="comment">// unix time when the cert chain was NOT valid
-<a href=#477 id=477 data-nosnippet>477</a>        </span><span class="kw">let </span>bad_time: u64 = <span class="number">1571465711</span>;
-<a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#480 id=480 data-nosnippet>480</a>            crypto_provider,
-<a href=#481 id=481 data-nosnippet>481</a>            bad_time,
-<a href=#482 id=482 data-nosnippet>482</a>            data.server_ephemeral_key(),
-<a href=#483 id=483 data-nosnippet>483</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#484 id=484 data-nosnippet>484</a>        );
-<a href=#485 id=485 data-nosnippet>485</a>
-<a href=#486 id=486 data-nosnippet>486</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#487 id=487 data-nosnippet>487</a>            err.unwrap_err(),
-<a href=#488 id=488 data-nosnippet>488</a>            CertificateVerificationError::InvalidCert
-<a href=#489 id=489 data-nosnippet>489</a>        ));
-<a href=#490 id=490 data-nosnippet>490</a>    }
-<a href=#491 id=491 data-nosnippet>491</a>
-<a href=#492 id=492 data-nosnippet>492</a>    <span class="doccomment">/// Expect to fail when no intermediate cert provided.
-<a href=#493 id=493 data-nosnippet>493</a>    </span><span class="attr">#[rstest]
-<a href=#494 id=494 data-nosnippet>494</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#495 id=495 data-nosnippet>495</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#496 id=496 data-nosnippet>496</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_no_interm_cert(
-<a href=#497 id=497 data-nosnippet>497</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#498 id=498 data-nosnippet>498</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
-<a href=#499 id=499 data-nosnippet>499</a>    ) {
-<a href=#500 id=500 data-nosnippet>500</a>        <span class="comment">// Remove the CA cert
-<a href=#501 id=501 data-nosnippet>501</a>        </span>data.server_cert_data.certs.pop();
-<a href=#502 id=502 data-nosnippet>502</a>        <span class="comment">// Remove the intermediate cert
-<a href=#503 id=503 data-nosnippet>503</a>        </span>data.server_cert_data.certs.pop();
-<a href=#504 id=504 data-nosnippet>504</a>
-<a href=#505 id=505 data-nosnippet>505</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#506 id=506 data-nosnippet>506</a>            crypto_provider,
-<a href=#507 id=507 data-nosnippet>507</a>            data.connection_info.time,
-<a href=#508 id=508 data-nosnippet>508</a>            data.server_ephemeral_key(),
-<a href=#509 id=509 data-nosnippet>509</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#510 id=510 data-nosnippet>510</a>        );
-<a href=#511 id=511 data-nosnippet>511</a>
-<a href=#512 id=512 data-nosnippet>512</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#513 id=513 data-nosnippet>513</a>            err.unwrap_err(),
-<a href=#514 id=514 data-nosnippet>514</a>            CertificateVerificationError::InvalidCert
-<a href=#515 id=515 data-nosnippet>515</a>        ));
-<a href=#516 id=516 data-nosnippet>516</a>    }
-<a href=#517 id=517 data-nosnippet>517</a>
-<a href=#518 id=518 data-nosnippet>518</a>    <span class="doccomment">/// Expect to fail when no intermediate cert provided even if a trusted CA
-<a href=#519 id=519 data-nosnippet>519</a>    /// cert is provided.
-<a href=#520 id=520 data-nosnippet>520</a>    </span><span class="attr">#[rstest]
-<a href=#521 id=521 data-nosnippet>521</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#522 id=522 data-nosnippet>522</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#523 id=523 data-nosnippet>523</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
-<a href=#524 id=524 data-nosnippet>524</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#525 id=525 data-nosnippet>525</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
-<a href=#526 id=526 data-nosnippet>526</a>    ) {
-<a href=#527 id=527 data-nosnippet>527</a>        <span class="comment">// Remove the intermediate cert
-<a href=#528 id=528 data-nosnippet>528</a>        </span>data.server_cert_data.certs.remove(<span class="number">1</span>);
-<a href=#529 id=529 data-nosnippet>529</a>
-<a href=#530 id=530 data-nosnippet>530</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#531 id=531 data-nosnippet>531</a>            crypto_provider,
-<a href=#532 id=532 data-nosnippet>532</a>            data.connection_info.time,
-<a href=#533 id=533 data-nosnippet>533</a>            data.server_ephemeral_key(),
-<a href=#534 id=534 data-nosnippet>534</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#535 id=535 data-nosnippet>535</a>        );
-<a href=#536 id=536 data-nosnippet>536</a>
-<a href=#537 id=537 data-nosnippet>537</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#538 id=538 data-nosnippet>538</a>            err.unwrap_err(),
-<a href=#539 id=539 data-nosnippet>539</a>            CertificateVerificationError::InvalidCert
-<a href=#540 id=540 data-nosnippet>540</a>        ));
-<a href=#541 id=541 data-nosnippet>541</a>    }
-<a href=#542 id=542 data-nosnippet>542</a>
-<a href=#543 id=543 data-nosnippet>543</a>    <span class="doccomment">/// Expect to fail because end-entity cert is wrong.
-<a href=#544 id=544 data-nosnippet>544</a>    </span><span class="attr">#[rstest]
-<a href=#545 id=545 data-nosnippet>545</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#546 id=546 data-nosnippet>546</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#547 id=547 data-nosnippet>547</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_bad_ee_cert(
-<a href=#548 id=548 data-nosnippet>548</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#549 id=549 data-nosnippet>549</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
-<a href=#550 id=550 data-nosnippet>550</a>    ) {
-<a href=#551 id=551 data-nosnippet>551</a>        <span class="kw">let </span>ee: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"./fixtures/data/unknown/ee.der"</span>);
-<a href=#552 id=552 data-nosnippet>552</a>
-<a href=#553 id=553 data-nosnippet>553</a>        <span class="comment">// Change the end entity cert
-<a href=#554 id=554 data-nosnippet>554</a>        </span>data.server_cert_data.certs[<span class="number">0</span>] = Certificate(ee.to_vec());
-<a href=#555 id=555 data-nosnippet>555</a>
-<a href=#556 id=556 data-nosnippet>556</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#557 id=557 data-nosnippet>557</a>            crypto_provider,
-<a href=#558 id=558 data-nosnippet>558</a>            data.connection_info.time,
-<a href=#559 id=559 data-nosnippet>559</a>            data.server_ephemeral_key(),
-<a href=#560 id=560 data-nosnippet>560</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#561 id=561 data-nosnippet>561</a>        );
-<a href=#562 id=562 data-nosnippet>562</a>
-<a href=#563 id=563 data-nosnippet>563</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#564 id=564 data-nosnippet>564</a>            err.unwrap_err(),
-<a href=#565 id=565 data-nosnippet>565</a>            CertificateVerificationError::InvalidCert
-<a href=#566 id=566 data-nosnippet>566</a>        ));
-<a href=#567 id=567 data-nosnippet>567</a>    }
-<a href=#568 id=568 data-nosnippet>568</a>
-<a href=#569 id=569 data-nosnippet>569</a>    <span class="doccomment">/// Expect sig verification to fail because client_random is wrong.
-<a href=#570 id=570 data-nosnippet>570</a>    </span><span class="attr">#[rstest]
-<a href=#571 id=571 data-nosnippet>571</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#572 id=572 data-nosnippet>572</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#573 id=573 data-nosnippet>573</a>    </span><span class="kw">fn </span>test_verify_sig_ke_params_fail_bad_client_random(
-<a href=#574 id=574 data-nosnippet>574</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#575 id=575 data-nosnippet>575</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
-<a href=#576 id=576 data-nosnippet>576</a>    ) {
-<a href=#577 id=577 data-nosnippet>577</a>        <span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 { client_random, .. }) =
-<a href=#578 id=578 data-nosnippet>578</a>            <span class="kw-2">&amp;mut </span>data.server_cert_data.handshake;
-<a href=#579 id=579 data-nosnippet>579</a>        client_random[<span class="number">31</span>] = client_random[<span class="number">31</span>].wrapping_add(<span class="number">1</span>);
-<a href=#580 id=580 data-nosnippet>580</a>
-<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#582 id=582 data-nosnippet>582</a>            crypto_provider,
-<a href=#583 id=583 data-nosnippet>583</a>            data.connection_info.time,
-<a href=#584 id=584 data-nosnippet>584</a>            data.server_ephemeral_key(),
-<a href=#585 id=585 data-nosnippet>585</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#586 id=586 data-nosnippet>586</a>        );
-<a href=#587 id=587 data-nosnippet>587</a>
-<a href=#588 id=588 data-nosnippet>588</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#589 id=589 data-nosnippet>589</a>            err.unwrap_err(),
-<a href=#590 id=590 data-nosnippet>590</a>            CertificateVerificationError::InvalidServerSignature
-<a href=#591 id=591 data-nosnippet>591</a>        ));
-<a href=#592 id=592 data-nosnippet>592</a>    }
-<a href=#593 id=593 data-nosnippet>593</a>
-<a href=#594 id=594 data-nosnippet>594</a>    <span class="doccomment">/// Expect sig verification to fail because the sig is wrong.
-<a href=#595 id=595 data-nosnippet>595</a>    </span><span class="attr">#[rstest]
-<a href=#596 id=596 data-nosnippet>596</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#597 id=597 data-nosnippet>597</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#598 id=598 data-nosnippet>598</a>    </span><span class="kw">fn </span>test_verify_sig_ke_params_fail_bad_sig(
-<a href=#599 id=599 data-nosnippet>599</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#600 id=600 data-nosnippet>600</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
-<a href=#601 id=601 data-nosnippet>601</a>    ) {
-<a href=#602 id=602 data-nosnippet>602</a>        data.server_cert_data.sig.sig[<span class="number">31</span>] = data.server_cert_data.sig.sig[<span class="number">31</span>].wrapping_add(<span class="number">1</span>);
-<a href=#603 id=603 data-nosnippet>603</a>
-<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#605 id=605 data-nosnippet>605</a>            crypto_provider,
-<a href=#606 id=606 data-nosnippet>606</a>            data.connection_info.time,
-<a href=#607 id=607 data-nosnippet>607</a>            data.server_ephemeral_key(),
-<a href=#608 id=608 data-nosnippet>608</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#609 id=609 data-nosnippet>609</a>        );
-<a href=#610 id=610 data-nosnippet>610</a>
-<a href=#611 id=611 data-nosnippet>611</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#612 id=612 data-nosnippet>612</a>            err.unwrap_err(),
-<a href=#613 id=613 data-nosnippet>613</a>            CertificateVerificationError::InvalidServerSignature
-<a href=#614 id=614 data-nosnippet>614</a>        ));
-<a href=#615 id=615 data-nosnippet>615</a>    }
-<a href=#616 id=616 data-nosnippet>616</a>
-<a href=#617 id=617 data-nosnippet>617</a>    <span class="doccomment">/// Expect to fail because the dns name is not in the cert.
-<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="attr">#[rstest]
-<a href=#619 id=619 data-nosnippet>619</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#620 id=620 data-nosnippet>620</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#621 id=621 data-nosnippet>621</a>    </span><span class="kw">fn </span>test_check_dns_name_present_in_cert_fail_bad_host(
-<a href=#622 id=622 data-nosnippet>622</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#623 id=623 data-nosnippet>623</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
-<a href=#624 id=624 data-nosnippet>624</a>    ) {
-<a href=#625 id=625 data-nosnippet>625</a>        <span class="kw">let </span>bad_name = ServerName::from(<span class="string">"badhost.com"</span>);
-<a href=#626 id=626 data-nosnippet>626</a>
-<a href=#627 id=627 data-nosnippet>627</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#628 id=628 data-nosnippet>628</a>            crypto_provider,
-<a href=#629 id=629 data-nosnippet>629</a>            data.connection_info.time,
-<a href=#630 id=630 data-nosnippet>630</a>            data.server_ephemeral_key(),
-<a href=#631 id=631 data-nosnippet>631</a>            <span class="kw-2">&amp;</span>bad_name,
-<a href=#632 id=632 data-nosnippet>632</a>        );
-<a href=#633 id=633 data-nosnippet>633</a>
-<a href=#634 id=634 data-nosnippet>634</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#635 id=635 data-nosnippet>635</a>            err.unwrap_err(),
-<a href=#636 id=636 data-nosnippet>636</a>            CertificateVerificationError::InvalidCert
-<a href=#637 id=637 data-nosnippet>637</a>        ));
-<a href=#638 id=638 data-nosnippet>638</a>    }
-<a href=#639 id=639 data-nosnippet>639</a>
-<a href=#640 id=640 data-nosnippet>640</a>    <span class="doccomment">/// Expect to fail because the ephemeral key provided is wrong.
-<a href=#641 id=641 data-nosnippet>641</a>    </span><span class="attr">#[rstest]
-<a href=#642 id=642 data-nosnippet>642</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#643 id=643 data-nosnippet>643</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#644 id=644 data-nosnippet>644</a>    </span><span class="kw">fn </span>test_invalid_ephemeral_key(
-<a href=#645 id=645 data-nosnippet>645</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#646 id=646 data-nosnippet>646</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
-<a href=#647 id=647 data-nosnippet>647</a>    ) {
-<a href=#648 id=648 data-nosnippet>648</a>        <span class="kw">let </span>wrong_ephemeral_key = ServerEphemKey {
-<a href=#649 id=649 data-nosnippet>649</a>            typ: KeyType::SECP256R1,
-<a href=#650 id=650 data-nosnippet>650</a>            key: Vec::&lt;u8&gt;::from_hex(<span class="macro">include_bytes!</span>(<span class="string">"./fixtures/data/unknown/pubkey"</span>)).unwrap(),
-<a href=#651 id=651 data-nosnippet>651</a>        };
-<a href=#652 id=652 data-nosnippet>652</a>
-<a href=#653 id=653 data-nosnippet>653</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#654 id=654 data-nosnippet>654</a>            crypto_provider,
-<a href=#655 id=655 data-nosnippet>655</a>            data.connection_info.time,
-<a href=#656 id=656 data-nosnippet>656</a>            <span class="kw-2">&amp;</span>wrong_ephemeral_key,
-<a href=#657 id=657 data-nosnippet>657</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#658 id=658 data-nosnippet>658</a>        );
-<a href=#659 id=659 data-nosnippet>659</a>
-<a href=#660 id=660 data-nosnippet>660</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#661 id=661 data-nosnippet>661</a>            err.unwrap_err(),
-<a href=#662 id=662 data-nosnippet>662</a>            CertificateVerificationError::InvalidServerEphemeralKey
-<a href=#663 id=663 data-nosnippet>663</a>        ));
-<a href=#664 id=664 data-nosnippet>664</a>    }
-<a href=#665 id=665 data-nosnippet>665</a>
-<a href=#666 id=666 data-nosnippet>666</a>    <span class="doccomment">/// Expect to fail when no cert provided.
-<a href=#667 id=667 data-nosnippet>667</a>    </span><span class="attr">#[rstest]
-<a href=#668 id=668 data-nosnippet>668</a>    #[case::tlsnotary(tlsnotary())]
-<a href=#669 id=669 data-nosnippet>669</a>    #[case::appliedzkp(appliedzkp())]
-<a href=#670 id=670 data-nosnippet>670</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_no_cert(
-<a href=#671 id=671 data-nosnippet>671</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
-<a href=#672 id=672 data-nosnippet>672</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
-<a href=#673 id=673 data-nosnippet>673</a>    ) {
-<a href=#674 id=674 data-nosnippet>674</a>        <span class="comment">// Empty certs
-<a href=#675 id=675 data-nosnippet>675</a>        </span>data.server_cert_data.certs = Vec::new();
-<a href=#676 id=676 data-nosnippet>676</a>
-<a href=#677 id=677 data-nosnippet>677</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
-<a href=#678 id=678 data-nosnippet>678</a>            crypto_provider,
-<a href=#679 id=679 data-nosnippet>679</a>            data.connection_info.time,
-<a href=#680 id=680 data-nosnippet>680</a>            data.server_ephemeral_key(),
-<a href=#681 id=681 data-nosnippet>681</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
-<a href=#682 id=682 data-nosnippet>682</a>        );
-<a href=#683 id=683 data-nosnippet>683</a>
-<a href=#684 id=684 data-nosnippet>684</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#685 id=685 data-nosnippet>685</a>            err.unwrap_err(),
-<a href=#686 id=686 data-nosnippet>686</a>            CertificateVerificationError::MissingCerts
-<a href=#687 id=687 data-nosnippet>687</a>        ));
-<a href=#688 id=688 data-nosnippet>688</a>    }
-<a href=#689 id=689 data-nosnippet>689</a>}</code></pre></div></section></main></body></html>
+<a href=#364 id=364 data-nosnippet>364</a>        provider
+<a href=#365 id=365 data-nosnippet>365</a>            .cert
+<a href=#366 id=366 data-nosnippet>366</a>            .verify_tls12_signature(<span class="kw-2">&amp;</span>message, end_entity, <span class="kw-2">&amp;</span>dss)
+<a href=#367 id=367 data-nosnippet>367</a>            .map_err(|<span class="kw">_</span>| CertificateVerificationError::InvalidServerSignature)<span class="question-mark">?</span>;
+<a href=#368 id=368 data-nosnippet>368</a>
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="prelude-val">Ok</span>(())
+<a href=#370 id=370 data-nosnippet>370</a>    }
+<a href=#371 id=371 data-nosnippet>371</a>}
+<a href=#372 id=372 data-nosnippet>372</a>
+<a href=#373 id=373 data-nosnippet>373</a><span class="doccomment">/// Errors that can occur when verifying a certificate chain or signature.
+<a href=#374 id=374 data-nosnippet>374</a></span><span class="attr">#[derive(Debug, thiserror::Error)]
+<a href=#375 id=375 data-nosnippet>375</a>#[allow(missing_docs)]
+<a href=#376 id=376 data-nosnippet>376</a></span><span class="kw">pub enum </span>CertificateVerificationError {
+<a href=#377 id=377 data-nosnippet>377</a>    <span class="attr">#[error(<span class="string">"invalid server identity: {0}"</span>)]
+<a href=#378 id=378 data-nosnippet>378</a>    </span>InvalidIdentity(ServerName),
+<a href=#379 id=379 data-nosnippet>379</a>    <span class="attr">#[error(<span class="string">"missing server certificates"</span>)]
+<a href=#380 id=380 data-nosnippet>380</a>    </span>MissingCerts,
+<a href=#381 id=381 data-nosnippet>381</a>    <span class="attr">#[error(<span class="string">"invalid server certificate"</span>)]
+<a href=#382 id=382 data-nosnippet>382</a>    </span>InvalidCert,
+<a href=#383 id=383 data-nosnippet>383</a>    <span class="attr">#[error(<span class="string">"invalid server signature"</span>)]
+<a href=#384 id=384 data-nosnippet>384</a>    </span>InvalidServerSignature,
+<a href=#385 id=385 data-nosnippet>385</a>    <span class="attr">#[error(<span class="string">"invalid server ephemeral key"</span>)]
+<a href=#386 id=386 data-nosnippet>386</a>    </span>InvalidServerEphemeralKey,
+<a href=#387 id=387 data-nosnippet>387</a>}
+<a href=#388 id=388 data-nosnippet>388</a>
+<a href=#389 id=389 data-nosnippet>389</a><span class="attr">#[cfg(test)]
+<a href=#390 id=390 data-nosnippet>390</a></span><span class="kw">mod </span>tests {
+<a href=#391 id=391 data-nosnippet>391</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#392 id=392 data-nosnippet>392</a>    <span class="kw">use crate</span>::{
+<a href=#393 id=393 data-nosnippet>393</a>        fixtures::ConnectionFixture, provider::default_cert_verifier, transcript::Transcript,
+<a href=#394 id=394 data-nosnippet>394</a>    };
+<a href=#395 id=395 data-nosnippet>395</a>
+<a href=#396 id=396 data-nosnippet>396</a>    <span class="kw">use </span>hex::FromHex;
+<a href=#397 id=397 data-nosnippet>397</a>    <span class="kw">use </span>rstest::<span class="kw-2">*</span>;
+<a href=#398 id=398 data-nosnippet>398</a>    <span class="kw">use </span>tls_core::verify::WebPkiVerifier;
+<a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">use </span>tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+<a href=#400 id=400 data-nosnippet>400</a>
+<a href=#401 id=401 data-nosnippet>401</a>    <span class="attr">#[fixture]
+<a href=#402 id=402 data-nosnippet>402</a>    #[once]
+<a href=#403 id=403 data-nosnippet>403</a>    </span><span class="kw">fn </span>crypto_provider() -&gt; CryptoProvider {
+<a href=#404 id=404 data-nosnippet>404</a>        <span class="kw">let </span><span class="kw-2">mut </span>store = default_cert_verifier().root_store().clone();
+<a href=#405 id=405 data-nosnippet>405</a>
+<a href=#406 id=406 data-nosnippet>406</a>        <span class="comment">// Add a cert which is no longer included in the Mozilla root store.
+<a href=#407 id=407 data-nosnippet>407</a>        </span><span class="kw">let </span>cert = tls_core::key::Certificate(
+<a href=#408 id=408 data-nosnippet>408</a>            appliedzkp()
+<a href=#409 id=409 data-nosnippet>409</a>                .server_cert_data
+<a href=#410 id=410 data-nosnippet>410</a>                .certs
+<a href=#411 id=411 data-nosnippet>411</a>                .last()
+<a href=#412 id=412 data-nosnippet>412</a>                .expect(<span class="string">"chain is valid"</span>)
+<a href=#413 id=413 data-nosnippet>413</a>                .<span class="number">0
+<a href=#414 id=414 data-nosnippet>414</a>                </span>.clone(),
+<a href=#415 id=415 data-nosnippet>415</a>        );
+<a href=#416 id=416 data-nosnippet>416</a>
+<a href=#417 id=417 data-nosnippet>417</a>        store.add(<span class="kw-2">&amp;</span>cert).unwrap();
+<a href=#418 id=418 data-nosnippet>418</a>
+<a href=#419 id=419 data-nosnippet>419</a>        CryptoProvider {
+<a href=#420 id=420 data-nosnippet>420</a>            hash: Default::default(),
+<a href=#421 id=421 data-nosnippet>421</a>            cert: WebPkiVerifier::new(store, <span class="prelude-val">None</span>),
+<a href=#422 id=422 data-nosnippet>422</a>            signer: Default::default(),
+<a href=#423 id=423 data-nosnippet>423</a>            signature: Default::default(),
+<a href=#424 id=424 data-nosnippet>424</a>        }
+<a href=#425 id=425 data-nosnippet>425</a>    }
+<a href=#426 id=426 data-nosnippet>426</a>
+<a href=#427 id=427 data-nosnippet>427</a>    <span class="kw">fn </span>tlsnotary() -&gt; ConnectionFixture {
+<a href=#428 id=428 data-nosnippet>428</a>        ConnectionFixture::tlsnotary(Transcript::new(GET_WITH_HEADER, OK_JSON).length())
+<a href=#429 id=429 data-nosnippet>429</a>    }
+<a href=#430 id=430 data-nosnippet>430</a>
+<a href=#431 id=431 data-nosnippet>431</a>    <span class="kw">fn </span>appliedzkp() -&gt; ConnectionFixture {
+<a href=#432 id=432 data-nosnippet>432</a>        ConnectionFixture::appliedzkp(Transcript::new(GET_WITH_HEADER, OK_JSON).length())
+<a href=#433 id=433 data-nosnippet>433</a>    }
+<a href=#434 id=434 data-nosnippet>434</a>
+<a href=#435 id=435 data-nosnippet>435</a>    <span class="doccomment">/// Expect chain verification to succeed.
+<a href=#436 id=436 data-nosnippet>436</a>    </span><span class="attr">#[rstest]
+<a href=#437 id=437 data-nosnippet>437</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#438 id=438 data-nosnippet>438</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#439 id=439 data-nosnippet>439</a>    </span><span class="kw">fn </span>test_verify_cert_chain_sucess_ca_implicit(
+<a href=#440 id=440 data-nosnippet>440</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#441 id=441 data-nosnippet>441</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
+<a href=#442 id=442 data-nosnippet>442</a>    ) {
+<a href=#443 id=443 data-nosnippet>443</a>        <span class="comment">// Remove the CA cert
+<a href=#444 id=444 data-nosnippet>444</a>        </span>data.server_cert_data.certs.pop();
+<a href=#445 id=445 data-nosnippet>445</a>
+<a href=#446 id=446 data-nosnippet>446</a>        <span class="macro">assert!</span>(data
+<a href=#447 id=447 data-nosnippet>447</a>            .server_cert_data
+<a href=#448 id=448 data-nosnippet>448</a>            .verify_with_provider(
+<a href=#449 id=449 data-nosnippet>449</a>                crypto_provider,
+<a href=#450 id=450 data-nosnippet>450</a>                data.connection_info.time,
+<a href=#451 id=451 data-nosnippet>451</a>                data.server_ephemeral_key(),
+<a href=#452 id=452 data-nosnippet>452</a>                <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#453 id=453 data-nosnippet>453</a>            )
+<a href=#454 id=454 data-nosnippet>454</a>            .is_ok());
+<a href=#455 id=455 data-nosnippet>455</a>    }
+<a href=#456 id=456 data-nosnippet>456</a>
+<a href=#457 id=457 data-nosnippet>457</a>    <span class="doccomment">/// Expect chain verification to succeed even when a trusted CA is provided
+<a href=#458 id=458 data-nosnippet>458</a>    /// among the intermediate certs. webpki handles such cases properly.
+<a href=#459 id=459 data-nosnippet>459</a>    </span><span class="attr">#[rstest]
+<a href=#460 id=460 data-nosnippet>460</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#461 id=461 data-nosnippet>461</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#462 id=462 data-nosnippet>462</a>    </span><span class="kw">fn </span>test_verify_cert_chain_success_ca_explicit(
+<a href=#463 id=463 data-nosnippet>463</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
+<a href=#465 id=465 data-nosnippet>465</a>    ) {
+<a href=#466 id=466 data-nosnippet>466</a>        <span class="macro">assert!</span>(data
+<a href=#467 id=467 data-nosnippet>467</a>            .server_cert_data
+<a href=#468 id=468 data-nosnippet>468</a>            .verify_with_provider(
+<a href=#469 id=469 data-nosnippet>469</a>                crypto_provider,
+<a href=#470 id=470 data-nosnippet>470</a>                data.connection_info.time,
+<a href=#471 id=471 data-nosnippet>471</a>                data.server_ephemeral_key(),
+<a href=#472 id=472 data-nosnippet>472</a>                <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#473 id=473 data-nosnippet>473</a>            )
+<a href=#474 id=474 data-nosnippet>474</a>            .is_ok());
+<a href=#475 id=475 data-nosnippet>475</a>    }
+<a href=#476 id=476 data-nosnippet>476</a>
+<a href=#477 id=477 data-nosnippet>477</a>    <span class="doccomment">/// Expect to fail since the end entity cert was not valid at the time.
+<a href=#478 id=478 data-nosnippet>478</a>    </span><span class="attr">#[rstest]
+<a href=#479 id=479 data-nosnippet>479</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#480 id=480 data-nosnippet>480</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#481 id=481 data-nosnippet>481</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_bad_time(
+<a href=#482 id=482 data-nosnippet>482</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#483 id=483 data-nosnippet>483</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
+<a href=#484 id=484 data-nosnippet>484</a>    ) {
+<a href=#485 id=485 data-nosnippet>485</a>        <span class="comment">// unix time when the cert chain was NOT valid
+<a href=#486 id=486 data-nosnippet>486</a>        </span><span class="kw">let </span>bad_time: u64 = <span class="number">1571465711</span>;
+<a href=#487 id=487 data-nosnippet>487</a>
+<a href=#488 id=488 data-nosnippet>488</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#489 id=489 data-nosnippet>489</a>            crypto_provider,
+<a href=#490 id=490 data-nosnippet>490</a>            bad_time,
+<a href=#491 id=491 data-nosnippet>491</a>            data.server_ephemeral_key(),
+<a href=#492 id=492 data-nosnippet>492</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#493 id=493 data-nosnippet>493</a>        );
+<a href=#494 id=494 data-nosnippet>494</a>
+<a href=#495 id=495 data-nosnippet>495</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#496 id=496 data-nosnippet>496</a>            err.unwrap_err(),
+<a href=#497 id=497 data-nosnippet>497</a>            CertificateVerificationError::InvalidCert
+<a href=#498 id=498 data-nosnippet>498</a>        ));
+<a href=#499 id=499 data-nosnippet>499</a>    }
+<a href=#500 id=500 data-nosnippet>500</a>
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="doccomment">/// Expect to fail when no intermediate cert provided.
+<a href=#502 id=502 data-nosnippet>502</a>    </span><span class="attr">#[rstest]
+<a href=#503 id=503 data-nosnippet>503</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#504 id=504 data-nosnippet>504</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#505 id=505 data-nosnippet>505</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_no_interm_cert(
+<a href=#506 id=506 data-nosnippet>506</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#507 id=507 data-nosnippet>507</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
+<a href=#508 id=508 data-nosnippet>508</a>    ) {
+<a href=#509 id=509 data-nosnippet>509</a>        <span class="comment">// Remove the CA cert
+<a href=#510 id=510 data-nosnippet>510</a>        </span>data.server_cert_data.certs.pop();
+<a href=#511 id=511 data-nosnippet>511</a>        <span class="comment">// Remove the intermediate cert
+<a href=#512 id=512 data-nosnippet>512</a>        </span>data.server_cert_data.certs.pop();
+<a href=#513 id=513 data-nosnippet>513</a>
+<a href=#514 id=514 data-nosnippet>514</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#515 id=515 data-nosnippet>515</a>            crypto_provider,
+<a href=#516 id=516 data-nosnippet>516</a>            data.connection_info.time,
+<a href=#517 id=517 data-nosnippet>517</a>            data.server_ephemeral_key(),
+<a href=#518 id=518 data-nosnippet>518</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#519 id=519 data-nosnippet>519</a>        );
+<a href=#520 id=520 data-nosnippet>520</a>
+<a href=#521 id=521 data-nosnippet>521</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#522 id=522 data-nosnippet>522</a>            err.unwrap_err(),
+<a href=#523 id=523 data-nosnippet>523</a>            CertificateVerificationError::InvalidCert
+<a href=#524 id=524 data-nosnippet>524</a>        ));
+<a href=#525 id=525 data-nosnippet>525</a>    }
+<a href=#526 id=526 data-nosnippet>526</a>
+<a href=#527 id=527 data-nosnippet>527</a>    <span class="doccomment">/// Expect to fail when no intermediate cert provided even if a trusted CA
+<a href=#528 id=528 data-nosnippet>528</a>    /// cert is provided.
+<a href=#529 id=529 data-nosnippet>529</a>    </span><span class="attr">#[rstest]
+<a href=#530 id=530 data-nosnippet>530</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#531 id=531 data-nosnippet>531</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#532 id=532 data-nosnippet>532</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
+<a href=#533 id=533 data-nosnippet>533</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#534 id=534 data-nosnippet>534</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
+<a href=#535 id=535 data-nosnippet>535</a>    ) {
+<a href=#536 id=536 data-nosnippet>536</a>        <span class="comment">// Remove the intermediate cert
+<a href=#537 id=537 data-nosnippet>537</a>        </span>data.server_cert_data.certs.remove(<span class="number">1</span>);
+<a href=#538 id=538 data-nosnippet>538</a>
+<a href=#539 id=539 data-nosnippet>539</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#540 id=540 data-nosnippet>540</a>            crypto_provider,
+<a href=#541 id=541 data-nosnippet>541</a>            data.connection_info.time,
+<a href=#542 id=542 data-nosnippet>542</a>            data.server_ephemeral_key(),
+<a href=#543 id=543 data-nosnippet>543</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#544 id=544 data-nosnippet>544</a>        );
+<a href=#545 id=545 data-nosnippet>545</a>
+<a href=#546 id=546 data-nosnippet>546</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#547 id=547 data-nosnippet>547</a>            err.unwrap_err(),
+<a href=#548 id=548 data-nosnippet>548</a>            CertificateVerificationError::InvalidCert
+<a href=#549 id=549 data-nosnippet>549</a>        ));
+<a href=#550 id=550 data-nosnippet>550</a>    }
+<a href=#551 id=551 data-nosnippet>551</a>
+<a href=#552 id=552 data-nosnippet>552</a>    <span class="doccomment">/// Expect to fail because end-entity cert is wrong.
+<a href=#553 id=553 data-nosnippet>553</a>    </span><span class="attr">#[rstest]
+<a href=#554 id=554 data-nosnippet>554</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#555 id=555 data-nosnippet>555</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#556 id=556 data-nosnippet>556</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_bad_ee_cert(
+<a href=#557 id=557 data-nosnippet>557</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#558 id=558 data-nosnippet>558</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
+<a href=#559 id=559 data-nosnippet>559</a>    ) {
+<a href=#560 id=560 data-nosnippet>560</a>        <span class="kw">let </span>ee: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"./fixtures/data/unknown/ee.der"</span>);
+<a href=#561 id=561 data-nosnippet>561</a>
+<a href=#562 id=562 data-nosnippet>562</a>        <span class="comment">// Change the end entity cert
+<a href=#563 id=563 data-nosnippet>563</a>        </span>data.server_cert_data.certs[<span class="number">0</span>] = Certificate(ee.to_vec());
+<a href=#564 id=564 data-nosnippet>564</a>
+<a href=#565 id=565 data-nosnippet>565</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#566 id=566 data-nosnippet>566</a>            crypto_provider,
+<a href=#567 id=567 data-nosnippet>567</a>            data.connection_info.time,
+<a href=#568 id=568 data-nosnippet>568</a>            data.server_ephemeral_key(),
+<a href=#569 id=569 data-nosnippet>569</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#570 id=570 data-nosnippet>570</a>        );
+<a href=#571 id=571 data-nosnippet>571</a>
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#573 id=573 data-nosnippet>573</a>            err.unwrap_err(),
+<a href=#574 id=574 data-nosnippet>574</a>            CertificateVerificationError::InvalidCert
+<a href=#575 id=575 data-nosnippet>575</a>        ));
+<a href=#576 id=576 data-nosnippet>576</a>    }
+<a href=#577 id=577 data-nosnippet>577</a>
+<a href=#578 id=578 data-nosnippet>578</a>    <span class="doccomment">/// Expect sig verification to fail because client_random is wrong.
+<a href=#579 id=579 data-nosnippet>579</a>    </span><span class="attr">#[rstest]
+<a href=#580 id=580 data-nosnippet>580</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#581 id=581 data-nosnippet>581</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#582 id=582 data-nosnippet>582</a>    </span><span class="kw">fn </span>test_verify_sig_ke_params_fail_bad_client_random(
+<a href=#583 id=583 data-nosnippet>583</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#584 id=584 data-nosnippet>584</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
+<a href=#585 id=585 data-nosnippet>585</a>    ) {
+<a href=#586 id=586 data-nosnippet>586</a>        <span class="kw">let </span>HandshakeData::V1_2(HandshakeDataV1_2 { client_random, .. }) =
+<a href=#587 id=587 data-nosnippet>587</a>            <span class="kw-2">&amp;mut </span>data.server_cert_data.handshake;
+<a href=#588 id=588 data-nosnippet>588</a>        client_random[<span class="number">31</span>] = client_random[<span class="number">31</span>].wrapping_add(<span class="number">1</span>);
+<a href=#589 id=589 data-nosnippet>589</a>
+<a href=#590 id=590 data-nosnippet>590</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#591 id=591 data-nosnippet>591</a>            crypto_provider,
+<a href=#592 id=592 data-nosnippet>592</a>            data.connection_info.time,
+<a href=#593 id=593 data-nosnippet>593</a>            data.server_ephemeral_key(),
+<a href=#594 id=594 data-nosnippet>594</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#595 id=595 data-nosnippet>595</a>        );
+<a href=#596 id=596 data-nosnippet>596</a>
+<a href=#597 id=597 data-nosnippet>597</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#598 id=598 data-nosnippet>598</a>            err.unwrap_err(),
+<a href=#599 id=599 data-nosnippet>599</a>            CertificateVerificationError::InvalidServerSignature
+<a href=#600 id=600 data-nosnippet>600</a>        ));
+<a href=#601 id=601 data-nosnippet>601</a>    }
+<a href=#602 id=602 data-nosnippet>602</a>
+<a href=#603 id=603 data-nosnippet>603</a>    <span class="doccomment">/// Expect sig verification to fail because the sig is wrong.
+<a href=#604 id=604 data-nosnippet>604</a>    </span><span class="attr">#[rstest]
+<a href=#605 id=605 data-nosnippet>605</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#606 id=606 data-nosnippet>606</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#607 id=607 data-nosnippet>607</a>    </span><span class="kw">fn </span>test_verify_sig_ke_params_fail_bad_sig(
+<a href=#608 id=608 data-nosnippet>608</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#609 id=609 data-nosnippet>609</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
+<a href=#610 id=610 data-nosnippet>610</a>    ) {
+<a href=#611 id=611 data-nosnippet>611</a>        data.server_cert_data.sig.sig[<span class="number">31</span>] = data.server_cert_data.sig.sig[<span class="number">31</span>].wrapping_add(<span class="number">1</span>);
+<a href=#612 id=612 data-nosnippet>612</a>
+<a href=#613 id=613 data-nosnippet>613</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#614 id=614 data-nosnippet>614</a>            crypto_provider,
+<a href=#615 id=615 data-nosnippet>615</a>            data.connection_info.time,
+<a href=#616 id=616 data-nosnippet>616</a>            data.server_ephemeral_key(),
+<a href=#617 id=617 data-nosnippet>617</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#618 id=618 data-nosnippet>618</a>        );
+<a href=#619 id=619 data-nosnippet>619</a>
+<a href=#620 id=620 data-nosnippet>620</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#621 id=621 data-nosnippet>621</a>            err.unwrap_err(),
+<a href=#622 id=622 data-nosnippet>622</a>            CertificateVerificationError::InvalidServerSignature
+<a href=#623 id=623 data-nosnippet>623</a>        ));
+<a href=#624 id=624 data-nosnippet>624</a>    }
+<a href=#625 id=625 data-nosnippet>625</a>
+<a href=#626 id=626 data-nosnippet>626</a>    <span class="doccomment">/// Expect to fail because the dns name is not in the cert.
+<a href=#627 id=627 data-nosnippet>627</a>    </span><span class="attr">#[rstest]
+<a href=#628 id=628 data-nosnippet>628</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#629 id=629 data-nosnippet>629</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#630 id=630 data-nosnippet>630</a>    </span><span class="kw">fn </span>test_check_dns_name_present_in_cert_fail_bad_host(
+<a href=#631 id=631 data-nosnippet>631</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#632 id=632 data-nosnippet>632</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
+<a href=#633 id=633 data-nosnippet>633</a>    ) {
+<a href=#634 id=634 data-nosnippet>634</a>        <span class="kw">let </span>bad_name = ServerName::from(<span class="string">"badhost.com"</span>);
+<a href=#635 id=635 data-nosnippet>635</a>
+<a href=#636 id=636 data-nosnippet>636</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#637 id=637 data-nosnippet>637</a>            crypto_provider,
+<a href=#638 id=638 data-nosnippet>638</a>            data.connection_info.time,
+<a href=#639 id=639 data-nosnippet>639</a>            data.server_ephemeral_key(),
+<a href=#640 id=640 data-nosnippet>640</a>            <span class="kw-2">&amp;</span>bad_name,
+<a href=#641 id=641 data-nosnippet>641</a>        );
+<a href=#642 id=642 data-nosnippet>642</a>
+<a href=#643 id=643 data-nosnippet>643</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#644 id=644 data-nosnippet>644</a>            err.unwrap_err(),
+<a href=#645 id=645 data-nosnippet>645</a>            CertificateVerificationError::InvalidCert
+<a href=#646 id=646 data-nosnippet>646</a>        ));
+<a href=#647 id=647 data-nosnippet>647</a>    }
+<a href=#648 id=648 data-nosnippet>648</a>
+<a href=#649 id=649 data-nosnippet>649</a>    <span class="doccomment">/// Expect to fail because the ephemeral key provided is wrong.
+<a href=#650 id=650 data-nosnippet>650</a>    </span><span class="attr">#[rstest]
+<a href=#651 id=651 data-nosnippet>651</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#652 id=652 data-nosnippet>652</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#653 id=653 data-nosnippet>653</a>    </span><span class="kw">fn </span>test_invalid_ephemeral_key(
+<a href=#654 id=654 data-nosnippet>654</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#655 id=655 data-nosnippet>655</a>        <span class="attr">#[case] </span>data: ConnectionFixture,
+<a href=#656 id=656 data-nosnippet>656</a>    ) {
+<a href=#657 id=657 data-nosnippet>657</a>        <span class="kw">let </span>wrong_ephemeral_key = ServerEphemKey {
+<a href=#658 id=658 data-nosnippet>658</a>            typ: KeyType::SECP256R1,
+<a href=#659 id=659 data-nosnippet>659</a>            key: Vec::&lt;u8&gt;::from_hex(<span class="macro">include_bytes!</span>(<span class="string">"./fixtures/data/unknown/pubkey"</span>)).unwrap(),
+<a href=#660 id=660 data-nosnippet>660</a>        };
+<a href=#661 id=661 data-nosnippet>661</a>
+<a href=#662 id=662 data-nosnippet>662</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#663 id=663 data-nosnippet>663</a>            crypto_provider,
+<a href=#664 id=664 data-nosnippet>664</a>            data.connection_info.time,
+<a href=#665 id=665 data-nosnippet>665</a>            <span class="kw-2">&amp;</span>wrong_ephemeral_key,
+<a href=#666 id=666 data-nosnippet>666</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#667 id=667 data-nosnippet>667</a>        );
+<a href=#668 id=668 data-nosnippet>668</a>
+<a href=#669 id=669 data-nosnippet>669</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#670 id=670 data-nosnippet>670</a>            err.unwrap_err(),
+<a href=#671 id=671 data-nosnippet>671</a>            CertificateVerificationError::InvalidServerEphemeralKey
+<a href=#672 id=672 data-nosnippet>672</a>        ));
+<a href=#673 id=673 data-nosnippet>673</a>    }
+<a href=#674 id=674 data-nosnippet>674</a>
+<a href=#675 id=675 data-nosnippet>675</a>    <span class="doccomment">/// Expect to fail when no cert provided.
+<a href=#676 id=676 data-nosnippet>676</a>    </span><span class="attr">#[rstest]
+<a href=#677 id=677 data-nosnippet>677</a>    #[case::tlsnotary(tlsnotary())]
+<a href=#678 id=678 data-nosnippet>678</a>    #[case::appliedzkp(appliedzkp())]
+<a href=#679 id=679 data-nosnippet>679</a>    </span><span class="kw">fn </span>test_verify_cert_chain_fail_no_cert(
+<a href=#680 id=680 data-nosnippet>680</a>        crypto_provider: <span class="kw-2">&amp;</span>CryptoProvider,
+<a href=#681 id=681 data-nosnippet>681</a>        <span class="attr">#[case] </span><span class="kw-2">mut </span>data: ConnectionFixture,
+<a href=#682 id=682 data-nosnippet>682</a>    ) {
+<a href=#683 id=683 data-nosnippet>683</a>        <span class="comment">// Empty certs
+<a href=#684 id=684 data-nosnippet>684</a>        </span>data.server_cert_data.certs = Vec::new();
+<a href=#685 id=685 data-nosnippet>685</a>
+<a href=#686 id=686 data-nosnippet>686</a>        <span class="kw">let </span>err = data.server_cert_data.verify_with_provider(
+<a href=#687 id=687 data-nosnippet>687</a>            crypto_provider,
+<a href=#688 id=688 data-nosnippet>688</a>            data.connection_info.time,
+<a href=#689 id=689 data-nosnippet>689</a>            data.server_ephemeral_key(),
+<a href=#690 id=690 data-nosnippet>690</a>            <span class="kw-2">&amp;</span>ServerName::from(data.server_name.as_ref()),
+<a href=#691 id=691 data-nosnippet>691</a>        );
+<a href=#692 id=692 data-nosnippet>692</a>
+<a href=#693 id=693 data-nosnippet>693</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#694 id=694 data-nosnippet>694</a>            err.unwrap_err(),
+<a href=#695 id=695 data-nosnippet>695</a>            CertificateVerificationError::MissingCerts
+<a href=#696 id=696 data-nosnippet>696</a>        ));
+<a href=#697 id=697 data-nosnippet>697</a>    }
+<a href=#698 id=698 data-nosnippet>698</a>}</code></pre></div></section></main></body></html>
