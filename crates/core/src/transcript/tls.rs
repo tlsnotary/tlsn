@@ -134,8 +134,7 @@ impl TlsTranscript {
                 }
                 typ => {
                     return Err(TlsTranscriptError::validation(format!(
-                        "sent unexpected record content type: {:?}",
-                        typ
+                        "sent unexpected record content type: {typ:?}"
                     )))
                 }
             }
@@ -168,8 +167,7 @@ impl TlsTranscript {
                 }
                 typ => {
                     return Err(TlsTranscriptError::validation(format!(
-                        "received unexpected record content type: {:?}",
-                        typ
+                        "received unexpected record content type: {typ:?}"
                     )))
                 }
             }
@@ -217,7 +215,7 @@ impl TlsTranscript {
 
     /// Returns the server certificate chain.
     pub fn server_cert_chain(&self) -> Option<&[Certificate]> {
-        self.server_cert_chain.as_ref().map(Vec::as_slice)
+        self.server_cert_chain.as_deref()
     }
 
     /// Returns the server signature.

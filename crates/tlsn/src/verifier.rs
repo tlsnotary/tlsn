@@ -518,7 +518,7 @@ impl Verifier<state::Committed> {
         builder
             .connection_info(ConnectionInfo {
                 time: tls_transcript.time(),
-                version: (*tls_transcript.version()).into(),
+                version: (*tls_transcript.version()),
                 transcript_length: TranscriptLength {
                     sent: sent_len as u32,
                     received: recv_len as u32,

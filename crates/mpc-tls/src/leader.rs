@@ -318,7 +318,7 @@ impl MpcTlsLeader {
         let version = match protocol_version {
             ProtocolVersion::TLSv1_2 => TlsVersion::V1_2,
             version => {
-                panic!("only TLS 1.2 should have been accepted: {:?}", version)
+                panic!("only TLS 1.2 should have been accepted: {version:?}")
             }
         };
 
