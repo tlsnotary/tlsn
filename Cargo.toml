@@ -38,11 +38,9 @@ resolver = "2"
 inherits = "release"
 opt-level = 1
 
-[profile.release.package."tlsn-wasm"]
-opt-level = "z"
-
-[profile.dev.package."tlsn-wasm"]
-debug = false
+[profile.wasm]
+inherits = "release"
+lto = true
 
 [workspace.dependencies]
 notary-client = { path = "crates/notary/client" }
