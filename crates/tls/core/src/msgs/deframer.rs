@@ -272,7 +272,7 @@ mod tests {
         if let Ok(gotval) = got {
             assert_eq!(gotval, want);
         } else {
-            panic!("read failed, expected {:?} bytes", want);
+            panic!("read failed, expected {want:?} bytes");
         }
     }
 

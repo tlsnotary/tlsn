@@ -270,7 +270,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     tokio::spawn(connection);
 
     let request = Request::builder()
-        .uri(format!("https://{}/echo", SERVER_DOMAIN))
+        .uri(format!("https://{SERVER_DOMAIN}/echo"))
         .method("POST")
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
@@ -463,7 +463,7 @@ async fn test_websocket_prover() {
     tokio::spawn(connection);
 
     let request = Request::builder()
-        .uri(format!("https://{}/echo", SERVER_DOMAIN))
+        .uri(format!("https://{SERVER_DOMAIN}/echo"))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("POST")

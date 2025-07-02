@@ -457,7 +457,7 @@ pub(crate) fn pki_error(error: webpki::Error) -> Error {
         UnsupportedSignatureAlgorithm | UnsupportedSignatureAlgorithmForPublicKey => {
             Error::InvalidCertificateSignatureType
         }
-        e => Error::InvalidCertificateData(format!("invalid peer certificate: {}", e)),
+        e => Error::InvalidCertificateData(format!("invalid peer certificate: {e}")),
     }
 }
 
@@ -493,7 +493,7 @@ fn convert_scheme(scheme: SignatureScheme) -> Result<SignatureAlgorithms, Error>
         SignatureScheme::RSA_PSS_SHA512 => Ok(RSA_PSS_SHA512),
 
         _ => {
-            let error_msg = format!("received unadvertised sig scheme {:?}", scheme);
+            let error_msg = format!("received unadvertised sig scheme {scheme:?}");
             Err(Error::PeerMisbehavedError(error_msg))
         }
     }
@@ -543,7 +543,7 @@ fn convert_alg_tls13(
         RSA_PSS_SHA384 => Ok(&webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY),
         RSA_PSS_SHA512 => Ok(&webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY),
         _ => {
-            let error_msg = format!("received unsupported sig scheme {:?}", scheme);
+            let error_msg = format!("received unsupported sig scheme {scheme:?}");
             Err(Error::PeerMisbehavedError(error_msg))
         }
     }
