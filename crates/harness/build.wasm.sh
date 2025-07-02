@@ -4,4 +4,8 @@
 cd "$(dirname "$0")"
 
 rustup run nightly \
-    wasm-pack build executor --target web --no-pack --out-dir=../static/generated -- -Zbuild-std=panic_abort,std
+    wasm-pack build executor \
+        --profile wasm \
+        --target web \
+        --out-dir=../static/generated \
+        -- -Zbuild-std=panic_abort,std
