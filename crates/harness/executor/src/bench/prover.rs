@@ -71,10 +71,10 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
             );
 
             conn.write_all(request.as_bytes()).await?;
-            conn.close().await?;
 
             let mut response = Vec::new();
             conn.read_to_end(&mut response).await?;
+            conn.close().await?;
 
             Ok(())
         },
