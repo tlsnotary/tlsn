@@ -28,6 +28,7 @@ pub struct TlsTranscript {
 
 impl TlsTranscript {
     /// Creates a new TLS transcript.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         time: u64,
         version: TlsVersion,

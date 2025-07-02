@@ -73,7 +73,6 @@ impl TranscriptRefs {
 }
 
 /// Decodes the transcript.
-
 pub(crate) fn decode_transcript(
     vm: &mut dyn Vm<Binary>,
     sent: &Idx,
@@ -94,7 +93,6 @@ pub(crate) fn decode_transcript(
 }
 
 /// Verifies a partial transcript.
-
 pub(crate) fn verify_transcript(
     vm: &mut dyn Vm<Binary>,
     transcript: &PartialTranscript,

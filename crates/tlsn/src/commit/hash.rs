@@ -57,7 +57,6 @@ impl HashCommitFuture {
 }
 
 /// Prove plaintext hash commitments.
-
 pub(crate) fn prove_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
@@ -88,7 +87,6 @@ pub(crate) fn prove_hash(
 }
 
 /// Verify plaintext hash commitments.
-
 pub(crate) fn verify_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
