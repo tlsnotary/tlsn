@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use crate::{
     hash::{Blinder, HashAlgId, HashAlgorithm, HashProviderError, TypedHash},
-    transcript::{Direction, Idx},
+    transcript::{Direction, Idx, Transcript},
     CryptoProvider,
 };
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 pub struct Ciphertext {
     direction: Direction,
     idx: Idx,
-    //  TODO: should we use Merkle tree here to reduce commitment size?
     ciphertext: Vec<u8>,
     explicit_nonces: Vec<u8>,
     counters: Vec<u8>,
@@ -27,10 +26,6 @@ pub struct Ciphertext {
 /// Proof for a [`Ciphertext`] commitment.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlaintextProof {
-    /// The algorithm of the hash.
-    pub alg: HashAlgId,
-    /// Direction of the plaintext.
-    pub direction: Direction,
     /// The plaintext.
     pub plaintext: Vec<u8>,
     /// The corresponding indices.
@@ -40,6 +35,35 @@ pub struct PlaintextProof {
 }
 
 impl PlaintextProof {
+    /// Creates a new proof.
+    ///
+    /// # Arguments
+    ///
+    /// * `transcript` - The TLS transcript.
+    /// * `secret` - The session secret.
+    pub fn new(transcript: &Transcript, secret: SessionSecret) -> Self {
+        let direction = secret.direction;
+
+        let plaintext = match direction {
+            Direction::Sent => transcript.sent.clone(),
+            Direction::Received => transcript.received.clone(),
+        };
+
+        let len = transcript.len_of_direction(direction);
+        let idx = Idx::new(0..len);
+
+        PlaintextProof {
+            plaintext,
+            idx,
+            secret,
+        }
+    }
+
+    /// Returns the direction.
+    pub fn direction(&self) -> Direction {
+        self.secret.direction
+    }
+
     /// Verifies the plaintext proof.
     ///
     /// Returns the authed indices.
@@ -53,17 +77,15 @@ impl PlaintextProof {
         provider: &CryptoProvider,
         commitments: &HashSet<&Ciphertext>,
     ) -> Result<Idx, PlaintextProofError> {
-        let hasher = provider.hash.get(&self.alg)?;
-
         // TODO: Reconstruct ciphertext from plaintext. Need iv, explicit_nonce, counters...
         let expected = Ciphertext {
-            direction: self.direction,
+            direction: self.secret.direction,
             idx: self.idx,
             ciphertext: todo!(),
             explicit_nonces: todo!(),
             counters: todo!(),
-            key: self.secret.hash_key(hasher),
-            iv: self.secret.hash_iv(hasher),
+            key: self.secret.hash_key(provider)?,
+            iv: self.secret.hash_iv(provider)?,
         };
 
         commitments
@@ -78,6 +100,8 @@ impl PlaintextProof {
 /// TLS session key.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SessionSecret {
+    /// The algorithm of the hash.
+    pub alg: HashAlgId,
     /// Direction of the session key (cwk or swk).
     pub direction: Direction,
     /// Session key.
@@ -94,21 +118,29 @@ impl SessionSecret {
     /// Hashes the session key with a blinder.
     ///
     /// By convention, session key is hashed as `H(key | blinder)`.
-    pub fn hash_key(&self, hasher: &dyn HashAlgorithm) -> TypedHash {
-        TypedHash {
+    pub fn hash_key(&self, provider: &CryptoProvider) -> Result<TypedHash, PlaintextProofError> {
+        let hasher = provider.hash.get(&self.alg)?;
+
+        let hash = TypedHash {
             alg: hasher.id(),
             value: hasher.hash_prefixed(&self.key, self.key_blinder.as_bytes()),
-        }
+        };
+
+        Ok(hash)
     }
 
     /// Hashes the session iv with a blinder.
     ///
     /// By convention, session iv is hashed as `H(iv | blinder)`.
-    pub fn hash_iv(&self, hasher: &dyn HashAlgorithm) -> TypedHash {
-        TypedHash {
+    pub fn hash_iv(&self, provider: &CryptoProvider) -> Result<TypedHash, PlaintextProofError> {
+        let hasher = provider.hash.get(&self.alg)?;
+
+        let hash = TypedHash {
             alg: hasher.id(),
             value: hasher.hash_prefixed(&self.iv, self.iv_blinder.as_bytes()),
-        }
+        };
+
+        Ok(hash)
     }
 }
 

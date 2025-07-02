@@ -2,13 +2,16 @@
 
 use rangeset::{Cover, ToRangeSet};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, fmt};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use crate::{
     connection::TranscriptLength,
     hash::{HashAlgId, HashProvider},
     transcript::{
-        ciphertext::{PlaintextProof, PlaintextProofError},
+        ciphertext::{PlaintextProof, PlaintextProofError, SessionSecret},
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
@@ -157,7 +160,7 @@ impl TranscriptProof {
         }
 
         for proof in self.plaintext_proof {
-            let auth = match proof.direction {
+            let auth = match proof.direction() {
                 Direction::Sent => &mut total_auth_sent,
                 Direction::Received => &mut total_auth_recv,
             };
@@ -280,6 +283,7 @@ pub struct TranscriptProofBuilder<'a> {
     transcript: &'a Transcript,
     encoding_tree: Option<&'a EncodingTree>,
     hash_secrets: Vec<&'a PlaintextHashSecret>,
+    session_secrets: HashMap<Direction, &'a SessionSecret>,
     committed_sent: Idx,
     committed_recv: Idx,
     query_idx: QueryIdx,
@@ -296,7 +300,7 @@ impl<'a> TranscriptProofBuilder<'a> {
 
         let mut encoding_tree = None;
         let mut hash_secrets = Vec::new();
-        let mut session_secrets = Vec::new();
+        let mut session_secrets = HashMap::new();
 
         for secret in secrets {
             match secret {
@@ -312,16 +316,16 @@ impl<'a> TranscriptProofBuilder<'a> {
                     }
                     hash_secrets.push(hash);
                 }
-                TranscriptSecret::Ciphertext(session_key) => {
-                    let len = transcript.len_of_direction(session_key.direction);
+                TranscriptSecret::Ciphertext(session_secret) => {
+                    let len = transcript.len_of_direction(session_secret.direction);
                     let idx = Idx::new(0..len);
 
-                    match session_key.direction {
+                    match session_secret.direction {
                         Direction::Sent => committed_sent.union_mut(&idx),
                         Direction::Received => committed_recv.union_mut(&idx),
                     }
 
-                    session_secrets.push(session_key);
+                    session_secrets.insert(session_secret.direction, session_secret);
                 }
             }
         }
@@ -331,6 +335,7 @@ impl<'a> TranscriptProofBuilder<'a> {
             transcript,
             encoding_tree,
             hash_secrets,
+            session_secrets,
             committed_sent,
             committed_recv,
             query_idx: QueryIdx::new(),
@@ -511,9 +516,28 @@ impl<'a> TranscriptProofBuilder<'a> {
                                 .map(|s| PlaintextHashSecret::clone(s)),
                         );
                     }
-                    // TODO: Add implementation for this commitment kind
                     TranscriptCommitmentKind::Ciphertext => {
-                        todo!()
+                        if let Some(&secret) = self.session_secrets.get(&Direction::Sent) {
+                            let sent_len = self.transcript.len_of_direction(Direction::Sent);
+                            let sent_idx = Idx::new(0..sent_len);
+
+                            if self.query_idx.sent == sent_idx {
+                                let proof = PlaintextProof::new(self.transcript, secret.clone());
+                                transcript_proof.plaintext_proof.push(proof);
+                                uncovered_query_idx.sent = Idx::empty();
+                            }
+                        }
+
+                        if let Some(&secret) = self.session_secrets.get(&Direction::Received) {
+                            let recv_len = self.transcript.len_of_direction(Direction::Received);
+                            let recv_idx = Idx::new(0..recv_len);
+
+                            if self.query_idx.recv == recv_idx {
+                                let proof = PlaintextProof::new(self.transcript, secret.clone());
+                                transcript_proof.plaintext_proof.push(proof);
+                                uncovered_query_idx.recv = Idx::empty();
+                            }
+                        }
                     }
                     #[allow(unreachable_patterns)]
                     kind => {
