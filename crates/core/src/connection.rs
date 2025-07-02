@@ -273,6 +273,15 @@ pub enum HandshakeData {
 
 impl_domain_separator!(HandshakeData);
 
+/// Verify data from the TLS handshake finished messages.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyData {
+    /// Client finished verify data.
+    pub client_finished: Vec<u8>,
+    /// Server finished verify data.
+    pub server_finished: Vec<u8>,
+}
+
 /// Server certificate and handshake data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerCertData {

@@ -3,9 +3,13 @@ mod config;
 pub use config::VerifierConfig;
 
 use enum_try_as_inner::EnumTryAsInner;
-use tlsn_verifier::{
-    state::{self, Initialized},
-    Verifier, VerifyConfig,
+use tls_core::msgs::enums::ContentType;
+use tlsn::{
+    connection::{ConnectionInfo, TranscriptLength},
+    verifier::{
+        state::{self, Initialized},
+        Verifier, VerifyConfig,
+    },
 };
 use tracing::info;
 use wasm_bindgen::prelude::*;
@@ -71,7 +75,30 @@ impl JsVerifier {
 
         let mut verifier = verifier.setup(prover_conn.into_io()).await?.run().await?;
 
-        let connection_info = verifier.connection_info().clone();
+        let sent = verifier
+            .tls_transcript()
+            .sent()
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData)
+            .map(|record| record.ciphertext.len())
+            .sum::<usize>();
+
+        let received = verifier
+            .tls_transcript()
+            .recv()
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData)
+            .map(|record| record.ciphertext.len())
+            .sum::<usize>();
+
+        let connection_info = ConnectionInfo {
+            time: verifier.tls_transcript().time(),
+            version: *verifier.tls_transcript().version(),
+            transcript_length: TranscriptLength {
+                sent: sent as u32,
+                received: received as u32,
+            },
+        };
 
         let output = verifier.verify(&VerifyConfig::default()).await?;
         verifier.close().await?;
@@ -86,8 +113,8 @@ impl JsVerifier {
     }
 }
 
-impl From<tlsn_verifier::Verifier<Initialized>> for JsVerifier {
-    fn from(value: tlsn_verifier::Verifier<Initialized>) -> Self {
+impl From<tlsn::verifier::Verifier<Initialized>> for JsVerifier {
+    fn from(value: tlsn::verifier::Verifier<Initialized>) -> Self {
         Self {
             state: State::Initialized(value),
         }

@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # List the packages you want to document
-PACKAGES=("tlsn-core" "tlsn-prover" "tlsn-verifier" "tlsn-wasm")
+PACKAGES=("tlsn-core" "tlsn" "tlsn-wasm")
 
 # Find all features, except for the "test" features
 FEATURES=$(
@@ -31,5 +31,5 @@ cargo +nightly doc \
     --features "$FEATURES"
 
 # https://dev.to/deciduously/prepare-your-rust-api-docs-for-github-pages-2n5i
-echo "Add index file -> tlsn_prover"
-echo "<meta http-equiv=\"refresh\" content=\"0; url=tlsn_prover\">" >../../target/wasm32-unknown-unknown/doc/index.html
+echo "Add index file -> tlsn"
+echo "<meta http-equiv=\"refresh\" content=\"0; url=tlsn\">" >../../target/wasm32-unknown-unknown/doc/index.html

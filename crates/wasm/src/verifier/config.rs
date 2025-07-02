@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tlsn_common::config::ProtocolConfigValidator;
+use tlsn::config::ProtocolConfigValidator;
 use tsify_next::Tsify;
 
 #[derive(Debug, Tsify, Deserialize)]
@@ -11,7 +11,7 @@ pub struct VerifierConfig {
     pub max_recv_records_online: Option<usize>,
 }
 
-impl From<VerifierConfig> for tlsn_verifier::VerifierConfig {
+impl From<VerifierConfig> for tlsn::verifier::VerifierConfig {
     fn from(value: VerifierConfig) -> Self {
         let mut builder = ProtocolConfigValidator::builder();
 
@@ -28,7 +28,7 @@ impl From<VerifierConfig> for tlsn_verifier::VerifierConfig {
 
         let validator = builder.build().unwrap();
 
-        tlsn_verifier::VerifierConfig::builder()
+        tlsn::verifier::VerifierConfig::builder()
             .protocol_config_validator(validator)
             .build()
             .unwrap()

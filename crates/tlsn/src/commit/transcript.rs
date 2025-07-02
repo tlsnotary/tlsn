@@ -1,135 +1,36 @@
-//! TLS transcript.
-
 use mpz_memory_core::{
-    binary::{Binary, U8},
     MemoryExt, Vector,
+    binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, VmError};
 use rangeset::Intersection;
-use tls_core::msgs::enums::{ContentType, ProtocolVersion};
-use tlsn_core::transcript::{Direction, Idx, PartialTranscript, Transcript};
-
-/// A transcript of TLS records sent and received by the prover.
-#[derive(Debug, Default, Clone)]
-pub struct TlsTranscript {
-    /// Sent records.
-    pub sent: Vec<Record>,
-    /// Received records.
-    pub recv: Vec<Record>,
-}
-
-impl TlsTranscript {
-    /// Returns the application data transcript.
-    pub fn to_transcript(&self) -> Result<Transcript, TlsTranscriptError> {
-        let mut sent = Vec::new();
-        let mut recv = Vec::new();
-
-        for record in self
-            .sent
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-        {
-            let plaintext = record
-                .plaintext
-                .as_ref()
-                .ok_or(ErrorRepr::IncompleteTranscript {})?
-                .clone();
-            sent.extend_from_slice(&plaintext);
-        }
-
-        for record in self
-            .recv
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-        {
-            let plaintext = record
-                .plaintext
-                .as_ref()
-                .ok_or(ErrorRepr::IncompleteTranscript {})?
-                .clone();
-            recv.extend_from_slice(&plaintext);
-        }
-
-        Ok(Transcript::new(sent, recv))
-    }
-
-    /// Returns the application data transcript references.
-    pub fn to_transcript_refs(&self) -> Result<TranscriptRefs, TlsTranscriptError> {
-        let mut sent = Vec::new();
-        let mut recv = Vec::new();
-
-        for record in self
-            .sent
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-        {
-            let plaintext_ref = record
-                .plaintext_ref
-                .as_ref()
-                .ok_or(ErrorRepr::IncompleteTranscript {})?;
-            sent.push(*plaintext_ref);
-        }
-
-        for record in self
-            .recv
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-        {
-            let plaintext_ref = record
-                .plaintext_ref
-                .as_ref()
-                .ok_or(ErrorRepr::IncompleteTranscript {})?;
-            recv.push(*plaintext_ref);
-        }
-
-        Ok(TranscriptRefs { sent, recv })
-    }
-}
-
-/// A TLS record.
-#[derive(Clone)]
-pub struct Record {
-    /// Sequence number.
-    pub seq: u64,
-    /// Content type.
-    pub typ: ContentType,
-    /// Plaintext.
-    pub plaintext: Option<Vec<u8>>,
-    /// VM reference to the plaintext.
-    pub plaintext_ref: Option<Vector<U8>>,
-    /// Explicit nonce.
-    pub explicit_nonce: Vec<u8>,
-    /// Ciphertext.
-    pub ciphertext: Vec<u8>,
-    /// Tag.
-    pub tag: Option<Vec<u8>>,
-    /// Version.
-    pub version: ProtocolVersion,
-}
-
-opaque_debug::implement!(Record);
+use tlsn_core::transcript::{Direction, Idx, PartialTranscript};
 
 /// References to the application plaintext in the transcript.
 #[derive(Debug, Default, Clone)]
-pub struct TranscriptRefs {
+pub(crate) struct TranscriptRefs {
     sent: Vec<Vector<U8>>,
     recv: Vec<Vector<U8>>,
 }
 
 impl TranscriptRefs {
+    pub(crate) fn new(sent: Vec<Vector<U8>>, recv: Vec<Vector<U8>>) -> Self {
+        Self { sent, recv }
+    }
+
     /// Returns the sent plaintext references.
-    pub fn sent(&self) -> &[Vector<U8>] {
+    pub(crate) fn sent(&self) -> &[Vector<U8>] {
         &self.sent
     }
 
     /// Returns the received plaintext references.
-    pub fn recv(&self) -> &[Vector<U8>] {
+    pub(crate) fn recv(&self) -> &[Vector<U8>] {
         &self.recv
     }
 
     /// Returns VM references for the given direction and index, otherwise
     /// `None` if the index is out of bounds.
-    pub fn get(&self, direction: Direction, idx: &Idx) -> Option<Vec<Vector<U8>>> {
+    pub(crate) fn get(&self, direction: Direction, idx: &Idx) -> Option<Vec<Vector<U8>>> {
         if idx.is_empty() {
             return Some(Vec::new());
         }
@@ -171,20 +72,8 @@ impl TranscriptRefs {
     }
 }
 
-/// Error for [`TlsTranscript`].
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct TlsTranscriptError(#[from] ErrorRepr);
-
-#[derive(Debug, thiserror::Error)]
-#[error("TLS transcript error")]
-enum ErrorRepr {
-    #[error("not all application plaintext was committed to in the TLS transcript")]
-    IncompleteTranscript {},
-}
-
 /// Decodes the transcript.
-pub fn decode_transcript(
+pub(crate) fn decode_transcript(
     vm: &mut dyn Vm<Binary>,
     sent: &Idx,
     recv: &Idx,
@@ -204,7 +93,7 @@ pub fn decode_transcript(
 }
 
 /// Verifies a partial transcript.
-pub fn verify_transcript(
+pub(crate) fn verify_transcript(
     vm: &mut dyn Vm<Binary>,
     transcript: &PartialTranscript,
     refs: &TranscriptRefs,
@@ -244,12 +133,12 @@ pub fn verify_transcript(
 /// Error for [`verify_transcript`].
 #[derive(Debug, thiserror::Error)]
 #[error("inconsistent transcript")]
-pub struct InconsistentTranscript {}
+pub(crate) struct InconsistentTranscript {}
 
 #[cfg(test)]
 mod tests {
     use super::TranscriptRefs;
-    use mpz_memory_core::{binary::U8, FromRaw, Slice, Vector};
+    use mpz_memory_core::{FromRaw, Slice, Vector, binary::U8};
     use rangeset::RangeSet;
     use std::ops::Range;
     use tlsn_core::transcript::{Direction, Idx};

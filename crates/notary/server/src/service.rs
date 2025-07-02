@@ -12,9 +12,11 @@ use axum_macros::debug_handler;
 use eyre::eyre;
 use notary_common::{NotarizationSessionRequest, NotarizationSessionResponse};
 use std::time::Duration;
-use tlsn_common::config::ProtocolConfigValidator;
+use tlsn::{
+    config::ProtocolConfigValidator,
+    verifier::{Verifier, VerifierConfig},
+};
 use tlsn_core::attestation::AttestationConfig;
-use tlsn_verifier::{Verifier, VerifierConfig};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     time::timeout,

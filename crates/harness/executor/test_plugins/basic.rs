@@ -1,13 +1,15 @@
 use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
+use tlsn::{
+    config::{ProtocolConfig, ProtocolConfigValidator},
+    prover::{Prover, ProverConfig},
+    verifier::{Verifier, VerifierConfig},
+};
 use tlsn_core::{
     CryptoProvider, ProveConfig, VerifierOutput, VerifyConfig,
     hash::HashAlgId,
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
 };
-use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_verifier::{Verifier, VerifierConfig};
 
 use http_body_util::{BodyExt as _, Empty};
 use hyper::{Request, StatusCode, body::Bytes};

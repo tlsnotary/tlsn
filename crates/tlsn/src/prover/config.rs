@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use crate::config::{NetworkSetting, ProtocolConfig};
 use derive_builder::UninitializedFieldError;
 use mpc_tls::Config;
-use rustls_pki_types::{pem::PemObject, CertificateDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer};
+use rustls_pki_types::{CertificateDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer, pem::PemObject};
 use tls_core::key;
-use tlsn_common::config::{NetworkSetting, ProtocolConfig};
-use tlsn_core::{connection::ServerName, CryptoProvider};
+use tlsn_core::{CryptoProvider, connection::ServerName};
 
 /// Configuration for the prover.
 #[derive(Debug, Clone, derive_builder::Builder)]

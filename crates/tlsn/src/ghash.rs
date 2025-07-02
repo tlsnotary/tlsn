@@ -3,12 +3,12 @@
 // This module belongs in tls/core. It was moved out here temporarily.
 
 use ghash::{
-    universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
     GHash,
+    universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
 };
 
 /// Computes a GHASH tag.
-pub fn ghash(aad: &[u8], ciphertext: &[u8], key: &[u8; 16]) -> [u8; 16] {
+pub(crate) fn ghash(aad: &[u8], ciphertext: &[u8], key: &[u8; 16]) -> [u8; 16] {
     let mut ghash = GHash::new(key.into());
     ghash.update_padded(&build_ghash_data(aad.to_vec(), ciphertext.to_owned()));
     let out = ghash.finalize();
@@ -16,7 +16,7 @@ pub fn ghash(aad: &[u8], ciphertext: &[u8], key: &[u8; 16]) -> [u8; 16] {
 }
 
 /// Builds padded data for GHASH.
-pub fn build_ghash_data(mut aad: Vec<u8>, mut ciphertext: Vec<u8>) -> Vec<u8> {
+pub(crate) fn build_ghash_data(mut aad: Vec<u8>, mut ciphertext: Vec<u8>) -> Vec<u8> {
     let associated_data_bitlen = (aad.len() as u64) * 8;
     let text_bitlen = (ciphertext.len() as u64) * 8;
 

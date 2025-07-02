@@ -1,14 +1,14 @@
 //! Zero-knowledge AES-CTR encryption.
 
 use cipher::{
-    aes::{Aes128, AesError},
     Cipher, CipherError, Keystream,
+    aes::{Aes128, AesError},
 };
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Array, Vector,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_vm_core::{Vm, prelude::*};
 
 use crate::Role;
 
@@ -20,7 +20,7 @@ const START_CTR: u32 = 2;
 
 /// ZK AES-CTR encryption.
 #[derive(Debug)]
-pub struct ZkAesCtr {
+pub(crate) struct ZkAesCtr {
     role: Role,
     aes: Aes128,
     state: State,
@@ -28,7 +28,7 @@ pub struct ZkAesCtr {
 
 impl ZkAesCtr {
     /// Creates a new ZK AES-CTR instance.
-    pub fn new(role: Role) -> Self {
+    pub(crate) fn new(role: Role) -> Self {
         Self {
             role,
             aes: Aes128::default(),
@@ -37,12 +37,16 @@ impl ZkAesCtr {
     }
 
     /// Returns the role.
-    pub fn role(&self) -> &Role {
+    pub(crate) fn role(&self) -> &Role {
         &self.role
     }
 
     /// Allocates `len` bytes for encryption.
-    pub fn alloc(&mut self, vm: &mut dyn Vm<Binary>, len: usize) -> Result<(), ZkAesCtrError> {
+    pub(crate) fn alloc(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        len: usize,
+    ) -> Result<(), ZkAesCtrError> {
         let State::Init = self.state.take() else {
             Err(ErrorRepr::State {
                 reason: "must be in init state to allocate",
@@ -66,7 +70,7 @@ impl ZkAesCtr {
     }
 
     /// Sets the key and IV for the cipher.
-    pub fn set_key(&mut self, key: Array<U8, 16>, iv: Array<U8, 4>) {
+    pub(crate) fn set_key(&mut self, key: Array<U8, 16>, iv: Array<U8, 4>) {
         self.aes.set_key(key);
         self.aes.set_iv(iv);
     }
@@ -85,7 +89,7 @@ impl ZkAesCtr {
     /// # Returns
     ///
     /// A VM reference to the plaintext and the ciphertext.
-    pub fn encrypt(
+    pub(crate) fn encrypt(
         &mut self,
         vm: &mut dyn Vm<Binary>,
         explicit_nonce: Vec<u8>,

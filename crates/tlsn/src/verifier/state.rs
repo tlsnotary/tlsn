@@ -2,18 +2,19 @@
 
 use std::sync::Arc;
 
-use crate::{Mpc, Zk};
+use crate::{
+    commit::transcript::TranscriptRefs,
+    mux::{MuxControl, MuxFuture},
+    zk_aes_ctr::ZkAesCtr,
+};
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_memory_core::correlated::Delta;
-use tlsn_common::{
-    mux::{MuxControl, MuxFuture},
-    transcript::TranscriptRefs,
-    zk_aes_ctr::ZkAesCtr,
-};
-use tlsn_core::connection::{ConnectionInfo, ServerEphemKey};
+use tlsn_core::transcript::TlsTranscript;
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
+
+use crate::verifier::{Mpc, Zk};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -29,8 +30,9 @@ pub struct Setup {
     pub(crate) mux_fut: MuxFuture,
     pub(crate) delta: Delta,
     pub(crate) mpc_tls: MpcTlsFollower,
-    pub(crate) zk_aes_ctr: ZkAesCtr,
-    pub(crate) _keys: SessionKeys,
+    pub(crate) zk_aes_ctr_sent: ZkAesCtr,
+    pub(crate) zk_aes_ctr_recv: ZkAesCtr,
+    pub(crate) keys: SessionKeys,
     pub(crate) vm: Arc<Mutex<Deap<Mpc, Zk>>>,
 }
 
@@ -41,8 +43,7 @@ pub struct Committed {
     pub(crate) delta: Delta,
     pub(crate) ctx: Context,
     pub(crate) vm: Zk,
-    pub(crate) server_ephemeral_key: ServerEphemKey,
-    pub(crate) connection_info: ConnectionInfo,
+    pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript_refs: TranscriptRefs,
 }
 

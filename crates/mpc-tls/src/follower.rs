@@ -1,7 +1,7 @@
 use crate::{
-    msg::Message,
+    msg::{Message, StartHandshake},
     record_layer::{aead::MpcAesGcm, RecordLayer},
-    Config, FollowerData, MpcTlsError, Role, SessionKeys, Vm,
+    Config, MpcTlsError, Role, SessionKeys, Vm,
 };
 use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
@@ -20,14 +20,15 @@ use mpz_ot::{
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use serio::stream::IoStreamExt;
 use std::mem;
-use tls_core::msgs::{
-    alert::AlertMessagePayload,
-    codec::{Codec, Reader},
-    enums::{AlertDescription, ContentType, NamedGroup, ProtocolVersion},
-    handshake::{HandshakeMessagePayload, HandshakePayload},
+use tls_core::msgs::enums::NamedGroup;
+use tlsn_core::{
+    connection::{HandshakeData, HandshakeDataV1_2, TlsVersion, VerifyData},
+    transcript::TlsTranscript,
 };
-use tlsn_common::transcript::TlsTranscript;
 use tracing::{debug, instrument};
+
+// Maximum handshake time difference in seconds.
+const MAX_TIME_DIFF: u64 = 5;
 
 /// MPC-TLS follower.
 #[derive(Debug)]
@@ -143,7 +144,6 @@ impl MpcTlsFollower {
 
         self.state = State::Setup {
             vm,
-            keys: keys.clone(),
             ke,
             prf,
             record_layer,
@@ -159,12 +159,12 @@ impl MpcTlsFollower {
     pub async fn preprocess(&mut self) -> Result<(), MpcTlsError> {
         let State::Setup {
             vm,
-            keys,
             mut ke,
             prf,
             mut record_layer,
             cf_vd,
             sf_vd,
+            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("must be in setup state to preprocess"));
@@ -203,7 +203,6 @@ impl MpcTlsFollower {
 
         self.state = State::Ready {
             vm,
-            keys,
             ke,
             prf,
             record_layer,
@@ -216,20 +215,21 @@ impl MpcTlsFollower {
 
     /// Runs the follower.
     #[instrument(skip_all, err)]
-    pub async fn run(mut self) -> Result<(Context, FollowerData), MpcTlsError> {
+    pub async fn run(mut self) -> Result<(Context, TlsTranscript), MpcTlsError> {
         let State::Ready {
             vm,
-            keys,
             mut ke,
             mut prf,
             mut record_layer,
             cf_vd: mut cf_vd_fut,
             sf_vd: mut sf_vd_fut,
+            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("must be in ready state to run"));
         };
 
+        let mut time = None;
         let mut client_random = None;
         let mut server_random = None;
         let mut server_key = None;
@@ -244,7 +244,23 @@ impl MpcTlsFollower {
                     }
 
                     prf.set_client_random(random.random)?;
-                    client_random = Some(random);
+                    client_random = Some(random.random);
+                }
+                Message::StartHandshake(StartHandshake { time: prover_time }) => {
+                    if time.is_some() {
+                        return Err(MpcTlsError::hs("time already set"));
+                    }
+
+                    let this_time = web_time::UNIX_EPOCH
+                        .elapsed()
+                        .expect("system time is available")
+                        .as_secs();
+
+                    if prover_time.abs_diff(this_time) > MAX_TIME_DIFF {
+                        return Err(MpcTlsError::hs("handshake time difference exceeds limit"));
+                    }
+
+                    time = Some(prover_time);
                 }
                 Message::SetServerRandom(random) => {
                     if server_random.is_some() {
@@ -252,7 +268,7 @@ impl MpcTlsFollower {
                     }
 
                     prf.set_server_random(random.random)?;
-                    server_random = Some(random);
+                    server_random = Some(random.random);
                 }
                 Message::SetServerKey(key) => {
                     if server_key.is_some() {
@@ -378,24 +394,41 @@ impl MpcTlsFollower {
 
         debug!("committing");
 
-        let transcript = record_layer.commit(&mut self.ctx, vm).await?;
+        let (sent_records, recv_records) = record_layer.commit(&mut self.ctx, vm).await?;
 
         debug!("committed");
 
+        let time = time.ok_or(MpcTlsError::hs("time was not set"))?;
         let server_key = server_key.ok_or(MpcTlsError::hs("server key not set"))?;
+        let client_random = client_random.ok_or(MpcTlsError::hs("client random not set"))?;
+        let server_random = server_random.ok_or(MpcTlsError::hs("client random not set"))?;
         let cf_vd = cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
         let sf_vd = sf_vd.ok_or(MpcTlsError::hs("server finished VD not computed"))?;
 
-        validate_transcript(cf_vd, sf_vd, &transcript)?;
+        let handshake_data = HandshakeData::V1_2(HandshakeDataV1_2 {
+            client_random,
+            server_random,
+            server_ephemeral_key: server_key
+                .try_into()
+                .expect("only supported key scheme should have been accepted"),
+        });
 
-        Ok((
-            self.ctx,
-            FollowerData {
-                server_key,
-                transcript,
-                keys,
+        let transcript = TlsTranscript::new(
+            time,
+            TlsVersion::V1_2,
+            None,
+            None,
+            handshake_data,
+            VerifyData {
+                client_finished: cf_vd.to_vec(),
+                server_finished: sf_vd.to_vec(),
             },
-        ))
+            sent_records,
+            recv_records,
+        )
+        .map_err(MpcTlsError::other)?;
+
+        Ok((self.ctx, transcript))
     }
 }
 
@@ -408,7 +441,6 @@ enum State {
     },
     Setup {
         vm: Vm,
-        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -417,7 +449,6 @@ enum State {
     },
     Ready {
         vm: Vm,
-        keys: SessionKeys,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
         prf: MpcPrf,
         record_layer: RecordLayer,
@@ -442,146 +473,4 @@ impl std::fmt::Debug for State {
             Self::Error => write!(f, "Error"),
         }
     }
-}
-
-fn validate_transcript(
-    cf_vd: [u8; 12],
-    sf_vd: [u8; 12],
-    transcript: &TlsTranscript,
-) -> Result<(), MpcTlsError> {
-    let mut sent = transcript.sent.iter();
-    let mut recv = transcript.recv.iter();
-
-    // Make sure the client finished verify data message was consistent.
-    if let Some(record) = sent.next() {
-        let payload = record.plaintext.as_ref().ok_or(MpcTlsError::record_layer(
-            "client finished message was hidden from the follower",
-        ))?;
-
-        let mut reader = Reader::init(payload);
-        let payload = HandshakeMessagePayload::read_version(&mut reader, ProtocolVersion::TLSv1_2)
-            .ok_or(MpcTlsError::record_layer(
-                "first record sent was not a handshake message",
-            ))?;
-
-        let HandshakePayload::Finished(actual_cf_vd) = payload.payload else {
-            return Err(MpcTlsError::record_layer(
-                "first record sent was not a client finished message",
-            ));
-        };
-
-        if cf_vd != actual_cf_vd.0.as_slice() {
-            return Err(MpcTlsError::record_layer(format!(
-                "client finished verify data does not match output from PRF: {cf_vd:?} != {actual_cf_vd:?}"
-            )));
-        }
-    } else {
-        return Err(MpcTlsError::record_layer("client finished was not sent"));
-    }
-
-    // Make sure the server finished verify data message was consistent.
-    if let Some(record) = recv.next() {
-        let payload = record.plaintext.as_ref().ok_or(MpcTlsError::record_layer(
-            "server finished message was hidden from the follower",
-        ))?;
-
-        let mut reader = Reader::init(payload);
-        let payload = HandshakeMessagePayload::read_version(&mut reader, ProtocolVersion::TLSv1_2)
-            .ok_or(MpcTlsError::record_layer(
-                "first record received was not a handshake message",
-            ))?;
-
-        let HandshakePayload::Finished(actual_sf_vd) = payload.payload else {
-            return Err(MpcTlsError::record_layer(
-                "first record received was not a server finished message",
-            ));
-        };
-
-        if sf_vd != actual_sf_vd.0.as_slice() {
-            return Err(MpcTlsError::record_layer(format!(
-                "server finished verify data does not match output from PRF: {sf_vd:?} != {actual_sf_vd:?}"
-            )));
-        }
-    } else {
-        return Err(MpcTlsError::record_layer(
-            "server finished was not received",
-        ));
-    }
-
-    // Verify last record sent was either application data or close notify.
-    if let Some(record) = sent.next_back() {
-        match record.typ {
-            ContentType::ApplicationData => {}
-            ContentType::Alert => {
-                // Ensure the alert is a close notify.
-                let payload = record.plaintext.as_ref().ok_or(MpcTlsError::record_layer(
-                    "alert content was hidden from the follower",
-                ))?;
-
-                let mut reader = Reader::init(payload);
-                let payload = AlertMessagePayload::read(&mut reader)
-                    .ok_or(MpcTlsError::record_layer("alert message was malformed"))?;
-
-                let AlertDescription::CloseNotify = payload.description else {
-                    return Err(MpcTlsError::record_layer(
-                        "sent alert that is not close notify",
-                    ));
-                };
-            }
-            typ => {
-                return Err(MpcTlsError::record_layer(format!(
-                    "sent unexpected record content type: {typ:?}"
-                )))
-            }
-        }
-    }
-
-    // Verify last record received was either application data or close notify.
-    if let Some(record) = recv.next_back() {
-        match record.typ {
-            ContentType::ApplicationData => {}
-            ContentType::Alert => {
-                // Ensure the alert is a close notify.
-                let payload = record.plaintext.as_ref().ok_or(MpcTlsError::record_layer(
-                    "alert content was hidden from the follower",
-                ))?;
-
-                let mut reader = Reader::init(payload);
-                let payload = AlertMessagePayload::read(&mut reader)
-                    .ok_or(MpcTlsError::record_layer("alert message was malformed"))?;
-
-                let AlertDescription::CloseNotify = payload.description else {
-                    return Err(MpcTlsError::record_layer(
-                        "received alert that is not close notify",
-                    ));
-                };
-            }
-            typ => {
-                return Err(MpcTlsError::record_layer(format!(
-                    "received unexpected record content type: {typ:?}"
-                )))
-            }
-        }
-    }
-
-    // Ensure all other records were application data.
-    for record in sent {
-        if record.typ != ContentType::ApplicationData {
-            return Err(MpcTlsError::record_layer(format!(
-                "sent unexpected record content type: {:?}",
-                record.typ
-            )));
-        }
-    }
-
-    for record in recv {
-        if record.typ != ContentType::ApplicationData {
-            return Err(MpcTlsError::record_layer(format!(
-                "received unexpected record content type: {:?}",
-                record.typ
-            )));
-        }
-    }
-
-    Ok(())
 }

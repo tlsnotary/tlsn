@@ -2,22 +2,18 @@
 
 use std::sync::Arc;
 
-use mpz_common::Context;
-
 use mpc_tls::{MpcTlsLeader, SessionKeys};
-use tlsn_common::{
-    mux::{MuxControl, MuxFuture},
-    transcript::TranscriptRefs,
-    zk_aes_ctr::ZkAesCtr,
-};
-use tlsn_core::{
-    connection::{ConnectionInfo, ServerCertData},
-    transcript::Transcript,
-};
+use mpz_common::Context;
+use tlsn_core::transcript::{TlsTranscript, Transcript};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use crate::{Mpc, Zk};
+use crate::{
+    commit::transcript::TranscriptRefs,
+    mux::{MuxControl, MuxFuture},
+    prover::{Mpc, Zk},
+    zk_aes_ctr::ZkAesCtr,
+};
 
 /// Entry state
 pub struct Initialized;
@@ -29,7 +25,8 @@ pub struct Setup {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsLeader,
-    pub(crate) zk_aes_ctr: ZkAesCtr,
+    pub(crate) zk_aes_ctr_sent: ZkAesCtr,
+    pub(crate) zk_aes_ctr_recv: ZkAesCtr,
     pub(crate) keys: SessionKeys,
     pub(crate) vm: Arc<Mutex<Deap<Mpc, Zk>>>,
 }
@@ -41,10 +38,8 @@ pub struct Committed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
-    pub(crate) _keys: SessionKeys,
     pub(crate) vm: Zk,
-    pub(crate) connection_info: ConnectionInfo,
-    pub(crate) server_cert_data: ServerCertData,
+    pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript: Transcript,
     pub(crate) transcript_refs: TranscriptRefs,
 }

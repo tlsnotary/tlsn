@@ -1,8 +1,4 @@
-//! TLSNotary verifier library.
-
-#![deny(missing_docs, unreachable_pub, unused_must_use)]
-#![deny(clippy::all)]
-#![forbid(unsafe_code)]
+//! Verifier.
 
 pub(crate) mod config;
 mod error;
@@ -14,37 +10,39 @@ pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderErr
 pub use error::VerifierError;
 pub use tlsn_core::{VerifierOutput, VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError};
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{FollowerData, MpcTlsFollower, SessionKeys};
-use mpz_common::Context;
-use mpz_core::Block;
-use mpz_garble_core::Delta;
-use mpz_vm_core::prelude::*;
-use serio::{stream::IoStreamExt, SinkExt};
-use tls_core::msgs::enums::ContentType;
-use tlsn_common::{
-    commit::{commit_records, hash::verify_hash},
+use crate::{
+    Role,
+    commit::{
+        commit_records,
+        hash::verify_hash,
+        transcript::{TranscriptRefs, decode_transcript, verify_transcript},
+    },
     config::ProtocolConfig,
     context::build_mt_context,
     encoding,
     mux::attach_mux,
     tag::verify_tags,
-    transcript::{decode_transcript, verify_transcript, Record, TlsTranscript},
     zk_aes_ctr::ZkAesCtr,
-    Role,
 };
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use mpc_tls::{MpcTlsFollower, SessionKeys};
+use mpz_common::Context;
+use mpz_core::Block;
+use mpz_garble_core::Delta;
+use mpz_vm_core::prelude::*;
+use serio::{SinkExt, stream::IoStreamExt};
+use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
-    attestation::{Attestation, AttestationConfig},
-    connection::{ConnectionInfo, ServerName, TlsVersion, TranscriptLength},
-    request::Request,
-    transcript::TranscriptCommitment,
     ProvePayload,
+    attestation::{Attestation, AttestationConfig},
+    connection::{ConnectionInfo, ServerName, TranscriptLength},
+    request::Request,
+    transcript::{TlsTranscript, TranscriptCommitment},
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
-use web_time::{SystemTime, UNIX_EPOCH};
 
-use tracing::{debug, info, info_span, instrument, Span};
+use tracing::{Span, debug, info, info_span, instrument};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::ferret::Sender<mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>>,
@@ -117,17 +115,21 @@ impl Verifier<state::Initialized> {
         let delta = Delta::random(&mut rand::rng());
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta, ctx);
 
-        // Allocate resources for MPC-TLS in VM.
+        // Allocate resources for MPC-TLS in the VM.
         let mut keys = mpc_tls.alloc()?;
-        translate_keys(&mut keys, &vm.try_lock().expect("VM is not locked"))?;
+        let vm_lock = vm.try_lock().expect("VM is not locked");
+        translate_keys(&mut keys, &vm_lock)?;
 
         // Allocate for committing to plaintext.
-        let mut zk_aes_ctr = ZkAesCtr::new(Role::Verifier);
-        zk_aes_ctr.set_key(keys.server_write_key, keys.server_write_iv);
-        zk_aes_ctr.alloc(
-            &mut (*vm.try_lock().expect("VM is not locked").zk()),
-            protocol_config.max_recv_data(),
-        )?;
+        let mut zk_aes_ctr_sent = ZkAesCtr::new(Role::Verifier);
+        zk_aes_ctr_sent.set_key(keys.client_write_key, keys.client_write_iv);
+        zk_aes_ctr_sent.alloc(&mut *vm_lock.zk(), protocol_config.max_sent_data())?;
+
+        let mut zk_aes_ctr_recv = ZkAesCtr::new(Role::Verifier);
+        zk_aes_ctr_recv.set_key(keys.server_write_key, keys.server_write_iv);
+        zk_aes_ctr_recv.alloc(&mut *vm_lock.zk(), protocol_config.max_recv_data())?;
+
+        drop(vm_lock);
 
         debug!("setting up mpc-tls");
 
@@ -143,8 +145,9 @@ impl Verifier<state::Initialized> {
                 mux_fut,
                 delta,
                 mpc_tls,
-                zk_aes_ctr,
-                _keys: keys,
+                zk_aes_ctr_sent,
+                zk_aes_ctr_recv,
+                keys,
                 vm,
             },
         })
@@ -211,34 +214,20 @@ impl Verifier<state::Setup> {
             mut mux_fut,
             delta,
             mpc_tls,
-            mut zk_aes_ctr,
+            mut zk_aes_ctr_sent,
+            mut zk_aes_ctr_recv,
             vm,
-            ..
+            keys,
         } = self.state;
-
-        let start_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time should be available")
-            .as_secs();
 
         info!("starting MPC-TLS");
 
-        let (
-            mut ctx,
-            FollowerData {
-                server_key,
-                mut transcript,
-                keys,
-                ..
-            },
-        ) = mux_fut.poll_with(mpc_tls.run()).await?;
+        let (mut ctx, tls_transcript) = mux_fut.poll_with(mpc_tls.run()).await?;
 
         info!("finished MPC-TLS");
 
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
-
-            translate_transcript(&mut transcript, &vm)?;
 
             debug!("finalizing mpc");
 
@@ -262,17 +251,28 @@ impl Verifier<state::Setup> {
             &mut vm,
             (keys.server_write_key, keys.server_write_iv),
             keys.server_write_mac_key,
-            transcript.recv.clone(),
+            *tls_transcript.version(),
+            tls_transcript.recv().to_vec(),
         )
         .map_err(VerifierError::zk)?;
 
         // Prepare for the prover to prove received plaintext.
-        let proof = commit_records(
+        let (sent_refs, sent_proof) = commit_records(
             &mut vm,
-            &mut zk_aes_ctr,
-            transcript
-                .recv
-                .iter_mut()
+            &mut zk_aes_ctr_sent,
+            tls_transcript
+                .sent()
+                .iter()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+        )
+        .map_err(VerifierError::zk)?;
+
+        let (recv_refs, recv_proof) = commit_records(
+            &mut vm,
+            &mut zk_aes_ctr_recv,
+            tls_transcript
+                .recv()
+                .iter()
                 .filter(|record| record.typ == ContentType::ApplicationData),
         )
         .map_err(VerifierError::zk)?;
@@ -287,30 +287,10 @@ impl Verifier<state::Setup> {
         tag_proof.verify().map_err(VerifierError::zk)?;
 
         // Verify the plaintext proofs.
-        proof.verify().map_err(VerifierError::zk)?;
+        sent_proof.verify().map_err(VerifierError::zk)?;
+        recv_proof.verify().map_err(VerifierError::zk)?;
 
-        let sent = transcript
-            .sent
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-            .map(|record| record.ciphertext.len())
-            .sum::<usize>() as u32;
-        let received = transcript
-            .recv
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-            .map(|record| record.ciphertext.len())
-            .sum::<usize>() as u32;
-
-        let transcript_refs = transcript
-            .to_transcript_refs()
-            .expect("transcript should be complete");
-
-        let connection_info = ConnectionInfo {
-            time: start_time,
-            version: TlsVersion::V1_2,
-            transcript_length: TranscriptLength { sent, received },
-        };
+        let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
 
         Ok(Verifier {
             config: self.config,
@@ -321,10 +301,7 @@ impl Verifier<state::Setup> {
                 delta,
                 ctx,
                 vm,
-                server_ephemeral_key: server_key
-                    .try_into()
-                    .expect("only supported key type should have been accepted"),
-                connection_info,
+                tls_transcript,
                 transcript_refs,
             },
         })
@@ -332,9 +309,9 @@ impl Verifier<state::Setup> {
 }
 
 impl Verifier<state::Committed> {
-    /// Returns the connection information.
-    pub fn connection_info(&self) -> &ConnectionInfo {
-        &self.state.connection_info
+    /// Returns the TLS transcript.
+    pub fn tls_transcript(&self) -> &TlsTranscript {
+        &self.state.tls_transcript
     }
 
     /// Verifies information from the prover.
@@ -352,8 +329,7 @@ impl Verifier<state::Committed> {
             ctx,
             delta,
             vm,
-            connection_info,
-            server_ephemeral_key,
+            tls_transcript,
             transcript_refs,
             ..
         } = &mut self.state;
@@ -370,8 +346,8 @@ impl Verifier<state::Committed> {
             cert_data
                 .verify_with_provider(
                     self.config.crypto_provider(),
-                    connection_info.time,
-                    server_ephemeral_key,
+                    tls_transcript.time(),
+                    tls_transcript.server_ephemeral_key(),
                     &name,
                 )
                 .map_err(VerifierError::verify)?;
@@ -382,10 +358,33 @@ impl Verifier<state::Committed> {
         };
 
         if let Some(partial_transcript) = &transcript {
+            let sent_len = tls_transcript
+                .sent()
+                .iter()
+                .filter_map(|record| {
+                    if let ContentType::ApplicationData = record.typ {
+                        Some(record.ciphertext.len())
+                    } else {
+                        None
+                    }
+                })
+                .sum::<usize>();
+
+            let recv_len = tls_transcript
+                .recv()
+                .iter()
+                .filter_map(|record| {
+                    if let ContentType::ApplicationData = record.typ {
+                        Some(record.ciphertext.len())
+                    } else {
+                        None
+                    }
+                })
+                .sum::<usize>();
+
             // Check ranges.
-            if partial_transcript.len_sent() != connection_info.transcript_length.sent as usize
-                || partial_transcript.len_received()
-                    != connection_info.transcript_length.received as usize
+            if partial_transcript.len_sent() != sent_len
+                || partial_transcript.len_received() != recv_len
             {
                 return Err(VerifierError::verify(
                     "prover sent transcript with incorrect length",
@@ -480,10 +479,33 @@ impl Verifier<state::Committed> {
         let state::Committed {
             mux_fut,
             ctx,
-            server_ephemeral_key,
-            connection_info,
+            tls_transcript,
             ..
         } = &mut self.state;
+
+        let sent_len = tls_transcript
+            .sent()
+            .iter()
+            .filter_map(|record| {
+                if let ContentType::ApplicationData = record.typ {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
+            .sum::<usize>();
+
+        let recv_len = tls_transcript
+            .recv()
+            .iter()
+            .filter_map(|record| {
+                if let ContentType::ApplicationData = record.typ {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
+            .sum::<usize>();
 
         let request: Request = mux_fut
             .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
@@ -494,8 +516,15 @@ impl Verifier<state::Committed> {
             .map_err(VerifierError::attestation)?;
 
         builder
-            .connection_info(connection_info.clone())
-            .server_ephemeral_key(server_ephemeral_key.clone())
+            .connection_info(ConnectionInfo {
+                time: tls_transcript.time(),
+                version: (*tls_transcript.version()),
+                transcript_length: TranscriptLength {
+                    sent: sent_len as u32,
+                    received: recv_len as u32,
+                },
+            })
+            .server_ephemeral_key(tls_transcript.server_ephemeral_key().clone())
             .transcript_commitments(transcript_commitments);
 
         let attestation = builder
@@ -599,21 +628,6 @@ fn translate_keys<Mpc, Zk>(
     keys.server_write_mac_key = vm
         .translate(keys.server_write_mac_key)
         .map_err(VerifierError::mpc)?;
-
-    Ok(())
-}
-
-/// Translates VM references to the ZK address space.
-fn translate_transcript<Mpc, Zk>(
-    transcript: &mut TlsTranscript,
-    vm: &Deap<Mpc, Zk>,
-) -> Result<(), VerifierError> {
-    for Record { plaintext_ref, .. } in transcript.sent.iter_mut().chain(transcript.recv.iter_mut())
-    {
-        if let Some(plaintext_ref) = plaintext_ref.as_mut() {
-            *plaintext_ref = vm.translate(*plaintext_ref).map_err(VerifierError::mpc)?;
-        }
-    }
 
     Ok(())
 }
