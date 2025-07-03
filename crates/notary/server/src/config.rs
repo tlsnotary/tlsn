@@ -1,7 +1,10 @@
 use config::{Config, Environment};
 use eyre::{eyre, Result};
-use serde::{Deserialize, Serialize};
-use std::path::Path;
+use serde::{
+    de::{self, DeserializeSeed, Deserializer},
+    Deserialize, Serialize,
+};
+use std::{marker::PhantomData, path::Path, str::FromStr};
 
 use crate::{parse_config_file, util::prepend_file_path, CliFields};
 
@@ -85,7 +88,9 @@ impl NotaryServerProperties {
                     Environment::with_prefix("NS")
                         .try_parsing(true)
                         .prefix_separator("_")
-                        .separator("__"),
+                        .separator("__")
+                        .list_separator(" ")
+                        .with_list_parse_key("auth.jwt.claims"),
                 )
                 .build()?
                 .try_deserialize()?;
@@ -172,7 +177,7 @@ pub struct JwtAuthorizationProperties {
     /// signatures
     pub public_key_path: String,
     /// Optional set of required JWT claims
-    #[serde(default)]
+    #[serde(default, deserialize_with = "seq_string_or_struct")]
     pub claims: Vec<JwtClaim>,
 }
 
@@ -183,6 +188,96 @@ pub struct JwtClaim {
     /// Optional set of expected values for the claim
     #[serde(default)]
     pub values: Vec<String>,
+}
+
+impl FromStr for JwtClaim {
+    type Err = eyre::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        if s.is_empty() {
+            return Err(eyre!("Empty string when parsing JWT claim"));
+        }
+        let parts: Vec<&str> = s.split(':').collect();
+        let name = parts[0].to_string();
+        if name.is_empty() {
+            return Err(eyre!("Empty name for JWT claim: '{s}'"));
+        }
+        let values = parts[1..].iter().map(ToString::to_string).collect();
+        Ok(Self { name, values })
+    }
+}
+
+fn seq_string_or_struct<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    T: Deserialize<'de> + FromStr<Err = eyre::Error>,
+    D: Deserializer<'de>,
+{
+    struct StringOrStruct<T>(PhantomData<T>);
+
+    impl<'de, T> de::Visitor<'de> for StringOrStruct<T>
+    where
+        T: Deserialize<'de> + FromStr<Err = eyre::Error>,
+    {
+        type Value = T;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("string or map")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<T, E>
+        where
+            E: de::Error,
+        {
+            FromStr::from_str(value).map_err(de::Error::custom)
+        }
+
+        fn visit_map<M>(self, map: M) -> Result<T, M::Error>
+        where
+            M: de::MapAccess<'de>,
+        {
+            Deserialize::deserialize(de::value::MapAccessDeserializer::new(map))
+        }
+    }
+
+    impl<'de, T> DeserializeSeed<'de> for StringOrStruct<T>
+    where
+        T: Deserialize<'de> + FromStr<Err = eyre::Error>,
+    {
+        type Value = T;
+
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserializer.deserialize_any(self)
+        }
+    }
+
+    struct SeqStringOrStruct<T>(PhantomData<T>);
+
+    impl<'de, T> de::Visitor<'de> for SeqStringOrStruct<T>
+    where
+        T: Deserialize<'de> + FromStr<Err = eyre::Error>,
+    {
+        type Value = Vec<T>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("sequence of strings or maps")
+        }
+
+        fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
+        where
+            S: de::SeqAccess<'de>,
+        {
+            let mut vec = Vec::new();
+            while let Some(element) = seq.next_element_seed(StringOrStruct(PhantomData))? {
+                vec.push(element);
+            }
+            Ok(vec)
+        }
+    }
+
+    deserializer.deserialize_seq(SeqStringOrStruct(PhantomData))
 }
 
 impl Default for NotaryServerProperties {
@@ -241,5 +336,121 @@ impl Default for LogProperties {
             filter: None,
             format: LogFormat::Compact,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn save_config_file(contents: impl AsRef<str>) -> tempfile::NamedTempFile {
+        let mut config_file = tempfile::NamedTempFile::new().unwrap();
+        config_file
+            .as_file_mut()
+            .write_all(contents.as_ref().as_bytes())
+            .unwrap();
+        config_file
+    }
+
+    #[test]
+    fn correctly_parses_jwt_claims_from_seq_of_structs() {
+        let config_file = save_config_file(
+            r#"
+                host: "0.0.0.0"
+                port: 7047
+                html_info: ""
+                concurrency: 32
+                notarization:
+                  max_sent_data: 4096
+                  max_recv_data: 16384
+                  timeout: 1800
+                  private_key_path: "../notary/notary.key"
+                  signature_algorithm: secp256k1
+                  allow_extensions: false
+
+                tls:
+                  enabled: false
+
+                log:
+                  level: DEBUG
+                  format: COMPACT
+
+                auth:
+                  enabled: true
+                  jwt:
+                    public_key_path: "../auth/jwt.key.pub"
+                    algorithm: "rs256"
+                    claims:
+                      - name: "tlsn1"
+                      - name: "tlsn2"
+                        values: ["is", "cool"]
+            "#,
+        );
+
+        let props = NotaryServerProperties::new(&CliFields {
+            config: Some(config_file.path().to_string_lossy().to_string()),
+        })
+        .unwrap();
+
+        let Some(AuthorizationModeProperties::Jwt(JwtAuthorizationProperties { claims, .. })) =
+            props.auth.mode
+        else {
+            unreachable!();
+        };
+        assert_eq!(claims.len(), 2);
+        assert_eq!(claims[0].name, "tlsn1");
+        assert_eq!(claims[0].values, Vec::<String>::new());
+        assert_eq!(claims[1].name, "tlsn2");
+        assert_eq!(claims[1].values, vec!["is".to_string(), "cool".to_string()]);
+    }
+
+    #[test]
+    fn correctly_parses_jwt_claims_from_seq_of_strings() {
+        let config_file = save_config_file(
+            r#"
+                host: "0.0.0.0"
+                port: 7047
+                html_info: ""
+                concurrency: 32
+                notarization:
+                  max_sent_data: 4096
+                  max_recv_data: 16384
+                  timeout: 1800
+                  private_key_path: "../notary/notary.key"
+                  signature_algorithm: secp256k1
+                  allow_extensions: false
+
+                tls:
+                  enabled: false
+
+                log:
+                  level: DEBUG
+                  format: COMPACT
+
+                auth:
+                  enabled: true
+                  jwt:
+                    public_key_path: "../auth/jwt.key.pub"
+                    algorithm: "rs256"
+                    claims: ["tlsn1", "tlsn2:is:cool"]
+            "#,
+        );
+
+        let props = NotaryServerProperties::new(&CliFields {
+            config: Some(config_file.path().to_string_lossy().to_string()),
+        })
+        .unwrap();
+
+        let Some(AuthorizationModeProperties::Jwt(JwtAuthorizationProperties { claims, .. })) =
+            props.auth.mode
+        else {
+            unreachable!();
+        };
+        assert_eq!(claims.len(), 2);
+        assert_eq!(claims[0].name, "tlsn1");
+        assert_eq!(claims[0].values, Vec::<String>::new());
+        assert_eq!(claims[1].name, "tlsn2");
+        assert_eq!(claims[1].values, vec!["is".to_string(), "cool".to_string()]);
     }
 }
