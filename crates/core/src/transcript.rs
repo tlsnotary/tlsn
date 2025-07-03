@@ -32,7 +32,6 @@
 //! [`Secrets::transcript_proof_builder`](crate::Secrets::transcript_proof_builder).
 
 mod commit;
-#[doc(hidden)]
 pub mod encoding;
 pub mod hash;
 mod proof;

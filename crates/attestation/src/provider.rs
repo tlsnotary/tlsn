@@ -2,11 +2,9 @@ use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
     verify::WebPkiVerifier,
 };
+use tlsn_core::hash::HashProvider;
 
-use crate::{
-    hash::HashProvider,
-    signing::{SignatureVerifierProvider, SignerProvider},
-};
+use crate::signing::{SignatureVerifierProvider, SignerProvider};
 
 /// Cryptography provider.
 ///

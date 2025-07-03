@@ -1,7 +1,6 @@
-use crate::{
-    attestation::Extension, hash::HashAlgId, signing::SignatureAlgId,
-    transcript::TranscriptCommitConfig,
-};
+use tlsn_core::{hash::HashAlgId, transcript::TranscriptCommitConfig};
+
+use crate::{Extension, signing::SignatureAlgId};
 
 /// Request configuration.
 #[derive(Debug, Clone)]

@@ -4,12 +4,10 @@ use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
 
 use harness_core::bench::{Bench, ProverMetrics};
-use tls_core::verify::WebPkiVerifier;
 use tlsn::{
     config::ProtocolConfig,
-    prover::{Prover, ProverConfig},
+    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
 };
-use tlsn_core::{CryptoProvider, ProveConfig};
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
 use crate::{
@@ -39,16 +37,15 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
+    let mut tls_config_builder = TlsConfig::builder();
+    tls_config_builder.root_store(root_store);
+    let tls_config = tls_config_builder.build()?;
 
     let prover = Prover::new(
         ProverConfig::builder()
+            .tls_config(tls_config)
             .protocol_config(protocol_config)
             .server_name(SERVER_DOMAIN)
-            .crypto_provider(crypto_provider)
             .build()?,
     );
 

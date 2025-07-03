@@ -3,11 +3,11 @@ use tls_core::verify::WebPkiVerifier;
 use tlsn::{
     config::{ProtocolConfig, ProtocolConfigValidator},
     prover::{Prover, ProverConfig},
+    transcript::TranscriptCommitConfig,
     verifier::{Verifier, VerifierConfig},
 };
-use tlsn_core::{
-    CryptoProvider, attestation::AttestationConfig, request::RequestConfig,
-    signing::SignatureAlgId, transcript::TranscriptCommitConfig,
+use tlsn_attestation::{
+    AttestationConfig, CryptoProvider, request::RequestConfig, signing::SignatureAlgId,
 };
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -47,11 +47,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
-
     let prover = Prover::new(
         ProverConfig::builder()
             .server_name(SERVER_DOMAIN)
@@ -64,7 +59,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
                     .build()
                     .unwrap(),
             )
-            .crypto_provider(provider)
             .build()
             .unwrap(),
     )
@@ -104,7 +98,10 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
 
     let config = builder.build().unwrap();
 
-    prover.notarize(&config).await.unwrap();
+    prover
+        .notarize_with_provider(&config, &CryptoProvider::default())
+        .await
+        .unwrap();
     prover.close().await.unwrap();
 }
 
@@ -132,7 +129,6 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(soc
     let verifier = Verifier::new(
         VerifierConfig::builder()
             .protocol_config_validator(config_validator)
-            .crypto_provider(provider)
             .build()
             .unwrap(),
     );
@@ -142,5 +138,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(soc
         .build()
         .unwrap();
 
-    _ = verifier.notarize(socket.compat(), &config).await.unwrap();
+    _ = verifier
+        .notarize_with_provider(socket.compat(), &config, &CryptoProvider::default())
+        .await
+        .unwrap();
 }

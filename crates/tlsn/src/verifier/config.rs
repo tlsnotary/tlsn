@@ -1,11 +1,8 @@
-use std::{
-    fmt::{Debug, Formatter, Result},
-    sync::Arc,
-};
+use std::fmt::{Debug, Formatter, Result};
 
 use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use mpc_tls::Config;
-use tlsn_core::CryptoProvider;
+use tls_core::anchors::RootCertStore;
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
 #[allow(missing_docs)]
@@ -13,9 +10,7 @@ use tlsn_core::CryptoProvider;
 #[builder(pattern = "owned")]
 pub struct VerifierConfig {
     protocol_config_validator: ProtocolConfigValidator,
-    /// Cryptography provider.
-    #[builder(default, setter(into))]
-    crypto_provider: Arc<CryptoProvider>,
+    root_store: RootCertStore,
 }
 
 impl Debug for VerifierConfig {
@@ -37,9 +32,9 @@ impl VerifierConfig {
         &self.protocol_config_validator
     }
 
-    /// Returns the cryptography provider.
-    pub fn crypto_provider(&self) -> &CryptoProvider {
-        &self.crypto_provider
+    /// Returns the root certificate store.
+    pub fn root_store(&self) -> &RootCertStore {
+        &self.root_store
     }
 
     pub(crate) fn build_mpc_tls_config(&self, protocol_config: &ProtocolConfig) -> Config {

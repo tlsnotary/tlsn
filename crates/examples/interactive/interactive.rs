@@ -10,18 +10,15 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
-use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
     config::{ProtocolConfig, ProtocolConfigValidator},
-    prover::{Prover, ProverConfig, TlsConfig},
-    verifier::{Verifier, VerifierConfig},
-};
-use tlsn_core::{
-    transcript::PartialTranscript, CryptoProvider, ProveConfig, VerifierOutput, VerifyConfig,
+    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
+    transcript::PartialTranscript,
+    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
-use tlsn_server_fixture_certs::{CLIENT_CERT, CLIENT_KEY, SERVER_DOMAIN};
+use tlsn_server_fixture_certs::SERVER_DOMAIN;
 
 const SECRET: &str = "TLSNotary's private key 🤡";
 
@@ -72,41 +69,29 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     assert_eq!(uri.scheme().unwrap().as_str(), "https");
     let server_domain = uri.authority().unwrap().host();
 
-    // Create a crypto provider accepting the server-fixture's self-signed
-    // root certificate.
-    //
-    // This is only required for offline testing with the server-fixture. In
-    // production, use `CryptoProvider::default()` instead.
+    // Create a root certificate store with the server-fixture's self-signed
+    // certificate. This is only required for offline testing with the
+    // server-fixture.
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
+    let mut tls_config_builder = TlsConfig::builder();
+    tls_config_builder.root_store(root_store);
+    let tls_config = tls_config_builder.build().unwrap();
 
     // Set up protocol configuration for prover.
     let mut prover_config_builder = ProverConfig::builder();
     prover_config_builder
         .server_name(server_domain)
+        .tls_config(tls_config)
         .protocol_config(
             ProtocolConfig::builder()
                 .max_sent_data(MAX_SENT_DATA)
                 .max_recv_data(MAX_RECV_DATA)
                 .build()
                 .unwrap(),
-        )
-        .crypto_provider(crypto_provider);
-
-    // (Optional) Set up TLS client authentication if required by the server.
-    prover_config_builder.tls_config(
-        TlsConfig::builder()
-            .client_auth_pem((vec![CLIENT_CERT.to_vec()], CLIENT_KEY.to_vec()))
-            .unwrap()
-            .build()
-            .unwrap(),
-    );
+        );
 
     let prover_config = prover_config_builder.build().unwrap();
 
@@ -206,23 +191,17 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()
         .unwrap();
 
-    // Create a crypto provider accepting the server-fixture's self-signed
-    // root certificate.
-    //
-    // This is only required for offline testing with the server-fixture. In
-    // production, use `CryptoProvider::default()` instead.
+    // Create a root certificate store with the server-fixture's self-signed
+    // certificate. This is only required for offline testing with the
+    // server-fixture.
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
 
     let verifier_config = VerifierConfig::builder()
+        .root_store(root_store)
         .protocol_config_validator(config_validator)
-        .crypto_provider(crypto_provider)
         .build()
         .unwrap();
     let verifier = Verifier::new(verifier_config);

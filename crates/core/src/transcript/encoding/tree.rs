@@ -193,9 +193,8 @@ mod tests {
     use super::*;
     use crate::{
         fixtures::{encoder_secret, encoding_provider},
-        hash::Blake3,
+        hash::{Blake3, HashProvider},
         transcript::{encoding::EncodingCommitment, Transcript},
-        CryptoProvider,
     };
     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
@@ -229,7 +228,7 @@ mod tests {
 
         let (auth_sent, auth_recv) = proof
             .verify_with_provider(
-                &CryptoProvider::default(),
+                &HashProvider::default(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),
@@ -267,7 +266,7 @@ mod tests {
 
         let (auth_sent, auth_recv) = proof
             .verify_with_provider(
-                &CryptoProvider::default(),
+                &HashProvider::default(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),

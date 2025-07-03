@@ -2,13 +2,15 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    attestation::{Attestation, Body, Header},
+use tlsn_core::{
     hash::HashAlgorithm,
     merkle::{MerkleProof, MerkleTree},
+};
+
+use crate::{
+    Attestation, Body, CryptoProvider, Header,
     serialize::CanonicalSerialize,
     signing::{Signature, VerifyingKey},
-    CryptoProvider,
 };
 
 /// Proof of an attestation.

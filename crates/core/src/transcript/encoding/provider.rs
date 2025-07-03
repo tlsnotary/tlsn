@@ -13,6 +13,7 @@ pub trait EncodingProvider {
     ) -> Result<(), EncodingProviderError>;
 }
 
+/// Error for [`EncodingProvider`].
 #[derive(Debug, thiserror::Error)]
 #[error("failed to provide encoding")]
 pub struct EncodingProviderError;

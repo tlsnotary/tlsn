@@ -1,13 +1,10 @@
-use tls_core::{anchors::RootCertStore, verify::WebPkiVerifier};
+use tls_core::anchors::RootCertStore;
 use tlsn::{
     config::{ProtocolConfig, ProtocolConfigValidator},
-    prover::{Prover, ProverConfig},
-    verifier::{Verifier, VerifierConfig},
-};
-use tlsn_core::{
-    CryptoProvider, ProveConfig, VerifierOutput, VerifyConfig,
     hash::HashAlgId,
+    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
+    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
@@ -29,14 +26,15 @@ async fn prover(provider: &IoProvider) {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
+    let mut tls_config_builder = TlsConfig::builder();
+    tls_config_builder.root_store(root_store);
+
+    let tls_config = tls_config_builder.build().unwrap();
 
     let prover = Prover::new(
         ProverConfig::builder()
             .server_name(SERVER_DOMAIN)
+            .tls_config(tls_config)
             .protocol_config(
                 ProtocolConfig::builder()
                     .max_sent_data(MAX_SENT_DATA)
@@ -45,7 +43,6 @@ async fn prover(provider: &IoProvider) {
                     .build()
                     .unwrap(),
             )
-            .crypto_provider(crypto_provider)
             .build()
             .unwrap(),
     )
@@ -122,11 +119,6 @@ async fn verifier(provider: &IoProvider) {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
-
     let config = VerifierConfig::builder()
         .protocol_config_validator(
             ProtocolConfigValidator::builder()
@@ -135,7 +127,7 @@ async fn verifier(provider: &IoProvider) {
                 .build()
                 .unwrap(),
         )
-        .crypto_provider(crypto_provider)
+        .root_store(root_store)
         .build()
         .unwrap();
 

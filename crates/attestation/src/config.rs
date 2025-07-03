@@ -1,9 +1,9 @@
 use std::{fmt::Debug, sync::Arc};
 
+use tlsn_core::hash::HashAlgId;
+
 use crate::{
-    attestation::{Extension, InvalidExtension},
-    hash::{HashAlgId, DEFAULT_SUPPORTED_HASH_ALGS},
-    signing::SignatureAlgId,
+    Extension, InvalidExtension, hash::DEFAULT_SUPPORTED_HASH_ALGS, signing::SignatureAlgId,
 };
 
 type ExtensionValidator = Arc<dyn Fn(&[Extension]) -> Result<(), InvalidExtension> + Send + Sync>;

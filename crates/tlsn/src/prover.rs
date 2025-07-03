@@ -37,11 +37,14 @@ use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
 use tls_core::msgs::enums::ContentType;
-use tlsn_core::{
-    ProvePayload, Secrets,
-    attestation::Attestation,
-    connection::ServerCertData,
+use tlsn_attestation::{
+    Attestation, CryptoProvider, Secrets,
     request::{Request, RequestConfig},
+};
+use tlsn_core::{
+    ProvePayload,
+    connection::ServerCertData,
+    hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256},
     transcript::{Direction, TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
 };
 use tlsn_deap::Deap;
@@ -190,7 +193,7 @@ impl Prover<state::Setup> {
 
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
-            .with_root_certificates(self.config.crypto_provider().cert.root_store().clone());
+            .with_root_certificates(self.config.tls_config().root_store().clone());
 
         let config = if let Some((cert, key)) = self.config.tls_config().client_auth() {
             config
@@ -389,12 +392,18 @@ impl Prover<state::Committed> {
         let mut hash_commitments = None;
         if let Some(commit_config) = config.transcript_commit() {
             if commit_config.has_encoding() {
-                let hasher = self
-                    .config
-                    .crypto_provider()
-                    .hash
-                    .get(commit_config.encoding_hash_alg())
-                    .map_err(ProverError::config)?;
+                let hasher: &(dyn HashAlgorithm + Send + Sync) =
+                    match *commit_config.encoding_hash_alg() {
+                        HashAlgId::SHA256 => &Sha256::default(),
+                        HashAlgId::KECCAK256 => &Keccak256::default(),
+                        HashAlgId::BLAKE3 => &Blake3::default(),
+                        alg => {
+                            return Err(ProverError::config(format!(
+                                "unsupported hash algorithm for encoding commitment: {}",
+                                alg
+                            )));
+                        }
+                    };
 
                 let (commitment, tree) = mux_fut
                     .poll_with(
@@ -463,6 +472,26 @@ impl Prover<state::Committed> {
         &mut self,
         config: &RequestConfig,
     ) -> Result<(Attestation, Secrets), ProverError> {
+        #[allow(deprecated)]
+        self.notarize_with_provider(config, &CryptoProvider::default())
+            .await
+    }
+
+    /// Requests an attestation from the verifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The attestation request configuration.
+    /// * `provider` - Cryptography provider.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    #[deprecated(
+        note = "attestation functionality will be removed from this API in future releases."
+    )]
+    pub async fn notarize_with_provider(
+        &mut self,
+        config: &RequestConfig,
+        provider: &CryptoProvider,
+    ) -> Result<(Attestation, Secrets), ProverError> {
         let mut builder = ProveConfig::builder(self.transcript());
 
         if let Some(config) = config.transcript_commit() {
@@ -520,9 +549,7 @@ impl Prover<state::Committed> {
             .transcript(transcript.clone())
             .transcript_commitments(transcript_secrets, transcript_commitments);
 
-        let (request, secrets) = builder
-            .build(self.config.crypto_provider())
-            .map_err(ProverError::attestation)?;
+        let (request, secrets) = builder.build(provider).map_err(ProverError::attestation)?;
 
         let attestation = mux_fut
             .poll_with(async {

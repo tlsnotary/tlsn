@@ -16,6 +16,7 @@ rayon = ["mpz-common/rayon"]
 force-st = ["mpz-common/force-st"]
 
 [dependencies]
+tlsn-attestation = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
 tlsn-tls-client = { workspace = true }
@@ -52,6 +53,7 @@ ghash = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
 once_cell = { workspace = true }
 rangeset = { workspace = true }
+webpki-roots = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

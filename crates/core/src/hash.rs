@@ -5,11 +5,6 @@ use std::{collections::HashMap, fmt::Display};
 use rand::{distr::StandardUniform, prelude::Distribution};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::serialize::CanonicalSerialize;
-
-pub(crate) const DEFAULT_SUPPORTED_HASH_ALGS: &[HashAlgId] =
-    &[HashAlgId::SHA256, HashAlgId::BLAKE3, HashAlgId::KECCAK256];
-
 /// Maximum length of a hash value.
 const MAX_LEN: usize = 64;
 
@@ -238,19 +233,6 @@ pub trait HashAlgorithm {
     fn hash_prefixed(&self, prefix: &[u8], data: &[u8]) -> Hash;
 }
 
-pub(crate) trait HashAlgorithmExt: HashAlgorithm {
-    #[allow(dead_code)]
-    fn hash_canonical<T: CanonicalSerialize>(&self, data: &T) -> Hash {
-        self.hash(&data.serialize())
-    }
-
-    fn hash_separated<T: DomainSeparator + CanonicalSerialize>(&self, data: &T) -> Hash {
-        self.hash_prefixed(data.domain(), &data.serialize())
-    }
-}
-
-impl<T: HashAlgorithm + ?Sized> HashAlgorithmExt for T {}
-
 /// A hash blinder.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Blinder([u8; 16]);
@@ -274,51 +256,25 @@ impl Distribution<Blinder> for StandardUniform {
 
 /// A blinded pre-image of a hash.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Blinded<T> {
+pub struct Blinded<T> {
     data: T,
     blinder: Blinder,
 }
 
 impl<T> Blinded<T> {
     /// Creates a new blinded pre-image.
-    pub(crate) fn new(data: T) -> Self {
+    pub fn new(data: T) -> Self {
         Self {
             data,
             blinder: rand::random(),
         }
     }
 
-    pub(crate) fn data(&self) -> &T {
+    /// Returns the data.
+    pub fn data(&self) -> &T {
         &self.data
     }
 }
-
-/// A type with a domain separator which is used during hashing to mitigate type
-/// confusion attacks.
-pub(crate) trait DomainSeparator {
-    /// Returns the domain separator for the type.
-    fn domain(&self) -> &[u8];
-}
-
-macro_rules! impl_domain_separator {
-    ($type:ty) => {
-        impl $crate::hash::DomainSeparator for $type {
-            fn domain(&self) -> &[u8] {
-                use std::sync::LazyLock;
-
-                // Computes a 16 byte hash of the type's name to use as a domain separator.
-                static DOMAIN: LazyLock<[u8; 16]> = LazyLock::new(|| {
-                    let domain: [u8; 32] = blake3::hash(stringify!($type).as_bytes()).into();
-                    domain[..16].try_into().unwrap()
-                });
-
-                &*DOMAIN
-            }
-        }
-    };
-}
-
-pub(crate) use impl_domain_separator;
 
 mod sha2 {
     use ::sha2::Digest;

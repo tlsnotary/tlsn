@@ -19,7 +19,7 @@ use std::{
     pin::Pin,
     sync::Arc,
 };
-use tlsn_core::CryptoProvider;
+use tlsn::attestation::CryptoProvider;
 use tokio::{fs::File, io::AsyncReadExt, net::TcpListener};
 use tokio_rustls::{rustls, TlsAcceptor};
 use tower_http::cors::CorsLayer;

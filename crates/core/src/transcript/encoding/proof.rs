@@ -4,14 +4,13 @@ use rangeset::{RangeSet, UnionMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    hash::{Blinder, HashProviderError},
+    hash::{Blinder, HashProvider, HashProviderError},
     merkle::{MerkleError, MerkleProof},
     transcript::{
         commit::MAX_TOTAL_COMMITTED_DATA,
         encoding::{new_encoder, Encoder, EncodingCommitment},
         Direction, Idx,
     },
-    CryptoProvider,
 };
 
 /// An opening of a leaf in the encoding tree.
@@ -42,18 +41,18 @@ impl EncodingProof {
     ///
     /// # Arguments
     ///
-    /// * `provider` - Crypto provider.
+    /// * `provider` - Hash provider.
     /// * `commitment` - Encoding commitment to verify against.
     /// * `sent` - Sent data to authenticate.
     /// * `recv` - Received data to authenticate.
     pub fn verify_with_provider(
         &self,
-        provider: &CryptoProvider,
+        provider: &HashProvider,
         commitment: &EncodingCommitment,
         sent: &[u8],
         recv: &[u8],
     ) -> Result<(Idx, Idx), EncodingProofError> {
-        let hasher = provider.hash.get(&commitment.root.alg)?;
+        let hasher = provider.get(&commitment.root.alg)?;
 
         let encoder = new_encoder(&commitment.secret);
         let Self {
@@ -280,7 +279,7 @@ mod test {
 
         let err = proof
             .verify_with_provider(
-                &CryptoProvider::default(),
+                &HashProvider::default(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),
@@ -302,7 +301,7 @@ mod test {
         let recv = &transcript.received()[transcript.received().len() - 2..];
 
         let err = proof
-            .verify_with_provider(&CryptoProvider::default(), &commitment, sent, recv)
+            .verify_with_provider(&HashProvider::default(), &commitment, sent, recv)
             .unwrap_err();
 
         assert!(matches!(err.kind, ErrorKind::Proof));
@@ -322,7 +321,7 @@ mod test {
 
         let err = proof
             .verify_with_provider(
-                &CryptoProvider::default(),
+                &HashProvider::default(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),
@@ -346,7 +345,7 @@ mod test {
 
         let err = proof
             .verify_with_provider(
-                &CryptoProvider::default(),
+                &HashProvider::default(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),

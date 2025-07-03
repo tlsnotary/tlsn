@@ -15,7 +15,7 @@ pub use tree::{EncodingTree, EncodingTreeError};
 
 use serde::{Deserialize, Serialize};
 
-use crate::hash::{impl_domain_separator, TypedHash};
+use crate::hash::TypedHash;
 
 /// Transcript encoding commitment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,5 +25,3 @@ pub struct EncodingCommitment {
     /// Seed used to generate the encodings.
     pub secret: EncoderSecret,
 }
-
-impl_domain_separator!(EncodingCommitment);

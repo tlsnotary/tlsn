@@ -4,7 +4,7 @@ use http_body_util::Full;
 use hyper::body::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use tlsn_core::CryptoProvider;
+use tlsn::attestation::CryptoProvider;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
@@ -80,11 +80,11 @@ pub enum TlsVersion {
     V1_3,
 }
 
-impl From<tlsn_core::connection::TlsVersion> for TlsVersion {
-    fn from(value: tlsn_core::connection::TlsVersion) -> Self {
+impl From<tlsn::connection::TlsVersion> for TlsVersion {
+    fn from(value: tlsn::connection::TlsVersion) -> Self {
         match value {
-            tlsn_core::connection::TlsVersion::V1_2 => Self::V1_2,
-            tlsn_core::connection::TlsVersion::V1_3 => Self::V1_3,
+            tlsn::connection::TlsVersion::V1_2 => Self::V1_2,
+            tlsn::connection::TlsVersion::V1_3 => Self::V1_3,
         }
     }
 }
@@ -96,8 +96,8 @@ pub struct TranscriptLength {
     pub recv: usize,
 }
 
-impl From<tlsn_core::connection::TranscriptLength> for TranscriptLength {
-    fn from(value: tlsn_core::connection::TranscriptLength) -> Self {
+impl From<tlsn::connection::TranscriptLength> for TranscriptLength {
+    fn from(value: tlsn::connection::TranscriptLength) -> Self {
         Self {
             sent: value.sent as usize,
             recv: value.received as usize,
@@ -113,8 +113,8 @@ pub struct ConnectionInfo {
     transcript_length: TranscriptLength,
 }
 
-impl From<tlsn_core::connection::ConnectionInfo> for ConnectionInfo {
-    fn from(value: tlsn_core::connection::ConnectionInfo) -> Self {
+impl From<tlsn::connection::ConnectionInfo> for ConnectionInfo {
+    fn from(value: tlsn::connection::ConnectionInfo) -> Self {
         Self {
             time: value.time,
             version: value.version.into(),
@@ -130,8 +130,8 @@ pub struct Transcript {
     pub recv: Vec<u8>,
 }
 
-impl From<&tlsn_core::transcript::Transcript> for Transcript {
-    fn from(value: &tlsn_core::transcript::Transcript) -> Self {
+impl From<&tlsn::transcript::Transcript> for Transcript {
+    fn from(value: &tlsn::transcript::Transcript) -> Self {
         Self {
             sent: value.sent().to_vec(),
             recv: value.received().to_vec(),
@@ -148,8 +148,8 @@ pub struct PartialTranscript {
     pub recv_authed: Vec<Range<usize>>,
 }
 
-impl From<tlsn_core::transcript::PartialTranscript> for PartialTranscript {
-    fn from(value: tlsn_core::transcript::PartialTranscript) -> Self {
+impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
+    fn from(value: tlsn::transcript::PartialTranscript) -> Self {
         Self {
             sent: value.sent_unsafe().to_vec(),
             sent_authed: value.sent_authed().iter_ranges().collect(),
@@ -183,7 +183,7 @@ pub enum KeyType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
-pub struct Attestation(pub(crate) tlsn_core::attestation::Attestation);
+pub struct Attestation(pub(crate) tlsn::attestation::Attestation);
 
 #[wasm_bindgen]
 impl Attestation {
@@ -202,8 +202,8 @@ impl Attestation {
     }
 }
 
-impl From<tlsn_core::attestation::Attestation> for Attestation {
-    fn from(value: tlsn_core::attestation::Attestation) -> Self {
+impl From<tlsn::attestation::Attestation> for Attestation {
+    fn from(value: tlsn::attestation::Attestation) -> Self {
         Self(value)
     }
 }
@@ -211,7 +211,7 @@ impl From<tlsn_core::attestation::Attestation> for Attestation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
-pub struct Secrets(pub(crate) tlsn_core::Secrets);
+pub struct Secrets(pub(crate) tlsn::attestation::Secrets);
 
 #[wasm_bindgen]
 impl Secrets {
@@ -231,8 +231,8 @@ impl Secrets {
     }
 }
 
-impl From<tlsn_core::Secrets> for Secrets {
-    fn from(value: tlsn_core::Secrets) -> Self {
+impl From<tlsn::attestation::Secrets> for Secrets {
+    fn from(value: tlsn::attestation::Secrets) -> Self {
         Self(value)
     }
 }
@@ -240,7 +240,7 @@ impl From<tlsn_core::Secrets> for Secrets {
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
-pub struct Presentation(tlsn_core::presentation::Presentation);
+pub struct Presentation(tlsn::attestation::Presentation);
 
 #[wasm_bindgen]
 impl Presentation {
@@ -269,8 +269,8 @@ impl Presentation {
     }
 }
 
-impl From<tlsn_core::presentation::Presentation> for Presentation {
-    fn from(value: tlsn_core::presentation::Presentation) -> Self {
+impl From<tlsn::attestation::Presentation> for Presentation {
+    fn from(value: tlsn::attestation::Presentation) -> Self {
         Self(value)
     }
 }
@@ -284,8 +284,8 @@ pub struct PresentationOutput {
     pub transcript: Option<PartialTranscript>,
 }
 
-impl From<tlsn_core::presentation::PresentationOutput> for PresentationOutput {
-    fn from(value: tlsn_core::presentation::PresentationOutput) -> Self {
+impl From<tlsn::attestation::PresentationOutput> for PresentationOutput {
+    fn from(value: tlsn::attestation::PresentationOutput) -> Self {
         Self {
             attestation: value.attestation.into(),
             server_name: value.server_name.map(|name| name.as_str().to_string()),
@@ -317,8 +317,8 @@ pub struct VerifyingKey {
     pub data: Vec<u8>,
 }
 
-impl From<&tlsn_core::signing::VerifyingKey> for VerifyingKey {
-    fn from(value: &tlsn_core::signing::VerifyingKey) -> Self {
+impl From<&tlsn::attestation::signing::VerifyingKey> for VerifyingKey {
+    fn from(value: &tlsn::attestation::signing::VerifyingKey) -> Self {
         Self {
             alg: value.alg.as_u8(),
             data: value.data.clone(),

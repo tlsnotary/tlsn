@@ -1,17 +1,17 @@
-use tlsn_core::{
+use tlsn_attestation::{
+    CryptoProvider,
     attestation::{Attestation, AttestationConfig},
     connection::{HandshakeData, HandshakeDataV1_2},
-    fixtures::{self, encoder_secret, ConnectionFixture},
+    fixtures::{self, ConnectionFixture, encoder_secret},
     hash::Blake3,
     presentation::PresentationOutput,
     request::{Request, RequestConfig},
     signing::SignatureAlgId,
     transcript::{
-        encoding::{EncodingCommitment, EncodingTree},
         Direction, Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment,
         TranscriptSecret,
+        encoding::{EncodingCommitment, EncodingTree},
     },
-    CryptoProvider,
 };
 use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 

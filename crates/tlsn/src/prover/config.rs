@@ -1,11 +1,11 @@
-use std::sync::Arc;
-
 use crate::config::{NetworkSetting, ProtocolConfig};
-use derive_builder::UninitializedFieldError;
 use mpc_tls::Config;
 use rustls_pki_types::{CertificateDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer, pem::PemObject};
-use tls_core::key;
-use tlsn_core::{CryptoProvider, connection::ServerName};
+use tls_core::{
+    anchors::{OwnedTrustAnchor, RootCertStore},
+    key,
+};
+use tlsn_core::connection::ServerName;
 
 /// Configuration for the prover.
 #[derive(Debug, Clone, derive_builder::Builder)]
@@ -15,9 +15,6 @@ pub struct ProverConfig {
     server_name: ServerName,
     /// Protocol configuration to be checked with the verifier.
     protocol_config: ProtocolConfig,
-    /// Cryptography provider.
-    #[builder(default, setter(into))]
-    crypto_provider: Arc<CryptoProvider>,
     /// TLS configuration.
     #[builder(default)]
     tls_config: TlsConfig,
@@ -32,11 +29,6 @@ impl ProverConfig {
     /// Returns the server DNS name.
     pub fn server_name(&self) -> &ServerName {
         &self.server_name
-    }
-
-    /// Returns the crypto provider.
-    pub fn crypto_provider(&self) -> &CryptoProvider {
-        &self.crypto_provider
     }
 
     /// Returns the protocol configuration.
@@ -75,19 +67,41 @@ impl ProverConfig {
 }
 
 /// Configuration for the prover's TLS connection.
-#[derive(Debug, Clone, Default, derive_builder::Builder)]
-#[builder(build_fn(error = "TlsConfigError"))]
+#[derive(Debug, Clone)]
 pub struct TlsConfig {
+    /// Root certificates.
+    root_store: RootCertStore,
     /// Certificate chain and a matching private key for client
     /// authentication.
-    #[builder(default, setter(custom, strip_option))]
     client_auth: Option<(Vec<key::Certificate>, key::PrivateKey)>,
+}
+
+impl Default for TlsConfig {
+    fn default() -> Self {
+        let mut root_store = RootCertStore::empty();
+        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject.as_ref(),
+                ta.subject_public_key_info.as_ref(),
+                ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+            )
+        }));
+
+        Self {
+            root_store,
+            client_auth: None,
+        }
+    }
 }
 
 impl TlsConfig {
     /// Creates a new builder for `TlsConfig`.
     pub fn builder() -> TlsConfigBuilder {
         TlsConfigBuilder::default()
+    }
+
+    pub(crate) fn root_store(&self) -> &RootCertStore {
+        &self.root_store
     }
 
     /// Returns a certificate chain and a matching private key for client
@@ -97,7 +111,21 @@ impl TlsConfig {
     }
 }
 
+/// Builder for [`TlsConfig`].
+#[derive(Debug, Default)]
+pub struct TlsConfigBuilder {
+    root_store: Option<RootCertStore>,
+    client_auth: Option<(Vec<key::Certificate>, key::PrivateKey)>,
+}
+
 impl TlsConfigBuilder {
+    /// Sets the root certificates to use for verifying the server's
+    /// certificate.
+    pub fn root_store(&mut self, store: RootCertStore) -> &mut Self {
+        self.root_store = Some(store);
+        self
+    }
+
     /// Sets a DER-encoded certificate chain and a matching private key for
     /// client authentication.
     ///
@@ -117,7 +145,7 @@ impl TlsConfigBuilder {
             .map(key::Certificate)
             .collect::<Vec<_>>();
 
-        self.client_auth = Some(Some((certs, key::PrivateKey(cert_key.1))));
+        self.client_auth = Some((certs, key::PrivateKey(cert_key.1)));
         self
     }
 
@@ -157,8 +185,28 @@ impl TlsConfigBuilder {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        self.client_auth = Some(Some((certs, key::PrivateKey(key))));
+        self.client_auth = Some((certs, key::PrivateKey(key)));
         Ok(self)
+    }
+
+    /// Builds the TLS configuration.
+    pub fn build(&self) -> Result<TlsConfig, TlsConfigError> {
+        Ok(TlsConfig {
+            root_store: self.root_store.clone().unwrap_or_else(|| {
+                let mut root_store = RootCertStore::empty();
+                root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(
+                    |ta| {
+                        OwnedTrustAnchor::from_subject_spki_name_constraints(
+                            ta.subject.as_ref(),
+                            ta.subject_public_key_info.as_ref(),
+                            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+                        )
+                    },
+                ));
+                root_store
+            }),
+            client_auth: self.client_auth.clone(),
+        })
     }
 }
 
@@ -170,16 +218,8 @@ pub struct TlsConfigError(#[from] ErrorRepr);
 #[derive(Debug, thiserror::Error)]
 #[error("tls config error: {0}")]
 enum ErrorRepr {
-    #[error("missing field: {0:?}")]
-    MissingField(String),
     #[error("the certificate for client authentication is invalid")]
     InvalidCertificate,
     #[error("the private key for client authentication is invalid")]
     InvalidKey,
-}
-
-impl From<derive_builder::UninitializedFieldError> for TlsConfigError {
-    fn from(e: UninitializedFieldError) -> Self {
-        ErrorRepr::MissingField(e.field_name().to_string()).into()
-    }
 }
