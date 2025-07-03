@@ -14,7 +14,7 @@ use crate::{
     Role,
     commit::{
         commit_records,
-        hash::verify_hash,
+        hash::{HashCommitFuture, KeyAndIv, Plaintext},
         transcript::{TranscriptRefs, decode_transcript, verify_transcript},
     },
     config::ProtocolConfig,
@@ -427,6 +427,8 @@ impl Verifier<state::Committed> {
 
         let mut transcript_commitments = Vec::new();
         let mut hash_commitments = None;
+        let mut ciphertext_commitments = None;
+
         if let Some(commit_config) = transcript_commit {
             if commit_config.encoding() {
                 let commitment = mux_fut
@@ -443,14 +445,19 @@ impl Verifier<state::Committed> {
 
             if commit_config.has_hash() {
                 hash_commitments = Some(
-                    verify_hash(vm, transcript_refs, commit_config.iter_hash().cloned())
-                        .map_err(VerifierError::verify)?,
+                    HashCommitFuture::<Plaintext>::verify(
+                        vm,
+                        transcript_refs,
+                        commit_config.iter_hash().cloned(),
+                    )
+                    .map_err(VerifierError::verify)?,
                 );
             }
 
             // TODO: Implement verifier part for ciphertext commitments
             if commit_config.ciphertext() {
-                todo!();
+                ciphertext_commitments =
+                    Some(HashCommitFuture::<KeyAndIv>::verify().map_err(VerifierError::verify)?);
             }
         }
 

@@ -21,7 +21,7 @@ use tls_core::{
     cipher::make_tls12_aad,
     msgs::enums::{ContentType, ProtocolVersion},
 };
-use tlsn_core::transcript::{ciphertext::ServerWriteKey, Record};
+use tlsn_core::transcript::{ciphertext::SessionKey, Record};
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
@@ -242,11 +242,11 @@ impl RecordLayer {
         Ok(())
     }
 
-    pub(crate) fn server_write_key(&self) -> Result<ServerWriteKey, MpcTlsError> {
+    pub(crate) fn server_write_key(&self) -> Result<SessionKey, MpcTlsError> {
         let key = self.aes_gcm.key()?;
         let iv = self.aes_gcm.iv()?;
 
-        let swk = ServerWriteKey { key, iv };
+        let swk = SessionKey { key, iv };
         Ok(swk)
     }
 

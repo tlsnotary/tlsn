@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Also contains a commitment to the client or sever write key.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Ciphertext {
+pub struct CiphertextCommitment {
     idx: Idx,
     ciphertext: Vec<u8>,
     explicit_nonces: Vec<u8>,
@@ -60,10 +60,10 @@ impl PlaintextProof {
     pub fn verify_with_provider(
         self,
         provider: &CryptoProvider,
-        commitment: &Ciphertext,
+        commitment: &CiphertextCommitment,
     ) -> Result<Idx, PlaintextProofError> {
         // TODO: Reconstruct ciphertext from plaintext. Need iv, explicit_nonce, counters...
-        let expected = Ciphertext {
+        let expected = CiphertextCommitment {
             idx: self.idx,
             ciphertext: todo!(),
             explicit_nonces: todo!(),
@@ -83,13 +83,13 @@ impl PlaintextProof {
     }
 }
 
-/// TLS session key.
+/// TLS session secret.
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct SessionSecret {
     /// The algorithm of the hash.
     pub alg: HashAlgId,
-    /// Server write key.
-    pub swk: ServerWriteKey,
+    /// The session key.
+    pub key: SessionKey,
     /// Blinder for the key.
     pub blinder: Blinder,
 }
@@ -98,14 +98,14 @@ opaque_debug::implement!(SessionSecret);
 
 /// The server write key and iv.
 #[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct ServerWriteKey {
+pub struct SessionKey {
     /// The key.
     pub key: [u8; 16],
     /// The iv.
     pub iv: [u8; 4],
 }
 
-opaque_debug::implement!(ServerWriteKey);
+opaque_debug::implement!(SessionKey);
 
 /// Error for [`PlaintextProof`].
 #[derive(Debug, thiserror::Error)]
