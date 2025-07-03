@@ -222,7 +222,7 @@ impl Prover<state::Setup> {
 
                 info!("starting MPC-TLS");
 
-                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
+                let (_, (mut ctx, tls_transcript, server_write_key)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
@@ -302,6 +302,7 @@ impl Prover<state::Setup> {
                         tls_transcript,
                         transcript,
                         transcript_refs,
+                        server_write_key,
                     },
                 })
             }
@@ -342,6 +343,7 @@ impl Prover<state::Committed> {
             vm,
             tls_transcript,
             transcript_refs,
+            server_write_key,
             ..
         } = &mut self.state;
 
@@ -386,7 +388,10 @@ impl Prover<state::Committed> {
             .map_err(ProverError::zk)?;
         }
 
+        // TODO: Fill ciphertext commitments...
         let mut hash_commitments = None;
+        // let mut ciphertext_commitments = None;
+
         if let Some(commit_config) = config.transcript_commit() {
             if commit_config.has_encoding() {
                 let hasher = self

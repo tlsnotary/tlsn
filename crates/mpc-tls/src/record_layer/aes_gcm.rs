@@ -58,6 +58,37 @@ impl AesGcm {
         self.iv = Some(iv);
     }
 
+    pub(crate) fn key(&self) -> Result<[u8; 16], MpcTlsError> {
+        let State::Ready { key, .. } = self.state else {
+            Err(MpcTlsError::record_layer(
+                "aes-ctr must be in ready state for returning the key",
+            ))?
+        };
+
+        let Role::Leader = self.role else {
+            return Err(MpcTlsError::record_layer("Key only available for leader"));
+        };
+
+        let key = key.expect("key should be available in ready state.");
+
+        Ok(key)
+    }
+
+    pub(crate) fn iv(&self) -> Result<[u8; 4], MpcTlsError> {
+        let State::Ready { iv, .. } = self.state else {
+            Err(MpcTlsError::record_layer(
+                "aes-ctr must be in ready state for returning the iv",
+            ))?
+        };
+        let Role::Leader = self.role else {
+            return Err(MpcTlsError::record_layer("Iv only available for leader"));
+        };
+
+        let iv = iv.expect("iv should be available in ready state.");
+
+        Ok(iv)
+    }
+
     pub(crate) fn alloc(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), MpcTlsError> {
         let State::Init = self.state.take() else {
             Err(MpcTlsError::record_layer(
