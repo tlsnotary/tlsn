@@ -136,10 +136,8 @@
 //! [`Presentation`](crate::presentation::Presentation).
 //!
 //! ```no_run
-//! # use tlsn_core::presentation::Presentation;
-//! # use tlsn_core::attestation::Attestation;
+//! # use tlsn_attestation::{Attestation, CryptoProvider, Secrets, Presentation};
 //! # use tlsn_core::transcript::{TranscriptCommitmentKind, Direction};
-//! # use tlsn_core::{Secrets, CryptoProvider};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let attestation: Attestation = unimplemented!();
 //! # let secrets: Secrets = unimplemented!();
@@ -182,9 +180,7 @@
 //! [`Presentation::verify`](crate::presentation::Presentation::verify).
 //!
 //! ```no_run
-//! # use tlsn_core::presentation::{Presentation, PresentationOutput};
-//! # use tlsn_core::signing::VerifyingKey;
-//! # use tlsn_core::CryptoProvider;
+//! # use tlsn_attestation::{CryptoProvider, Presentation, PresentationOutput, signing::VerifyingKey};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let presentation: Presentation = unimplemented!();
 //! # let trusted_key: VerifyingKey = unimplemented!();

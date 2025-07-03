@@ -1,12 +1,12 @@
 use tlsn_attestation::{
-    CryptoProvider,
-    attestation::{Attestation, AttestationConfig},
+    Attestation, AttestationConfig, CryptoProvider, PresentationOutput,
+    request::{Request, RequestConfig},
+    signing::SignatureAlgId,
+};
+use tlsn_core::{
     connection::{HandshakeData, HandshakeDataV1_2},
     fixtures::{self, ConnectionFixture, encoder_secret},
     hash::Blake3,
-    presentation::PresentationOutput,
-    request::{Request, RequestConfig},
-    signing::SignatureAlgId,
     transcript::{
         Direction, Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment,
         TranscriptSecret,

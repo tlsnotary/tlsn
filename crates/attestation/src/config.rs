@@ -124,7 +124,7 @@ impl AttestationConfigBuilder {
     ///
     /// # Example
     /// ```
-    /// # use tlsn_core::attestation::{AttestationConfig, InvalidExtension};
+    /// # use tlsn_attestation::{AttestationConfig, InvalidExtension};
     /// # let mut builder = AttestationConfig::builder();
     /// builder.extension_validator(|extensions| {
     ///     for extension in extensions {
