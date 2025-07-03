@@ -399,8 +399,7 @@ impl Prover<state::Committed> {
                         HashAlgId::BLAKE3 => &Blake3::default(),
                         alg => {
                             return Err(ProverError::config(format!(
-                                "unsupported hash algorithm for encoding commitment: {}",
-                                alg
+                                "unsupported hash algorithm for encoding commitment: {alg}"
                             )));
                         }
                     };
