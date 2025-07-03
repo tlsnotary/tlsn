@@ -1,9 +1,12 @@
-use crate::{
-    connection::{ServerCertData, ServerCertOpening, ServerName},
-    request::{Request, RequestConfig},
-    secrets::Secrets,
+use tlsn_core::{
+    connection::{ServerCertData, ServerName},
     transcript::{Transcript, TranscriptCommitment, TranscriptSecret},
-    CryptoProvider,
+};
+
+use crate::{
+    CryptoProvider, Secrets,
+    connection::ServerCertOpening,
+    request::{Request, RequestConfig},
 };
 
 /// Builder for [`Request`].

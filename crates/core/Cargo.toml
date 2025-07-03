@@ -21,13 +21,10 @@ tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
 rangeset = { workspace = true, features = ["serde"] }
 
-bcs = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
 hex = { workspace = true, optional = true }
-k256 = { workspace = true }
 opaque-debug = { workspace = true }
-p256 = { workspace = true, features = ["serde"] }
 rand = { workspace = true }
 rand_core = { workspace = true }
 rand_chacha = { workspace = true }
@@ -36,21 +33,13 @@ rstest = { workspace = true, optional = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
-tiny-keccak = { version = "2.0", features = ["keccak"] }
+tiny-keccak = { workspace = true, features = ["keccak"] }
 web-time = { workspace = true }
 webpki-roots = { workspace = true }
 itybity = { workspace = true }
 
 [dev-dependencies]
-alloy-primitives = { version = "0.8.22", default-features = false }
-alloy-signer = { version = "0.12", default-features = false }
-alloy-signer-local = { version = "0.12", default-features = false }
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
 tlsn-data-fixtures = { workspace = true }
-rand06-compat = { workspace = true }
-
-[[test]]
-name = "api"
-required-features = ["fixtures"]

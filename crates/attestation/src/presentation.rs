@@ -26,12 +26,15 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    attestation::{Attestation, AttestationError, AttestationProof, Extension},
-    connection::{ConnectionInfo, ServerIdentityProof, ServerIdentityProofError, ServerName},
-    signing::VerifyingKey,
+use tlsn_core::{
+    connection::{ConnectionInfo, ServerName},
     transcript::{PartialTranscript, TranscriptProof, TranscriptProofError},
-    CryptoProvider,
+};
+
+use crate::{
+    Attestation, AttestationError, AttestationProof, CryptoProvider, Extension,
+    connection::{ServerIdentityProof, ServerIdentityProofError},
+    signing::VerifyingKey,
 };
 
 /// A verifiable presentation.
@@ -86,7 +89,7 @@ impl Presentation {
         let transcript = transcript
             .map(|transcript| {
                 transcript.verify_with_provider(
-                    provider,
+                    &provider.hash,
                     &attestation.body.connection_info().transcript_length,
                     attestation.body.transcript_commitments(),
                 )

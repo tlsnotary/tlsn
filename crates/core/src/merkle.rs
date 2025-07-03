@@ -5,10 +5,10 @@ use utils::iter::DuplicateCheck;
 
 use crate::hash::{Hash, HashAlgId, HashAlgorithm, TypedHash};
 
-/// Errors that can occur during operations with Merkle tree and Merkle proof.
+/// Merkle tree error.
 #[derive(Debug, thiserror::Error)]
 #[error("merkle error: {0}")]
-pub(crate) struct MerkleError(String);
+pub struct MerkleError(String);
 
 impl MerkleError {
     fn new(msg: impl Into<String>) -> Self {
@@ -16,8 +16,9 @@ impl MerkleError {
     }
 }
 
+/// Merkle proof.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct MerkleProof {
+pub struct MerkleProof {
     alg: HashAlgId,
     leaf_count: usize,
     proof: rs_merkle::MerkleProof<Hash>,
@@ -33,7 +34,7 @@ impl MerkleProof {
     ///
     /// - If the length of `leaf_indices` and `leaf_hashes` does not match.
     /// - If `leaf_indices` contains duplicates.
-    pub(crate) fn verify(
+    pub fn verify(
         &self,
         hasher: &dyn HashAlgorithm,
         root: &TypedHash,
@@ -80,25 +81,29 @@ impl rs_merkle::Hasher for RsMerkleHasher<'_> {
     }
 }
 
+/// Merkle tree.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct MerkleTree {
+pub struct MerkleTree {
     alg: HashAlgId,
     tree: rs_merkle::MerkleTree<Hash>,
 }
 
 impl MerkleTree {
-    pub(crate) fn new(alg: HashAlgId) -> Self {
+    /// Creates a new Merkle tree.
+    pub fn new(alg: HashAlgId) -> Self {
         Self {
             alg,
             tree: Default::default(),
         }
     }
 
-    pub(crate) fn algorithm(&self) -> HashAlgId {
+    /// Returns the hash algorithm used to create the tree.
+    pub fn algorithm(&self) -> HashAlgId {
         self.alg
     }
 
-    pub(crate) fn root(&self) -> TypedHash {
+    /// Returns the root of the tree.
+    pub fn root(&self) -> TypedHash {
         TypedHash {
             alg: self.alg,
             value: self.tree.root().expect("tree should not be empty"),
@@ -111,7 +116,7 @@ impl MerkleTree {
     ///
     /// - If the provided hasher is not the same as the one used to create the
     ///   tree.
-    pub(crate) fn insert(&mut self, hasher: &dyn HashAlgorithm, mut leaves: Vec<Hash>) {
+    pub fn insert(&mut self, hasher: &dyn HashAlgorithm, mut leaves: Vec<Hash>) {
         assert_eq!(self.alg, hasher.id(), "hash algorithm mismatch");
 
         self.tree.append(&mut leaves);
@@ -124,7 +129,7 @@ impl MerkleTree {
     ///
     /// - If the provided indices are not unique and sorted.
     /// - If the provided indices are out of bounds.
-    pub(crate) fn proof(&self, indices: &[usize]) -> MerkleProof {
+    pub fn proof(&self, indices: &[usize]) -> MerkleProof {
         assert!(
             indices.windows(2).all(|w| w[0] < w[1]),
             "indices must be unique and sorted"
@@ -145,7 +150,7 @@ impl MerkleTree {
 
 #[cfg(test)]
 mod test {
-    use crate::hash::{impl_domain_separator, Blake3, HashAlgorithmExt, Keccak256, Sha256};
+    use crate::hash::{Blake3, Keccak256, Sha256};
 
     use super::*;
     use rstest::*;
@@ -153,12 +158,10 @@ mod test {
     #[derive(Serialize)]
     struct T(u64);
 
-    impl_domain_separator!(T);
-
     fn leaves<H: HashAlgorithm>(hasher: &H, leaves: impl IntoIterator<Item = T>) -> Vec<Hash> {
         leaves
             .into_iter()
-            .map(|x| hasher.hash_canonical(&x))
+            .map(|x| hasher.hash(&x.0.to_be_bytes()))
             .collect()
     }
 

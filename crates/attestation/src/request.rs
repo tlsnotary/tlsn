@@ -18,12 +18,9 @@ mod config;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    attestation::{Attestation, Extension},
-    connection::ServerCertCommitment,
-    hash::HashAlgId,
-    signing::SignatureAlgId,
-};
+use tlsn_core::hash::HashAlgId;
+
+use crate::{Attestation, Extension, connection::ServerCertCommitment, signing::SignatureAlgId};
 
 pub use builder::{RequestBuilder, RequestBuilderError};
 pub use config::{RequestConfig, RequestConfigBuilder, RequestConfigBuilderError};
@@ -85,18 +82,19 @@ pub struct InconsistentAttestation(String);
 
 #[cfg(test)]
 mod test {
+    use tlsn_core::{
+        connection::TranscriptLength,
+        fixtures::{ConnectionFixture, encoding_provider},
+        hash::{Blake3, HashAlgId},
+        transcript::Transcript,
+    };
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     use crate::{
-        connection::{ServerCertOpening, TranscriptLength},
-        fixtures::{
-            attestation_fixture, encoding_provider, request_fixture, ConnectionFixture,
-            RequestFixture,
-        },
-        hash::{Blake3, HashAlgId},
-        signing::SignatureAlgId,
-        transcript::Transcript,
         CryptoProvider,
+        connection::ServerCertOpening,
+        fixtures::{RequestFixture, attestation_fixture, request_fixture},
+        signing::SignatureAlgId,
     };
 
     #[test]

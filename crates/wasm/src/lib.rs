@@ -14,7 +14,7 @@ pub mod verifier;
 
 pub use log::{LoggingConfig, LoggingLevel};
 
-use tlsn_core::{transcript::Direction, CryptoProvider};
+use tlsn::{attestation::CryptoProvider, transcript::Direction};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 

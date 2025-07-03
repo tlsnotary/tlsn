@@ -16,7 +16,8 @@ pub(crate) mod tag;
 pub mod verifier;
 pub(crate) mod zk_aes_ctr;
 
-pub use tlsn_core::{attestation, connection, hash, presentation, transcript};
+pub use tlsn_attestation as attestation;
+pub use tlsn_core::{connection, hash, transcript};
 
 /// The party's role in the TLSN protocol.
 ///

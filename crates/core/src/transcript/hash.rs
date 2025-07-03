@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    hash::{impl_domain_separator, Blinder, HashAlgId, HashAlgorithm, TypedHash},
+    hash::{Blinder, HashAlgId, HashAlgorithm, TypedHash},
     transcript::{Direction, Idx},
 };
 
@@ -27,8 +27,6 @@ pub struct PlaintextHash {
     /// The hash of the data.
     pub hash: TypedHash,
 }
-
-impl_domain_separator!(PlaintextHash);
 
 /// Secret component of [`PlaintextHash`].
 #[derive(Clone, Serialize, Deserialize)]

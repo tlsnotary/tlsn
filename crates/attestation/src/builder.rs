@@ -1,19 +1,17 @@
 use std::error::Error;
 
-use rand::{rng, Rng};
+use rand::{Rng, rng};
 
-use crate::{
-    attestation::{
-        Attestation, AttestationConfig, Body, Extension, FieldId, Header, ServerCertCommitment,
-        VERSION,
-    },
+use tlsn_core::{
     connection::{ConnectionInfo, ServerEphemKey},
     hash::HashAlgId,
-    request::Request,
-    serialize::CanonicalSerialize,
-    signing::SignatureAlgId,
     transcript::TranscriptCommitment,
-    CryptoProvider,
+};
+
+use crate::{
+    Attestation, AttestationConfig, Body, CryptoProvider, Extension, FieldId, Header,
+    ServerCertCommitment, VERSION, request::Request, serialize::CanonicalSerialize,
+    signing::SignatureAlgId,
 };
 
 /// Attestation builder state for accepting a request.
@@ -243,14 +241,15 @@ impl std::fmt::Display for AttestationBuilderError {
 #[cfg(test)]
 mod test {
     use rstest::{fixture, rstest};
-    use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
-
-    use crate::{
+    use tlsn_core::{
         connection::{HandshakeData, HandshakeDataV1_2},
-        fixtures::{encoding_provider, request_fixture, ConnectionFixture, RequestFixture},
+        fixtures::{ConnectionFixture, encoding_provider},
         hash::Blake3,
         transcript::Transcript,
     };
+    use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+
+    use crate::fixtures::{RequestFixture, request_fixture};
 
     use super::*;
 
@@ -403,7 +402,10 @@ mod test {
         let HandshakeData::V1_2(HandshakeDataV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake;
+        }) = server_cert_data.handshake
+        else {
+            panic!("expected v1.2 handshake data");
+        };
 
         attestation_builder.server_ephemeral_key(server_ephemeral_key);
 
@@ -471,7 +473,10 @@ mod test {
         let HandshakeData::V1_2(HandshakeDataV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake;
+        }) = server_cert_data.handshake
+        else {
+            panic!("expected v1.2 handshake data");
+        };
 
         attestation_builder
             .connection_info(connection_info)

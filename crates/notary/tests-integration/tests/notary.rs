@@ -15,13 +15,13 @@ use notary_common::{ClientType, NotarizationSessionRequest, NotarizationSessionR
 use rstest::rstest;
 use rustls::{Certificate, RootCertStore};
 use std::{string::String, time::Duration};
-use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn::{
+    attestation::request::RequestConfig,
     config::ProtocolConfig,
-    prover::{Prover, ProverConfig},
+    prover::{Prover, ProverConfig, TlsConfig},
+    transcript::TranscriptCommitConfig,
 };
-use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
 use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt},
     time::sleep,
@@ -230,11 +230,6 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
-
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
@@ -245,7 +240,6 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prover_config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
-        .crypto_provider(provider)
         .build()
         .unwrap();
 
@@ -428,10 +422,9 @@ async fn test_websocket_prover() {
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
+    let mut tls_config_builder = TlsConfig::builder();
+    tls_config_builder.root_store(root_store);
+    let tls_config = tls_config_builder.build().unwrap();
 
     let protocol_config = ProtocolConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
@@ -443,7 +436,7 @@ async fn test_websocket_prover() {
     let prover_config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
         .protocol_config(protocol_config)
-        .crypto_provider(provider)
+        .tls_config(tls_config)
         .build()
         .unwrap();
 

@@ -7,7 +7,7 @@ use pkcs8::{
     AssociatedOid, DecodePrivateKey, LineEnding, PrivateKeyInfo,
 };
 use rand06_compat::Rand0_6CompatExt;
-use tlsn_core::signing::{Secp256k1Signer, Secp256r1Signer, SignatureAlgId, Signer};
+use tlsn::attestation::signing::{Secp256k1Signer, Secp256r1Signer, SignatureAlgId, Signer};
 use tracing::error;
 
 /// A cryptographic key used for signing attestations.

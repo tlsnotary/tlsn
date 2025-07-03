@@ -31,12 +31,11 @@ use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
-use tls_core::msgs::enums::ContentType;
+use tls_core::{msgs::enums::ContentType, verify::WebPkiVerifier};
+use tlsn_attestation::{Attestation, AttestationConfig, CryptoProvider, request::Request};
 use tlsn_core::{
     ProvePayload,
-    attestation::{Attestation, AttestationConfig},
     connection::{ConnectionInfo, ServerName, TranscriptLength},
-    request::Request,
     transcript::{TlsTranscript, TranscriptCommitment},
 };
 use tlsn_deap::Deap;
@@ -171,10 +170,35 @@ impl Verifier<state::Initialized> {
         socket: S,
         config: &AttestationConfig,
     ) -> Result<Attestation, VerifierError> {
+        #[allow(deprecated)]
+        self.notarize_with_provider(socket, config, &CryptoProvider::default())
+            .await
+    }
+
+    /// Runs the verifier to completion and attests to the TLS session.
+    ///
+    /// This is a convenience method which runs all the steps needed for
+    /// notarization.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to the prover.
+    /// * `config` - The attestation configuration.
+    /// * `provider` - Cryptography provider.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    #[deprecated(
+        note = "attestation functionality will be removed from this API in future releases."
+    )]
+    pub async fn notarize_with_provider<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+        self,
+        socket: S,
+        config: &AttestationConfig,
+        provider: &CryptoProvider,
+    ) -> Result<Attestation, VerifierError> {
         let mut verifier = self.setup(socket).await?.run().await?;
 
         #[allow(deprecated)]
-        let attestation = verifier.notarize(config).await?;
+        let attestation = verifier.notarize_with_provider(config, provider).await?;
 
         verifier.close().await?;
 
@@ -342,10 +366,11 @@ impl Verifier<state::Committed> {
             .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
             .await?;
 
+        let verifier = WebPkiVerifier::new(self.config.root_store().clone(), None);
         let server_name = if let Some((name, cert_data)) = server_identity {
             cert_data
-                .verify_with_provider(
-                    self.config.crypto_provider(),
+                .verify(
+                    &verifier,
                     tls_transcript.time(),
                     tls_transcript.server_ephemeral_key(),
                     &name,
@@ -460,6 +485,26 @@ impl Verifier<state::Committed> {
         &mut self,
         config: &AttestationConfig,
     ) -> Result<Attestation, VerifierError> {
+        #[allow(deprecated)]
+        self.notarize_with_provider(config, &CryptoProvider::default())
+            .await
+    }
+
+    /// Attests to the TLS session.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Attestation configuration.
+    /// * `provider` - Cryptography provider.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    #[deprecated(
+        note = "attestation functionality will be removed from this API in future releases."
+    )]
+    pub async fn notarize_with_provider(
+        &mut self,
+        config: &AttestationConfig,
+        provider: &CryptoProvider,
+    ) -> Result<Attestation, VerifierError> {
         let VerifierOutput {
             server_name,
             transcript,
@@ -528,7 +573,7 @@ impl Verifier<state::Committed> {
             .transcript_commitments(transcript_commitments);
 
         let attestation = builder
-            .build(self.config.crypto_provider())
+            .build(provider)
             .map_err(VerifierError::attestation)?;
 
         mux_fut
