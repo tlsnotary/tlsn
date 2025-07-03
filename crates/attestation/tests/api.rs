@@ -1,5 +1,6 @@
 use tlsn_attestation::{
-    Attestation, AttestationConfig, CryptoProvider, PresentationOutput,
+    Attestation, AttestationConfig, CryptoProvider,
+    presentation::PresentationOutput,
     request::{Request, RequestConfig},
     signing::SignatureAlgId,
 };
