@@ -5,7 +5,7 @@
 use clap::Parser;
 use hyper::header;
 
-use tlsn::attestation::{Attestation, CryptoProvider, Presentation, Secrets};
+use tlsn::attestation::{presentation::Presentation, Attestation, CryptoProvider, Secrets};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::HttpTranscript;
 

@@ -7,7 +7,7 @@ pub fn fill_random(bytes: &mut [u8]) -> Result<(), Error> {
     Ok(())
 }
 
-/// Make a Vec<u8> of the given size
+/// Make a `Vec<u8>` of the given size
 /// containing random material.
 pub fn random_vec(len: usize) -> Result<Vec<u8>, Error> {
     let mut v = vec![0; len];

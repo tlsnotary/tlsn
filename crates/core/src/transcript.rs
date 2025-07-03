@@ -11,25 +11,12 @@
 //! recovered by parsing the application data and relating it to the bytes
 //! in the transcript.
 //!
-//! ## Commitments
-//!
-//! During the attestation process a Prover can generate multiple commitments to
-//! various parts of the transcript. These commitments are inserted into the
-//! attestation body and can be used by the Verifier to verify transcript proofs
-//! later.
-//!
-//! To configure the transcript commitments, use the
-//! [`TranscriptCommitConfigBuilder`].
-//!
 //! ## Selective Disclosure
 //!
 //! Using a [`TranscriptProof`] a Prover can selectively disclose parts of a
 //! transcript to a Verifier in the form of a [`PartialTranscript`]. A Verifier
 //! always learns the length of the transcript, but sensitive data can be
 //! withheld.
-//!
-//! To create a proof, use the [`TranscriptProofBuilder`] which is returned by
-//! [`Secrets::transcript_proof_builder`](crate::Secrets::transcript_proof_builder).
 
 mod commit;
 pub mod encoding;

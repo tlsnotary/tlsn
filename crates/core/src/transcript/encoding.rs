@@ -1,7 +1,4 @@
 //! Transcript encoding commitments and proofs.
-//!
-//! This is an internal module that is not intended to be used directly by
-//! users.
 
 mod encoder;
 mod proof;

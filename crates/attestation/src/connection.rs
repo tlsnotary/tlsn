@@ -1,4 +1,23 @@
 //! Types for committing details of a connection.
+//!
+//! ## Commitment
+//!
+//! During the TLS handshake the Notary receives the Server's ephemeral public
+//! key, and this key serves as a binding commitment to the identity of the
+//! Server. The ephemeral key itself does not reveal the Server's identity, but
+//! it is bound to it via a signature created using the Server's
+//! X.509 certificate.
+//!
+//! A Prover can withhold the Server's signature and certificate chain from the
+//! Notary to improve privacy and censorship resistance.
+//!
+//! ## Proving the Server's identity
+//!
+//! A Prover can prove the Server's identity to a Verifier by sending a
+//! [`ServerIdentityProof`]. This proof contains all the information required to
+//! establish the link between the TLS connection and the Server's X.509
+//! certificate. A Verifier checks the Server's certificate against their own
+//! trust anchors, the same way a typical TLS client would.
 
 use serde::{Deserialize, Serialize};
 

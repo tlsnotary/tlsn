@@ -7,12 +7,11 @@
 //! Once the TLS commitment protocol has been completed the Prover holds a
 //! collection of commitments pertaining to the TLS connection. Most
 //! importantly, the Prover is committed to the
-//! [`ServerName`](crate::connection::ServerName),
-//! and the [`Transcript`](crate::transcript::Transcript) of application data.
-//! Subsequently, the Prover can request an
-//! [`Attestation`](crate::attestation::Attestation) from the Notary who will
-//! include the commitments as well as any additional information which may be
-//! useful to an attestation Verifier.
+//! [`ServerName`](tlsn_core::connection::ServerName),
+//! and the [`Transcript`](tlsn_core::transcript::Transcript) of application
+//! data. Subsequently, the Prover can request an [`Attestation`] from the
+//! Notary who will include the commitments as well as any additional
+//! information which may be useful to an attestation Verifier.
 //!
 //! Holding an attestation, the Prover can construct a
 //! [`Presentation`](crate::presentation::Presentation) which facilitates
@@ -49,10 +48,10 @@
 //! extensions](crate::request::RequestConfigBuilder::extension)
 //! to their attestation request, provided that the Notary supports them
 //! (disallowed by default). A Notary may also be configured to
-//! [validate](crate::attestation::AttestationConfigBuilder::extension_validator)
+//! [validate](crate::AttestationConfigBuilder::extension_validator)
 //! any extensions requested by a Prover using custom application logic.
 //! Additionally, a Notary may
-//! [include](crate::attestation::AttestationBuilder::extension)
+//! [include](crate::AttestationBuilder::extension)
 //! their own extensions.
 //!
 //! # Committing to the transcript
@@ -65,13 +64,8 @@
 //! commitment schemes depending on the context they expect to disclose.
 //!
 //! The primary API for this process is the
-//! [`TranscriptCommitConfigBuilder`](crate::transcript::TranscriptCommitConfigBuilder)
+//! [`TranscriptCommitConfigBuilder`](tlsn_core::transcript::TranscriptCommitConfigBuilder)
 //! which is used to build up a configuration.
-//!
-//! Currently, only the
-//! [`Encoding`](crate::transcript::TranscriptCommitmentKind::Encoding)
-//! commitment kind is supported. In the future you will be able to acquire hash
-//! commitments directly to the transcript data.
 //!
 //! ```no_run
 //! # use tlsn_core::transcript::{TranscriptCommitConfigBuilder, Transcript, Direction};
@@ -110,7 +104,7 @@
 //! cryptographic algorithms are used (if the Notary supports them).
 //!
 //! The Prover may also request for extensions to be added to the attestation,
-//! see [here](crate::attestation#extensions) for more information.
+//! see [here](#extensions) for more information.
 //!
 //! Upon being issued an attestation, the Prover will also hold a corresponding
 //! [`Secrets`] which contains all private information. This pair can be stored
@@ -120,10 +114,9 @@
 //!
 //! # Issuing an attestation
 //!
-//! Upon receiving a request, the Notary can issue an
-//! [`Attestation`](crate::attestation::Attestation) which can be configured
-//! using the associated
-//! [builder](crate::attestation::AttestationConfigBuilder).
+//! Upon receiving a request, the Notary can issue an [`Attestation`] which can
+//! be configured using the associated
+//! [builder](crate::AttestationConfigBuilder).
 //!
 //! The Notary's [`CryptoProvider`] must be configured with an appropriate
 //! signing key for attestations. See
@@ -131,9 +124,8 @@
 //!
 //! # Constructing a presentation
 //!
-//! A Prover can use an [`Attestation`](crate::attestation::Attestation) and the
-//! corresponding [`Secrets`] to construct a verifiable
-//! [`Presentation`](crate::presentation::Presentation).
+//! A Prover can use an [`Attestation`] and the corresponding [`Secrets`] to
+//! construct a verifiable [`Presentation`](crate::presentation::Presentation).
 //!
 //! ```no_run
 //! # use tlsn_attestation::{Attestation, CryptoProvider, Secrets, Presentation};
@@ -210,7 +202,7 @@ mod extension;
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
 pub(crate) mod hash;
-mod presentation;
+pub mod presentation;
 mod proof;
 mod provider;
 pub mod request;
@@ -233,6 +225,7 @@ use tlsn_core::{
 use crate::{
     connection::ServerCertCommitment,
     hash::HashAlgorithmExt,
+    presentation::PresentationBuilder,
     serialize::impl_domain_separator,
     signing::{Signature, VerifyingKey},
 };
@@ -240,10 +233,6 @@ use crate::{
 pub use builder::{AttestationBuilder, AttestationBuilderError};
 pub use config::{AttestationConfig, AttestationConfigBuilder, AttestationConfigError};
 pub use extension::{Extension, InvalidExtension};
-pub use presentation::{
-    Presentation, PresentationBuilder, PresentationBuilderError, PresentationError,
-    PresentationOutput,
-};
 pub use proof::{AttestationError, AttestationProof};
 pub use provider::CryptoProvider;
 pub use secrets::Secrets;
@@ -319,8 +308,6 @@ pub enum FieldKind {
 }
 
 /// Attestation header.
-///
-/// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Header {
     /// An identifier for the attestation.
@@ -334,8 +321,6 @@ pub struct Header {
 impl_domain_separator!(Header);
 
 /// Attestation body.
-///
-/// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
     verifying_key: Field<VerifyingKey>,
@@ -438,8 +423,6 @@ impl Body {
 }
 
 /// An attestation document.
-///
-/// See [module level documentation](crate::attestation) for more information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attestation {
     /// The signature of the attestation.

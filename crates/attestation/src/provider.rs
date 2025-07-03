@@ -15,7 +15,7 @@ use crate::signing::{SignatureVerifierProvider, SignerProvider};
 /// implementations.
 ///
 /// Algorithms are uniquely identified using an 8-bit ID, eg.
-/// [`HashAlgId`](crate::hash::HashAlgId), half of which is reserved for the
+/// [`HashAlgId`](tlsn_core::hash::HashAlgId), half of which is reserved for the
 /// officially supported algorithms. If you think that a new algorithm should be
 /// added to the official set, please open an issue. Beware that other parties
 /// may assign different algorithms to the same ID as you, and we make no effort

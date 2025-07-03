@@ -7,7 +7,7 @@ use tlsn_core::{
 
 use crate::connection::{ServerCertOpening, ServerIdentityProof};
 
-/// Secret data of an [`Attestation`](crate::attestation::Attestation).
+/// Secret data of an [`Attestation`](crate::Attestation).
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Secrets {
     pub(crate) server_name: ServerName,

@@ -8,7 +8,11 @@ use clap::Parser;
 
 use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::CA_CERT_DER;
-use tlsn::attestation::{signing::VerifyingKey, CryptoProvider, Presentation, PresentationOutput};
+use tlsn::attestation::{
+    presentation::{Presentation, PresentationOutput},
+    signing::VerifyingKey,
+    CryptoProvider,
+};
 use tlsn_examples::ExampleType;
 
 #[derive(Parser, Debug)]
