@@ -18,7 +18,7 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
-use tlsn_core::transcript::{ciphertext::ServerWriteKey, TlsTranscript};
+use tlsn_core::transcript::{ciphertext::SessionKey, TlsTranscript};
 use tracing::{debug, Instrument};
 
 #[derive(Clone)]
@@ -70,7 +70,7 @@ impl MpcTlsLeader {
         mut self,
     ) -> (
         MpcTlsLeaderCtrl,
-        impl Future<Output = Result<(Context, TlsTranscript, ServerWriteKey), MpcTlsError>>,
+        impl Future<Output = Result<(Context, TlsTranscript, SessionKey), MpcTlsError>>,
     ) {
         let (mut mailbox, address) = mailbox(100);
 
@@ -83,7 +83,7 @@ impl MpcTlsLeader {
 }
 
 impl Actor for MpcTlsLeader {
-    type Stop = (Context, TlsTranscript, ServerWriteKey);
+    type Stop = (Context, TlsTranscript, SessionKey);
     type Error = MpcTlsError;
 
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {

@@ -19,7 +19,7 @@ use crate::{
     Role,
     commit::{
         commit_records,
-        hash::prove_hash,
+        hash::{HashCommitFuture, KeyAndIv, Plaintext},
         transcript::{TranscriptRefs, decode_transcript},
     },
     context::build_mt_context,
@@ -388,9 +388,8 @@ impl Prover<state::Committed> {
             .map_err(ProverError::zk)?;
         }
 
-        // TODO: Fill ciphertext commitments...
         let mut hash_commitments = None;
-        // let mut ciphertext_commitments = None;
+        let mut ciphertext_commitments = None;
 
         if let Some(commit_config) = config.transcript_commit() {
             if commit_config.has_encoding() {
@@ -424,7 +423,7 @@ impl Prover<state::Committed> {
 
             if commit_config.has_hash() {
                 hash_commitments = Some(
-                    prove_hash(
+                    HashCommitFuture::<Plaintext>::prove(
                         vm,
                         transcript_refs,
                         commit_config
@@ -437,7 +436,8 @@ impl Prover<state::Committed> {
 
             // TODO: add proving part for ciphertexts here
             if commit_config.has_ciphertext() {
-                todo!()
+                ciphertext_commitments =
+                    Some(HashCommitFuture::<KeyAndIv>::prove().map_err(ProverError::commit)?);
             }
         }
 
@@ -455,6 +455,15 @@ impl Prover<state::Committed> {
                     .transcript_secrets
                     .push(TranscriptSecret::Hash(secret));
             }
+        }
+
+        if let Some((hash_fut, session_secrets)) = ciphertext_commitments {
+            output
+                .transcript_commitments
+                .push(TranscriptCommitment::Ciphertext(commitment));
+            output
+                .transcript_secrets
+                .push(TranscriptSecret::Ciphertext(secret));
         }
 
         Ok(output)
