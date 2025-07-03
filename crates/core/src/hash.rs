@@ -234,7 +234,7 @@ pub trait HashAlgorithm {
 }
 
 /// A hash blinder.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Blinder([u8; 16]);
 
 opaque_debug::implement!(Blinder);

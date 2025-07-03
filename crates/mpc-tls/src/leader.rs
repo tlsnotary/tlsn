@@ -46,7 +46,7 @@ use tlsn_core::{
     connection::{
         Certificate, HandshakeData, HandshakeDataV1_2, ServerSignature, TlsVersion, VerifyData,
     },
-    transcript::TlsTranscript,
+    transcript::{ciphertext::ServerWriteKey, TlsTranscript},
 };
 use tracing::{debug, instrument, trace, warn};
 
@@ -190,6 +190,16 @@ impl MpcTlsLeader {
         };
 
         Ok(keys)
+    }
+
+    /// Returns the decoded server write key and the corresponding iv.
+    pub fn get_swk_iv(&self) -> Result<ServerWriteKey, MpcTlsError> {
+        let State::Closed { record_layer, .. } = &self.state else {
+            return Err(MpcTlsError::state(
+                "must be in closed state to return server write key and iv",
+            ));
+        };
+        record_layer.server_write_key()
     }
 
     /// Preprocesses the connection.

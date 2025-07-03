@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
-use tlsn_core::transcript::{TlsTranscript, Transcript};
+use tlsn_core::transcript::{TlsTranscript, Transcript, ciphertext::ServerWriteKey};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
@@ -42,6 +42,7 @@ pub struct Committed {
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript: Transcript,
     pub(crate) transcript_refs: TranscriptRefs,
+    pub(crate) server_write_key: ServerWriteKey,
 }
 
 opaque_debug::implement!(Committed);
