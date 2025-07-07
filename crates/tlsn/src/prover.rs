@@ -478,7 +478,7 @@ impl Prover<state::Committed> {
 
         if let Some((hash_fut, secret)) = ciphertext_commitments {
             let commitment = hash_fut
-                .into_commitment(&tls_transcript)
+                .into_commitment(tls_transcript)
                 .map_err(ProverError::commit)?;
             output
                 .transcript_commitments

@@ -21,8 +21,12 @@ tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
 rangeset = { workspace = true, features = ["serde"] }
 
+aes = { workspace = true }
+bcs = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
+cipher = { workspace = true }
+ctr = { workspace = true }
 hex = { workspace = true, optional = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }

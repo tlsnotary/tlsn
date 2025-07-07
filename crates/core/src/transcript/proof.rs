@@ -171,7 +171,7 @@ impl TranscriptProof {
                 )
             })?;
 
-            let auth_range = proof.verify_with_provider(&provider, commitment)?;
+            let auth_range = proof.verify_with_provider(provider, commitment.clone())?;
 
             total_auth_recv.union_mut(&auth_range);
         }
@@ -524,7 +524,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                             let recv_idx = Idx::new(0..recv_len);
 
                             if self.query_idx.recv == recv_idx {
-                                let proof = PlaintextProof::new(self.transcript, secret.clone());
+                                let proof = PlaintextProof::new(self.transcript, secret);
                                 transcript_proof.plaintext_proof = Some(proof);
                                 uncovered_query_idx.recv = Idx::empty();
                             }

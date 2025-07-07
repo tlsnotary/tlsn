@@ -27,6 +27,7 @@ pub(crate) struct HashCommitFuture<T> {
 }
 
 pub(crate) struct Plaintext {
+    #[allow(clippy::type_complexity)]
     inner: Vec<(
         Direction,
         Idx,
@@ -111,6 +112,7 @@ impl HashCommitFuture<Plaintext> {
     }
 
     /// Commit plaintext hashes of the transcript.
+    #[allow(clippy::type_complexity)]
     fn commit(
         vm: &mut dyn Vm<Binary>,
         role: Role,
@@ -203,7 +205,7 @@ impl HashCommitFuture<KeyAndIv> {
         vm.assign(blinder_ref, blinder.as_bytes().to_vec())?;
         vm.commit(blinder_ref)?;
 
-        let hash = vm.decode(Vector::<U8>::from(hash))?;
+        let hash = vm.decode(hash)?;
 
         let futs = KeyAndIv { alg, hash };
 
@@ -261,7 +263,7 @@ impl HashCommitFuture<KeyAndIv> {
         hasher.update(&blinder);
         let hash = hasher.finalize(vm).map_err(HashCommitError::hasher)?;
 
-        Ok((alg, hash.into(), blinder.into()))
+        Ok((alg, hash.into(), blinder))
     }
 }
 

@@ -2,7 +2,7 @@
 
 use crate::{
     hash::{Blinder, HashAlgId, HashProviderError, TypedHash},
-    transcript::{CiphertextTranscript, Direction, Idx, Transcript},
+    transcript::{hash::hash_plaintext, CiphertextTranscript, Direction, Idx, Transcript},
     CryptoProvider,
 };
 use serde::{Deserialize, Serialize};
@@ -61,16 +61,56 @@ impl PlaintextProof {
     pub fn verify_with_provider(
         self,
         provider: &CryptoProvider,
-        commitment: &CiphertextCommitment,
+        commitment: CiphertextCommitment,
     ) -> Result<Idx, PlaintextProofError> {
         // TODO: Reconstruct ciphertext from plaintext. Need iv, explicit_nonce, counters...
+
+        if self.secret.alg != HashAlgId::SHA256 {
+            return Err(PlaintextProofError::new(
+                ErrorKind::Proof,
+                format!(
+                    "unsupported hash algorithm: {}, only SHA256 is currently supported",
+                    self.secret.alg
+                ),
+            ));
+        }
+        let hasher = provider.hash.get(&self.secret.alg)?;
+        let key = self.secret.key.key;
+        let iv = self.secret.key.iv;
+        let blinder = self.secret.blinder;
+        let plaintext = self.plaintext;
+        let explicit_nonces = &commitment.transcript.explicit_nonces;
+
+        let mut key_and_iv = [0_u8; 20];
+        key_and_iv[0..16].copy_from_slice(&key);
+        key_and_iv[16..20].copy_from_slice(&iv);
+
+        let key_iv_hash = hash_plaintext(hasher, &key_and_iv, &blinder);
+
+        let mut ciphertext = Vec::with_capacity(commitment.transcript.ciphertext.len());
+
+        for (explicit_nonce, plain_block) in explicit_nonces.iter().zip(plaintext.chunks(16)) {
+            let explicit_nonce: [u8; 8] = explicit_nonce
+                .as_slice()
+                .try_into()
+                .expect("explicit nonce should be 8 bytes");
+            let cipherblock = apply_keystream(&key, &iv, &explicit_nonce, plain_block)?;
+
+            ciphertext.push(cipherblock);
+        }
+
+        let transcript = CiphertextTranscript {
+            direction: Direction::Received,
+            explicit_nonces: explicit_nonces.clone(),
+            ciphertext,
+        };
         let expected = CiphertextCommitment {
             idx: self.idx,
-            transcript: todo!(),
-            key_iv_hash: todo!(),
+            transcript,
+            key_iv_hash,
         };
 
-        if &expected != commitment {
+        if expected != commitment {
             return Err(PlaintextProofError::new(
                 ErrorKind::Proof,
                 "Proof does not match any commitment",
@@ -80,6 +120,33 @@ impl PlaintextProof {
 
         Ok(idx)
     }
+}
+
+fn apply_keystream(
+    key: &[u8; 16],
+    iv: &[u8; 4],
+    explicit_nonce: &[u8; 8],
+    input: &[u8],
+) -> Result<Vec<u8>, PlaintextProofError> {
+    use aes::Aes128;
+    use cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+    use ctr::Ctr32BE;
+
+    const START_CTR: usize = 2;
+
+    let mut full_iv = [0u8; 16];
+    full_iv[0..4].copy_from_slice(iv);
+    full_iv[4..12].copy_from_slice(explicit_nonce);
+
+    let mut cipher = Ctr32BE::<Aes128>::new(key.into(), &full_iv.into());
+    let mut output = input.to_vec();
+
+    cipher
+        .try_seek(START_CTR * 16)
+        .expect("start counter is less than keystream length");
+    cipher.apply_keystream(&mut output);
+
+    Ok(output)
 }
 
 /// TLS session secret.
