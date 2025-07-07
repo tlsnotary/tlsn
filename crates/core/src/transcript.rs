@@ -413,6 +413,24 @@ impl PartialTranscript {
     }
 }
 
+/// Transcript of ciphertext.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct CiphertextTranscript {
+    /// The direction.
+    pub direction: Direction,
+    /// The TLS explicit nonces.
+    pub explicit_nonces: Vec<Vec<u8>>,
+    /// The TLS ciphertext
+    pub ciphertext: Vec<Vec<u8>>,
+}
+
+impl CiphertextTranscript {
+    /// Returns the length of the ciphertext.
+    pub fn len(&self) -> usize {
+        self.ciphertext.len()
+    }
+}
+
 /// The direction of data communicated over a TLS connection.
 ///
 /// This is used to differentiate between data sent from the Prover to the TLS

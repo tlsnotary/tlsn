@@ -488,7 +488,9 @@ impl Verifier<state::Committed> {
         }
 
         if let Some(commitment) = ciphertext_commitment {
-            let commitment = commitment.try_recv().map_err(VerifierError::verify)?;
+            let commitment = commitment
+                .into_commitment(&tls_transcript)
+                .map_err(VerifierError::verify)?;
             transcript_commitments.push(TranscriptCommitment::Ciphertext(commitment));
         }
 

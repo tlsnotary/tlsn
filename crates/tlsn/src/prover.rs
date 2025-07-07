@@ -444,20 +444,19 @@ impl Prover<state::Committed> {
                 );
             }
 
-            // TODO: add proving part for ciphertexts here
             if commit_config.has_ciphertext() {
                 let alg = commit_config.ciphertext_hash_alg();
-                ciphertext_commitments = Some(
-                    HashCommitFuture::<KeyAndIv>::prove(
-                        vm,
-                        *alg,
-                        keys.server_write_key.into(),
-                        server_write_key.key,
-                        keys.server_write_iv.into(),
-                        server_write_key.iv,
-                    )
-                    .map_err(ProverError::commit)?,
-                );
+                let commitment = HashCommitFuture::<KeyAndIv>::prove(
+                    vm,
+                    *alg,
+                    keys.server_write_key.into(),
+                    server_write_key.key,
+                    keys.server_write_iv.into(),
+                    server_write_key.iv,
+                )
+                .map_err(ProverError::commit)?;
+
+                ciphertext_commitments = Some(commitment);
             }
         }
 
@@ -478,7 +477,9 @@ impl Prover<state::Committed> {
         }
 
         if let Some((hash_fut, secret)) = ciphertext_commitments {
-            let commitment = hash_fut.try_recv().map_err(ProverError::commit)?;
+            let commitment = hash_fut
+                .into_commitment(&tls_transcript)
+                .map_err(ProverError::commit)?;
             output
                 .transcript_commitments
                 .push(TranscriptCommitment::Ciphertext(commitment));

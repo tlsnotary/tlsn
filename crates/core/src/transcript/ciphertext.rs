@@ -2,7 +2,7 @@
 
 use crate::{
     hash::{Blinder, HashAlgId, HashProviderError, TypedHash},
-    transcript::{Direction, Idx, Transcript},
+    transcript::{CiphertextTranscript, Direction, Idx, Transcript},
     CryptoProvider,
 };
 use serde::{Deserialize, Serialize};
@@ -12,11 +12,12 @@ use serde::{Deserialize, Serialize};
 /// Also contains a commitment to the client or sever write key.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CiphertextCommitment {
-    idx: Idx,
-    ciphertext: Vec<u8>,
-    explicit_nonces: Vec<u8>,
-    counters: Vec<u8>,
-    key_iv_hash: TypedHash,
+    /// Indices for this commitment.
+    pub idx: Idx,
+    /// The transcript of the ciphertext.
+    pub transcript: CiphertextTranscript,
+    /// Hash of key and iv.
+    pub key_iv_hash: TypedHash,
 }
 
 /// Proof for a [`Ciphertext`] commitment.
@@ -65,9 +66,7 @@ impl PlaintextProof {
         // TODO: Reconstruct ciphertext from plaintext. Need iv, explicit_nonce, counters...
         let expected = CiphertextCommitment {
             idx: self.idx,
-            ciphertext: todo!(),
-            explicit_nonces: todo!(),
-            counters: todo!(),
+            transcript: todo!(),
             key_iv_hash: todo!(),
         };
 

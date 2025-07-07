@@ -12,7 +12,7 @@ use mpz_vm_core::{Vm, VmError, prelude::*};
 use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
-        Direction, Idx,
+        Direction, Idx, TlsTranscript,
         ciphertext::{CiphertextCommitment, SessionKey, SessionSecret},
         hash::{PlaintextHash, PlaintextHashSecret},
     },
@@ -162,8 +162,30 @@ pub(crate) struct KeyAndIv {
 impl HashCommitFuture<KeyAndIv> {
     /// Tries to receive the value, returning an error if the value is not
     /// ready.
-    pub(crate) fn try_recv(self) -> Result<CiphertextCommitment, HashCommitError> {
-        todo!()
+    pub(crate) fn into_commitment(
+        mut self,
+        tls_transcript: &TlsTranscript,
+    ) -> Result<CiphertextCommitment, HashCommitError> {
+        let hash = self
+            .futs
+            .hash
+            .try_recv()
+            .map_err(|_| HashCommitError::decode())?
+            .ok_or_else(HashCommitError::decode)?;
+
+        let transcript = tls_transcript.to_ciphertext_transcript(Direction::Received);
+        let idx = Idx::new(0..transcript.len());
+
+        let commitment = CiphertextCommitment {
+            idx,
+            transcript,
+            key_iv_hash: TypedHash {
+                alg: self.futs.alg,
+                value: Hash::try_from(hash).map_err(HashCommitError::convert)?,
+            },
+        };
+
+        Ok(commitment)
     }
 
     /// Prove session secret hash commitments.

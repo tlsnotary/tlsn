@@ -5,7 +5,7 @@ use crate::{
         Certificate, HandshakeData, HandshakeDataV1_2, ServerEphemKey, ServerSignature, TlsVersion,
         VerifyData,
     },
-    transcript::{Direction, Transcript},
+    transcript::{CiphertextTranscript, Direction, Transcript},
 };
 use tls_core::msgs::{
     alert::AlertMessagePayload,
@@ -287,6 +287,34 @@ impl TlsTranscript {
         }
 
         Ok(Transcript::new(sent, recv))
+    }
+
+    /// Returns the ciphertext transcript.
+    pub fn to_ciphertext_transcript(&self, direction: Direction) -> CiphertextTranscript {
+        let original_transcript = match direction {
+            Direction::Sent => self.sent(),
+            Direction::Received => self.recv(),
+        };
+
+        let len = original_transcript.len();
+
+        let mut transcript = CiphertextTranscript {
+            direction,
+            explicit_nonces: Vec::with_capacity(len),
+            ciphertext: Vec::with_capacity(len),
+        };
+
+        for record in original_transcript
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData)
+        {
+            transcript
+                .explicit_nonces
+                .push(record.explicit_nonce.clone());
+            transcript.ciphertext.push(record.ciphertext.clone());
+        }
+
+        transcript
     }
 }
 
