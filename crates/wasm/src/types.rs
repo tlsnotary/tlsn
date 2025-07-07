@@ -240,7 +240,7 @@ impl From<tlsn::attestation::Secrets> for Secrets {
 #[derive(Debug, Serialize, Deserialize)]
 #[wasm_bindgen]
 #[serde(transparent)]
-pub struct Presentation(tlsn::attestation::Presentation);
+pub struct Presentation(tlsn::attestation::presentation::Presentation);
 
 #[wasm_bindgen]
 impl Presentation {
@@ -269,8 +269,8 @@ impl Presentation {
     }
 }
 
-impl From<tlsn::attestation::Presentation> for Presentation {
-    fn from(value: tlsn::attestation::Presentation) -> Self {
+impl From<tlsn::attestation::presentation::Presentation> for Presentation {
+    fn from(value: tlsn::attestation::presentation::Presentation) -> Self {
         Self(value)
     }
 }
@@ -284,8 +284,8 @@ pub struct PresentationOutput {
     pub transcript: Option<PartialTranscript>,
 }
 
-impl From<tlsn::attestation::PresentationOutput> for PresentationOutput {
-    fn from(value: tlsn::attestation::PresentationOutput) -> Self {
+impl From<tlsn::attestation::presentation::PresentationOutput> for PresentationOutput {
+    fn from(value: tlsn::attestation::presentation::PresentationOutput) -> Self {
         Self {
             attestation: value.attestation.into(),
             server_name: value.server_name.map(|name| name.as_str().to_string()),
