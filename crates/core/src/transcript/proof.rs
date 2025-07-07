@@ -19,7 +19,9 @@ use crate::{
 /// Default commitment kinds in order of preference for building transcript
 /// proofs.
 const DEFAULT_COMMITMENT_KINDS: &[TranscriptCommitmentKind] = &[
-    TranscriptCommitmentKind::Ciphertext,
+    TranscriptCommitmentKind::Ciphertext {
+        alg: HashAlgId::SHA256,
+    },
     TranscriptCommitmentKind::Hash {
         alg: HashAlgId::SHA256,
     },
@@ -516,7 +518,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                                 .map(|s| PlaintextHashSecret::clone(s)),
                         );
                     }
-                    TranscriptCommitmentKind::Ciphertext => {
+                    TranscriptCommitmentKind::Ciphertext { .. } => {
                         if let Some(&secret) = self.session_secret {
                             let recv_len = self.transcript.len_of_direction(Direction::Received);
                             let recv_idx = Idx::new(0..recv_len);

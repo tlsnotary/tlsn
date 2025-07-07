@@ -13,7 +13,7 @@ use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
         Direction, Idx,
-        ciphertext::{CiphertextCommitment, SessionSecret},
+        ciphertext::{CiphertextCommitment, SessionKey, SessionSecret},
         hash::{PlaintextHash, PlaintextHashSecret},
     },
 };
@@ -26,7 +26,7 @@ pub(crate) struct HashCommitFuture<T> {
     futs: T,
 }
 
-pub struct Plaintext {
+pub(crate) struct Plaintext {
     inner: Vec<(
         Direction,
         Idx,
@@ -154,7 +154,7 @@ impl HashCommitFuture<Plaintext> {
     }
 }
 
-pub struct KeyAndIv {
+pub(crate) struct KeyAndIv {
     alg: HashAlgId,
     hash: DecodeFutureTyped<BitVec, Vec<u8>>,
 }
@@ -171,7 +171,9 @@ impl HashCommitFuture<KeyAndIv> {
         vm: &mut dyn Vm<Binary>,
         alg: HashAlgId,
         key: Vector<U8>,
+        key_plain: [u8; 16],
         iv: Vector<U8>,
+        iv_plain: [u8; 4],
     ) -> Result<(Self, SessionSecret), HashCommitError> {
         let (alg, hash, blinder_ref) = Self::commit(vm, Role::Prover, alg, key, iv)?;
         let blinder: Blinder = rand::random();
@@ -183,8 +185,16 @@ impl HashCommitFuture<KeyAndIv> {
 
         let futs = KeyAndIv { alg, hash };
 
-        // TODO: How to fill secrets here?
-        // In case of cwk, we still need to decode.
+        let session_key = SessionKey {
+            key: key_plain,
+            iv: iv_plain,
+        };
+
+        let secrets = SessionSecret {
+            alg,
+            key: session_key,
+            blinder,
+        };
         Ok((Self { futs }, secrets))
     }
 

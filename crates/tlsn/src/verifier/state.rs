@@ -45,6 +45,7 @@ pub struct Committed {
     pub(crate) vm: Zk,
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript_refs: TranscriptRefs,
+    pub(crate) keys: SessionKeys,
 }
 
 opaque_debug::implement!(Committed);

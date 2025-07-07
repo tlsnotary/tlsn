@@ -327,6 +327,7 @@ impl Verifier<state::Setup> {
                 vm,
                 tls_transcript,
                 transcript_refs,
+                keys,
             },
         })
     }
@@ -355,6 +356,7 @@ impl Verifier<state::Committed> {
             vm,
             tls_transcript,
             transcript_refs,
+            keys,
             ..
         } = &mut self.state;
 
@@ -427,7 +429,7 @@ impl Verifier<state::Committed> {
 
         let mut transcript_commitments = Vec::new();
         let mut hash_commitments = None;
-        let mut ciphertext_commitments = None;
+        let mut ciphertext_commitment = None;
 
         if let Some(commit_config) = transcript_commit {
             if commit_config.encoding() {
@@ -456,8 +458,16 @@ impl Verifier<state::Committed> {
 
             // TODO: Implement verifier part for ciphertext commitments
             if commit_config.ciphertext() {
-                ciphertext_commitments =
-                    Some(HashCommitFuture::<KeyAndIv>::verify().map_err(VerifierError::verify)?);
+                let alg = commit_config.ciphertext_hash_alg();
+                ciphertext_commitment = Some(
+                    HashCommitFuture::<KeyAndIv>::verify(
+                        vm,
+                        alg,
+                        keys.server_write_key.into(),
+                        keys.server_write_iv.into(),
+                    )
+                    .map_err(VerifierError::verify)?,
+                );
             }
         }
 
@@ -475,6 +485,11 @@ impl Verifier<state::Committed> {
             for commitment in hash_commitments.try_recv().map_err(VerifierError::verify)? {
                 transcript_commitments.push(TranscriptCommitment::Hash(commitment));
             }
+        }
+
+        if let Some(commitment) = ciphertext_commitment {
+            let commitment = commitment.try_recv().map_err(VerifierError::verify)?;
+            transcript_commitments.push(TranscriptCommitment::Ciphertext(commitment));
         }
 
         Ok(VerifierOutput {

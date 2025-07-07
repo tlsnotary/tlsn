@@ -42,6 +42,7 @@ pub struct Committed {
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript: Transcript,
     pub(crate) transcript_refs: TranscriptRefs,
+    pub(crate) keys: SessionKeys,
     pub(crate) server_write_key: SessionKey,
 }
 

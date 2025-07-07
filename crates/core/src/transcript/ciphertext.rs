@@ -96,7 +96,9 @@ pub struct SessionSecret {
 
 opaque_debug::implement!(SessionSecret);
 
-/// The server write key and iv.
+/// The session key.
+///
+/// Contains the session key (either client write key or server write key) and corresponding iv.
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct SessionKey {
     /// The key.
