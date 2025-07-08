@@ -417,18 +417,36 @@ impl PartialTranscript {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct CiphertextTranscript {
     /// The direction.
-    pub direction: Direction,
+    direction: Direction,
     /// The TLS explicit nonces.
-    pub explicit_nonces: Vec<Vec<u8>>,
+    explicit_nonces: Vec<Vec<u8>>,
     /// The TLS ciphertext
-    pub ciphertext: Vec<Vec<u8>>,
+    ciphertext: Vec<Vec<u8>>,
+    /// The number of ciphertext records
+    len: usize,
 }
 
 impl CiphertextTranscript {
-    /// Returns the length of the ciphertext.
+    /// Creates a new ciphertext transcript.
+    pub fn new(
+        direction: Direction,
+        explicit_nonces: Vec<Vec<u8>>,
+        ciphertext: Vec<Vec<u8>>,
+    ) -> Self {
+        let len = ciphertext.len();
+
+        Self {
+            direction,
+            explicit_nonces,
+            ciphertext,
+            len,
+        }
+    }
+
+    /// Returns the length of the ciphertext transcript, i.e. the number of records.
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
-        self.ciphertext.len()
+        self.len
     }
 }
 

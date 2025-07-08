@@ -298,23 +298,18 @@ impl TlsTranscript {
 
         let len = original_transcript.len();
 
-        let mut transcript = CiphertextTranscript {
-            direction,
-            explicit_nonces: Vec::with_capacity(len),
-            ciphertext: Vec::with_capacity(len),
-        };
+        let mut explicit_nonces = Vec::with_capacity(len);
+        let mut ciphertext = Vec::with_capacity(len);
 
         for record in original_transcript
             .iter()
             .filter(|record| record.typ == ContentType::ApplicationData)
         {
-            transcript
-                .explicit_nonces
-                .push(record.explicit_nonce.clone());
-            transcript.ciphertext.push(record.ciphertext.clone());
+            explicit_nonces.push(record.explicit_nonce.clone());
+            ciphertext.push(record.ciphertext.clone());
         }
 
-        transcript
+        CiphertextTranscript::new(direction, explicit_nonces, ciphertext)
     }
 }
 

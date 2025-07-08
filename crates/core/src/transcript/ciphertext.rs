@@ -99,11 +99,8 @@ impl PlaintextProof {
             ciphertext.push(cipherblock);
         }
 
-        let transcript = CiphertextTranscript {
-            direction: Direction::Received,
-            explicit_nonces: explicit_nonces.clone(),
-            ciphertext,
-        };
+        let transcript =
+            CiphertextTranscript::new(Direction::Received, explicit_nonces.clone(), ciphertext);
         let expected = CiphertextCommitment {
             idx: self.idx,
             transcript,
