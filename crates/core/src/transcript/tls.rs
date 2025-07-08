@@ -290,18 +290,22 @@ impl TlsTranscript {
     }
 
     /// Returns the ciphertext transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `direction` - The direction of the returned transcript.
     pub fn to_ciphertext_transcript(&self, direction: Direction) -> CiphertextTranscript {
-        let original_transcript = match direction {
+        let records = match direction {
             Direction::Sent => self.sent(),
             Direction::Received => self.recv(),
         };
 
-        let len = original_transcript.len();
+        let record_count = records.len();
 
-        let mut explicit_nonces = Vec::with_capacity(len);
-        let mut ciphertext = Vec::with_capacity(len);
+        let mut explicit_nonces = Vec::with_capacity(record_count);
+        let mut ciphertext = Vec::with_capacity(record_count);
 
-        for record in original_transcript
+        for record in records
             .iter()
             .filter(|record| record.typ == ContentType::ApplicationData)
         {

@@ -100,7 +100,6 @@ impl Actor for MpcTlsLeader {
         };
 
         let swk = record_layer.server_write_key()?;
-
         Ok((ctx, transcript, swk))
     }
 }

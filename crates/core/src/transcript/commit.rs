@@ -72,7 +72,7 @@ pub enum TranscriptSecret {
     Encoding(EncodingTree),
     /// Plaintext hash secret.
     Hash(PlaintextHashSecret),
-    /// TLS Session Secret.
+    /// Session Secret.
     Ciphertext(SessionSecret),
 }
 
@@ -222,6 +222,12 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
             TranscriptCommitmentKind::Encoding => self.has_encoding = true,
             TranscriptCommitmentKind::Hash { .. } => self.has_hash = true,
             TranscriptCommitmentKind::Ciphertext { .. } => {
+                if direction != Direction::Received {
+                    return Err(TranscriptCommitConfigBuilderError::new(
+                        ErrorKind::Direction,
+                        "Can only use ciphertext commitments for direction Received",
+                    ));
+                }
                 if idx.len() != self.transcript.len_of_direction(direction) {
                     return Err(TranscriptCommitConfigBuilderError::new(ErrorKind::Index,
                         format!("Can only commit to full transcript length when using ciphertext commitments. \
@@ -313,12 +319,14 @@ impl TranscriptCommitConfigBuilderError {
 #[derive(Debug)]
 enum ErrorKind {
     Index,
+    Direction,
 }
 
 impl fmt::Display for TranscriptCommitConfigBuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             ErrorKind::Index => f.write_str("index error")?,
+            ErrorKind::Direction => f.write_str("direction error")?,
         }
 
         if let Some(source) = &self.source {

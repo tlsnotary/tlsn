@@ -70,7 +70,6 @@ impl AesGcm {
         };
 
         let key = key.expect("key should be available in ready state.");
-
         Ok(key)
     }
 
@@ -85,7 +84,6 @@ impl AesGcm {
         };
 
         let iv = iv.expect("iv should be available in ready state.");
-
         Ok(iv)
     }
 

@@ -175,18 +175,15 @@ impl HashCommitFuture<KeyAndIv> {
             .map_err(|_| HashCommitError::decode())?
             .ok_or_else(HashCommitError::decode)?;
 
-        let transcript = tls_transcript.to_ciphertext_transcript(Direction::Received);
-        let idx = Idx::new(0..transcript.len());
-
-        let commitment = CiphertextCommitment {
-            idx,
-            transcript,
-            key_iv_hash: TypedHash {
-                alg: self.futs.alg,
-                value: Hash::try_from(hash).map_err(HashCommitError::convert)?,
-            },
+        let hash = TypedHash {
+            alg: self.futs.alg,
+            value: Hash::try_from(hash).map_err(HashCommitError::convert)?,
         };
 
+        let transcript = tls_transcript.to_ciphertext_transcript(Direction::Received);
+        let idx = Idx::new(0..transcript.record_count());
+
+        let commitment = CiphertextCommitment::new(idx, hash, transcript);
         Ok(commitment)
     }
 

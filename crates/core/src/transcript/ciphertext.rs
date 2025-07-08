@@ -2,33 +2,54 @@
 
 use crate::{
     hash::{Blinder, HashAlgId, HashProviderError, TypedHash},
-    transcript::{hash::hash_plaintext, CiphertextTranscript, Direction, Idx, Transcript},
+    transcript::{CiphertextTranscript, Direction, Idx, Transcript},
     CryptoProvider,
 };
 use serde::{Deserialize, Serialize};
 
 /// Ciphertext commitment.
 ///
-/// Also contains a commitment to the client or sever write key.
+/// Used to commit to the TLS transcript by committing to a hash of the session key, iv and the
+/// [`CiphertextTranscript`]. Always refers to traffic sent from the server to the client, i.e.
+/// [`Direction::Received`] is implied for now.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CiphertextCommitment {
-    /// Indices for this commitment.
-    pub idx: Idx,
+    /// Indices of ths TLS transcript this commitment belongs to.
+    idx: Idx,
     /// The transcript of the ciphertext.
-    pub transcript: CiphertextTranscript,
+    transcript: CiphertextTranscript,
     /// Hash of key and iv.
-    pub key_iv_hash: TypedHash,
+    key_iv_hash: TypedHash,
 }
 
-/// Proof for a [`Ciphertext`] commitment.
+impl CiphertextCommitment {
+    /// Creates a new ciphertext commitment.
+    pub fn new(idx: Idx, key_iv_hash: TypedHash, transcript: CiphertextTranscript) -> Self {
+        assert_eq!(
+            idx.len(),
+            transcript.record_count(),
+            "Indices should match transcript length"
+        );
+
+        Self {
+            idx,
+            transcript,
+            key_iv_hash,
+        }
+    }
+}
+
+/// Proof for [`CiphertextCommitment`].
+///
+/// Can be used in a presentation to prove knowledge of plaintext.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlaintextProof {
-    /// The plaintext.
-    pub plaintext: Vec<u8>,
-    /// The corresponding indices.
-    pub idx: Idx,
-    /// Secret of the session.
-    pub secret: SessionSecret,
+    /// The plaintext to prove.
+    plaintext: Vec<u8>,
+    /// The corresponding indices in the TLS transcript.
+    idx: Idx,
+    /// Secret used to open the ciphertext commitment.
+    secret: SessionSecret,
 }
 
 impl PlaintextProof {
@@ -39,6 +60,7 @@ impl PlaintextProof {
     /// * `transcript` - The TLS transcript.
     /// * `secret` - The session secret.
     pub fn new(transcript: &Transcript, secret: SessionSecret) -> Self {
+        // Currently only [`Direction::Received`] is supported.
         let plaintext = transcript.received.clone();
         let len = transcript.len_of_direction(Direction::Received);
         let idx = Idx::new(0..len);
@@ -57,23 +79,29 @@ impl PlaintextProof {
     /// # Arguments
     ///
     /// * `provider` - Provider for the hash algorithm used.
-    /// * `commitments` - Commitments to verify with this proof.
+    /// * `commitment` - Commitment to verify with this proof.
     pub fn verify_with_provider(
         self,
         provider: &CryptoProvider,
-        commitment: CiphertextCommitment,
+        commitment: &CiphertextCommitment,
     ) -> Result<Idx, PlaintextProofError> {
-        // TODO: Reconstruct ciphertext from plaintext. Need iv, explicit_nonce, counters...
-
         if self.secret.alg != HashAlgId::SHA256 {
             return Err(PlaintextProofError::new(
-                ErrorKind::Proof,
+                ErrorKind::Provider,
                 format!(
                     "unsupported hash algorithm: {}, only SHA256 is currently supported",
                     self.secret.alg
                 ),
             ));
         }
+
+        if commitment.transcript.direction != Direction::Received {
+            return Err(PlaintextProofError::new(
+                ErrorKind::Proof,
+                "Ciphertext commitments only support direction Received",
+            ));
+        }
+
         let hasher = provider.hash.get(&self.secret.alg)?;
         let key = self.secret.key.key;
         let iv = self.secret.key.iv;
@@ -85,36 +113,36 @@ impl PlaintextProof {
         key_and_iv[0..16].copy_from_slice(&key);
         key_and_iv[16..20].copy_from_slice(&iv);
 
-        let key_iv_hash = hash_plaintext(hasher, &key_and_iv, &blinder);
+        let key_iv_hash = hasher.hash_prefixed(blinder.as_bytes(), &key_and_iv);
+        let key_iv_hash = TypedHash {
+            alg: hasher.id(),
+            value: key_iv_hash,
+        };
 
-        let mut ciphertext = Vec::with_capacity(commitment.transcript.ciphertext.len());
+        let mut ciphertext = Vec::with_capacity(commitment.transcript.record_count());
 
         for (explicit_nonce, plain_block) in explicit_nonces.iter().zip(plaintext.chunks(16)) {
             let explicit_nonce: [u8; 8] = explicit_nonce
                 .as_slice()
                 .try_into()
                 .expect("explicit nonce should be 8 bytes");
-            let cipherblock = apply_keystream(&key, &iv, &explicit_nonce, plain_block)?;
 
+            let cipherblock = apply_keystream(&key, &iv, &explicit_nonce, plain_block)?;
             ciphertext.push(cipherblock);
         }
 
         let transcript =
             CiphertextTranscript::new(Direction::Received, explicit_nonces.clone(), ciphertext);
-        let expected = CiphertextCommitment {
-            idx: self.idx,
-            transcript,
-            key_iv_hash,
-        };
+        let expected = CiphertextCommitment::new(self.idx, key_iv_hash, transcript);
 
-        if expected != commitment {
+        if &expected != commitment {
             return Err(PlaintextProofError::new(
                 ErrorKind::Proof,
-                "Proof does not match any commitment",
+                "Plaintext proof does not match ciphertext commitment",
             ));
         }
-        let idx = commitment.idx.clone();
 
+        let idx = expected.idx;
         Ok(idx)
     }
 }

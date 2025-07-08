@@ -420,10 +420,10 @@ pub struct CiphertextTranscript {
     direction: Direction,
     /// The TLS explicit nonces.
     explicit_nonces: Vec<Vec<u8>>,
-    /// The TLS ciphertext
+    /// The TLS ciphertext.
     ciphertext: Vec<Vec<u8>>,
-    /// The number of ciphertext records
-    len: usize,
+    /// The number of ciphertext records.
+    record_count: usize,
 }
 
 impl CiphertextTranscript {
@@ -433,20 +433,24 @@ impl CiphertextTranscript {
         explicit_nonces: Vec<Vec<u8>>,
         ciphertext: Vec<Vec<u8>>,
     ) -> Self {
-        let len = ciphertext.len();
+        assert_eq!(
+            explicit_nonces.len(),
+            ciphertext.len(),
+            "Number of explicit nonces should match record count"
+        );
+        let record_count = ciphertext.len();
 
         Self {
             direction,
             explicit_nonces,
             ciphertext,
-            len,
+            record_count,
         }
     }
 
-    /// Returns the length of the ciphertext transcript, i.e. the number of records.
-    #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> usize {
-        self.len
+    /// Returns the number of records.
+    pub fn record_count(&self) -> usize {
+        self.record_count
     }
 }
 

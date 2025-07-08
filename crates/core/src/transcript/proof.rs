@@ -171,8 +171,7 @@ impl TranscriptProof {
                 )
             })?;
 
-            let auth_range = proof.verify_with_provider(provider, commitment.clone())?;
-
+            let auth_range = proof.verify_with_provider(provider, commitment)?;
             total_auth_recv.union_mut(&auth_range);
         }
 
@@ -523,6 +522,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                             let recv_len = self.transcript.len_of_direction(Direction::Received);
                             let recv_idx = Idx::new(0..recv_len);
 
+                            // We only allow full range plaintext proofs.
                             if self.query_idx.recv == recv_idx {
                                 let proof = PlaintextProof::new(self.transcript, secret);
                                 transcript_proof.plaintext_proof = Some(proof);
