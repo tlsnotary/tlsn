@@ -159,7 +159,7 @@ pub(crate) struct KeyCommitFuture {
 
 impl KeyCommitFuture {
     /// Tries to receive the value, and creates a [`CiphertextCommitment`].
-    pub(crate) fn to_ciphertext_commitment(
+    pub(crate) fn into_ciphertext_commitment(
         mut self,
         tls_transcript: &TlsTranscript,
     ) -> Result<CiphertextCommitment, HashCommitError> {

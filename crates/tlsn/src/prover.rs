@@ -394,7 +394,7 @@ impl Prover<state::Committed> {
         }
 
         let mut hash_commitments = None;
-        let mut ciphertext_commitments = None;
+        let mut ciphertext_commitment = None;
 
         if let Some(commit_config) = config.transcript_commit() {
             if commit_config.has_encoding() {
@@ -456,7 +456,7 @@ impl Prover<state::Committed> {
                 )
                 .map_err(ProverError::commit)?;
 
-                ciphertext_commitments = Some(commitment);
+                ciphertext_commitment = Some(commitment);
             }
         }
 
@@ -476,9 +476,9 @@ impl Prover<state::Committed> {
             }
         }
 
-        if let Some((hash_fut, secret)) = ciphertext_commitments {
+        if let Some((hash_fut, secret)) = ciphertext_commitment {
             let commitment = hash_fut
-                .to_ciphertext_commitment(tls_transcript)
+                .into_ciphertext_commitment(tls_transcript)
                 .map_err(ProverError::commit)?;
             output
                 .transcript_commitments
