@@ -128,7 +128,7 @@
 //! construct a verifiable [`Presentation`](crate::presentation::Presentation).
 //!
 //! ```no_run
-//! # use tlsn_attestation::{Attestation, CryptoProvider, Secrets, Presentation};
+//! # use tlsn_attestation::{Attestation, CryptoProvider, Secrets, presentation::Presentation};
 //! # use tlsn_core::transcript::{TranscriptCommitmentKind, Direction};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let attestation: Attestation = unimplemented!();
@@ -172,7 +172,7 @@
 //! [`Presentation::verify`](crate::presentation::Presentation::verify).
 //!
 //! ```no_run
-//! # use tlsn_attestation::{CryptoProvider, Presentation, PresentationOutput, signing::VerifyingKey};
+//! # use tlsn_attestation::{CryptoProvider, presentation::{Presentation, PresentationOutput}, signing::VerifyingKey};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let presentation: Presentation = unimplemented!();
 //! # let trusted_key: VerifyingKey = unimplemented!();
