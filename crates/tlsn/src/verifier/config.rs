@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter, Result};
 
 use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use mpc_tls::Config;
-use tls_core::anchors::RootCertStore;
+use tls_core::anchors::{OwnedTrustAnchor, RootCertStore};
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
 #[allow(missing_docs)]
@@ -10,6 +10,7 @@ use tls_core::anchors::RootCertStore;
 #[builder(pattern = "owned")]
 pub struct VerifierConfig {
     protocol_config_validator: ProtocolConfigValidator,
+    #[builder(default = "default_root_store()")]
     root_store: RootCertStore,
 }
 
@@ -59,4 +60,17 @@ impl VerifierConfig {
 
         builder.build().unwrap()
     }
+}
+
+fn default_root_store() -> RootCertStore {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject.as_ref(),
+            ta.subject_public_key_info.as_ref(),
+            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+        )
+    }));
+
+    root_store
 }
