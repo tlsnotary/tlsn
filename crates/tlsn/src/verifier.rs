@@ -14,7 +14,7 @@ use crate::{
     Role,
     commit::{
         commit_records,
-        hash::{HashCommitFuture, KeyAndIv, Plaintext},
+        hash::{KeyCommitFuture, PlaintextCommitFuture},
         transcript::{TranscriptRefs, decode_transcript, verify_transcript},
     },
     config::ProtocolConfig,
@@ -447,7 +447,7 @@ impl Verifier<state::Committed> {
 
             if commit_config.has_hash() {
                 hash_commitments = Some(
-                    HashCommitFuture::<Plaintext>::verify(
+                    PlaintextCommitFuture::verify(
                         vm,
                         transcript_refs,
                         commit_config.iter_hash().cloned(),
@@ -460,7 +460,7 @@ impl Verifier<state::Committed> {
             if commit_config.ciphertext() {
                 let alg = commit_config.ciphertext_hash_alg();
                 ciphertext_commitment = Some(
-                    HashCommitFuture::<KeyAndIv>::verify(
+                    KeyCommitFuture::verify(
                         vm,
                         alg,
                         keys.server_write_key.into(),
@@ -489,7 +489,7 @@ impl Verifier<state::Committed> {
 
         if let Some(commitment) = ciphertext_commitment {
             let commitment = commitment
-                .into_commitment(tls_transcript)
+                .to_ciphertext_commitment(tls_transcript)
                 .map_err(VerifierError::verify)?;
             transcript_commitments.push(TranscriptCommitment::Ciphertext(commitment));
         }

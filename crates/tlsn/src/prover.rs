@@ -19,7 +19,7 @@ use crate::{
     Role,
     commit::{
         commit_records,
-        hash::{HashCommitFuture, KeyAndIv, Plaintext},
+        hash::{KeyCommitFuture, PlaintextCommitFuture},
         transcript::{TranscriptRefs, decode_transcript},
     },
     context::build_mt_context,
@@ -433,7 +433,7 @@ impl Prover<state::Committed> {
 
             if commit_config.has_hash() {
                 hash_commitments = Some(
-                    HashCommitFuture::<Plaintext>::prove(
+                    PlaintextCommitFuture::prove(
                         vm,
                         transcript_refs,
                         commit_config
@@ -446,7 +446,7 @@ impl Prover<state::Committed> {
 
             if commit_config.has_ciphertext() {
                 let alg = commit_config.ciphertext_hash_alg();
-                let commitment = HashCommitFuture::<KeyAndIv>::prove(
+                let commitment = KeyCommitFuture::prove(
                     vm,
                     *alg,
                     keys.server_write_key.into(),
@@ -478,7 +478,7 @@ impl Prover<state::Committed> {
 
         if let Some((hash_fut, secret)) = ciphertext_commitments {
             let commitment = hash_fut
-                .into_commitment(tls_transcript)
+                .to_ciphertext_commitment(tls_transcript)
                 .map_err(ProverError::commit)?;
             output
                 .transcript_commitments

@@ -22,13 +22,9 @@ use crate::{Role, commit::transcript::TranscriptRefs};
 
 /// Future which will resolve to the committed hash values.
 #[derive(Debug)]
-pub(crate) struct HashCommitFuture<T> {
-    futs: T,
-}
-
-pub(crate) struct Plaintext {
+pub(crate) struct PlaintextCommitFuture {
     #[allow(clippy::type_complexity)]
-    inner: Vec<(
+    futs: Vec<(
         Direction,
         Idx,
         HashAlgId,
@@ -36,12 +32,12 @@ pub(crate) struct Plaintext {
     )>,
 }
 
-impl HashCommitFuture<Plaintext> {
+impl PlaintextCommitFuture {
     /// Tries to receive the value, returning an error if the value is not
     /// ready.
     pub(crate) fn try_recv(self) -> Result<Vec<PlaintextHash>, HashCommitError> {
         let mut output = Vec::new();
-        for (direction, idx, alg, mut fut) in self.futs.inner {
+        for (direction, idx, alg, mut fut) in self.futs {
             let hash = fut
                 .try_recv()
                 .map_err(|_| HashCommitError::decode())?
@@ -65,7 +61,7 @@ impl HashCommitFuture<Plaintext> {
         refs: &TranscriptRefs,
         idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
     ) -> Result<(Self, Vec<PlaintextHashSecret>), HashCommitError> {
-        let mut inner = Vec::new();
+        let mut futs = Vec::new();
         let mut secrets = Vec::new();
         for (direction, idx, alg, hash_ref, blinder_ref) in
             Self::commit(vm, Role::Prover, refs, idxs)?
@@ -77,7 +73,7 @@ impl HashCommitFuture<Plaintext> {
 
             let hash_fut = vm.decode(Vector::<U8>::from(hash_ref))?;
 
-            inner.push((direction, idx.clone(), alg, hash_fut));
+            futs.push((direction, idx.clone(), alg, hash_fut));
             secrets.push(PlaintextHashSecret {
                 direction,
                 idx,
@@ -86,8 +82,7 @@ impl HashCommitFuture<Plaintext> {
             });
         }
 
-        let futs = Plaintext { inner };
-        Ok((Self { futs }, secrets))
+        Ok((PlaintextCommitFuture { futs }, secrets))
     }
 
     /// Verify plaintext hash commitments.
@@ -96,7 +91,7 @@ impl HashCommitFuture<Plaintext> {
         refs: &TranscriptRefs,
         idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
     ) -> Result<Self, HashCommitError> {
-        let mut inner = Vec::new();
+        let mut futs = Vec::new();
         for (direction, idx, alg, hash_ref, blinder_ref) in
             Self::commit(vm, Role::Verifier, refs, idxs)?
         {
@@ -104,11 +99,10 @@ impl HashCommitFuture<Plaintext> {
 
             let hash_fut = vm.decode(Vector::<U8>::from(hash_ref))?;
 
-            inner.push((direction, idx, alg, hash_fut));
+            futs.push((direction, idx, alg, hash_fut));
         }
 
-        let futs = Plaintext { inner };
-        Ok(Self { futs })
+        Ok(PlaintextCommitFuture { futs })
     }
 
     /// Commit plaintext hashes of the transcript.
@@ -156,30 +150,31 @@ impl HashCommitFuture<Plaintext> {
     }
 }
 
-pub(crate) struct KeyAndIv {
+/// Future which will resolve to the committed hash values.
+#[derive(Debug)]
+pub(crate) struct KeyCommitFuture {
     alg: HashAlgId,
     hash: DecodeFutureTyped<BitVec, Vec<u8>>,
 }
 
-impl HashCommitFuture<KeyAndIv> {
-    /// Tries to receive the value, returning an error if the value is not
-    /// ready.
-    pub(crate) fn into_commitment(
+impl KeyCommitFuture {
+    /// Tries to receive the value, and creates a [`CiphertextCommitment`].
+    pub(crate) fn to_ciphertext_commitment(
         mut self,
         tls_transcript: &TlsTranscript,
     ) -> Result<CiphertextCommitment, HashCommitError> {
         let hash = self
-            .futs
             .hash
             .try_recv()
             .map_err(|_| HashCommitError::decode())?
             .ok_or_else(HashCommitError::decode)?;
 
         let hash = TypedHash {
-            alg: self.futs.alg,
+            alg: self.alg,
             value: Hash::try_from(hash).map_err(HashCommitError::convert)?,
         };
 
+        // Only support [`Direction::Received`] for now.
         let transcript = tls_transcript.to_ciphertext_transcript(Direction::Received);
         let idx = Idx::new(0..transcript.record_count());
 
@@ -187,7 +182,7 @@ impl HashCommitFuture<KeyAndIv> {
         Ok(commitment)
     }
 
-    /// Prove session secret hash commitments.
+    /// Prove key and iv hash commitment.
     pub(crate) fn prove(
         vm: &mut dyn Vm<Binary>,
         alg: HashAlgId,
@@ -204,22 +199,22 @@ impl HashCommitFuture<KeyAndIv> {
 
         let hash = vm.decode(hash)?;
 
-        let futs = KeyAndIv { alg, hash };
+        let future = KeyCommitFuture { alg, hash };
 
         let session_key = SessionKey {
             key: key_plain,
             iv: iv_plain,
         };
 
-        let secrets = SessionSecret {
+        let secret = SessionSecret {
             alg,
             key: session_key,
             blinder,
         };
-        Ok((Self { futs }, secrets))
+        Ok((future, secret))
     }
 
-    /// Verify session secret hash commitments.
+    /// Verify key and iv hash commitment.
     pub(crate) fn verify(
         vm: &mut dyn Vm<Binary>,
         alg: HashAlgId,
@@ -231,11 +226,11 @@ impl HashCommitFuture<KeyAndIv> {
 
         let hash = vm.decode(hash)?;
 
-        let futs = KeyAndIv { alg, hash };
-        Ok(Self { futs })
+        let future = KeyCommitFuture { alg, hash };
+        Ok(future)
     }
 
-    /// Commit hash of the session secret.
+    /// Commit hash of key and iv.
     fn commit(
         vm: &mut dyn Vm<Binary>,
         role: Role,
