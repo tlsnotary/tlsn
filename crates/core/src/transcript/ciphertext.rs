@@ -1,9 +1,8 @@
 //! Ciphertext commitments and proof.
 
 use crate::{
-    hash::{Blinder, HashAlgId, HashProviderError, TypedHash},
+    hash::{Blinder, HashAlgId, HashProvider, HashProviderError, TypedHash},
     transcript::{CiphertextTranscript, Direction, Idx, Transcript},
-    CryptoProvider,
 };
 use serde::{Deserialize, Serialize};
 
@@ -82,7 +81,7 @@ impl PlaintextProof {
     /// * `commitment` - Commitment to verify with this proof.
     pub fn verify_with_provider(
         self,
-        provider: &CryptoProvider,
+        provider: &HashProvider,
         commitment: &CiphertextCommitment,
     ) -> Result<Idx, PlaintextProofError> {
         if self.secret.alg != HashAlgId::SHA256 {
@@ -102,7 +101,7 @@ impl PlaintextProof {
             ));
         }
 
-        let hasher = provider.hash.get(&self.secret.alg)?;
+        let hasher = provider.get(&self.secret.alg)?;
         let key = self.secret.key.key;
         let iv = self.secret.key.iv;
         let blinder = self.secret.blinder;
