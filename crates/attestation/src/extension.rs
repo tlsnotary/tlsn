@@ -2,7 +2,7 @@ use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 
-use crate::hash::impl_domain_separator;
+use crate::serialize::impl_domain_separator;
 
 /// An attestation extension.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

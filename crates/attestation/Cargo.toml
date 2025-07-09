@@ -1,0 +1,40 @@
+[package]
+name = "tlsn-attestation"
+version = "0.1.0-alpha.13-pre"
+edition = "2024"
+
+[features]
+default = []
+fixtures = ["tlsn-core/fixtures", "dep:tlsn-data-fixtures"]
+
+[dependencies]
+tlsn-tls-core = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-data-fixtures = { workspace = true, optional = true }
+
+bcs = { workspace = true }
+blake3 = { workspace = true }
+p256 = { workspace = true, features = ["serde"] }
+k256 = { workspace = true }
+opaque-debug = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+tiny-keccak = { workspace = true, features = ["keccak"] }
+webpki-roots = { workspace = true }
+
+[dev-dependencies]
+alloy-primitives = { version = "0.8.22", default-features = false }
+alloy-signer = { version = "0.12", default-features = false }
+alloy-signer-local = { version = "0.12", default-features = false }
+rand06-compat = { workspace = true }
+rstest = { workspace = true }
+tlsn-core = { workspace = true, features = ["fixtures"] }
+tlsn-data-fixtures = { workspace = true }
+
+[lints]
+workspace = true
+
+[[test]]
+name = "api"
+required-features = ["fixtures"]

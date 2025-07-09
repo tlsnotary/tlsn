@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    connection::{ServerCertOpening, ServerIdentityProof, ServerName},
+use tlsn_core::{
+    connection::ServerName,
     transcript::{Transcript, TranscriptCommitment, TranscriptProofBuilder, TranscriptSecret},
 };
 
-/// Secret data of an [`Attestation`](crate::attestation::Attestation).
+use crate::connection::{ServerCertOpening, ServerIdentityProof};
+
+/// Secret data of an [`Attestation`](crate::Attestation).
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Secrets {
     pub(crate) server_name: ServerName,

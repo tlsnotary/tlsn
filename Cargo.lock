@@ -6470,6 +6470,7 @@ dependencies = [
  "serde",
  "serio",
  "thiserror 1.0.69",
+ "tlsn-attestation",
  "tlsn-cipher",
  "tlsn-core",
  "tlsn-deap",
@@ -6485,6 +6486,31 @@ dependencies = [
  "tracing-subscriber",
  "uid-mux",
  "web-spawn",
+ "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "tlsn-attestation"
+version = "0.1.0-alpha.13-pre"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
+ "bcs",
+ "blake3",
+ "k256",
+ "opaque-debug",
+ "p256",
+ "rand 0.9.1",
+ "rand06-compat",
+ "rstest",
+ "serde",
+ "thiserror 1.0.69",
+ "tiny-keccak",
+ "tlsn-core",
+ "tlsn-data-fixtures",
+ "tlsn-tls-core",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -6510,20 +6536,13 @@ dependencies = [
 name = "tlsn-core"
 version = "0.1.0-alpha.13-pre"
 dependencies = [
- "alloy-primitives",
- "alloy-signer",
- "alloy-signer-local",
- "bcs",
  "bimap",
  "bincode",
  "blake3",
  "hex",
  "itybity 0.2.1",
- "k256",
  "opaque-debug",
- "p256",
  "rand 0.9.1",
- "rand06-compat",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
  "rangeset",

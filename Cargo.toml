@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/attestation",
     "crates/components/deap",
     "crates/components/cipher",
     "crates/components/hmac-sha256",
@@ -47,6 +48,7 @@ notary-client = { path = "crates/notary/client" }
 notary-common = { path = "crates/notary/common" }
 notary-server = { path = "crates/notary/server" }
 tls-server-fixture = { path = "crates/tls/server-fixture" }
+tlsn-attestation = { path = "crates/attestation" }
 tlsn-cipher = { path = "crates/components/cipher" }
 tlsn-core = { path = "crates/core" }
 tlsn-data-fixtures = { path = "crates/data-fixtures" }
@@ -152,6 +154,7 @@ serde_json = { version = "1.0" }
 sha2 = { version = "0.10" }
 signature = { version = "2.2" }
 thiserror = { version = "1.0" }
+tiny-keccak = { version = "2.0" }
 tokio = { version = "1.38" }
 tokio-rustls = { version = "0.24" }
 tokio-util = { version = "0.7" }

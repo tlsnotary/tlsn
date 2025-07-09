@@ -6,14 +6,13 @@ use std::{collections::HashSet, fmt};
 
 use crate::{
     connection::TranscriptLength,
-    hash::HashAlgId,
+    hash::{HashAlgId, HashProvider},
     transcript::{
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
         Direction, Idx, PartialTranscript, Transcript, TranscriptSecret,
     },
-    CryptoProvider,
 };
 
 /// Default commitment kinds in order of preference for building transcript
@@ -42,11 +41,11 @@ impl TranscriptProof {
     ///
     /// # Arguments
     ///
-    /// * `provider` - The crypto provider to use for verification.
+    /// * `provider` - The hash provider to use for verification.
     /// * `attestation_body` - The attestation body to verify against.
     pub fn verify_with_provider<'a>(
         self,
-        provider: &CryptoProvider,
+        provider: &HashProvider,
         length: &TranscriptLength,
         commitments: impl IntoIterator<Item = &'a TranscriptCommitment>,
     ) -> Result<PartialTranscript, TranscriptProofError> {
@@ -109,7 +108,7 @@ impl TranscriptProof {
             blinder,
         } in self.hash_secrets
         {
-            let hasher = provider.hash.get(&alg).map_err(|_| {
+            let hasher = provider.get(&alg).map_err(|_| {
                 TranscriptProofError::new(
                     ErrorKind::Hash,
                     format!("hash opening has unknown algorithm: {alg}"),
@@ -261,7 +260,7 @@ pub struct TranscriptProofBuilder<'a> {
 
 impl<'a> TranscriptProofBuilder<'a> {
     /// Creates a new proof builder.
-    pub(crate) fn new(
+    pub fn new(
         transcript: &'a Transcript,
         secrets: impl IntoIterator<Item = &'a TranscriptSecret>,
     ) -> Self {
@@ -568,7 +567,7 @@ mod tests {
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     use crate::{
-        fixtures::{encoding_provider, request_fixture, ConnectionFixture, RequestFixture},
+        fixtures::encoding_provider,
         hash::{Blake3, Blinder, HashAlgId},
         transcript::TranscriptCommitConfigBuilder,
     };
@@ -578,15 +577,13 @@ mod tests {
     #[rstest]
     fn test_verify_missing_encoding_commitment_root() {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let connection = ConnectionFixture::tlsnotary(transcript.length());
-
-        let RequestFixture { encoding_tree, .. } = request_fixture(
-            transcript.clone(),
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection.clone(),
-            Blake3::default(),
-            Vec::new(),
-        );
+        let idxs = vec![(Direction::Received, Idx::new(0..transcript.len().1))];
+        let encoding_tree = EncodingTree::new(
+            &Blake3::default(),
+            &idxs,
+            &encoding_provider(transcript.sent(), transcript.received()),
+        )
+        .unwrap();
 
         let secrets = vec![TranscriptSecret::Encoding(encoding_tree)];
         let mut builder = TranscriptProofBuilder::new(&transcript, &secrets);
@@ -595,7 +592,7 @@ mod tests {
 
         let transcript_proof = builder.build().unwrap();
 
-        let provider = CryptoProvider::default();
+        let provider = HashProvider::default();
         let err = transcript_proof
             .verify_with_provider(&provider, &transcript.length(), &[])
             .err()
@@ -637,14 +634,14 @@ mod tests {
     #[rstest]
     fn test_reveal_with_hash_commitment() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
-        let provider = CryptoProvider::default();
+        let provider = HashProvider::default();
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
 
         let direction = Direction::Sent;
         let idx = Idx::new(0..10);
         let blinder: Blinder = rng.random();
         let alg = HashAlgId::SHA256;
-        let hasher = provider.hash.get(&alg).unwrap();
+        let hasher = provider.get(&alg).unwrap();
 
         let commitment = PlaintextHash {
             direction,
@@ -683,14 +680,14 @@ mod tests {
     #[rstest]
     fn test_reveal_with_inconsistent_hash_commitment() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
-        let provider = CryptoProvider::default();
+        let provider = HashProvider::default();
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
 
         let direction = Direction::Sent;
         let idx = Idx::new(0..10);
         let blinder: Blinder = rng.random();
         let alg = HashAlgId::SHA256;
-        let hasher = provider.hash.get(&alg).unwrap();
+        let hasher = provider.get(&alg).unwrap();
 
         let commitment = PlaintextHash {
             direction,

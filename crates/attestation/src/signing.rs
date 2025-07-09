@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::hash::impl_domain_separator;
+use crate::serialize::impl_domain_separator;
 
 /// Key algorithm identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -242,8 +242,8 @@ mod secp256k1 {
     use std::sync::{Arc, Mutex};
 
     use k256::ecdsa::{
-        signature::{SignerMut, Verifier},
         Signature as Secp256K1Signature, SigningKey,
+        signature::{SignerMut, Verifier},
     };
 
     use super::*;
@@ -318,8 +318,8 @@ mod secp256r1 {
     use std::sync::{Arc, Mutex};
 
     use p256::ecdsa::{
-        signature::{SignerMut, Verifier},
         Signature as Secp256R1Signature, SigningKey,
+        signature::{SignerMut, Verifier},
     };
 
     use super::*;
@@ -394,7 +394,7 @@ mod secp256k1eth {
     use std::sync::{Arc, Mutex};
 
     use k256::ecdsa::{
-        signature::hazmat::PrehashVerifier, Signature as Secp256K1Signature, SigningKey,
+        Signature as Secp256K1Signature, SigningKey, signature::hazmat::PrehashVerifier,
     };
     use tiny_keccak::{Hasher, Keccak};
 
