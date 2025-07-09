@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["attestation","config","connection","hash","presentation","prover","transcript","verifier"]};
+window.SIDEBAR_ITEMS = {"mod":["config","connection","hash","prover","transcript","verifier"]};

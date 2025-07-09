@@ -1,10 +1,10 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/wasm/src/types.rs`."><title>types.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tlsn_wasm" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0-nightly (da58c0513 2025-07-03)" data-channel="nightly" data-search-js="search-179e01a3.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-673ee1e0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn_wasm/</div>types.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{collections::HashMap, ops::Range};
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/wasm/src/types.rs`."><title>types.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tlsn_wasm" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0-nightly (ab68b0fb2 2025-07-08)" data-channel="nightly" data-search-js="search-179e01a3.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-673ee1e0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn_wasm/</div>types.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{collections::HashMap, ops::Range};
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>http_body_util::Full;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>hyper::body::Bytes;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>serde::{Deserialize, Serialize};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>serde_json::Value <span class="kw">as </span>JsonValue;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>tlsn_core::CryptoProvider;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>tlsn::attestation::CryptoProvider;
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>tsify_next::Tsify;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>wasm_bindgen::prelude::<span class="kw-2">*</span>;
 <a href=#10 id=10 data-nosnippet>10</a>
@@ -80,11 +80,11 @@
 <a href=#80 id=80 data-nosnippet>80</a>    V1_3,
 <a href=#81 id=81 data-nosnippet>81</a>}
 <a href=#82 id=82 data-nosnippet>82</a>
-<a href=#83 id=83 data-nosnippet>83</a><span class="kw">impl </span>From&lt;tlsn_core::connection::TlsVersion&gt; <span class="kw">for </span>TlsVersion {
-<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">fn </span>from(value: tlsn_core::connection::TlsVersion) -&gt; <span class="self">Self </span>{
+<a href=#83 id=83 data-nosnippet>83</a><span class="kw">impl </span>From&lt;tlsn::connection::TlsVersion&gt; <span class="kw">for </span>TlsVersion {
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">fn </span>from(value: tlsn::connection::TlsVersion) -&gt; <span class="self">Self </span>{
 <a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">match </span>value {
-<a href=#86 id=86 data-nosnippet>86</a>            tlsn_core::connection::TlsVersion::V1_2 =&gt; <span class="self">Self</span>::V1_2,
-<a href=#87 id=87 data-nosnippet>87</a>            tlsn_core::connection::TlsVersion::V1_3 =&gt; <span class="self">Self</span>::V1_3,
+<a href=#86 id=86 data-nosnippet>86</a>            tlsn::connection::TlsVersion::V1_2 =&gt; <span class="self">Self</span>::V1_2,
+<a href=#87 id=87 data-nosnippet>87</a>            tlsn::connection::TlsVersion::V1_3 =&gt; <span class="self">Self</span>::V1_3,
 <a href=#88 id=88 data-nosnippet>88</a>        }
 <a href=#89 id=89 data-nosnippet>89</a>    }
 <a href=#90 id=90 data-nosnippet>90</a>}
@@ -96,8 +96,8 @@
 <a href=#96 id=96 data-nosnippet>96</a>    <span class="kw">pub </span>recv: usize,
 <a href=#97 id=97 data-nosnippet>97</a>}
 <a href=#98 id=98 data-nosnippet>98</a>
-<a href=#99 id=99 data-nosnippet>99</a><span class="kw">impl </span>From&lt;tlsn_core::connection::TranscriptLength&gt; <span class="kw">for </span>TranscriptLength {
-<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">fn </span>from(value: tlsn_core::connection::TranscriptLength) -&gt; <span class="self">Self </span>{
+<a href=#99 id=99 data-nosnippet>99</a><span class="kw">impl </span>From&lt;tlsn::connection::TranscriptLength&gt; <span class="kw">for </span>TranscriptLength {
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">fn </span>from(value: tlsn::connection::TranscriptLength) -&gt; <span class="self">Self </span>{
 <a href=#101 id=101 data-nosnippet>101</a>        <span class="self">Self </span>{
 <a href=#102 id=102 data-nosnippet>102</a>            sent: value.sent <span class="kw">as </span>usize,
 <a href=#103 id=103 data-nosnippet>103</a>            recv: value.received <span class="kw">as </span>usize,
@@ -113,8 +113,8 @@
 <a href=#113 id=113 data-nosnippet>113</a>    transcript_length: TranscriptLength,
 <a href=#114 id=114 data-nosnippet>114</a>}
 <a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a><span class="kw">impl </span>From&lt;tlsn_core::connection::ConnectionInfo&gt; <span class="kw">for </span>ConnectionInfo {
-<a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">fn </span>from(value: tlsn_core::connection::ConnectionInfo) -&gt; <span class="self">Self </span>{
+<a href=#116 id=116 data-nosnippet>116</a><span class="kw">impl </span>From&lt;tlsn::connection::ConnectionInfo&gt; <span class="kw">for </span>ConnectionInfo {
+<a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">fn </span>from(value: tlsn::connection::ConnectionInfo) -&gt; <span class="self">Self </span>{
 <a href=#118 id=118 data-nosnippet>118</a>        <span class="self">Self </span>{
 <a href=#119 id=119 data-nosnippet>119</a>            time: value.time,
 <a href=#120 id=120 data-nosnippet>120</a>            version: value.version.into(),
@@ -130,8 +130,8 @@
 <a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">pub </span>recv: Vec&lt;u8&gt;,
 <a href=#131 id=131 data-nosnippet>131</a>}
 <a href=#132 id=132 data-nosnippet>132</a>
-<a href=#133 id=133 data-nosnippet>133</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>tlsn_core::transcript::Transcript&gt; <span class="kw">for </span>Transcript {
-<a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>tlsn_core::transcript::Transcript) -&gt; <span class="self">Self </span>{
+<a href=#133 id=133 data-nosnippet>133</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>tlsn::transcript::Transcript&gt; <span class="kw">for </span>Transcript {
+<a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>tlsn::transcript::Transcript) -&gt; <span class="self">Self </span>{
 <a href=#135 id=135 data-nosnippet>135</a>        <span class="self">Self </span>{
 <a href=#136 id=136 data-nosnippet>136</a>            sent: value.sent().to_vec(),
 <a href=#137 id=137 data-nosnippet>137</a>            recv: value.received().to_vec(),
@@ -148,8 +148,8 @@
 <a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">pub </span>recv_authed: Vec&lt;Range&lt;usize&gt;&gt;,
 <a href=#149 id=149 data-nosnippet>149</a>}
 <a href=#150 id=150 data-nosnippet>150</a>
-<a href=#151 id=151 data-nosnippet>151</a><span class="kw">impl </span>From&lt;tlsn_core::transcript::PartialTranscript&gt; <span class="kw">for </span>PartialTranscript {
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">fn </span>from(value: tlsn_core::transcript::PartialTranscript) -&gt; <span class="self">Self </span>{
+<a href=#151 id=151 data-nosnippet>151</a><span class="kw">impl </span>From&lt;tlsn::transcript::PartialTranscript&gt; <span class="kw">for </span>PartialTranscript {
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">fn </span>from(value: tlsn::transcript::PartialTranscript) -&gt; <span class="self">Self </span>{
 <a href=#153 id=153 data-nosnippet>153</a>        <span class="self">Self </span>{
 <a href=#154 id=154 data-nosnippet>154</a>            sent: value.sent_unsafe().to_vec(),
 <a href=#155 id=155 data-nosnippet>155</a>            sent_authed: value.sent_authed().iter_ranges().collect(),
@@ -183,7 +183,7 @@
 <a href=#183 id=183 data-nosnippet>183</a><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 <a href=#184 id=184 data-nosnippet>184</a>#[wasm_bindgen]
 <a href=#185 id=185 data-nosnippet>185</a>#[serde(transparent)]
-<a href=#186 id=186 data-nosnippet>186</a></span><span class="kw">pub struct </span>Attestation(<span class="kw">pub</span>(<span class="kw">crate</span>) tlsn_core::attestation::Attestation);
+<a href=#186 id=186 data-nosnippet>186</a></span><span class="kw">pub struct </span>Attestation(<span class="kw">pub</span>(<span class="kw">crate</span>) tlsn::attestation::Attestation);
 <a href=#187 id=187 data-nosnippet>187</a>
 <a href=#188 id=188 data-nosnippet>188</a><span class="attr">#[wasm_bindgen]
 <a href=#189 id=189 data-nosnippet>189</a></span><span class="kw">impl </span>Attestation {
@@ -202,8 +202,8 @@
 <a href=#202 id=202 data-nosnippet>202</a>    }
 <a href=#203 id=203 data-nosnippet>203</a>}
 <a href=#204 id=204 data-nosnippet>204</a>
-<a href=#205 id=205 data-nosnippet>205</a><span class="kw">impl </span>From&lt;tlsn_core::attestation::Attestation&gt; <span class="kw">for </span>Attestation {
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">fn </span>from(value: tlsn_core::attestation::Attestation) -&gt; <span class="self">Self </span>{
+<a href=#205 id=205 data-nosnippet>205</a><span class="kw">impl </span>From&lt;tlsn::attestation::Attestation&gt; <span class="kw">for </span>Attestation {
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">fn </span>from(value: tlsn::attestation::Attestation) -&gt; <span class="self">Self </span>{
 <a href=#207 id=207 data-nosnippet>207</a>        <span class="self">Self</span>(value)
 <a href=#208 id=208 data-nosnippet>208</a>    }
 <a href=#209 id=209 data-nosnippet>209</a>}
@@ -211,7 +211,7 @@
 <a href=#211 id=211 data-nosnippet>211</a><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 <a href=#212 id=212 data-nosnippet>212</a>#[wasm_bindgen]
 <a href=#213 id=213 data-nosnippet>213</a>#[serde(transparent)]
-<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">pub struct </span>Secrets(<span class="kw">pub</span>(<span class="kw">crate</span>) tlsn_core::Secrets);
+<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">pub struct </span>Secrets(<span class="kw">pub</span>(<span class="kw">crate</span>) tlsn::attestation::Secrets);
 <a href=#215 id=215 data-nosnippet>215</a>
 <a href=#216 id=216 data-nosnippet>216</a><span class="attr">#[wasm_bindgen]
 <a href=#217 id=217 data-nosnippet>217</a></span><span class="kw">impl </span>Secrets {
@@ -231,8 +231,8 @@
 <a href=#231 id=231 data-nosnippet>231</a>    }
 <a href=#232 id=232 data-nosnippet>232</a>}
 <a href=#233 id=233 data-nosnippet>233</a>
-<a href=#234 id=234 data-nosnippet>234</a><span class="kw">impl </span>From&lt;tlsn_core::Secrets&gt; <span class="kw">for </span>Secrets {
-<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">fn </span>from(value: tlsn_core::Secrets) -&gt; <span class="self">Self </span>{
+<a href=#234 id=234 data-nosnippet>234</a><span class="kw">impl </span>From&lt;tlsn::attestation::Secrets&gt; <span class="kw">for </span>Secrets {
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">fn </span>from(value: tlsn::attestation::Secrets) -&gt; <span class="self">Self </span>{
 <a href=#236 id=236 data-nosnippet>236</a>        <span class="self">Self</span>(value)
 <a href=#237 id=237 data-nosnippet>237</a>    }
 <a href=#238 id=238 data-nosnippet>238</a>}
@@ -240,7 +240,7 @@
 <a href=#240 id=240 data-nosnippet>240</a><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 <a href=#241 id=241 data-nosnippet>241</a>#[wasm_bindgen]
 <a href=#242 id=242 data-nosnippet>242</a>#[serde(transparent)]
-<a href=#243 id=243 data-nosnippet>243</a></span><span class="kw">pub struct </span>Presentation(tlsn_core::presentation::Presentation);
+<a href=#243 id=243 data-nosnippet>243</a></span><span class="kw">pub struct </span>Presentation(tlsn::attestation::presentation::Presentation);
 <a href=#244 id=244 data-nosnippet>244</a>
 <a href=#245 id=245 data-nosnippet>245</a><span class="attr">#[wasm_bindgen]
 <a href=#246 id=246 data-nosnippet>246</a></span><span class="kw">impl </span>Presentation {
@@ -269,8 +269,8 @@
 <a href=#269 id=269 data-nosnippet>269</a>    }
 <a href=#270 id=270 data-nosnippet>270</a>}
 <a href=#271 id=271 data-nosnippet>271</a>
-<a href=#272 id=272 data-nosnippet>272</a><span class="kw">impl </span>From&lt;tlsn_core::presentation::Presentation&gt; <span class="kw">for </span>Presentation {
-<a href=#273 id=273 data-nosnippet>273</a>    <span class="kw">fn </span>from(value: tlsn_core::presentation::Presentation) -&gt; <span class="self">Self </span>{
+<a href=#272 id=272 data-nosnippet>272</a><span class="kw">impl </span>From&lt;tlsn::attestation::presentation::Presentation&gt; <span class="kw">for </span>Presentation {
+<a href=#273 id=273 data-nosnippet>273</a>    <span class="kw">fn </span>from(value: tlsn::attestation::presentation::Presentation) -&gt; <span class="self">Self </span>{
 <a href=#274 id=274 data-nosnippet>274</a>        <span class="self">Self</span>(value)
 <a href=#275 id=275 data-nosnippet>275</a>    }
 <a href=#276 id=276 data-nosnippet>276</a>}
@@ -284,8 +284,8 @@
 <a href=#284 id=284 data-nosnippet>284</a>    <span class="kw">pub </span>transcript: <span class="prelude-ty">Option</span>&lt;PartialTranscript&gt;,
 <a href=#285 id=285 data-nosnippet>285</a>}
 <a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a><span class="kw">impl </span>From&lt;tlsn_core::presentation::PresentationOutput&gt; <span class="kw">for </span>PresentationOutput {
-<a href=#288 id=288 data-nosnippet>288</a>    <span class="kw">fn </span>from(value: tlsn_core::presentation::PresentationOutput) -&gt; <span class="self">Self </span>{
+<a href=#287 id=287 data-nosnippet>287</a><span class="kw">impl </span>From&lt;tlsn::attestation::presentation::PresentationOutput&gt; <span class="kw">for </span>PresentationOutput {
+<a href=#288 id=288 data-nosnippet>288</a>    <span class="kw">fn </span>from(value: tlsn::attestation::presentation::PresentationOutput) -&gt; <span class="self">Self </span>{
 <a href=#289 id=289 data-nosnippet>289</a>        <span class="self">Self </span>{
 <a href=#290 id=290 data-nosnippet>290</a>            attestation: value.attestation.into(),
 <a href=#291 id=291 data-nosnippet>291</a>            server_name: value.server_name.map(|name| name.as_str().to_string()),
@@ -317,8 +317,8 @@
 <a href=#317 id=317 data-nosnippet>317</a>    <span class="kw">pub </span>data: Vec&lt;u8&gt;,
 <a href=#318 id=318 data-nosnippet>318</a>}
 <a href=#319 id=319 data-nosnippet>319</a>
-<a href=#320 id=320 data-nosnippet>320</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>tlsn_core::signing::VerifyingKey&gt; <span class="kw">for </span>VerifyingKey {
-<a href=#321 id=321 data-nosnippet>321</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>tlsn_core::signing::VerifyingKey) -&gt; <span class="self">Self </span>{
+<a href=#320 id=320 data-nosnippet>320</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>tlsn::attestation::signing::VerifyingKey&gt; <span class="kw">for </span>VerifyingKey {
+<a href=#321 id=321 data-nosnippet>321</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>tlsn::attestation::signing::VerifyingKey) -&gt; <span class="self">Self </span>{
 <a href=#322 id=322 data-nosnippet>322</a>        <span class="self">Self </span>{
 <a href=#323 id=323 data-nosnippet>323</a>            alg: value.alg.as_u8(),
 <a href=#324 id=324 data-nosnippet>324</a>            data: value.data.clone(),
