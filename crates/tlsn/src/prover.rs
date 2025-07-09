@@ -316,26 +316,11 @@ impl Prover<state::Closed> {
             ..
         } = &mut self.state;
 
-        let payload = ProvePayload {
-            server_identity: config.server_identity().then(|| {
-                (
-                    self.config.server_name().clone(),
-                    ServerCertData {
-                        certs: tls_transcript
-                            .server_cert_chain()
-                            .expect("server cert chain is present")
-                            .to_vec(),
-                        sig: tls_transcript
-                            .server_signature()
-                            .expect("server signature is present")
-                            .clone(),
-                        handshake: tls_transcript.handshake_data().clone(),
-                    },
-                )
-            }),
-            transcript: config.transcript().cloned(),
-            transcript_commit: config.transcript_commit().map(|config| config.to_request()),
-        };
+        let server_name = self.config.server_name();
+        let server_identity = config
+            .server_identity()
+            .then(|| (server_name.clone(), ServerCertData::new(tls_transcript)));
+        let payload = ProvePayload::new(config, server_identity);
 
         // Send payload.
         mux_fut
