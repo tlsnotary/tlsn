@@ -232,14 +232,14 @@ impl Verifier<state::Initialized> {
 impl Verifier<state::Setup> {
     /// Runs the verifier until the TLS connection is closed.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run(self) -> Result<Verifier<state::Committed>, VerifierError> {
+    pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
         let state::Setup {
             mux_ctrl,
             mut mux_fut,
             delta,
             mpc_tls,
-            mut zk_aes_ctr_sent,
-            mut zk_aes_ctr_recv,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
             vm,
             keys,
         } = self.state;
@@ -264,75 +264,30 @@ impl Verifier<state::Setup> {
         }
 
         // Pull out ZK VM.
-        let (_, mut vm) = Arc::into_inner(vm)
+        let (_, vm) = Arc::into_inner(vm)
             .expect("vm should have only 1 reference")
             .into_inner()
             .into_inner();
 
-        // Prepare for the prover to prove tag verification of the received
-        // records.
-        let tag_proof = verify_tags(
-            &mut vm,
-            (keys.server_write_key, keys.server_write_iv),
-            keys.server_write_mac_key,
-            *tls_transcript.version(),
-            tls_transcript.recv().to_vec(),
-        )
-        .map_err(VerifierError::zk)?;
-
-        // Prepare for the prover to prove received plaintext.
-        let (sent_refs, sent_proof) = commit_records(
-            &mut vm,
-            &mut zk_aes_ctr_sent,
-            tls_transcript
-                .sent()
-                .iter()
-                .filter(|record| record.typ == ContentType::ApplicationData),
-        )
-        .map_err(VerifierError::zk)?;
-
-        let (recv_refs, recv_proof) = commit_records(
-            &mut vm,
-            &mut zk_aes_ctr_recv,
-            tls_transcript
-                .recv()
-                .iter()
-                .filter(|record| record.typ == ContentType::ApplicationData),
-        )
-        .map_err(VerifierError::zk)?;
-
-        mux_fut
-            .poll_with(vm.execute_all(&mut ctx).map_err(VerifierError::zk))
-            .await?;
-
-        // Verify the tags.
-        // After the verification, the entire TLS trancript becomes
-        // authenticated from the verifier's perspective.
-        tag_proof.verify().map_err(VerifierError::zk)?;
-
-        // Verify the plaintext proofs.
-        sent_proof.verify().map_err(VerifierError::zk)?;
-        recv_proof.verify().map_err(VerifierError::zk)?;
-
-        let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
-
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::Committed {
+            state: state::Closed {
                 mux_ctrl,
                 mux_fut,
                 delta,
                 ctx,
                 vm,
                 tls_transcript,
-                transcript_refs,
+                zk_aes_ctr_sent,
+                zk_aes_ctr_recv,
+                keys,
             },
         })
     }
 }
 
-impl Verifier<state::Committed> {
+impl Verifier<state::Closed> {
     /// Returns the TLS transcript.
     pub fn tls_transcript(&self) -> &TlsTranscript {
         &self.state.tls_transcript
@@ -348,13 +303,15 @@ impl Verifier<state::Committed> {
         &mut self,
         #[allow(unused_variables)] config: &VerifyConfig,
     ) -> Result<VerifierOutput, VerifierError> {
-        let state::Committed {
+        let state::Closed {
             mux_fut,
             ctx,
             delta,
             vm,
             tls_transcript,
-            transcript_refs,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
+            keys,
             ..
         } = &mut self.state;
 
@@ -365,6 +322,53 @@ impl Verifier<state::Committed> {
         } = mux_fut
             .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
             .await?;
+
+        // Prepare for the prover to prove tag verification of the received
+        // records.
+        let tag_proof = verify_tags(
+            vm,
+            (keys.server_write_key, keys.server_write_iv),
+            keys.server_write_mac_key,
+            *tls_transcript.version(),
+            tls_transcript.recv().to_vec(),
+        )
+        .map_err(VerifierError::zk)?;
+
+        // Prepare for the prover to prove received plaintext.
+        let (sent_refs, sent_proof) = commit_records(
+            vm,
+            zk_aes_ctr_sent,
+            tls_transcript
+                .sent()
+                .iter()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+        )
+        .map_err(VerifierError::zk)?;
+
+        let (recv_refs, recv_proof) = commit_records(
+            vm,
+            zk_aes_ctr_recv,
+            tls_transcript
+                .recv()
+                .iter()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+        )
+        .map_err(VerifierError::zk)?;
+
+        mux_fut
+            .poll_with(vm.execute_all(ctx).map_err(VerifierError::zk))
+            .await?;
+
+        // Verify the tags.
+        // After the verification, the entire TLS trancript becomes
+        // authenticated from the verifier's perspective.
+        tag_proof.verify().map_err(VerifierError::zk)?;
+
+        // Verify the plaintext proofs.
+        sent_proof.verify().map_err(VerifierError::zk)?;
+        recv_proof.verify().map_err(VerifierError::zk)?;
+
+        let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
 
         let verifier = WebPkiVerifier::new(self.config.root_store().clone(), None);
         let server_name = if let Some((name, cert_data)) = server_identity {
@@ -420,7 +424,7 @@ impl Verifier<state::Committed> {
                 vm,
                 partial_transcript.sent_authed(),
                 partial_transcript.received_authed(),
-                transcript_refs,
+                &transcript_refs,
             )
             .map_err(VerifierError::zk)?;
         }
@@ -432,7 +436,7 @@ impl Verifier<state::Committed> {
                 let commitment = mux_fut
                     .poll_with(encoding::transfer(
                         ctx,
-                        transcript_refs,
+                        &transcript_refs,
                         delta,
                         |plaintext| vm.get_keys(plaintext).expect("reference is valid"),
                     ))
@@ -443,7 +447,7 @@ impl Verifier<state::Committed> {
 
             if commit_config.has_hash() {
                 hash_commitments = Some(
-                    verify_hash(vm, transcript_refs, commit_config.iter_hash().cloned())
+                    verify_hash(vm, &transcript_refs, commit_config.iter_hash().cloned())
                         .map_err(VerifierError::verify)?,
                 );
             }
@@ -455,7 +459,7 @@ impl Verifier<state::Committed> {
 
         // Verify revealed data.
         if let Some(partial_transcript) = &transcript {
-            verify_transcript(vm, partial_transcript, transcript_refs)
+            verify_transcript(vm, partial_transcript, &transcript_refs)
                 .map_err(VerifierError::verify)?;
         }
 
@@ -521,7 +525,7 @@ impl Verifier<state::Committed> {
             ));
         }
 
-        let state::Committed {
+        let state::Closed {
             mux_fut,
             ctx,
             tls_transcript,
@@ -592,7 +596,7 @@ impl Verifier<state::Committed> {
     /// Closes the connection with the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<(), VerifierError> {
-        let state::Committed {
+        let state::Closed {
             mux_ctrl, mux_fut, ..
         } = self.state;
 

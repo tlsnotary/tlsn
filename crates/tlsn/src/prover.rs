@@ -174,8 +174,8 @@ impl Prover<state::Setup> {
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
-            mut zk_aes_ctr_sent,
-            mut zk_aes_ctr_recv,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
             keys,
             vm,
             ..
@@ -247,64 +247,28 @@ impl Prover<state::Setup> {
                 }
 
                 // Pull out ZK VM.
-                let (_, mut vm) = Arc::into_inner(vm)
+                let (_, vm) = Arc::into_inner(vm)
                     .expect("vm should have only 1 reference")
                     .into_inner()
                     .into_inner();
 
-                // Prove tag verification of received records.
-                // The prover drops the proof output.
-                let _ = verify_tags(
-                    &mut vm,
-                    (keys.server_write_key, keys.server_write_iv),
-                    keys.server_write_mac_key,
-                    *tls_transcript.version(),
-                    tls_transcript.recv().to_vec(),
-                )
-                .map_err(ProverError::zk)?;
-
-                // Prove received plaintext. Prover drops the proof output, as
-                // they trust themselves.
-                let (sent_refs, _) = commit_records(
-                    &mut vm,
-                    &mut zk_aes_ctr_sent,
-                    tls_transcript
-                        .sent()
-                        .iter()
-                        .filter(|record| record.typ == ContentType::ApplicationData),
-                )
-                .map_err(ProverError::zk)?;
-
-                let (recv_refs, _) = commit_records(
-                    &mut vm,
-                    &mut zk_aes_ctr_recv,
-                    tls_transcript
-                        .recv()
-                        .iter()
-                        .filter(|record| record.typ == ContentType::ApplicationData),
-                )
-                .map_err(ProverError::zk)?;
-
-                mux_fut
-                    .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
-                    .await?;
-
                 let transcript = tls_transcript
                     .to_transcript()
                     .expect("transcript is complete");
-                let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
 
                 Ok(Prover {
                     config: self.config,
                     span: self.span,
-                    state: state::Committed {
+                    state: state::Closed {
                         mux_ctrl,
                         mux_fut,
                         ctx,
                         vm,
                         tls_transcript,
                         transcript,
-                        transcript_refs,
+                        zk_aes_ctr_sent,
+                        zk_aes_ctr_recv,
+                        keys,
                     },
                 })
             }
@@ -321,7 +285,7 @@ impl Prover<state::Setup> {
     }
 }
 
-impl Prover<state::Committed> {
+impl Prover<state::Closed> {
     /// Returns the TLS transcript.
     pub fn tls_transcript(&self) -> &TlsTranscript {
         &self.state.tls_transcript
@@ -339,19 +303,16 @@ impl Prover<state::Committed> {
     /// * `config` - The disclosure configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn prove(&mut self, config: &ProveConfig) -> Result<ProverOutput, ProverError> {
-        let state::Committed {
+        let state::Closed {
             mux_fut,
             ctx,
             vm,
             tls_transcript,
-            transcript_refs,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
+            keys,
             ..
         } = &mut self.state;
-
-        let mut output = ProverOutput {
-            transcript_commitments: Vec::new(),
-            transcript_secrets: Vec::new(),
-        };
 
         let payload = ProvePayload {
             server_identity: config.server_identity().then(|| {
@@ -379,12 +340,56 @@ impl Prover<state::Committed> {
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
 
+        // Prove tag verification of received records.
+        // The prover drops the proof output.
+        let _ = verify_tags(
+            vm,
+            (keys.server_write_key, keys.server_write_iv),
+            keys.server_write_mac_key,
+            *tls_transcript.version(),
+            tls_transcript.recv().to_vec(),
+        )
+        .map_err(ProverError::zk)?;
+
+        // Prove received plaintext. Prover drops the proof output, as
+        // they trust themselves.
+        let (sent_refs, _) = commit_records(
+            vm,
+            zk_aes_ctr_sent,
+            tls_transcript
+                .sent()
+                .iter()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+        )
+        .map_err(ProverError::zk)?;
+
+        let (recv_refs, _) = commit_records(
+            vm,
+            zk_aes_ctr_recv,
+            tls_transcript
+                .recv()
+                .iter()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+        )
+        .map_err(ProverError::zk)?;
+
+        mux_fut
+            .poll_with(vm.execute_all(ctx).map_err(ProverError::zk))
+            .await?;
+
+        let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
+
+        let mut output = ProverOutput {
+            transcript_commitments: Vec::new(),
+            transcript_secrets: Vec::new(),
+        };
+
         if let Some(partial_transcript) = config.transcript() {
             decode_transcript(
                 vm,
                 partial_transcript.sent_authed(),
                 partial_transcript.received_authed(),
-                transcript_refs,
+                &transcript_refs,
             )
             .map_err(ProverError::zk)?;
         }
@@ -409,7 +414,7 @@ impl Prover<state::Committed> {
                         encoding::receive(
                             ctx,
                             hasher,
-                            transcript_refs,
+                            &transcript_refs,
                             |plaintext| vm.get_macs(plaintext).expect("reference is valid"),
                             commit_config.iter_encoding(),
                         )
@@ -429,7 +434,7 @@ impl Prover<state::Committed> {
                 hash_commitments = Some(
                     prove_hash(
                         vm,
-                        transcript_refs,
+                        &transcript_refs,
                         commit_config
                             .iter_hash()
                             .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg)),
@@ -522,7 +527,7 @@ impl Prover<state::Committed> {
             ..
         } = self.prove(&disclosure_config).await?;
 
-        let state::Committed {
+        let state::Closed {
             mux_fut,
             ctx,
             tls_transcript,
@@ -573,7 +578,7 @@ impl Prover<state::Committed> {
     /// Closes the connection with the verifier.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<(), ProverError> {
-        let state::Committed {
+        let state::Closed {
             mux_ctrl, mux_fut, ..
         } = self.state;
 

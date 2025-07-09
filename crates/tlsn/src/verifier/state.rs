@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use crate::{
-    commit::transcript::TranscriptRefs,
     mux::{MuxControl, MuxFuture},
     zk_aes_ctr::ZkAesCtr,
 };
@@ -37,25 +36,27 @@ pub struct Setup {
 }
 
 /// State after the TLS connection has been closed.
-pub struct Committed {
+pub struct Closed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) delta: Delta,
     pub(crate) ctx: Context,
     pub(crate) vm: Zk,
     pub(crate) tls_transcript: TlsTranscript,
-    pub(crate) transcript_refs: TranscriptRefs,
+    pub(crate) zk_aes_ctr_sent: ZkAesCtr,
+    pub(crate) zk_aes_ctr_recv: ZkAesCtr,
+    pub(crate) keys: SessionKeys,
 }
 
-opaque_debug::implement!(Committed);
+opaque_debug::implement!(Closed);
 
 impl VerifierState for Initialized {}
 impl VerifierState for Setup {}
-impl VerifierState for Committed {}
+impl VerifierState for Closed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl Sealed for super::Setup {}
-    impl Sealed for super::Committed {}
+    impl Sealed for super::Closed {}
 }
