@@ -239,6 +239,7 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Set up prover config.
     let prover_config = ProverConfig::builder()
         .server_name(SERVER_DOMAIN)
+        .tls_config(TlsConfig::builder().root_store(root_store).build().unwrap())
         .protocol_config(protocol_config)
         .build()
         .unwrap();
