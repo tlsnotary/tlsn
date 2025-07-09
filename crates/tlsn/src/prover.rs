@@ -316,13 +316,13 @@ impl Prover<state::Closed> {
             ..
         } = &mut self.state;
 
+        // Create and send prove payload.
         let server_name = self.config.server_name();
         let server_identity = config
             .server_identity()
             .then(|| (server_name.clone(), ServerCertData::new(tls_transcript)));
         let payload = ProvePayload::new(config, server_identity);
 
-        // Send payload.
         mux_fut
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;

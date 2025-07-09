@@ -9,12 +9,44 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, prelude::*};
-use tlsn_core::transcript::Record;
+use tlsn_core::{
+    ProveConfig, ProverOutput,
+    transcript::{Record, TlsTranscript},
+};
 
 use crate::{
     Role,
+    commit::transcript::TranscriptRefs,
     zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
 };
+
+pub(crate) struct CommitmentHelper {
+    config: ProveConfig,
+    refs: Option<TranscriptRefs>,
+}
+
+impl CommitmentHelper {
+    pub(crate) fn new(config: ProveConfig) -> Self {
+        Self { config, refs: None }
+    }
+
+    pub(crate) fn commit_records(
+        &self,
+        vm: &mut dyn Vm<Binary>,
+        aes: &mut ZkAesCtr,
+        transcript: &TlsTranscript,
+    ) {
+        todo!()
+    }
+
+    pub(crate) fn prepare_commitments(&mut self) {
+        todo!()
+    }
+
+    pub(crate) fn create(self) -> ProverOutput {
+        todo!()
+    }
+}
 
 /// Commits the plaintext of the provided records, returning a proof of
 /// encryption.
