@@ -263,6 +263,10 @@ impl Prover<state::Setup> {
                 )
                 .map_err(ProverError::zk)?;
 
+                mux_fut
+                    .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
+                    .await?;
+
                 let transcript = tls_transcript
                     .to_transcript()
                     .expect("transcript is complete");
