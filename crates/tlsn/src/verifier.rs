@@ -264,10 +264,30 @@ impl Verifier<state::Setup> {
         }
 
         // Pull out ZK VM.
-        let (_, vm) = Arc::into_inner(vm)
+        let (_, mut vm) = Arc::into_inner(vm)
             .expect("vm should have only 1 reference")
             .into_inner()
             .into_inner();
+
+        // Prepare for the prover to prove tag verification of the received
+        // records.
+        let tag_proof = verify_tags(
+            &mut vm,
+            (keys.server_write_key, keys.server_write_iv),
+            keys.server_write_mac_key,
+            *tls_transcript.version(),
+            tls_transcript.recv().to_vec(),
+        )
+        .map_err(VerifierError::zk)?;
+
+        mux_fut
+            .poll_with(vm.execute_all(&mut ctx).map_err(VerifierError::zk))
+            .await?;
+
+        // Verify the tags.
+        // After the verification, the entire TLS trancript becomes
+        // authenticated from the verifier's perspective.
+        tag_proof.verify().map_err(VerifierError::zk)?;
 
         Ok(Verifier {
             config: self.config,
@@ -281,7 +301,6 @@ impl Verifier<state::Setup> {
                 tls_transcript,
                 zk_aes_ctr_sent,
                 zk_aes_ctr_recv,
-                keys,
             },
         })
     }
@@ -311,7 +330,6 @@ impl Verifier<state::Closed> {
             tls_transcript,
             zk_aes_ctr_sent,
             zk_aes_ctr_recv,
-            keys,
             ..
         } = &mut self.state;
 
@@ -322,17 +340,6 @@ impl Verifier<state::Closed> {
         } = mux_fut
             .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
             .await?;
-
-        // Prepare for the prover to prove tag verification of the received
-        // records.
-        let tag_proof = verify_tags(
-            vm,
-            (keys.server_write_key, keys.server_write_iv),
-            keys.server_write_mac_key,
-            *tls_transcript.version(),
-            tls_transcript.recv().to_vec(),
-        )
-        .map_err(VerifierError::zk)?;
 
         // Prepare for the prover to prove received plaintext.
         let (sent_refs, sent_proof) = commit_records(
@@ -358,11 +365,6 @@ impl Verifier<state::Closed> {
         mux_fut
             .poll_with(vm.execute_all(ctx).map_err(VerifierError::zk))
             .await?;
-
-        // Verify the tags.
-        // After the verification, the entire TLS trancript becomes
-        // authenticated from the verifier's perspective.
-        tag_proof.verify().map_err(VerifierError::zk)?;
 
         // Verify the plaintext proofs.
         sent_proof.verify().map_err(VerifierError::zk)?;

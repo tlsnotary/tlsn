@@ -247,10 +247,21 @@ impl Prover<state::Setup> {
                 }
 
                 // Pull out ZK VM.
-                let (_, vm) = Arc::into_inner(vm)
+                let (_, mut vm) = Arc::into_inner(vm)
                     .expect("vm should have only 1 reference")
                     .into_inner()
                     .into_inner();
+
+                // Prove tag verification of received records.
+                // The prover drops the proof output.
+                let _ = verify_tags(
+                    &mut vm,
+                    (keys.server_write_key, keys.server_write_iv),
+                    keys.server_write_mac_key,
+                    *tls_transcript.version(),
+                    tls_transcript.recv().to_vec(),
+                )
+                .map_err(ProverError::zk)?;
 
                 let transcript = tls_transcript
                     .to_transcript()
@@ -268,7 +279,6 @@ impl Prover<state::Setup> {
                         transcript,
                         zk_aes_ctr_sent,
                         zk_aes_ctr_recv,
-                        keys,
                     },
                 })
             }
@@ -310,7 +320,6 @@ impl Prover<state::Closed> {
             tls_transcript,
             zk_aes_ctr_sent,
             zk_aes_ctr_recv,
-            keys,
             ..
         } = &mut self.state;
 
@@ -339,17 +348,6 @@ impl Prover<state::Closed> {
         mux_fut
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
-
-        // Prove tag verification of received records.
-        // The prover drops the proof output.
-        let _ = verify_tags(
-            vm,
-            (keys.server_write_key, keys.server_write_iv),
-            keys.server_write_mac_key,
-            *tls_transcript.version(),
-            tls_transcript.recv().to_vec(),
-        )
-        .map_err(ProverError::zk)?;
 
         // Prove received plaintext. Prover drops the proof output, as
         // they trust themselves.

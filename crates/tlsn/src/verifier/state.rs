@@ -45,7 +45,6 @@ pub struct Closed {
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) zk_aes_ctr_sent: ZkAesCtr,
     pub(crate) zk_aes_ctr_recv: ZkAesCtr,
-    pub(crate) keys: SessionKeys,
 }
 
 opaque_debug::implement!(Closed);
