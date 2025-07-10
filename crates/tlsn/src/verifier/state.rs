@@ -36,7 +36,7 @@ pub struct Setup {
 }
 
 /// State after the TLS connection has been closed.
-pub struct Closed {
+pub struct Committed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) delta: Delta,
@@ -47,15 +47,15 @@ pub struct Closed {
     pub(crate) zk_aes_ctr_recv: ZkAesCtr,
 }
 
-opaque_debug::implement!(Closed);
+opaque_debug::implement!(Committed);
 
 impl VerifierState for Initialized {}
 impl VerifierState for Setup {}
-impl VerifierState for Closed {}
+impl VerifierState for Committed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl Sealed for super::Setup {}
-    impl Sealed for super::Closed {}
+    impl Sealed for super::Committed {}
 }

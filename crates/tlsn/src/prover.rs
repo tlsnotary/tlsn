@@ -270,7 +270,7 @@ impl Prover<state::Setup> {
                 Ok(Prover {
                     config: self.config,
                     span: self.span,
-                    state: state::Closed {
+                    state: state::Committed {
                         mux_ctrl,
                         mux_fut,
                         ctx,
@@ -295,7 +295,7 @@ impl Prover<state::Setup> {
     }
 }
 
-impl Prover<state::Closed> {
+impl Prover<state::Committed> {
     /// Returns the TLS transcript.
     pub fn tls_transcript(&self) -> &TlsTranscript {
         &self.state.tls_transcript
@@ -313,7 +313,7 @@ impl Prover<state::Closed> {
     /// * `config` - The disclosure configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn prove(&mut self, config: &ProveConfig) -> Result<ProverOutput, ProverError> {
-        let state::Closed {
+        let state::Committed {
             mux_fut,
             ctx,
             vm,
@@ -525,7 +525,7 @@ impl Prover<state::Closed> {
             ..
         } = self.prove(&disclosure_config).await?;
 
-        let state::Closed {
+        let state::Committed {
             mux_fut,
             ctx,
             tls_transcript,
@@ -576,7 +576,7 @@ impl Prover<state::Closed> {
     /// Closes the connection with the verifier.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<(), ProverError> {
-        let state::Closed {
+        let state::Committed {
             mux_ctrl, mux_fut, ..
         } = self.state;
 

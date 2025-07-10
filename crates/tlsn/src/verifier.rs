@@ -232,7 +232,7 @@ impl Verifier<state::Initialized> {
 impl Verifier<state::Setup> {
     /// Runs the verifier until the TLS connection is closed.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
+    pub async fn run(self) -> Result<Verifier<state::Committed>, VerifierError> {
         let state::Setup {
             mux_ctrl,
             mut mux_fut,
@@ -292,7 +292,7 @@ impl Verifier<state::Setup> {
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::Closed {
+            state: state::Committed {
                 mux_ctrl,
                 mux_fut,
                 delta,
@@ -306,7 +306,7 @@ impl Verifier<state::Setup> {
     }
 }
 
-impl Verifier<state::Closed> {
+impl Verifier<state::Committed> {
     /// Returns the TLS transcript.
     pub fn tls_transcript(&self) -> &TlsTranscript {
         &self.state.tls_transcript
@@ -322,7 +322,7 @@ impl Verifier<state::Closed> {
         &mut self,
         #[allow(unused_variables)] config: &VerifyConfig,
     ) -> Result<VerifierOutput, VerifierError> {
-        let state::Closed {
+        let state::Committed {
             mux_fut,
             ctx,
             delta,
@@ -527,7 +527,7 @@ impl Verifier<state::Closed> {
             ));
         }
 
-        let state::Closed {
+        let state::Committed {
             mux_fut,
             ctx,
             tls_transcript,
@@ -598,7 +598,7 @@ impl Verifier<state::Closed> {
     /// Closes the connection with the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<(), VerifierError> {
-        let state::Closed {
+        let state::Committed {
             mux_ctrl, mux_fut, ..
         } = self.state;
 

@@ -31,7 +31,7 @@ pub struct JsProver {
 enum State {
     Initialized(Prover<state::Initialized>),
     Setup(Prover<state::Setup>),
-    Committed(Prover<state::Closed>),
+    Committed(Prover<state::Committed>),
     Complete,
     Error,
 }
