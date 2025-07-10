@@ -18,7 +18,7 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
-use tlsn_core::transcript::TlsTranscript;
+use tlsn_core::transcript::{ciphertext::SessionKey, TlsTranscript};
 use tracing::{debug, Instrument};
 
 #[derive(Clone)]
@@ -70,7 +70,7 @@ impl MpcTlsLeader {
         mut self,
     ) -> (
         MpcTlsLeaderCtrl,
-        impl Future<Output = Result<(Context, TlsTranscript), MpcTlsError>>,
+        impl Future<Output = Result<(Context, TlsTranscript, SessionKey), MpcTlsError>>,
     ) {
         let (mut mailbox, address) = mailbox(100);
 
@@ -83,20 +83,24 @@ impl MpcTlsLeader {
 }
 
 impl Actor for MpcTlsLeader {
-    type Stop = (Context, TlsTranscript);
+    type Stop = (Context, TlsTranscript, SessionKey);
     type Error = MpcTlsError;
 
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
         debug!("leader actor stopped");
 
         let State::Closed {
-            ctx, transcript, ..
+            ctx,
+            transcript,
+            record_layer,
+            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("leader actor stopped in invalid state"));
         };
 
-        Ok((ctx, transcript))
+        let swk = record_layer.server_write_key()?;
+        Ok((ctx, transcript, swk))
     }
 }
 

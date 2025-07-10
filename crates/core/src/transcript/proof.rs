@@ -8,6 +8,7 @@ use crate::{
     connection::TranscriptLength,
     hash::{HashAlgId, HashProvider},
     transcript::{
+        ciphertext::{PlaintextProof, PlaintextProofError, SessionSecret},
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
@@ -18,6 +19,9 @@ use crate::{
 /// Default commitment kinds in order of preference for building transcript
 /// proofs.
 const DEFAULT_COMMITMENT_KINDS: &[TranscriptCommitmentKind] = &[
+    TranscriptCommitmentKind::Ciphertext {
+        alg: HashAlgId::SHA256,
+    },
     TranscriptCommitmentKind::Hash {
         alg: HashAlgId::SHA256,
     },
@@ -30,6 +34,7 @@ pub struct TranscriptProof {
     transcript: PartialTranscript,
     encoding_proof: Option<EncodingProof>,
     hash_secrets: Vec<PlaintextHashSecret>,
+    plaintext_proof: Option<PlaintextProof>,
 }
 
 opaque_debug::implement!(TranscriptProof);
@@ -51,6 +56,8 @@ impl TranscriptProof {
     ) -> Result<PartialTranscript, TranscriptProofError> {
         let mut encoding_commitment = None;
         let mut hash_commitments = HashSet::new();
+        let mut ciphertext_commitment = None;
+
         // Index commitments.
         for commitment in commitments {
             match commitment {
@@ -64,6 +71,14 @@ impl TranscriptProof {
                 }
                 TranscriptCommitment::Hash(plaintext_hash) => {
                     hash_commitments.insert(plaintext_hash);
+                }
+                TranscriptCommitment::Ciphertext(commitment) => {
+                    if ciphertext_commitment.replace(commitment).is_some() {
+                        return Err(TranscriptProofError::new(
+                            ErrorKind::Ciphertext,
+                            "multiple ciphertext commitments are present.",
+                        ));
+                    }
                 }
             }
         }
@@ -148,6 +163,18 @@ impl TranscriptProof {
             auth.union_mut(&expected.idx);
         }
 
+        if let Some(proof) = self.plaintext_proof {
+            let commitment = ciphertext_commitment.ok_or_else(|| {
+                TranscriptProofError::new(
+                    ErrorKind::Ciphertext,
+                    "contains a plaintext proof but missing ciphertext commitment",
+                )
+            })?;
+
+            let auth_range = proof.verify_with_provider(provider, commitment)?;
+            total_auth_recv.union_mut(&auth_range);
+        }
+
         // Assert that all the authenticated data are covered by the proof.
         if &total_auth_sent != self.transcript.sent_authed()
             || &total_auth_recv != self.transcript.received_authed()
@@ -185,6 +212,7 @@ impl TranscriptProofError {
 enum ErrorKind {
     Encoding,
     Hash,
+    Ciphertext,
     Proof,
 }
 
@@ -195,6 +223,7 @@ impl fmt::Display for TranscriptProofError {
         match self.kind {
             ErrorKind::Encoding => f.write_str("encoding error")?,
             ErrorKind::Hash => f.write_str("hash error")?,
+            ErrorKind::Ciphertext => f.write_str("ciphertext error")?,
             ErrorKind::Proof => f.write_str("proof error")?,
         }
 
@@ -209,6 +238,12 @@ impl fmt::Display for TranscriptProofError {
 impl From<EncodingProofError> for TranscriptProofError {
     fn from(e: EncodingProofError) -> Self {
         TranscriptProofError::new(ErrorKind::Encoding, e)
+    }
+}
+
+impl From<PlaintextProofError> for TranscriptProofError {
+    fn from(e: PlaintextProofError) -> Self {
+        TranscriptProofError::new(ErrorKind::Ciphertext, e)
     }
 }
 
@@ -253,6 +288,7 @@ pub struct TranscriptProofBuilder<'a> {
     transcript: &'a Transcript,
     encoding_tree: Option<&'a EncodingTree>,
     hash_secrets: Vec<&'a PlaintextHashSecret>,
+    session_secret: Option<&'a SessionSecret>,
     committed_sent: Idx,
     committed_recv: Idx,
     query_idx: QueryIdx,
@@ -269,6 +305,8 @@ impl<'a> TranscriptProofBuilder<'a> {
 
         let mut encoding_tree = None;
         let mut hash_secrets = Vec::new();
+        let mut session_secret = None;
+
         for secret in secrets {
             match secret {
                 TranscriptSecret::Encoding(tree) => {
@@ -283,6 +321,13 @@ impl<'a> TranscriptProofBuilder<'a> {
                     }
                     hash_secrets.push(hash);
                 }
+                TranscriptSecret::Ciphertext(secret) => {
+                    let len = transcript.len_of_direction(Direction::Received);
+                    let idx = Idx::new(0..len);
+
+                    committed_recv.union_mut(&idx);
+                    session_secret = Some(secret);
+                }
             }
         }
 
@@ -291,6 +336,7 @@ impl<'a> TranscriptProofBuilder<'a> {
             transcript,
             encoding_tree,
             hash_secrets,
+            session_secret,
             committed_sent,
             committed_recv,
             query_idx: QueryIdx::new(),
@@ -386,6 +432,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                 .to_partial(self.query_idx.sent.clone(), self.query_idx.recv.clone()),
             encoding_proof: None,
             hash_secrets: Vec::new(),
+            plaintext_proof: None,
         };
         let mut uncovered_query_idx = self.query_idx.clone();
         let mut commitment_kinds_iter = self.commitment_kinds.iter();
@@ -469,6 +516,19 @@ impl<'a> TranscriptProofBuilder<'a> {
                                 .into_iter()
                                 .map(|s| PlaintextHashSecret::clone(s)),
                         );
+                    }
+                    TranscriptCommitmentKind::Ciphertext { .. } => {
+                        if let Some(&secret) = self.session_secret {
+                            let recv_len = self.transcript.len_of_direction(Direction::Received);
+                            let recv_idx = Idx::new(0..recv_len);
+
+                            // We only allow full range plaintext proofs.
+                            if self.query_idx.recv == recv_idx {
+                                let proof = PlaintextProof::new(self.transcript, secret);
+                                transcript_proof.plaintext_proof = Some(proof);
+                                uncovered_query_idx.recv = Idx::empty();
+                            }
+                        }
                     }
                     #[allow(unreachable_patterns)]
                     kind => {

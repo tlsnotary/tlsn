@@ -149,7 +149,7 @@ impl EncodingTree {
                 .idxs
                 .get_by_right(dir_idx)
                 .ok_or_else(|| EncodingTreeError::MissingLeaf { index: idx.clone() })?;
-            let blinder = self.blinders[leaf_idx].clone();
+            let blinder = self.blinders[leaf_idx];
 
             openings.insert(
                 leaf_idx,

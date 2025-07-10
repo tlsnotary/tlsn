@@ -14,7 +14,7 @@ use crate::{
     Role,
     commit::{
         commit_records,
-        hash::verify_hash,
+        hash::{KeyCommitFuture, PlaintextCommitFuture},
         transcript::{TranscriptRefs, decode_transcript, verify_transcript},
     },
     config::ProtocolConfig,
@@ -301,6 +301,7 @@ impl Verifier<state::Setup> {
                 tls_transcript,
                 zk_aes_ctr_sent,
                 zk_aes_ctr_recv,
+                keys,
             },
         })
     }
@@ -330,6 +331,7 @@ impl Verifier<state::Committed> {
             tls_transcript,
             zk_aes_ctr_sent,
             zk_aes_ctr_recv,
+            keys,
             ..
         } = &mut self.state;
 
@@ -433,6 +435,8 @@ impl Verifier<state::Committed> {
 
         let mut transcript_commitments = Vec::new();
         let mut hash_commitments = None;
+        let mut ciphertext_commitment = None;
+
         if let Some(commit_config) = transcript_commit {
             if commit_config.encoding() {
                 let commitment = mux_fut
@@ -449,8 +453,25 @@ impl Verifier<state::Committed> {
 
             if commit_config.has_hash() {
                 hash_commitments = Some(
-                    verify_hash(vm, &transcript_refs, commit_config.iter_hash().cloned())
-                        .map_err(VerifierError::verify)?,
+                    PlaintextCommitFuture::verify(
+                        vm,
+                        &transcript_refs,
+                        commit_config.iter_hash().cloned(),
+                    )
+                    .map_err(VerifierError::verify)?,
+                );
+            }
+
+            if commit_config.ciphertext() {
+                let alg = commit_config.ciphertext_hash_alg();
+                ciphertext_commitment = Some(
+                    KeyCommitFuture::verify(
+                        vm,
+                        alg,
+                        keys.server_write_key.into(),
+                        keys.server_write_iv.into(),
+                    )
+                    .map_err(VerifierError::verify)?,
                 );
             }
         }
@@ -469,6 +490,13 @@ impl Verifier<state::Committed> {
             for commitment in hash_commitments.try_recv().map_err(VerifierError::verify)? {
                 transcript_commitments.push(TranscriptCommitment::Hash(commitment));
             }
+        }
+
+        if let Some(hash_fut) = ciphertext_commitment {
+            let commitment = hash_fut
+                .into_ciphertext_commitment(tls_transcript)
+                .map_err(VerifierError::verify)?;
+            transcript_commitments.push(TranscriptCommitment::Ciphertext(commitment));
         }
 
         Ok(VerifierOutput {

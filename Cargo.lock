@@ -6536,9 +6536,12 @@ dependencies = [
 name = "tlsn-core"
 version = "0.1.0-alpha.13-pre"
 dependencies = [
+ "aes 0.8.4",
  "bimap",
  "bincode",
  "blake3",
+ "cipher 0.4.4",
+ "ctr 0.9.2",
  "hex",
  "itybity 0.2.1",
  "opaque-debug",

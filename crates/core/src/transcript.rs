@@ -18,6 +18,7 @@
 //! always learns the length of the transcript, but sensitive data can be
 //! withheld.
 
+pub mod ciphertext;
 mod commit;
 pub mod encoding;
 pub mod hash;
@@ -409,6 +410,47 @@ impl PartialTranscript {
                 }
             }
         }
+    }
+}
+
+/// Transcript of ciphertext.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct CiphertextTranscript {
+    /// The direction.
+    direction: Direction,
+    /// The TLS explicit nonces.
+    explicit_nonces: Vec<Vec<u8>>,
+    /// The TLS ciphertext.
+    ciphertext: Vec<Vec<u8>>,
+    /// The number of ciphertext records.
+    record_count: usize,
+}
+
+impl CiphertextTranscript {
+    /// Creates a new ciphertext transcript.
+    pub fn new(
+        direction: Direction,
+        explicit_nonces: Vec<Vec<u8>>,
+        ciphertext: Vec<Vec<u8>>,
+    ) -> Self {
+        assert_eq!(
+            explicit_nonces.len(),
+            ciphertext.len(),
+            "Number of explicit nonces should match record count"
+        );
+        let record_count = ciphertext.len();
+
+        Self {
+            direction,
+            explicit_nonces,
+            ciphertext,
+            record_count,
+        }
+    }
+
+    /// Returns the number of records.
+    pub fn record_count(&self) -> usize {
+        self.record_count
     }
 }
 

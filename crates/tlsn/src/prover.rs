@@ -19,7 +19,7 @@ use crate::{
     Role,
     commit::{
         commit_records,
-        hash::prove_hash,
+        hash::{KeyCommitFuture, PlaintextCommitFuture},
         transcript::{TranscriptRefs, decode_transcript},
     },
     context::build_mt_context,
@@ -225,7 +225,7 @@ impl Prover<state::Setup> {
 
                 info!("starting MPC-TLS");
 
-                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
+                let (_, (mut ctx, tls_transcript, server_write_key)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
@@ -283,6 +283,8 @@ impl Prover<state::Setup> {
                         transcript,
                         zk_aes_ctr_sent,
                         zk_aes_ctr_recv,
+                        keys,
+                        server_write_key,
                     },
                 })
             }
@@ -324,31 +326,18 @@ impl Prover<state::Committed> {
             tls_transcript,
             zk_aes_ctr_sent,
             zk_aes_ctr_recv,
+            server_write_key,
+            keys,
             ..
         } = &mut self.state;
 
-        let payload = ProvePayload {
-            server_identity: config.server_identity().then(|| {
-                (
-                    self.config.server_name().clone(),
-                    ServerCertData {
-                        certs: tls_transcript
-                            .server_cert_chain()
-                            .expect("server cert chain is present")
-                            .to_vec(),
-                        sig: tls_transcript
-                            .server_signature()
-                            .expect("server signature is present")
-                            .clone(),
-                        handshake: tls_transcript.handshake_data().clone(),
-                    },
-                )
-            }),
-            transcript: config.transcript().cloned(),
-            transcript_commit: config.transcript_commit().map(|config| config.to_request()),
-        };
+        // Create and send prove payload.
+        let server_name = self.config.server_name();
+        let server_identity = config
+            .server_identity()
+            .then(|| (server_name.clone(), ServerCertData::new(tls_transcript)));
+        let payload = ProvePayload::new(config, server_identity);
 
-        // Send payload.
         mux_fut
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
@@ -397,6 +386,8 @@ impl Prover<state::Committed> {
         }
 
         let mut hash_commitments = None;
+        let mut ciphertext_commitment = None;
+
         if let Some(commit_config) = config.transcript_commit() {
             if commit_config.has_encoding() {
                 let hasher: &(dyn HashAlgorithm + Send + Sync) =
@@ -434,7 +425,7 @@ impl Prover<state::Committed> {
 
             if commit_config.has_hash() {
                 hash_commitments = Some(
-                    prove_hash(
+                    PlaintextCommitFuture::prove(
                         vm,
                         &transcript_refs,
                         commit_config
@@ -443,6 +434,21 @@ impl Prover<state::Committed> {
                     )
                     .map_err(ProverError::commit)?,
                 );
+            }
+
+            if commit_config.has_ciphertext() {
+                let alg = commit_config.ciphertext_hash_alg();
+                let commitment = KeyCommitFuture::prove(
+                    vm,
+                    *alg,
+                    keys.server_write_key.into(),
+                    server_write_key.key,
+                    keys.server_write_iv.into(),
+                    server_write_key.iv,
+                )
+                .map_err(ProverError::commit)?;
+
+                ciphertext_commitment = Some(commitment);
             }
         }
 
@@ -460,6 +466,18 @@ impl Prover<state::Committed> {
                     .transcript_secrets
                     .push(TranscriptSecret::Hash(secret));
             }
+        }
+
+        if let Some((hash_fut, secret)) = ciphertext_commitment {
+            let commitment = hash_fut
+                .into_ciphertext_commitment(tls_transcript)
+                .map_err(ProverError::commit)?;
+            output
+                .transcript_commitments
+                .push(TranscriptCommitment::Ciphertext(commitment));
+            output
+                .transcript_secrets
+                .push(TranscriptSecret::Ciphertext(secret));
         }
 
         Ok(output)

@@ -208,6 +208,28 @@ pub struct ProvePayload {
     pub transcript_commit: Option<TranscriptCommitRequest>,
 }
 
+impl ProvePayload {
+    /// Creates a new prove payload.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The prove config.
+    /// * `server_identity` - The server name and cert data.
+    pub fn new(
+        config: &ProveConfig,
+        server_identity: Option<(ServerName, ServerCertData)>,
+    ) -> Self {
+        let transcript = config.transcript().cloned();
+        let transcript_commit = config.transcript_commit().map(|config| config.to_request());
+
+        Self {
+            server_identity,
+            transcript,
+            transcript_commit,
+        }
+    }
+}
+
 /// Prover output.
 pub struct ProverOutput {
     /// Transcript commitments.

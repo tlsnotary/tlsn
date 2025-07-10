@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hash::HashAlgId,
     transcript::{
+        ciphertext::{CiphertextCommitment, SessionSecret},
         encoding::{EncodingCommitment, EncodingTree},
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, Idx, Transcript,
@@ -34,6 +35,11 @@ pub enum TranscriptCommitmentKind {
         /// The hash algorithm used.
         alg: HashAlgId,
     },
+    /// A commitment to the received ciphertext of the transcript.
+    Ciphertext {
+        /// The hash algorithm used.
+        alg: HashAlgId,
+    },
 }
 
 impl fmt::Display for TranscriptCommitmentKind {
@@ -41,6 +47,7 @@ impl fmt::Display for TranscriptCommitmentKind {
         match self {
             Self::Encoding => f.write_str("encoding"),
             Self::Hash { alg } => write!(f, "hash ({alg})"),
+            Self::Ciphertext { alg } => write!(f, "ciphertext ({alg})"),
         }
     }
 }
@@ -53,6 +60,8 @@ pub enum TranscriptCommitment {
     Encoding(EncodingCommitment),
     /// Plaintext hash commitment.
     Hash(PlaintextHash),
+    /// Commitment to the ciphertext.
+    Ciphertext(CiphertextCommitment),
 }
 
 /// Secret for a transcript commitment.
@@ -63,14 +72,18 @@ pub enum TranscriptSecret {
     Encoding(EncodingTree),
     /// Plaintext hash secret.
     Hash(PlaintextHashSecret),
+    /// Session Secret.
+    Ciphertext(SessionSecret),
 }
 
 /// Configuration for transcript commitments.
 #[derive(Debug, Clone)]
 pub struct TranscriptCommitConfig {
     encoding_hash_alg: HashAlgId,
+    ciphertext_hash_alg: HashAlgId,
     has_encoding: bool,
     has_hash: bool,
+    has_ciphertext: bool,
     commits: Vec<((Direction, Idx), TranscriptCommitmentKind)>,
 }
 
@@ -85,6 +98,11 @@ impl TranscriptCommitConfig {
         &self.encoding_hash_alg
     }
 
+    /// Returns the hash algorithm to use for the ciphtertext commitment.
+    pub fn ciphertext_hash_alg(&self) -> &HashAlgId {
+        &self.ciphertext_hash_alg
+    }
+
     /// Returns `true` if the configuration has any encoding commitments.
     pub fn has_encoding(&self) -> bool {
         self.has_encoding
@@ -93,6 +111,11 @@ impl TranscriptCommitConfig {
     /// Returns `true` if the configuration has any hash commitments.
     pub fn has_hash(&self) -> bool {
         self.has_hash
+    }
+
+    /// Returns `true` if the configuration has any ciphertext commitments.
+    pub fn has_ciphertext(&self) -> bool {
+        self.has_ciphertext
     }
 
     /// Returns an iterator over the encoding commitment indices.
@@ -115,6 +138,8 @@ impl TranscriptCommitConfig {
     pub fn to_request(&self) -> TranscriptCommitRequest {
         TranscriptCommitRequest {
             encoding: self.has_encoding,
+            ciphertext: self.has_ciphertext,
+            ciphertext_hash_alg: self.ciphertext_hash_alg,
             hash: self
                 .iter_hash()
                 .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg))
@@ -131,8 +156,10 @@ impl TranscriptCommitConfig {
 pub struct TranscriptCommitConfigBuilder<'a> {
     transcript: &'a Transcript,
     encoding_hash_alg: HashAlgId,
+    ciphertext_hash_alg: HashAlgId,
     has_encoding: bool,
     has_hash: bool,
+    has_ciphertext: bool,
     default_kind: TranscriptCommitmentKind,
     commits: HashSet<((Direction, Idx), TranscriptCommitmentKind)>,
 }
@@ -143,8 +170,10 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         Self {
             transcript,
             encoding_hash_alg: HashAlgId::BLAKE3,
+            ciphertext_hash_alg: HashAlgId::SHA256,
             has_encoding: false,
             has_hash: false,
+            has_ciphertext: false,
             default_kind: TranscriptCommitmentKind::Encoding,
             commits: HashSet::default(),
         }
@@ -192,6 +221,24 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         match kind {
             TranscriptCommitmentKind::Encoding => self.has_encoding = true,
             TranscriptCommitmentKind::Hash { .. } => self.has_hash = true,
+            TranscriptCommitmentKind::Ciphertext { .. } => {
+                if direction != Direction::Received {
+                    return Err(TranscriptCommitConfigBuilderError::new(
+                        ErrorKind::Direction,
+                        "Can only use ciphertext commitments for direction Received",
+                    ));
+                }
+                if idx.len() != self.transcript.len_of_direction(direction) {
+                    return Err(TranscriptCommitConfigBuilderError::new(ErrorKind::Index,
+                        format!("Can only commit to full transcript length when using ciphertext commitments. \
+                            Length of transcript is {}, but committed range was {}",
+                            self.transcript.len_of_direction(direction),
+                            idx.len()
+                        )
+                    ));
+                }
+                self.has_ciphertext = true;
+            }
         }
 
         self.commits.insert(((direction, idx), kind));
@@ -241,8 +288,10 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     pub fn build(self) -> Result<TranscriptCommitConfig, TranscriptCommitConfigBuilderError> {
         Ok(TranscriptCommitConfig {
             encoding_hash_alg: self.encoding_hash_alg,
+            ciphertext_hash_alg: self.ciphertext_hash_alg,
             has_encoding: self.has_encoding,
             has_hash: self.has_hash,
+            has_ciphertext: self.has_ciphertext,
             commits: Vec::from_iter(self.commits),
         })
     }
@@ -270,12 +319,14 @@ impl TranscriptCommitConfigBuilderError {
 #[derive(Debug)]
 enum ErrorKind {
     Index,
+    Direction,
 }
 
 impl fmt::Display for TranscriptCommitConfigBuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             ErrorKind::Index => f.write_str("index error")?,
+            ErrorKind::Direction => f.write_str("direction error")?,
         }
 
         if let Some(source) = &self.source {
@@ -290,6 +341,8 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptCommitRequest {
     encoding: bool,
+    ciphertext: bool,
+    ciphertext_hash_alg: HashAlgId,
     hash: Vec<(Direction, Idx, HashAlgId)>,
 }
 
@@ -297,6 +350,16 @@ impl TranscriptCommitRequest {
     /// Returns `true` if an encoding commitment is requested.
     pub fn encoding(&self) -> bool {
         self.encoding
+    }
+
+    /// Returns `true` if a ciphertext commitment is requested.
+    pub fn ciphertext(&self) -> bool {
+        self.ciphertext
+    }
+
+    /// Returns the hash algorithm to use for the ciphertext commitment.
+    pub fn ciphertext_hash_alg(&self) -> HashAlgId {
+        self.ciphertext_hash_alg
     }
 
     /// Returns `true` if a hash commitment is requested.

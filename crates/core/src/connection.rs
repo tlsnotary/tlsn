@@ -13,6 +13,8 @@ use tls_core::{
 };
 use web_time::{Duration, UNIX_EPOCH};
 
+use crate::transcript::TlsTranscript;
+
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -261,6 +263,25 @@ pub struct ServerCertData {
 }
 
 impl ServerCertData {
+    /// Creates a new instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `transcript` - The TLS transcript.
+    pub fn new(transcript: &TlsTranscript) -> Self {
+        ServerCertData {
+            certs: transcript
+                .server_cert_chain()
+                .expect("server cert chain is present")
+                .to_vec(),
+            sig: transcript
+                .server_signature()
+                .expect("server signature is present")
+                .clone(),
+            handshake: transcript.handshake_data().clone(),
+        }
+    }
+
     /// Verifies the server certificate data.
     ///
     /// # Arguments
