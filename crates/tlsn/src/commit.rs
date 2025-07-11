@@ -3,6 +3,7 @@
 pub(crate) mod hash;
 pub(crate) mod transcript;
 
+use mpc_tls::SessionKeys;
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
     DecodeFutureTyped, Vector,
@@ -11,7 +12,7 @@ use mpz_memory_core::{
 use mpz_vm_core::{Vm, prelude::*};
 use tlsn_core::{
     ProveConfig, ProverOutput,
-    transcript::{Record, TlsTranscript},
+    transcript::{Record, TlsTranscript, ciphertext::SessionKey},
 };
 
 use crate::{
@@ -22,20 +23,44 @@ use crate::{
 
 pub(crate) struct CommitmentHelper {
     config: ProveConfig,
-    refs: Option<TranscriptRefs>,
+    transcript_refs: Option<TranscriptRefs>,
 }
 
 impl CommitmentHelper {
-    pub(crate) fn new(config: ProveConfig) -> Self {
-        Self { config, refs: None }
+    pub(crate) fn new(
+        config: ProveConfig,
+        keys: SessionKeys,
+        server_write_key: SessionKey,
+    ) -> Self {
+        Self {
+            config,
+            transcript_refs: None,
+        }
     }
 
     pub(crate) fn commit_records(
         &self,
         vm: &mut dyn Vm<Binary>,
-        aes: &mut ZkAesCtr,
+        zk_aes_sent: &mut ZkAesCtr,
+        zk_aes_recv: &mut ZkAesCtr,
         transcript: &TlsTranscript,
-    ) {
+    ) -> Result<(), RecordProofError> {
+        let Some(commit_config) = self.config.transcript_commit() else {
+            return Ok(());
+        };
+
+        if commit_config.has_ciphertext() {
+            todo!();
+        }
+
+        if commit_config.has_encoding() {
+            todo!();
+        }
+
+        if commit_config.has_hash() {
+            todo!();
+        }
+
         todo!()
     }
 
@@ -45,6 +70,10 @@ impl CommitmentHelper {
 
     pub(crate) fn create(self) -> ProverOutput {
         todo!()
+    }
+
+    pub(crate) fn transcript_refs(&self) -> Option<&TranscriptRefs> {
+        self.transcript_refs.as_ref()
     }
 }
 
