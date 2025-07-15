@@ -1,6 +1,6 @@
 [package]
 name = "notary-server"
-version = "0.1.0-alpha.12"
+version = "0.1.0-alpha.13-pre"
 edition = "2021"
 
 [lints]
@@ -12,8 +12,7 @@ tee_quote = ["dep:mc-sgx-dcap-types", "dep:hex"]
 [dependencies]
 notary-common = { workspace = true }
 tlsn-core = { workspace = true }
-tlsn-common = { workspace = true }
-tlsn-verifier = { workspace = true }
+tlsn = { workspace = true }
 
 async-tungstenite = { workspace = true, features = ["tokio-native-tls"] }
 axum = { workspace = true, features = ["ws"] }

@@ -1,9 +1,6 @@
 use futures::TryFutureExt as _;
 use mpz_core::bitvec::BitVec;
-use mpz_memory_core::{
-    binary::{Binary, U8},
-    DecodeFutureTyped, Vector,
-};
+use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
 use mpz_vm_core::{prelude::*, Vm};
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
@@ -21,14 +18,7 @@ fn private(
     vm: &mut dyn Vm<Binary>,
     encrypter: &mut MpcAesGcm,
     op: &EncryptOp,
-) -> Result<
-    (
-        Vector<U8>,
-        EncryptOutput,
-        BoxFut<Result<Vec<u8>, AeadError>>,
-    ),
-    MpcTlsError,
-> {
+) -> Result<(EncryptOutput, BoxFut<Result<Vec<u8>, AeadError>>), MpcTlsError> {
     let (plaintext, ciphertext) = encrypter
         .apply_keystream(vm, op.explicit_nonce.clone(), op.len)
         .map_err(MpcTlsError::record_layer)?;
@@ -46,7 +36,6 @@ fn private(
     );
 
     Ok((
-        plaintext,
         EncryptOutput::Private(EncryptPrivate {
             ciphertext: vm.decode(ciphertext).map_err(MpcTlsError::record_layer)?,
         }),
@@ -107,21 +96,15 @@ pub(crate) fn encrypt(
     for op in ops {
         match op.mode {
             EncryptMode::Private => {
-                let (plaintext_ref, output, ciphertext_fut) = private(vm, encrypter, op)?;
+                let (output, ciphertext_fut) = private(vm, encrypter, op)?;
 
-                outputs.push(PendingEncrypt {
-                    plaintext_ref: Some(plaintext_ref),
-                    output,
-                });
+                outputs.push(PendingEncrypt { output });
                 ciphertext_futs.push(ciphertext_fut);
             }
             EncryptMode::Public => {
                 let (output, ciphertext_fut) = public(vm, encrypter, op)?;
 
-                outputs.push(PendingEncrypt {
-                    plaintext_ref: None,
-                    output,
-                });
+                outputs.push(PendingEncrypt { output });
                 ciphertext_futs.push(ciphertext_fut);
             }
         }
@@ -213,7 +196,6 @@ impl EncryptOutput {
 }
 
 pub(crate) struct PendingEncrypt {
-    pub(crate) plaintext_ref: Option<Vector<U8>>,
     pub(crate) output: EncryptOutput,
 }
 

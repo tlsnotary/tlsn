@@ -6,7 +6,7 @@ use rangeset::ToRangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    hash::{impl_domain_separator, HashAlgId},
+    hash::HashAlgId,
     transcript::{
         encoding::{EncodingCommitment, EncodingTree},
         hash::{PlaintextHash, PlaintextHashSecret},
@@ -55,8 +55,6 @@ pub enum TranscriptCommitment {
     Hash(PlaintextHash),
 }
 
-impl_domain_separator!(TranscriptCommitment);
-
 /// Secret for a transcript commitment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -66,8 +64,6 @@ pub enum TranscriptSecret {
     /// Plaintext hash secret.
     Hash(PlaintextHashSecret),
 }
-
-impl_domain_separator!(TranscriptSecret);
 
 /// Configuration for transcript commitments.
 #[derive(Debug, Clone)]
@@ -283,7 +279,7 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
         }
 
         if let Some(source) = &self.source {
-            write!(f, " caused by: {}", source)?;
+            write!(f, " caused by: {source}")?;
         }
 
         Ok(())

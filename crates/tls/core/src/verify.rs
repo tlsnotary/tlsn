@@ -111,11 +111,11 @@ pub trait ServerCertVerifier: Send + Sync {
     /// connection.
     ///
     /// This method is only called for TLS1.2 handshakes.  Note that, in TLS1.2,
-    /// SignatureSchemes such as `SignatureScheme::ECDSA_NISTP256_SHA256` are not
-    /// in fact bound to the specific curve implied in their name.
+    /// SignatureSchemes such as `SignatureScheme::ECDSA_NISTP256_SHA256` are
+    /// not in fact bound to the specific curve implied in their name.
     ///
-    /// This trait method has a default implementation that uses webpki to verify
-    /// the signature.
+    /// This trait method has a default implementation that uses webpki to
+    /// verify the signature.
     fn verify_tls12_signature(
         &self,
         message: &[u8],
@@ -130,12 +130,13 @@ pub trait ServerCertVerifier: Send + Sync {
     /// This method is only called for TLS1.3 handshakes.
     ///
     /// This method is very similar to `verify_tls12_signature`: but note the
-    /// tighter ECDSA SignatureScheme semantics -- e.g. `SignatureScheme::ECDSA_NISTP256_SHA256`
-    /// must only validate signatures using public keys on the right curve --
-    /// rustls does not enforce this requirement for you.
+    /// tighter ECDSA SignatureScheme semantics -- e.g.
+    /// `SignatureScheme::ECDSA_NISTP256_SHA256` must only validate
+    /// signatures using public keys on the right curve -- rustls does not
+    /// enforce this requirement for you.
     ///
-    /// This trait method has a default implementation that uses webpki to verify
-    /// the signature.
+    /// This trait method has a default implementation that uses webpki to
+    /// verify the signature.
     fn verify_tls13_signature(
         &self,
         message: &[u8],
@@ -186,9 +187,9 @@ pub trait ClientCertVerifier: Send + Sync {
         true
     }
 
-    /// Return `Some(true)` to require a client certificate and `Some(false)` to make
-    /// client authentication optional. Return `None` to abort the connection.
-    /// Defaults to `Some(self.offer_client_auth())`.
+    /// Return `Some(true)` to require a client certificate and `Some(false)` to
+    /// make client authentication optional. Return `None` to abort the
+    /// connection. Defaults to `Some(self.offer_client_auth())`.
     fn client_auth_mandatory(&self) -> Option<bool> {
         Some(self.offer_client_auth())
     }
@@ -227,11 +228,11 @@ pub trait ClientCertVerifier: Send + Sync {
     /// connection.
     ///
     /// This method is only called for TLS1.2 handshakes.  Note that, in TLS1.2,
-    /// SignatureSchemes such as `SignatureScheme::ECDSA_NISTP256_SHA256` are not
-    /// in fact bound to the specific curve implied in their name.
+    /// SignatureSchemes such as `SignatureScheme::ECDSA_NISTP256_SHA256` are
+    /// not in fact bound to the specific curve implied in their name.
     ///
-    /// This trait method has a default implementation that uses webpki to verify
-    /// the signature.
+    /// This trait method has a default implementation that uses webpki to
+    /// verify the signature.
     fn verify_tls12_signature(
         &self,
         message: &[u8],
@@ -246,12 +247,13 @@ pub trait ClientCertVerifier: Send + Sync {
     /// This method is only called for TLS1.3 handshakes.
     ///
     /// This method is very similar to `verify_tls12_signature`: but note the
-    /// tighter ECDSA SignatureScheme semantics -- e.g. `SignatureScheme::ECDSA_NISTP256_SHA256`
-    /// must only validate signatures using public keys on the right curve --
-    /// rustls does not enforce this requirement for you.
+    /// tighter ECDSA SignatureScheme semantics -- e.g.
+    /// `SignatureScheme::ECDSA_NISTP256_SHA256` must only validate
+    /// signatures using public keys on the right curve -- rustls does not
+    /// enforce this requirement for you.
     ///
-    /// This trait method has a default implementation that uses webpki to verify
-    /// the signature.
+    /// This trait method has a default implementation that uses webpki to
+    /// verify the signature.
     fn verify_tls13_signature(
         &self,
         message: &[u8],
@@ -321,6 +323,7 @@ impl ServerCertVerifier for WebPkiVerifier {
 
 /// Default `ServerCertVerifier`, see the trait impl for more information.
 #[allow(unreachable_pub)]
+#[derive(Debug, Clone)]
 pub struct WebPkiVerifier {
     roots: RootCertStore,
     ct_policy: Option<CertificateTransparencyPolicy>,
@@ -363,12 +366,14 @@ impl WebPkiVerifier {
 
 /// Policy for enforcing Certificate Transparency.
 ///
-/// Because Certificate Transparency logs are sharded on a per-year basis and can be trusted or
-/// distrusted relatively quickly, rustls stores a validation deadline. Server certificates will
-/// be validated against the configured CT logs until the deadline expires. After the deadline,
-/// certificates will no longer be validated, and a warning message will be logged. The deadline
+/// Because Certificate Transparency logs are sharded on a per-year basis and
+/// can be trusted or distrusted relatively quickly, rustls stores a validation
+/// deadline. Server certificates will be validated against the configured CT
+/// logs until the deadline expires. After the deadline, certificates will no
+/// longer be validated, and a warning message will be logged. The deadline
 /// may vary depending on how often you deploy builds with updated dependencies.
 #[allow(unreachable_pub)]
+#[derive(Debug, Clone)]
 pub struct CertificateTransparencyPolicy {
     logs: &'static [&'static sct::Log<'static>],
     validation_deadline: SystemTime,
@@ -457,7 +462,7 @@ pub(crate) fn pki_error(error: webpki::Error) -> Error {
         UnsupportedSignatureAlgorithm | UnsupportedSignatureAlgorithmForPublicKey => {
             Error::InvalidCertificateSignatureType
         }
-        e => Error::InvalidCertificateData(format!("invalid peer certificate: {}", e)),
+        e => Error::InvalidCertificateData(format!("invalid peer certificate: {e}")),
     }
 }
 
@@ -493,7 +498,7 @@ fn convert_scheme(scheme: SignatureScheme) -> Result<SignatureAlgorithms, Error>
         SignatureScheme::RSA_PSS_SHA512 => Ok(RSA_PSS_SHA512),
 
         _ => {
-            let error_msg = format!("received unadvertised sig scheme {:?}", scheme);
+            let error_msg = format!("received unadvertised sig scheme {scheme:?}");
             Err(Error::PeerMisbehavedError(error_msg))
         }
     }
@@ -505,8 +510,9 @@ fn verify_sig_using_any_alg(
     message: &[u8],
     sig: &[u8],
 ) -> Result<(), webpki::Error> {
-    // TLS doesn't itself give us enough info to map to a single webpki::SignatureAlgorithm.
-    // Therefore, convert_algs maps to several and we try them all.
+    // TLS doesn't itself give us enough info to map to a single
+    // webpki::SignatureAlgorithm. Therefore, convert_algs maps to several and
+    // we try them all.
     for alg in algs {
         match cert.verify_signature(alg, message, sig) {
             Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey) => continue,
@@ -543,7 +549,7 @@ fn convert_alg_tls13(
         RSA_PSS_SHA384 => Ok(&webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY),
         RSA_PSS_SHA512 => Ok(&webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY),
         _ => {
-            let error_msg = format!("received unsupported sig scheme {:?}", scheme);
+            let error_msg = format!("received unsupported sig scheme {scheme:?}");
             Err(Error::PeerMisbehavedError(error_msg))
         }
     }

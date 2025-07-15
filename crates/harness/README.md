@@ -2,6 +2,15 @@
 
 A harness for testing and benchmarking the TLSNotary protocol with both native and browser support.
 
+## Installation
+
+The harness requires the nightly compiler to build the WASM binary. Additionally, we depend on a specific
+version of `wasm-pack` which must be installed:
+
+```bash
+cargo install --git https://github.com/rustwasm/wasm-pack.git --rev 32e52ca
+```
+
 ## Getting started
 
 First build the harness.

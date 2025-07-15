@@ -9,7 +9,10 @@ set -e
 rm -rf pkg
 
 # Build tlsn_wasm package
-wasm-pack build --release --target web .
+wasm-pack build \
+    --profile wasm \
+    --target web \
+    .
 
 # Patch tlsn_wasm.js import in spawn.js snippet and copy it to the main folder
 file=$(find ./pkg/snippets -name "spawn.js" -print -quit)

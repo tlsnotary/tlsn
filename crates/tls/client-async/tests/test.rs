@@ -99,7 +99,7 @@ async fn test_hyper_ok() {
     tokio::spawn(connection);
 
     let request = Request::builder()
-        .uri(format!("https://{}/echo", SERVER_DOMAIN))
+        .uri(format!("https://{SERVER_DOMAIN}/echo"))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("POST")

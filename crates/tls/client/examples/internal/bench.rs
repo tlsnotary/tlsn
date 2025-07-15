@@ -38,8 +38,8 @@ where
         times.push(duration_nanos(Instant::now().duration_since(start)));
     }
 
-    println!("{}", name);
-    println!("{:?}", times);
+    println!("{name}");
+    println!("{times:?}");
 }
 
 fn time<F>(mut f: F) -> f64
@@ -231,9 +231,9 @@ static ALL_BENCHMARKS: &[BenchmarkParam] = &[
 impl KeyType {
     fn path_for(&self, part: &str) -> String {
         match self {
-            KeyType::Rsa => format!("test-ca/rsa/{}", part),
-            KeyType::Ecdsa => format!("test-ca/ecdsa/{}", part),
-            KeyType::Ed25519 => format!("test-ca/eddsa/{}", part),
+            KeyType::Rsa => format!("test-ca/rsa/{part}"),
+            KeyType::Ecdsa => format!("test-ca/ecdsa/{part}"),
+            KeyType::Ed25519 => format!("test-ca/eddsa/{part}"),
         }
     }
 
@@ -550,7 +550,7 @@ fn lookup_matching_benches(name: &str) -> Vec<&BenchmarkParam> {
         .collect();
 
     if r.is_empty() {
-        panic!("unknown suite {:?}", name);
+        panic!("unknown suite {name:?}");
     }
 
     r
@@ -620,7 +620,7 @@ fn selected_tests(mut args: env::Args) {
         },
 
         _ => {
-            panic!("unsupported mode {:?}", mode);
+            panic!("unsupported mode {mode:?}");
         }
     }
 }

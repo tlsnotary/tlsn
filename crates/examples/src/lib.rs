@@ -15,11 +15,11 @@ pub enum ExampleType {
 
 impl fmt::Display for ExampleType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
 pub fn get_file_path(example_type: &ExampleType, content_type: &str) -> String {
     let example_type = example_type.to_string().to_ascii_lowercase();
-    format!("example-{}.{}.tlsn", example_type, content_type)
+    format!("example-{example_type}.{content_type}.tlsn")
 }

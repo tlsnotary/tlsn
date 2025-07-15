@@ -3,11 +3,12 @@
 use std::collections::HashMap;
 
 use tls_core::verify::WebPkiVerifier;
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
+use tlsn::{
+    prover::{Prover, ProverConfig},
+    verifier::{Verifier, VerifierConfig},
+};
 use tlsn_core::CryptoProvider;
-use tlsn_prover::{Prover, ProverConfig};
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_verifier::{Verifier, VerifierConfig};
 use wasm_bindgen::prelude::*;
 
 use crate::{

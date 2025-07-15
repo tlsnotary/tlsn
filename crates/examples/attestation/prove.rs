@@ -13,13 +13,15 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
 use notary_client::{Accepted, NotarizationRequest, NotaryClient};
-use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_common::config::ProtocolConfig;
-use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfig, CryptoProvider};
+use tlsn::{
+    attestation::request::RequestConfig,
+    config::ProtocolConfig,
+    prover::{Prover, ProverConfig, TlsConfig},
+    transcript::TranscriptCommitConfig,
+};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
-use tlsn_prover::{Prover, ProverConfig, TlsConfig};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CLIENT_CERT, CLIENT_KEY};
 
@@ -100,10 +102,6 @@ async fn notarize(
     root_store
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
 
     // Set up protocol configuration for prover.
     let mut prover_config_builder = ProverConfig::builder();
@@ -117,8 +115,7 @@ async fn notarize(
                 .max_sent_data(tlsn_examples::MAX_SENT_DATA)
                 .max_recv_data(tlsn_examples::MAX_RECV_DATA)
                 .build()?,
-        )
-        .crypto_provider(crypto_provider);
+        );
 
     // (Optional) Set up TLS client authentication if required by the server.
     prover_config_builder.tls_config(

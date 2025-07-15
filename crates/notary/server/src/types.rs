@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use tlsn_core::CryptoProvider;
+use tlsn::attestation::CryptoProvider;
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "tee_quote")]

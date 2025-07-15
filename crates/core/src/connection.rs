@@ -1,26 +1,4 @@
 //! TLS connection types.
-//!
-//! ## Commitment
-//!
-//! During the TLS handshake the Notary receives the Server's ephemeral public
-//! key, and this key serves as a binding commitment to the identity of the
-//! Server. The ephemeral key itself does not reveal the Server's identity, but
-//! it is bound to it via a signature created using the Server's
-//! X.509 certificate.
-//!
-//! A Prover can withhold the Server's signature and certificate chain from the
-//! Notary to improve privacy and censorship resistance.
-//!
-//! ## Proving the Server's identity
-//!
-//! A Prover can prove the Server's identity to a Verifier by sending a
-//! [`ServerIdentityProof`]. This proof contains all the information required to
-//! establish the link between the TLS connection and the Server's X.509
-//! certificate. A Verifier checks the Server's certificate against their own
-//! trust anchors, the same way a typical TLS client would.
-
-mod commit;
-mod proof;
 
 use std::fmt;
 
@@ -31,14 +9,9 @@ use tls_core::{
         enums::NamedGroup,
         handshake::{DigitallySignedStruct, ServerECDHParams},
     },
-    verify::ServerCertVerifier as _,
+    verify::{ServerCertVerifier as _, WebPkiVerifier},
 };
 use web_time::{Duration, UNIX_EPOCH};
-
-use crate::{hash::impl_domain_separator, CryptoProvider};
-
-pub use commit::{ServerCertCommitment, ServerCertOpening};
-pub use proof::{ServerIdentityProof, ServerIdentityProofError};
 
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -198,8 +171,6 @@ pub struct ServerEphemKey {
     pub key: Vec<u8>,
 }
 
-impl_domain_separator!(ServerEphemKey);
-
 impl ServerEphemKey {
     /// Encodes the key exchange parameters as in TLS.
     pub(crate) fn kx_params(&self) -> Vec<u8> {
@@ -240,8 +211,6 @@ pub struct ConnectionInfo {
     pub transcript_length: TranscriptLength,
 }
 
-impl_domain_separator!(ConnectionInfo);
-
 /// Transcript length information.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TranscriptLength {
@@ -271,7 +240,14 @@ pub enum HandshakeData {
     V1_2(HandshakeDataV1_2),
 }
 
-impl_domain_separator!(HandshakeData);
+/// Verify data from the TLS handshake finished messages.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyData {
+    /// Client finished verify data.
+    pub client_finished: Vec<u8>,
+    /// Server finished verify data.
+    pub server_finished: Vec<u8>,
+}
 
 /// Server certificate and handshake data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,13 +265,13 @@ impl ServerCertData {
     ///
     /// # Arguments
     ///
-    /// * `provider` - The crypto provider to use for verification.
+    /// * `verifier` - Cerificate verifier.
     /// * `time` - The time of the connection.
     /// * `server_ephemeral_key` - The server's ephemeral key.
     /// * `server_name` - The server name.
-    pub fn verify_with_provider(
+    pub fn verify(
         &self,
-        provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         time: u64,
         server_ephemeral_key: &ServerEphemKey,
         server_name: &ServerName,
@@ -332,8 +308,7 @@ impl ServerCertData {
 
         // Verify the end entity cert is valid for the provided server name
         // and that it chains to at least one of the roots we trust.
-        provider
-            .cert
+        verifier
             .verify_server_cert(
                 end_entity,
                 intermediates,
@@ -352,8 +327,7 @@ impl ServerCertData {
 
         let dss = DigitallySignedStruct::new(self.sig.scheme.into(), self.sig.sig.clone());
 
-        provider
-            .cert
+        verifier
             .verify_tls12_signature(&message, end_entity, &dss)
             .map_err(|_| CertificateVerificationError::InvalidServerSignature)?;
 
@@ -380,19 +354,27 @@ pub enum CertificateVerificationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        fixtures::ConnectionFixture, provider::default_cert_verifier, transcript::Transcript,
-    };
+    use crate::{fixtures::ConnectionFixture, transcript::Transcript};
 
     use hex::FromHex;
     use rstest::*;
-    use tls_core::verify::WebPkiVerifier;
+    use tls_core::{
+        anchors::{OwnedTrustAnchor, RootCertStore},
+        verify::WebPkiVerifier,
+    };
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     #[fixture]
     #[once]
-    fn crypto_provider() -> CryptoProvider {
-        let mut store = default_cert_verifier().root_store().clone();
+    fn verifier() -> WebPkiVerifier {
+        let mut root_store = RootCertStore::empty();
+        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject.as_ref(),
+                ta.subject_public_key_info.as_ref(),
+                ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+            )
+        }));
 
         // Add a cert which is no longer included in the Mozilla root store.
         let cert = tls_core::key::Certificate(
@@ -405,14 +387,9 @@ mod tests {
                 .clone(),
         );
 
-        store.add(&cert).unwrap();
+        root_store.add(&cert).unwrap();
 
-        CryptoProvider {
-            hash: Default::default(),
-            cert: WebPkiVerifier::new(store, None),
-            signer: Default::default(),
-            signature: Default::default(),
-        }
+        WebPkiVerifier::new(root_store, None)
     }
 
     fn tlsnotary() -> ConnectionFixture {
@@ -428,7 +405,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_sucess_ca_implicit(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Remove the CA cert
@@ -436,8 +413,8 @@ mod tests {
 
         assert!(data
             .server_cert_data
-            .verify_with_provider(
-                crypto_provider,
+            .verify(
+                verifier,
                 data.connection_info.time,
                 data.server_ephemeral_key(),
                 &ServerName::from(data.server_name.as_ref()),
@@ -451,13 +428,13 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_success_ca_explicit(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] data: ConnectionFixture,
     ) {
         assert!(data
             .server_cert_data
-            .verify_with_provider(
-                crypto_provider,
+            .verify(
+                verifier,
                 data.connection_info.time,
                 data.server_ephemeral_key(),
                 &ServerName::from(data.server_name.as_ref()),
@@ -470,14 +447,14 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_bad_time(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] data: ConnectionFixture,
     ) {
         // unix time when the cert chain was NOT valid
         let bad_time: u64 = 1571465711;
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             bad_time,
             data.server_ephemeral_key(),
             &ServerName::from(data.server_name.as_ref()),
@@ -494,7 +471,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_no_interm_cert(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Remove the CA cert
@@ -502,8 +479,8 @@ mod tests {
         // Remove the intermediate cert
         data.server_cert_data.certs.pop();
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
             &ServerName::from(data.server_name.as_ref()),
@@ -521,14 +498,14 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Remove the intermediate cert
         data.server_cert_data.certs.remove(1);
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
             &ServerName::from(data.server_name.as_ref()),
@@ -545,7 +522,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_bad_ee_cert(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         let ee: &[u8] = include_bytes!("./fixtures/data/unknown/ee.der");
@@ -553,8 +530,8 @@ mod tests {
         // Change the end entity cert
         data.server_cert_data.certs[0] = Certificate(ee.to_vec());
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
             &ServerName::from(data.server_name.as_ref()),
@@ -571,15 +548,15 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_sig_ke_params_fail_bad_client_random(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         let HandshakeData::V1_2(HandshakeDataV1_2 { client_random, .. }) =
             &mut data.server_cert_data.handshake;
         client_random[31] = client_random[31].wrapping_add(1);
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
             &ServerName::from(data.server_name.as_ref()),
@@ -596,13 +573,13 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_sig_ke_params_fail_bad_sig(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         data.server_cert_data.sig.sig[31] = data.server_cert_data.sig.sig[31].wrapping_add(1);
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
             &ServerName::from(data.server_name.as_ref()),
@@ -619,13 +596,13 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_check_dns_name_present_in_cert_fail_bad_host(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] data: ConnectionFixture,
     ) {
         let bad_name = ServerName::from("badhost.com");
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
             &bad_name,
@@ -641,17 +618,14 @@ mod tests {
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_invalid_ephemeral_key(
-        crypto_provider: &CryptoProvider,
-        #[case] data: ConnectionFixture,
-    ) {
+    fn test_invalid_ephemeral_key(verifier: &WebPkiVerifier, #[case] data: ConnectionFixture) {
         let wrong_ephemeral_key = ServerEphemKey {
             typ: KeyType::SECP256R1,
             key: Vec::<u8>::from_hex(include_bytes!("./fixtures/data/unknown/pubkey")).unwrap(),
         };
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             &wrong_ephemeral_key,
             &ServerName::from(data.server_name.as_ref()),
@@ -668,14 +642,14 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_no_cert(
-        crypto_provider: &CryptoProvider,
+        verifier: &WebPkiVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Empty certs
         data.server_cert_data.certs = Vec::new();
 
-        let err = data.server_cert_data.verify_with_provider(
-            crypto_provider,
+        let err = data.server_cert_data.verify(
+            verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
             &ServerName::from(data.server_name.as_ref()),

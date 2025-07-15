@@ -98,7 +98,7 @@ pub enum Error {
 fn join<T: fmt::Debug>(items: &[T]) -> String {
     items
         .iter()
-        .map(|x| format!("{:?}", x))
+        .map(|x| format!("{x:?}"))
         .collect::<Vec<String>>()
         .join(" or ")
 }
@@ -125,11 +125,11 @@ impl fmt::Display for Error {
                 join::<HandshakeType>(expect_types)
             ),
             Error::CorruptMessagePayload(ref typ) => {
-                write!(f, "received corrupt message of type {:?}", typ)
+                write!(f, "received corrupt message of type {typ:?}")
             }
-            Error::PeerIncompatibleError(ref why) => write!(f, "peer is incompatible: {}", why),
-            Error::PeerMisbehavedError(ref why) => write!(f, "peer misbehaved: {}", why),
-            Error::AlertReceived(ref alert) => write!(f, "received fatal alert: {:?}", alert),
+            Error::PeerIncompatibleError(ref why) => write!(f, "peer is incompatible: {why}"),
+            Error::PeerMisbehavedError(ref why) => write!(f, "peer misbehaved: {why}"),
+            Error::AlertReceived(ref alert) => write!(f, "received fatal alert: {alert:?}"),
             Error::InvalidCertificateEncoding => {
                 write!(f, "invalid peer certificate encoding")
             }
@@ -140,7 +140,7 @@ impl fmt::Display for Error {
                 write!(f, "invalid peer certificate signature")
             }
             Error::InvalidCertificateData(ref reason) => {
-                write!(f, "invalid peer certificate contents: {}", reason)
+                write!(f, "invalid peer certificate contents: {reason}")
             }
             Error::CorruptMessage => write!(f, "received corrupt message"),
             Error::NoCertificatesPresented => write!(f, "peer sent no certificates"),
@@ -150,13 +150,13 @@ impl fmt::Display for Error {
             Error::PeerSentOversizedRecord => write!(f, "peer sent excess record size"),
             Error::HandshakeNotComplete => write!(f, "handshake not complete"),
             Error::NoApplicationProtocol => write!(f, "peer doesn't support any known protocol"),
-            Error::InvalidSct(ref err) => write!(f, "invalid certificate timestamp: {:?}", err),
+            Error::InvalidSct(ref err) => write!(f, "invalid certificate timestamp: {err:?}"),
             Error::FailedToGetCurrentTime => write!(f, "failed to get current time"),
             Error::FailedToGetRandomBytes => write!(f, "failed to get random bytes"),
             Error::BadMaxFragmentSize => {
                 write!(f, "the supplied max_fragment_size was too small or large")
             }
-            Error::General(ref err) => write!(f, "unexpected error: {}", err),
+            Error::General(ref err) => write!(f, "unexpected error: {err}"),
         }
     }
 }
@@ -210,8 +210,8 @@ mod tests {
         ];
 
         for err in all {
-            println!("{:?}:", err);
-            println!("  fmt '{}'", err);
+            println!("{err:?}:");
+            println!("  fmt '{err}'");
         }
     }
 
