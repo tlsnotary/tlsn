@@ -23,6 +23,8 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::debug;
 
 use crate::{types::NotaryGlobals, NotaryServerError};
+use reqwest;
+use serde_json::json;
 
 #[derive(Deserialize, FromBytes, Serialize, ToBytes, Debug)]
 #[encoding(Json)]
@@ -36,6 +38,13 @@ struct PluginVerifierConfig {
     max_recv_data: Option<usize>,
     /// Maximum number of application data records that can be received.
     max_recv_records_online: Option<usize>,
+}
+
+#[derive(Deserialize, FromBytes, Serialize, ToBytes, Debug)]
+#[encoding(Json)]
+#[serde(rename_all = "camelCase")]
+struct PluginOutput {
+    screen_name: String,
 }
 
 #[derive(Deserialize, FromBytes, Serialize, ToBytes)]
@@ -187,13 +196,32 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
     .await
     .map_err(|_| eyre!("Timeout reached before verification completes"))??;
 
-    plugin
-        .call::<VerifierOutput, ()>("verify", output.into())
+    let result = plugin
+        .call::<VerifierOutput, PluginOutput>("verify", output.into())
         .map_err(|e| eyre!("Failed to verify on plugin: {}", e))?;
+
+    debug!("Plugin verification result: {:?}", result);
 
     plugin
         .reset()
         .map_err(|e| eyre!("Failed to reset plugin memory: {}", e))?;
+
+    let client = reqwest::Client::new();
+    let url = "http://localhost:3030/update-session";
+    let body = json!({"screen_name": result.screen_name, "session_id": session_id});
+
+    let response = client.post(url)
+        .header("Content-Type", "application/json")
+        .body(body.to_string())
+        .send()
+        .await
+        .map_err(|e| eyre!("Failed to send request: {}", e))?;
+
+    let status = response.status();
+    let body_text = response.text().await.map_err(|e| eyre!("Failed to get response body: {}", e))?;
+
+    println!("Status: {}", status);
+    println!("Response body: {}", body_text);
 
     Ok(())
 }

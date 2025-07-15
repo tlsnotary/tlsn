@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use extism_pdk::*;
 use pdk::*;
 
-const SERVER_DOMAIN: &str = "raw.githubusercontent.com";
+const SERVER_DOMAIN: &str = "api.x.com";
 
 // Returns the verifier configuration.
 // The configuration is used to initialize the verifier in the host.

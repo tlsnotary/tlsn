@@ -29,6 +29,7 @@ futures-util = { workspace = true }
 glob = { version = "0.3.2" }
 http = { workspace = true }
 http-body-util = { workspace = true }
+reqwest = "0.12"
 hyper = { workspace = true, features = ["client", "http1", "server"] }
 hyper-util = { workspace = true, features = ["full"] }
 jsonwebtoken = { version = "9.3.1", features = ["use_pem"] }

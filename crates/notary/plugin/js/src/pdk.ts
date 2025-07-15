@@ -83,6 +83,24 @@ export class EncoderSecret {
   }
 }
 
+export class PluginOutput {
+  // @ts-expect-error TS2564
+  screenName: string;
+
+  static fromJson(obj: any): PluginOutput { 
+    console.log(`PluginOutput fromJson: ${JSON.stringify(obj)}`);
+    return {
+      ...obj,
+    };
+  }
+
+  static toJson(obj: PluginOutput): any {
+    return {
+      ...obj,
+    };
+  }
+}
+
 /**
  * Commitment to the encoding of the transcript data
  */

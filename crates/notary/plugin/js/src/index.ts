@@ -1,10 +1,11 @@
 import * as main from "./main";
 
-import { PluginVerifierConfig, VerifierOutput } from "./pdk";
+import { PluginOutput, PluginVerifierConfig, VerifierOutput } from "./pdk";
 
 export function config(): number {
   const output = main.configImpl();
 
+  console.log(`configImpl untyped output: ${JSON.stringify(output)}`);
   const untypedOutput = PluginVerifierConfig.toJson(output);
   Host.outputString(JSON.stringify(untypedOutput));
 
@@ -13,9 +14,11 @@ export function config(): number {
 
 export function verify(): number {
   const untypedInput = JSON.parse(Host.inputString());
-  const input = VerifierOutput.fromJson(untypedInput);
+  const input = VerifierOutput.fromJson(untypedInput);  
 
-  main.verifyImpl(input);
+  const output = main.verifyImpl(input);
+  console.log(`verifyImpl untyped output: ${JSON.stringify(output)}`);
+  Host.outputString(JSON.stringify(output));
 
   return 0;
 }

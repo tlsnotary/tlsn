@@ -1,6 +1,6 @@
-import { PluginVerifierConfig, VerifierOutput } from "./pdk";
+import { PluginOutput, PluginVerifierConfig, VerifierOutput } from "./pdk";
 
-const SERVER_DOMAIN = "raw.githubusercontent.com";
+const SERVER_DOMAIN = "api.x.com";
 
 /**
  * Returns the verifier configuration.
@@ -19,8 +19,9 @@ export function configImpl(): PluginVerifierConfig {
  * and allows the plugin to perform custom verification logic.
  *
  * @param {VerifierOutput} input -
+ * @returns {PluginOutput}
  */
-export function verifyImpl(input: VerifierOutput) {
+export function verifyImpl(input: VerifierOutput): PluginOutput {
   console.log("Starting verification...");
   const { serverName, transcript, transcriptCommitments } = input;
 
@@ -51,7 +52,7 @@ export function verifyImpl(input: VerifierOutput) {
   const received = new Uint8Array(transcript.received);
   const response = new TextDecoder().decode(received);
 
-  if (!response.includes("123 Elm Street")) {
+  if (!response.includes("screen_name")) {
     throw new Error("Verification failed: missing data in received data");
   }
 
@@ -60,12 +61,18 @@ export function verifyImpl(input: VerifierOutput) {
     throw new Error("Verification failed: server name mismatches");
   }
 
+  const match = response.match(/"screen_name":"([^"]+)"/);
+  const screenName = match ? match[1] : "";
+
   const sentString = bytesToRedactedString(sent);
   const receivedString = bytesToRedactedString(received);
 
   console.log(`Successfully verified ${SERVER_DOMAIN}`);
   console.log(`Verified sent data:\n${sentString}`);
   console.log(`Verified received data:\n${receivedString}`);
+  console.log(`Verified screen name: ${screenName}`);
+
+  return PluginOutput.fromJson({ screenName: screenName });
 }
 
 /**
