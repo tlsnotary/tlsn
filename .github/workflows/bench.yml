@@ -25,7 +25,7 @@ jobs:
 
     - name: Run Benchmarks
       run: |
-        docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "runner setup; runner --target ${{ github.event.inputs.bench_type }} test"
+        docker run --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "runner setup; runner --target ${{ github.event.inputs.bench_type }} test"
 
     - name: Upload graphs
       uses: actions/upload-artifact@v4
@@ -34,4 +34,3 @@ jobs:
         path: |
           ./crates/benches/binary/runtime_vs_latency.html
           ./crates/benches/binary/runtime_vs_bandwidth.html
-          ./crates/benches/binary/download_size_vs_memory.html
