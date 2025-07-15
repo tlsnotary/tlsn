@@ -35,5 +35,7 @@ jobs:
       with:
         name: benchmark_graphs
         path: |
-          ./crates/benches/binary/runtime_vs_latency.html
-          ./crates/benches/binary/runtime_vs_bandwidth.html
+          ./crates/harness/metrics.csv
+          ./crates/harness/bench.toml
+          ./crates/harness/runtime_vs_latency.html
+          ./crates/harness/runtime_vs_bandwidth.html
