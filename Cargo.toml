@@ -70,19 +70,19 @@ tlsn-harness-runner = { path = "crates/harness/runner" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
-mpz-hash = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-memory-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-common = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-vm-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-ole = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
+mpz-hash = { git = "https://github.com/privacy-scaling-explorations/mpz", branch = "refactor/zk_expose_ot_handle" }
 
 rangeset = { version = "0.2" }
 serio = { version = "0.2" }
