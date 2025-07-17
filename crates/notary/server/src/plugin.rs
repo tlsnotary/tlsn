@@ -1,119 +1,21 @@
-use std::{path::Path, time::Duration};
-
-use extism::{convert::Json, *};
 use eyre::{eyre, Result};
 use glob::glob;
-use serde::{Deserialize, Serialize};
-use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::{
-    connection::ServerName,
-    transcript::{
-        encoding::EncodingCommitment, hash::PlaintextHash, Idx,
-        PartialTranscript as CorePartialTranscript,
-        TranscriptCommitment as CoreTranscriptCommitment,
-    },
-    VerifierOutput as CoreVerifierOutput, VerifyConfig,
-};
-use tlsn_verifier::{Verifier, VerifierConfig};
+use notary_common::Input;
+use std::path::Path;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    time::timeout,
 };
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::debug;
 
+use std::io::{Read, Write};
+use wasmer::Module;
+use wasmer_wasix::{
+    runners::{wasi::WasiRunner, RuntimeOrEngine},
+    Pipe,
+};
+
 use crate::{types::NotaryGlobals, NotaryServerError};
-
-#[derive(Deserialize, FromBytes, Serialize, ToBytes, Debug)]
-#[encoding(Json)]
-#[serde(rename_all = "camelCase")]
-struct PluginVerifierConfig {
-    /// Maximum number of bytes that can be sent.
-    max_sent_data: Option<usize>,
-    /// Maximum number of application data records that can be sent.
-    max_sent_records: Option<usize>,
-    /// Maximum number of bytes that can be received.
-    max_recv_data: Option<usize>,
-    /// Maximum number of application data records that can be received.
-    max_recv_records_online: Option<usize>,
-}
-
-#[derive(Deserialize, FromBytes, Serialize, ToBytes)]
-#[encoding(Json)]
-#[serde(rename_all = "camelCase")]
-struct VerifierOutput {
-    /// Server identity.
-    pub server_name: Option<ServerName>,
-    /// Transcript data.
-    pub transcript: Option<PartialTranscript>,
-    /// Transcript commitments.
-    pub transcript_commitments: Vec<TranscriptCommitment>,
-}
-
-impl From<CoreVerifierOutput> for VerifierOutput {
-    fn from(output: CoreVerifierOutput) -> Self {
-        Self {
-            server_name: output.server_name,
-            transcript: output.transcript.map(PartialTranscript::from),
-            transcript_commitments: output
-                .transcript_commitments
-                .into_iter()
-                .map(TranscriptCommitment::from)
-                .collect(),
-        }
-    }
-}
-
-#[derive(Deserialize, FromBytes, Serialize, ToBytes)]
-#[encoding(Json)]
-#[serde(rename_all = "camelCase")]
-struct PartialTranscript {
-    /// Data sent from the Prover to the Server.
-    sent: Vec<u8>,
-    /// Data received by the Prover from the Server.
-    received: Vec<u8>,
-    /// Index of `sent` which have been authenticated.
-    sent_authed_idx: Idx,
-    /// Index of `received` which have been authenticated.
-    recv_authed_idx: Idx,
-}
-
-impl From<CorePartialTranscript> for PartialTranscript {
-    fn from(transcript: CorePartialTranscript) -> Self {
-        Self {
-            sent: transcript.sent_unsafe().to_vec(),
-            received: transcript.received_unsafe().to_vec(),
-            sent_authed_idx: transcript.sent_authed().clone(),
-            recv_authed_idx: transcript.received_authed().clone(),
-        }
-    }
-}
-
-#[derive(Deserialize, FromBytes, Serialize, ToBytes)]
-#[encoding(Json)]
-#[non_exhaustive]
-enum TranscriptCommitment {
-    /// Encoding commitment.
-    #[serde(rename = "encodingCommitment")]
-    Encoding(EncodingCommitment),
-    /// Plaintext hash commitment.
-    #[serde(rename = "plaintextHash")]
-    Hash(PlaintextHash),
-}
-
-impl From<CoreTranscriptCommitment> for TranscriptCommitment {
-    fn from(commitment: tlsn_core::transcript::TranscriptCommitment) -> Self {
-        match commitment {
-            tlsn_core::transcript::TranscriptCommitment::Encoding(encoding) => {
-                TranscriptCommitment::Encoding(encoding)
-            }
-            tlsn_core::transcript::TranscriptCommitment::Hash(hash) => {
-                TranscriptCommitment::Hash(hash)
-            }
-            _ => panic!("Unsupported transcript commitment type in plugin output"),
-        }
-    }
-}
 
 pub fn get_plugin_names(dir: &str) -> Result<Vec<String>, NotaryServerError> {
     let names: Vec<String> = glob(&format!("{}/*.wasm", dir))
@@ -138,62 +40,59 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting verification...");
 
-    let path = Wasm::file(Path::new(&notary_globals.plugin_config.folder).join(format!("{}.wasm", plugin_name)));
-    let manifest = Manifest::new([path]);
-    let mut plugin = PluginBuilder::new(manifest)
-        // needed this for JS plugins — https://github.com/extism/js-pdk?tab=readme-ov-file#exports
-        // but the plugins can't access filesystem or network calls without whitelisting folder or host
-        .with_wasi(true)
-        .build()
-        .map_err(|e| eyre!("Failed to build plugin: {}", e))?;
+    let input = Input {
+        socket: socket.compat(),
+        timeout: notary_globals.notarization_config.timeout,
+        max_sent_data: notary_globals.notarization_config.max_sent_data,
+        max_recv_data: notary_globals.notarization_config.max_recv_data,
+    };
 
-    debug!("Plugin built successfully");
+    // Let's declare the Wasm module with the text representation.
+    let wasm_bytes = std::fs::read(Path::new(&notary_globals.plugin_config.folder).join(format!("{}.wasm", plugin_name)))
+        .map_err(|e| eyre!("Failed to read Wasm file: {}", e))?;
 
-    let plugin_config = plugin
-        .call::<(), PluginVerifierConfig>("config", ())
-        .map_err(|e| eyre!("Failed to get plugin config: {}", e))?;
+    // We need at least an engine to be able to compile the module.
+    let engine = wasmer::Engine::default();
 
-    debug!("Plugin configuration: {:?}", plugin_config);
+    debug!("Compiling module...");
+    // Let's compile the Wasm module.
+    let module = Module::new(&engine, &wasm_bytes[..]).map_err(|e| eyre!("Failed to compile Wasm module: {}", e))?;
 
-    let max_sent_data = plugin_config
-        .max_sent_data
-        .unwrap_or(notary_globals.notarization_config.max_sent_data);
-    let max_recv_data = plugin_config
-        .max_recv_data
-        .unwrap_or(notary_globals.notarization_config.max_recv_data);
+    let msg = serde_json::to_string(&input)
+        .map_err(|e| eyre!("Failed to serialize input: {}", e))?;
+    debug!("Writing \"{}\" to the WASI stdin...", msg);
+    let (mut stdin_sender, stdin_reader) = Pipe::channel();
+    let (stdout_sender, mut stdout_reader) = Pipe::channel();
 
-    let mut validator_builder = ProtocolConfigValidator::builder();
-    validator_builder
-        .max_sent_data(max_sent_data)
-        .max_recv_data(max_recv_data);
+    // To write to the stdin
+    writeln!(stdin_sender, "{}", msg)
+        .map_err(|e| eyre!("Failed to write to WASI stdin: {}", e))?;
 
-    if let Some(max_sent_records) = plugin_config.max_sent_records {
-        validator_builder.max_sent_records(max_sent_records);
+    {
+        // Create a WASI runner. We use a scope to make sure the runner is dropped
+        // as soon as we are done with it; otherwise, it will keep the stdout pipe
+        // open.
+        let mut runner = WasiRunner::new();
+
+        // Configure the WasiRunner with the stdio pipes.
+        runner
+            .with_stdin(Box::new(stdin_reader))
+            .with_stdout(Box::new(stdout_sender));
+
+        // Now, run the module.
+        debug!("Running module...");
+        runner.run_wasm(
+            RuntimeOrEngine::Engine(engine),
+            "run",
+            module,
+            wasmer_types::ModuleHash::xxhash(wasm_bytes),
+        ).map_err(|e| eyre!("Failed to run Wasm module: {}", e))?;
     }
-    if let Some(max_recv_records_online) = plugin_config.max_recv_records_online {
-        validator_builder.max_recv_records_online(max_recv_records_online);
-    }
-    let validator = validator_builder.build()?;
 
-    let config = VerifierConfig::builder()
-        .protocol_config_validator(validator)
-        .crypto_provider(notary_globals.crypto_provider.clone())
-        .build()?;
-
-    let output = timeout(
-        Duration::from_secs(notary_globals.notarization_config.timeout),
-        Verifier::new(config).verify(socket.compat(), &VerifyConfig::default()),
-    )
-    .await
-    .map_err(|_| eyre!("Timeout reached before verification completes"))??;
-
-    plugin
-        .call::<VerifierOutput, ()>("verify", output.into())
-        .map_err(|e| eyre!("Failed to verify on plugin: {}", e))?;
-
-    plugin
-        .reset()
-        .map_err(|e| eyre!("Failed to reset plugin memory: {}", e))?;
+    // To read from the stdout
+    let mut buf = String::new();
+    stdout_reader.read_to_string(&mut buf).map_err(|e| eyre!("Failed to read from WASI stdout: {}", e))?;
+    debug!("Read \"{}\" from the WASI stdout!", buf.trim());
 
     Ok(())
 }

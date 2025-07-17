@@ -13,6 +13,7 @@ members = [
     "crates/notary/common",
     "crates/notary/server",
     "crates/notary/tests-integration",
+    "crates/notary/wasm-plugin",
     "crates/prover",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",

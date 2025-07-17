@@ -1,0 +1,23 @@
+[package]
+name = "wasm_plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "wasm_plugin"
+crate-type = ["cdylib"]
+
+[dependencies]
+notary-common = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-common = { workspace = true }
+tlsn-verifier = { workspace = true }
+
+anyhow = { version = "1.0" }
+chrono = { version = "0.4", features = ["serde"] }
+base64-serde = "0.7"
+base64 = "0.21"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+futures = { workspace = true }
+tracing = { workspace = true }

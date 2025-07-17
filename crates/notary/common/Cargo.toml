@@ -8,4 +8,5 @@ edition = "2021"
 workspace = true
 
 [dependencies]
+futures = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

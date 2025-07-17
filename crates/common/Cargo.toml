@@ -36,7 +36,7 @@ uid-mux = { workspace = true, features = ["serio"] }
 serde = { workspace = true, features = ["derive"] }
 semver = { version = "1.0", features = ["serde"] }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+[target.'cfg(target_arch = "wasm32-unknown-unknown")'.dependencies]
 wasm-bindgen = { version = "0.2" }
 web-spawn = { workspace = true }
 
