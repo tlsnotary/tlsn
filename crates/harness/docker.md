@@ -2,7 +2,7 @@
 
 In the root folder of this repository, run:
 ```
-docker build -t tlsn-bench . -f ./crates/harness/harness.Dockerfile
+docker build --pull -t tlsn-bench . -f ./crates/harness/harness.Dockerfile
 ```
 
 Next run the benches with:
