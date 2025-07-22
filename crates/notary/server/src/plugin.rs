@@ -25,6 +25,7 @@ use tracing::debug;
 use crate::{types::NotaryGlobals, NotaryServerError};
 use reqwest;
 use serde_json::json;
+use std::env;
 
 #[derive(Deserialize, FromBytes, Serialize, ToBytes, Debug)]
 #[encoding(Json)]
@@ -212,6 +213,7 @@ pub async fn verifier_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static
 
     let response = client.post(url)
         .header("Content-Type", "application/json")
+        .header("X-VERIFIER-SECRET-KEY", env::var("VERIFIER_SECRET_KEY").unwrap())
         .body(body.to_string())
         .send()
         .await
