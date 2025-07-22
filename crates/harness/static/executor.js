@@ -10,7 +10,7 @@ class Executor {
             await initWasm();
             console.log("wasm loaded");
             console.log("initializing wasm");
-            await wasm.initialize({ thread_count: navigator.hardwareConcurrency });
+            await wasm.initialize(undefined, navigator.hardwareConcurrency);
             console.log("wasm initialized");
             console.log("initializing executor");
             this.executor = new wasm.WasmExecutor(config);
