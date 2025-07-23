@@ -118,7 +118,7 @@ async fn bytes(
 /// parse the JSON data from the file content
 fn get_json_value(filecontent: &str) -> Result<Json<Value>, StatusCode> {
     Ok(Json(serde_json::from_str(filecontent).map_err(|e| {
-        eprintln!("Failed to parse JSON data: {}", e);
+        eprintln!("Failed to parse JSON data: {e}");
         StatusCode::INTERNAL_SERVER_ERROR
     })?))
 }

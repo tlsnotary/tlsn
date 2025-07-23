@@ -1,7 +1,8 @@
 use crate::types::NetworkSetting;
 use serde::Deserialize;
-use tlsn_common::config::ProtocolConfig;
+use tlsn::config::ProtocolConfig;
 use tsify_next::Tsify;
+
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct ProverConfig {
@@ -16,7 +17,7 @@ pub struct ProverConfig {
     pub client_auth: Option<(Vec<Vec<u8>>, Vec<u8>)>,
 }
 
-impl From<ProverConfig> for tlsn_prover::ProverConfig {
+impl From<ProverConfig> for tlsn::prover::ProverConfig {
     fn from(value: ProverConfig) -> Self {
         let mut builder = ProtocolConfig::builder();
 
@@ -42,7 +43,7 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
         builder.network(value.network.into());
         let protocol_config = builder.build().unwrap();
 
-        let mut builder = tlsn_prover::TlsConfig::builder();
+        let mut builder = tlsn::prover::TlsConfig::builder();
         if let Some(cert_key) = value.client_auth {
             // Try to parse as PEM-encoded.
             if builder.client_auth_pem(cert_key.clone()).is_err() {
@@ -52,7 +53,7 @@ impl From<ProverConfig> for tlsn_prover::ProverConfig {
         }
         let tls_config = builder.build().unwrap();
 
-        let mut builder = tlsn_prover::ProverConfig::builder();
+        let mut builder = tlsn::prover::ProverConfig::builder();
         builder
             .server_name(value.server_name.as_ref())
             .protocol_config(protocol_config)

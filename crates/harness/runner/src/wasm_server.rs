@@ -79,6 +79,10 @@ pub async fn main() -> Result<()> {
             HeaderName::from_static("cross-origin-opener-policy"),
             HeaderValue::from_static("same-origin"),
         ))
+        .layer(SetResponseHeaderLayer::overriding(
+            HeaderName::from_static("cache-control"),
+            HeaderValue::from_static("no-store"),
+        ))
         .service(files);
 
     // build our application with a single route

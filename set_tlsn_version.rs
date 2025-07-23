@@ -1,4 +1,4 @@
-#!/usr/bin/env cargo +nightly -Zscript
+#!/usr/bin/env -S cargo +nightly -Zscript
 ---
 [package]
 name = "set_tlsn_version"
@@ -8,31 +8,28 @@ publish = false
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-serde_yaml = "0.9"
 toml_edit = "0.22.22"
 walkdir = "2.5.0"
+regex = "1.11"
 ---
-
-// On some systems the above shebang should look like
-// #!/usr/bin/env -S cargo +nightly -Zscript
 
 // This scripts sets the TLSNotary version in all relevant files. Run it with:
 // ./set_tlsn_version <version>
 
 use clap::Parser;
-use serde_yaml::Value;
 use std::{
     fs::{self, read_to_string},
     path::Path,
 };
 use toml_edit::{value, DocumentMut};
 use walkdir::WalkDir;
+use regex::Regex;
 
 #[derive(Parser)]
 #[command(name = "set_tlsn_version")]
 #[command(about = "Sets the TLSNotary version in all relevant files", long_about = None)]
 struct Args {
-    /// Version number to set (example: 0.1.0-alpha.12)
+    /// Version number to set (example: 0.1.0-alpha.13)
     version: String,
 
     /// Workspace path (default is current directory)
@@ -59,7 +56,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let open_api_path = Path::new(&args.workspace).join("crates/notary/server/openapi.yaml");
-    update_version_in_open_api(&open_api_path, &args.version)?;
+    replace_version_with_regex(&open_api_path, r"(?m)^(\s*version:\s*)([^\s]+)($)", &args.version)?;
+
+    let releng_workflow_path = Path::new(&args.workspace).join(".github/workflows/releng.yml");
+    replace_version_with_regex(&releng_workflow_path,r#"(?m)^(\s*default:\s*'v)([^']+)(')"#, &args.version)?;
 
     println!("Version update process completed.");
     Ok(())
@@ -107,27 +107,14 @@ fn update_version_in_cargo_toml(
     Ok(())
 }
 
-/// Update the version in the OpenAPI yaml file
-fn update_version_in_open_api(
+fn replace_version_with_regex(
     path: &Path,
+    pattern: &str,
     new_version: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let yaml_content =
-        read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-
-    let mut doc: Value = serde_yaml::from_str(&yaml_content)
-        .map_err(|e| format!("Invalid YAML format in {}: {}", path.display(), e))?;
-
-    if let Some(info) = doc.get_mut("info") {
-        if let Some(version) = info.get_mut("version") {
-            *version = Value::String(new_version.to_string());
-            let updated_yaml = serde_yaml::to_string(&doc)
-                .map_err(|e| format!("Failed to serialize YAML for {}: {}", path.display(), e))?;
-            fs::write(path, updated_yaml)
-                .map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
-            println!("Updated version in {}", path.display());
-        }
-    }
-
+    let content = fs::read_to_string(path)?;
+    let re = Regex::new(pattern)?;
+    let new_content = re.replace_all(&content, format!("${{1}}{new_version}${{3}}"));
+    fs::write(path, new_content.as_bytes())?;
     Ok(())
 }

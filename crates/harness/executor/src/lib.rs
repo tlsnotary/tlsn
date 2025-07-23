@@ -58,14 +58,14 @@ impl Executor {
                     Role::Prover => {
                         let metrics = bench_prover(&provider, &config)
                             .await
-                            .map_err(|e| RpcError::new(format!("prover bench failed: {}", e)))?;
+                            .map_err(|e| RpcError::new(format!("prover bench failed: {e}")))?;
 
                         Ok(CmdOutput::Bench(BenchOutput::Prover { metrics }))
                     }
                     Role::Verifier => {
                         bench_verifier(&provider, &config)
                             .await
-                            .map_err(|e| RpcError::new(format!("verifier bench failed: {}", e)))?;
+                            .map_err(|e| RpcError::new(format!("verifier bench failed: {e}")))?;
 
                         Ok(CmdOutput::Bench(BenchOutput::Verifier))
                     }

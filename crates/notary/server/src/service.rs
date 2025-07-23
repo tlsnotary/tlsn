@@ -12,9 +12,11 @@ use axum_macros::debug_handler;
 use eyre::eyre;
 use notary_common::{NotarizationSessionRequest, NotarizationSessionResponse};
 use std::time::Duration;
-use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::attestation::AttestationConfig;
-use tlsn_verifier::{Verifier, VerifierConfig};
+use tlsn::{
+    attestation::AttestationConfig,
+    config::ProtocolConfigValidator,
+    verifier::{Verifier, VerifierConfig},
+};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     time::timeout,
@@ -99,7 +101,7 @@ pub async fn upgrade_protocol(
         .remove(&session_id)
         .is_none()
     {
-        let err_msg = format!("Session id {} does not exist", session_id);
+        let err_msg = format!("Session id {session_id} does not exist");
         error!(err_msg);
         return NotaryServerError::BadProverRequest(err_msg).into_response();
     };
@@ -220,13 +222,16 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                 .max_recv_data(notary_globals.notarization_config.max_recv_data)
                 .build()?,
         )
-        .crypto_provider(crypto_provider)
         .build()?;
 
     #[allow(deprecated)]
     timeout(
         Duration::from_secs(notary_globals.notarization_config.timeout),
-        Verifier::new(config).notarize(socket.compat(), &att_config),
+        Verifier::new(config).notarize_with_provider(
+            socket.compat(),
+            &att_config,
+            &crypto_provider,
+        ),
     )
     .await
     .map_err(|_| eyre!("Timeout reached before notarization completes"))??;

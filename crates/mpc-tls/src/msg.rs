@@ -10,6 +10,7 @@ use crate::record_layer::{DecryptMode, EncryptMode};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Message {
     SetClientRandom(SetClientRandom),
+    StartHandshake(StartHandshake),
     SetServerRandom(SetServerRandom),
     SetServerKey(SetServerKey),
     ClientFinishedVd(ClientFinishedVd),
@@ -24,6 +25,11 @@ pub(crate) enum Message {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SetClientRandom {
     pub(crate) random: [u8; 32],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct StartHandshake {
+    pub(crate) time: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

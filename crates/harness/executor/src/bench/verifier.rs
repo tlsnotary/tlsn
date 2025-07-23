@@ -1,11 +1,11 @@
 use anyhow::Result;
 
 use harness_core::bench::Bench;
-use tls_core::verify::WebPkiVerifier;
-use tlsn_common::config::ProtocolConfigValidator;
-use tlsn_core::{CryptoProvider, VerifyConfig};
+use tlsn::{
+    config::ProtocolConfigValidator,
+    verifier::{Verifier, VerifierConfig, VerifyConfig},
+};
 use tlsn_server_fixture_certs::CA_CERT_DER;
-use tlsn_verifier::{Verifier, VerifierConfig};
 
 use crate::{IoProvider, bench::RECV_PADDING};
 
@@ -22,15 +22,10 @@ pub async fn bench_verifier(provider: &IoProvider, config: &Bench) -> Result<()>
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
-
     let verifier = Verifier::new(
         VerifierConfig::builder()
+            .root_store(root_store)
             .protocol_config_validator(protocol_config)
-            .crypto_provider(crypto_provider)
             .build()?,
     );
 

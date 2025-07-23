@@ -7,8 +7,11 @@ use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tls_client_async::TlsConnection;
-use tlsn_core::{request::RequestConfig, transcript::TranscriptCommitConfigBuilder};
-use tlsn_prover::{state, ProveConfig, Prover};
+use tlsn::{
+    attestation::request::RequestConfig,
+    prover::{state, ProveConfig, Prover},
+    transcript::TranscriptCommitConfigBuilder,
+};
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
 use wasm_bindgen_futures::spawn_local;
