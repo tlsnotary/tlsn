@@ -25,6 +25,7 @@ members = [
     "crates/harness/core",
     "crates/harness/executor",
     "crates/harness/runner",
+    "crates/harness/plot",
     "crates/tlsn",
 ]
 resolver = "2"

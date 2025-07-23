@@ -7,11 +7,12 @@ docker build --pull -t tlsn-bench . -f ./crates/harness/harness.Dockerfile
 
 Next run the benches with:
 ```
-docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "runner setup; runner test"
+docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "runner setup; runner bench"
 ```
 The `--privileged` parameter is required because this test bench needs permission to create networks with certain parameters
 
 To run the benches in a browser run:
 ```
-+docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "cd /; runner setup; runner --target browser test"
+docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "cd /; runner setup; runner --target browser bench"
 ```
+

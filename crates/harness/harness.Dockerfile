@@ -6,7 +6,7 @@ RUN \
     apt update && apt install -y clang; \
     rustup install nightly; \
     rustup component add rust-src --toolchain nightly; \
-    cargo install wasm-pack;
+    cargo install --git https://github.com/rustwasm/wasm-pack.git --rev 32e52ca;
 COPY . .
 RUN \
     cd crates/harness; \
