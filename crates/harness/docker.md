@@ -2,7 +2,7 @@
 
 In the root folder of this repository, run:
 ```
-docker build -t tlsn-bench . -f ./crates/harness/harness.Dockerfile
+docker build --pull -t tlsn-bench . -f ./crates/harness/harness.Dockerfile
 ```
 
 Next run the benches with:
@@ -13,5 +13,6 @@ The `--privileged` parameter is required because this test bench needs permissio
 
 To run the benches in a browser run:
 ```
-docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "runner setup; runner --target browser bench"
+docker run -it --privileged -v ./crates/harness/:/benches tlsn-bench bash -c "cd /; runner setup; runner --target browser bench"
 ```
+
