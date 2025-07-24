@@ -86,6 +86,7 @@ impl From<SpanEvent> for FmtSpan {
             SpanEvent::New => FmtSpan::NEW,
             SpanEvent::Close => FmtSpan::CLOSE,
             SpanEvent::Active => FmtSpan::ACTIVE,
+        }
     }
 }
 
