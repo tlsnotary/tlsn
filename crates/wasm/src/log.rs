@@ -12,26 +12,36 @@ use tsify_next::Tsify;
 pub(crate) fn init_logging(config: Option<LoggingConfig>) {
     let mut config = config.unwrap_or_default();
 
-    // Default is NONE
-    let fmt_span = config
-        .span_events
-        .take()
-        .unwrap_or_default()
-        .into_iter()
-        .map(FmtSpan::from)
-        .fold(FmtSpan::NONE, |acc, span| acc | span);
+    let wants_subcriber = match config.no_logging {
+        Some(flag) => {
+            // The flag set to true means that we don't want a subscriber.
+            !flag
+        }
+        None => true,
+    };
 
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_ansi(false) // Only partially supported across browsers
-        .with_timer(UtcTime::rfc_3339()) // std::time is not available in browsers
-        .with_span_events(fmt_span)
-        .without_time()
-        .with_writer(MakeWebConsoleWriter::new()); // write events to the console
+    if wants_subcriber {
+        // Default is NONE
+        let fmt_span = config
+            .span_events
+            .take()
+            .unwrap_or_default()
+            .into_iter()
+            .map(FmtSpan::from)
+            .fold(FmtSpan::NONE, |acc, span| acc | span);
 
-    tracing_subscriber::registry()
-        .with(FilterFn::new(filter(config.clone())))
-        .with(fmt_layer)
-        .init();
+        let fmt_layer = tracing_subscriber::fmt::layer()
+            .with_ansi(false) // Only partially supported across browsers
+            .with_timer(UtcTime::rfc_3339()) // std::time is not available in browsers
+            .with_span_events(fmt_span)
+            .without_time()
+            .with_writer(MakeWebConsoleWriter::new()); // write events to the console
+
+        tracing_subscriber::registry()
+            .with(FilterFn::new(filter(config.clone())))
+            .with(fmt_layer)
+            .init();
+    }
 
     // https://github.com/rustwasm/console_error_panic_hook
     std::panic::set_hook(Box::new(|info| {
@@ -76,7 +86,6 @@ impl From<SpanEvent> for FmtSpan {
             SpanEvent::New => FmtSpan::NEW,
             SpanEvent::Close => FmtSpan::CLOSE,
             SpanEvent::Active => FmtSpan::ACTIVE,
-        }
     }
 }
 
@@ -86,6 +95,9 @@ pub struct LoggingConfig {
     pub level: Option<LoggingLevel>,
     pub crate_filters: Option<Vec<CrateLogFilter>>,
     pub span_events: Option<Vec<SpanEvent>>,
+    /// When set to Some(true), will prevent the tracing subscriber
+    /// from registering.
+    pub no_logging: Option<bool>,
 }
 
 #[derive(Debug, Clone, Tsify, Deserialize)]
