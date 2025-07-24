@@ -8,6 +8,7 @@ use chromiumoxide::{
         network::{EnableParams, SetCacheDisabledParams},
         page::ReloadParams,
     },
+    handler::HandlerConfig,
 };
 use futures::StreamExt;
 use harness_core::{
@@ -73,7 +74,7 @@ impl Executor {
                     self.ns.name(),
                     "env",
                     format!("CONFIG={}", serde_json::to_string(&self.config)?),
-                    executor_path
+                    executor_path,
                 )
                 .stdout_capture()
                 .stderr_capture()
@@ -96,7 +97,6 @@ impl Executor {
                     Id::Zero => self.config.network().rpc_0,
                     Id::One => self.config.network().rpc_1,
                 };
-                let (wasm_addr, wasm_port) = self.config.network().wasm;
 
                 // Create a temporary directory for the browser profile.
                 let tmp = duct::cmd!("mktemp", "-d").read()?;
@@ -126,8 +126,16 @@ impl Executor {
                 const TIMEOUT: usize = 10000;
                 const DELAY: usize = 100;
                 let mut retries = 0;
+                let mut config = HandlerConfig::default();
+                // Bump the timeout for long-running benches.
+                config.request_timeout = Duration::from_secs(120);
+
                 let (browser, mut handler) = loop {
-                    match Browser::connect(format!("http://{}:{}", rpc_addr.0, PORT_BROWSER)).await
+                    match Browser::connect_with_config(
+                        format!("http://{}:{}", rpc_addr.0, PORT_BROWSER),
+                        config.clone(),
+                    )
+                    .await
                     {
                         Ok(browser) => break browser,
                         Err(e) => {
@@ -143,39 +151,20 @@ impl Executor {
                 tokio::spawn(async move {
                     while let Some(res) = handler.next().await {
                         if let Err(e) = res {
-                            eprintln!("chromium error: {e:?}");
+                            if e.to_string()
+                                == "data did not match any variant of untagged enum Message"
+                            {
+                                // Do not log this error. It appears to be
+                                // caused by a bug upstream.
+                                // https://github.com/mattsse/chromiumoxide/issues/167
+                                continue;
+                            }
+                            eprintln!("chromium error: {:?}", e);
                         }
                     }
                 });
 
-                let page = browser
-                    .new_page(&format!("http://{wasm_addr}:{wasm_port}/index.html"))
-                    .await?;
-
-                page.execute(EnableParams::builder().build()).await?;
-                page.execute(SetCacheDisabledParams {
-                    cache_disabled: true,
-                })
-                .await?;
-                page.execute(ReloadParams::builder().ignore_cache(true).build())
-                    .await?;
-                page.wait_for_navigation().await?;
-                page.bring_to_front().await?;
-                page.evaluate(format!(
-                    r#"
-                        (async () => {{
-                            const config = JSON.parse('{config}');
-                            console.log("initializing executor", config);
-                            await window.executor.init(config);
-                            console.log("executor initialized");
-                            return;
-                        }})();
-                    "#,
-                    config = serde_json::to_string(&self.config)?
-                ))
-                .await?;
-
-                let rpc = Rpc::new_browser(page);
+                let rpc = self.new_browser_rpc(&browser).await?;
 
                 self.state = State::Started {
                     process,
@@ -266,6 +255,79 @@ impl Executor {
 
             Ok(())
         }
+    }
+
+    /// Reloads the RPC server associated with this browser executor.
+    pub async fn reload_browser_rpc(&mut self) -> Result<()> {
+        if !self.is_browser() {
+            return Err(anyhow!("executor target is not browser"));
+        }
+        let State::Started {
+            process,
+            rpc,
+            browser,
+        } = self.state.take()
+        else {
+            return Err(anyhow!("executor is not in the started state"));
+        };
+
+        rpc.shutdown().await?;
+
+        let browser = browser.expect("browser is set for browser target");
+
+        let rpc = self.new_browser_rpc(&browser).await?;
+
+        self.state = State::Started {
+            process,
+            rpc,
+            browser: Some(browser),
+        };
+
+        Ok(())
+    }
+
+    /// Creates a new RPC server for this browser executor.
+    async fn new_browser_rpc(&self, browser: &Browser) -> Result<Rpc> {
+        if !self.is_browser() {
+            return Err(anyhow!("executor target is not browser"));
+        }
+
+        let (wasm_addr, wasm_port) = self.config.network().wasm;
+
+        let page = browser
+            .new_page(&format!("http://{}:{}/index.html", wasm_addr, wasm_port))
+            .await?;
+
+        page.execute(EnableParams::builder().build()).await?;
+        page.execute(SetCacheDisabledParams {
+            cache_disabled: true,
+        })
+        .await?;
+        page.execute(ReloadParams::builder().ignore_cache(true).build())
+            .await?;
+        page.wait_for_navigation().await?;
+        page.bring_to_front().await?;
+        page.evaluate(format!(
+            r#"
+                        (async () => {{
+                            const config = JSON.parse('{config}');
+                            console.log("initializing executor", config);
+                            await window.executor.init(config);
+                            console.log("executor initialized");
+                            return;
+                        }})();
+                    "#,
+            config = serde_json::to_string(&self.config)?
+        ))
+        .await?;
+
+        let rpc = Rpc::new_browser(page);
+
+        Ok(rpc)
+    }
+
+    pub fn is_browser(&self) -> bool {
+        self.target == Target::Browser
     }
 }
 

@@ -102,6 +102,20 @@ impl Rpc {
             Err(e) => Err(e),
         })
     }
+
+    pub async fn shutdown(self) -> Result<()> {
+        match self.0 {
+            Inner::Native { mut io } => {
+                io.close().await.map_err(|e| RpcError::new(e.to_string()))?
+            }
+            Inner::Browser { page } => page
+                .close()
+                .await
+                .map_err(|e| RpcError::new(e.to_string()))?,
+        };
+
+        Ok(())
+    }
 }
 
 async fn browser_cmd(page: &Page, cmd: Cmd) -> io::Result<Result<CmdOutput>> {

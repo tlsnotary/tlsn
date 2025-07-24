@@ -206,46 +206,63 @@ pub async fn main() -> Result<()> {
             let output_file = std::fs::File::create(output)?;
             let mut writer = WriterBuilder::new().from_writer(output_file);
 
-            let mut benches = Vec::new();
-            if !skip_warmup {
-                benches.extend(vec![WARM_UP_BENCH; 3]);
-            }
-            benches.extend(items.to_benches(samples, samples_override));
+            let benches = items.to_benches(samples, samples_override);
 
             runner.start_services().await?;
             runner.exec_p.start().await?;
             runner.exec_v.start().await?;
 
-            for config in benches {
-                runner
-                    .network
-                    .set_proto_config(config.bandwidth, config.protocol_latency.div_ceil(2))?;
-                runner
-                    .network
-                    .set_app_config(config.bandwidth, config.app_latency.div_ceil(2))?;
+            // Process benches in chunks.
+            let chunk_size = if runner.exec_p.is_browser() {
+                20
+            } else {
+                // Native benches are processed in one go..
+                benches.len()
+            };
 
-                // Wait for the network to stabilize
-                tokio::time::sleep(Duration::from_millis(100)).await;
+            for (idx, bench_chunk) in benches.chunks(chunk_size).enumerate() {
+                let mut benches = Vec::with_capacity(benches.len());
+                if !skip_warmup {
+                    benches.extend(vec![WARM_UP_BENCH; 3]);
+                }
+                benches.extend_from_slice(bench_chunk);
 
-                let (output, _) = tokio::try_join!(
-                    runner.exec_p.bench(BenchCmd {
-                        config: config.clone(),
-                        role: Role::Prover,
-                    }),
-                    runner.exec_v.bench(BenchCmd {
-                        config: config.clone(),
-                        role: Role::Verifier,
-                    })
-                )?;
+                if idx > 0 && runner.exec_p.is_browser() {
+                    // Reloading the page periodically to avoid an OOM panic.
+                    // TODO: need to resolve this memory leak.
+                    runner.exec_p.reload_browser_rpc().await?;
+                }
+                for config in benches {
+                    runner
+                        .network
+                        .set_proto_config(config.bandwidth, config.protocol_latency.div_ceil(2))?;
+                    runner
+                        .network
+                        .set_app_config(config.bandwidth, config.app_latency.div_ceil(2))?;
 
-                let BenchOutput::Prover { metrics } = output else {
-                    panic!("expected prover output");
-                };
+                    // Wait for the network to stabilize
+                    tokio::time::sleep(Duration::from_millis(100)).await;
 
-                let measurement = Measurement::new(config, metrics);
+                    let (output, _) = tokio::try_join!(
+                        runner.exec_p.bench(BenchCmd {
+                            config: config.clone(),
+                            role: Role::Prover,
+                        }),
+                        runner.exec_v.bench(BenchCmd {
+                            config: config.clone(),
+                            role: Role::Verifier,
+                        })
+                    )?;
 
-                writer.serialize(measurement)?;
-                writer.flush()?;
+                    let BenchOutput::Prover { metrics } = output else {
+                        panic!("expected prover output");
+                    };
+
+                    let measurement = Measurement::new(config, metrics);
+
+                    writer.serialize(measurement)?;
+                    writer.flush()?;
+                }
             }
         }
         Command::Serve {} => {
