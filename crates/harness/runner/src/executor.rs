@@ -126,9 +126,11 @@ impl Executor {
                 const TIMEOUT: usize = 10000;
                 const DELAY: usize = 100;
                 let mut retries = 0;
-                let mut config = HandlerConfig::default();
-                // Bump the timeout for long-running benches.
-                config.request_timeout = Duration::from_secs(120);
+                let config = HandlerConfig {
+                    // Bump the timeout for long-running benches.
+                    request_timeout: Duration::from_secs(120),
+                    ..Default::default()
+                };
 
                 let (browser, mut handler) = loop {
                     match Browser::connect_with_config(
@@ -159,7 +161,7 @@ impl Executor {
                                 // https://github.com/mattsse/chromiumoxide/issues/167
                                 continue;
                             }
-                            eprintln!("chromium error: {:?}", e);
+                            eprintln!("chromium error: {e:?}");
                         }
                     }
                 });
@@ -289,13 +291,13 @@ impl Executor {
     /// Creates a new RPC server for this browser executor.
     async fn new_browser_rpc(&self, browser: &Browser) -> Result<Rpc> {
         if !self.is_browser() {
-            return Err(anyhow!("executor target is not browser"));
+            return Err(anyhow!("executor target is not a browser"));
         }
 
         let (wasm_addr, wasm_port) = self.config.network().wasm;
 
         let page = browser
-            .new_page(&format!("http://{}:{}/index.html", wasm_addr, wasm_port))
+            .new_page(&format!("http://{wasm_addr}:{wasm_port}/index.html"))
             .await?;
 
         page.execute(EnableParams::builder().build()).await?;
