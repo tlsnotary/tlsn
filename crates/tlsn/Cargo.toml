@@ -14,6 +14,7 @@ workspace = true
 default = ["rayon"]
 rayon = ["mpz-common/rayon"]
 force-st = ["mpz-common/force-st"]
+web = ["dep:web-spawn"]
 
 [dependencies]
 tlsn-attestation = { workspace = true }
@@ -27,7 +28,7 @@ tlsn-cipher = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
-web-spawn = { workspace = true }
+web-spawn = { workspace = true, optional = true }
 
 mpz-common = { workspace = true }
 mpz-core = { workspace = true }

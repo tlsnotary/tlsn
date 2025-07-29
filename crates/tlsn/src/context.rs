@@ -11,7 +11,7 @@ pub(crate) const MAX_CONCURRENCY: usize = 8;
 pub(crate) fn build_mt_context(mux: MuxControl) -> Multithread {
     let builder = Multithread::builder().mux(mux).concurrency(MAX_CONCURRENCY);
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(feature = "web", target_arch = "wasm32"))]
     let builder = builder.spawn_handler(|f| {
         let _ = web_spawn::spawn(f);
         Ok(())

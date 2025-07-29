@@ -24,7 +24,7 @@ no-bundler = ["web-spawn/no-bundler"]
 
 [dependencies]
 tlsn-core = { workspace = true }
-tlsn = { workspace = true }
+tlsn = { workspace = true, features = ["web"] }
 tlsn-server-fixture-certs = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
