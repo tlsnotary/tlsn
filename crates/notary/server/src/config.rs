@@ -257,7 +257,7 @@ impl Default for PluginProperties {
     fn default() -> Self {
         Self {
             // Todo: Remove default path
-            folder: "../../../target/wasm32-waip1/release".to_string(),
+            folder: "../../../target/wasm32-wasip1/release".to_string(),
             max_sent_data: 4096,
             max_recv_data: 16384,
             timeout: 1800,
