@@ -49,13 +49,6 @@ impl ProverError {
     {
         Self::new(ErrorKind::Commit, source)
     }
-
-    pub(crate) fn attestation<E>(source: E) -> Self
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self::new(ErrorKind::Attestation, source)
-    }
 }
 
 #[derive(Debug)]
@@ -65,7 +58,6 @@ enum ErrorKind {
     Zk,
     Config,
     Commit,
-    Attestation,
 }
 
 impl fmt::Display for ProverError {
@@ -78,7 +70,6 @@ impl fmt::Display for ProverError {
             ErrorKind::Zk => f.write_str("zk error")?,
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Commit => f.write_str("commit error")?,
-            ErrorKind::Attestation => f.write_str("attestation error")?,
         }
 
         if let Some(source) = &self.source {

@@ -152,59 +152,6 @@ impl Verifier<state::Initialized> {
         })
     }
 
-    /// Runs the verifier to completion and attests to the TLS session.
-    ///
-    /// This is a convenience method which runs all the steps needed for
-    /// notarization.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - The socket to the prover.
-    /// * `config` - The attestation configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-        config: &AttestationConfig,
-    ) -> Result<Attestation, VerifierError> {
-        #[allow(deprecated)]
-        self.notarize_with_provider(socket, config, &CryptoProvider::default())
-            .await
-    }
-
-    /// Runs the verifier to completion and attests to the TLS session.
-    ///
-    /// This is a convenience method which runs all the steps needed for
-    /// notarization.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - The socket to the prover.
-    /// * `config` - The attestation configuration.
-    /// * `provider` - Cryptography provider.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize_with_provider<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-        config: &AttestationConfig,
-        provider: &CryptoProvider,
-    ) -> Result<Attestation, VerifierError> {
-        let mut verifier = self.setup(socket).await?.run().await?;
-
-        #[allow(deprecated)]
-        let attestation = verifier.notarize_with_provider(config, provider).await?;
-
-        verifier.close().await?;
-
-        Ok(attestation)
-    }
-
     /// Runs the TLS verifier to completion, verifying the TLS session.
     ///
     /// This is a convenience method which runs all the steps needed for
