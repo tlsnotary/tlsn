@@ -1,4 +1,0 @@
-# exclude Rust build artifacts
-./target
-./crates/wasm/pkg/
-./crates/harness/static/generated/
