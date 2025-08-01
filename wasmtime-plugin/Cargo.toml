@@ -1,0 +1,18 @@
+[package]
+name = "wasmtime-plugin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wit-bindgen-rt = { version = "0.43.0", features = ["bitflags"] }
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "component:wasmtime-plugin"
+
+[package.metadata.component.dependencies]
