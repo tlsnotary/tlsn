@@ -8,7 +8,6 @@ pub mod state;
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
-use serio::SinkExt;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
 use mpz_common::Context;
@@ -33,6 +32,7 @@ use crate::{
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
+use serio::SinkExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
