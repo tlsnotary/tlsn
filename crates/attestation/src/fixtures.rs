@@ -16,11 +16,6 @@ use crate::{
     signing::SignatureAlgId,
 };
 
-/// Returns a notary signing key fixture.
-pub fn notary_signing_key() -> p256::ecdsa::SigningKey {
-    p256::ecdsa::SigningKey::from_slice(&[1; 32]).unwrap()
-}
-
 /// A Request fixture used for testing.
 #[allow(missing_docs)]
 pub struct RequestFixture {
