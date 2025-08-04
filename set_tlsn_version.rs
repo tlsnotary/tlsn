@@ -55,9 +55,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let open_api_path = Path::new(&args.workspace).join("crates/notary/server/openapi.yaml");
-    replace_version_with_regex(&open_api_path, r"(?m)^(\s*version:\s*)([^\s]+)($)", &args.version)?;
-
     let releng_workflow_path = Path::new(&args.workspace).join(".github/workflows/releng.yml");
     replace_version_with_regex(&releng_workflow_path,r#"(?m)^(\s*default:\s*'v)([^']+)(')"#, &args.version)?;
 

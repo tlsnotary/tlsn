@@ -513,11 +513,11 @@ impl Verifier<state::Committed> {
 
         if server_name.is_some() {
             return Err(VerifierError::attestation(
-                "server name can not be revealed to a notary",
+                "server name can not be revealed to a verifier",
             ));
         } else if transcript.is_some() {
             return Err(VerifierError::attestation(
-                "transcript data can not be revealed to a notary",
+                "transcript data can not be revealed to a verifier",
             ));
         }
 
