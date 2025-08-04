@@ -30,12 +30,11 @@ use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
-use serio::{SinkExt, stream::IoStreamExt};
+use serio::stream::IoStreamExt;
 use tls_core::{msgs::enums::ContentType, verify::WebPkiVerifier};
-use tlsn_attestation::{Attestation, AttestationConfig, CryptoProvider, request::Request};
 use tlsn_core::{
     ProvePayload,
-    connection::{ConnectionInfo, ServerName, TranscriptLength},
+    connection::{ConnectionInfo, ServerName},
     transcript::{TlsTranscript, TranscriptCommitment},
 };
 use tlsn_deap::Deap;
