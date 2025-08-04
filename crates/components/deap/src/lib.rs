@@ -43,6 +43,17 @@ pub struct Deap<Mpc, Zk> {
     /// Outputs of the follower from the ZK VM. The references
     /// correspond to the MPC VM.
     outputs: Vec<(Slice, DecodeFuture<BitVec>)>,
+    /// Whether the DEAP VM should operate in a limited mode.
+    ///
+    /// The following limitations will apply:
+    ///
+    /// - `wants_flush`, `flush`, `wants_preprocess`, `preprocess` will **NOT**
+    ///   have an effect on the ZK VM, only on the MPC VM.
+    /// - `call_raw` will **not** accept calls which have AND gates.
+    ///
+    /// This mode facilitates the ZK VM preprocessing in an
+    /// external context concurrently with the execution of the DEAP VM.
+    limited: bool,
 }
 
 impl<Mpc, Zk> Deap<Mpc, Zk> {
@@ -56,6 +67,7 @@ impl<Mpc, Zk> Deap<Mpc, Zk> {
             follower_input_ranges: RangeSet::default(),
             follower_inputs: Vec::default(),
             outputs: Vec::default(),
+            limited: false,
         }
     }
 
@@ -89,6 +101,11 @@ impl<Mpc, Zk> Deap<Mpc, Zk> {
     /// space.
     pub fn translate<T: Repr<Binary>>(&self, value: T) -> Result<T, VmError> {
         self.memory_map.try_get(value.to_raw()).map(T::from_raw)
+    }
+
+    /// Sets the limited mode of operation.
+    pub fn limited(&mut self) {
+        self.limited = true;
     }
 
     #[cfg(test)]
@@ -301,6 +318,12 @@ where
     Zk: Vm<Binary>,
 {
     fn call_raw(&mut self, call: Call) -> Result<Slice, VmError> {
+        if self.limited && call.circ().and_count() > 0 {
+            return Err(VmError::call(
+                "calls with AND gates not allowed in limited mode",
+            ));
+        }
+
         let (circ, inputs) = call.clone().into_parts();
         let mut builder = Call::builder(circ);
 
@@ -326,14 +349,29 @@ where
     Zk: Execute + Send + 'static,
 {
     fn wants_flush(&self) -> bool {
-        self.mpc.try_lock().unwrap().wants_flush() || self.zk.try_lock().unwrap().wants_flush()
+        if self.limited {
+            self.mpc.try_lock().unwrap().wants_flush()
+        } else {
+            self.mpc.try_lock().unwrap().wants_flush() || self.zk.try_lock().unwrap().wants_flush()
+        }
     }
 
     async fn flush(&mut self, ctx: &mut Context) -> Result<(), VmError> {
-        let mut zk = self.zk.clone().try_lock_owned().unwrap();
         let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
+
+        let zk = if self.limited {
+            None
+        } else {
+            Some(self.zk.clone().try_lock_owned().unwrap())
+        };
+
         ctx.try_join(
-            async move |ctx| zk.flush(ctx).await,
+            async move |ctx| {
+                if let Some(mut zk) = zk {
+                    zk.flush(ctx).await.unwrap();
+                }
+                Ok(())
+            },
             async move |ctx| mpc.flush(ctx).await,
         )
         .await
@@ -343,15 +381,30 @@ where
     }
 
     fn wants_preprocess(&self) -> bool {
-        self.mpc.try_lock().unwrap().wants_preprocess()
-            || self.zk.try_lock().unwrap().wants_preprocess()
+        if self.limited {
+            self.mpc.try_lock().unwrap().wants_preprocess()
+        } else {
+            self.mpc.try_lock().unwrap().wants_preprocess()
+                || self.zk.try_lock().unwrap().wants_preprocess()
+        }
     }
 
     async fn preprocess(&mut self, ctx: &mut Context) -> Result<(), VmError> {
-        let mut zk = self.zk.clone().try_lock_owned().unwrap();
         let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
+
+        let zk = if self.limited {
+            None
+        } else {
+            Some(self.zk.clone().try_lock_owned().unwrap())
+        };
+
         ctx.try_join(
-            async move |ctx| zk.preprocess(ctx).await,
+            async move |ctx| {
+                if let Some(mut zk) = zk {
+                    zk.preprocess(ctx).await.unwrap();
+                }
+                Ok(())
+            },
             async move |ctx| mpc.preprocess(ctx).await,
         )
         .await

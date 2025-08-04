@@ -4,7 +4,7 @@ pub(crate) mod config;
 mod error;
 pub mod state;
 
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
@@ -26,7 +26,7 @@ use crate::{
 };
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsFollower, SessionKeys};
-use mpz_common::Context;
+use mpz_common::{Context, Flush};
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
@@ -43,9 +43,11 @@ use tokio::sync::Mutex;
 
 use tracing::{Span, debug, info, info_span, instrument};
 
-pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
-    mpz_ot::ferret::Sender<mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>>,
-    mpz_core::Block,
+pub(crate) type RCOTSender = mpz_ot::ferret::Sender<
+    mpz_ot::rcot::shared::SharedRCOTSender<
+        mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,
+        mpz_core::Block,
+    >,
 >;
 pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
     mpz_ot::kos::Receiver<mpz_ot::chou_orlandi::Sender>,
@@ -98,6 +100,8 @@ impl Verifier<state::Initialized> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
         let mut mt = build_mt_context(mux_ctrl.clone());
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
+        // A context  for preprocessing.
+        let prepr_ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Receives protocol configuration from prover to perform compatibility check.
         let protocol_config = mux_fut
@@ -112,11 +116,12 @@ impl Verifier<state::Initialized> {
             .await?;
 
         let delta = Delta::random(&mut rand::rng());
-        let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &protocol_config, delta, ctx);
+        let (vm, mut mpc_tls, prepr_fut) =
+            build_mpc_tls(&self.config, &protocol_config, delta, ctx, prepr_ctx);
 
         // Allocate resources for MPC-TLS in the VM.
         let mut keys = mpc_tls.alloc()?;
-        let vm_lock = vm.try_lock().expect("VM is not locked");
+        let mut vm_lock = vm.try_lock().expect("VM is not locked");
         translate_keys(&mut keys, &vm_lock)?;
 
         // Allocate for committing to plaintext.
@@ -128,9 +133,12 @@ impl Verifier<state::Initialized> {
         zk_aes_ctr_recv.set_key(keys.server_write_key, keys.server_write_iv);
         zk_aes_ctr_recv.alloc(&mut *vm_lock.zk(), protocol_config.max_recv_data())?;
 
-        drop(vm_lock);
-
         debug!("setting up mpc-tls");
+        // Changing the VM mode and setting a preprocessing future to have
+        // concurrent ZK VM preprocessing and MPC-TLS execution.
+        vm_lock.limited();
+        mux_fut.aux(prepr_fut);
+        drop(vm_lock);
 
         mux_fut.poll_with(mpc_tls.preprocess()).await?;
 
@@ -249,6 +257,10 @@ impl Verifier<state::Setup> {
         let (mut ctx, tls_transcript) = mux_fut.poll_with(mpc_tls.run()).await?;
 
         info!("finished MPC-TLS");
+
+        // Only finalize once the ZK VM preprocessing future is
+        // complete.
+        mux_fut.await_aux().await.map_err(VerifierError::zk)?;
 
         {
             let mut vm = vm.try_lock().expect("VM should not be locked");
@@ -611,35 +623,54 @@ fn build_mpc_tls(
     protocol_config: &ProtocolConfig,
     delta: Delta,
     ctx: Context,
-) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsFollower) {
+    mut preprocess_ctx: Context,
+) -> (
+    Arc<Mutex<Deap<Mpc, Zk>>>,
+    MpcTlsFollower,
+    Pin<Box<dyn Future<Output = Result<(), VerifierError>> + Send>>,
+) {
     let mut rng = rand::rng();
 
     let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
     let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
-    let rcot_send = mpz_ot::kos::Sender::new(
+    let rcot_send_kos = mpz_ot::kos::Sender::new(
         mpz_ot::kos::SenderConfig::default(),
         delta.into_inner(),
         base_ot_recv,
     );
-    let rcot_send = mpz_ot::ferret::Sender::new(
+
+    let rcot_send_kos_shared = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send_kos);
+
+    let rcot_send_ferret = mpz_ot::ferret::Sender::new(
         mpz_ot::ferret::FerretConfig::builder()
             .lpn_type(mpz_ot::ferret::LpnType::Regular)
             .build()
             .expect("ferret config is valid"),
         Block::random(&mut rng),
-        rcot_send,
+        rcot_send_kos_shared.clone(),
     );
     let rcot_recv =
         mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
 
-    let rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
     let rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
 
     let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(rcot_recv.clone()));
 
-    let zk = Zk::new(delta, rcot_send.clone());
+    let zk = Zk::new(delta, rcot_send_ferret);
+    let zk_verifier_ot = zk.ot();
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
+
+    // A preprocessing future which will be run concurrently with MPC-TLS.
+    // TODO: does this have to be pin ?
+    let prepr_fut = Box::pin(async move {
+        zk_verifier_ot
+            .try_lock()
+            .unwrap()
+            .flush(&mut preprocess_ctx)
+            .await
+            .map_err(|e| VerifierError::zk(e))
+    });
 
     (
         vm.clone(),
@@ -647,9 +678,12 @@ fn build_mpc_tls(
             config.build_mpc_tls_config(protocol_config),
             ctx,
             vm,
-            rcot_send,
+            // To minimize latency, the small amount of sent OTs needed by
+            // MPC-TLS will be provided by KOS rather than Ferret.
+            rcot_send_kos_shared,
             (rcot_recv.clone(), rcot_recv.clone(), rcot_recv),
         ),
+        prepr_fut,
     )
 }
 
