@@ -27,7 +27,8 @@ members = [
     "crates/harness/runner",
     "crates/harness/plot",
     "crates/tlsn",
-    "wasmtime-plugin",
+    "crates/wasmtime-plugin",
+    "crates/wasmtime-host",
 ]
 resolver = "2"
 

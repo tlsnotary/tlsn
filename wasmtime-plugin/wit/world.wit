@@ -1,6 +1,0 @@
-package component:wasmtime-plugin;
-
-/// An example world for the component to target.
-world example {
-    export main: func(input: list<u8>) -> list<u8>;
-}

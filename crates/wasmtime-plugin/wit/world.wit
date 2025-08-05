@@ -1,0 +1,7 @@
+package component:wasmtime-plugin;
+
+world plugin {
+    export main: func(input: list<u8>) -> list<u8>;
+    import read: func(id: u8) -> list<u8>;
+    import write: func(payload: list<u8>) -> list<u8>;
+}
