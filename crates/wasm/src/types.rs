@@ -4,7 +4,6 @@ use http_body_util::Full;
 use hyper::body::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use tlsn::attestation::CryptoProvider;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
@@ -174,156 +173,12 @@ pub struct Reveal {
     pub server_identity: bool,
 }
 
-#[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
-pub enum KeyType {
-    P256,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[wasm_bindgen]
-#[serde(transparent)]
-pub struct Attestation(pub(crate) tlsn::attestation::Attestation);
-
-#[wasm_bindgen]
-impl Attestation {
-    pub fn verifying_key(&self) -> VerifyingKey {
-        self.0.body.verifying_key().into()
-    }
-
-    /// Serializes to a byte array.
-    pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("Attestation should be serializable")
-    }
-
-    /// Deserializes from a byte array.
-    pub fn deserialize(bytes: Vec<u8>) -> Result<Attestation, JsError> {
-        Ok(bincode::deserialize(&bytes)?)
-    }
-}
-
-impl From<tlsn::attestation::Attestation> for Attestation {
-    fn from(value: tlsn::attestation::Attestation) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[wasm_bindgen]
-#[serde(transparent)]
-pub struct Secrets(pub(crate) tlsn::attestation::Secrets);
-
-#[wasm_bindgen]
-impl Secrets {
-    /// Returns the transcript.
-    pub fn transcript(&self) -> Transcript {
-        self.0.transcript().into()
-    }
-
-    /// Serializes to a byte array.
-    pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("Secrets should be serializable")
-    }
-
-    /// Deserializes from a byte array.
-    pub fn deserialize(bytes: Vec<u8>) -> Result<Secrets, JsError> {
-        Ok(bincode::deserialize(&bytes)?)
-    }
-}
-
-impl From<tlsn::attestation::Secrets> for Secrets {
-    fn from(value: tlsn::attestation::Secrets) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[wasm_bindgen]
-#[serde(transparent)]
-pub struct Presentation(tlsn::attestation::presentation::Presentation);
-
-#[wasm_bindgen]
-impl Presentation {
-    /// Returns the verifying key.
-    pub fn verifying_key(&self) -> VerifyingKey {
-        self.0.verifying_key().into()
-    }
-
-    /// Verifies the presentation.
-    pub fn verify(&self) -> Result<PresentationOutput, JsError> {
-        let provider = CryptoProvider::default();
-
-        self.0
-            .clone()
-            .verify(&provider)
-            .map(PresentationOutput::from)
-            .map_err(JsError::from)
-    }
-
-    pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("Presentation should be serializable")
-    }
-
-    pub fn deserialize(bytes: Vec<u8>) -> Result<Presentation, JsError> {
-        Ok(bincode::deserialize(&bytes)?)
-    }
-}
-
-impl From<tlsn::attestation::presentation::Presentation> for Presentation {
-    fn from(value: tlsn::attestation::presentation::Presentation) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
-pub struct PresentationOutput {
-    pub attestation: Attestation,
-    pub server_name: Option<String>,
-    pub connection_info: ConnectionInfo,
-    pub transcript: Option<PartialTranscript>,
-}
-
-impl From<tlsn::attestation::presentation::PresentationOutput> for PresentationOutput {
-    fn from(value: tlsn::attestation::presentation::PresentationOutput) -> Self {
-        Self {
-            attestation: value.attestation.into(),
-            server_name: value.server_name.map(|name| name.as_str().to_string()),
-            connection_info: value.connection_info.into(),
-            transcript: value.transcript.map(PartialTranscript::from),
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-#[wasm_bindgen(getter_with_clone)]
-pub struct NotarizationOutput {
-    pub attestation: Attestation,
-    pub secrets: Secrets,
-}
-
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct VerifierOutput {
     pub server_name: Option<String>,
     pub connection_info: ConnectionInfo,
     pub transcript: Option<PartialTranscript>,
-}
-
-#[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
-pub struct VerifyingKey {
-    pub alg: u8,
-    pub data: Vec<u8>,
-}
-
-impl From<&tlsn::attestation::signing::VerifyingKey> for VerifyingKey {
-    fn from(value: &tlsn::attestation::signing::VerifyingKey) -> Self {
-        Self {
-            alg: value.alg.as_u8(),
-            data: value.data.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Tsify, Deserialize)]

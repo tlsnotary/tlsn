@@ -14,11 +14,8 @@ pub mod verifier;
 
 pub use log::{LoggingConfig, LoggingLevel};
 
-use tlsn::{attestation::CryptoProvider, transcript::Direction};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-
-use crate::types::{Attestation, Presentation, Reveal, Secrets};
 
 #[cfg(feature = "test")]
 pub use tests::*;
@@ -45,35 +42,4 @@ pub async fn initialize(
         .unwrap_throw();
 
     Ok(())
-}
-
-/// Builds a presentation.
-#[wasm_bindgen]
-pub fn build_presentation(
-    attestation: &Attestation,
-    secrets: &Secrets,
-    reveal: Reveal,
-) -> Result<Presentation, JsError> {
-    let provider = CryptoProvider::default();
-
-    let mut builder = attestation.0.presentation_builder(&provider);
-
-    builder.identity_proof(secrets.0.identity_proof());
-
-    let mut proof_builder = secrets.0.transcript_proof_builder();
-
-    for range in reveal.sent.iter() {
-        proof_builder.reveal(range, Direction::Sent)?;
-    }
-
-    for range in reveal.recv.iter() {
-        proof_builder.reveal(range, Direction::Received)?;
-    }
-
-    builder.transcript_proof(proof_builder.build()?);
-
-    builder
-        .build()
-        .map(Presentation::from)
-        .map_err(JsError::from)
 }

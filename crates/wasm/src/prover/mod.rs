@@ -7,11 +7,7 @@ use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tls_client_async::TlsConnection;
-use tlsn::{
-    attestation::request::RequestConfig,
-    prover::{state, ProveConfig, Prover},
-    transcript::TranscriptCommitConfigBuilder,
-};
+use tlsn::prover::{state, ProveConfig, Prover};
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
 use wasm_bindgen_futures::spawn_local;
@@ -106,44 +102,6 @@ impl JsProver {
         let prover = self.state.try_as_committed()?;
 
         Ok(Transcript::from(prover.transcript()))
-    }
-
-    /// Runs the notarization protocol.
-    pub async fn notarize(&mut self, commit: Commit) -> Result<NotarizationOutput> {
-        let mut prover = self.state.take().try_into_committed()?;
-
-        info!("starting notarization");
-
-        let mut builder = TranscriptCommitConfigBuilder::new(prover.transcript());
-
-        for range in commit.sent {
-            builder.commit_sent(&range)?;
-        }
-
-        for range in commit.recv {
-            builder.commit_recv(&range)?;
-        }
-
-        let transcript_commit = builder.build()?;
-
-        let mut builder = RequestConfig::builder();
-
-        builder.transcript_commit(transcript_commit);
-
-        let request_config = builder.build()?;
-
-        #[allow(deprecated)]
-        let (attestation, secrets) = prover.notarize(&request_config).await?;
-        prover.close().await?;
-
-        info!("notarization complete");
-
-        self.state = State::Complete;
-
-        Ok(NotarizationOutput {
-            attestation: attestation.into(),
-            secrets: secrets.into(),
-        })
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
