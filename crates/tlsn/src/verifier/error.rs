@@ -34,13 +34,6 @@ impl VerifierError {
         Self::new(ErrorKind::Zk, source)
     }
 
-    pub(crate) fn attestation<E>(source: E) -> Self
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self::new(ErrorKind::Attestation, source)
-    }
-
     pub(crate) fn verify<E>(source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
@@ -56,7 +49,6 @@ enum ErrorKind {
     Mpc,
     Zk,
     Commit,
-    Attestation,
     Verify,
 }
 
@@ -70,7 +62,6 @@ impl fmt::Display for VerifierError {
             ErrorKind::Mpc => f.write_str("mpc error")?,
             ErrorKind::Zk => f.write_str("zk error")?,
             ErrorKind::Commit => f.write_str("commit error")?,
-            ErrorKind::Attestation => f.write_str("attestation error")?,
             ErrorKind::Verify => f.write_str("verification error")?,
         }
 

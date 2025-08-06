@@ -30,12 +30,11 @@ use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
-use serio::{SinkExt, stream::IoStreamExt};
+use serio::stream::IoStreamExt;
 use tls_core::{msgs::enums::ContentType, verify::WebPkiVerifier};
-use tlsn_attestation::{Attestation, AttestationConfig, CryptoProvider, request::Request};
 use tlsn_core::{
     ProvePayload,
-    connection::{ConnectionInfo, ServerName, TranscriptLength},
+    connection::{ConnectionInfo, ServerName},
     transcript::{TlsTranscript, TranscriptCommitment},
 };
 use tlsn_deap::Deap;
@@ -150,59 +149,6 @@ impl Verifier<state::Initialized> {
                 vm,
             },
         })
-    }
-
-    /// Runs the verifier to completion and attests to the TLS session.
-    ///
-    /// This is a convenience method which runs all the steps needed for
-    /// notarization.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - The socket to the prover.
-    /// * `config` - The attestation configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-        config: &AttestationConfig,
-    ) -> Result<Attestation, VerifierError> {
-        #[allow(deprecated)]
-        self.notarize_with_provider(socket, config, &CryptoProvider::default())
-            .await
-    }
-
-    /// Runs the verifier to completion and attests to the TLS session.
-    ///
-    /// This is a convenience method which runs all the steps needed for
-    /// notarization.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - The socket to the prover.
-    /// * `config` - The attestation configuration.
-    /// * `provider` - Cryptography provider.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize_with_provider<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-        config: &AttestationConfig,
-        provider: &CryptoProvider,
-    ) -> Result<Attestation, VerifierError> {
-        let mut verifier = self.setup(socket).await?.run().await?;
-
-        #[allow(deprecated)]
-        let attestation = verifier.notarize_with_provider(config, provider).await?;
-
-        verifier.close().await?;
-
-        Ok(attestation)
     }
 
     /// Runs the TLS verifier to completion, verifying the TLS session.
@@ -470,123 +416,6 @@ impl Verifier<state::Committed> {
             transcript,
             transcript_commitments,
         })
-    }
-
-    /// Attests to the TLS session.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - Attestation configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize(
-        &mut self,
-        config: &AttestationConfig,
-    ) -> Result<Attestation, VerifierError> {
-        #[allow(deprecated)]
-        self.notarize_with_provider(config, &CryptoProvider::default())
-            .await
-    }
-
-    /// Attests to the TLS session.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - Attestation configuration.
-    /// * `provider` - Cryptography provider.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize_with_provider(
-        &mut self,
-        config: &AttestationConfig,
-        provider: &CryptoProvider,
-    ) -> Result<Attestation, VerifierError> {
-        let VerifierOutput {
-            server_name,
-            transcript,
-            transcript_commitments,
-        } = self.verify(&VerifyConfig::default()).await?;
-
-        if server_name.is_some() {
-            return Err(VerifierError::attestation(
-                "server name can not be revealed to a verifier",
-            ));
-        } else if transcript.is_some() {
-            return Err(VerifierError::attestation(
-                "transcript data can not be revealed to a verifier",
-            ));
-        }
-
-        let state::Committed {
-            mux_fut,
-            ctx,
-            tls_transcript,
-            ..
-        } = &mut self.state;
-
-        let sent_len = tls_transcript
-            .sent()
-            .iter()
-            .filter_map(|record| {
-                if let ContentType::ApplicationData = record.typ {
-                    Some(record.ciphertext.len())
-                } else {
-                    None
-                }
-            })
-            .sum::<usize>();
-
-        let recv_len = tls_transcript
-            .recv()
-            .iter()
-            .filter_map(|record| {
-                if let ContentType::ApplicationData = record.typ {
-                    Some(record.ciphertext.len())
-                } else {
-                    None
-                }
-            })
-            .sum::<usize>();
-
-        let request: Request = mux_fut
-            .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
-            .await?;
-
-        let mut builder = Attestation::builder(config)
-            .accept_request(request)
-            .map_err(VerifierError::attestation)?;
-
-        builder
-            .connection_info(ConnectionInfo {
-                time: tls_transcript.time(),
-                version: (*tls_transcript.version()),
-                transcript_length: TranscriptLength {
-                    sent: sent_len as u32,
-                    received: recv_len as u32,
-                },
-            })
-            .server_ephemeral_key(tls_transcript.server_ephemeral_key().clone())
-            .transcript_commitments(transcript_commitments);
-
-        let attestation = builder
-            .build(provider)
-            .map_err(VerifierError::attestation)?;
-
-        mux_fut
-            .poll_with(
-                ctx.io_mut()
-                    .send(attestation.clone())
-                    .map_err(VerifierError::from),
-            )
-            .await?;
-
-        info!("Sent attestation");
-
-        Ok(attestation)
     }
 
     /// Closes the connection with the prover.

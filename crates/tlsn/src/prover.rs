@@ -32,20 +32,16 @@ use crate::{
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
-use serio::{SinkExt, stream::IoStreamExt};
+use serio::SinkExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
 use tls_core::msgs::enums::ContentType;
-use tlsn_attestation::{
-    Attestation, CryptoProvider, Secrets,
-    request::{Request, RequestConfig},
-};
 use tlsn_core::{
     ProvePayload,
     connection::ServerCertData,
     hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256},
-    transcript::{Direction, TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
+    transcript::{TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
@@ -456,118 +452,6 @@ impl Prover<state::Committed> {
         }
 
         Ok(output)
-    }
-
-    /// Requests an attestation from the verifier.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - The attestation request configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize(
-        &mut self,
-        config: &RequestConfig,
-    ) -> Result<(Attestation, Secrets), ProverError> {
-        #[allow(deprecated)]
-        self.notarize_with_provider(config, &CryptoProvider::default())
-            .await
-    }
-
-    /// Requests an attestation from the verifier.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - The attestation request configuration.
-    /// * `provider` - Cryptography provider.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    #[deprecated(
-        note = "attestation functionality will be removed from this API in future releases."
-    )]
-    pub async fn notarize_with_provider(
-        &mut self,
-        config: &RequestConfig,
-        provider: &CryptoProvider,
-    ) -> Result<(Attestation, Secrets), ProverError> {
-        let mut builder = ProveConfig::builder(self.transcript());
-
-        if let Some(config) = config.transcript_commit() {
-            // Temporarily, we reject attestation requests which contain hash commitments to
-            // subsets of the transcript. We do this because we want to preserve the
-            // obliviousness of the reference notary, and hash commitments currently leak
-            // the ranges which are being committed.
-            for ((direction, idx), _) in config.iter_hash() {
-                let len = match direction {
-                    Direction::Sent => self.transcript().sent().len(),
-                    Direction::Received => self.transcript().received().len(),
-                };
-
-                if idx.start() > 0 || idx.end() < len || idx.count() != 1 {
-                    return Err(ProverError::attestation(
-                        "hash commitments to subsets of the transcript are currently not supported in attestation requests",
-                    ));
-                }
-            }
-
-            builder.transcript_commit(config.clone());
-        }
-
-        let disclosure_config = builder.build().map_err(ProverError::attestation)?;
-
-        let ProverOutput {
-            transcript_commitments,
-            transcript_secrets,
-            ..
-        } = self.prove(&disclosure_config).await?;
-
-        let state::Committed {
-            mux_fut,
-            ctx,
-            tls_transcript,
-            transcript,
-            ..
-        } = &mut self.state;
-
-        let mut builder = Request::builder(config);
-
-        builder
-            .server_name(self.config.server_name().clone())
-            .server_cert_data(ServerCertData {
-                certs: tls_transcript
-                    .server_cert_chain()
-                    .expect("server cert chain is present")
-                    .to_vec(),
-                sig: tls_transcript
-                    .server_signature()
-                    .expect("server signature is present")
-                    .clone(),
-                handshake: tls_transcript.handshake_data().clone(),
-            })
-            .transcript(transcript.clone())
-            .transcript_commitments(transcript_secrets, transcript_commitments);
-
-        let (request, secrets) = builder.build(provider).map_err(ProverError::attestation)?;
-
-        let attestation = mux_fut
-            .poll_with(async {
-                debug!("sending attestation request");
-
-                ctx.io_mut().send(request.clone()).await?;
-
-                let attestation: Attestation = ctx.io_mut().expect_next().await?;
-
-                Ok::<_, ProverError>(attestation)
-            })
-            .await?;
-
-        // Check the attestation is consistent with the Prover's view.
-        request
-            .validate(&attestation)
-            .map_err(ProverError::attestation)?;
-
-        Ok((attestation, secrets))
     }
 
     /// Closes the connection with the verifier.
