@@ -16,13 +16,10 @@ rangeset = { version = "0.2" }
 arbitrary = { version = "1.0", features = ["derive"] }
 
 [[bin]]
-name = "http_transcript_parse"
-path = "src/http_transcript_parse.rs"
-
-[[bin]]
 name = "http_transcript_parse_with_secrets"
 path = "src/http_transcript_parse_with_secrets.rs"
 
 [[bin]]
 name = "compressed_partial_transcript"
 path = "src/compressed_partial_transcript.rs"
+
