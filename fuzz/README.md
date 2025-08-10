@@ -3,6 +3,9 @@ This directory contains the fuzzing harnesses designed to continuously test the 
 
 ---
 
+## Install `cargo-fuzz` => `cargo install cargo-fuzz`
+
+
 ### How to run the fuzzers
 ```bash
 ~/tlsn/fuzz$ cargo fuzz run <target-name>
