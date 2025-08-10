@@ -1,0 +1,28 @@
+[package]
+name = "tlsn-fuzz"
+version = "0.0.0"
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tlsn-formats = { path = "../crates/formats" }
+tlsn-core = { path = "../crates/core" }
+tlsn-data-fixtures = { path = "../crates/data-fixtures" }
+bincode = { workspace = true }
+rangeset = { version = "0.2" }
+arbitrary = { version = "1.0", features = ["derive"] }
+
+[[bin]]
+name = "http_transcript_parse"
+path = "src/http_transcript_parse.rs"
+
+[[bin]]
+name = "http_transcript_parse_with_secrets"
+path = "src/http_transcript_parse_with_secrets.rs"
+
+[[bin]]
+name = "compressed_partial_transcript"
+path = "src/compressed_partial_transcript.rs"
