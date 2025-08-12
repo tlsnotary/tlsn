@@ -31,7 +31,7 @@ impl TranscriptRefs {
     /// Returns the transcript lengths.
     pub(crate) fn len(&self) -> (usize, usize) {
         let sent = self.sent.iter().map(|v| v.len()).sum();
-        let recv = self.sent.iter().map(|v| v.len()).sum();
+        let recv = self.recv.iter().map(|v| v.len()).sum();
 
         (sent, recv)
     }
