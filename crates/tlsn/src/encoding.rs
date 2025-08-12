@@ -88,7 +88,12 @@ pub(crate) async fn transfer<'a>(
         .zip(recv_keys)
         .for_each(|(enc, key)| *enc ^= key);
 
+    // Set frame limit and add some extra bytes cushion room.
+    let (sent, recv) = refs.len();
+    let frame_limit = ENCODING_SIZE * (sent + recv) + 1024;
+
     ctx.io_mut()
+        .with_limit(frame_limit)
         .send(Encodings {
             sent: sent_encoding,
             recv: recv_encoding,
@@ -114,7 +119,12 @@ pub(crate) async fn receive<'a>(
     f: impl Fn(Vector<U8>) -> &'a [Mac],
     idxs: impl IntoIterator<Item = &(Direction, Idx)>,
 ) -> Result<(EncodingCommitment, EncodingTree), EncodingError> {
-    let Encodings { mut sent, mut recv } = ctx.io_mut().expect_next().await?;
+    // Set frame limit and add some extra bytes cushion room.
+    let (sent, recv) = refs.len();
+    let frame_limit = ENCODING_SIZE * (sent + recv) + 1024;
+
+    let Encodings { mut sent, mut recv } =
+        ctx.io_mut().with_limit(frame_limit).expect_next().await?;
 
     let sent_macs: Vec<u8> = refs
         .sent()
