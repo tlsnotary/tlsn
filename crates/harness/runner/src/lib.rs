@@ -153,16 +153,37 @@ pub async fn main() -> Result<()> {
             let mut failed = 0;
             let mut failed_tests = Vec::new();
             for name in tests {
-                let (output_p, output_v) = tokio::try_join!(
-                    runner.exec_p.test(TestCmd {
-                        name: name.clone(),
-                        role: Role::Prover,
-                    }),
-                    runner.exec_v.test(TestCmd {
-                        name: name.clone(),
-                        role: Role::Verifier,
-                    })
-                )?;
+                let exec_p_fut = async {
+                    if runner.exec_p.is_client() {
+                        // Allow the server counterpart some time to be ready
+                        // to accept our connection.
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    runner
+                        .exec_p
+                        .test(TestCmd {
+                            name: name.clone(),
+                            role: Role::Prover,
+                        })
+                        .await
+                };
+
+                let exec_v_fut = async {
+                    if runner.exec_v.is_client() {
+                        // Allow the server counterpart some time to be ready
+                        // to accept our connection.
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    runner
+                        .exec_v
+                        .test(TestCmd {
+                            name: name.clone(),
+                            role: Role::Verifier,
+                        })
+                        .await
+                };
+
+                let (output_p, output_v) = tokio::try_join!(exec_p_fut, exec_v_fut)?;
 
                 if output_p.status.is_passed() && output_v.status.is_passed() {
                     success += 1;
@@ -227,16 +248,37 @@ pub async fn main() -> Result<()> {
                 // Wait for the network to stabilize
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
-                let (output, _) = tokio::try_join!(
-                    runner.exec_p.bench(BenchCmd {
-                        config: config.clone(),
-                        role: Role::Prover,
-                    }),
-                    runner.exec_v.bench(BenchCmd {
-                        config: config.clone(),
-                        role: Role::Verifier,
-                    })
-                )?;
+                let exec_p_fut = async {
+                    if runner.exec_p.is_client() {
+                        // Allow the server counterpart some time to be ready
+                        // to accept our connection.
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    runner
+                        .exec_p
+                        .bench(BenchCmd {
+                            config: config.clone(),
+                            role: Role::Prover,
+                        })
+                        .await
+                };
+
+                let exec_v_fut = async {
+                    if runner.exec_v.is_client() {
+                        // Allow the server counterpart some time to be ready
+                        // to accept our connection.
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    runner
+                        .exec_v
+                        .bench(BenchCmd {
+                            config: config.clone(),
+                            role: Role::Verifier,
+                        })
+                        .await
+                };
+
+                let (output, _) = tokio::try_join!(exec_p_fut, exec_v_fut)?;
 
                 let BenchOutput::Prover { metrics } = output else {
                     panic!("expected prover output");

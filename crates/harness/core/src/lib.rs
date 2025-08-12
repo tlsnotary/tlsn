@@ -26,7 +26,7 @@ pub enum Id {
     One,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum IoMode {
     Client,
     Server,

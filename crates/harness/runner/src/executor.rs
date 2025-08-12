@@ -8,10 +8,11 @@ use chromiumoxide::{
         network::{EnableParams, SetCacheDisabledParams},
         page::ReloadParams,
     },
+    handler::HandlerConfig,
 };
 use futures::StreamExt;
 use harness_core::{
-    ExecutorConfig, Id,
+    ExecutorConfig, Id, IoMode,
     bench::BenchOutput,
     network::PORT_BROWSER,
     rpc::{BenchCmd, TestCmd},
@@ -126,8 +127,18 @@ impl Executor {
                 const TIMEOUT: usize = 10000;
                 const DELAY: usize = 100;
                 let mut retries = 0;
+                let config = HandlerConfig {
+                    // Bump the timeout for long-running benches.
+                    request_timeout: Duration::from_secs(120),
+                    ..Default::default()
+                };
+
                 let (browser, mut handler) = loop {
-                    match Browser::connect(format!("http://{}:{}", rpc_addr.0, PORT_BROWSER)).await
+                    match Browser::connect_with_config(
+                        format!("http://{}:{}", rpc_addr.0, PORT_BROWSER),
+                        config.clone(),
+                    )
+                    .await
                     {
                         Ok(browser) => break browser,
                         Err(e) => {
@@ -143,6 +154,14 @@ impl Executor {
                 tokio::spawn(async move {
                     while let Some(res) = handler.next().await {
                         if let Err(e) = res {
+                            if e.to_string()
+                                == "data did not match any variant of untagged enum Message"
+                            {
+                                // Do not log this error. It appears to be
+                                // caused by a bug upstream.
+                                // https://github.com/mattsse/chromiumoxide/issues/167
+                                continue;
+                            }
                             eprintln!("chromium error: {e:?}");
                         }
                     }
@@ -266,6 +285,10 @@ impl Executor {
 
             Ok(())
         }
+    }
+
+    pub fn is_client(&self) -> bool {
+        self.config.io_mode() == &IoMode::Client
     }
 }
 
