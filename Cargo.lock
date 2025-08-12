@@ -8751,6 +8751,9 @@ dependencies = [
 name = "wasmtime-plugin"
 version = "0.1.0"
 dependencies = [
+ "futures",
+ "http-body-util",
+ "hyper",
  "serde",
  "serde_json",
  "wit-bindgen",

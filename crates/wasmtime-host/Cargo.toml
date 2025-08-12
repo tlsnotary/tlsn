@@ -10,5 +10,5 @@ workspace = true
 anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util"] }
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", branch = "main", features = ["component-model-async"] }

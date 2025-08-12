@@ -1,22 +1,31 @@
+use std::{pin::Pin, task::{Context, Waker}};
+
+use anyhow::{Error};
 use serde::{Deserialize, Serialize};
-use wasmtime::{component::{bindgen, Component, HasSelf, Linker}, Config, Engine, Store};
+use tokio::{io::{AsyncWrite}, net::TcpStream};
+use wasmtime::{component::{bindgen, Component, HasSelf, Linker, Resource, ResourceTable}, Config, Engine, Store, Result};
+
+use component::wasmtime_plugin::io::{Host, HostNetworkIo};
 
 const WASM_PLUGIN_PATH: &str = "../../target/wasm32-unknown-unknown/release/wasmtime_plugin_component.wasm";
 
 bindgen!({
-    path: "../wasmtime-plugin/wit/world.wit",
-    imports: {
-        "read": async,
-        "write": async,
+    path: "../wasmtime-plugin/wit/plugin.wit",
+    imports: { 
+        default: async | trappable,
     },
     exports: {
-        "main": async,
-    }
+        default: async,
+    },
+    with: {
+        "component:wasmtime-plugin/io/network-io": NetworkIo,
+    },
 });
 
 #[derive(Serialize, Debug)]
 struct Input {
-    id: u8
+    host: String,
+    port: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -24,19 +33,86 @@ struct Output {
     result: bool
 }
 
-struct HostState {}
+pub struct NetworkIo {
+    inner: TcpStream
+}
 
-impl PluginImports for HostState {
-    async fn read(&mut self, id: u8) -> Vec<u8> {
-        println!("Id received from plugin: {id}");
-        serde_json::to_vec(&format!("Hello from host {}", id)).unwrap()
+#[derive(Default)]
+struct HostState {
+    table: ResourceTable,
+}
+
+impl Host for HostState {}
+
+impl HostNetworkIo for HostState {
+    async fn new(&mut self, host: String, port: u32) -> Result<Resource<NetworkIo>> {
+        let connection = TcpStream::connect(format!("{host}:{port}"))
+            .await
+            .map_err(|err| Error::msg(err))?;
+
+        println!("Connection established");
+
+        let id = self.table.push(NetworkIo { inner: connection })?;
+        Ok(id)
     }
 
-    async fn write(&mut self, payload: Vec<u8>) -> Vec<u8> {
-        let payload: String = serde_json::from_slice(&payload).unwrap();
-        println!("Payload received from plugin: {payload}");
-        let success = true;
-        serde_json::to_vec(&success).unwrap()
+    async fn read(&mut self, network_io: Resource<NetworkIo>, max: u32) -> Result<Vec<u8>> {
+        debug_assert!(!network_io.owned());
+
+        println!("Trying to reads");
+
+        let conn = self.table.get(&network_io)?;
+        let mut buf = vec![0u8; max as usize];
+        loop {
+            conn.inner.readable().await?;
+            match conn.inner.try_read(&mut buf) {
+                Ok(0) => return Ok(Vec::new()),       // EOF
+                Ok(n) => return Ok(buf[..n].to_vec()),// got bytes
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => continue,
+                Err(e) => return Err(e.into()),
+            }
+        }
+    }
+
+    async fn write(&mut self, network_io: Resource<NetworkIo>, bytes: Vec<u8>) -> Result<u32> {
+        debug_assert!(!network_io.owned());
+
+        println!("Trying to write");
+
+        let conn = self.table.get(&network_io)?;
+        let mut offset = 0;
+        while offset < bytes.len() {
+            conn.inner.writable().await?;
+            match conn.inner.try_write(&bytes[offset..]) {
+                Ok(0) => break,
+                Ok(n) => offset += n,
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => continue,
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(offset as u32)
+    }
+
+    async  fn shutdown(&mut self, network_io: Resource<NetworkIo>,) -> Result<()> {
+        debug_assert!(!network_io.owned());
+
+        println!("Trying to shut down");
+
+        let conn = self.table.get_mut(&network_io)?;
+        let mut context = Context::from_waker(Waker::noop());
+        
+        let _ = Pin::new(&mut conn.inner).poll_shutdown(&mut context);
+
+        Ok(())
+    }
+
+    async fn drop(&mut self, network_io: Resource<NetworkIo>) -> Result<()> {
+        debug_assert!(network_io.owned());
+
+        println!("Trying to drop");
+
+        self.table.delete(network_io)?;
+        Ok(())
     }
 }
 
@@ -56,14 +132,14 @@ async fn main() -> anyhow::Result<()> {
     
     Plugin::add_to_linker::<_, HasSelf<_>>(&mut linker, |state| state)?;
 
-    let mut store = Store::new(&engine, HostState {});
+    let mut store = Store::new(&engine, HostState::default());
 
     let plugin = Plugin::instantiate_async(&mut store, &component, &linker).await?;
 
-    let input = Input { id: 0 };
-    println!("Input: {:?}", input);
-
+    let input = Input { host: "0.0.0.0".into(), port: 7044 };
+    println!("Inputs: {:?}", input);
     let input_bytes = serde_json::to_vec(&input)?;
+
     let res_byte = plugin.call_main(&mut store, &input_bytes).await?;
     let res: Output = serde_json::from_slice(&res_byte)?;
 

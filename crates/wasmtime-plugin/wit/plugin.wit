@@ -1,0 +1,19 @@
+package component:wasmtime-plugin;
+
+interface io {
+    resource network-io {
+        constructor(host: string, port: u32);
+
+        read: func(max: u32) -> list<u8>;
+
+        write: func(bytes: list<u8>) -> u32;
+
+        shutdown: func();
+    }
+}
+
+world plugin {
+    import io;
+
+    export main: func(input: list<u8>) -> list<u8>;
+}
