@@ -13,7 +13,7 @@ pub struct OwnedTrustAnchor {
 
 impl OwnedTrustAnchor {
     /// Get a `webpki::TrustAnchor` by borrowing the owned elements.
-    pub(crate) fn to_trust_anchor(&self) -> webpki::TrustAnchor {
+    pub(crate) fn to_trust_anchor(&self) -> webpki::TrustAnchor<'_> {
         webpki::TrustAnchor {
             subject: &self.subject,
             spki: &self.spki,
