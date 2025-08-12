@@ -36,7 +36,7 @@ pub struct Request {
 
 impl Request {
     /// Returns a new request builder.
-    pub fn builder(config: &RequestConfig) -> RequestBuilder {
+    pub fn builder(config: &RequestConfig) -> RequestBuilder<'_> {
         RequestBuilder::new(config)
     }
 
