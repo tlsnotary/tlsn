@@ -90,7 +90,7 @@ pub(crate) async fn transfer<'a>(
 
     // Set frame limit and add some extra bytes cushion room.
     let (sent, recv) = refs.len();
-    let frame_limit = ENCODING_SIZE * (sent + recv) + 1024;
+    let frame_limit = ENCODING_SIZE * (sent + recv) + ctx.io().limit();
 
     ctx.io_mut()
         .with_limit(frame_limit)
@@ -121,7 +121,7 @@ pub(crate) async fn receive<'a>(
 ) -> Result<(EncodingCommitment, EncodingTree), EncodingError> {
     // Set frame limit and add some extra bytes cushion room.
     let (sent, recv) = refs.len();
-    let frame_limit = ENCODING_SIZE * (sent + recv) + 1024;
+    let frame_limit = ENCODING_SIZE * (sent + recv) + ctx.io().limit();
 
     let Encodings { mut sent, mut recv } =
         ctx.io_mut().with_limit(frame_limit).expect_next().await?;
