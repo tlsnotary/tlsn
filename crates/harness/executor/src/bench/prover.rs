@@ -93,7 +93,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let config = builder.build()?;
 
-    prover.prove(&config).await?;
+    prover.prove(config).await?;
     prover.close().await?;
 
     let time_total = time_start.elapsed().as_millis();

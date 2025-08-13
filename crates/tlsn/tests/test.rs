@@ -103,7 +103,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
 
     let config = builder.build().unwrap();
 
-    prover.prove(&config).await.unwrap();
+    prover.prove(config).await.unwrap();
     prover.close().await.unwrap();
 }
 

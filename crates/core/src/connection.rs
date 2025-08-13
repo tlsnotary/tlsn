@@ -8,6 +8,8 @@ use tls_core::msgs::{codec::Codec, enums::NamedGroup, handshake::ServerECDHParam
 
 use crate::webpki::{CertificateDer, ServerCertVerifier, ServerCertVerifierError};
 
+use crate::transcript::TlsTranscript;
+
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -311,8 +313,28 @@ pub struct HandshakeData {
     pub binding: CertBinding,
 }
 
+/// Verifies the handshake data.
 impl HandshakeData {
-    /// Verifies the handshake data.
+    /// Creates a new instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `transcript` - The TLS transcript.
+    pub fn new(transcript: &TlsTranscript) -> Self {
+        Self {
+            certs: transcript
+                .server_cert_chain()
+                .expect("server cert chain is present")
+                .to_vec(),
+            sig: transcript
+                .server_signature()
+                .expect("server signature is present")
+                .clone(),
+            binding: transcript.certificate_binding().clone(),
+        }
+    }
+
+    /// Verifies the server certificate data.
     ///
     /// # Arguments
     ///

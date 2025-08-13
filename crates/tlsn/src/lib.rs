@@ -7,7 +7,6 @@
 pub(crate) mod commit;
 pub mod config;
 pub(crate) mod context;
-pub(crate) mod encoding;
 pub(crate) mod ghash;
 pub(crate) mod msg;
 pub(crate) mod mux;

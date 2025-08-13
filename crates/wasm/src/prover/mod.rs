@@ -126,7 +126,7 @@ impl JsProver {
 
         let config = builder.build()?;
 
-        prover.prove(&config).await?;
+        prover.prove(config).await?;
         prover.close().await?;
 
         info!("Finalized");

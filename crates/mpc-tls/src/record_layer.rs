@@ -27,7 +27,7 @@ use tracing::{debug, instrument};
 
 use crate::{
     record_layer::{aes_gcm::AesGcm, decrypt::DecryptOp, encrypt::EncryptOp},
-    MpcTlsError, Role, Vm,
+    MpcTlsError, Role, ServerWriteKey, Vm,
 };
 pub(crate) use decrypt::DecryptMode;
 pub(crate) use encrypt::EncryptMode;
@@ -240,6 +240,15 @@ impl RecordLayer {
         self.aes_gcm.set_key(server_write_key, server_iv);
 
         Ok(())
+    }
+
+    /// Returns the server write key.
+    pub(crate) fn server_write_key(&self) -> Result<ServerWriteKey, MpcTlsError> {
+        let key = self.aes_gcm.key()?;
+        let iv = self.aes_gcm.iv()?;
+
+        let swk = ServerWriteKey { key, iv };
+        Ok(swk)
     }
 
     /// Sets up the record layer.

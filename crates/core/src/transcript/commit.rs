@@ -114,7 +114,10 @@ impl TranscriptCommitConfig {
     /// Returns a request for the transcript commitments.
     pub fn to_request(&self) -> TranscriptCommitRequest {
         TranscriptCommitRequest {
-            encoding: self.has_encoding,
+            encoding: self
+                .iter_encoding()
+                .map(|(dir, idx)| (*dir, idx.clone()))
+                .collect(),
             hash: self
                 .iter_hash()
                 .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg))
@@ -289,14 +292,19 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
 /// Request to compute transcript commitments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptCommitRequest {
-    encoding: bool,
+    encoding: Vec<(Direction, Idx)>,
     hash: Vec<(Direction, Idx, HashAlgId)>,
 }
 
 impl TranscriptCommitRequest {
     /// Returns `true` if an encoding commitment is requested.
-    pub fn encoding(&self) -> bool {
-        self.encoding
+    pub fn has_encoding(&self) -> bool {
+        !self.encoding.is_empty()
+    }
+
+    /// Returns `true` if an encoding commitment is requested.
+    pub fn iter_encoding(&self) -> impl Iterator<Item = &(Direction, Idx)> {
+        self.encoding.iter()
     }
 
     /// Returns `true` if a hash commitment is requested.

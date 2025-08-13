@@ -488,7 +488,8 @@ impl Idx {
         self.0.len_ranges()
     }
 
-    pub(crate) fn as_range_set(&self) -> &RangeSet<usize> {
+    /// Returns the inner range set.
+    pub fn as_range_set(&self) -> &RangeSet<usize> {
         &self.0
     }
 

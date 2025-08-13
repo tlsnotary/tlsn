@@ -1,8 +1,12 @@
 //! Fixtures for testing
 
 mod provider;
+mod transcript;
 
 pub use provider::FixtureEncodingProvider;
+pub use transcript::{
+    forged_transcript, transcript_fixture, IV, KEY, RECORD_SIZE, RECV_LEN, SENT_LEN,
+};
 
 use hex::FromHex;
 

@@ -7,7 +7,7 @@ members = [
     "crates/components/key-exchange",
     "crates/core",
     "crates/data-fixtures",
-    "crates/examples",
+    # "crates/examples",
     "crates/formats",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",
@@ -84,6 +84,7 @@ spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 uid-mux = { version = "0.2" }
 websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 
+aead = { version = "0.4" }
 aes = { version = "0.8" }
 aes-gcm = { version = "0.9" }
 anyhow = { version = "1.0" }
@@ -97,7 +98,7 @@ bytes = { version = "1.4" }
 cfg-if = { version = "1" }
 chromiumoxide = { version = "0.7" }
 chrono = { version = "0.4" }
-cipher = { version = "0.4" }
+cipher-crypto = { package = "cipher", version = "0.4" }
 clap = { version = "4.5" }
 criterion = { version = "0.5" }
 ctr = { version = "0.9" }
@@ -120,6 +121,7 @@ inventory = { version = "0.3" }
 itybity = { version = "0.2" }
 js-sys = { version = "0.3" }
 k256 = { version = "0.13" }
+lipsum = { version = "0.9" }
 log = { version = "0.4" }
 once_cell = { version = "1.19" }
 opaque-debug = { version = "0.3" }

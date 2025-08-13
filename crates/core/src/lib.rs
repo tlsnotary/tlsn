@@ -51,6 +51,11 @@ impl ProveConfig {
     pub fn transcript_commit(&self) -> Option<&TranscriptCommitConfig> {
         self.transcript_commit.as_ref()
     }
+
+    /// Returns the partial transcript.
+    pub fn into_transcript(self) -> Option<PartialTranscript> {
+        self.transcript
+    }
 }
 
 /// Builder for [`ProveConfig`].
@@ -209,8 +214,27 @@ pub struct ProvePayload {
     pub transcript_commit: Option<TranscriptCommitRequest>,
 }
 
+impl ProvePayload {
+    /// Creates a new prove payload.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The prove config.
+    /// * `handshake` - The server name and cert data.
+    pub fn new(config: &ProveConfig, handshake: Option<(ServerName, HandshakeData)>) -> Self {
+        let transcript = config.transcript().cloned();
+        let transcript_commit = config.transcript_commit().map(|config| config.to_request());
+
+        Self {
+            handshake,
+            transcript,
+            transcript_commit,
+        }
+    }
+}
+
 /// Prover output.
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct ProverOutput {
     /// Transcript commitments.
     pub transcript_commitments: Vec<TranscriptCommitment>,
@@ -221,7 +245,7 @@ pub struct ProverOutput {
 opaque_debug::implement!(ProverOutput);
 
 /// Verifier output.
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct VerifierOutput {
     /// Server identity.
     pub server_name: Option<ServerName>,

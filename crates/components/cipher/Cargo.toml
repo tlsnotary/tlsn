@@ -31,4 +31,4 @@ mpz-ot = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 rand = { workspace = true }
 ctr = { workspace = true }
-cipher = { workspace = true }
+cipher-crypto = { workspace = true }

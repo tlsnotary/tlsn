@@ -19,35 +19,26 @@ use webpki::anchor_from_trusted_cert;
 
 use crate::{
     Role,
-    commit::{
-        commit_records,
-        hash::prove_hash,
-        transcript::{TranscriptRefs, decode_transcript},
-    },
+    commit::{ProvingState, encoding::Encodings, transcript::TranscriptRefs},
     context::build_mt_context,
-    encoding,
     mux::attach_mux,
     tag::verify_tags,
     zk_aes_ctr::ZkAesCtr,
 };
-
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
-use serio::SinkExt;
+use serio::{SinkExt, stream::IoStreamExt};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
-use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     ProvePayload,
     connection::{HandshakeData, ServerName},
-    hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256},
-    transcript::{TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
+    transcript::{TlsTranscript, Transcript, encoding::EncoderSecret},
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
-
 use tracing::{Instrument, Span, debug, info, info_span, instrument};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
@@ -172,8 +163,8 @@ impl Prover<state::Setup> {
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
-            mut zk_aes_ctr_sent,
-            mut zk_aes_ctr_recv,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
             keys,
             vm,
             ..
@@ -242,7 +233,7 @@ impl Prover<state::Setup> {
 
                 info!("starting MPC-TLS");
 
-                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
+                let (_, (mut ctx, tls_transcript, _)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;
@@ -280,28 +271,6 @@ impl Prover<state::Setup> {
                 )
                 .map_err(ProverError::zk)?;
 
-                // Prove received plaintext. Prover drops the proof output, as
-                // they trust themselves.
-                let (sent_refs, _) = commit_records(
-                    &mut vm,
-                    &mut zk_aes_ctr_sent,
-                    tls_transcript
-                        .sent()
-                        .iter()
-                        .filter(|record| record.typ == ContentType::ApplicationData),
-                )
-                .map_err(ProverError::zk)?;
-
-                let (recv_refs, _) = commit_records(
-                    &mut vm,
-                    &mut zk_aes_ctr_recv,
-                    tls_transcript
-                        .recv()
-                        .iter()
-                        .filter(|record| record.typ == ContentType::ApplicationData),
-                )
-                .map_err(ProverError::zk)?;
-
                 mux_fut
                     .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
                     .await?;
@@ -309,7 +278,9 @@ impl Prover<state::Setup> {
                 let transcript = tls_transcript
                     .to_transcript()
                     .expect("transcript is complete");
-                let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
+
+                let (sent_len, recv_len) = transcript.len();
+                let transcript_refs = TranscriptRefs::new(sent_len, recv_len);
 
                 Ok(Prover {
                     config: self.config,
@@ -322,6 +293,9 @@ impl Prover<state::Setup> {
                         tls_transcript,
                         transcript,
                         transcript_refs,
+                        zk_aes_ctr_sent,
+                        zk_aes_ctr_recv,
+                        keys,
                     },
                 })
             }
@@ -355,123 +329,77 @@ impl Prover<state::Committed> {
     ///
     /// * `config` - The disclosure configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn prove(&mut self, config: &ProveConfig) -> Result<ProverOutput, ProverError> {
+    pub async fn prove(&mut self, config: ProveConfig) -> Result<ProverOutput, ProverError> {
         let state::Committed {
             mux_fut,
             ctx,
             vm,
             tls_transcript,
             transcript_refs,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
+            keys,
             ..
         } = &mut self.state;
 
-        let mut output = ProverOutput {
-            transcript_commitments: Vec::new(),
-            transcript_secrets: Vec::new(),
-        };
+        // Create and send prove payload.
+        let server_name = self.config.server_name();
+        let handshake = config
+            .server_identity()
+            .then(|| (server_name.clone(), HandshakeData::new(tls_transcript)));
+        let payload = ProvePayload::new(&config, handshake);
 
-        let payload = ProvePayload {
-            handshake: config.server_identity().then(|| {
-                (
-                    self.config.server_name().clone(),
-                    HandshakeData {
-                        certs: tls_transcript
-                            .server_cert_chain()
-                            .expect("server cert chain is present")
-                            .to_vec(),
-                        sig: tls_transcript
-                            .server_signature()
-                            .expect("server signature is present")
-                            .clone(),
-                        binding: tls_transcript.certificate_binding().clone(),
-                    },
-                )
-            }),
-            transcript: config.transcript().cloned(),
-            transcript_commit: config.transcript_commit().map(|config| config.to_request()),
-        };
-
-        // Send payload.
         mux_fut
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
 
-        if let Some(partial_transcript) = config.transcript() {
-            decode_transcript(
-                vm,
-                partial_transcript.sent_authed(),
-                partial_transcript.received_authed(),
-                transcript_refs,
-            )
-            .map_err(ProverError::zk)?;
+        let mut proving_state =
+            ProvingState::for_prover(config, *keys, tls_transcript, transcript_refs);
+
+        // Authenticate only necessary parts of the transcript. Proof is not needed on
+        // the prover side.
+        let _ = proving_state.auth_sent(vm, zk_aes_ctr_sent)?;
+        let _ = proving_state.auth_recv(vm, zk_aes_ctr_recv)?;
+
+        mux_fut
+            .poll_with(vm.execute_all(ctx).map_err(ProverError::zk))
+            .await?;
+
+        // Decode the transcript parts that should be disclosed.
+        if proving_state.has_decoding_ranges() {
+            proving_state.decode_transcript(vm)?;
         }
 
-        let mut hash_commitments = None;
-        if let Some(commit_config) = config.transcript_commit() {
-            if commit_config.has_encoding() {
-                let hasher: &(dyn HashAlgorithm + Send + Sync) =
-                    match *commit_config.encoding_hash_alg() {
-                        HashAlgId::SHA256 => &Sha256::default(),
-                        HashAlgId::KECCAK256 => &Keccak256::default(),
-                        HashAlgId::BLAKE3 => &Blake3::default(),
-                        alg => {
-                            return Err(ProverError::config(format!(
-                                "unsupported hash algorithm for encoding commitment: {alg}"
-                            )));
-                        }
-                    };
+        // Create encoding commitments if necessary.
+        if proving_state.has_encoding_ranges() {
+            let encodings: Encodings = mux_fut
+                .poll_with(ctx.io_mut().expect_next().map_err(ProverError::from))
+                .await?;
 
-                let (commitment, tree) = mux_fut
-                    .poll_with(
-                        encoding::receive(
-                            ctx,
-                            hasher,
-                            transcript_refs,
-                            |plaintext| vm.get_macs(plaintext).expect("reference is valid"),
-                            commit_config.iter_encoding(),
-                        )
-                        .map_err(ProverError::commit),
-                    )
-                    .await?;
+            let mac_provider = |refs| vm.get_macs(refs).expect("reference is valid");
+            let root = proving_state.receive_encodings(encodings, mac_provider)?;
 
-                output
-                    .transcript_commitments
-                    .push(TranscriptCommitment::Encoding(commitment));
-                output
-                    .transcript_secrets
-                    .push(TranscriptSecret::Encoding(tree));
-            }
+            mux_fut
+                .poll_with(ctx.io_mut().send(root).map_err(ProverError::from))
+                .await?;
+            let secret: EncoderSecret = mux_fut
+                .poll_with(ctx.io_mut().expect_next().map_err(ProverError::from))
+                .await?;
 
-            if commit_config.has_hash() {
-                hash_commitments = Some(
-                    prove_hash(
-                        vm,
-                        transcript_refs,
-                        commit_config
-                            .iter_hash()
-                            .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg)),
-                    )
-                    .map_err(ProverError::commit)?,
-                );
-            }
+            proving_state.set_encoder_secret(secret);
+        }
+
+        // Create hash commitments if necessary.
+        if proving_state.has_hash_ranges() {
+            proving_state.prove_hashes(vm)?;
         }
 
         mux_fut
             .poll_with(vm.execute_all(ctx).map_err(ProverError::zk))
             .await?;
 
-        if let Some((hash_fut, hash_secrets)) = hash_commitments {
-            let hash_commitments = hash_fut.try_recv().map_err(ProverError::commit)?;
-            for (commitment, secret) in hash_commitments.into_iter().zip(hash_secrets) {
-                output
-                    .transcript_commitments
-                    .push(TranscriptCommitment::Hash(commitment));
-                output
-                    .transcript_secrets
-                    .push(TranscriptSecret::Hash(secret));
-            }
-        }
-
+        // Finish creation of commitments and generate output.
+        let output = proving_state.finalize_prover()?;
         Ok(output)
     }
 

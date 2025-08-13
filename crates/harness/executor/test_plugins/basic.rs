@@ -107,7 +107,7 @@ async fn prover(provider: &IoProvider) {
 
     let config = builder.build().unwrap();
 
-    prover.prove(&config).await.unwrap();
+    prover.prove(config).await.unwrap();
     prover.close().await.unwrap();
 }
 

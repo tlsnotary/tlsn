@@ -37,8 +37,8 @@ impl ZkAesCtr {
     }
 
     /// Returns the role.
-    pub(crate) fn role(&self) -> &Role {
-        &self.role
+    pub(crate) fn role(&self) -> Role {
+        self.role
     }
 
     /// Allocates `len` bytes for encryption.

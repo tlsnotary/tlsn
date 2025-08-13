@@ -1,4 +1,4 @@
-use crate::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
+use crate::{commit::CommitError, zk_aes_ctr::ZkAesCtrError};
 use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
 
@@ -20,13 +20,6 @@ impl VerifierError {
         }
     }
 
-    pub(crate) fn config<E>(source: E) -> Self
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self::new(ErrorKind::Config, source)
-    }
-
     pub(crate) fn mpc<E>(source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
@@ -40,13 +33,6 @@ impl VerifierError {
     {
         Self::new(ErrorKind::Zk, source)
     }
-
-    pub(crate) fn verify<E>(source: E) -> Self
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self::new(ErrorKind::Verify, source)
-    }
 }
 
 #[derive(Debug)]
@@ -56,7 +42,6 @@ enum ErrorKind {
     Mpc,
     Zk,
     Commit,
-    Verify,
 }
 
 impl fmt::Display for VerifierError {
@@ -69,7 +54,6 @@ impl fmt::Display for VerifierError {
             ErrorKind::Mpc => f.write_str("mpc error")?,
             ErrorKind::Zk => f.write_str("zk error")?,
             ErrorKind::Commit => f.write_str("commit error")?,
-            ErrorKind::Verify => f.write_str("verification error")?,
         }
 
         if let Some(source) = &self.source {
@@ -116,8 +100,8 @@ impl From<ZkAesCtrError> for VerifierError {
     }
 }
 
-impl From<EncodingError> for VerifierError {
-    fn from(e: EncodingError) -> Self {
+impl From<CommitError> for VerifierError {
+    fn from(e: CommitError) -> Self {
         Self::new(ErrorKind::Commit, e)
     }
 }

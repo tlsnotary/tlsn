@@ -1,6 +1,6 @@
 use crate::{
     leader::{MpcTlsLeader, State},
-    MpcTlsError,
+    MpcTlsError, ServerWriteKey,
 };
 use async_trait::async_trait;
 use ludi::{mailbox, Actor, Address, Context as LudiCtx, Dispatch, Error, Handler, Message, Wrap};
@@ -70,7 +70,7 @@ impl MpcTlsLeader {
         mut self,
     ) -> (
         MpcTlsLeaderCtrl,
-        impl Future<Output = Result<(Context, TlsTranscript), MpcTlsError>>,
+        impl Future<Output = Result<(Context, TlsTranscript, ServerWriteKey), MpcTlsError>>,
     ) {
         let (mut mailbox, address) = mailbox(100);
 
@@ -83,20 +83,24 @@ impl MpcTlsLeader {
 }
 
 impl Actor for MpcTlsLeader {
-    type Stop = (Context, TlsTranscript);
+    type Stop = (Context, TlsTranscript, ServerWriteKey);
     type Error = MpcTlsError;
 
     async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
         debug!("leader actor stopped");
 
         let State::Closed {
-            ctx, transcript, ..
+            ctx,
+            transcript,
+            record_layer,
+            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("leader actor stopped in invalid state"));
         };
 
-        Ok((ctx, transcript))
+        let swk = record_layer.server_write_key()?;
+        Ok((ctx, transcript, swk))
     }
 }
 
