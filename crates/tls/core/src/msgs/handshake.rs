@@ -258,7 +258,7 @@ pub enum ServerNamePayload {
 impl ServerNamePayload {
     pub fn new_hostname(hostname: pki_types::DnsName<'static>) -> Self {
         let raw = {
-            let s: &str = hostname.as_ref().into();
+            let s: &str = hostname.as_ref();
             PayloadU16::new(s.as_bytes().into())
         };
         Self::HostName((raw, hostname))
@@ -269,7 +269,7 @@ impl ServerNamePayload {
 
         let dns_name = {
             match pki_types::DnsName::try_from(raw.0.as_slice()) {
-                Ok(dns_name) => dns_name.to_owned().into(),
+                Ok(dns_name) => dns_name.to_owned(),
                 Err(_) => {
                     warn!("Illegal SNI hostname received {:?}", raw.0);
                     return None;

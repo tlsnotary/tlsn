@@ -66,22 +66,13 @@ impl ProverConfig {
 }
 
 /// Configuration for the prover's TLS connection.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct TlsConfig {
     /// Root certificates.
     root_store: Option<RootCertStore>,
     /// Certificate chain and a matching private key for client
     /// authentication.
     client_auth: Option<(Vec<CertificateDer>, PrivateKeyDer)>,
-}
-
-impl Default for TlsConfig {
-    fn default() -> Self {
-        Self {
-            root_store: None,
-            client_auth: None,
-        }
-    }
 }
 
 impl TlsConfig {

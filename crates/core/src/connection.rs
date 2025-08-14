@@ -52,7 +52,7 @@ impl ServerName {
 impl fmt::Display for ServerName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ServerName::Dns(name) => write!(f, "{}", name),
+            ServerName::Dns(name) => write!(f, "{name}"),
         }
     }
 }
