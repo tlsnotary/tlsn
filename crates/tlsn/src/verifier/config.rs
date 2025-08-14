@@ -1,12 +1,14 @@
 use std::fmt::{Debug, Formatter, Result};
 
-use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 use mpc_tls::Config;
+use serde::{Deserialize, Serialize};
 use tlsn_core::webpki::RootCertStore;
+
+use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
 #[allow(missing_docs)]
-#[derive(derive_builder::Builder)]
+#[derive(derive_builder::Builder, Serialize, Deserialize)]
 #[builder(pattern = "owned")]
 pub struct VerifierConfig {
     protocol_config_validator: ProtocolConfigValidator,

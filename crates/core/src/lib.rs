@@ -24,7 +24,7 @@ use crate::{
 };
 
 /// Configuration to prove information to the verifier.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProveConfig {
     server_identity: bool,
     transcript: Option<PartialTranscript>,
@@ -163,7 +163,7 @@ enum ProveConfigBuilderErrorRepr {
 }
 
 /// Configuration to verify information from the prover.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct VerifyConfig {}
 
 impl VerifyConfig {
@@ -210,6 +210,7 @@ pub struct ProvePayload {
 }
 
 /// Prover output.
+#[derive(Serialize, Deserialize)]
 pub struct ProverOutput {
     /// Transcript commitments.
     pub transcript_commitments: Vec<TranscriptCommitment>,
@@ -220,6 +221,7 @@ pub struct ProverOutput {
 opaque_debug::implement!(ProverOutput);
 
 /// Verifier output.
+#[derive(Serialize, Deserialize)]
 pub struct VerifierOutput {
     /// Server identity.
     pub server_name: Option<ServerName>,

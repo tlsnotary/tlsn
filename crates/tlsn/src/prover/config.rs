@@ -1,4 +1,5 @@
 use mpc_tls::Config;
+use serde::{Deserialize, Serialize};
 use tlsn_core::{
     connection::ServerName,
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
@@ -7,7 +8,7 @@ use tlsn_core::{
 use crate::config::{NetworkSetting, ProtocolConfig};
 
 /// Configuration for the prover.
-#[derive(Debug, Clone, derive_builder::Builder)]
+#[derive(Debug, Clone, derive_builder::Builder, Serialize, Deserialize)]
 pub struct ProverConfig {
     /// The server DNS name.
     #[builder(setter(into))]
@@ -66,7 +67,7 @@ impl ProverConfig {
 }
 
 /// Configuration for the prover's TLS connection.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct TlsConfig {
     /// Root certificates.
     root_store: Option<RootCertStore>,

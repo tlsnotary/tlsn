@@ -110,7 +110,7 @@ impl ProtocolConfig {
 
 /// Protocol configuration validator used by checker (i.e. verifier) to perform
 /// compatibility check with the peer's (i.e. the prover's) configuration.
-#[derive(derive_builder::Builder, Clone, Debug)]
+#[derive(derive_builder::Builder, Clone, Debug, Serialize, Deserialize)]
 pub struct ProtocolConfigValidator {
     /// Maximum number of bytes that can be sent.
     max_sent_data: usize,
