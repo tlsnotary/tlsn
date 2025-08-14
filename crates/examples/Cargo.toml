@@ -43,3 +43,15 @@ tracing-subscriber = { workspace = true }
 [[example]]
 name = "interactive"
 path = "interactive/interactive.rs"
+
+[[example]]
+name = "attestation_prove"
+path = "attestation/prove.rs"
+
+[[example]]
+name = "attestation_present"
+path = "attestation/present.rs"
+
+[[example]]
+name = "attestation_verify"
+path = "attestation/verify.rs"
