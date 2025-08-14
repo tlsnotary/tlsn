@@ -1,6 +1,6 @@
 // This example demonstrates how to use the Prover to acquire an attestation for
-// an HTTP request sent to a server fixture. The attestation and secrets are saved to
-// disk.
+// an HTTP request sent to a server fixture. The attestation and secrets are
+// saved to disk.
 
 use std::env;
 
@@ -9,24 +9,30 @@ use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use spansy::Spanned;
-use tls_core::{msgs::enums::ContentType};
-use tlsn_core::{ProveConfig, ProverOutput, VerifierOutput, VerifyConfig};
-use tokio::{io::{AsyncRead, AsyncWrite}, sync::oneshot::{self, Receiver, Sender}};
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
-use tracing::debug;
+use tls_core::msgs::enums::ContentType;
 use tlsn::{
-    attestation::{request::{Request as AttestationRequest, RequestConfig},
-    signing::Secp256k1Signer, Attestation, AttestationConfig, CryptoProvider, Secrets},
+    attestation::{
+        request::{Request as AttestationRequest, RequestConfig},
+        signing::Secp256k1Signer,
+        Attestation, AttestationConfig, CryptoProvider, Secrets,
+    },
     config::{ProtocolConfig, ProtocolConfigValidator},
     connection::{ConnectionInfo, ServerCertData, TranscriptLength},
     prover::{state::Committed, Prover, ProverConfig, TlsConfig},
     transcript::{Direction, TranscriptCommitConfig},
-    verifier::{Verifier, VerifierConfig}
+    verifier::{Verifier, VerifierConfig},
 };
+use tlsn_core::{ProveConfig, ProverOutput, VerifierOutput, VerifyConfig};
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, CLIENT_CERT, CLIENT_KEY, SERVER_DOMAIN};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    sync::oneshot::{self, Receiver, Sender},
+};
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tracing::debug;
 
 // Setting of the application server.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
@@ -54,11 +60,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (request_tx, request_rx) = oneshot::channel();
     let (attestation_tx, attestation_rx) = oneshot::channel();
 
-    tokio::spawn(async move { 
-        notary(notary_socket, request_rx, attestation_tx).await.unwrap()
+    tokio::spawn(async move {
+        notary(notary_socket, request_rx, attestation_tx)
+            .await
+            .unwrap()
     });
 
-    prover(prover_socket, request_tx, attestation_rx, uri, extra_headers, &args.example_type).await?;
+    prover(
+        prover_socket,
+        request_tx,
+        attestation_rx,
+        uri,
+        extra_headers,
+        &args.example_type,
+    )
+    .await?;
 
     Ok(())
 }
@@ -112,9 +128,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let prover_config = prover_config_builder.build()?;
 
     // Create a new prover and perform necessary setup.
-    let prover = Prover::new(prover_config)
-        .setup(socket.compat())
-        .await?;
+    let prover = Prover::new(prover_config).setup(socket.compat()).await?;
 
     // Open a TCP connection to the server.
     let client_socket = tokio::net::TcpStream::connect((server_host, server_port)).await?;
@@ -204,12 +218,8 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let request_config = builder.build()?;
 
-    let (attestation, secrets) = notarize_with_provider(
-        &mut prover,
-        &request_config,
-        req_tx,
-        resp_rx,
-    ).await?;
+    let (attestation, secrets) =
+        notarize_with_provider(&mut prover, &request_config, req_tx, resp_rx).await?;
 
     // Write the attestation to disk.
     let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
@@ -229,7 +239,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     Ok(())
 }
 
- async fn notarize_with_provider(
+async fn notarize_with_provider(
     prover: &mut Prover<Committed>,
     config: &RequestConfig,
     request_tx: Sender<AttestationRequest>,
@@ -271,11 +281,13 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     builder
         .server_name(SERVER_DOMAIN.into())
         .server_cert_data(ServerCertData {
-            certs: prover.tls_transcript()
+            certs: prover
+                .tls_transcript()
                 .server_cert_chain()
                 .expect("server cert chain is present")
                 .to_vec(),
-            sig: prover.tls_transcript()
+            sig: prover
+                .tls_transcript()
                 .server_signature()
                 .expect("server signature is present")
                 .clone(),
@@ -287,10 +299,14 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let (request, secrets) = builder.build(&CryptoProvider::default())?;
 
     // Sends attestation request to notary.
-    request_tx.send(request.clone()).map_err(|_| format!("notary is not receiving attestation request"))?;
+    request_tx
+        .send(request.clone())
+        .map_err(|_| format!("notary is not receiving attestation request"))?;
 
     // Receives attestation from notary.
-    let attestation = attestation_rx.await.map_err(|err| format!("notary did not respond with attestation: {err}"))?;
+    let attestation = attestation_rx
+        .await
+        .map_err(|err| format!("notary did not respond with attestation: {err}"))?;
 
     // Check the attestation is consistent with the Prover's view.
     request.validate(&attestation)?;
@@ -312,7 +328,11 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         )
         .build()?;
 
-    let mut verifier = Verifier::new(config).setup(socket.compat()).await?.run().await?;
+    let mut verifier = Verifier::new(config)
+        .setup(socket.compat())
+        .await?
+        .run()
+        .await?;
 
     let VerifierOutput {
         server_name,
@@ -324,14 +344,10 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     verifier.close().await?;
 
-     if server_name.is_some() {
-        return Err(format!(
-            "server name can not be revealed to a notary",
-        ).into());
+    if server_name.is_some() {
+        return Err(format!("server name can not be revealed to a notary",).into());
     } else if transcript.is_some() {
-        return Err(format!(
-            "transcript data can not be revealed to a notary",
-        ).into());
+        return Err(format!("transcript data can not be revealed to a notary",).into());
     }
 
     let sent_len = tls_transcript
@@ -359,7 +375,7 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .sum::<usize>();
 
     // Receives attestation request from prover.
-    let request= request_rx.await?;
+    let request = request_rx.await?;
 
     // Load a dummy signing key.
     let signing_key = k256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into())?;
@@ -369,13 +385,11 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     provider.signer.set_signer(signer);
 
     let mut att_config_builder = AttestationConfig::builder();
-    att_config_builder
-        .supported_signature_algs(Vec::from_iter(provider.signer.supported_algs()));
+    att_config_builder.supported_signature_algs(Vec::from_iter(provider.signer.supported_algs()));
 
     let att_config = att_config_builder.build()?;
 
-    let mut builder = Attestation::builder(&att_config)
-        .accept_request(request)?;
+    let mut builder = Attestation::builder(&att_config).accept_request(request)?;
 
     builder
         .connection_info(ConnectionInfo {
@@ -392,7 +406,9 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let attestation = builder.build(&provider)?;
 
     // Send attestation to prover.
-    attestation_tx.send(attestation).map_err(|_| format!("prover is not receiving attestation"))?;
+    attestation_tx
+        .send(attestation)
+        .map_err(|_| format!("prover is not receiving attestation"))?;
 
     Ok(())
 }
