@@ -10,8 +10,7 @@ use crate::{
 };
 use ring::digest::Digest;
 use rustls_pki_types as pki_types;
-use std::{convert::TryFrom, time::UNIX_EPOCH};
-use web_time::SystemTime;
+use web_time::{SystemTime, UNIX_EPOCH};
 
 type SignatureAlgorithms = &'static [&'static dyn pki_types::SignatureVerificationAlgorithm];
 
