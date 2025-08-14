@@ -259,9 +259,10 @@ async fn notarize_with_provider(
             };
 
             if idx.start() > 0 || idx.end() < len || idx.count() != 1 {
-                return Err(format!(
-                    "hash commitments to subsets of the transcript are currently not supported in attestation requests",
-                ).into());
+                return Err(
+                    "hash commitments to subsets of the transcript are currently not supported in attestation requests"
+                        .to_string().into(),
+                );
             }
         }
 
@@ -301,7 +302,7 @@ async fn notarize_with_provider(
     // Sends attestation request to notary.
     request_tx
         .send(request.clone())
-        .map_err(|_| format!("notary is not receiving attestation request"))?;
+        .map_err(|_| "notary is not receiving attestation request".to_string())?;
 
     // Receives attestation from notary.
     let attestation = attestation_rx
@@ -345,9 +346,13 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     verifier.close().await?;
 
     if server_name.is_some() {
-        return Err(format!("server name can not be revealed to a notary",).into());
+        return Err("server name can not be revealed to a notary"
+            .to_string()
+            .into());
     } else if transcript.is_some() {
-        return Err(format!("transcript data can not be revealed to a notary",).into());
+        return Err("transcript data can not be revealed to a notary"
+            .to_string()
+            .into());
     }
 
     let sent_len = tls_transcript
@@ -408,7 +413,7 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // Send attestation to prover.
     attestation_tx
         .send(attestation)
-        .map_err(|_| format!("prover is not receiving attestation"))?;
+        .map_err(|_| "prover is not receiving attestation".to_string())?;
 
     Ok(())
 }
