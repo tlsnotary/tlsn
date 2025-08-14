@@ -22,7 +22,7 @@ use serio::stream::IoStreamExt;
 use std::mem;
 use tls_core::msgs::enums::NamedGroup;
 use tlsn_core::{
-    connection::{HandshakeData, HandshakeDataV1_2, TlsVersion, VerifyData},
+    connection::{CertBinding, CertBindingV1_2, TlsVersion, VerifyData},
     transcript::TlsTranscript,
 };
 use tracing::{debug, instrument};
@@ -405,7 +405,7 @@ impl MpcTlsFollower {
         let cf_vd = cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
         let sf_vd = sf_vd.ok_or(MpcTlsError::hs("server finished VD not computed"))?;
 
-        let handshake_data = HandshakeData::V1_2(HandshakeDataV1_2 {
+        let handshake_data = CertBinding::V1_2(CertBindingV1_2 {
             client_random,
             server_random,
             server_ephemeral_key: server_key

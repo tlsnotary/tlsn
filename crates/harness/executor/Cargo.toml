@@ -14,8 +14,6 @@ wasm-opt = ["-O3"]
 [dependencies]
 tlsn-harness-core = { workspace = true }
 tlsn = { workspace = true }
-tlsn-core = { workspace = true }
-tlsn-tls-core = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 
 inventory = { workspace = true }

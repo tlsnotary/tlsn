@@ -7,7 +7,6 @@ use crate::{
     conn::{CommonState, ConnectionRandoms, State},
     error::Error,
     hash_hs::HandshakeHashBuffer,
-    msgs::persist,
     ticketer::TimeBase,
 };
 use tls_core::{
@@ -41,35 +40,6 @@ use std::sync::Arc;
 pub(super) type NextState = Box<dyn State<ClientConnectionData>>;
 pub(super) type NextStateOrError = Result<NextState, Error>;
 pub(super) type ClientContext<'a> = crate::conn::Context<'a>;
-
-fn find_session(
-    server_name: &ServerName,
-    config: &ClientConfig,
-) -> Option<persist::Retrieved<persist::ClientSessionValue>> {
-    let key = persist::ClientSessionKey::session_for_server_name(server_name);
-    let key_buf = key.get_encoding();
-
-    let value = config.session_storage.get(&key_buf).or_else(|| {
-        debug!("No cached session for {:?}", server_name);
-        None
-    })?;
-
-    #[allow(unused_mut)]
-    let mut reader = Reader::init(&value[2..]);
-    #[allow(clippy::bind_instead_of_map)] // https://github.com/rust-lang/rust-clippy/issues/8082
-    CipherSuite::read_bytes(&value[..2])
-        .and_then(|suite| {
-            persist::ClientSessionValue::read(&mut reader, suite, &config.cipher_suites)
-        })
-        .and_then(|resuming| {
-            let retrieved = persist::Retrieved::new(resuming, TimeBase::now().ok()?);
-            match retrieved.has_expired() {
-                false => Some(retrieved),
-                true => None,
-            }
-        })
-        .and_then(Some)
-}
 
 pub(super) async fn start_handshake(
     server_name: ServerName,
@@ -123,7 +93,6 @@ pub(super) async fn start_handshake(
     emit_client_hello_for_retry(
         config,
         cx,
-        None,
         random,
         false,
         transcript_buffer,
@@ -142,7 +111,6 @@ pub(super) async fn start_handshake(
 
 struct ExpectServerHello {
     config: Arc<ClientConfig>,
-    resuming_session: Option<persist::Retrieved<persist::ClientSessionValue>>,
     server_name: ServerName,
     random: Random,
     using_ems: bool,
@@ -162,7 +130,6 @@ struct ExpectServerHelloOrHelloRetryRequest {
 async fn emit_client_hello_for_retry(
     config: Arc<ClientConfig>,
     cx: &mut ClientContext<'_>,
-    resuming_session: Option<persist::Retrieved<persist::ClientSessionValue>>,
     random: Random,
     using_ems: bool,
     mut transcript_buffer: HandshakeHashBuffer,
@@ -176,25 +143,6 @@ async fn emit_client_hello_for_retry(
     may_send_sct_list: bool,
     suite: Option<SupportedCipherSuite>,
 ) -> Result<NextState, Error> {
-    // For now we do not support session resumption
-    //
-    // Do we have a SessionID or ticket cached for this host?
-    // let (ticket, resume_version) = if let Some(resuming) = &resuming_session {
-    //     match &resuming.value {
-    //         persist::ClientSessionValue::Tls13(inner) => {
-    //             (inner.ticket().to_vec(), ProtocolVersion::TLSv1_3)
-    //         }
-    //         #[cfg(feature = "tls12")]
-    //         persist::ClientSessionValue::Tls12(inner) => {
-    //             (inner.ticket().to_vec(), ProtocolVersion::TLSv1_2)
-    //         }
-    //     }
-    // } else {
-    //     (Vec::new(), ProtocolVersion::Unknown(0))
-    // };
-
-    // let (ticket, resume_version) = (Vec::new(), ProtocolVersion::Unknown(0));
-
     let support_tls12 = config.supports_version(ProtocolVersion::TLSv1_2);
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
 
@@ -256,48 +204,6 @@ async fn emit_client_hello_for_retry(
     // Extra extensions must be placed before the PSK extension
     exts.extend(extra_exts.iter().cloned());
 
-    // let fill_in_binder = if support_tls13
-    //     && config.enable_tickets
-    //     && resume_version == ProtocolVersion::TLSv1_3
-    //     && !ticket.is_empty()
-    // {
-    //     let resuming =
-    //         resuming_session
-    //             .as_ref()
-    //             .and_then(|resuming| match (suite, resuming.tls13()) {
-    //                 (Some(suite), Some(resuming)) => {
-    //                     suite.tls13()?.can_resume_from(resuming.suite())?;
-    //                     Some(resuming)
-    //                 }
-    //                 (None, Some(resuming)) => Some(resuming),
-    //                 _ => None,
-    //             });
-    //     if let Some(ref resuming) = resuming {
-    //         tls13::prepare_resumption(
-    //             &config,
-    //             cx,
-    //             ticket,
-    //             &resuming,
-    //             &mut exts,
-    //             retryreq.is_some(),
-    //         )
-    //         .await;
-    //     }
-    //     resuming
-    // } else if config.enable_tickets {
-    //     // If we have a ticket, include it.  Otherwise, request one.
-    //     if ticket.is_empty() {
-    //         exts.push(ClientExtension::SessionTicket(ClientSessionTicket::Request));
-    //     } else {
-    //         exts.push(ClientExtension::SessionTicket(ClientSessionTicket::Offer(
-    //             Payload::new(ticket),
-    //         )));
-    //     }
-    //     None
-    // } else {
-    //     None
-    // };
-
     // Note what extensions we sent.
     hello.sent_extensions = exts.iter().map(ClientExtension::get_type).collect();
 
@@ -319,8 +225,8 @@ async fn emit_client_hello_for_retry(
     };
 
     // let early_key_schedule = if let Some(resuming) = fill_in_binder {
-    //     let schedule = tls13::fill_in_psk_binder(&resuming, &transcript_buffer, &mut chp);
-    //     Some((resuming.suite(), schedule))
+    //     let schedule = tls13::fill_in_psk_binder(&resuming, &transcript_buffer,
+    // &mut chp);     Some((resuming.suite(), schedule))
     // } else {
     //     None
     // };
@@ -350,7 +256,6 @@ async fn emit_client_hello_for_retry(
 
     let next = ExpectServerHello {
         config,
-        resuming_session,
         server_name,
         random,
         using_ems,
@@ -551,19 +456,10 @@ impl State<ClientConnectionData> for ExpectServerHello {
         // handshake_traffic_secret.
         match suite {
             SupportedCipherSuite::Tls13(suite) => {
-                let resuming_session =
-                    self.resuming_session
-                        .and_then(|resuming| match resuming.value {
-                            persist::ClientSessionValue::Tls13(inner) => Some(inner),
-                            #[cfg(feature = "tls12")]
-                            persist::ClientSessionValue::Tls12(_) => None,
-                        });
-
                 tls13::handle_server_hello(
                     self.config,
                     cx,
                     server_hello,
-                    resuming_session,
                     self.server_name,
                     randoms,
                     suite,
@@ -577,16 +473,8 @@ impl State<ClientConnectionData> for ExpectServerHello {
             }
             #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(suite) => {
-                let resuming_session =
-                    self.resuming_session
-                        .and_then(|resuming| match resuming.value {
-                            persist::ClientSessionValue::Tls12(inner) => Some(inner),
-                            persist::ClientSessionValue::Tls13(_) => None,
-                        });
-
                 tls12::CompleteServerHelloHandling {
                     config: self.config,
-                    resuming_session,
                     server_name: self.server_name,
                     randoms,
                     using_ems: self.using_ems,
@@ -723,7 +611,6 @@ impl ExpectServerHelloOrHelloRetryRequest {
         emit_client_hello_for_retry(
             self.next.config,
             cx,
-            self.next.resuming_session,
             self.next.random,
             self.next.using_ems,
             transcript_buffer,

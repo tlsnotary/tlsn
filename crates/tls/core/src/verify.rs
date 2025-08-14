@@ -1,5 +1,5 @@
 use crate::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
+    anchors::RootCertStore,
     dns::ServerName,
     error::Error,
     key::Certificate,
@@ -9,27 +9,11 @@ use crate::{
     },
 };
 use ring::digest::Digest;
-use std::convert::TryFrom;
+use rustls_pki_types as pki_types;
+use std::{convert::TryFrom, time::UNIX_EPOCH};
 use web_time::SystemTime;
 
-type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
-
-/// Which signature verification mechanisms we support.  No particular
-/// order.
-static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
-    &webpki::ECDSA_P256_SHA256,
-    &webpki::ECDSA_P256_SHA384,
-    &webpki::ECDSA_P384_SHA256,
-    &webpki::ECDSA_P384_SHA384,
-    &webpki::ED25519,
-    &webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-    &webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
-    &webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
-    &webpki::RSA_PKCS1_2048_8192_SHA256,
-    &webpki::RSA_PKCS1_2048_8192_SHA384,
-    &webpki::RSA_PKCS1_2048_8192_SHA512,
-    &webpki::RSA_PKCS1_3072_8192_SHA384,
-];
+type SignatureAlgorithms = &'static [&'static dyn pki_types::SignatureVerificationAlgorithm];
 
 // Marker types.  These are used to bind the fact some verification
 // (certificate chain or handshake signature) has taken place into
@@ -170,7 +154,7 @@ pub trait ServerCertVerifier: Send + Sync {
 
 /// A type which encapsuates a string that is a syntactically valid DNS name.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DnsName(pub(crate) webpki::DnsName);
+pub struct DnsName(pub(crate) pki_types::DnsName<'static>);
 
 impl AsRef<str> for DnsName {
     fn as_ref(&self) -> &str {
@@ -289,35 +273,33 @@ impl ServerCertVerifier for WebPkiVerifier {
         _ocsp_response: &[u8],
         now: SystemTime,
     ) -> Result<ServerCertVerified, Error> {
-        let (cert, chain, trustroots) = prepare(end_entity, intermediates, &self.roots)?;
-        // `webpki::Time::try_from` does not work with `web_time::SystemTime`.
-        // To workaround this we convert `SystemTime` to seconds and use
-        // `webpki::Time::from_seconds_since_unix_epoch` instead.
-        let duration_since_epoch = now
-            .duration_since(web_time::UNIX_EPOCH)
-            .map_err(|_| Error::FailedToGetCurrentTime)?;
-        let seconds_since_unix_epoch = duration_since_epoch.as_secs();
-        let webpki_now = webpki::Time::from_seconds_since_unix_epoch(seconds_since_unix_epoch);
+        let cert = pki_types::CertificateDer::from(end_entity.0.as_slice());
+        let cert = webpki::EndEntityCert::try_from(&cert).map_err(pki_error)?;
+        let intermediates = intermediates
+            .iter()
+            .map(|c| pki_types::CertificateDer::from(c.0.as_slice()))
+            .collect::<Vec<_>>();
+        let time = pki_types::UnixTime::since_unix_epoch(now.duration_since(UNIX_EPOCH)?);
 
-        let ServerName::DnsName(dns_name) = server_name;
-
-        let cert = cert
-            .verify_is_valid_tls_server_cert(
-                SUPPORTED_SIG_ALGS,
-                &webpki::TlsServerTrustAnchors(&trustroots),
-                &chain,
-                webpki_now,
-            )
-            .map_err(pki_error)
-            .map(|_| cert)?;
+        cert.verify_for_usage(
+            webpki::ALL_VERIFICATION_ALGS,
+            &self.roots.roots,
+            &intermediates,
+            time,
+            webpki::KeyUsage::server_auth(),
+            None,
+            None,
+        )
+        .map(|_| ())
+        .map_err(pki_error)?;
 
         if let Some(policy) = &self.ct_policy {
             policy.verify(end_entity, now, scts)?;
         }
 
-        cert.verify_is_valid_for_dns_name(dns_name.0.as_ref())
-            .map_err(pki_error)
+        cert.verify_is_valid_for_subject_name(&server_name.0)
             .map(|_| ServerCertVerified::assertion())
+            .map_err(pki_error)
     }
 }
 
@@ -429,31 +411,6 @@ impl CertificateTransparencyPolicy {
     }
 }
 
-type CertChainAndRoots<'a, 'b> = (
-    webpki::EndEntityCert<'a>,
-    Vec<&'a [u8]>,
-    Vec<webpki::TrustAnchor<'b>>,
-);
-
-fn prepare<'a, 'b>(
-    end_entity: &'a Certificate,
-    intermediates: &'a [Certificate],
-    roots: &'b RootCertStore,
-) -> Result<CertChainAndRoots<'a, 'b>, Error> {
-    // EE cert must appear first.
-    let cert = webpki::EndEntityCert::try_from(end_entity.0.as_ref()).map_err(pki_error)?;
-
-    let intermediates: Vec<&'a [u8]> = intermediates.iter().map(|cert| cert.0.as_ref()).collect();
-
-    let trustroots: Vec<webpki::TrustAnchor> = roots
-        .roots
-        .iter()
-        .map(OwnedTrustAnchor::to_trust_anchor)
-        .collect();
-
-    Ok((cert, intermediates, trustroots))
-}
-
 pub(crate) fn pki_error(error: webpki::Error) -> Error {
     use webpki::Error::*;
     match error {
@@ -466,20 +423,24 @@ pub(crate) fn pki_error(error: webpki::Error) -> Error {
     }
 }
 
-static ECDSA_SHA256: SignatureAlgorithms =
-    &[&webpki::ECDSA_P256_SHA256, &webpki::ECDSA_P384_SHA256];
+static ECDSA_SHA256: SignatureAlgorithms = &[
+    webpki::ring::ECDSA_P256_SHA256,
+    webpki::ring::ECDSA_P384_SHA256,
+];
 
-static ECDSA_SHA384: SignatureAlgorithms =
-    &[&webpki::ECDSA_P256_SHA384, &webpki::ECDSA_P384_SHA384];
+static ECDSA_SHA384: SignatureAlgorithms = &[
+    webpki::ring::ECDSA_P256_SHA384,
+    webpki::ring::ECDSA_P384_SHA384,
+];
 
-static ED25519: SignatureAlgorithms = &[&webpki::ED25519];
+static ED25519: SignatureAlgorithms = &[webpki::ring::ED25519];
 
-static RSA_SHA256: SignatureAlgorithms = &[&webpki::RSA_PKCS1_2048_8192_SHA256];
-static RSA_SHA384: SignatureAlgorithms = &[&webpki::RSA_PKCS1_2048_8192_SHA384];
-static RSA_SHA512: SignatureAlgorithms = &[&webpki::RSA_PKCS1_2048_8192_SHA512];
-static RSA_PSS_SHA256: SignatureAlgorithms = &[&webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY];
-static RSA_PSS_SHA384: SignatureAlgorithms = &[&webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY];
-static RSA_PSS_SHA512: SignatureAlgorithms = &[&webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY];
+static RSA_SHA256: SignatureAlgorithms = &[webpki::ring::RSA_PKCS1_2048_8192_SHA256];
+static RSA_SHA384: SignatureAlgorithms = &[webpki::ring::RSA_PKCS1_2048_8192_SHA384];
+static RSA_SHA512: SignatureAlgorithms = &[webpki::ring::RSA_PKCS1_2048_8192_SHA512];
+static RSA_PSS_SHA256: SignatureAlgorithms = &[webpki::ring::RSA_PSS_2048_8192_SHA256_LEGACY_KEY];
+static RSA_PSS_SHA384: SignatureAlgorithms = &[webpki::ring::RSA_PSS_2048_8192_SHA384_LEGACY_KEY];
+static RSA_PSS_SHA512: SignatureAlgorithms = &[webpki::ring::RSA_PSS_2048_8192_SHA512_LEGACY_KEY];
 
 fn convert_scheme(scheme: SignatureScheme) -> Result<SignatureAlgorithms, Error> {
     match scheme {
@@ -514,7 +475,7 @@ fn verify_sig_using_any_alg(
     // webpki::SignatureAlgorithm. Therefore, convert_algs maps to several and
     // we try them all.
     for alg in algs {
-        match cert.verify_signature(alg, message, sig) {
+        match cert.verify_signature(*alg, message, sig) {
             Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey) => continue,
             res => return res,
         }
@@ -529,7 +490,9 @@ fn verify_signed_struct(
     dss: &DigitallySignedStruct,
 ) -> Result<HandshakeSignatureValid, Error> {
     let possible_algs = convert_scheme(dss.scheme)?;
-    let cert = webpki::EndEntityCert::try_from(cert.0.as_ref()).map_err(pki_error)?;
+
+    let cert = pki_types::CertificateDer::from(cert.0.as_slice());
+    let cert = webpki::EndEntityCert::try_from(&cert).map_err(pki_error)?;
 
     verify_sig_using_any_alg(&cert, possible_algs, message, &dss.sig.0)
         .map_err(pki_error)
@@ -538,16 +501,16 @@ fn verify_signed_struct(
 
 fn convert_alg_tls13(
     scheme: SignatureScheme,
-) -> Result<&'static webpki::SignatureAlgorithm, Error> {
+) -> Result<&'static dyn pki_types::SignatureVerificationAlgorithm, Error> {
     use crate::msgs::enums::SignatureScheme::*;
 
     match scheme {
-        ECDSA_NISTP256_SHA256 => Ok(&webpki::ECDSA_P256_SHA256),
-        ECDSA_NISTP384_SHA384 => Ok(&webpki::ECDSA_P384_SHA384),
-        ED25519 => Ok(&webpki::ED25519),
-        RSA_PSS_SHA256 => Ok(&webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY),
-        RSA_PSS_SHA384 => Ok(&webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY),
-        RSA_PSS_SHA512 => Ok(&webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY),
+        ECDSA_NISTP256_SHA256 => Ok(webpki::ring::ECDSA_P256_SHA256),
+        ECDSA_NISTP384_SHA384 => Ok(webpki::ring::ECDSA_P384_SHA384),
+        ED25519 => Ok(webpki::ring::ED25519),
+        RSA_PSS_SHA256 => Ok(webpki::ring::RSA_PSS_2048_8192_SHA256_LEGACY_KEY),
+        RSA_PSS_SHA384 => Ok(webpki::ring::RSA_PSS_2048_8192_SHA384_LEGACY_KEY),
+        RSA_PSS_SHA512 => Ok(webpki::ring::RSA_PSS_2048_8192_SHA512_LEGACY_KEY),
         _ => {
             let error_msg = format!("received unsupported sig scheme {scheme:?}");
             Err(Error::PeerMisbehavedError(error_msg))
@@ -583,7 +546,8 @@ fn verify_tls13(
 ) -> Result<HandshakeSignatureValid, Error> {
     let alg = convert_alg_tls13(dss.scheme)?;
 
-    let cert = webpki::EndEntityCert::try_from(cert.0.as_ref()).map_err(pki_error)?;
+    let cert = pki_types::CertificateDer::from(cert.0.as_slice());
+    let cert = webpki::EndEntityCert::try_from(&cert).map_err(pki_error)?;
 
     cert.verify_signature(alg, msg, &dss.sig.0)
         .map_err(pki_error)

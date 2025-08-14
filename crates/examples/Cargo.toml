@@ -8,10 +8,8 @@ version = "0.0.0"
 workspace = true
 
 [dependencies]
-tlsn-core = { workspace = true }
 tlsn = { workspace = true }
 tlsn-formats = { workspace = true }
-tlsn-tls-core = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }

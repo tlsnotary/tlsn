@@ -2,10 +2,10 @@
 
 use crate::{
     connection::{
-        Certificate, HandshakeData, HandshakeDataV1_2, ServerEphemKey, ServerSignature, TlsVersion,
-        VerifyData,
+        CertBinding, CertBindingV1_2, ServerEphemKey, ServerSignature, TlsVersion, VerifyData,
     },
     transcript::{Direction, Transcript},
+    webpki::CertificateDer,
 };
 use tls_core::msgs::{
     alert::AlertMessagePayload,
@@ -19,9 +19,9 @@ use tls_core::msgs::{
 pub struct TlsTranscript {
     time: u64,
     version: TlsVersion,
-    server_cert_chain: Option<Vec<Certificate>>,
+    server_cert_chain: Option<Vec<CertificateDer>>,
     server_signature: Option<ServerSignature>,
-    handshake_data: HandshakeData,
+    certificate_binding: CertBinding,
     sent: Vec<Record>,
     recv: Vec<Record>,
 }
@@ -32,9 +32,9 @@ impl TlsTranscript {
     pub fn new(
         time: u64,
         version: TlsVersion,
-        server_cert_chain: Option<Vec<Certificate>>,
+        server_cert_chain: Option<Vec<CertificateDer>>,
         server_signature: Option<ServerSignature>,
-        handshake_data: HandshakeData,
+        certificate_binding: CertBinding,
         verify_data: VerifyData,
         sent: Vec<Record>,
         recv: Vec<Record>,
@@ -198,7 +198,7 @@ impl TlsTranscript {
             version,
             server_cert_chain,
             server_signature,
-            handshake_data,
+            certificate_binding,
             sent,
             recv,
         })
@@ -215,7 +215,7 @@ impl TlsTranscript {
     }
 
     /// Returns the server certificate chain.
-    pub fn server_cert_chain(&self) -> Option<&[Certificate]> {
+    pub fn server_cert_chain(&self) -> Option<&[CertificateDer]> {
         self.server_cert_chain.as_deref()
     }
 
@@ -226,17 +226,17 @@ impl TlsTranscript {
 
     /// Returns the server ephemeral key used in the TLS handshake.
     pub fn server_ephemeral_key(&self) -> &ServerEphemKey {
-        match &self.handshake_data {
-            HandshakeData::V1_2(HandshakeDataV1_2 {
+        match &self.certificate_binding {
+            CertBinding::V1_2(CertBindingV1_2 {
                 server_ephemeral_key,
                 ..
             }) => server_ephemeral_key,
         }
     }
 
-    /// Returns the handshake data.
-    pub fn handshake_data(&self) -> &HandshakeData {
-        &self.handshake_data
+    /// Returns the certificate binding data.
+    pub fn certificate_binding(&self) -> &CertBinding {
+        &self.certificate_binding
     }
 
     /// Returns the sent records.

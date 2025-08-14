@@ -780,14 +780,12 @@ async fn client_checks_server_certificate_with_given_name() {
             let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
 
             let err = do_handshake_until_error(&mut client, &mut server).await;
-            assert_eq!(
+            assert!(matches!(
                 err,
                 Err(ErrorFromPeer::Client(Error::CoreError(
-                    tls_core::Error::InvalidCertificateData(
-                        "invalid peer certificate: CertNotValidForName".into(),
-                    )
+                    tls_core::Error::InvalidCertificateData(_)
                 )))
-            );
+            ));
         }
     }
 }

@@ -46,7 +46,7 @@ pub(crate) use impl_domain_separator;
 
 impl_domain_separator!(tlsn_core::connection::ServerEphemKey);
 impl_domain_separator!(tlsn_core::connection::ConnectionInfo);
-impl_domain_separator!(tlsn_core::connection::HandshakeData);
+impl_domain_separator!(tlsn_core::connection::CertBinding);
 impl_domain_separator!(tlsn_core::transcript::TranscriptCommitment);
 impl_domain_separator!(tlsn_core::transcript::TranscriptSecret);
 impl_domain_separator!(tlsn_core::transcript::encoding::EncodingCommitment);

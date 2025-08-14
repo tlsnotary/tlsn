@@ -2,16 +2,11 @@
 
 use std::fmt;
 
+use rustls_pki_types as webpki_types;
 use serde::{Deserialize, Serialize};
-use tls_core::{
-    msgs::{
-        codec::Codec,
-        enums::NamedGroup,
-        handshake::{DigitallySignedStruct, ServerECDHParams},
-    },
-    verify::{ServerCertVerifier as _, WebPkiVerifier},
-};
-use web_time::{Duration, UNIX_EPOCH};
+use tls_core::msgs::{codec::Codec, enums::NamedGroup, handshake::ServerECDHParams};
+
+use crate::webpki::{CertificateDer, ServerCertVerifier, ServerCertVerifierError};
 
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -35,37 +30,79 @@ impl TryFrom<tls_core::msgs::enums::ProtocolVersion> for TlsVersion {
     }
 }
 
-/// Server's name, a.k.a. the DNS name.
+/// Server's name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ServerName(String);
+pub enum ServerName {
+    /// DNS name.
+    Dns(DnsName),
+}
 
 impl ServerName {
-    /// Creates a new server name.
-    pub fn new(name: String) -> Self {
-        Self(name)
-    }
-
-    /// Returns the name as a string.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl From<&str> for ServerName {
-    fn from(name: &str) -> Self {
-        Self(name.to_string())
-    }
-}
-
-impl AsRef<str> for ServerName {
-    fn as_ref(&self) -> &str {
-        &self.0
+    pub(crate) fn to_webpki(&self) -> webpki_types::ServerName<'static> {
+        match self {
+            ServerName::Dns(name) => webpki_types::ServerName::DnsName(
+                webpki_types::DnsName::try_from(name.0.as_str())
+                    .expect("name was validated")
+                    .to_owned(),
+            ),
+        }
     }
 }
 
 impl fmt::Display for ServerName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ServerName::Dns(name) => write!(f, "{}", name),
+        }
+    }
+}
+
+/// DNS name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String")]
+pub struct DnsName(String);
+
+impl DnsName {
+    /// Returns the DNS name as a string.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for DnsName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl AsRef<str> for DnsName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Error returned when a DNS name is invalid.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid DNS name")]
+pub struct InvalidDnsNameError {}
+
+impl TryFrom<&str> for DnsName {
+    type Error = InvalidDnsNameError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        // Borrow validation from rustls
+        match webpki_types::DnsName::try_from_str(value) {
+            Ok(_) => Ok(DnsName(value.to_string())),
+            Err(_) => Err(InvalidDnsNameError {}),
+        }
+    }
+}
+
+impl TryFrom<String> for DnsName {
+    type Error = InvalidDnsNameError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
     }
 }
 
@@ -96,6 +133,25 @@ pub enum SignatureScheme {
     RSA_PSS_SHA384 = 0x0805,
     RSA_PSS_SHA512 = 0x0806,
     ED25519 = 0x0807,
+}
+
+impl fmt::Display for SignatureScheme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SignatureScheme::RSA_PKCS1_SHA1 => write!(f, "RSA_PKCS1_SHA1"),
+            SignatureScheme::ECDSA_SHA1_Legacy => write!(f, "ECDSA_SHA1_Legacy"),
+            SignatureScheme::RSA_PKCS1_SHA256 => write!(f, "RSA_PKCS1_SHA256"),
+            SignatureScheme::ECDSA_NISTP256_SHA256 => write!(f, "ECDSA_NISTP256_SHA256"),
+            SignatureScheme::RSA_PKCS1_SHA384 => write!(f, "RSA_PKCS1_SHA384"),
+            SignatureScheme::ECDSA_NISTP384_SHA384 => write!(f, "ECDSA_NISTP384_SHA384"),
+            SignatureScheme::RSA_PKCS1_SHA512 => write!(f, "RSA_PKCS1_SHA512"),
+            SignatureScheme::ECDSA_NISTP521_SHA512 => write!(f, "ECDSA_NISTP521_SHA512"),
+            SignatureScheme::RSA_PSS_SHA256 => write!(f, "RSA_PSS_SHA256"),
+            SignatureScheme::RSA_PSS_SHA384 => write!(f, "RSA_PSS_SHA384"),
+            SignatureScheme::RSA_PSS_SHA512 => write!(f, "RSA_PSS_SHA512"),
+            SignatureScheme::ED25519 => write!(f, "ED25519"),
+        }
+    }
 }
 
 impl TryFrom<tls_core::msgs::enums::SignatureScheme> for SignatureScheme {
@@ -139,16 +195,6 @@ impl From<SignatureScheme> for tls_core::msgs::enums::SignatureScheme {
             SignatureScheme::RSA_PSS_SHA512 => RSA_PSS_SHA512,
             SignatureScheme::ED25519 => ED25519,
         }
-    }
-}
-
-/// X.509 certificate, DER encoded.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Certificate(pub Vec<u8>);
-
-impl From<tls_core::key::Certificate> for Certificate {
-    fn from(cert: tls_core::key::Certificate) -> Self {
-        Self(cert.0)
     }
 }
 
@@ -220,9 +266,9 @@ pub struct TranscriptLength {
     pub received: u32,
 }
 
-/// TLS 1.2 handshake data.
+/// TLS 1.2 certificate binding.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HandshakeDataV1_2 {
+pub struct CertBindingV1_2 {
     /// Client random.
     pub client_random: [u8; 32],
     /// Server random.
@@ -231,13 +277,18 @@ pub struct HandshakeDataV1_2 {
     pub server_ephemeral_key: ServerEphemKey,
 }
 
-/// TLS handshake data.
+/// TLS certificate binding.
+///
+/// This is the data that the server signs using its public key in the
+/// certificate it presents during the TLS handshake. This provides a binding
+/// between the server's identity and the ephemeral keys used to authenticate
+/// the TLS session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
-pub enum HandshakeData {
-    /// TLS 1.2 handshake data.
-    V1_2(HandshakeDataV1_2),
+pub enum CertBinding {
+    /// TLS 1.2 certificate binding.
+    V1_2(CertBindingV1_2),
 }
 
 /// Verify data from the TLS handshake finished messages.
@@ -249,19 +300,19 @@ pub struct VerifyData {
     pub server_finished: Vec<u8>,
 }
 
-/// Server certificate and handshake data.
+/// TLS handshake data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerCertData {
-    /// Certificate chain.
-    pub certs: Vec<Certificate>,
-    /// Server signature of the key exchange parameters.
+pub struct HandshakeData {
+    /// Server certificate chain.
+    pub certs: Vec<CertificateDer>,
+    /// Server certificate signature over the binding message.
     pub sig: ServerSignature,
-    /// TLS handshake data.
-    pub handshake: HandshakeData,
+    /// Certificate binding.
+    pub binding: CertBinding,
 }
 
-impl ServerCertData {
-    /// Verifies the server certificate data.
+impl HandshakeData {
+    /// Verifies the handshake data.
     ///
     /// # Arguments
     ///
@@ -271,53 +322,35 @@ impl ServerCertData {
     /// * `server_name` - The server name.
     pub fn verify(
         &self,
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         time: u64,
         server_ephemeral_key: &ServerEphemKey,
         server_name: &ServerName,
-    ) -> Result<(), CertificateVerificationError> {
+    ) -> Result<(), HandshakeVerificationError> {
         #[allow(irrefutable_let_patterns)]
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
+        let CertBinding::V1_2(CertBindingV1_2 {
             client_random,
             server_random,
             server_ephemeral_key: expected_server_ephemeral_key,
-        }) = &self.handshake
+        }) = &self.binding
         else {
             unreachable!("only TLS 1.2 is implemented")
         };
 
         if server_ephemeral_key != expected_server_ephemeral_key {
-            return Err(CertificateVerificationError::InvalidServerEphemeralKey);
+            return Err(HandshakeVerificationError::InvalidServerEphemeralKey);
         }
 
-        // Verify server name.
-        let server_name = tls_core::dns::ServerName::try_from(server_name.as_ref())
-            .map_err(|_| CertificateVerificationError::InvalidIdentity(server_name.clone()))?;
-
-        // Verify server certificate.
-        let cert_chain = self
+        let (end_entity, intermediates) = self
             .certs
-            .clone()
-            .into_iter()
-            .map(|cert| tls_core::key::Certificate(cert.0))
-            .collect::<Vec<_>>();
-
-        let (end_entity, intermediates) = cert_chain
             .split_first()
-            .ok_or(CertificateVerificationError::MissingCerts)?;
+            .ok_or(HandshakeVerificationError::MissingCerts)?;
 
         // Verify the end entity cert is valid for the provided server name
         // and that it chains to at least one of the roots we trust.
         verifier
-            .verify_server_cert(
-                end_entity,
-                intermediates,
-                &server_name,
-                &mut [].into_iter(),
-                &[],
-                UNIX_EPOCH + Duration::from_secs(time),
-            )
-            .map_err(|_| CertificateVerificationError::InvalidCert)?;
+            .verify_server_cert(end_entity, intermediates, server_name, time)
+            .map_err(HandshakeVerificationError::ServerCert)?;
 
         // Verify the signature matches the certificate and key exchange parameters.
         let mut message = Vec::new();
@@ -325,11 +358,31 @@ impl ServerCertData {
         message.extend_from_slice(server_random);
         message.extend_from_slice(&server_ephemeral_key.kx_params());
 
-        let dss = DigitallySignedStruct::new(self.sig.scheme.into(), self.sig.sig.clone());
+        use webpki::ring as alg;
+        let sig_alg = match self.sig.scheme {
+            SignatureScheme::RSA_PKCS1_SHA256 => alg::RSA_PKCS1_2048_8192_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384 => alg::RSA_PKCS1_2048_8192_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512 => alg::RSA_PKCS1_2048_8192_SHA512,
+            SignatureScheme::RSA_PSS_SHA256 => alg::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+            SignatureScheme::RSA_PSS_SHA384 => alg::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+            SignatureScheme::RSA_PSS_SHA512 => alg::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+            SignatureScheme::ECDSA_NISTP256_SHA256 => alg::ECDSA_P256_SHA256,
+            SignatureScheme::ECDSA_NISTP384_SHA384 => alg::ECDSA_P384_SHA384,
+            SignatureScheme::ED25519 => alg::ED25519,
+            scheme => {
+                return Err(HandshakeVerificationError::UnsupportedSignatureScheme(
+                    scheme,
+                ))
+            }
+        };
 
-        verifier
-            .verify_tls12_signature(&message, end_entity, &dss)
-            .map_err(|_| CertificateVerificationError::InvalidServerSignature)?;
+        let end_entity = webpki_types::CertificateDer::from(end_entity.0.as_slice());
+        let end_entity = webpki::EndEntityCert::try_from(&end_entity)
+            .map_err(|_| HandshakeVerificationError::InvalidEndEntityCertificate)?;
+
+        end_entity
+            .verify_signature(sig_alg, &message, &self.sig.sig)
+            .map_err(|_| HandshakeVerificationError::InvalidServerSignature)?;
 
         Ok(())
     }
@@ -338,58 +391,51 @@ impl ServerCertData {
 /// Errors that can occur when verifying a certificate chain or signature.
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
-pub enum CertificateVerificationError {
-    #[error("invalid server identity: {0}")]
-    InvalidIdentity(ServerName),
+pub enum HandshakeVerificationError {
+    #[error("invalid end entity certificate")]
+    InvalidEndEntityCertificate,
     #[error("missing server certificates")]
     MissingCerts,
-    #[error("invalid server certificate")]
-    InvalidCert,
     #[error("invalid server signature")]
     InvalidServerSignature,
     #[error("invalid server ephemeral key")]
     InvalidServerEphemeralKey,
+    #[error("server certificate verification failed: {0}")]
+    ServerCert(ServerCertVerifierError),
+    #[error("unsupported signature scheme: {0}")]
+    UnsupportedSignatureScheme(SignatureScheme),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{fixtures::ConnectionFixture, transcript::Transcript};
+    use crate::{fixtures::ConnectionFixture, transcript::Transcript, webpki::RootCertStore};
 
     use hex::FromHex;
     use rstest::*;
-    use tls_core::{
-        anchors::{OwnedTrustAnchor, RootCertStore},
-        verify::WebPkiVerifier,
-    };
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     #[fixture]
     #[once]
-    fn verifier() -> WebPkiVerifier {
-        let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject.as_ref(),
-                ta.subject_public_key_info.as_ref(),
-                ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
-            )
-        }));
+    fn verifier() -> ServerCertVerifier {
+        let mut root_store = RootCertStore {
+            roots: webpki_root_certs::TLS_SERVER_ROOT_CERTS
+                .iter()
+                .map(|c| CertificateDer(c.to_vec()))
+                .collect(),
+        };
 
         // Add a cert which is no longer included in the Mozilla root store.
-        let cert = tls_core::key::Certificate(
+        root_store.roots.push(
             appliedzkp()
                 .server_cert_data
                 .certs
                 .last()
                 .expect("chain is valid")
-                .0
                 .clone(),
         );
 
-        root_store.add(&cert).unwrap();
-
-        WebPkiVerifier::new(root_store, None)
+        ServerCertVerifier::new(&root_store).unwrap()
     }
 
     fn tlsnotary() -> ConnectionFixture {
@@ -405,7 +451,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_sucess_ca_implicit(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Remove the CA cert
@@ -417,7 +463,7 @@ mod tests {
                 verifier,
                 data.connection_info.time,
                 data.server_ephemeral_key(),
-                &ServerName::from(data.server_name.as_ref()),
+                &data.server_name,
             )
             .is_ok());
     }
@@ -428,7 +474,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_success_ca_explicit(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] data: ConnectionFixture,
     ) {
         assert!(data
@@ -437,7 +483,7 @@ mod tests {
                 verifier,
                 data.connection_info.time,
                 data.server_ephemeral_key(),
-                &ServerName::from(data.server_name.as_ref()),
+                &data.server_name,
             )
             .is_ok());
     }
@@ -447,7 +493,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_bad_time(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] data: ConnectionFixture,
     ) {
         // unix time when the cert chain was NOT valid
@@ -457,12 +503,12 @@ mod tests {
             verifier,
             bad_time,
             data.server_ephemeral_key(),
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidCert
+            HandshakeVerificationError::ServerCert(_)
         ));
     }
 
@@ -471,7 +517,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_no_interm_cert(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Remove the CA cert
@@ -483,12 +529,12 @@ mod tests {
             verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidCert
+            HandshakeVerificationError::ServerCert(_)
         ));
     }
 
@@ -498,7 +544,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Remove the intermediate cert
@@ -508,12 +554,12 @@ mod tests {
             verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidCert
+            HandshakeVerificationError::ServerCert(_)
         ));
     }
 
@@ -522,24 +568,24 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_bad_ee_cert(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         let ee: &[u8] = include_bytes!("./fixtures/data/unknown/ee.der");
 
         // Change the end entity cert
-        data.server_cert_data.certs[0] = Certificate(ee.to_vec());
+        data.server_cert_data.certs[0] = CertificateDer(ee.to_vec());
 
         let err = data.server_cert_data.verify(
             verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidCert
+            HandshakeVerificationError::ServerCert(_)
         ));
     }
 
@@ -548,23 +594,23 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_sig_ke_params_fail_bad_client_random(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
-        let HandshakeData::V1_2(HandshakeDataV1_2 { client_random, .. }) =
-            &mut data.server_cert_data.handshake;
+        let CertBinding::V1_2(CertBindingV1_2 { client_random, .. }) =
+            &mut data.server_cert_data.binding;
         client_random[31] = client_random[31].wrapping_add(1);
 
         let err = data.server_cert_data.verify(
             verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidServerSignature
+            HandshakeVerificationError::InvalidServerSignature
         ));
     }
 
@@ -573,7 +619,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_sig_ke_params_fail_bad_sig(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         data.server_cert_data.sig.sig[31] = data.server_cert_data.sig.sig[31].wrapping_add(1);
@@ -582,12 +628,12 @@ mod tests {
             verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidServerSignature
+            HandshakeVerificationError::InvalidServerSignature
         ));
     }
 
@@ -596,10 +642,10 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_check_dns_name_present_in_cert_fail_bad_host(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] data: ConnectionFixture,
     ) {
-        let bad_name = ServerName::from("badhost.com");
+        let bad_name = ServerName::Dns(DnsName::try_from("badhost.com").unwrap());
 
         let err = data.server_cert_data.verify(
             verifier,
@@ -610,7 +656,7 @@ mod tests {
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidCert
+            HandshakeVerificationError::ServerCert(_)
         ));
     }
 
@@ -618,7 +664,7 @@ mod tests {
     #[rstest]
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
-    fn test_invalid_ephemeral_key(verifier: &WebPkiVerifier, #[case] data: ConnectionFixture) {
+    fn test_invalid_ephemeral_key(verifier: &ServerCertVerifier, #[case] data: ConnectionFixture) {
         let wrong_ephemeral_key = ServerEphemKey {
             typ: KeyType::SECP256R1,
             key: Vec::<u8>::from_hex(include_bytes!("./fixtures/data/unknown/pubkey")).unwrap(),
@@ -628,12 +674,12 @@ mod tests {
             verifier,
             data.connection_info.time,
             &wrong_ephemeral_key,
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::InvalidServerEphemeralKey
+            HandshakeVerificationError::InvalidServerEphemeralKey
         ));
     }
 
@@ -642,7 +688,7 @@ mod tests {
     #[case::tlsnotary(tlsnotary())]
     #[case::appliedzkp(appliedzkp())]
     fn test_verify_cert_chain_fail_no_cert(
-        verifier: &WebPkiVerifier,
+        verifier: &ServerCertVerifier,
         #[case] mut data: ConnectionFixture,
     ) {
         // Empty certs
@@ -652,12 +698,12 @@ mod tests {
             verifier,
             data.connection_info.time,
             data.server_ephemeral_key(),
-            &ServerName::from(data.server_name.as_ref()),
+            &data.server_name,
         );
 
         assert!(matches!(
             err.unwrap_err(),
-            CertificateVerificationError::MissingCerts
+            HandshakeVerificationError::MissingCerts
         ));
     }
 }

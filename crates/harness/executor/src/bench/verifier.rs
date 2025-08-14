@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use harness_core::bench::Bench;
 use tlsn::{
-    config::ProtocolConfigValidator,
+    config::{CertificateDer, ProtocolConfigValidator, RootCertStore},
     verifier::{Verifier, VerifierConfig, VerifyConfig},
 };
 use tlsn_server_fixture_certs::CA_CERT_DER;
@@ -17,14 +17,11 @@ pub async fn bench_verifier(provider: &IoProvider, config: &Bench) -> Result<()>
 
     let protocol_config = builder.build()?;
 
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .root_store(root_store)
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
             .protocol_config_validator(protocol_config)
             .build()?,
     );

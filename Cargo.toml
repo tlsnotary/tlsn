@@ -137,6 +137,8 @@ rs_merkle = { git = "https://github.com/tlsnotary/rs-merkle.git", rev = "85f3e82
 rstest = { version = "0.17" }
 rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0" }
+rustls-webpki = { version = "0.103" }
+rustls-pki-types = { version = "1.12" }
 sct = { version = "0.7" }
 semver = { version = "1.0" }
 serde = { version = "1.0" }
@@ -157,7 +159,8 @@ wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
 web-spawn = { version = "0.2" }
 web-time = { version = "0.2" }
-webpki = { version = "0.22" }
-webpki-roots = { version = "0.26" }
+webpki-roots = { version = "1.0" }
+webpki-root-certs = { version = "1.0" }
 # Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
 ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51" }
+zeroize = { version = "1.8" }

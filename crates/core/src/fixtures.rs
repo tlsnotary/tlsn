@@ -8,13 +8,14 @@ use hex::FromHex;
 
 use crate::{
     connection::{
-        Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerCertData,
+        CertBinding, CertBindingV1_2, ConnectionInfo, DnsName, HandshakeData, KeyType,
         ServerEphemKey, ServerName, ServerSignature, SignatureScheme, TlsVersion, TranscriptLength,
     },
     transcript::{
         encoding::{EncoderSecret, EncodingProvider},
         Transcript,
     },
+    webpki::CertificateDer,
 };
 
 /// A fixture containing various TLS connection data.
@@ -23,24 +24,26 @@ use crate::{
 pub struct ConnectionFixture {
     pub server_name: ServerName,
     pub connection_info: ConnectionInfo,
-    pub server_cert_data: ServerCertData,
+    pub server_cert_data: HandshakeData,
 }
 
 impl ConnectionFixture {
     /// Returns a connection fixture for tlsnotary.org.
     pub fn tlsnotary(transcript_length: TranscriptLength) -> Self {
         ConnectionFixture {
-            server_name: ServerName::new("tlsnotary.org".to_string()),
+            server_name: ServerName::Dns(DnsName::try_from("tlsnotary.org").unwrap()),
             connection_info: ConnectionInfo {
                 time: 1671637529,
                 version: TlsVersion::V1_2,
                 transcript_length,
             },
-            server_cert_data: ServerCertData {
+            server_cert_data: HandshakeData {
                 certs: vec![
-                    Certificate(include_bytes!("fixtures/data/tlsnotary.org/ee.der").to_vec()),
-                    Certificate(include_bytes!("fixtures/data/tlsnotary.org/inter.der").to_vec()),
-                    Certificate(include_bytes!("fixtures/data/tlsnotary.org/ca.der").to_vec()),
+                    CertificateDer(include_bytes!("fixtures/data/tlsnotary.org/ee.der").to_vec()),
+                    CertificateDer(
+                        include_bytes!("fixtures/data/tlsnotary.org/inter.der").to_vec(),
+                    ),
+                    CertificateDer(include_bytes!("fixtures/data/tlsnotary.org/ca.der").to_vec()),
                 ],
                 sig: ServerSignature {
                     scheme: SignatureScheme::RSA_PKCS1_SHA256,
@@ -49,7 +52,7 @@ impl ConnectionFixture {
                     ))
                     .unwrap(),
                 },
-                handshake: HandshakeData::V1_2(HandshakeDataV1_2 {
+                binding: CertBinding::V1_2(CertBindingV1_2 {
                     client_random: <[u8; 32]>::from_hex(include_bytes!(
                         "fixtures/data/tlsnotary.org/client_random"
                     ))
@@ -73,17 +76,19 @@ impl ConnectionFixture {
     /// Returns a connection fixture for appliedzkp.org.
     pub fn appliedzkp(transcript_length: TranscriptLength) -> Self {
         ConnectionFixture {
-            server_name: ServerName::new("appliedzkp.org".to_string()),
+            server_name: ServerName::Dns(DnsName::try_from("appliedzkp.org").unwrap()),
             connection_info: ConnectionInfo {
                 time: 1671637529,
                 version: TlsVersion::V1_2,
                 transcript_length,
             },
-            server_cert_data: ServerCertData {
+            server_cert_data: HandshakeData {
                 certs: vec![
-                    Certificate(include_bytes!("fixtures/data/appliedzkp.org/ee.der").to_vec()),
-                    Certificate(include_bytes!("fixtures/data/appliedzkp.org/inter.der").to_vec()),
-                    Certificate(include_bytes!("fixtures/data/appliedzkp.org/ca.der").to_vec()),
+                    CertificateDer(include_bytes!("fixtures/data/appliedzkp.org/ee.der").to_vec()),
+                    CertificateDer(
+                        include_bytes!("fixtures/data/appliedzkp.org/inter.der").to_vec(),
+                    ),
+                    CertificateDer(include_bytes!("fixtures/data/appliedzkp.org/ca.der").to_vec()),
                 ],
                 sig: ServerSignature {
                     scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
@@ -92,7 +97,7 @@ impl ConnectionFixture {
                     ))
                     .unwrap(),
                 },
-                handshake: HandshakeData::V1_2(HandshakeDataV1_2 {
+                binding: CertBinding::V1_2(CertBindingV1_2 {
                     client_random: <[u8; 32]>::from_hex(include_bytes!(
                         "fixtures/data/appliedzkp.org/client_random"
                     ))
@@ -115,10 +120,10 @@ impl ConnectionFixture {
 
     /// Returns the server_ephemeral_key fixture.
     pub fn server_ephemeral_key(&self) -> &ServerEphemKey {
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
+        let CertBinding::V1_2(CertBindingV1_2 {
             server_ephemeral_key,
             ..
-        }) = &self.server_cert_data.handshake;
+        }) = &self.server_cert_data.binding;
         server_ephemeral_key
     }
 }
