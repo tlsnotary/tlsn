@@ -28,6 +28,14 @@ impl TranscriptRefs {
         &self.recv
     }
 
+    /// Returns the transcript lengths.
+    pub(crate) fn len(&self) -> (usize, usize) {
+        let sent = self.sent.iter().map(|v| v.len()).sum();
+        let recv = self.recv.iter().map(|v| v.len()).sum();
+
+        (sent, recv)
+    }
+
     /// Returns VM references for the given direction and index, otherwise
     /// `None` if the index is out of bounds.
     pub(crate) fn get(&self, direction: Direction, idx: &Idx) -> Option<Vec<Vector<U8>>> {
