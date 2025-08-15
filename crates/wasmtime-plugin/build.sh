@@ -11,3 +11,8 @@ cargo build --release
 wasm-tools component new ../../target/wasm32-unknown-unknown/release/${PACKAGE_NAME}.wasm -o ../../target/wasm32-unknown-unknown/release/${PACKAGE_NAME}_component.wasm
 
 echo "Component created: ${PACKAGE_NAME}_component.wasm"
+
+# Copy component wasm to android development environment (assumes androidwasmtime repo is present)
+cp ../../target/wasm32-unknown-unknown/release/${PACKAGE_NAME}_component.wasm ../../../androidwasmtime/app/src/main/assets/plugin.wasm
+
+echo "Component copied to android dev env"
