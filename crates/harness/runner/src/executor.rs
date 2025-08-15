@@ -12,7 +12,7 @@ use chromiumoxide::{
 };
 use futures::StreamExt;
 use harness_core::{
-    ExecutorConfig, Id, IoMode,
+    ExecutorConfig, Id,
     bench::BenchOutput,
     network::PORT_BROWSER,
     rpc::{BenchCmd, TestCmd},
@@ -285,10 +285,6 @@ impl Executor {
 
             Ok(())
         }
-    }
-
-    pub fn is_client(&self) -> bool {
-        self.config.io_mode() == &IoMode::Client
     }
 }
 
