@@ -190,22 +190,22 @@ impl ProtocolConfigValidator {
         max_sent_records: Option<usize>,
         max_recv_records_online: Option<usize>,
     ) -> Result<(), ProtocolConfigError> {
-        if let Some(max_sent_records) = max_sent_records {
-            if max_sent_records > self.max_sent_records {
-                return Err(ProtocolConfigError::max_record_count(format!(
-                    "max_sent_records {} is greater than the configured limit {}",
-                    max_sent_records, self.max_sent_records,
-                )));
-            }
+        if let Some(max_sent_records) = max_sent_records
+            && max_sent_records > self.max_sent_records
+        {
+            return Err(ProtocolConfigError::max_record_count(format!(
+                "max_sent_records {} is greater than the configured limit {}",
+                max_sent_records, self.max_sent_records,
+            )));
         }
 
-        if let Some(max_recv_records_online) = max_recv_records_online {
-            if max_recv_records_online > self.max_recv_records_online {
-                return Err(ProtocolConfigError::max_record_count(format!(
-                    "max_recv_records_online {} is greater than the configured limit {}",
-                    max_recv_records_online, self.max_recv_records_online,
-                )));
-            }
+        if let Some(max_recv_records_online) = max_recv_records_online
+            && max_recv_records_online > self.max_recv_records_online
+        {
+            return Err(ProtocolConfigError::max_record_count(format!(
+                "max_recv_records_online {} is greater than the configured limit {}",
+                max_recv_records_online, self.max_recv_records_online,
+            )));
         }
 
         Ok(())

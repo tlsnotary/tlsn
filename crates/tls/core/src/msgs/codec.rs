@@ -7,7 +7,7 @@ pub struct Reader<'a> {
 }
 
 impl Reader<'_> {
-    pub fn init(bytes: &[u8]) -> Reader {
+    pub fn init(bytes: &[u8]) -> Reader<'_> {
         Reader {
             buf: bytes,
             offs: 0,
@@ -42,7 +42,7 @@ impl Reader<'_> {
         self.offs
     }
 
-    pub fn sub(&mut self, len: usize) -> Option<Reader> {
+    pub fn sub(&mut self, len: usize) -> Option<Reader<'_>> {
         self.take(len).map(Reader::init)
     }
 }
