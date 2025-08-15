@@ -32,7 +32,7 @@ pub struct ProveConfig {
 
 impl ProveConfig {
     /// Creates a new builder.
-    pub fn builder(transcript: &Transcript) -> ProveConfigBuilder {
+    pub fn builder(transcript: &Transcript) -> ProveConfigBuilder<'_> {
         ProveConfigBuilder::new(transcript)
     }
 

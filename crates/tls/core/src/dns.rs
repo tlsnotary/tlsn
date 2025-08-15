@@ -37,7 +37,7 @@ impl ServerName {
     /// Return the name that should go in the SNI extension.
     /// If [`None`] is returned, the SNI extension is not included
     /// in the handshake.
-    pub fn for_sni(&self) -> Option<webpki::DnsNameRef> {
+    pub fn for_sni(&self) -> Option<webpki::DnsNameRef<'_>> {
         match self {
             Self::DnsName(dns_name) => Some(dns_name.0.as_ref()),
         }

@@ -313,7 +313,7 @@ declare_u16_vec!(ServerNameRequest, ServerName);
 
 pub trait ConvertServerNameList {
     fn has_duplicate_names_for_type(&self) -> bool;
-    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef>;
+    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef<'_>>;
 }
 
 impl ConvertServerNameList for ServerNameRequest {
@@ -330,8 +330,8 @@ impl ConvertServerNameList for ServerNameRequest {
         false
     }
 
-    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef> {
-        fn only_dns_hostnames(name: &ServerName) -> Option<webpki::DnsNameRef> {
+    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef<'_>> {
+        fn only_dns_hostnames(name: &ServerName) -> Option<webpki::DnsNameRef<'_>> {
             if let ServerNamePayload::HostName((_, ref dns)) = name.payload {
                 Some(dns.as_ref())
             } else {

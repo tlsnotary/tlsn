@@ -182,7 +182,7 @@ impl ConnectionCommon {
     }
 
     /// Returns an object that allows reading plaintext.
-    pub fn reader(&mut self) -> Reader {
+    pub fn reader(&mut self) -> Reader<'_> {
         Reader {
             received_plaintext: &mut self.common_state.received_plaintext,
             // Are we done? i.e., have we processed all received messages, and received a
