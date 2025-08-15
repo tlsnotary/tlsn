@@ -6126,6 +6126,7 @@ dependencies = [
  "tlsn-wasm",
  "tokio",
  "tokio-util",
+ "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-spawn",
