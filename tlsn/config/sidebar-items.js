@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["NetworkSetting","ProtocolConfigBuilderError","ProtocolConfigValidatorBuilderError"],"struct":["ProtocolConfig","ProtocolConfigBuilder","ProtocolConfigError","ProtocolConfigValidator","ProtocolConfigValidatorBuilder"]};
+window.SIDEBAR_ITEMS = {"enum":["NetworkSetting","ProtocolConfigBuilderError","ProtocolConfigValidatorBuilderError"],"struct":["CertificateDer","PrivateKeyDer","ProtocolConfig","ProtocolConfigBuilder","ProtocolConfigError","ProtocolConfigValidator","ProtocolConfigValidatorBuilder","RootCertStore"]};

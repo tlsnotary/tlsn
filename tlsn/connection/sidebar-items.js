@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CertificateVerificationError","HandshakeData","KeyType","SignatureScheme","TlsVersion"],"struct":["Certificate","ConnectionInfo","HandshakeDataV1_2","ServerCertData","ServerEphemKey","ServerName","ServerSignature","TranscriptLength","VerifyData"]};
+window.SIDEBAR_ITEMS = {"enum":["CertBinding","HandshakeVerificationError","KeyType","ServerName","SignatureScheme","TlsVersion"],"struct":["CertBindingV1_2","ConnectionInfo","DnsName","HandshakeData","InvalidDnsNameError","ServerEphemKey","ServerSignature","TranscriptLength","VerifyData"]};

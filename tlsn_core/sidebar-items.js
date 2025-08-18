@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["connection","fixtures","hash","merkle","transcript"],"struct":["ProveConfig","ProveConfigBuilder","ProveConfigBuilderError","ProverOutput","VerifierOutput","VerifyConfig","VerifyConfigBuilder","VerifyConfigBuilderError"]};
+window.SIDEBAR_ITEMS = {"mod":["connection","fixtures","hash","merkle","transcript","webpki"],"struct":["ProveConfig","ProveConfigBuilder","ProveConfigBuilderError","ProverOutput","VerifierOutput","VerifyConfig","VerifyConfigBuilder","VerifyConfigBuilderError"]};
