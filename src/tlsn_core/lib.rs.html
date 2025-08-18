@@ -24,7 +24,7 @@
 <a href=#24 id=24 data-nosnippet>24</a>};
 <a href=#25 id=25 data-nosnippet>25</a>
 <a href=#26 id=26 data-nosnippet>26</a><span class="doccomment">/// Configuration to prove information to the verifier.
-<a href=#27 id=27 data-nosnippet>27</a></span><span class="attr">#[derive(Debug, Clone)]
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 <a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub struct </span>ProveConfig {
 <a href=#29 id=29 data-nosnippet>29</a>    server_identity: bool,
 <a href=#30 id=30 data-nosnippet>30</a>    transcript: <span class="prelude-ty">Option</span>&lt;PartialTranscript&gt;,
@@ -163,7 +163,7 @@
 <a href=#163 id=163 data-nosnippet>163</a>}
 <a href=#164 id=164 data-nosnippet>164</a>
 <a href=#165 id=165 data-nosnippet>165</a><span class="doccomment">/// Configuration to verify information from the prover.
-<a href=#166 id=166 data-nosnippet>166</a></span><span class="attr">#[derive(Debug, Default, Clone)]
+<a href=#166 id=166 data-nosnippet>166</a></span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 <a href=#167 id=167 data-nosnippet>167</a></span><span class="kw">pub struct </span>VerifyConfig {}
 <a href=#168 id=168 data-nosnippet>168</a>
 <a href=#169 id=169 data-nosnippet>169</a><span class="kw">impl </span>VerifyConfig {
@@ -210,23 +210,25 @@
 <a href=#210 id=210 data-nosnippet>210</a>}
 <a href=#211 id=211 data-nosnippet>211</a>
 <a href=#212 id=212 data-nosnippet>212</a><span class="doccomment">/// Prover output.
-<a href=#213 id=213 data-nosnippet>213</a></span><span class="kw">pub struct </span>ProverOutput {
-<a href=#214 id=214 data-nosnippet>214</a>    <span class="doccomment">/// Transcript commitments.
-<a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">pub </span>transcript_commitments: Vec&lt;TranscriptCommitment&gt;,
-<a href=#216 id=216 data-nosnippet>216</a>    <span class="doccomment">/// Transcript commitment secrets.
-<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">pub </span>transcript_secrets: Vec&lt;TranscriptSecret&gt;,
-<a href=#218 id=218 data-nosnippet>218</a>}
-<a href=#219 id=219 data-nosnippet>219</a>
-<a href=#220 id=220 data-nosnippet>220</a><span class="macro">opaque_debug::implement!</span>(ProverOutput);
-<a href=#221 id=221 data-nosnippet>221</a>
-<a href=#222 id=222 data-nosnippet>222</a><span class="doccomment">/// Verifier output.
-<a href=#223 id=223 data-nosnippet>223</a></span><span class="kw">pub struct </span>VerifierOutput {
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="doccomment">/// Server identity.
-<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">pub </span>server_name: <span class="prelude-ty">Option</span>&lt;ServerName&gt;,
-<a href=#226 id=226 data-nosnippet>226</a>    <span class="doccomment">/// Transcript data.
-<a href=#227 id=227 data-nosnippet>227</a>    </span><span class="kw">pub </span>transcript: <span class="prelude-ty">Option</span>&lt;PartialTranscript&gt;,
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="doccomment">/// Transcript commitments.
-<a href=#229 id=229 data-nosnippet>229</a>    </span><span class="kw">pub </span>transcript_commitments: Vec&lt;TranscriptCommitment&gt;,
-<a href=#230 id=230 data-nosnippet>230</a>}
-<a href=#231 id=231 data-nosnippet>231</a>
-<a href=#232 id=232 data-nosnippet>232</a><span class="macro">opaque_debug::implement!</span>(VerifierOutput);</code></pre></div></section></main></body></html>
+<a href=#213 id=213 data-nosnippet>213</a></span><span class="attr">#[derive(Serialize, Deserialize)]
+<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">pub struct </span>ProverOutput {
+<a href=#215 id=215 data-nosnippet>215</a>    <span class="doccomment">/// Transcript commitments.
+<a href=#216 id=216 data-nosnippet>216</a>    </span><span class="kw">pub </span>transcript_commitments: Vec&lt;TranscriptCommitment&gt;,
+<a href=#217 id=217 data-nosnippet>217</a>    <span class="doccomment">/// Transcript commitment secrets.
+<a href=#218 id=218 data-nosnippet>218</a>    </span><span class="kw">pub </span>transcript_secrets: Vec&lt;TranscriptSecret&gt;,
+<a href=#219 id=219 data-nosnippet>219</a>}
+<a href=#220 id=220 data-nosnippet>220</a>
+<a href=#221 id=221 data-nosnippet>221</a><span class="macro">opaque_debug::implement!</span>(ProverOutput);
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a><span class="doccomment">/// Verifier output.
+<a href=#224 id=224 data-nosnippet>224</a></span><span class="attr">#[derive(Serialize, Deserialize)]
+<a href=#225 id=225 data-nosnippet>225</a></span><span class="kw">pub struct </span>VerifierOutput {
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="doccomment">/// Server identity.
+<a href=#227 id=227 data-nosnippet>227</a>    </span><span class="kw">pub </span>server_name: <span class="prelude-ty">Option</span>&lt;ServerName&gt;,
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="doccomment">/// Transcript data.
+<a href=#229 id=229 data-nosnippet>229</a>    </span><span class="kw">pub </span>transcript: <span class="prelude-ty">Option</span>&lt;PartialTranscript&gt;,
+<a href=#230 id=230 data-nosnippet>230</a>    <span class="doccomment">/// Transcript commitments.
+<a href=#231 id=231 data-nosnippet>231</a>    </span><span class="kw">pub </span>transcript_commitments: Vec&lt;TranscriptCommitment&gt;,
+<a href=#232 id=232 data-nosnippet>232</a>}
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a><span class="macro">opaque_debug::implement!</span>(VerifierOutput);</code></pre></div></section></main></body></html>

@@ -110,7 +110,7 @@
 <a href=#110 id=110 data-nosnippet>110</a>
 <a href=#111 id=111 data-nosnippet>111</a><span class="doccomment">/// Protocol configuration validator used by checker (i.e. verifier) to perform
 <a href=#112 id=112 data-nosnippet>112</a>/// compatibility check with the peer's (i.e. the prover's) configuration.
-<a href=#113 id=113 data-nosnippet>113</a></span><span class="attr">#[derive(derive_builder::Builder, Clone, Debug)]
+<a href=#113 id=113 data-nosnippet>113</a></span><span class="attr">#[derive(derive_builder::Builder, Clone, Debug, Serialize, Deserialize)]
 <a href=#114 id=114 data-nosnippet>114</a></span><span class="kw">pub struct </span>ProtocolConfigValidator {
 <a href=#115 id=115 data-nosnippet>115</a>    <span class="doccomment">/// Maximum number of bytes that can be sent.
 <a href=#116 id=116 data-nosnippet>116</a>    </span>max_sent_data: usize,
