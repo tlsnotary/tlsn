@@ -1,7 +1,7 @@
 //! Attestation fixtures.
 
 use tlsn_core::{
-    connection::{HandshakeData, HandshakeDataV1_2},
+    connection::{CertBinding, CertBindingV1_2},
     fixtures::ConnectionFixture,
     hash::HashAlgorithm,
     transcript::{
@@ -67,7 +67,7 @@ pub fn request_fixture(
     let mut request_builder = Request::builder(&request_config);
     request_builder
         .server_name(server_name)
-        .server_cert_data(server_cert_data)
+        .handshake_data(server_cert_data)
         .transcript(transcript);
 
     let (request, _) = request_builder.build(&provider).unwrap();
@@ -91,12 +91,12 @@ pub fn attestation_fixture(
         ..
     } = connection;
 
-    let HandshakeData::V1_2(HandshakeDataV1_2 {
+    let CertBinding::V1_2(CertBindingV1_2 {
         server_ephemeral_key,
         ..
-    }) = server_cert_data.handshake
+    }) = server_cert_data.binding
     else {
-        panic!("expected v1.2 handshake data");
+        panic!("expected v1.2 binding data");
     };
 
     let mut provider = CryptoProvider::default();

@@ -5931,6 +5931,7 @@ dependencies = [
  "rangeset",
  "rstest",
  "rustls-pki-types",
+ "rustls-webpki",
  "semver 1.0.26",
  "serde",
  "serio",
@@ -5951,7 +5952,7 @@ dependencies = [
  "tracing-subscriber",
  "uid-mux",
  "web-spawn",
- "webpki-roots 0.26.11",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -5975,7 +5976,6 @@ dependencies = [
  "tlsn-core",
  "tlsn-data-fixtures",
  "tlsn-tls-core",
- "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -6013,6 +6013,8 @@ dependencies = [
  "rangeset",
  "rs_merkle",
  "rstest",
+ "rustls-pki-types",
+ "rustls-webpki",
  "serde",
  "sha2",
  "thiserror 1.0.69",
@@ -6021,7 +6023,9 @@ dependencies = [
  "tlsn-tls-core",
  "tlsn-utils",
  "web-time 0.2.4",
- "webpki-roots 0.26.11",
+ "webpki-root-certs",
+ "webpki-roots",
+ "zeroize",
 ]
 
 [[package]]
@@ -6068,11 +6072,9 @@ dependencies = [
  "spansy",
  "tls-server-fixture",
  "tlsn",
- "tlsn-core",
  "tlsn-formats",
  "tlsn-server-fixture",
  "tlsn-server-fixture-certs",
- "tlsn-tls-core",
  "tokio",
  "tokio-util",
  "tracing",
@@ -6119,10 +6121,8 @@ dependencies = [
  "serde_json",
  "serio",
  "tlsn",
- "tlsn-core",
  "tlsn-harness-core",
  "tlsn-server-fixture-certs",
- "tlsn-tls-core",
  "tlsn-wasm",
  "tokio",
  "tokio-util",
@@ -6250,6 +6250,8 @@ dependencies = [
  "rand 0.9.1",
  "rand_chacha 0.9.0",
  "rstest",
+ "rustls-pki-types",
+ "rustls-webpki",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -6324,14 +6326,15 @@ dependencies = [
  "ring 0.17.14",
  "rustls 0.20.9",
  "rustls-pemfile",
+ "rustls-pki-types",
+ "rustls-webpki",
  "sct",
  "sha2",
  "tlsn-tls-backend",
  "tlsn-tls-core",
  "tokio",
  "web-time 0.2.4",
- "webpki",
- "webpki-roots 0.26.11",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -6344,6 +6347,8 @@ dependencies = [
  "hyper",
  "hyper-util",
  "rstest",
+ "rustls-pki-types",
+ "rustls-webpki",
  "thiserror 1.0.69",
  "tls-server-fixture",
  "tlsn-tls-client",
@@ -6361,13 +6366,14 @@ dependencies = [
  "rand 0.9.1",
  "ring 0.17.14",
  "rustls-pemfile",
+ "rustls-pki-types",
+ "rustls-webpki",
  "sct",
  "serde",
  "sha2",
  "thiserror 1.0.69",
  "tracing",
  "web-time 0.2.4",
- "webpki",
 ]
 
 [[package]]
@@ -7064,19 +7070,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "webpki-roots"
-version = "0.26.11"
+name = "webpki-root-certs"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
+checksum = "4e4ffd8df1c57e87c325000a3d6ef93db75279dc3a231125aac571650f22b12a"
 dependencies = [
- "webpki-roots 1.0.1",
+ "rustls-pki-types",
 ]
 
 [[package]]
 name = "webpki-roots"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8782dd5a41a24eed3a4f40b606249b3e236ca61adf1f25ea4d45c73de122b502"
+checksum = "7e8983c3ab33d6fb807cfcdad2491c4ea8cbc8ed839181c7dfd9c67c83e261b2"
 dependencies = [
  "rustls-pki-types",
 ]

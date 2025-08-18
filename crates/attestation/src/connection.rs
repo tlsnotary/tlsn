@@ -22,7 +22,7 @@
 use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
-    connection::{CertificateVerificationError, ServerCertData, ServerEphemKey, ServerName},
+    connection::{HandshakeData, HandshakeVerificationError, ServerEphemKey, ServerName},
     hash::{Blinded, HashAlgorithm, HashProviderError, TypedHash},
 };
 
@@ -30,14 +30,14 @@ use crate::{CryptoProvider, hash::HashAlgorithmExt, serialize::impl_domain_separ
 
 /// Opens a [`ServerCertCommitment`].
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ServerCertOpening(Blinded<ServerCertData>);
+pub struct ServerCertOpening(Blinded<HandshakeData>);
 
 impl_domain_separator!(ServerCertOpening);
 
 opaque_debug::implement!(ServerCertOpening);
 
 impl ServerCertOpening {
-    pub(crate) fn new(data: ServerCertData) -> Self {
+    pub(crate) fn new(data: HandshakeData) -> Self {
         Self(Blinded::new(data))
     }
 
@@ -49,7 +49,7 @@ impl ServerCertOpening {
     }
 
     /// Returns the server identity data.
-    pub fn data(&self) -> &ServerCertData {
+    pub fn data(&self) -> &HandshakeData {
         self.0.data()
     }
 }
@@ -122,8 +122,8 @@ impl From<HashProviderError> for ServerIdentityProofError {
     }
 }
 
-impl From<CertificateVerificationError> for ServerIdentityProofError {
-    fn from(err: CertificateVerificationError) -> Self {
+impl From<HandshakeVerificationError> for ServerIdentityProofError {
+    fn from(err: HandshakeVerificationError) -> Self {
         Self {
             kind: ErrorKind::Certificate,
             message: err.to_string(),

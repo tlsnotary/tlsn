@@ -10,12 +10,13 @@ pub mod fixtures;
 pub mod hash;
 pub mod merkle;
 pub mod transcript;
+pub mod webpki;
 
 use rangeset::ToRangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    connection::{ServerCertData, ServerName},
+    connection::{HandshakeData, ServerName},
     transcript::{
         Direction, Idx, PartialTranscript, Transcript, TranscriptCommitConfig,
         TranscriptCommitRequest, TranscriptCommitment, TranscriptSecret,
@@ -200,8 +201,8 @@ enum VerifyConfigBuilderErrorRepr {}
 #[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProvePayload {
-    /// Server identity data.
-    pub server_identity: Option<(ServerName, ServerCertData)>,
+    /// Handshake data.
+    pub handshake: Option<(ServerName, HandshakeData)>,
     /// Transcript data.
     pub transcript: Option<PartialTranscript>,
     /// Transcript commitment configuration.

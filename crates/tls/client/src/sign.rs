@@ -6,6 +6,7 @@ use ring::{
     io::der,
     signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair},
 };
+use rustls_pki_types as pki_types;
 use std::{convert::TryFrom, error::Error as StdError, fmt, sync::Arc};
 use tls_core::{
     key,
@@ -70,51 +71,6 @@ impl CertifiedKey {
     /// The end-entity certificate.
     pub fn end_entity_cert(&self) -> Result<&key::Certificate, SignError> {
         self.cert.first().ok_or(SignError(()))
-    }
-
-    /// Check the certificate chain for validity:
-    /// - it should be non-empty list
-    /// - the first certificate should be parsable as a x509v3,
-    /// - the first certificate should quote the given server name
-    ///   (if provided)
-    ///
-    /// These checks are not security-sensitive.  They are the
-    /// *server* attempting to detect accidental misconfiguration.
-    pub(crate) fn cross_check_end_entity_cert(
-        &self,
-        name: Option<webpki::DnsNameRef>,
-    ) -> Result<(), Error> {
-        // Always reject an empty certificate chain.
-        let end_entity_cert = self.end_entity_cert().map_err(|SignError(())| {
-            Error::General("No end-entity certificate in certificate chain".to_string())
-        })?;
-
-        // Reject syntactically-invalid end-entity certificates.
-        let end_entity_cert =
-            webpki::EndEntityCert::try_from(end_entity_cert.as_ref()).map_err(|_| {
-                Error::General(
-                    "End-entity certificate in certificate \
-                                  chain is syntactically invalid"
-                        .to_string(),
-                )
-            })?;
-
-        if let Some(name) = name {
-            // If SNI was offered then the certificate must be valid for
-            // that hostname. Note that this doesn't fully validate that the
-            // certificate is valid; it only validates that the name is one
-            // that the certificate is valid for, if the certificate is
-            // valid.
-            if end_entity_cert.verify_is_valid_for_dns_name(name).is_err() {
-                return Err(Error::General(
-                    "The server certificate is not \
-                                             valid for the given name"
-                        .to_string(),
-                ));
-            }
-        }
-
-        Ok(())
     }
 }
 

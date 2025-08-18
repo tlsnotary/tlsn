@@ -5,6 +5,8 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
+pub use tlsn_core::webpki::{CertificateDer, PrivateKeyDer, RootCertStore};
+
 // Default is 32 bytes to decrypt the TLS protocol messages.
 const DEFAULT_MAX_RECV_ONLINE: usize = 32;
 // Default maximum number of TLS records to allow.

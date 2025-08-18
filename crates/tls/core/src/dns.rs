@@ -1,6 +1,6 @@
 use std::{error::Error as StdError, fmt};
 
-use crate::verify;
+use rustls_pki_types as pki_types;
 
 /// Encodes ways a client can know the expected name of the server.
 ///
@@ -26,20 +26,16 @@ use crate::verify;
 /// ```
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Clone)]
-pub enum ServerName {
-    /// The server is identified by a DNS name.  The name
-    /// is sent in the TLS Server Name Indication (SNI)
-    /// extension.
-    DnsName(verify::DnsName),
-}
+pub struct ServerName(pub(crate) pki_types::ServerName<'static>);
 
 impl ServerName {
     /// Return the name that should go in the SNI extension.
     /// If [`None`] is returned, the SNI extension is not included
     /// in the handshake.
-    pub fn for_sni(&self) -> Option<webpki::DnsNameRef<'_>> {
-        match self {
-            Self::DnsName(dns_name) => Some(dns_name.0.as_ref()),
+    pub fn for_sni(&self) -> Option<pki_types::DnsName<'static>> {
+        match &self.0 {
+            pki_types::ServerName::DnsName(dns_name) => Some(dns_name.clone()),
+            _ => None,
         }
     }
 
@@ -49,13 +45,17 @@ impl ServerName {
             DnsName = 0x01,
         }
 
-        let Self::DnsName(dns_name) = self;
-        let bytes = dns_name.0.as_ref();
+        let bytes: &[u8] = match &self.0 {
+            pki_types::ServerName::DnsName(dns_name) => dns_name.as_ref().as_ref(),
+            pki_types::ServerName::IpAddress(pki_types::IpAddr::V4(ip)) => ip.as_ref(),
+            pki_types::ServerName::IpAddress(pki_types::IpAddr::V6(ip)) => ip.as_ref(),
+            _ => unreachable!(),
+        };
 
-        let mut r = Vec::with_capacity(2 + bytes.as_ref().len());
+        let mut r = Vec::with_capacity(2 + bytes.len());
         r.push(UniqueTypeCode::DnsName as u8);
-        r.push(bytes.as_ref().len() as u8);
-        r.extend_from_slice(bytes.as_ref());
+        r.push(bytes.len() as u8);
+        r.extend_from_slice(bytes);
 
         r
     }
@@ -66,9 +66,9 @@ impl ServerName {
 impl TryFrom<&str> for ServerName {
     type Error = InvalidDnsNameError;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match webpki::DnsNameRef::try_from_ascii_str(s) {
-            Ok(dns) => Ok(Self::DnsName(verify::DnsName(dns.into()))),
-            Err(webpki::InvalidDnsNameError) => Err(InvalidDnsNameError),
+        match pki_types::DnsName::try_from(s) {
+            Ok(dns) => Ok(Self(pki_types::ServerName::DnsName(dns.to_owned()))),
+            Err(_) => Err(InvalidDnsNameError),
         }
     }
 }

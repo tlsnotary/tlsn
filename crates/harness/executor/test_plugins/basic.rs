@@ -1,6 +1,6 @@
-use tls_core::anchors::RootCertStore;
 use tlsn::{
-    config::{ProtocolConfig, ProtocolConfigValidator},
+    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    connection::ServerName,
     hash::HashAlgId,
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
@@ -21,19 +21,17 @@ const MAX_RECV_DATA: usize = 1 << 11;
 crate::test!("basic", prover, verifier);
 
 async fn prover(provider: &IoProvider) {
-    let mut root_store = RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
     let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(root_store);
+    tls_config_builder.root_store(RootCertStore {
+        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+    });
 
     let tls_config = tls_config_builder.build().unwrap();
 
+    let server_name = ServerName::Dns(SERVER_DOMAIN.try_into().unwrap());
     let prover = Prover::new(
         ProverConfig::builder()
-            .server_name(SERVER_DOMAIN)
+            .server_name(server_name)
             .tls_config(tls_config)
             .protocol_config(
                 ProtocolConfig::builder()
@@ -114,11 +112,6 @@ async fn prover(provider: &IoProvider) {
 }
 
 async fn verifier(provider: &IoProvider) {
-    let mut root_store = RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
     let config = VerifierConfig::builder()
         .protocol_config_validator(
             ProtocolConfigValidator::builder()
@@ -127,7 +120,9 @@ async fn verifier(provider: &IoProvider) {
                 .build()
                 .unwrap(),
         )
-        .root_store(root_store)
+        .root_store(RootCertStore {
+            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+        })
         .build()
         .unwrap();
 
@@ -145,7 +140,9 @@ async fn verifier(provider: &IoProvider) {
         .await
         .unwrap();
 
-    assert_eq!(server_name.unwrap().as_str(), SERVER_DOMAIN);
+    let ServerName::Dns(server_name) = server_name.unwrap();
+
+    assert_eq!(server_name.as_str(), SERVER_DOMAIN);
     assert!(
         transcript_commitments
             .iter()

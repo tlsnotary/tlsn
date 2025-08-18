@@ -11,7 +11,6 @@ use crate::{
     conn::{CommonState, ConnectionRandoms, State},
     error::Error,
     hash_hs::{HandshakeHash, HandshakeHashBuffer},
-    msgs::persist,
     sign, verify, KeyLog,
 };
 #[allow(deprecated)]
@@ -60,7 +59,6 @@ pub(super) async fn handle_server_hello(
     config: Arc<ClientConfig>,
     cx: &mut ClientContext<'_>,
     server_hello: &ServerHelloPayload,
-    resuming_session: Option<persist::Tls13ClientSessionValue>,
     server_name: ServerName,
     randoms: ConnectionRandoms,
     suite: &'static Tls13CipherSuite,
@@ -102,8 +100,8 @@ pub(super) async fn handle_server_hello(
     //     };
 
     //     if server_hello.get_psk_index() != Some(0) {
-    //         return Err(cx.common.illegal_param("server selected invalid psk").await);
-    //     }
+    //         return Err(cx.common.illegal_param("server selected invalid
+    // psk").await);     }
 
     //     debug!("Resuming using PSK");
     //     // The key schedule has been initialized and set in fill_in_psk_binder()
@@ -143,7 +141,6 @@ pub(super) async fn handle_server_hello(
 
     Ok(Box::new(ExpectEncryptedExtensions {
         config,
-        resuming_session,
         server_name,
         randoms,
         suite,
@@ -169,69 +166,6 @@ async fn validate_server_hello(
 
     Ok(())
 }
-
-// fn save_kx_hint(config: &ClientConfig, server_name: &ServerName, group: NamedGroup) {
-//     let key = persist::ClientSessionKey::hint_for_server_name(server_name);
-
-//     config
-//         .session_storage
-//         .put(key.get_encoding(), group.get_encoding());
-// }
-
-// /// This implements the horrifying TLS1.3 hack where PSK binders have a
-// /// data dependency on the message they are contained within.
-// pub(super) fn fill_in_psk_binder(
-//     resuming: &persist::Tls13ClientSessionValue,
-//     transcript: &HandshakeHashBuffer,
-//     hmp: &mut HandshakeMessagePayload,
-// ) -> KeyScheduleEarly {
-//     // We need to know the hash function of the suite we're trying to resume into.
-//     let hkdf_alg = &resuming.suite().hkdf_algorithm;
-//     let suite_hash = resuming.suite().hash_algorithm();
-
-//     // The binder is calculated over the clienthello, but doesn't include itself or its
-//     // length, or the length of its container.
-//     let binder_plaintext = hmp.get_encoding_for_binder_signing();
-//     let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);
-
-//     // Run a fake key_schedule to simulate what the server will do if it chooses
-//     // to resume.
-//     let key_schedule = KeyScheduleEarly::new(hkdf_alg, resuming.secret());
-//     let real_binder = key_schedule.resumption_psk_binder_key_and_sign_verify_data(&handshake_hash);
-
-//     if let HandshakePayload::ClientHello(ref mut ch) = hmp.payload {
-//         ch.set_psk_binder(real_binder.as_ref());
-//     };
-
-//     key_schedule
-// }
-
-// pub(super) async fn prepare_resumption(
-//     config: &ClientConfig,
-//     cx: &mut ClientContext<'_>,
-//     ticket: Vec<u8>,
-//     resuming_session: &persist::Retrieved<&persist::Tls13ClientSessionValue>,
-//     exts: &mut Vec<ClientExtension>,
-//     doing_retry: bool,
-// ) {
-//     let resuming_suite = resuming_session.suite();
-//     cx.common.suite = Some(resuming_suite.into());
-//     cx.data.resumption_ciphersuite = Some(resuming_suite.into());
-
-//     // Finally, and only for TLS1.3 with a ticket resumption, include a binder
-//     // for our ticket.  This must go last.
-//     //
-//     // Include an empty binder. It gets filled in below because it depends on
-//     // the message it's contained in (!!!).
-//     let obfuscated_ticket_age = resuming_session.obfuscated_ticket_age();
-
-//     let binder_len = resuming_suite.hash_algorithm().output_len();
-//     let binder = vec![0u8; binder_len];
-
-//     let psk_identity = PresharedKeyIdentity::new(ticket, obfuscated_ticket_age);
-//     let psk_ext = PresharedKeyOffer::new(psk_identity, binder);
-//     exts.push(ClientExtension::PresharedKey(psk_ext));
-// }
 
 pub(super) async fn emit_fake_ccs(
     sent_tls13_fake_ccs: &mut bool,
@@ -287,7 +221,6 @@ async fn validate_encrypted_extensions(
 
 struct ExpectEncryptedExtensions {
     config: Arc<ClientConfig>,
-    resuming_session: Option<persist::Tls13ClientSessionValue>,
     server_name: ServerName,
     randoms: ConnectionRandoms,
     suite: &'static Tls13CipherSuite,
@@ -313,52 +246,19 @@ impl State<ClientConnectionData> for ExpectEncryptedExtensions {
         validate_encrypted_extensions(cx.common, &self.hello, exts).await?;
         hs::process_alpn_protocol(cx.common, &self.config, exts.get_alpn_protocol()).await?;
 
-        if let Some(resuming_session) = self.resuming_session {
-            let was_early_traffic = cx.common.early_traffic;
-            if was_early_traffic {
-                if exts.early_data_extension_offered() {
-                    cx.data.early_data.accepted();
-                } else {
-                    cx.data.early_data.rejected();
-                    cx.common.early_traffic = false;
-                }
-            }
-
-            if was_early_traffic && !cx.common.early_traffic {
-                // If no early traffic, set the encryption key for handshakes
-                cx.common.record_layer.set_message_encrypter();
-            }
-
-            cx.common.peer_certificates = Some(resuming_session.server_cert_chain().to_vec());
-
-            // We *don't* reverify the certificate chain here: resumption is a
-            // continuation of the previous session in terms of security policy.
-            let cert_verified = verify::ServerCertVerified::assertion();
-            let sig_verified = verify::HandshakeSignatureValid::assertion();
-            Ok(Box::new(ExpectFinished {
-                config: self.config,
-                server_name: self.server_name,
-                randoms: self.randoms,
-                suite: self.suite,
-                transcript: self.transcript,
-                client_auth: None,
-                cert_verified,
-                sig_verified,
-            }))
-        } else {
-            if exts.early_data_extension_offered() {
-                let msg = "server sent early data extension without resumption".to_string();
-                return Err(Error::PeerMisbehavedError(msg));
-            }
-            Ok(Box::new(ExpectCertificateOrCertReq {
-                config: self.config,
-                server_name: self.server_name,
-                randoms: self.randoms,
-                suite: self.suite,
-                transcript: self.transcript,
-                may_send_sct_list: self.hello.server_may_send_sct_list(),
-            }))
+        if exts.early_data_extension_offered() {
+            let msg = "server sent early data extension without resumption".to_string();
+            return Err(Error::PeerMisbehavedError(msg));
         }
+
+        Ok(Box::new(ExpectCertificateOrCertReq {
+            config: self.config,
+            server_name: self.server_name,
+            randoms: self.randoms,
+            suite: self.suite,
+            transcript: self.transcript,
+            may_send_sct_list: self.hello.server_may_send_sct_list(),
+        }))
     }
 }
 
@@ -422,9 +322,9 @@ impl State<ClientConnectionData> for ExpectCertificateOrCertReq {
     }
 }
 
-// TLS1.3 version of CertificateRequest handling.  We then move to expecting the server
-// Certificate. Unfortunately the CertificateRequest type changed in an annoying way
-// in TLS1.3.
+// TLS1.3 version of CertificateRequest handling.  We then move to expecting the
+// server Certificate. Unfortunately the CertificateRequest type changed in an
+// annoying way in TLS1.3.
 struct ExpectCertificateRequest {
     config: Arc<ClientConfig>,
     server_name: ServerName,
@@ -787,8 +687,8 @@ impl State<ClientConnectionData> for ExpectFinished {
 
         st.transcript.add_message(&m);
 
-        /* The EndOfEarlyData message to server is still encrypted with early data keys,
-         * but appears in the transcript after the server Finished. */
+        /* The EndOfEarlyData message to server is still encrypted with early data
+         * keys, but appears in the transcript after the server Finished. */
         if cx.common.early_traffic {
             emit_end_of_early_data_tls13(&mut st.transcript, cx.common).await?;
             cx.common.early_traffic = false;
@@ -893,42 +793,6 @@ impl ExpectTraffic {
             ));
         }
 
-        // let handshake_hash = self.transcript.get_current_hash();
-        // let secret = self
-        //     .key_schedule
-        //     .resumption_master_secret_and_derive_ticket_psk(&handshake_hash, &nst.nonce.0);
-
-        // let time_now = match TimeBase::now() {
-        //     Ok(t) => t,
-        //     #[allow(unused_variables)]
-        //     Err(e) => {
-        //         debug!("Session not saved: {}", e);
-        //         return Ok(());
-        //     }
-        // };
-
-        // let value = persist::Tls13ClientSessionValue::new(
-        //     self.suite,
-        //     nst.ticket.0.clone(),
-        //     secret,
-        //     cx.common.peer_certificates.clone().unwrap_or_default(),
-        //     time_now,
-        //     nst.lifetime,
-        //     nst.age_add,
-        //     nst.get_max_early_data_size().unwrap_or_default(),
-        // );
-
-        // let key = persist::ClientSessionKey::session_for_server_name(&self.server_name);
-        // #[allow(unused_mut)]
-        // let mut ticket = value.get_encoding();
-
-        // let worked = self.session_storage.put(key.get_encoding(), ticket);
-
-        // if worked {
-        //     debug!("Ticket saved");
-        // } else {
-        //     debug!("Ticket not saved");
-        // }
         Ok(())
     }
 
@@ -948,27 +812,6 @@ impl ExpectTraffic {
         Err(Error::General(
             "received unsupported key update request from peer".to_string(),
         ))
-
-        // match kur {
-        //     KeyUpdateRequest::UpdateNotRequested => {}
-        //     KeyUpdateRequest::UpdateRequested => {
-        //         self.want_write_key_update = true;
-        //     }
-        //     _ => {
-        //         common
-        //             .send_fatal_alert(AlertDescription::IllegalParameter)
-        //             .await;
-        //         return Err(Error::CorruptMessagePayload(ContentType::Handshake));
-        //     }
-        // }
-
-        // // Update our read-side keys.
-        // let new_read_key = self.key_schedule.next_server_application_traffic_secret();
-        // common
-        //     .record_layer
-        //     .set_message_decrypter(self.suite.derive_decrypter(&new_read_key));
-
-        // Ok(())
     }
 }
 
@@ -1022,10 +865,11 @@ impl State<ClientConnectionData> for ExpectTraffic {
         //         .send_msg_encrypt(Message::build_key_update_notify().into())
         //         .await;
 
-        //     let write_key = self.key_schedule.next_client_application_traffic_secret();
+        //     let write_key =
+        // self.key_schedule.next_client_application_traffic_secret();
         //     common
         //         .record_layer
-        //         .set_message_encrypter(self.suite.derive_encrypter(&write_key));
-        // }
+        //         .set_message_encrypter(self.suite.derive_encrypter(&
+        // write_key)); }
     }
 }

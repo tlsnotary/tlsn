@@ -1,8 +1,4 @@
-use tls_core::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
-    verify::WebPkiVerifier,
-};
-use tlsn_core::hash::HashProvider;
+use tlsn_core::{hash::HashProvider, webpki::ServerCertVerifier};
 
 use crate::signing::{SignatureVerifierProvider, SignerProvider};
 
@@ -28,7 +24,7 @@ pub struct CryptoProvider {
     /// This is used to verify the server's certificate chain.
     ///
     /// The default verifier uses the Mozilla root certificates.
-    pub cert: WebPkiVerifier,
+    pub cert: ServerCertVerifier,
     /// Signer provider.
     ///
     /// This is used for signing attestations.
@@ -45,21 +41,9 @@ impl Default for CryptoProvider {
     fn default() -> Self {
         Self {
             hash: Default::default(),
-            cert: default_cert_verifier(),
+            cert: ServerCertVerifier::mozilla(),
             signer: Default::default(),
             signature: Default::default(),
         }
     }
-}
-
-pub(crate) fn default_cert_verifier() -> WebPkiVerifier {
-    let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-        OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject.as_ref(),
-            ta.subject_public_key_info.as_ref(),
-            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
-        )
-    }));
-    WebPkiVerifier::new(root_store, None)
 }

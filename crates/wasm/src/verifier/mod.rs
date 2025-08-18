@@ -5,7 +5,7 @@ pub use config::VerifierConfig;
 use enum_try_as_inner::EnumTryAsInner;
 use tls_core::msgs::enums::ContentType;
 use tlsn::{
-    connection::{ConnectionInfo, TranscriptLength},
+    connection::{ConnectionInfo, ServerName, TranscriptLength},
     verifier::{
         state::{self, Initialized},
         Verifier, VerifyConfig,
@@ -106,7 +106,10 @@ impl JsVerifier {
         self.state = State::Complete;
 
         Ok(VerifierOutput {
-            server_name: output.server_name.map(|s| s.as_str().to_string()),
+            server_name: output.server_name.map(|name| {
+                let ServerName::Dns(name) = name;
+                name.to_string()
+            }),
             connection_info: connection_info.into(),
             transcript: output.transcript.map(|t| t.into()),
         })

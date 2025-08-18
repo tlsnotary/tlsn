@@ -5,7 +5,7 @@ use tlsn_attestation::{
     signing::SignatureAlgId,
 };
 use tlsn_core::{
-    connection::{HandshakeData, HandshakeDataV1_2},
+    connection::{CertBinding, CertBindingV1_2},
     fixtures::{self, ConnectionFixture, encoder_secret},
     hash::Blake3,
     transcript::{
@@ -36,10 +36,10 @@ fn test_api() {
         server_cert_data,
     } = ConnectionFixture::tlsnotary(transcript.length());
 
-    let HandshakeData::V1_2(HandshakeDataV1_2 {
+    let CertBinding::V1_2(CertBindingV1_2 {
         server_ephemeral_key,
         ..
-    }) = server_cert_data.handshake.clone()
+    }) = server_cert_data.binding.clone()
     else {
         unreachable!()
     };
@@ -72,7 +72,7 @@ fn test_api() {
 
     request_builder
         .server_name(server_name.clone())
-        .server_cert_data(server_cert_data)
+        .handshake_data(server_cert_data)
         .transcript(transcript)
         .transcript_commitments(
             vec![TranscriptSecret::Encoding(encoding_tree)],
