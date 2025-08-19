@@ -22,7 +22,7 @@ use tlsn_core::{
 };
 
 /// Bytes of encoding, per byte.
-const ENCODING_SIZE: usize = 128;
+pub(crate) const ENCODING_SIZE: usize = 128;
 
 /// The encoding adjustments.
 #[derive(Debug, Serialize, Deserialize)]

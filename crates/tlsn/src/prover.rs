@@ -372,8 +372,15 @@ impl Prover<state::Committed> {
 
         // Create encoding commitments if necessary.
         if proving_state.has_encoding_ranges() {
+            let frame_limit = proving_state.encoding_size() + ctx.io().limit();
+
             let encodings: Encodings = mux_fut
-                .poll_with(ctx.io_mut().expect_next().map_err(ProverError::from))
+                .poll_with(
+                    ctx.io_mut()
+                        .with_limit(frame_limit)
+                        .expect_next()
+                        .map_err(ProverError::from),
+                )
                 .await?;
 
             let mac_provider = |refs| vm.get_macs(refs).expect("reference is valid");

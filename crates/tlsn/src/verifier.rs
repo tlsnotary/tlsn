@@ -323,11 +323,18 @@ impl Verifier<state::Committed> {
 
         // Create encoding commitments if necessary.
         if proving_state.has_encoding_ranges() {
+            let frame_limit = proving_state.encoding_size() + ctx.io().limit();
+
             let key_provider = |refs| vm.get_keys(refs).expect("reference is valid");
             let (encodings, secret) = proving_state.transfer_encodings(delta, key_provider)?;
 
             mux_fut
-                .poll_with(ctx.io_mut().send(encodings).map_err(VerifierError::from))
+                .poll_with(
+                    ctx.io_mut()
+                        .with_limit(frame_limit)
+                        .send(encodings)
+                        .map_err(VerifierError::from),
+                )
                 .await?;
 
             let root: TypedHash = mux_fut

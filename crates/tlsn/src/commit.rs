@@ -17,7 +17,7 @@ pub(crate) mod transcript;
 use crate::{
     commit::{
         auth::{AuthError, Authenticator, RecordProof},
-        encoding::EncodingCreator,
+        encoding::{ENCODING_SIZE, EncodingCreator},
         hash::{HashCommitError, PlaintextHasher},
         transcript::TranscriptRefs,
     },
@@ -377,6 +377,11 @@ impl<'a> ProvingState<'a> {
     /// * `secret` - The encoder secret.
     pub(crate) fn set_encoder_secret(&mut self, secret: EncoderSecret) {
         self.encoding.set_secret(secret);
+    }
+
+    pub(crate) fn encoding_size(&self) -> usize {
+        let (sent, recv) = self.authenticator.encoding();
+        ENCODING_SIZE * (sent.len() + recv.len())
     }
 
     /// Proves plaintext hashes to the verifier.
