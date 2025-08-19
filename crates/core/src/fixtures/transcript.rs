@@ -101,7 +101,7 @@ impl TranscriptGenerator {
         let sent = self.gen_records(cf_vd, sent);
         let recv = self.gen_records(sf_vd, recv);
 
-        let transcript = TlsTranscript::new(
+        TlsTranscript::new(
             time,
             version,
             Some(server_cert_chain),
@@ -111,9 +111,7 @@ impl TranscriptGenerator {
             sent,
             recv,
         )
-        .unwrap();
-
-        transcript
+        .unwrap()
     }
 
     fn gen_records(&self, vd: [u8; 12], plaintext: &[u8]) -> Vec<Record> {
@@ -148,16 +146,14 @@ impl TranscriptGenerator {
         let mut ciphertext = enc_payload.split_off(8);
         let tag = ciphertext.split_off(ciphertext.len() - 16);
 
-        let record = Record {
+        Record {
             seq,
             typ: ContentType::ApplicationData,
             plaintext: Some(plaintext.to_vec()),
             explicit_nonce: explicit_nonce.to_vec(),
             ciphertext,
             tag: Some(tag),
-        };
-
-        record
+        }
     }
 
     fn gen_handshake(&self, vd: [u8; 12]) -> Record {
@@ -185,16 +181,14 @@ impl TranscriptGenerator {
         let mut ciphertext = payload.split_off(8);
         let tag = ciphertext.split_off(ciphertext.len() - 16);
 
-        let handshake = Record {
+        Record {
             seq,
             typ: ContentType::Handshake,
             plaintext: Some(plaintext),
             explicit_nonce: explicit_nonce.to_vec(),
-            ciphertext: ciphertext,
+            ciphertext,
             tag: Some(tag),
-        };
-
-        handshake
+        }
     }
 }
 
@@ -230,12 +224,11 @@ fn aes_gcm_encrypt(
     nonce_ct_mac.extend(explicit_nonce.iter());
     nonce_ct_mac.extend(ciphertext.iter());
 
-    let opaque = OpaqueMessage {
+    OpaqueMessage {
         typ: msg.typ,
         version: msg.version,
         payload: Payload::new(nonce_ct_mac),
-    };
-    opaque
+    }
 }
 
 #[cfg(test)]
