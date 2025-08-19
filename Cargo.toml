@@ -7,7 +7,7 @@ members = [
     "crates/components/key-exchange",
     "crates/core",
     "crates/data-fixtures",
-    # "crates/examples",
+    "crates/examples",
     "crates/formats",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",

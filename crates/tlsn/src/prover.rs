@@ -233,7 +233,7 @@ impl Prover<state::Setup> {
 
                 info!("starting MPC-TLS");
 
-                let (_, (mut ctx, tls_transcript, _)) = futures::try_join!(
+                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
                     conn_fut,
                     mpc_fut.in_current_span().map_err(ProverError::from)
                 )?;

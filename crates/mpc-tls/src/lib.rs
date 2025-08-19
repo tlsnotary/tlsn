@@ -52,14 +52,3 @@ pub struct SessionKeys {
     /// Server write MAC key.
     pub server_write_mac_key: Array<U8, 16>,
 }
-
-/// The plain server write key and iv.
-#[derive(Copy, Clone)]
-pub struct ServerWriteKey {
-    /// The plain key.
-    pub key: [u8; 16],
-    /// The plain iv.
-    pub iv: [u8; 4],
-}
-
-opaque_debug::implement!(ServerWriteKey);

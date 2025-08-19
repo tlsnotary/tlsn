@@ -1579,8 +1579,10 @@ checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -2455,6 +2457,12 @@ dependencies = [
  "quote",
  "syn 2.0.106",
 ]
+
+[[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "duct"
@@ -6148,6 +6156,33 @@ dependencies = [
  "serio",
  "thiserror 1.0.69",
  "tokio",
+]
+
+[[package]]
+name = "tlsn-examples"
+version = "0.0.0"
+dependencies = [
+ "bincode",
+ "chrono",
+ "clap",
+ "dotenv",
+ "futures",
+ "hex",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "k256",
+ "serde_json",
+ "spansy",
+ "tls-server-fixture",
+ "tlsn",
+ "tlsn-formats",
+ "tlsn-server-fixture",
+ "tlsn-server-fixture-certs",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -8,7 +8,7 @@ use crate::{
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
-    Config, Role, ServerWriteKey, SessionKeys, Vm,
+    Config, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
 use hmac_sha256::{MpcPrf, PrfOutput};
@@ -189,17 +189,6 @@ impl MpcTlsLeader {
         };
 
         Ok(keys)
-    }
-
-    /// Returns the decoded server write key and the corresponding iv.
-    pub fn server_write_key(&self) -> Result<ServerWriteKey, MpcTlsError> {
-        let State::Closed { record_layer, .. } = &self.state else {
-            return Err(MpcTlsError::state(
-                "must be in closed state to return server write key",
-            ));
-        };
-
-        record_layer.server_write_key()
     }
 
     /// Preprocesses the connection.
