@@ -88,7 +88,7 @@ impl TranscriptGenerator {
         let version = tlsn.connection_info.version;
         let server_cert_chain = tlsn.server_cert_data.certs;
         let server_signature = tlsn.server_cert_data.sig;
-        let handshake_data = tlsn.server_cert_data.handshake;
+        let cert_binding = tlsn.server_cert_data.binding;
 
         let cf_vd: [u8; 12] = rng.random();
         let sf_vd: [u8; 12] = rng.random();
@@ -106,7 +106,7 @@ impl TranscriptGenerator {
             version,
             Some(server_cert_chain),
             Some(server_signature),
-            handshake_data,
+            cert_binding,
             verify_data,
             sent,
             recv,
