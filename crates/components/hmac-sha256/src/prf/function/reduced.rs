@@ -145,6 +145,10 @@ impl PrfFunction {
                         msg: output.to_vec(),
                     }
                 };
+
+                // We recurse, so that this PHash and the next AHash could
+                // be computed in a single VM execute call.
+                self.flush(vm)?;
             }
             PrfState::FinishLastP => self.state = PrfState::Done,
             _ => (),
