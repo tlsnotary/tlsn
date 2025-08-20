@@ -2,9 +2,9 @@ uniffi::setup_scaffolding!();
 
 use std::time::Duration;
 
-use android_logger::Config as LogConfig;
 use async_std::future::{pending, timeout};
 use log::{info, LevelFilter};
+use oslog::OsLogger;
 use serde::{Deserialize, Serialize};
 use wasmtime::{component::{bindgen, Component, HasSelf, Linker}, Config, Engine, Store};
 
@@ -47,11 +47,11 @@ impl PluginImports for HostState {
 
 #[uniffi::export]
 async fn main(wasm_path: &str) {
-    android_logger::init_once(
-        LogConfig::default()
-            .with_tag("RustWasmtime")
-            .with_max_level(LevelFilter::Info)
-    );
+    OsLogger::new("RustWasmtime")
+        .level_filter(LevelFilter::Info)
+        .category_level_filter("Settings", LevelFilter::Trace)
+        .init()
+        .unwrap();
 
     info!("Starting wasmtime");
 
