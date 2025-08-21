@@ -40,7 +40,6 @@ enum PrfState {
         inner_partial: [u32; 8],
         a_output: DecodeFutureTyped<BitVec, [u8; 32]>,
     },
-    FinishLastP,
     Done,
 }
 
@@ -137,16 +136,18 @@ impl PrfFunction {
                 assign_inner_local(vm, p.inner_local, *inner_partial, &msg)?;
 
                 if *iter == self.iterations {
-                    self.state = PrfState::FinishLastP;
+                    self.state = PrfState::Done;
                 } else {
                     self.state = PrfState::ComputeA {
                         iter: *iter + 1,
                         inner_partial: *inner_partial,
                         msg: output.to_vec(),
-                    }
-                };
+                    };
+                    // We recurse, so that this PHash and the next AHash could
+                    // be computed in a single VM execute call.
+                    self.flush(vm)?;
+                }
             }
-            PrfState::FinishLastP => self.state = PrfState::Done,
             _ => (),
         }
 
