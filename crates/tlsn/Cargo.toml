@@ -12,8 +12,7 @@ workspace = true
 
 [features]
 default = ["rayon"]
-rayon = ["mpz-common/rayon"]
-force-st = ["mpz-common/force-st"]
+rayon = ["mpz-zk/rayon", "mpz-garble/rayon"]
 web = ["dep:web-spawn"]
 
 [dependencies]
