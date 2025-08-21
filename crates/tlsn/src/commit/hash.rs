@@ -24,9 +24,6 @@ pub(crate) struct PlaintextHasher {
     ranges: Vec<HashRange>,
     hash_refs: Vec<Array<U8, 32>>,
     blinders: Vec<Vector<U8>>,
-
-    secrets: Vec<PlaintextHashSecret>,
-    hashes: Option<HashFuture>,
 }
 
 impl PlaintextHasher {
@@ -47,8 +44,6 @@ impl PlaintextHasher {
             ranges,
             hash_refs: Vec::new(),
             blinders: Vec::new(),
-            secrets: Vec::new(),
-            hashes: None,
         }
     }
 
@@ -62,7 +57,7 @@ impl PlaintextHasher {
         &mut self,
         vm: &mut dyn Vm<Binary>,
         transcript_refs: &TranscriptRefs,
-    ) -> Result<(), HashCommitError> {
+    ) -> Result<(HashFuture, Vec<PlaintextHashSecret>), HashCommitError> {
         self.commit(vm, Role::Prover, transcript_refs)?;
 
         let mut futures = Vec::new();
@@ -91,11 +86,7 @@ impl PlaintextHasher {
         }
 
         let hashes = HashFuture { futures };
-
-        self.hashes = Some(hashes);
-        self.secrets = secrets;
-
-        Ok(())
+        Ok((hashes, secrets))
     }
 
     /// Verify plaintext hash commitments.
@@ -108,7 +99,7 @@ impl PlaintextHasher {
         &mut self,
         vm: &mut dyn Vm<Binary>,
         transcript_refs: &TranscriptRefs,
-    ) -> Result<(), HashCommitError> {
+    ) -> Result<HashFuture, HashCommitError> {
         self.commit(vm, Role::Verifier, transcript_refs)?;
 
         let mut futures = Vec::new();
@@ -126,22 +117,7 @@ impl PlaintextHasher {
         }
 
         let hashes = HashFuture { futures };
-        self.hashes = Some(hashes);
-
-        Ok(())
-    }
-
-    /// Returns the plaintext hashes and secrets.
-    pub(crate) fn into_output(
-        self,
-    ) -> Result<(Vec<PlaintextHash>, Vec<PlaintextHashSecret>), HashCommitError> {
-        let mut hashes = Vec::new();
-
-        if let Some(future) = self.hashes {
-            hashes = future.try_recv()?;
-        }
-
-        Ok((hashes, self.secrets))
+        Ok(hashes)
     }
 
     /// Commits plaintext hashes of the transcript.
@@ -369,8 +345,9 @@ mod test {
         )
         .unwrap();
 
-        hasher_prover.prove(&mut prover, &refs_prover).unwrap();
-        hasher_verifier
+        let (prover_hashes, prover_secrets) =
+            hasher_prover.prove(&mut prover, &refs_prover).unwrap();
+        let verifier_hashes = hasher_verifier
             .verify(&mut verifier, &refs_verifier)
             .unwrap();
 
@@ -380,11 +357,10 @@ mod test {
         )
         .unwrap();
 
-        let (prover_hashes, prover_secrets) = hasher_prover.into_output().unwrap();
-        let (verifier_hashes, verifier_secrets) = hasher_verifier.into_output().unwrap();
+        let prover_hashes = prover_hashes.try_recv().unwrap();
+        let verifier_hashes = verifier_hashes.try_recv().unwrap();
 
         assert_eq!(prover_hashes, verifier_hashes);
-        assert!(verifier_secrets.is_empty());
 
         let values_per_commitment = [b"abcdevwxyz".to_vec(), b"xxx".to_vec(), b"12345".to_vec()];
 

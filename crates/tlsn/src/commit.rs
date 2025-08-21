@@ -18,7 +18,7 @@ use crate::{
     commit::{
         auth::{AuthError, Authenticator, RecordProof},
         encoding::{ENCODING_SIZE, EncodingCreator},
-        hash::{HashCommitError, PlaintextHasher},
+        hash::{HashCommitError, HashFuture, PlaintextHasher},
         transcript::TranscriptRefs,
     },
     zk_aes_ctr::ZkAesCtr,
@@ -37,7 +37,7 @@ use tlsn_core::{
     hash::{HashAlgId, TypedHash},
     transcript::{
         Direction, Idx, PartialTranscript, TlsTranscript, TranscriptCommitment, TranscriptSecret,
-        encoding::EncoderSecret,
+        encoding::EncoderSecret, hash::PlaintextHashSecret,
     },
     webpki::{RootCertStore, ServerCertVerifier, ServerCertVerifierError},
 };
@@ -389,7 +389,10 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    pub(crate) fn prove_hashes(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), CommitError> {
+    pub(crate) fn prove_hashes(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+    ) -> Result<(HashFuture, Vec<PlaintextHashSecret>), CommitError> {
         self.hasher
             .prove(vm, self.transcript_refs)
             .map_err(CommitError::from)
@@ -400,7 +403,10 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    pub(crate) fn verify_hashes(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), CommitError> {
+    pub(crate) fn verify_hashes(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+    ) -> Result<HashFuture, CommitError> {
         self.hasher
             .verify(vm, self.transcript_refs)
             .map_err(CommitError::from)
@@ -431,70 +437,12 @@ impl<'a> ProvingState<'a> {
 
     /// Generates the prover output.
     pub(crate) fn finalize_prover(self) -> Result<ProverOutput, CommitError> {
-        let mut output = ProverOutput::default();
-
-        let has_encoding = self.has_encoding_ranges();
-        let has_hashes = self.has_hash_ranges();
-
-        if has_encoding {
-            let commitment = self
-                .encoding
-                .commitment()
-                .expect("encoding commitment should be set");
-            let secret = self.encoding.tree().expect("encoding tree should be set");
-
-            output
-                .transcript_commitments
-                .push(TranscriptCommitment::Encoding(commitment));
-            output
-                .transcript_secrets
-                .push(TranscriptSecret::Encoding(secret));
-        }
-
-        if has_hashes {
-            let (hashes, secrets) = self.hasher.into_output()?;
-
-            for (hash, secret) in hashes.into_iter().zip(secrets) {
-                output
-                    .transcript_commitments
-                    .push(TranscriptCommitment::Hash(hash));
-                output
-                    .transcript_secrets
-                    .push(TranscriptSecret::Hash(secret));
-            }
-        }
-
-        Ok(output)
+        todo!()
     }
 
     /// Generates the verifier output.
     pub(crate) fn finalize_verifier(self) -> Result<VerifierOutput, CommitError> {
-        let mut output = VerifierOutput::default();
-
-        if self.has_encoding_ranges() {
-            let commitment = self
-                .encoding
-                .commitment()
-                .expect("encoding commitment should be set");
-
-            output
-                .transcript_commitments
-                .push(TranscriptCommitment::Encoding(commitment));
-        }
-
-        if self.has_hash_ranges() {
-            let (hashes, _) = self.hasher.into_output()?;
-
-            for hash in hashes.into_iter() {
-                output
-                    .transcript_commitments
-                    .push(TranscriptCommitment::Hash(hash));
-            }
-        }
-        output.server_name = self.verified_server_name;
-        output.transcript = self.partial;
-
-        Ok(output)
+        todo!()
     }
 }
 
