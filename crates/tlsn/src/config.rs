@@ -233,15 +233,17 @@ impl ProtocolConfigValidator {
 /// situations.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum NetworkSetting {
-    /// Prefers a bandwidth-heavy protocol.
+    /// Reduces network round-trips at the expense of consuming more network
+    /// bandwidth.
     Bandwidth,
-    /// Prefers a latency-heavy protocol.
+    /// Reduces network bandwidth utilization at the expense of more network
+    /// round-trips.
     Latency,
 }
 
 impl Default for NetworkSetting {
     fn default() -> Self {
-        Self::Bandwidth
+        Self::Latency
     }
 }
 
