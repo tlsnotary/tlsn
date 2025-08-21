@@ -37,9 +37,6 @@ pub(crate) struct EncodingCreator {
     id: Option<HashAlgId>,
     sent: RangeSet<usize>,
     recv: RangeSet<usize>,
-    root: Option<TypedHash>,
-    tree: Option<EncodingTree>,
-    secret: Option<EncoderSecret>,
 }
 
 impl EncodingCreator {
@@ -51,14 +48,7 @@ impl EncodingCreator {
     /// * `sent` - The encoding ranges for the sent transcript.
     /// * `recv` - The encoding ranges for the received transcript.
     pub(crate) fn new(id: Option<HashAlgId>, sent: RangeSet<usize>, recv: RangeSet<usize>) -> Self {
-        Self {
-            id,
-            sent,
-            recv,
-            root: None,
-            tree: None,
-            secret: None,
-        }
+        Self { id, sent, recv }
     }
 
     /// Receives the encodings using the provided MACs.
@@ -71,11 +61,11 @@ impl EncodingCreator {
     /// * `transcript_refs` - The transcript references.
     /// * `mac_provider` - Provides the mac encodings.
     pub(crate) fn receive<'a>(
-        &mut self,
+        &self,
         encodings: Encodings,
         transcript_refs: &TranscriptRefs,
         mac_provider: impl Fn(Vector<U8>) -> &'a [Mac],
-    ) -> Result<TypedHash, EncodingError> {
+    ) -> Result<(TypedHash, EncodingTree), EncodingError> {
         let Some(id) = self.id else {
             return Err(EncodingError(ErrorRepr::MissingHashId));
         };
@@ -116,9 +106,7 @@ impl EncodingCreator {
         let tree = EncodingTree::new(hasher, idxs.iter(), &provider)?;
         let root = tree.root();
 
-        self.root = Some(root);
-        self.tree = Some(tree);
-        Ok(root)
+        Ok((root, tree))
     }
 
     /// Transfers the encodings using the provided seed and keys.
@@ -131,7 +119,7 @@ impl EncodingCreator {
     /// * `transcript_refs` - The transcript references.
     /// * `key_provider` - Provides the key blocks.
     pub(crate) fn transfer<'a>(
-        &mut self,
+        &self,
         delta: &Delta,
         transcript_refs: &TranscriptRefs,
         key_provider: impl Fn(Vector<U8>) -> &'a [Key],
@@ -162,41 +150,7 @@ impl EncodingCreator {
         )?;
         let encodings = Encodings { sent, recv };
 
-        self.secret = Some(secret);
         Ok((encodings, secret))
-    }
-
-    /// Sets the encoder secret.
-    ///
-    /// # Arguments
-    ///
-    /// * `secret` - The encoder secret.
-    pub(crate) fn set_secret(&mut self, secret: EncoderSecret) {
-        self.secret = Some(secret);
-    }
-
-    /// Sets the encoding root.
-    ///
-    /// # Arguments
-    ///
-    /// * `root` - The encoder root.
-    pub(crate) fn set_root(&mut self, root: TypedHash) {
-        self.root = Some(root);
-    }
-
-    /// Returns the encoding commitment.
-    pub(crate) fn commitment(&self) -> Option<EncodingCommitment> {
-        let (Some(root), Some(secret)) = (self.root, self.secret) else {
-            return None;
-        };
-
-        let commitment = EncodingCommitment { root, secret };
-        Some(commitment)
-    }
-
-    /// Returns the encoding tree.
-    pub(crate) fn tree(self) -> Option<EncodingTree> {
-        self.tree
     }
 
     /// Adjust encodings by transcript references.

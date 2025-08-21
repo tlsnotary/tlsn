@@ -393,7 +393,7 @@ impl Prover<state::Committed> {
                 .poll_with(ctx.io_mut().expect_next().map_err(ProverError::from))
                 .await?;
 
-            proving_state.set_encoder_secret(secret);
+            // proving_state.set_encoder_secret(secret);
         }
 
         // Create hash commitments if necessary.

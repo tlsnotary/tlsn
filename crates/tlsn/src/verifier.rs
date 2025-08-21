@@ -340,7 +340,7 @@ impl Verifier<state::Committed> {
             let root: TypedHash = mux_fut
                 .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
                 .await?;
-            proving_state.set_encoding_root(root);
+            // proving_state.set_encoding_root(root);
 
             mux_fut
                 .poll_with(ctx.io_mut().send(secret).map_err(VerifierError::from))

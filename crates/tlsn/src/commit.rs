@@ -37,7 +37,8 @@ use tlsn_core::{
     hash::{HashAlgId, TypedHash},
     transcript::{
         Direction, Idx, PartialTranscript, TlsTranscript, TranscriptCommitment, TranscriptSecret,
-        encoding::EncoderSecret, hash::PlaintextHashSecret,
+        encoding::{EncoderSecret, EncodingTree},
+        hash::PlaintextHashSecret,
     },
     webpki::{RootCertStore, ServerCertVerifier, ServerCertVerifierError},
 };
@@ -355,28 +356,10 @@ impl<'a> ProvingState<'a> {
         &mut self,
         encodings: Encodings,
         mac_provider: impl Fn(Vector<U8>) -> &'b [Mac],
-    ) -> Result<TypedHash, CommitError> {
+    ) -> Result<(TypedHash, EncodingTree), CommitError> {
         self.encoding
             .receive(encodings, self.transcript_refs, mac_provider)
             .map_err(CommitError::from)
-    }
-
-    /// Sets the encoding root.
-    ///
-    /// # Arguments
-    ///
-    /// * `root` - The encoding root.
-    pub(crate) fn set_encoding_root(&mut self, root: TypedHash) {
-        self.encoding.set_root(root);
-    }
-
-    /// Sets the encoder secret.
-    ///
-    /// # Arguments
-    ///
-    /// * `secret` - The encoder secret.
-    pub(crate) fn set_encoder_secret(&mut self, secret: EncoderSecret) {
-        self.encoding.set_secret(secret);
     }
 
     pub(crate) fn encoding_size(&self) -> usize {
