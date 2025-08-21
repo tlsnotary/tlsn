@@ -36,10 +36,14 @@ thiserror = { workspace = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 web-time = { workspace = true }
 webpki-roots = { workspace = true }
+rustls-webpki = { workspace = true, features = ["ring"] }
+rustls-pki-types = { workspace = true }
 itybity = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
 tlsn-data-fixtures = { workspace = true }
+webpki-root-certs = { workspace = true }

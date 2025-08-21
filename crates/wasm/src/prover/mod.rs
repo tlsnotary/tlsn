@@ -41,10 +41,10 @@ impl State {
 #[wasm_bindgen(js_class = Prover)]
 impl JsProver {
     #[wasm_bindgen(constructor)]
-    pub fn new(config: ProverConfig) -> JsProver {
-        JsProver {
-            state: State::Initialized(Prover::new(config.into())),
-        }
+    pub fn new(config: ProverConfig) -> Result<JsProver> {
+        Ok(JsProver {
+            state: State::Initialized(Prover::new(config.try_into()?)),
+        })
     }
 
     /// Set up the prover.

@@ -1,5 +1,6 @@
 use crate::msgs::enums::{AlertDescription, ContentType, HandshakeType};
-use std::{error::Error as StdError, fmt, time::SystemTimeError};
+use std::{error::Error as StdError, fmt};
+use web_time::SystemTimeError;
 
 /// rustls reports protocol errors using this type.
 #[derive(Debug, PartialEq, Clone)]
@@ -41,8 +42,9 @@ pub enum Error {
     /// We couldn't decrypt a message.  This is invariably fatal.
     DecryptError,
 
-    /// We couldn't encrypt a message because it was larger than the allowed message size.
-    /// This should never happen if the application is using valid record sizes.
+    /// We couldn't encrypt a message because it was larger than the allowed
+    /// message size. This should never happen if the application is using
+    /// valid record sizes.
     EncryptError,
 
     /// The peer doesn't support a protocol version/feature we require.

@@ -6,7 +6,8 @@ use http_body_util::{BodyExt as _, Full};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use rstest::{fixture, rstest};
-use tls_client::{Certificate, ClientConfig, ClientConnection, RustCryptoBackend, ServerName};
+use rustls_pki_types::CertificateDer;
+use tls_client::{ClientConfig, ClientConnection, RustCryptoBackend, ServerName};
 use tls_client_async::{bind_client, ClosedConnection, ConnectionError, TlsConnection};
 use tls_server_fixture::{
     bind_test_server, bind_test_server_hyper, APP_RECORD_LENGTH, CA_CERT_DER, CLOSE_DELAY,
@@ -14,6 +15,9 @@ use tls_server_fixture::{
 };
 use tokio::task::JoinHandle;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use webpki::anchor_from_trusted_cert;
+
+const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 
 // An established client TLS connection
 struct TlsFixture {
@@ -30,7 +34,9 @@ async fn set_up_tls() -> TlsFixture {
     let _server_task = tokio::spawn(bind_test_server(server_socket.compat()));
 
     let mut root_store = tls_client::RootCertStore::empty();
-    root_store.add(&Certificate(CA_CERT_DER.to_vec())).unwrap();
+    root_store
+        .roots
+        .push(anchor_from_trusted_cert(&CA_CERT).unwrap().to_owned());
     let config = ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_store)
@@ -75,7 +81,9 @@ async fn test_hyper_ok() {
     let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
     let mut root_store = tls_client::RootCertStore::empty();
-    root_store.add(&Certificate(CA_CERT_DER.to_vec())).unwrap();
+    root_store
+        .roots
+        .push(anchor_from_trusted_cert(&CA_CERT).unwrap().to_owned());
     let config = ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_store)

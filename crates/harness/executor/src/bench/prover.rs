@@ -5,7 +5,8 @@ use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
 
 use harness_core::bench::{Bench, ProverMetrics};
 use tlsn::{
-    config::ProtocolConfig,
+    config::{CertificateDer, ProtocolConfig, RootCertStore},
+    connection::ServerName,
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -32,20 +33,17 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let protocol_config = builder.build()?;
 
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
     let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(root_store);
+    tls_config_builder.root_store(RootCertStore {
+        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+    });
     let tls_config = tls_config_builder.build()?;
 
     let prover = Prover::new(
         ProverConfig::builder()
             .tls_config(tls_config)
             .protocol_config(protocol_config)
-            .server_name(SERVER_DOMAIN)
+            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
             .build()?,
     );
 

@@ -8,12 +8,14 @@ pub mod state;
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
+use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
+use webpki::anchor_from_trusted_cert;
 
 use crate::{
     Role,
@@ -39,7 +41,7 @@ use tls_client_async::{TlsConnection, bind_client};
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     ProvePayload,
-    connection::ServerCertData,
+    connection::{HandshakeData, ServerName},
     hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256},
     transcript::{TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
 };
@@ -179,21 +181,40 @@ impl Prover<state::Setup> {
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
+        let ServerName::Dns(server_name) = self.config.server_name();
         let server_name =
-            TlsServerName::try_from(self.config.server_name().as_str()).map_err(|_| {
-                ProverError::config(format!(
-                    "invalid server name: {}",
-                    self.config.server_name()
-                ))
-            })?;
+            TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
+
+        let root_store = if let Some(root_store) = self.config.tls_config().root_store() {
+            let roots = root_store
+                .roots
+                .iter()
+                .map(|cert| {
+                    let der = CertificateDer::from_slice(&cert.0);
+                    anchor_from_trusted_cert(&der)
+                        .map(|anchor| anchor.to_owned())
+                        .map_err(ProverError::config)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            tls_client::RootCertStore { roots }
+        } else {
+            tls_client::RootCertStore {
+                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+            }
+        };
 
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
-            .with_root_certificates(self.config.tls_config().root_store().clone());
+            .with_root_certificates(root_store);
 
         let config = if let Some((cert, key)) = self.config.tls_config().client_auth() {
             config
-                .with_single_cert(cert.clone(), key.clone())
+                .with_single_cert(
+                    cert.iter()
+                        .map(|cert| tls_client::Certificate(cert.0.clone()))
+                        .collect(),
+                    tls_client::PrivateKey(key.0.clone()),
+                )
                 .map_err(ProverError::config)?
         } else {
             config.with_no_client_auth()
@@ -350,10 +371,10 @@ impl Prover<state::Committed> {
         };
 
         let payload = ProvePayload {
-            server_identity: config.server_identity().then(|| {
+            handshake: config.server_identity().then(|| {
                 (
                     self.config.server_name().clone(),
-                    ServerCertData {
+                    HandshakeData {
                         certs: tls_transcript
                             .server_cert_chain()
                             .expect("server cert chain is present")
@@ -362,7 +383,7 @@ impl Prover<state::Committed> {
                             .server_signature()
                             .expect("server signature is present")
                             .clone(),
-                        handshake: tls_transcript.handshake_data().clone(),
+                        binding: tls_transcript.certificate_binding().clone(),
                     },
                 )
             }),

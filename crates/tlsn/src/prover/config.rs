@@ -1,14 +1,14 @@
-use crate::config::{NetworkSetting, ProtocolConfig};
 use mpc_tls::Config;
-use rustls_pki_types::{CertificateDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer, pem::PemObject};
-use tls_core::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
-    key,
+use serde::{Deserialize, Serialize};
+use tlsn_core::{
+    connection::ServerName,
+    webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
 };
-use tlsn_core::connection::ServerName;
+
+use crate::config::{NetworkSetting, ProtocolConfig};
 
 /// Configuration for the prover.
-#[derive(Debug, Clone, derive_builder::Builder)]
+#[derive(Debug, Clone, derive_builder::Builder, Serialize, Deserialize)]
 pub struct ProverConfig {
     /// The server DNS name.
     #[builder(setter(into))]
@@ -67,31 +67,13 @@ impl ProverConfig {
 }
 
 /// Configuration for the prover's TLS connection.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct TlsConfig {
     /// Root certificates.
-    root_store: RootCertStore,
+    root_store: Option<RootCertStore>,
     /// Certificate chain and a matching private key for client
     /// authentication.
-    client_auth: Option<(Vec<key::Certificate>, key::PrivateKey)>,
-}
-
-impl Default for TlsConfig {
-    fn default() -> Self {
-        let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject.as_ref(),
-                ta.subject_public_key_info.as_ref(),
-                ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
-            )
-        }));
-
-        Self {
-            root_store,
-            client_auth: None,
-        }
-    }
+    client_auth: Option<(Vec<CertificateDer>, PrivateKeyDer)>,
 }
 
 impl TlsConfig {
@@ -100,13 +82,13 @@ impl TlsConfig {
         TlsConfigBuilder::default()
     }
 
-    pub(crate) fn root_store(&self) -> &RootCertStore {
-        &self.root_store
+    pub(crate) fn root_store(&self) -> Option<&RootCertStore> {
+        self.root_store.as_ref()
     }
 
     /// Returns a certificate chain and a matching private key for client
     /// authentication.
-    pub fn client_auth(&self) -> &Option<(Vec<key::Certificate>, key::PrivateKey)> {
+    pub fn client_auth(&self) -> &Option<(Vec<CertificateDer>, PrivateKeyDer)> {
         &self.client_auth
     }
 }
@@ -115,7 +97,7 @@ impl TlsConfig {
 #[derive(Debug, Default)]
 pub struct TlsConfigBuilder {
     root_store: Option<RootCertStore>,
-    client_auth: Option<(Vec<key::Certificate>, key::PrivateKey)>,
+    client_auth: Option<(Vec<CertificateDer>, PrivateKeyDer)>,
 }
 
 impl TlsConfigBuilder {
@@ -138,74 +120,16 @@ impl TlsConfigBuilder {
     ///
     ///   - Each certificate in the chain must be in the X.509 format.
     ///   - The key must be in the ASN.1 format (either PKCS#8 or PKCS#1).
-    pub fn client_auth(&mut self, cert_key: (Vec<Vec<u8>>, Vec<u8>)) -> &mut Self {
-        let certs = cert_key
-            .0
-            .into_iter()
-            .map(key::Certificate)
-            .collect::<Vec<_>>();
-
-        self.client_auth = Some((certs, key::PrivateKey(cert_key.1)));
+    pub fn client_auth(&mut self, cert_key: (Vec<CertificateDer>, PrivateKeyDer)) -> &mut Self {
+        self.client_auth = Some(cert_key);
         self
     }
 
-    /// Sets a PEM-encoded certificate chain and a matching private key for
-    /// client authentication.
-    ///
-    /// Often the chain will consist of a single end-entity certificate.
-    ///
-    /// # Arguments
-    ///
-    /// * `cert_key` - A tuple containing the certificate chain and the private
-    ///   key.
-    ///
-    ///   - Each certificate in the chain must be in the X.509 format.
-    ///   - The key must be in the ASN.1 format (either PKCS#8 or PKCS#1).
-    pub fn client_auth_pem(
-        &mut self,
-        cert_key: (Vec<Vec<u8>>, Vec<u8>),
-    ) -> Result<&mut Self, TlsConfigError> {
-        let key = match PrivatePkcs8KeyDer::from_pem_slice(&cert_key.1) {
-            // Try to parse as PEM PKCS#8.
-            Ok(key) => (*key.secret_pkcs8_der()).to_vec(),
-            // Otherwise, try to parse as PEM PKCS#1.
-            Err(_) => match PrivatePkcs1KeyDer::from_pem_slice(&cert_key.1) {
-                Ok(key) => (*key.secret_pkcs1_der()).to_vec(),
-                Err(_) => return Err(ErrorRepr::InvalidKey.into()),
-            },
-        };
-
-        let certs = cert_key
-            .0
-            .iter()
-            .map(|c| {
-                let c =
-                    CertificateDer::from_pem_slice(c).map_err(|_| ErrorRepr::InvalidCertificate)?;
-                Ok::<key::Certificate, TlsConfigError>(key::Certificate(c.as_ref().to_vec()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        self.client_auth = Some((certs, key::PrivateKey(key)));
-        Ok(self)
-    }
-
     /// Builds the TLS configuration.
-    pub fn build(&self) -> Result<TlsConfig, TlsConfigError> {
+    pub fn build(self) -> Result<TlsConfig, TlsConfigError> {
         Ok(TlsConfig {
-            root_store: self.root_store.clone().unwrap_or_else(|| {
-                let mut root_store = RootCertStore::empty();
-                root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(
-                    |ta| {
-                        OwnedTrustAnchor::from_subject_spki_name_constraints(
-                            ta.subject.as_ref(),
-                            ta.subject_public_key_info.as_ref(),
-                            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
-                        )
-                    },
-                ));
-                root_store
-            }),
-            client_auth: self.client_auth.clone(),
+            root_store: self.root_store,
+            client_auth: self.client_auth,
         })
     }
 }
@@ -216,10 +140,5 @@ impl TlsConfigBuilder {
 pub struct TlsConfigError(#[from] ErrorRepr);
 
 #[derive(Debug, thiserror::Error)]
-#[error("tls config error: {0}")]
-enum ErrorRepr {
-    #[error("the certificate for client authentication is invalid")]
-    InvalidCertificate,
-    #[error("the private key for client authentication is invalid")]
-    InvalidKey,
-}
+#[error("tls config error")]
+enum ErrorRepr {}

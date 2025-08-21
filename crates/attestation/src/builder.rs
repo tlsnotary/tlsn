@@ -242,7 +242,7 @@ impl std::fmt::Display for AttestationBuilderError {
 mod test {
     use rstest::{fixture, rstest};
     use tlsn_core::{
-        connection::{HandshakeData, HandshakeDataV1_2},
+        connection::{CertBinding, CertBindingV1_2},
         fixtures::{ConnectionFixture, encoding_provider},
         hash::Blake3,
         transcript::Transcript,
@@ -399,10 +399,10 @@ mod test {
             server_cert_data, ..
         } = connection;
 
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
+        let CertBinding::V1_2(CertBindingV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake
+        }) = server_cert_data.binding
         else {
             panic!("expected v1.2 handshake data");
         };
@@ -470,10 +470,10 @@ mod test {
             ..
         } = connection;
 
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
+        let CertBinding::V1_2(CertBindingV1_2 {
             server_ephemeral_key,
             ..
-        }) = server_cert_data.handshake
+        }) = server_cert_data.binding
         else {
             panic!("expected v1.2 handshake data");
         };

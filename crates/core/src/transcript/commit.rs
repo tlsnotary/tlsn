@@ -66,7 +66,7 @@ pub enum TranscriptSecret {
 }
 
 /// Configuration for transcript commitments.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptCommitConfig {
     encoding_hash_alg: HashAlgId,
     has_encoding: bool,

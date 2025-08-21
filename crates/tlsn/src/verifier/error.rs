@@ -20,6 +20,13 @@ impl VerifierError {
         }
     }
 
+    pub(crate) fn config<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Config, source)
+    }
+
     pub(crate) fn mpc<E>(source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync + 'static>>,

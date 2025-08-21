@@ -1,6 +1,7 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tlsn::{
-    config::{ProtocolConfig, ProtocolConfigValidator},
+    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    connection::ServerName,
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
     transcript::{TranscriptCommitConfig, TranscriptCommitment},
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
@@ -37,19 +38,17 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
 
     let server_task = tokio::spawn(bind(server_socket.compat()));
 
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
     let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(root_store);
+    tls_config_builder.root_store(RootCertStore {
+        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+    });
 
     let tls_config = tls_config_builder.build().unwrap();
 
+    let server_name = ServerName::Dns(SERVER_DOMAIN.try_into().unwrap());
     let prover = Prover::new(
         ProverConfig::builder()
-            .server_name(SERVER_DOMAIN)
+            .server_name(server_name)
             .tls_config(tls_config)
             .protocol_config(
                 ProtocolConfig::builder()
@@ -110,11 +109,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
 
 #[instrument(skip(socket))]
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
     let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
@@ -123,7 +117,9 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(soc
 
     let verifier = Verifier::new(
         VerifierConfig::builder()
-            .root_store(root_store)
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
             .protocol_config_validator(config_validator)
             .build()
             .unwrap(),
@@ -140,7 +136,9 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(soc
 
     let transcript = transcript.unwrap();
 
-    assert_eq!(server_name.unwrap().as_str(), SERVER_DOMAIN);
+    let ServerName::Dns(server_name) = server_name.unwrap();
+
+    assert_eq!(server_name.as_str(), SERVER_DOMAIN);
     assert!(!transcript.is_complete());
     assert_eq!(
         transcript.sent_authed().iter_ranges().next().unwrap(),
