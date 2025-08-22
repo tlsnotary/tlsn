@@ -76,6 +76,7 @@ mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "c
 mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
 mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
 mpz-zk = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
+mpz-zk-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
 mpz-hash = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ccc0057" }
 
 rangeset = { version = "0.2" }

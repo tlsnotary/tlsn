@@ -15,8 +15,9 @@ pub(crate) mod hash;
 pub(crate) mod transcript;
 
 use crate::{
+    EncodingVm,
     commit::{
-        auth::{AuthError, Authenticator, RecordProof},
+        auth::{AuthError, Authenticator},
         encoding::{ENCODING_SIZE, EncodingCreator},
         hash::{HashCommitError, HashFuture, PlaintextHasher},
         transcript::TranscriptRefs,
@@ -28,21 +29,17 @@ use encoding::{EncodingError, Encodings};
 use futures::TryFutureExt;
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
-use mpz_garble_core::{Delta, Key, Mac};
-use mpz_memory_core::{
-    Vector,
-    binary::{Binary, U8},
-};
+use mpz_garble_core::Delta;
+use mpz_memory_core::binary::Binary;
 use mpz_vm_core::{Vm, VmError, prelude::*};
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     ProveConfig, ProvePayload, ProverOutput, VerifierOutput,
     connection::{HandshakeData, HandshakeVerificationError, ServerName},
-    hash::{HashAlgId, TypedHash},
+    hash::HashAlgId,
     transcript::{
         Direction, Idx, PartialTranscript, TlsTranscript, TranscriptCommitment, TranscriptSecret,
         encoding::{EncoderSecret, EncodingCommitment, EncodingTree},
-        hash::PlaintextHashSecret,
     },
     webpki::{RootCertStore, ServerCertVerifier, ServerCertVerifierError},
 };
@@ -76,7 +73,7 @@ impl<'a> ProvingState<'a> {
     /// * `keys` - The session keys.
     /// * `transcript` - The TLS transcript.
     /// * `transcript_refs` - The transcript references.
-    pub(crate) fn for_prover<'b>(
+    pub(crate) fn for_prover(
         config: ProveConfig,
         keys: SessionKeys,
         transcript: &'a TlsTranscript,
@@ -131,14 +128,22 @@ impl<'a> ProvingState<'a> {
         }
     }
 
-    pub(crate) async fn prove<'b>(
+    /// Proves the transcript and generates the prover output.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine.
+    /// * `muxer` - The multiplexer future.
+    /// * `ctx` - The thread context.
+    /// * `zk_aes_sent` - ZkAes for the sent traffic.
+    /// * `zk_aes_recv` - ZkAes for the received traffic.
+    pub(crate) async fn prove(
         &mut self,
-        vm: &mut (dyn Vm<Binary> + Send),
+        vm: &mut (dyn EncodingVm<Binary> + Send),
         muxer: &mut MuxFuture,
         ctx: &mut Context,
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
-        mac_provider: impl Fn(&mut dyn Vm<Binary>, Vector<U8>) -> &'b [Mac],
     ) -> Result<ProverOutput, CommitError> {
         // Authenticate only necessary parts of the transcript. Proof is not needed on
         // the prover side.
@@ -158,7 +163,7 @@ impl<'a> ProvingState<'a> {
 
         let mut output = ProverOutput::default();
         if self.has_encoding_ranges() {
-            let (commitment, secret) = self.receive_encodings(muxer, ctx, vm, mac_provider).await?;
+            let (commitment, secret) = self.receive_encodings(vm, muxer, ctx).await?;
 
             output
                 .transcript_commitments
@@ -167,6 +172,7 @@ impl<'a> ProvingState<'a> {
                 .transcript_secrets
                 .push(TranscriptSecret::Encoding(secret));
         }
+
         // Create hash commitments if necessary.
         let hash_output = if self.has_hash_ranges() {
             Some(self.hasher.prove(vm, &self.transcript_refs)?)
@@ -372,16 +378,14 @@ impl<'a> ProvingState<'a> {
     ///
     /// # Arguments
     ///
+    /// * `vm` - The virtual machine.
     /// * `delta` - The Delta.
-    /// * `key_provider` - Provides the key encodings.
     pub(crate) fn transfer_encodings<'b>(
         &mut self,
+        vm: &mut dyn EncodingVm<Binary>,
         delta: &Delta,
-        key_provider: impl Fn(Vector<U8>) -> &'b [Key],
     ) -> Result<(Encodings, EncoderSecret), CommitError> {
-        self.encoding
-            .transfer(delta, self.transcript_refs, key_provider)
-            .map_err(CommitError::from)
+        todo!()
     }
 
     /// Receive the encoding adjustments from the verifier and adjust the prover
@@ -389,15 +393,14 @@ impl<'a> ProvingState<'a> {
     ///
     /// # Arguments
     ///
+    /// * `vm` - The virtual machine.
     /// * `muxer` - The multiplexer future.
     /// * `ctx` - The thread context.
-    /// * `mac_provider` - Provides the mac encodings.
     async fn receive_encodings<'b>(
         &mut self,
+        vm: &mut dyn EncodingVm<Binary>,
         muxer: &mut MuxFuture,
         ctx: &mut Context,
-        vm: &mut dyn Vm<Binary>,
-        mac_provider: impl Fn(&mut dyn Vm<Binary>, Vector<U8>) -> &'b [Mac],
     ) -> Result<(EncodingCommitment, EncodingTree), CommitError> {
         let frame_limit = self.encoding_size() + ctx.io().limit();
 
@@ -410,9 +413,7 @@ impl<'a> ProvingState<'a> {
             )
             .await?;
 
-        let (root, tree) =
-            self.encoding
-                .receive(vm, encodings, self.transcript_refs, &mac_provider)?;
+        let (root, tree) = self.encoding.receive(vm, encodings, self.transcript_refs)?;
 
         muxer
             .poll_with(ctx.io_mut().send(root).map_err(CommitError::from))

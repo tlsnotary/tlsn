@@ -15,6 +15,8 @@ pub(crate) mod tag;
 pub mod verifier;
 pub(crate) mod zk_aes_ctr;
 
+use mpz_memory_core::{MemoryType, Vector, binary::U8};
+use mpz_vm_core::Vm;
 pub use tlsn_attestation as attestation;
 pub use tlsn_core::{connection, hash, transcript};
 
@@ -27,4 +29,8 @@ pub(crate) enum Role {
     Prover,
     /// The verifier.
     Verifier,
+}
+
+trait EncodingVm<T: MemoryType>: Vm<T> {
+    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8>;
 }

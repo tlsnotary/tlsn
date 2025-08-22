@@ -1,12 +1,8 @@
 //! Encoding commitment protocol.
 
-use crate::commit::transcript::TranscriptRefs;
-use mpz_memory_core::{
-    Vector,
-    binary::{Binary, U8},
-    correlated::{Delta, Key, Mac},
-};
-use mpz_vm_core::Vm;
+use crate::{EncodingVm, commit::transcript::TranscriptRefs};
+use mpz_garble_core::Delta;
+use mpz_memory_core::binary::Binary;
 use rand::Rng;
 use rangeset::{RangeSet, Subset};
 use serde::{Deserialize, Serialize};
@@ -16,8 +12,8 @@ use tlsn_core::{
     transcript::{
         Direction, Idx,
         encoding::{
-            Encoder, EncoderSecret, EncodingCommitment, EncodingProvider, EncodingProviderError,
-            EncodingTree, EncodingTreeError, new_encoder,
+            Encoder, EncoderSecret, EncodingProvider, EncodingProviderError, EncodingTree,
+            EncodingTreeError, new_encoder,
         },
     },
 };
@@ -61,13 +57,11 @@ impl EncodingCreator {
     /// * `vm` - The virtual machine.
     /// * `encodings` - The encoding adjustments.
     /// * `transcript_refs` - The transcript references.
-    /// * `mac_provider` - Provides the mac encodings.
     pub(crate) fn receive<'a>(
         &self,
-        vm: &mut dyn Vm<Binary>,
+        vm: &mut dyn EncodingVm<Binary>,
         encodings: Encodings,
         transcript_refs: &TranscriptRefs,
-        mut mac_provider: impl FnMut(&mut dyn Vm<Binary>, Vector<U8>) -> &'a [Mac],
     ) -> Result<(TypedHash, EncodingTree), EncodingError> {
         let Some(id) = self.id else {
             return Err(EncodingError(ErrorRepr::MissingHashId));
@@ -83,17 +77,7 @@ impl EncodingCreator {
         };
 
         let Encodings { mut sent, mut recv } = encodings;
-        self.adjust(
-            vm,
-            transcript_refs,
-            |vm, reference| {
-                mac_provider(vm, reference)
-                    .iter()
-                    .flat_map(|mac| mac.as_bytes())
-            },
-            &mut sent,
-            &mut recv,
-        )?;
+        self.adjust(vm, transcript_refs, &mut sent, &mut recv)?;
 
         let provider = Provider::new(sent, &self.sent, recv, &self.recv);
         let idxs: Vec<(Direction, Idx)> = self
@@ -122,13 +106,11 @@ impl EncodingCreator {
     /// * `vm` - The virtual machine.
     /// * `delta` -  The global delta.
     /// * `transcript_refs` - The transcript references.
-    /// * `key_provider` - Provides the key blocks.
-    pub(crate) fn transfer<'a>(
+    pub(crate) fn transfer(
         &self,
-        vm: &mut dyn Vm<Binary>,
+        vm: &mut dyn EncodingVm<Binary>,
         delta: &Delta,
         transcript_refs: &TranscriptRefs,
-        mut key_provider: impl Fn(&mut dyn Vm<Binary>, Vector<U8>) -> &'a [Key],
     ) -> Result<(Encodings, EncoderSecret), EncodingError> {
         let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
         let encoder = new_encoder(&secret);
@@ -144,17 +126,7 @@ impl EncodingCreator {
             encoder.encode_range(Direction::Received, range, &mut recv);
         }
 
-        self.adjust(
-            vm,
-            transcript_refs,
-            |vm, reference| {
-                key_provider(vm, reference)
-                    .iter()
-                    .flat_map(|key| key.as_block().as_bytes())
-            },
-            &mut sent,
-            &mut recv,
-        )?;
+        self.adjust(vm, transcript_refs, &mut sent, &mut recv)?;
         let encodings = Encodings { sent, recv };
 
         Ok((encodings, secret))
@@ -164,34 +136,22 @@ impl EncodingCreator {
     ///
     /// # Arguments
     ///
+    /// * `vm` - The virtual machine.
     /// * `transcript_refs` - The transcripf references.
-    /// * `provider` - The provider function for the transcript encodings.
     /// * `sent_adjust` - The adjustment bytes for the sent encodings.
     /// * `recv_adjust` - The adjustment bytes for the received encodings.
-    fn adjust<'a, F, G>(
+    fn adjust(
         &self,
-        vm: &mut dyn Vm<Binary>,
+        vm: &mut dyn EncodingVm<Binary>,
         transcript_refs: &TranscriptRefs,
-        mut provider: F,
         sent_adjust: &mut [u8],
         recv_adjust: &mut [u8],
-    ) -> Result<(), EncodingError>
-    where
-        F: FnMut(&mut dyn Vm<Binary>, Vector<U8>) -> G,
-        G: Iterator<Item = &'a u8>,
-    {
-        let sent: Vec<u8> = transcript_refs
-            .get(Direction::Sent, &self.sent)
-            .into_iter()
-            .flat_map(|refs| provider(vm, refs))
-            .copied()
-            .collect();
-        let recv: Vec<u8> = transcript_refs
-            .get(Direction::Received, &self.recv)
-            .into_iter()
-            .flat_map(|refs| provider(vm, refs))
-            .copied()
-            .collect();
+    ) -> Result<(), EncodingError> {
+        let sent_refs = transcript_refs.get(Direction::Sent, &self.sent);
+        let sent = vm.get_encodings(&sent_refs);
+
+        let recv_refs = transcript_refs.get(Direction::Received, &self.recv);
+        let recv: Vec<u8> = vm.get_encodings(&recv_refs);
 
         assert_eq!(sent.len() % ENCODING_SIZE, 0);
         assert_eq!(recv.len() % ENCODING_SIZE, 0);

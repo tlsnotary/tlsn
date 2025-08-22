@@ -8,13 +8,17 @@ use std::sync::Arc;
 
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
+use mpz_memory_core::{
+    Vector,
+    binary::{Binary, U8},
+};
 pub use tlsn_core::{
     VerifierOutput, VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError,
     webpki::ServerCertVerifier,
 };
 
 use crate::{
-    Role,
+    EncodingVm, Role,
     commit::{ProvingState, transcript::TranscriptRefs},
     config::ProtocolConfig,
     context::build_mt_context,
@@ -51,6 +55,18 @@ pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
 pub(crate) type Mpc =
     mpz_garble::protocol::semihonest::Evaluator<mpz_ot::cot::DerandCOTReceiver<RCOTReceiver>>;
 pub(crate) type Zk = mpz_zk::Verifier<RCOTSender>;
+
+impl EncodingVm<Binary> for Zk {
+    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
+        let mut encodings = Vec::new();
+
+        for &v in values {
+            let keys = self.get_keys(v).expect("keys should be available");
+            encodings.extend(keys.iter().flat_map(|key| key.as_block().as_bytes()));
+        }
+        encodings
+    }
+}
 
 /// Information about the TLS session.
 #[derive(Debug)]

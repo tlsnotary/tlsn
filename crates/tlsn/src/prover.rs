@@ -8,6 +8,10 @@ pub mod state;
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
+use mpz_memory_core::{
+    Vector,
+    binary::{Binary, U8},
+};
 use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
@@ -18,8 +22,8 @@ use mpz_vm_core::prelude::*;
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
-    Role,
-    commit::{ProvingState, encoding::Encodings, transcript::TranscriptRefs},
+    EncodingVm, Role,
+    commit::{ProvingState, transcript::TranscriptRefs},
     context::build_mt_context,
     mux::attach_mux,
     tag::verify_tags,
@@ -28,14 +32,14 @@ use crate::{
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
-use serio::{SinkExt, stream::IoStreamExt};
+use serio::SinkExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
 use tlsn_core::{
     ProvePayload,
     connection::{HandshakeData, ServerName},
-    transcript::{TlsTranscript, Transcript, encoding::EncoderSecret},
+    transcript::{TlsTranscript, Transcript},
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
@@ -53,6 +57,18 @@ pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
 pub(crate) type Mpc =
     mpz_garble::protocol::semihonest::Garbler<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
 pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
+
+impl EncodingVm<Binary> for Zk {
+    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
+        let mut encodings = Vec::new();
+
+        for &v in values {
+            let macs = self.get_macs(v).expect("macs should be available");
+            encodings.extend(macs.iter().flat_map(|mac| mac.as_bytes()));
+        }
+        encodings
+    }
+}
 
 /// A prover instance.
 #[derive(Debug)]
@@ -353,19 +369,11 @@ impl Prover<state::Committed> {
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
 
-        let mac_provider = |vm, refs| vm.get_macs(refs).expect("reference is valid");
         let mut proving_state =
             ProvingState::for_prover(config, *keys, tls_transcript, transcript_refs);
 
         proving_state
-            .prove(
-                vm,
-                mux_fut,
-                ctx,
-                zk_aes_ctr_sent,
-                zk_aes_ctr_recv,
-                mac_provider,
-            )
+            .prove(vm, mux_fut, ctx, zk_aes_ctr_sent, zk_aes_ctr_recv)
             .await
             .map_err(ProverError::from)
     }

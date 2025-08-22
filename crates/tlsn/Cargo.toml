@@ -40,6 +40,7 @@ mpz-ole = { workspace = true }
 mpz-ot = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-zk = { workspace = true }
+mpz-zk-core = { workspace = true }
 
 aes = { workspace = true }
 cipher-crypto = { workspace = true }
