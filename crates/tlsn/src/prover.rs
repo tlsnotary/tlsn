@@ -353,61 +353,21 @@ impl Prover<state::Committed> {
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
 
+        let mac_provider = |vm, refs| vm.get_macs(refs).expect("reference is valid");
         let mut proving_state =
             ProvingState::for_prover(config, *keys, tls_transcript, transcript_refs);
 
-        // Authenticate only necessary parts of the transcript. Proof is not needed on
-        // the prover side.
-        let _ = proving_state.auth_sent(vm, zk_aes_ctr_sent)?;
-        let _ = proving_state.auth_recv(vm, zk_aes_ctr_recv)?;
-
-        mux_fut
-            .poll_with(vm.execute_all(ctx).map_err(ProverError::zk))
-            .await?;
-
-        // Decode the transcript parts that should be disclosed.
-        if proving_state.has_decoding_ranges() {
-            proving_state.decode_transcript(vm)?;
-        }
-
-        // Create encoding commitments if necessary.
-        if proving_state.has_encoding_ranges() {
-            let frame_limit = proving_state.encoding_size() + ctx.io().limit();
-
-            let encodings: Encodings = mux_fut
-                .poll_with(
-                    ctx.io_mut()
-                        .with_limit(frame_limit)
-                        .expect_next()
-                        .map_err(ProverError::from),
-                )
-                .await?;
-
-            let mac_provider = |refs| vm.get_macs(refs).expect("reference is valid");
-            let root = proving_state.receive_encodings(encodings, mac_provider)?;
-
-            mux_fut
-                .poll_with(ctx.io_mut().send(root).map_err(ProverError::from))
-                .await?;
-            let secret: EncoderSecret = mux_fut
-                .poll_with(ctx.io_mut().expect_next().map_err(ProverError::from))
-                .await?;
-
-            // proving_state.set_encoder_secret(secret);
-        }
-
-        // Create hash commitments if necessary.
-        if proving_state.has_hash_ranges() {
-            proving_state.prove_hashes(vm)?;
-        }
-
-        mux_fut
-            .poll_with(vm.execute_all(ctx).map_err(ProverError::zk))
-            .await?;
-
-        // Finish creation of commitments and generate output.
-        let output = proving_state.finalize_prover()?;
-        Ok(output)
+        proving_state
+            .prove(
+                vm,
+                mux_fut,
+                ctx,
+                zk_aes_ctr_sent,
+                zk_aes_ctr_recv,
+                mac_provider,
+            )
+            .await
+            .map_err(ProverError::from)
     }
 
     /// Closes the connection with the verifier.

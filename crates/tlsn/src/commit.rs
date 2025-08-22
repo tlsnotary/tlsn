@@ -21,23 +21,27 @@ use crate::{
         hash::{HashCommitError, HashFuture, PlaintextHasher},
         transcript::TranscriptRefs,
     },
+    mux::MuxFuture,
     zk_aes_ctr::ZkAesCtr,
 };
 use encoding::{EncodingError, Encodings};
+use futures::TryFutureExt;
 use mpc_tls::SessionKeys;
+use mpz_common::Context;
 use mpz_garble_core::{Delta, Key, Mac};
 use mpz_memory_core::{
     Vector,
     binary::{Binary, U8},
 };
-use mpz_vm_core::{Vm, prelude::*};
+use mpz_vm_core::{Vm, VmError, prelude::*};
+use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     ProveConfig, ProvePayload, ProverOutput, VerifierOutput,
     connection::{HandshakeData, HandshakeVerificationError, ServerName},
     hash::{HashAlgId, TypedHash},
     transcript::{
         Direction, Idx, PartialTranscript, TlsTranscript, TranscriptCommitment, TranscriptSecret,
-        encoding::{EncoderSecret, EncodingTree},
+        encoding::{EncoderSecret, EncodingCommitment, EncodingTree},
         hash::PlaintextHashSecret,
     },
     webpki::{RootCertStore, ServerCertVerifier, ServerCertVerifierError},
@@ -72,7 +76,7 @@ impl<'a> ProvingState<'a> {
     /// * `keys` - The session keys.
     /// * `transcript` - The TLS transcript.
     /// * `transcript_refs` - The transcript references.
-    pub(crate) fn for_prover(
+    pub(crate) fn for_prover<'b>(
         config: ProveConfig,
         keys: SessionKeys,
         transcript: &'a TlsTranscript,
@@ -127,6 +131,73 @@ impl<'a> ProvingState<'a> {
         }
     }
 
+    pub(crate) async fn prove<'b>(
+        &mut self,
+        vm: &mut (dyn Vm<Binary> + Send),
+        muxer: &mut MuxFuture,
+        ctx: &mut Context,
+        zk_aes_sent: &mut ZkAesCtr,
+        zk_aes_recv: &mut ZkAesCtr,
+        mac_provider: impl Fn(&mut dyn Vm<Binary>, Vector<U8>) -> &'b [Mac],
+    ) -> Result<ProverOutput, CommitError> {
+        // Authenticate only necessary parts of the transcript. Proof is not needed on
+        // the prover side.
+        let _ =
+            self.authenticator
+                .auth_sent(vm, zk_aes_sent, self.transcript, self.transcript_refs)?;
+        let _ =
+            self.authenticator
+                .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
+
+        muxer
+            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
+            .await?;
+
+        // Decode the transcript parts that should be disclosed.
+        self.decode_transcript(vm)?;
+
+        let mut output = ProverOutput::default();
+        if self.has_encoding_ranges() {
+            let (commitment, secret) = self.receive_encodings(muxer, ctx, vm, mac_provider).await?;
+
+            output
+                .transcript_commitments
+                .push(TranscriptCommitment::Encoding(commitment));
+            output
+                .transcript_secrets
+                .push(TranscriptSecret::Encoding(secret));
+        }
+        // Create hash commitments if necessary.
+        let hash_output = if self.has_hash_ranges() {
+            Some(self.hasher.prove(vm, &self.transcript_refs)?)
+        } else {
+            None
+        };
+
+        muxer
+            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
+            .await?;
+
+        if let Some((commitments, secrets)) = hash_output {
+            let commitments = commitments.try_recv()?;
+
+            for (hash, secret) in commitments.into_iter().zip(secrets) {
+                output
+                    .transcript_commitments
+                    .push(TranscriptCommitment::Hash(hash));
+                output
+                    .transcript_secrets
+                    .push(TranscriptSecret::Hash(secret));
+            }
+        }
+
+        Ok(output)
+    }
+
+    pub(crate) fn verify(&mut self) -> Result<VerifierOutput, CommitError> {
+        todo!()
+    }
+
     /// Creates a new proving state for the verifier.
     ///
     /// # Arguments
@@ -177,58 +248,26 @@ impl<'a> ProvingState<'a> {
         }
     }
 
-    /// Authenticates the sent plaintext, returning a proof of encryption and
-    /// writes the plaintext VM references to the transcript references.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine.
-    /// * `zk_aes_sent` - ZK AES Cipher for sent traffic.
-    pub(crate) fn auth_sent(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-        zk_aes_sent: &mut ZkAesCtr,
-    ) -> Result<RecordProof, CommitError> {
-        self.authenticator
-            .auth_sent(vm, zk_aes_sent, self.transcript, self.transcript_refs)
-            .map_err(CommitError::from)
-    }
-
-    /// Authenticates the received plaintext, returning a proof of encryption
-    /// and writes the plaintext VM references to the transcript references.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine.
-    /// * `zk_aes_recv` - ZK AES cipher for received traffic.
-    pub(crate) fn auth_recv(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-        zk_aes_recv: &mut ZkAesCtr,
-    ) -> Result<RecordProof, CommitError> {
-        self.authenticator
-            .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)
-            .map_err(CommitError::from)
-    }
-
     /// Decodes parts of the transcript for selective disclosure.
     ///
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
     pub(crate) fn decode_transcript(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), CommitError> {
-        let (sent, recv) = self.authenticator.decoding();
+        if self.has_decoding_ranges() {
+            let (sent, recv) = self.authenticator.decoding();
 
-        let sent_refs = self.transcript_refs.get(Direction::Sent, sent);
-        let recv_refs = self.transcript_refs.get(Direction::Received, recv);
+            let sent_refs = self.transcript_refs.get(Direction::Sent, sent);
+            let recv_refs = self.transcript_refs.get(Direction::Received, recv);
 
-        for slice in sent_refs.into_iter().chain(recv_refs) {
-            // Drop the future, we don't need it.
-            drop(vm.decode(slice).map_err(CommitError::vm));
+            for slice in sent_refs.into_iter().chain(recv_refs) {
+                // Drop the future, we don't need it.
+                drop(vm.decode(slice).map_err(CommitError::from));
+            }
+
+            self.transcript_refs.mark_decoded(Direction::Sent, sent);
+            self.transcript_refs.mark_decoded(Direction::Received, recv);
         }
-
-        self.transcript_refs.mark_decoded(Direction::Sent, sent);
-        self.transcript_refs.mark_decoded(Direction::Received, recv);
 
         Ok(())
     }
@@ -350,35 +389,45 @@ impl<'a> ProvingState<'a> {
     ///
     /// # Arguments
     ///
-    /// * `encodings` - The encodings received from the verifier.
+    /// * `muxer` - The multiplexer future.
+    /// * `ctx` - The thread context.
     /// * `mac_provider` - Provides the mac encodings.
-    pub(crate) fn receive_encodings<'b>(
+    async fn receive_encodings<'b>(
         &mut self,
-        encodings: Encodings,
-        mac_provider: impl Fn(Vector<U8>) -> &'b [Mac],
-    ) -> Result<(TypedHash, EncodingTree), CommitError> {
-        self.encoding
-            .receive(encodings, self.transcript_refs, mac_provider)
-            .map_err(CommitError::from)
+        muxer: &mut MuxFuture,
+        ctx: &mut Context,
+        vm: &mut dyn Vm<Binary>,
+        mac_provider: impl Fn(&mut dyn Vm<Binary>, Vector<U8>) -> &'b [Mac],
+    ) -> Result<(EncodingCommitment, EncodingTree), CommitError> {
+        let frame_limit = self.encoding_size() + ctx.io().limit();
+
+        let encodings: Encodings = muxer
+            .poll_with(
+                ctx.io_mut()
+                    .with_limit(frame_limit)
+                    .expect_next()
+                    .map_err(CommitError::from),
+            )
+            .await?;
+
+        let (root, tree) =
+            self.encoding
+                .receive(vm, encodings, self.transcript_refs, &mac_provider)?;
+
+        muxer
+            .poll_with(ctx.io_mut().send(root).map_err(CommitError::from))
+            .await?;
+        let secret: EncoderSecret = muxer
+            .poll_with(ctx.io_mut().expect_next().map_err(CommitError::from))
+            .await?;
+
+        let commitment = EncodingCommitment { root, secret };
+        Ok((commitment, tree))
     }
 
     pub(crate) fn encoding_size(&self) -> usize {
         let (sent, recv) = self.authenticator.encoding();
         ENCODING_SIZE * (sent.len() + recv.len())
-    }
-
-    /// Proves plaintext hashes to the verifier.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine.
-    pub(crate) fn prove_hashes(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-    ) -> Result<(HashFuture, Vec<PlaintextHashSecret>), CommitError> {
-        self.hasher
-            .prove(vm, self.transcript_refs)
-            .map_err(CommitError::from)
     }
 
     /// Verifies the prover's plaintext hashes.
@@ -417,16 +466,6 @@ impl<'a> ProvingState<'a> {
     pub(crate) fn has_server_identity(&self) -> bool {
         self.server_identity.is_some()
     }
-
-    /// Generates the prover output.
-    pub(crate) fn finalize_prover(self) -> Result<ProverOutput, CommitError> {
-        todo!()
-    }
-
-    /// Generates the verifier output.
-    pub(crate) fn finalize_verifier(self) -> Result<VerifierOutput, CommitError> {
-        todo!()
-    }
 }
 
 /// Error for [`RecordProof`].
@@ -434,20 +473,13 @@ impl<'a> ProvingState<'a> {
 #[error(transparent)]
 pub(crate) struct CommitError(#[from] ErrorRepr);
 
-impl CommitError {
-    fn vm<E>(err: E) -> Self
-    where
-        E: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
-    {
-        Self(ErrorRepr::Vm(err.into()))
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 #[error("record proof error: {0}")]
 enum ErrorRepr {
     #[error("VM error: {0}")]
-    Vm(Box<dyn std::error::Error + Send + Sync + 'static>),
+    Vm(VmError),
+    #[error("IO error: {0}")]
+    Io(std::io::Error),
     #[error("hash commit error: {0}")]
     Hash(HashCommitError),
     #[error("encoding error: {0}")]
@@ -466,6 +498,17 @@ enum ErrorRepr {
     VerifyTranscriptLength,
     #[error("provided transcript does not match exptected")]
     InconsistentTranscript,
+}
+
+impl From<VmError> for CommitError {
+    fn from(err: VmError) -> Self {
+        Self(ErrorRepr::Vm(err))
+    }
+}
+impl From<std::io::Error> for CommitError {
+    fn from(err: std::io::Error) -> Self {
+        Self(ErrorRepr::Io(err))
+    }
 }
 
 impl From<AuthError> for CommitError {
