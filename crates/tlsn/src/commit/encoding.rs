@@ -109,7 +109,7 @@ impl EncodingCreator {
     pub(crate) fn transfer(
         &self,
         vm: &mut dyn EncodingVm<Binary>,
-        delta: &Delta,
+        delta: Delta,
         transcript_refs: &TranscriptRefs,
     ) -> Result<(Encodings, EncoderSecret), EncodingError> {
         let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());

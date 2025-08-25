@@ -32,11 +32,10 @@ use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
-use serio::{SinkExt, stream::IoStreamExt};
+use serio::stream::IoStreamExt;
 use tlsn_core::{
     ProvePayload,
     connection::{ConnectionInfo, ServerName},
-    hash::TypedHash,
     transcript::TlsTranscript,
 };
 use tlsn_deap::Deap;
@@ -314,71 +313,18 @@ impl Verifier<state::Committed> {
         let mut proving_state =
             ProvingState::for_verifier(payload, *keys, tls_transcript, transcript_refs);
 
-        // Verify the server identity.
-        if proving_state.has_server_identity() {
-            proving_state.verify_server_identity(self.config.root_store())?;
-        }
-
-        // Authenticate only necessary parts of the transcript.
-        let sent_proof = proving_state.auth_sent(vm, zk_aes_ctr_sent)?;
-        let recv_proof = proving_state.auth_recv(vm, zk_aes_ctr_recv)?;
-
-        mux_fut
-            .poll_with(vm.execute_all(ctx).map_err(VerifierError::zk))
-            .await?;
-
-        // Verify the plaintext proofs.
-        sent_proof.verify(vm).map_err(VerifierError::zk)?;
-        recv_proof.verify(vm).map_err(VerifierError::zk)?;
-
-        // Check the transcript length and decode necessary transcript parts.
-        if proving_state.has_decoding_ranges() {
-            proving_state.check_transcript_length()?;
-            proving_state.decode_transcript(vm)?;
-        }
-
-        // Create encoding commitments if necessary.
-        if proving_state.has_encoding_ranges() {
-            let frame_limit = proving_state.encoding_size() + ctx.io().limit();
-
-            let key_provider = |refs| vm.get_keys(refs).expect("reference is valid");
-            let (encodings, secret) = proving_state.transfer_encodings(delta, key_provider)?;
-
-            mux_fut
-                .poll_with(
-                    ctx.io_mut()
-                        .with_limit(frame_limit)
-                        .send(encodings)
-                        .map_err(VerifierError::from),
-                )
-                .await?;
-
-            let root: TypedHash = mux_fut
-                .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
-                .await?;
-            // proving_state.set_encoding_root(root);
-
-            mux_fut
-                .poll_with(ctx.io_mut().send(secret).map_err(VerifierError::from))
-                .await?;
-        }
-
-        // Create hash commitments if necessary.
-        if proving_state.has_hash_ranges() {
-            proving_state.verify_hashes(vm)?;
-        }
-
-        mux_fut
-            .poll_with(vm.execute_all(ctx).map_err(VerifierError::zk))
-            .await?;
-
-        // Verify revealed data.
-        if proving_state.has_decoding_ranges() {
-            proving_state.verify_transcript(vm)?;
-        }
-
-        let output = proving_state.finalize_verifier()?;
-        Ok(output)
+        proving_state
+            .verify(
+                vm,
+                mux_fut,
+                ctx,
+                zk_aes_ctr_sent,
+                zk_aes_ctr_recv,
+                *delta,
+                self.config.root_store(),
+            )
+            .await
+            .map_err(VerifierError::from)
     }
 
     /// Closes the connection with the prover.

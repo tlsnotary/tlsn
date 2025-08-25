@@ -19,7 +19,7 @@ use crate::{
     commit::{
         auth::{AuthError, Authenticator},
         encoding::{ENCODING_SIZE, EncodingCreator},
-        hash::{HashCommitError, HashFuture, PlaintextHasher},
+        hash::{HashCommitError, PlaintextHasher},
         transcript::TranscriptRefs,
     },
     mux::MuxFuture,
@@ -36,7 +36,7 @@ use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     ProveConfig, ProvePayload, ProverOutput, VerifierOutput,
     connection::{HandshakeData, HandshakeVerificationError, ServerName},
-    hash::HashAlgId,
+    hash::{HashAlgId, TypedHash},
     transcript::{
         Direction, Idx, PartialTranscript, TlsTranscript, TranscriptCommitment, TranscriptSecret,
         encoding::{EncoderSecret, EncodingCommitment, EncodingTree},
@@ -128,82 +128,6 @@ impl<'a> ProvingState<'a> {
         }
     }
 
-    /// Proves the transcript and generates the prover output.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine.
-    /// * `muxer` - The multiplexer future.
-    /// * `ctx` - The thread context.
-    /// * `zk_aes_sent` - ZkAes for the sent traffic.
-    /// * `zk_aes_recv` - ZkAes for the received traffic.
-    pub(crate) async fn prove(
-        &mut self,
-        vm: &mut (dyn EncodingVm<Binary> + Send),
-        muxer: &mut MuxFuture,
-        ctx: &mut Context,
-        zk_aes_sent: &mut ZkAesCtr,
-        zk_aes_recv: &mut ZkAesCtr,
-    ) -> Result<ProverOutput, CommitError> {
-        // Authenticate only necessary parts of the transcript. Proof is not needed on
-        // the prover side.
-        let _ =
-            self.authenticator
-                .auth_sent(vm, zk_aes_sent, self.transcript, self.transcript_refs)?;
-        let _ =
-            self.authenticator
-                .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
-
-        muxer
-            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
-            .await?;
-
-        // Decode the transcript parts that should be disclosed.
-        self.decode_transcript(vm)?;
-
-        let mut output = ProverOutput::default();
-        if self.has_encoding_ranges() {
-            let (commitment, secret) = self.receive_encodings(vm, muxer, ctx).await?;
-
-            output
-                .transcript_commitments
-                .push(TranscriptCommitment::Encoding(commitment));
-            output
-                .transcript_secrets
-                .push(TranscriptSecret::Encoding(secret));
-        }
-
-        // Create hash commitments if necessary.
-        let hash_output = if self.has_hash_ranges() {
-            Some(self.hasher.prove(vm, &self.transcript_refs)?)
-        } else {
-            None
-        };
-
-        muxer
-            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
-            .await?;
-
-        if let Some((commitments, secrets)) = hash_output {
-            let commitments = commitments.try_recv()?;
-
-            for (hash, secret) in commitments.into_iter().zip(secrets) {
-                output
-                    .transcript_commitments
-                    .push(TranscriptCommitment::Hash(hash));
-                output
-                    .transcript_secrets
-                    .push(TranscriptSecret::Hash(secret));
-            }
-        }
-
-        Ok(output)
-    }
-
-    pub(crate) fn verify(&mut self) -> Result<VerifierOutput, CommitError> {
-        todo!()
-    }
-
     /// Creates a new proving state for the verifier.
     ///
     /// # Arguments
@@ -254,26 +178,182 @@ impl<'a> ProvingState<'a> {
         }
     }
 
+    /// Proves the transcript and generates the prover output.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine.
+    /// * `muxer` - The multiplexer future.
+    /// * `ctx` - The thread context.
+    /// * `zk_aes_sent` - ZkAes for the sent traffic.
+    /// * `zk_aes_recv` - ZkAes for the received traffic.
+    pub(crate) async fn prove(
+        &mut self,
+        vm: &mut (dyn EncodingVm<Binary> + Send),
+        muxer: &mut MuxFuture,
+        ctx: &mut Context,
+        zk_aes_sent: &mut ZkAesCtr,
+        zk_aes_recv: &mut ZkAesCtr,
+    ) -> Result<ProverOutput, CommitError> {
+        // Authenticates only necessary parts of the transcript. Proof is not needed on
+        // the prover side.
+        let _ =
+            self.authenticator
+                .auth_sent(vm, zk_aes_sent, self.transcript, self.transcript_refs)?;
+        let _ =
+            self.authenticator
+                .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
+
+        muxer
+            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
+            .await?;
+
+        // Decodes the transcript parts that should be disclosed.
+        self.decode_transcript(vm)?;
+
+        let mut output = ProverOutput::default();
+
+        // Creates encoding commitments if necessary.
+        if self.has_encoding_ranges() {
+            let (commitment, secret) = self.receive_encodings(vm, muxer, ctx).await?;
+
+            output
+                .transcript_commitments
+                .push(TranscriptCommitment::Encoding(commitment));
+            output
+                .transcript_secrets
+                .push(TranscriptSecret::Encoding(secret));
+        }
+
+        // Creates hash commitments if necessary.
+        let hash_output = if self.has_hash_ranges() {
+            Some(self.hasher.prove(vm, &self.transcript_refs)?)
+        } else {
+            None
+        };
+
+        muxer
+            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
+            .await?;
+
+        if let Some((commitments, secrets)) = hash_output {
+            let commitments = commitments.try_recv()?;
+
+            for (hash, secret) in commitments.into_iter().zip(secrets) {
+                output
+                    .transcript_commitments
+                    .push(TranscriptCommitment::Hash(hash));
+                output
+                    .transcript_secrets
+                    .push(TranscriptSecret::Hash(secret));
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Verifies the transcript and generates the verifier output.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine.
+    /// * `muxer` - The multiplexer future.
+    /// * `ctx` - The thread context.
+    /// * `zk_aes_sent` - ZkAes for the sent traffic.
+    /// * `zk_aes_recv` - ZkAes for the received traffic.
+    /// * `delta` - The Delta.
+    pub(crate) async fn verify(
+        &mut self,
+        vm: &mut (dyn EncodingVm<Binary> + Send),
+        muxer: &mut MuxFuture,
+        ctx: &mut Context,
+        zk_aes_sent: &mut ZkAesCtr,
+        zk_aes_recv: &mut ZkAesCtr,
+        delta: Delta,
+        certs: Option<&RootCertStore>,
+    ) -> Result<VerifierOutput, CommitError> {
+        self.verify_server_identity(certs)?;
+
+        // Authenticate only necessary parts of the transcript.
+        let sent_proof =
+            self.authenticator
+                .auth_sent(vm, zk_aes_sent, self.transcript, self.transcript_refs)?;
+        let recv_proof =
+            self.authenticator
+                .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
+
+        muxer
+            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
+            .await?;
+
+        // Verify the plaintext proofs.
+        sent_proof.verify(vm).map_err(CommitError::from)?;
+        recv_proof.verify(vm).map_err(CommitError::from)?;
+
+        // Check the transcript length and decode necessary transcript parts.
+        self.decode_transcript(vm)?;
+
+        let mut output = VerifierOutput::default();
+
+        // Creates encoding commitments if necessary.
+        if self.has_encoding_ranges() {
+            let commitment = self.transfer_encodings(vm, muxer, ctx, delta).await?;
+
+            output
+                .transcript_commitments
+                .push(TranscriptCommitment::Encoding(commitment));
+        }
+
+        // Create hash commitments if necessary.
+        let hash_output = if self.has_hash_ranges() {
+            Some(self.hasher.verify(vm, self.transcript_refs)?)
+        } else {
+            None
+        };
+
+        muxer
+            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
+            .await?;
+
+        if let Some(commitments) = hash_output {
+            let commitments = commitments.try_recv()?;
+
+            for hash in commitments.into_iter() {
+                output
+                    .transcript_commitments
+                    .push(TranscriptCommitment::Hash(hash));
+            }
+        }
+
+        // Verify revealed data.
+        self.verify_transcript(vm)?;
+        Ok(output)
+    }
+
     /// Decodes parts of the transcript for selective disclosure.
     ///
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    pub(crate) fn decode_transcript(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), CommitError> {
-        if self.has_decoding_ranges() {
-            let (sent, recv) = self.authenticator.decoding();
-
-            let sent_refs = self.transcript_refs.get(Direction::Sent, sent);
-            let recv_refs = self.transcript_refs.get(Direction::Received, recv);
-
-            for slice in sent_refs.into_iter().chain(recv_refs) {
-                // Drop the future, we don't need it.
-                drop(vm.decode(slice).map_err(CommitError::from));
-            }
-
-            self.transcript_refs.mark_decoded(Direction::Sent, sent);
-            self.transcript_refs.mark_decoded(Direction::Received, recv);
+    fn decode_transcript(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), CommitError> {
+        if !self.has_decoding_ranges() {
+            return Ok(());
         }
+
+        self.check_transcript_length()?;
+
+        let (sent, recv) = self.authenticator.decoding();
+
+        let sent_refs = self.transcript_refs.get(Direction::Sent, sent);
+        let recv_refs = self.transcript_refs.get(Direction::Received, recv);
+
+        for slice in sent_refs.into_iter().chain(recv_refs) {
+            // Drop the future, we don't need it.
+            drop(vm.decode(slice).map_err(CommitError::from));
+        }
+
+        self.transcript_refs.mark_decoded(Direction::Sent, sent);
+        self.transcript_refs.mark_decoded(Direction::Received, recv);
 
         Ok(())
     }
@@ -283,7 +363,11 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    pub(crate) fn verify_transcript(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), CommitError> {
+    fn verify_transcript(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), CommitError> {
+        if !self.has_decoding_ranges() {
+            return Ok(());
+        }
+
         let Some(partial) = &self.partial else {
             return Err(CommitError(ErrorRepr::MissingPartialTranscript));
         };
@@ -319,10 +403,11 @@ impl<'a> ProvingState<'a> {
     }
 
     /// Checks the transcript length.
-    pub(crate) fn check_transcript_length(&self) -> Result<(), CommitError> {
+    fn check_transcript_length(&self) -> Result<(), CommitError> {
         let Some(partial) = &self.partial else {
             return Err(CommitError(ErrorRepr::MissingPartialTranscript));
         };
+
         let sent_len: usize = self
             .transcript
             .iter_sent_app_data()
@@ -348,10 +433,14 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `root_store` - Contains root certificates.
-    pub(crate) fn verify_server_identity(
+    fn verify_server_identity(
         &mut self,
         root_store: Option<&RootCertStore>,
     ) -> Result<(), CommitError> {
+        if !self.has_server_identity() || self.verified_server_name.is_some() {
+            return Ok(());
+        }
+
         let Some((server_name, handshake_data)) = self.server_identity.as_ref() else {
             return Err(CommitError(ErrorRepr::MissingCertChain));
         };
@@ -379,13 +468,38 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
+    /// * `muxer` - The multiplexer future.
+    /// * `ctx` - The thread context.
     /// * `delta` - The Delta.
-    pub(crate) fn transfer_encodings<'b>(
+    async fn transfer_encodings<'b>(
         &mut self,
         vm: &mut dyn EncodingVm<Binary>,
-        delta: &Delta,
-    ) -> Result<(Encodings, EncoderSecret), CommitError> {
-        todo!()
+        muxer: &mut MuxFuture,
+        ctx: &mut Context,
+        delta: Delta,
+    ) -> Result<EncodingCommitment, CommitError> {
+        let (encodings, secret) = self.encoding.transfer(vm, delta, self.transcript_refs)?;
+        let frame_limit = self.encoding_size() + ctx.io().limit();
+
+        muxer
+            .poll_with(
+                ctx.io_mut()
+                    .with_limit(frame_limit)
+                    .send(encodings)
+                    .map_err(CommitError::from),
+            )
+            .await?;
+
+        let root: TypedHash = muxer
+            .poll_with(ctx.io_mut().expect_next().map_err(CommitError::from))
+            .await?;
+
+        muxer
+            .poll_with(ctx.io_mut().send(secret).map_err(CommitError::from))
+            .await?;
+
+        let commitment = EncodingCommitment { root, secret };
+        Ok(commitment)
     }
 
     /// Receive the encoding adjustments from the verifier and adjust the prover
@@ -426,45 +540,32 @@ impl<'a> ProvingState<'a> {
         Ok((commitment, tree))
     }
 
-    pub(crate) fn encoding_size(&self) -> usize {
+    /// Returns the size of the encodings in bytes.
+    fn encoding_size(&self) -> usize {
         let (sent, recv) = self.authenticator.encoding();
         ENCODING_SIZE * (sent.len() + recv.len())
     }
 
-    /// Verifies the prover's plaintext hashes.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine.
-    pub(crate) fn verify_hashes(
-        &mut self,
-        vm: &mut dyn Vm<Binary>,
-    ) -> Result<HashFuture, CommitError> {
-        self.hasher
-            .verify(vm, self.transcript_refs)
-            .map_err(CommitError::from)
-    }
-
     /// Returns if there are encoding ranges present.
-    pub(crate) fn has_encoding_ranges(&self) -> bool {
+    fn has_encoding_ranges(&self) -> bool {
         let (sent, recv) = self.authenticator.encoding();
         !sent.is_empty() || !recv.is_empty()
     }
 
     /// Returns if there are hash ranges present.
-    pub(crate) fn has_hash_ranges(&self) -> bool {
+    fn has_hash_ranges(&self) -> bool {
         let (sent, recv) = self.authenticator.hash();
         !sent.is_empty() || !recv.is_empty()
     }
 
     /// Returns if there are decoding ranges present.
-    pub(crate) fn has_decoding_ranges(&self) -> bool {
+    fn has_decoding_ranges(&self) -> bool {
         let (sent, recv) = self.authenticator.decoding();
         !sent.is_empty() || !recv.is_empty()
     }
 
     /// Returns if there is a server idendity present.
-    pub(crate) fn has_server_identity(&self) -> bool {
+    fn has_server_identity(&self) -> bool {
         self.server_identity.is_some()
     }
 }
