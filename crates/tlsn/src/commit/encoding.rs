@@ -76,10 +76,20 @@ impl EncodingCreator {
             }
         };
 
-        let Encodings { mut sent, mut recv } = encodings;
-        self.adjust(vm, transcript_refs, &mut sent, &mut recv)?;
+        let Encodings {
+            sent: mut sent_adjust,
+            recv: mut recv_adjust,
+        } = encodings;
 
-        let provider = Provider::new(sent, &self.sent, recv, &self.recv);
+        let sent_refs = transcript_refs.get(Direction::Sent, &self.sent);
+        let sent = vm.get_encodings(&sent_refs);
+
+        let recv_refs = transcript_refs.get(Direction::Received, &self.recv);
+        let recv: Vec<u8> = vm.get_encodings(&recv_refs);
+
+        self.adjust(&sent, &recv, &mut sent_adjust, &mut recv_adjust)?;
+
+        let provider = Provider::new(sent_adjust, &self.sent, recv_adjust, &self.recv);
         let idxs: Vec<(Direction, Idx)> = self
             .sent
             .iter_ranges()
@@ -115,19 +125,28 @@ impl EncodingCreator {
         let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
         let encoder = new_encoder(&secret);
 
-        let mut sent = Vec::with_capacity(self.sent.len() * ENCODING_SIZE);
-        let mut recv = Vec::with_capacity(self.recv.len() * ENCODING_SIZE);
+        let mut sent_zero = Vec::with_capacity(self.sent.len() * ENCODING_SIZE);
+        let mut recv_zero = Vec::with_capacity(self.recv.len() * ENCODING_SIZE);
 
         for range in self.sent.iter_ranges() {
-            encoder.encode_range(Direction::Sent, range, &mut sent);
+            encoder.encode_range(Direction::Sent, range, &mut sent_zero);
         }
 
         for range in self.recv.iter_ranges() {
-            encoder.encode_range(Direction::Received, range, &mut recv);
+            encoder.encode_range(Direction::Received, range, &mut recv_zero);
         }
 
-        self.adjust(vm, transcript_refs, &mut sent, &mut recv)?;
-        let encodings = Encodings { sent, recv };
+        let sent_refs = transcript_refs.get(Direction::Sent, &self.sent);
+        let sent = vm.get_encodings(&sent_refs);
+
+        let recv_refs = transcript_refs.get(Direction::Received, &self.recv);
+        let recv: Vec<u8> = vm.get_encodings(&recv_refs);
+
+        self.adjust(&sent, &recv, &mut sent_zero, &mut recv_zero)?;
+        let encodings = Encodings {
+            sent: sent_zero,
+            recv: recv_zero,
+        };
 
         Ok((encodings, secret))
     }
@@ -136,23 +155,15 @@ impl EncodingCreator {
     ///
     /// # Arguments
     ///
-    /// * `vm` - The virtual machine.
-    /// * `transcript_refs` - The transcripf references.
     /// * `sent_adjust` - The adjustment bytes for the sent encodings.
     /// * `recv_adjust` - The adjustment bytes for the received encodings.
     fn adjust(
         &self,
-        vm: &mut dyn EncodingVm<Binary>,
-        transcript_refs: &TranscriptRefs,
+        sent: &[u8],
+        recv: &[u8],
         sent_adjust: &mut [u8],
         recv_adjust: &mut [u8],
     ) -> Result<(), EncodingError> {
-        let sent_refs = transcript_refs.get(Direction::Sent, &self.sent);
-        let sent = vm.get_encodings(&sent_refs);
-
-        let recv_refs = transcript_refs.get(Direction::Received, &self.recv);
-        let recv: Vec<u8> = vm.get_encodings(&recv_refs);
-
         assert_eq!(sent.len() % ENCODING_SIZE, 0);
         assert_eq!(recv.len() % ENCODING_SIZE, 0);
 
@@ -323,24 +334,45 @@ mod tests {
         transcript_refs: TranscriptRefs,
     ) {
         let (sent_range, recv_range) = index;
-        let Encodings { mut sent, mut recv } = encodings;
+        let Encodings {
+            sent: mut sent_adjust,
+            recv: mut recv_adjust,
+        } = encodings;
 
         let mut sent_expected = Vec::new();
         let mut recv_expected = Vec::new();
 
-        for el in sent.iter() {
+        for el in sent_adjust.iter() {
             sent_expected.push(el ^ 1);
         }
-        for el in recv.iter() {
+        for el in recv_adjust.iter() {
             recv_expected.push(el ^ 1);
         }
 
-        let creator = EncodingCreator::new(Some(HashAlgId::SHA256), sent_range, recv_range);
-        let provider =
-            |reference: Vector<U8>| std::iter::repeat_n(&1_u8, reference.len() * ENCODING_SIZE);
+        let creator = EncodingCreator::new(
+            Some(HashAlgId::SHA256),
+            sent_range.clone(),
+            recv_range.clone(),
+        );
+
+        let sent_len = transcript_refs
+            .get(Direction::Sent, &sent_range)
+            .iter()
+            .map(|mem| mem.len())
+            .sum::<usize>()
+            * ENCODING_SIZE;
+        let sent = vec![1_u8; sent_len];
+
+        let recv_len = transcript_refs
+            .get(Direction::Received, &recv_range)
+            .iter()
+            .map(|mem| mem.len())
+            .sum::<usize>()
+            * ENCODING_SIZE;
+        let recv = vec![1_u8; recv_len];
 
         creator
-            .adjust(&transcript_refs, provider, &mut sent, &mut recv)
+            .adjust(&sent, &recv, &mut sent_adjust, &mut recv_adjust)
             .unwrap();
 
         assert_eq!(sent, sent_expected);
