@@ -15,6 +15,7 @@ use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
+use mpz_zk::ProverConfig as ZkProverConfig;
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
@@ -523,7 +524,7 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
         delta,
     );
 
-    let zk = Zk::new(rcot_recv.clone());
+    let zk = Zk::new(ZkProverConfig::default(), rcot_recv.clone());
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
 
