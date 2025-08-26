@@ -1,10 +1,8 @@
 //! Encoding commitment protocol.
 
 use crate::{EncodingMemory, commit::transcript::TranscriptRefs};
-use mpz_garble_core::Delta;
 use mpz_memory_core::binary::Binary;
-use rand::Rng;
-use rangeset::{RangeSet, Subset};
+use rangeset::{RangeSet, Subset, UnionMut};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use tlsn_core::{
@@ -22,18 +20,19 @@ use tlsn_core::{
 pub(crate) const ENCODING_SIZE: usize = 128;
 
 /// The encoding adjustments.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Encodings {
-    sent: Vec<u8>,
-    recv: Vec<u8>,
+    pub(crate) sent: Vec<u8>,
+    pub(crate) recv: Vec<u8>,
 }
 
 /// Creates encoding commitments.
 #[derive(Debug)]
 pub(crate) struct EncodingCreator {
-    id: Option<HashAlgId>,
+    hash_id: Option<HashAlgId>,
     sent: RangeSet<usize>,
     recv: RangeSet<usize>,
+    idxs: Vec<(Direction, Idx)>,
 }
 
 impl EncodingCreator {
@@ -41,11 +40,28 @@ impl EncodingCreator {
     ///
     /// # Arguments
     ///
-    /// * `id` - The id of the hash algorithm.
-    /// * `sent` - The encoding ranges for the sent transcript.
-    /// * `recv` - The encoding ranges for the received transcript.
-    pub(crate) fn new(id: Option<HashAlgId>, sent: RangeSet<usize>, recv: RangeSet<usize>) -> Self {
-        Self { id, sent, recv }
+    /// * `hash_id` - The id of the hash algorithm.
+    /// * `idxs` - The indices for encoding commitments.
+    pub(crate) fn new(hash_id: Option<HashAlgId>, idxs: Vec<(Direction, Idx)>) -> Self {
+        let mut sent = RangeSet::default();
+        let mut recv = RangeSet::default();
+
+        for (direction, idx) in idxs.iter() {
+            let ranges = idx.as_range_set();
+            for range in ranges.iter_ranges() {
+                match direction {
+                    Direction::Sent => sent.union_mut(&range),
+                    Direction::Received => recv.union_mut(&range),
+                }
+            }
+        }
+
+        Self {
+            hash_id,
+            sent,
+            recv,
+            idxs,
+        }
     }
 
     /// Receives the encodings using the provided MACs.
@@ -63,7 +79,7 @@ impl EncodingCreator {
         encodings: Encodings,
         transcript_refs: &TranscriptRefs,
     ) -> Result<(TypedHash, EncodingTree), EncodingError> {
-        let Some(id) = self.id else {
+        let Some(id) = self.hash_id else {
             return Err(EncodingError(ErrorRepr::MissingHashId));
         };
 
@@ -90,18 +106,8 @@ impl EncodingCreator {
         self.adjust(&sent, &recv, &mut sent_adjust, &mut recv_adjust)?;
 
         let provider = Provider::new(sent_adjust, &self.sent, recv_adjust, &self.recv);
-        let idxs: Vec<(Direction, Idx)> = self
-            .sent
-            .iter_ranges()
-            .map(|r| (Direction::Sent, Idx::new(r)))
-            .chain(
-                self.recv
-                    .iter_ranges()
-                    .map(|r| (Direction::Received, Idx::new(r))),
-            )
-            .collect();
 
-        let tree = EncodingTree::new(hasher, idxs.iter(), &provider)?;
+        let tree = EncodingTree::new(hasher, self.idxs.iter(), &provider)?;
         let root = tree.root();
 
         Ok((root, tree))
@@ -114,15 +120,14 @@ impl EncodingCreator {
     /// # Arguments
     ///
     /// * `encoding_mem` - The encoding memory.
-    /// * `delta` -  The global delta.
+    /// * `secret` -  The encoder secret.
     /// * `transcript_refs` - The transcript references.
     pub(crate) fn transfer(
         &self,
         encoding_mem: &dyn EncodingMemory<Binary>,
-        delta: Delta,
+        secret: EncoderSecret,
         transcript_refs: &TranscriptRefs,
-    ) -> Result<(Encodings, EncoderSecret), EncodingError> {
-        let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
+    ) -> Result<Encodings, EncodingError> {
         let encoder = new_encoder(&secret);
 
         let mut sent_zero = Vec::with_capacity(self.sent.len() * ENCODING_SIZE);
@@ -148,7 +153,7 @@ impl EncodingCreator {
             recv: recv_zero,
         };
 
-        Ok((encodings, secret))
+        Ok(encodings)
     }
 
     /// Adjust encodings by transcript references.
@@ -336,7 +341,7 @@ mod tests {
         hash::{HashAlgId, HashProvider},
         transcript::{
             Direction, Idx,
-            encoding::{EncodingCommitment, EncodingProvider},
+            encoding::{EncoderSecret, EncodingCommitment, EncodingProvider},
         },
     };
 
@@ -344,40 +349,38 @@ mod tests {
     fn test_encoding_adjust(
         index: (RangeSet<usize>, RangeSet<usize>),
         transcript_refs: TranscriptRefs,
+        encoding_idxs: Vec<(Direction, Idx)>,
     ) {
-        let (sent_range, recv_range) = index;
-
-        let creator = EncodingCreator::new(
-            Some(HashAlgId::SHA256),
-            sent_range.clone(),
-            recv_range.clone(),
-        );
+        let creator = EncodingCreator::new(Some(HashAlgId::SHA256), encoding_idxs);
 
         let mock_memory = MockEncodingMemory;
-        let delta = Delta::new(Block::ONES);
 
-        let (adjustments, secret) = creator
-            .transfer(&mock_memory, delta, &transcript_refs)
+        let delta = Delta::new(Block::ONES);
+        let seed = [1_u8; 32];
+        let secret = EncoderSecret::new(seed, delta.as_block().to_bytes());
+
+        let adjustments = creator
+            .transfer(&mock_memory, secret, &transcript_refs)
             .unwrap();
 
         let (root, tree) = creator
             .receive(&mock_memory, adjustments, &transcript_refs)
             .unwrap();
 
-        // Check correctness of encoding protocol now.
+        // Check correctness of encoding protocol.
         let mut idxs = Vec::new();
 
-        let sent = transcript_refs.get(Direction::Sent, &sent_range);
-        let recv = transcript_refs.get(Direction::Received, &recv_range);
-
-        let sent = mock_memory.get_encodings(&sent);
-        let recv = mock_memory.get_encodings(&recv);
-
-        idxs.push((Direction::Sent, Idx::new(sent_range)));
-        idxs.push((Direction::Received, Idx::new(recv_range)));
+        let (sent_range, recv_range) = index;
+        idxs.push((Direction::Sent, Idx::new(sent_range.clone())));
+        idxs.push((Direction::Received, Idx::new(recv_range.clone())));
 
         let commitment = EncodingCommitment { root, secret };
         let proof = tree.proof(idxs.iter()).unwrap();
+
+        // Here we set the trancscript plaintext to just be zeroes, which is possible because it is
+        // not determined by the encodings so far.
+        let sent = vec![0_u8; transcript_refs.max_len(Direction::Sent)];
+        let recv = vec![0_u8; transcript_refs.max_len(Direction::Received)];
 
         let (idx_sent, idx_recv) = proof
             .verify_with_provider(&HashProvider::default(), &commitment, &sent, &recv)
@@ -413,7 +416,7 @@ mod tests {
 
     #[fixture]
     fn transcript_refs(index: (RangeSet<usize>, RangeSet<usize>)) -> TranscriptRefs {
-        let mut transcript_refs = TranscriptRefs::new(1000, 1000);
+        let mut transcript_refs = TranscriptRefs::new(40, 64);
 
         let dummy = |range: Range<usize>| {
             Vector::<U8>::from_raw(Slice::from_range_unchecked(8 * range.start..8 * range.end))
@@ -436,6 +439,17 @@ mod tests {
         let recv = generate_encodings(index.1);
 
         Encodings { sent, recv }
+    }
+
+    #[fixture]
+    fn encoding_idxs(index: (RangeSet<usize>, RangeSet<usize>)) -> Vec<(Direction, Idx)> {
+        let (sent, recv) = index;
+
+        let mut encoding_idxs = Vec::new();
+        encoding_idxs.push((Direction::Sent, Idx::new(sent)));
+        encoding_idxs.push((Direction::Received, Idx::new(recv)));
+
+        encoding_idxs
     }
 
     #[fixture]

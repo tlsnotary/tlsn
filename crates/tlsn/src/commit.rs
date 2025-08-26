@@ -30,6 +30,7 @@ use mpz_common::Context;
 use mpz_garble_core::Delta;
 use mpz_memory_core::binary::Binary;
 use mpz_vm_core::{Vm, VmError, prelude::*};
+use rand::Rng;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     ProveConfig, ProvePayload, ProverOutput, VerifierOutput,
@@ -80,17 +81,17 @@ impl<'a> ProvingState<'a> {
         let commit_config = config.transcript_commit();
 
         let mut encoding_hash_id = None;
-        let mut encoding_ranges: Vec<(Direction, Idx)> = Vec::new();
-        let mut hash_ranges: Vec<(Direction, Idx, HashAlgId)> = Vec::new();
+        let mut encoding_idxs: Vec<(Direction, Idx)> = Vec::new();
+        let mut hash_idxs: Vec<(Direction, Idx, HashAlgId)> = Vec::new();
 
         if let Some(commit_config) = commit_config {
             encoding_hash_id = Some(*commit_config.encoding_hash_alg());
 
-            encoding_ranges = commit_config
+            encoding_idxs = commit_config
                 .iter_encoding()
                 .map(|(dir, idx)| (*dir, idx.clone()))
                 .collect();
-            hash_ranges = commit_config
+            hash_idxs = commit_config
                 .iter_hash()
                 .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg))
                 .collect();
@@ -100,19 +101,13 @@ impl<'a> ProvingState<'a> {
         let authenticator = Authenticator::new(
             keys.server_write_key,
             keys.server_write_iv,
-            encoding_ranges.iter(),
-            hash_ranges.iter(),
+            encoding_idxs.iter(),
+            hash_idxs.iter(),
             partial.as_ref(),
         );
 
-        let (encoding_sent, encoding_recv) = authenticator.encoding();
-        let encoding = EncodingCreator::new(
-            encoding_hash_id,
-            encoding_sent.clone(),
-            encoding_recv.clone(),
-        );
-
-        let hasher = PlaintextHasher::new(hash_ranges.iter());
+        let encoding = EncodingCreator::new(encoding_hash_id, encoding_idxs);
+        let hasher = PlaintextHasher::new(hash_idxs.iter());
 
         Self {
             partial,
@@ -142,26 +137,24 @@ impl<'a> ProvingState<'a> {
     ) -> Self {
         let commit_config = payload.transcript_commit.as_ref();
 
-        let mut encoding_ranges: Vec<(Direction, Idx)> = Vec::new();
-        let mut hash_ranges: Vec<(Direction, Idx, HashAlgId)> = Vec::new();
+        let mut encoding_idxs: Vec<(Direction, Idx)> = Vec::new();
+        let mut hash_idxs: Vec<(Direction, Idx, HashAlgId)> = Vec::new();
 
         if let Some(commit_config) = commit_config {
-            encoding_ranges = commit_config.iter_encoding().cloned().collect();
-            hash_ranges = commit_config.iter_hash().cloned().collect();
+            encoding_idxs = commit_config.iter_encoding().cloned().collect();
+            hash_idxs = commit_config.iter_hash().cloned().collect();
         }
 
         let authenticator = Authenticator::new(
             keys.server_write_key,
             keys.server_write_iv,
-            encoding_ranges.iter(),
-            hash_ranges.iter(),
+            encoding_idxs.iter(),
+            hash_idxs.iter(),
             payload.transcript.as_ref(),
         );
 
-        let (encoding_sent, encoding_recv) = authenticator.encoding();
-        let encoding = EncodingCreator::new(None, encoding_sent.clone(), encoding_recv.clone());
-
-        let hasher = PlaintextHasher::new(hash_ranges.iter());
+        let encoding = EncodingCreator::new(None, encoding_idxs);
+        let hasher = PlaintextHasher::new(hash_idxs.iter());
 
         Self {
             partial: payload.transcript,
@@ -463,7 +456,9 @@ impl<'a> ProvingState<'a> {
         ctx: &mut Context,
         delta: Delta,
     ) -> Result<EncodingCommitment, CommitError> {
-        let (encodings, secret) = self.encoding.transfer(vm, delta, self.transcript_refs)?;
+        let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
+
+        let encodings = self.encoding.transfer(vm, secret, self.transcript_refs)?;
         let frame_limit = self.encoding_size() + ctx.io().limit();
 
         ctx.io_mut().with_limit(frame_limit).send(encodings).await?;
