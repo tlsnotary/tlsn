@@ -15,18 +15,16 @@ pub(crate) mod hash;
 pub(crate) mod transcript;
 
 use crate::{
-    EncodingVm,
+    EncodingMemory, EncodingVm,
     commit::{
         auth::{AuthError, Authenticator},
         encoding::{ENCODING_SIZE, EncodingCreator},
         hash::{HashCommitError, PlaintextHasher},
         transcript::TranscriptRefs,
     },
-    mux::MuxFuture,
     zk_aes_ctr::ZkAesCtr,
 };
 use encoding::{EncodingError, Encodings};
-use futures::TryFutureExt;
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
 use mpz_garble_core::Delta;
@@ -183,14 +181,12 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    /// * `muxer` - The multiplexer future.
     /// * `ctx` - The thread context.
     /// * `zk_aes_sent` - ZkAes for the sent traffic.
     /// * `zk_aes_recv` - ZkAes for the received traffic.
     pub(crate) async fn prove(
         &mut self,
         vm: &mut (dyn EncodingVm<Binary> + Send),
-        muxer: &mut MuxFuture,
         ctx: &mut Context,
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
@@ -204,9 +200,7 @@ impl<'a> ProvingState<'a> {
             self.authenticator
                 .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
 
-        muxer
-            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
-            .await?;
+        vm.execute_all(ctx).await?;
 
         // Decodes the transcript parts that should be disclosed.
         self.decode_transcript(vm)?;
@@ -215,7 +209,7 @@ impl<'a> ProvingState<'a> {
 
         // Creates encoding commitments if necessary.
         if self.has_encoding_ranges() {
-            let (commitment, secret) = self.receive_encodings(vm, muxer, ctx).await?;
+            let (commitment, secret) = self.receive_encodings(vm, ctx).await?;
 
             output
                 .transcript_commitments
@@ -232,9 +226,7 @@ impl<'a> ProvingState<'a> {
             None
         };
 
-        muxer
-            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
-            .await?;
+        vm.execute_all(ctx).await?;
 
         if let Some((commitments, secrets)) = hash_output {
             let commitments = commitments.try_recv()?;
@@ -257,15 +249,14 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    /// * `muxer` - The multiplexer future.
     /// * `ctx` - The thread context.
     /// * `zk_aes_sent` - ZkAes for the sent traffic.
     /// * `zk_aes_recv` - ZkAes for the received traffic.
     /// * `delta` - The Delta.
+    /// * `certs` - The certificate chain.
     pub(crate) async fn verify(
         &mut self,
         vm: &mut (dyn EncodingVm<Binary> + Send),
-        muxer: &mut MuxFuture,
         ctx: &mut Context,
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
@@ -282,9 +273,7 @@ impl<'a> ProvingState<'a> {
             self.authenticator
                 .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
 
-        muxer
-            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
-            .await?;
+        vm.execute_all(ctx).await?;
 
         // Verify the plaintext proofs.
         sent_proof.verify(vm).map_err(CommitError::from)?;
@@ -297,7 +286,7 @@ impl<'a> ProvingState<'a> {
 
         // Creates encoding commitments if necessary.
         if self.has_encoding_ranges() {
-            let commitment = self.transfer_encodings(vm, muxer, ctx, delta).await?;
+            let commitment = self.transfer_encodings(vm, ctx, delta).await?;
 
             output
                 .transcript_commitments
@@ -311,9 +300,7 @@ impl<'a> ProvingState<'a> {
             None
         };
 
-        muxer
-            .poll_with(vm.execute_all(ctx).map_err(CommitError::from))
-            .await?;
+        vm.execute_all(ctx).await?;
 
         if let Some(commitments) = hash_output {
             let commitments = commitments.try_recv()?;
@@ -468,35 +455,20 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    /// * `muxer` - The multiplexer future.
     /// * `ctx` - The thread context.
     /// * `delta` - The Delta.
     async fn transfer_encodings<'b>(
         &mut self,
-        vm: &mut dyn EncodingVm<Binary>,
-        muxer: &mut MuxFuture,
+        vm: &mut dyn EncodingMemory<Binary>,
         ctx: &mut Context,
         delta: Delta,
     ) -> Result<EncodingCommitment, CommitError> {
         let (encodings, secret) = self.encoding.transfer(vm, delta, self.transcript_refs)?;
         let frame_limit = self.encoding_size() + ctx.io().limit();
 
-        muxer
-            .poll_with(
-                ctx.io_mut()
-                    .with_limit(frame_limit)
-                    .send(encodings)
-                    .map_err(CommitError::from),
-            )
-            .await?;
-
-        let root: TypedHash = muxer
-            .poll_with(ctx.io_mut().expect_next().map_err(CommitError::from))
-            .await?;
-
-        muxer
-            .poll_with(ctx.io_mut().send(secret).map_err(CommitError::from))
-            .await?;
+        ctx.io_mut().with_limit(frame_limit).send(encodings).await?;
+        let root: TypedHash = ctx.io_mut().expect_next().await?;
+        ctx.io_mut().send(secret).await?;
 
         let commitment = EncodingCommitment { root, secret };
         Ok(commitment)
@@ -508,33 +480,19 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine.
-    /// * `muxer` - The multiplexer future.
     /// * `ctx` - The thread context.
     async fn receive_encodings<'b>(
         &mut self,
-        vm: &mut dyn EncodingVm<Binary>,
-        muxer: &mut MuxFuture,
+        vm: &mut dyn EncodingMemory<Binary>,
         ctx: &mut Context,
     ) -> Result<(EncodingCommitment, EncodingTree), CommitError> {
         let frame_limit = self.encoding_size() + ctx.io().limit();
 
-        let encodings: Encodings = muxer
-            .poll_with(
-                ctx.io_mut()
-                    .with_limit(frame_limit)
-                    .expect_next()
-                    .map_err(CommitError::from),
-            )
-            .await?;
-
+        let encodings: Encodings = ctx.io_mut().with_limit(frame_limit).expect_next().await?;
         let (root, tree) = self.encoding.receive(vm, encodings, self.transcript_refs)?;
 
-        muxer
-            .poll_with(ctx.io_mut().send(root).map_err(CommitError::from))
-            .await?;
-        let secret: EncoderSecret = muxer
-            .poll_with(ctx.io_mut().expect_next().map_err(CommitError::from))
-            .await?;
+        ctx.io_mut().send(root).await?;
+        let secret: EncoderSecret = ctx.io_mut().expect_next().await?;
 
         let commitment = EncodingCommitment { root, secret };
         Ok((commitment, tree))
@@ -637,11 +595,11 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_garble_core::Delta;
     use mpz_memory_core::{
-        Array, MemoryExt, ViewExt,
+        Array, MemoryExt, Vector, ViewExt,
         binary::{Binary, U8},
     };
     use mpz_ot::ideal::rcot::ideal_rcot;
-    use mpz_vm_core::Vm;
+    use mpz_vm_core::Execute;
     use mpz_zk::{Prover, Verifier};
     use rand::{Rng, SeedableRng, rngs::StdRng};
     use rangeset::{RangeSet, UnionMut};
@@ -653,7 +611,7 @@ mod tests {
     };
 
     use crate::{
-        Role,
+        EncodingVm, Role,
         commit::{ProvingState, transcript::TranscriptRefs},
         zk_aes_ctr::ZkAesCtr,
     };
@@ -661,7 +619,6 @@ mod tests {
     #[tokio::main]
     #[rstest]
     async fn test_decoding(
-        vms: (impl Vm<Binary> + Send, impl Vm<Binary> + Send),
         decoding: (RangeSet<usize>, RangeSet<usize>),
         transcript: TlsTranscript,
         transcript_refs: TranscriptRefs,
@@ -670,14 +627,26 @@ mod tests {
     ) {
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
-        let (mut prover, mut verifier) = vms;
+        let mut rng = StdRng::seed_from_u64(0);
+        let delta = Delta::random(&mut rng);
+
+        let (ot_send, ot_recv) = ideal_rcot(rng.random(), delta.into_inner());
+
+        let mut prover = Prover::new(ot_recv);
+        let mut verifier = Verifier::new(delta, ot_send);
+
         let mut refs_prover = transcript_refs.clone();
         let mut refs_verifier = transcript_refs;
 
         {
-            let keys_prover = keys(&mut prover, KEY, IV, Role::Prover);
+            let keys_prover = set_keys(&mut prover, KEY, IV, Role::Prover);
+            assign_transcript_fixture(Role::Prover, &mut prover);
+
             // not needed
             let mac_key_prover = prover.alloc().unwrap();
+            prover.mark_public(mac_key_prover).unwrap();
+            prover.assign(mac_key_prover, [0_u8; 16]).unwrap();
+            prover.commit(mac_key_prover).unwrap();
 
             let session_keys_prover = SessionKeys {
                 client_write_key: keys_prover.0,
@@ -687,9 +656,14 @@ mod tests {
                 server_write_mac_key: mac_key_prover,
             };
 
-            let keys_verifier = keys(&mut verifier, KEY, IV, Role::Verifier);
+            let keys_verifier = set_keys(&mut verifier, KEY, IV, Role::Verifier);
+            assign_transcript_fixture(Role::Verifier, &mut verifier);
+
             // not needed
             let mac_key_verifier = verifier.alloc().unwrap();
+            verifier.mark_public(mac_key_verifier).unwrap();
+            verifier.assign(mac_key_verifier, [0_u8; 16]).unwrap();
+            verifier.commit(mac_key_verifier).unwrap();
 
             let session_keys_verifier = SessionKeys {
                 client_write_key: keys_verifier.0,
@@ -735,39 +709,23 @@ mod tests {
             )
             .unwrap();
 
-            _ = prover_state
-                .auth_sent(&mut prover, &mut zk_prover_sent)
-                .unwrap();
-            _ = prover_state
-                .auth_recv(&mut prover, &mut zk_prover_recv)
-                .unwrap();
-
-            let proof_sent = verifier_state
-                .auth_sent(&mut verifier, &mut zk_verifier_sent)
-                .unwrap();
-            let proof_recv = verifier_state
-                .auth_recv(&mut verifier, &mut zk_verifier_recv)
-                .unwrap();
-
             tokio::try_join!(
-                prover.execute_all(&mut ctx_p),
-                verifier.execute_all(&mut ctx_v)
+                prover_state.prove(
+                    &mut prover,
+                    &mut ctx_p,
+                    &mut zk_prover_sent,
+                    &mut zk_prover_recv
+                ),
+                verifier_state.verify(
+                    &mut verifier,
+                    &mut ctx_v,
+                    &mut zk_verifier_sent,
+                    &mut zk_verifier_recv,
+                    delta,
+                    None
+                )
             )
             .unwrap();
-
-            proof_sent.verify(&mut verifier).unwrap();
-            proof_recv.verify(&mut verifier).unwrap();
-
-            prover_state.decode_transcript(&mut prover).unwrap();
-            verifier_state.decode_transcript(&mut verifier).unwrap();
-
-            tokio::try_join!(
-                prover.execute_all(&mut ctx_p),
-                verifier.execute_all(&mut ctx_v)
-            )
-            .unwrap();
-
-            verifier_state.verify_transcript(&mut verifier).unwrap();
         }
 
         assert_eq!(refs_prover.decoded(Direction::Sent), decoding.0);
@@ -798,8 +756,8 @@ mod tests {
         ProvePayload::new(&prove_config, None)
     }
 
-    fn keys(
-        vm: &mut dyn Vm<Binary>,
+    fn set_keys(
+        vm: &mut dyn EncodingVm<Binary>,
         key_value: [u8; 16],
         iv_value: [u8; 4],
         role: Role,
@@ -824,17 +782,60 @@ mod tests {
         (key, iv)
     }
 
-    #[fixture]
-    fn vms() -> (impl Vm<Binary> + Send, impl Vm<Binary> + Send) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
+    fn assign_transcript_fixture(role: Role, vm: &mut dyn EncodingVm<Binary>) {
+        let fixture = transcript_fixture();
 
-        let (ot_send, ot_recv) = ideal_rcot(rng.random(), delta.into_inner());
+        for record in fixture.iter_sent_app_data() {
+            if let Role::Prover = role {
+                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_public(ref_ciphertext).unwrap();
+                vm.assign(ref_ciphertext, record.ciphertext.clone())
+                    .unwrap();
+                vm.commit(ref_ciphertext).unwrap();
 
-        let prover = Prover::new(ot_recv);
-        let verifier = Verifier::new(delta, ot_send);
+                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_private(ref_plaintext).unwrap();
+                vm.assign(ref_plaintext, record.plaintext.as_ref().unwrap().clone())
+                    .unwrap();
+                vm.commit(ref_plaintext).unwrap();
+            } else {
+                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_public(ref_ciphertext).unwrap();
+                vm.assign(ref_ciphertext, record.ciphertext.clone())
+                    .unwrap();
+                vm.commit(ref_ciphertext).unwrap();
 
-        (prover, verifier)
+                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_blind(ref_plaintext).unwrap();
+                vm.commit(ref_plaintext).unwrap();
+            }
+        }
+
+        for record in fixture.iter_recv_app_data() {
+            if let Role::Prover = role {
+                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_public(ref_ciphertext).unwrap();
+                vm.assign(ref_ciphertext, record.ciphertext.clone())
+                    .unwrap();
+                vm.commit(ref_ciphertext).unwrap();
+
+                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_private(ref_plaintext).unwrap();
+                vm.assign(ref_plaintext, record.plaintext.as_ref().unwrap().clone())
+                    .unwrap();
+                vm.commit(ref_plaintext).unwrap();
+            } else {
+                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_public(ref_ciphertext).unwrap();
+                vm.assign(ref_ciphertext, record.ciphertext.clone())
+                    .unwrap();
+                vm.commit(ref_ciphertext).unwrap();
+
+                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
+                vm.mark_blind(ref_plaintext).unwrap();
+                vm.commit(ref_plaintext).unwrap();
+            }
+        }
     }
 
     #[fixture]

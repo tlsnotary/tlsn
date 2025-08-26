@@ -31,6 +31,10 @@ pub(crate) enum Role {
     Verifier,
 }
 
-trait EncodingVm<T: MemoryType>: Vm<T> {
+trait EncodingVm<T: MemoryType>: EncodingMemory<T> + Vm<T> {}
+
+impl<T: MemoryType, U> EncodingVm<T> for U where U: EncodingMemory<T> + Vm<T> {}
+
+trait EncodingMemory<T: MemoryType> {
     fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8>;
 }

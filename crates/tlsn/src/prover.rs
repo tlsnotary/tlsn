@@ -22,8 +22,8 @@ use mpz_vm_core::prelude::*;
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
-    EncodingVm, Role,
-    commit::{ProvingState, transcript::TranscriptRefs},
+    EncodingMemory, Role,
+    commit::{ProvingState, encoding::ENCODING_SIZE, transcript::TranscriptRefs},
     context::build_mt_context,
     mux::attach_mux,
     tag::verify_tags,
@@ -58,9 +58,10 @@ pub(crate) type Mpc =
     mpz_garble::protocol::semihonest::Garbler<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
 pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
 
-impl EncodingVm<Binary> for Zk {
+impl<T> EncodingMemory<Binary> for mpz_zk::Prover<T> {
     fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
-        let mut encodings = Vec::new();
+        let len = values.iter().map(|v| v.len()).sum::<usize>() * ENCODING_SIZE;
+        let mut encodings = Vec::with_capacity(len);
 
         for &v in values {
             let macs = self.get_macs(v).expect("macs should be available");
@@ -372,10 +373,13 @@ impl Prover<state::Committed> {
         let mut proving_state =
             ProvingState::for_prover(config, *keys, tls_transcript, transcript_refs);
 
-        proving_state
-            .prove(vm, mux_fut, ctx, zk_aes_ctr_sent, zk_aes_ctr_recv)
+        mux_fut
+            .poll_with(
+                proving_state
+                    .prove(vm, ctx, zk_aes_ctr_sent, zk_aes_ctr_recv)
+                    .map_err(ProverError::from),
+            )
             .await
-            .map_err(ProverError::from)
     }
 
     /// Closes the connection with the verifier.

@@ -18,8 +18,8 @@ pub use tlsn_core::{
 };
 
 use crate::{
-    EncodingVm, Role,
-    commit::{ProvingState, transcript::TranscriptRefs},
+    EncodingMemory, Role,
+    commit::{ProvingState, encoding::ENCODING_SIZE, transcript::TranscriptRefs},
     config::ProtocolConfig,
     context::build_mt_context,
     mux::attach_mux,
@@ -55,9 +55,10 @@ pub(crate) type Mpc =
     mpz_garble::protocol::semihonest::Evaluator<mpz_ot::cot::DerandCOTReceiver<RCOTReceiver>>;
 pub(crate) type Zk = mpz_zk::Verifier<RCOTSender>;
 
-impl EncodingVm<Binary> for Zk {
+impl<T> EncodingMemory<Binary> for mpz_zk::Verifier<T> {
     fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
-        let mut encodings = Vec::new();
+        let len = values.iter().map(|v| v.len()).sum::<usize>() * ENCODING_SIZE;
+        let mut encodings = Vec::with_capacity(len);
 
         for &v in values {
             let keys = self.get_keys(v).expect("keys should be available");
@@ -313,18 +314,20 @@ impl Verifier<state::Committed> {
         let mut proving_state =
             ProvingState::for_verifier(payload, *keys, tls_transcript, transcript_refs);
 
-        proving_state
-            .verify(
-                vm,
-                mux_fut,
-                ctx,
-                zk_aes_ctr_sent,
-                zk_aes_ctr_recv,
-                *delta,
-                self.config.root_store(),
+        mux_fut
+            .poll_with(
+                proving_state
+                    .verify(
+                        vm,
+                        ctx,
+                        zk_aes_ctr_sent,
+                        zk_aes_ctr_recv,
+                        *delta,
+                        self.config.root_store(),
+                    )
+                    .map_err(VerifierError::from),
             )
             .await
-            .map_err(VerifierError::from)
     }
 
     /// Closes the connection with the prover.
