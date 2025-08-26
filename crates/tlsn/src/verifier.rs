@@ -33,6 +33,7 @@ use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
+use mpz_zk::VerifierConfig as ZkVerifierConfig;
 use serio::stream::IoStreamExt;
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
@@ -474,7 +475,7 @@ fn build_mpc_tls(
 
     let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(rcot_recv.clone()));
 
-    let zk = Zk::new(delta, rcot_send.clone());
+    let zk = Zk::new(ZkVerifierConfig::default(), delta, rcot_send.clone());
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
 
