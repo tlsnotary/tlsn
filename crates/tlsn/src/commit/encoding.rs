@@ -59,7 +59,7 @@ impl EncodingCreator {
     /// * `transcript_refs` - The transcript references.
     pub(crate) fn receive<'a>(
         &self,
-        encoding_mem: &mut dyn EncodingMemory<Binary>,
+        encoding_mem: &dyn EncodingMemory<Binary>,
         encodings: Encodings,
         transcript_refs: &TranscriptRefs,
     ) -> Result<(TypedHash, EncodingTree), EncodingError> {
@@ -118,7 +118,7 @@ impl EncodingCreator {
     /// * `transcript_refs` - The transcript references.
     pub(crate) fn transfer(
         &self,
-        encoding_mem: &mut dyn EncodingMemory<Binary>,
+        encoding_mem: &dyn EncodingMemory<Binary>,
         delta: Delta,
         transcript_refs: &TranscriptRefs,
     ) -> Result<(Encodings, EncoderSecret), EncodingError> {
@@ -353,15 +353,15 @@ mod tests {
             recv_range.clone(),
         );
 
-        let mock_memory: &mut dyn EncodingMemory<Binary> = &mut MockEncodingMemory;
+        let mock_memory = MockEncodingMemory;
         let delta = Delta::new(Block::ONES);
 
         let (adjustments, secret) = creator
-            .transfer(mock_memory, delta, &transcript_refs)
+            .transfer(&mock_memory, delta, &transcript_refs)
             .unwrap();
 
         let (root, tree) = creator
-            .receive(mock_memory, adjustments, &transcript_refs)
+            .receive(&mock_memory, adjustments, &transcript_refs)
             .unwrap();
 
         // Check correctness of encoding protocol now.
@@ -398,14 +398,14 @@ mod tests {
         let mut encodings_recv = Vec::new();
 
         provider
-            .provide_encoding(Direction::Sent, 15..21, &mut encodings_sent)
+            .provide_encoding(Direction::Sent, 16..24, &mut encodings_sent)
             .unwrap();
         provider
-            .provide_encoding(Direction::Received, 50..56, &mut encodings_recv)
+            .provide_encoding(Direction::Received, 56..64, &mut encodings_recv)
             .unwrap();
 
-        let expected_sent = generate_encodings((15..21).into());
-        let expected_recv = generate_encodings((50..56).into());
+        let expected_sent = generate_encodings((16..24).into());
+        let expected_recv = generate_encodings((56..64).into());
 
         assert_eq!(expected_sent, encodings_sent);
         assert_eq!(expected_recv, encodings_recv);
@@ -416,7 +416,7 @@ mod tests {
         let mut transcript_refs = TranscriptRefs::new(1000, 1000);
 
         let dummy = |range: Range<usize>| {
-            Vector::<U8>::from_raw(Slice::from_range_unchecked(range.start..range.end))
+            Vector::<U8>::from_raw(Slice::from_range_unchecked(8 * range.start..8 * range.end))
         };
 
         for range in index.0.iter_ranges() {
@@ -441,7 +441,7 @@ mod tests {
     #[fixture]
     fn index() -> (RangeSet<usize>, RangeSet<usize>) {
         let mut sent = RangeSet::default();
-        sent.union_mut(&(1..8));
+        sent.union_mut(&(0..8));
         sent.union_mut(&(16..24));
         sent.union_mut(&(32..40));
 
@@ -457,7 +457,13 @@ mod tests {
 
     impl EncodingMemory<Binary> for MockEncodingMemory {
         fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
-            let ranges: Vec<Range<usize>> = values.iter().map(|r| r.to_raw().to_range()).collect();
+            let ranges: Vec<Range<usize>> = values
+                .iter()
+                .map(|r| {
+                    let range = r.to_raw().to_range();
+                    range.start / 8..range.end / 8
+                })
+                .collect();
             let ranges: RangeSet<usize> = ranges.into();
 
             generate_encodings(ranges)
