@@ -1,7 +1,11 @@
 use crate::types::NetworkSetting;
 use serde::Deserialize;
-use tlsn::config::ProtocolConfig;
+use tlsn::{
+    config::{CertificateDer, PrivateKeyDer, ProtocolConfig},
+    connection::ServerName,
+};
 use tsify_next::Tsify;
+use wasm_bindgen::JsError;
 
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
@@ -17,8 +21,10 @@ pub struct ProverConfig {
     pub client_auth: Option<(Vec<Vec<u8>>, Vec<u8>)>,
 }
 
-impl From<ProverConfig> for tlsn::prover::ProverConfig {
-    fn from(value: ProverConfig) -> Self {
+impl TryFrom<ProverConfig> for tlsn::prover::ProverConfig {
+    type Error = JsError;
+
+    fn try_from(value: ProverConfig) -> Result<Self, Self::Error> {
         let mut builder = ProtocolConfig::builder();
 
         builder.max_sent_data(value.max_sent_data);
@@ -44,21 +50,36 @@ impl From<ProverConfig> for tlsn::prover::ProverConfig {
         let protocol_config = builder.build().unwrap();
 
         let mut builder = tlsn::prover::TlsConfig::builder();
-        if let Some(cert_key) = value.client_auth {
-            // Try to parse as PEM-encoded.
-            if builder.client_auth_pem(cert_key.clone()).is_err() {
-                // Otherwise assume DER encoding.
-                builder.client_auth(cert_key);
-            }
+        if let Some((certs, key)) = value.client_auth {
+            let certs = certs
+                .into_iter()
+                .map(|cert| {
+                    // Try to parse as PEM-encoded, otherwise assume DER.
+                    if let Ok(cert) = CertificateDer::from_pem_slice(&cert) {
+                        cert
+                    } else {
+                        CertificateDer(cert)
+                    }
+                })
+                .collect();
+            let key = PrivateKeyDer(key);
+            builder.client_auth((certs, key));
         }
         let tls_config = builder.build().unwrap();
 
+        let server_name = ServerName::Dns(
+            value
+                .server_name
+                .try_into()
+                .map_err(|_| JsError::new("invalid server name"))?,
+        );
+
         let mut builder = tlsn::prover::ProverConfig::builder();
         builder
-            .server_name(value.server_name.as_ref())
+            .server_name(server_name)
             .protocol_config(protocol_config)
             .tls_config(tls_config);
 
-        builder.build().unwrap()
+        Ok(builder.build().unwrap())
     }
 }

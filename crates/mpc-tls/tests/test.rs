@@ -12,11 +12,15 @@ use mpz_ot::{
     rcot::shared::{SharedRCOTReceiver, SharedRCOTSender},
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use tls_client::Certificate;
+use rustls_pki_types::CertificateDer;
+use tls_client::RootCertStore;
 use tls_client_async::bind_client;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tokio::sync::Mutex;
 use tokio_util::compat::TokioAsyncReadCompatExt;
+use webpki::anchor_from_trusted_cert;
+
+const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "expensive"]
@@ -48,11 +52,11 @@ async fn leader_task(mut leader: MpcTlsLeader) {
     let (leader_ctrl, leader_fut) = leader.run();
     tokio::spawn(async { leader_fut.await.unwrap() });
 
-    let mut root_store = tls_client::RootCertStore::empty();
-    root_store.add(&Certificate(CA_CERT_DER.to_vec())).unwrap();
     let config = tls_client::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_store)
+        .with_root_certificates(RootCertStore {
+            roots: vec![anchor_from_trusted_cert(&CA_CERT).unwrap().to_owned()],
+        })
         .with_no_client_auth();
 
     let server_name = SERVER_DOMAIN.try_into().unwrap();

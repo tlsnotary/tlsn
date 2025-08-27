@@ -43,10 +43,9 @@ use tls_core::{
     suites::SupportedCipherSuite,
 };
 use tlsn_core::{
-    connection::{
-        Certificate, HandshakeData, HandshakeDataV1_2, ServerSignature, TlsVersion, VerifyData,
-    },
+    connection::{CertBinding, CertBindingV1_2, ServerSignature, TlsVersion, VerifyData},
     transcript::TlsTranscript,
+    webpki::CertificateDer,
 };
 use tracing::{debug, instrument, trace, warn};
 
@@ -325,7 +324,7 @@ impl MpcTlsLeader {
         let server_cert_chain = server_cert_details
             .cert_chain()
             .iter()
-            .map(|cert| Certificate(cert.0.clone()))
+            .map(|cert| CertificateDer(cert.0.clone()))
             .collect();
 
         let server_signature = ServerSignature {
@@ -337,7 +336,7 @@ impl MpcTlsLeader {
             sig: server_kx_details.kx_sig().sig.0.clone(),
         };
 
-        let handshake_data = HandshakeData::V1_2(HandshakeDataV1_2 {
+        let handshake_data = CertBinding::V1_2(CertBindingV1_2 {
             client_random: client_random.0,
             server_random: server_random.0,
             server_ephemeral_key: server_key

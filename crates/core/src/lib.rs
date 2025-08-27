@@ -10,12 +10,13 @@ pub mod fixtures;
 pub mod hash;
 pub mod merkle;
 pub mod transcript;
+pub mod webpki;
 
 use rangeset::ToRangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    connection::{ServerCertData, ServerName},
+    connection::{HandshakeData, ServerName},
     transcript::{
         Direction, Idx, PartialTranscript, Transcript, TranscriptCommitConfig,
         TranscriptCommitRequest, TranscriptCommitment, TranscriptSecret,
@@ -23,7 +24,7 @@ use crate::{
 };
 
 /// Configuration to prove information to the verifier.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProveConfig {
     server_identity: bool,
     transcript: Option<PartialTranscript>,
@@ -162,7 +163,7 @@ enum ProveConfigBuilderErrorRepr {
 }
 
 /// Configuration to verify information from the prover.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct VerifyConfig {}
 
 impl VerifyConfig {
@@ -200,8 +201,8 @@ enum VerifyConfigBuilderErrorRepr {}
 #[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProvePayload {
-    /// Server identity data.
-    pub server_identity: Option<(ServerName, ServerCertData)>,
+    /// Handshake data.
+    pub handshake: Option<(ServerName, HandshakeData)>,
     /// Transcript data.
     pub transcript: Option<PartialTranscript>,
     /// Transcript commitment configuration.
@@ -209,6 +210,7 @@ pub struct ProvePayload {
 }
 
 /// Prover output.
+#[derive(Serialize, Deserialize)]
 pub struct ProverOutput {
     /// Transcript commitments.
     pub transcript_commitments: Vec<TranscriptCommitment>,
@@ -219,6 +221,7 @@ pub struct ProverOutput {
 opaque_debug::implement!(ProverOutput);
 
 /// Verifier output.
+#[derive(Serialize, Deserialize)]
 pub struct VerifierOutput {
     /// Server identity.
     pub server_name: Option<ServerName>,

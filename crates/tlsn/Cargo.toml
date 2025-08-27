@@ -12,8 +12,7 @@ workspace = true
 
 [features]
 default = ["rayon"]
-rayon = ["mpz-common/rayon"]
-force-st = ["mpz-common/force-st"]
+rayon = ["mpz-zk/rayon", "mpz-garble/rayon"]
 web = ["dep:web-spawn"]
 
 [dependencies]
@@ -45,7 +44,8 @@ derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
-rustls-pki-types = "1.12.0"
+rustls-pki-types = { workspace = true }
+rustls-webpki = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }

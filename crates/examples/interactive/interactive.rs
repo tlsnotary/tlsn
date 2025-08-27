@@ -12,7 +12,8 @@ use tracing::instrument;
 
 use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
-    config::{ProtocolConfig, ProtocolConfigValidator},
+    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    connection::ServerName,
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
     transcript::PartialTranscript,
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
@@ -72,18 +73,16 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
     let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(root_store);
+    tls_config_builder.root_store(RootCertStore {
+        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+    });
     let tls_config = tls_config_builder.build().unwrap();
 
     // Set up protocol configuration for prover.
     let mut prover_config_builder = ProverConfig::builder();
     prover_config_builder
-        .server_name(server_domain)
+        .server_name(ServerName::Dns(server_domain.try_into().unwrap()))
         .tls_config(tls_config)
         .protocol_config(
             ProtocolConfig::builder()
@@ -194,13 +193,10 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-
     let verifier_config = VerifierConfig::builder()
-        .root_store(root_store)
+        .root_store(RootCertStore {
+            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+        })
         .protocol_config_validator(config_validator)
         .build()
         .unwrap();
@@ -234,6 +230,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .unwrap_or_else(|| panic!("Expected valid data from {SERVER_DOMAIN}"));
 
     // Check Session info: server name.
+    let ServerName::Dns(server_name) = server_name;
     assert_eq!(server_name.as_str(), SERVER_DOMAIN);
 
     transcript

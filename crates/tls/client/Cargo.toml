@@ -23,7 +23,8 @@ async-trait = { workspace = true }
 log = { workspace = true, optional = true }
 ring = { workspace = true }
 sct = { workspace = true }
-webpki = { workspace = true, features = ["alloc", "std"] }
+rustls-pki-types = { workspace = true }
+rustls-webpki = { workspace = true }
 aes-gcm = { workspace = true }
 p256 = { workspace = true, features = ["ecdh"] }
 rand = { workspace = true }

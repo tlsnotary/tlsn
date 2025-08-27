@@ -1,5 +1,5 @@
 use tlsn_core::{
-    connection::{ServerCertData, ServerName},
+    connection::{HandshakeData, ServerName},
     transcript::{Transcript, TranscriptCommitment, TranscriptSecret},
 };
 
@@ -13,7 +13,7 @@ use crate::{
 pub struct RequestBuilder<'a> {
     config: &'a RequestConfig,
     server_name: Option<ServerName>,
-    server_cert_data: Option<ServerCertData>,
+    handshake_data: Option<HandshakeData>,
     transcript: Option<Transcript>,
     transcript_commitments: Vec<TranscriptCommitment>,
     transcript_commitment_secrets: Vec<TranscriptSecret>,
@@ -25,7 +25,7 @@ impl<'a> RequestBuilder<'a> {
         Self {
             config,
             server_name: None,
-            server_cert_data: None,
+            handshake_data: None,
             transcript: None,
             transcript_commitments: Vec::new(),
             transcript_commitment_secrets: Vec::new(),
@@ -38,9 +38,9 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    /// Sets the server identity data.
-    pub fn server_cert_data(&mut self, data: ServerCertData) -> &mut Self {
-        self.server_cert_data = Some(data);
+    /// Sets the handshake data.
+    pub fn handshake_data(&mut self, data: HandshakeData) -> &mut Self {
+        self.handshake_data = Some(data);
         self
     }
 
@@ -69,7 +69,7 @@ impl<'a> RequestBuilder<'a> {
         let Self {
             config,
             server_name,
-            server_cert_data,
+            handshake_data: server_cert_data,
             transcript,
             transcript_commitments,
             transcript_commitment_secrets,

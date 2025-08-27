@@ -5,6 +5,8 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
+pub use tlsn_core::webpki::{CertificateDer, PrivateKeyDer, RootCertStore};
+
 // Default is 32 bytes to decrypt the TLS protocol messages.
 const DEFAULT_MAX_RECV_ONLINE: usize = 32;
 // Default maximum number of TLS records to allow.
@@ -108,7 +110,7 @@ impl ProtocolConfig {
 
 /// Protocol configuration validator used by checker (i.e. verifier) to perform
 /// compatibility check with the peer's (i.e. the prover's) configuration.
-#[derive(derive_builder::Builder, Clone, Debug)]
+#[derive(derive_builder::Builder, Clone, Debug, Serialize, Deserialize)]
 pub struct ProtocolConfigValidator {
     /// Maximum number of bytes that can be sent.
     max_sent_data: usize,
@@ -231,15 +233,17 @@ impl ProtocolConfigValidator {
 /// situations.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum NetworkSetting {
-    /// Prefers a bandwidth-heavy protocol.
+    /// Reduces network round-trips at the expense of consuming more network
+    /// bandwidth.
     Bandwidth,
-    /// Prefers a latency-heavy protocol.
+    /// Reduces network bandwidth utilization at the expense of more network
+    /// round-trips.
     Latency,
 }
 
 impl Default for NetworkSetting {
     fn default() -> Self {
-        Self::Bandwidth
+        Self::Latency
     }
 }
 

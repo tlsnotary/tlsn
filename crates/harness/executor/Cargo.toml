@@ -14,8 +14,6 @@ wasm-opt = ["-O3"]
 [dependencies]
 tlsn-harness-core = { workspace = true }
 tlsn = { workspace = true }
-tlsn-core = { workspace = true }
-tlsn-tls-core = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 
 inventory = { workspace = true }
@@ -33,6 +31,8 @@ tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# Disable tracing events as a workaround for issue 959. 
+tracing = { workspace = true, features = ["release_max_level_off"] }
 wasm-bindgen = { workspace = true }
 tlsn-wasm = { workspace = true }
 js-sys = { workspace = true }

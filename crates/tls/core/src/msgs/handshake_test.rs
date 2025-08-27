@@ -1,3 +1,5 @@
+use rustls_pki_types as pki_types;
+
 use super::{
     base::{Payload, PayloadU16, PayloadU24, PayloadU8},
     codec::{put_u16, Codec, Reader},
@@ -5,7 +7,6 @@ use super::{
     handshake::*,
 };
 use crate::key::Certificate;
-use webpki::DnsNameRef;
 
 #[test]
 fn rejects_short_random() {
@@ -186,7 +187,8 @@ fn can_roundtrip_multiname_sni() {
 
             assert!(req.has_duplicate_names_for_type());
 
-            let dns_name_str: &str = req.get_single_hostname().unwrap().into();
+            let dns_name = req.get_single_hostname().unwrap();
+            let dns_name_str: &str = dns_name.as_ref();
             assert_eq!(dns_name_str, "hi");
 
             assert_eq!(req[0].typ, ServerNameType::HostName);
@@ -363,7 +365,7 @@ fn get_sample_clienthellopayload() -> ClientHelloPayload {
             ClientExtension::ECPointFormats(ECPointFormatList::supported()),
             ClientExtension::NamedGroups(vec![NamedGroup::X25519]),
             ClientExtension::SignatureAlgorithms(vec![SignatureScheme::ECDSA_NISTP256_SHA256]),
-            ClientExtension::make_sni(DnsNameRef::try_from_ascii_str("hello").unwrap()),
+            ClientExtension::make_sni(pki_types::DnsName::try_from("hello").unwrap().to_owned()),
             ClientExtension::SessionTicket(ClientSessionTicket::Request),
             ClientExtension::SessionTicket(ClientSessionTicket::Offer(Payload(vec![]))),
             ClientExtension::Protocols(vec![PayloadU8(vec![0])]),

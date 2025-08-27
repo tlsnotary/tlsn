@@ -391,7 +391,7 @@ mod tests {
         memory::{binary::U8, correlated::Delta, Array},
         prelude::*,
     };
-    use mpz_zk::{Prover, Verifier};
+    use mpz_zk::{Prover, ProverConfig, Verifier, VerifierConfig};
     use rand::{rngs::StdRng, SeedableRng};
 
     use super::*;
@@ -408,8 +408,8 @@ mod tests {
 
         let gb = Garbler::new(cot_send, [0u8; 16], delta_mpc);
         let ev = Evaluator::new(cot_recv);
-        let prover = Prover::new(rcot_recv);
-        let verifier = Verifier::new(delta_zk, rcot_send);
+        let prover = Prover::new(ProverConfig::default(), rcot_recv);
+        let verifier = Verifier::new(VerifierConfig::default(), delta_zk, rcot_send);
 
         let mut leader = Deap::new(Role::Leader, gb, prover);
         let mut follower = Deap::new(Role::Follower, ev, verifier);
@@ -488,8 +488,8 @@ mod tests {
 
         let gb = Garbler::new(cot_send, [0u8; 16], delta_mpc);
         let ev = Evaluator::new(cot_recv);
-        let prover = Prover::new(rcot_recv);
-        let verifier = Verifier::new(delta_zk, rcot_send);
+        let prover = Prover::new(ProverConfig::default(), rcot_recv);
+        let verifier = Verifier::new(VerifierConfig::default(), delta_zk, rcot_send);
 
         let mut leader = Deap::new(Role::Leader, gb, prover);
         let mut follower = Deap::new(Role::Follower, ev, verifier);
@@ -574,8 +574,8 @@ mod tests {
 
         let gb = Garbler::new(cot_send, [1u8; 16], delta_mpc);
         let ev = Evaluator::new(cot_recv);
-        let prover = Prover::new(rcot_recv);
-        let verifier = Verifier::new(delta_zk, rcot_send);
+        let prover = Prover::new(ProverConfig::default(), rcot_recv);
+        let verifier = Verifier::new(VerifierConfig::default(), delta_zk, rcot_send);
 
         let mut leader = Deap::new(Role::Leader, gb, prover);
         let mut follower = Deap::new(Role::Follower, ev, verifier);

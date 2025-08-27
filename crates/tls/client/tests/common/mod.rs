@@ -2,6 +2,7 @@
 
 use futures::{AsyncRead, AsyncWrite};
 use rustls::{server::AllowAnyAuthenticatedClient, ServerConfig, ServerConnection};
+use rustls_pki_types::CertificateDer;
 use std::{
     convert::{TryFrom, TryInto},
     io,
@@ -15,6 +16,7 @@ use tls_client::{
     Certificate, ClientConfig, ClientConnection, Error, PrivateKey, RootCertStore,
     RustCryptoBackend,
 };
+use webpki::anchor_from_trusted_cert;
 
 macro_rules! embed_files {
     (
@@ -409,9 +411,17 @@ pub fn finish_client_config(
     kt: KeyType,
     config: tls_client::ConfigBuilder<tls_client::WantsVerifier>,
 ) -> ClientConfig {
-    let mut root_store = RootCertStore::empty();
     let mut rootbuf = io::BufReader::new(kt.bytes_for("ca.cert"));
-    root_store.add_parsable_certificates(&rustls_pemfile::certs(&mut rootbuf).unwrap());
+    let roots = rustls_pemfile::certs(&mut rootbuf)
+        .unwrap()
+        .into_iter()
+        .map(|cert| {
+            let der = CertificateDer::from_slice(&cert);
+            anchor_from_trusted_cert(&der).unwrap().to_owned()
+        })
+        .collect();
+
+    let root_store = RootCertStore { roots };
 
     config
         .with_root_certificates(root_store)
@@ -422,9 +432,17 @@ pub fn finish_client_config_with_creds(
     kt: KeyType,
     config: tls_client::ConfigBuilder<tls_client::WantsVerifier>,
 ) -> ClientConfig {
-    let mut root_store = RootCertStore::empty();
     let mut rootbuf = io::BufReader::new(kt.bytes_for("ca.cert"));
-    root_store.add_parsable_certificates(&rustls_pemfile::certs(&mut rootbuf).unwrap());
+    let roots = rustls_pemfile::certs(&mut rootbuf)
+        .unwrap()
+        .into_iter()
+        .map(|cert| {
+            let der = CertificateDer::from_slice(&cert);
+            anchor_from_trusted_cert(&der).unwrap().to_owned()
+        })
+        .collect();
+
+    let root_store = RootCertStore { roots };
 
     config
         .with_root_certificates(root_store)

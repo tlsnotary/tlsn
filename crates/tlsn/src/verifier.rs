@@ -8,7 +8,10 @@ use std::sync::Arc;
 
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
-pub use tlsn_core::{VerifierOutput, VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError};
+pub use tlsn_core::{
+    VerifierOutput, VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError,
+    webpki::ServerCertVerifier,
+};
 
 use crate::{
     Role,
@@ -30,8 +33,9 @@ use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
+use mpz_zk::VerifierConfig as ZkVerifierConfig;
 use serio::stream::IoStreamExt;
-use tls_core::{msgs::enums::ContentType, verify::WebPkiVerifier};
+use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     ProvePayload,
     connection::{ConnectionInfo, ServerName},
@@ -305,15 +309,20 @@ impl Verifier<state::Committed> {
         } = &mut self.state;
 
         let ProvePayload {
-            server_identity,
+            handshake,
             transcript,
             transcript_commit,
         } = mux_fut
             .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
             .await?;
 
-        let verifier = WebPkiVerifier::new(self.config.root_store().clone(), None);
-        let server_name = if let Some((name, cert_data)) = server_identity {
+        let verifier = if let Some(root_store) = self.config.root_store() {
+            ServerCertVerifier::new(root_store).map_err(VerifierError::config)?
+        } else {
+            ServerCertVerifier::mozilla()
+        };
+
+        let server_name = if let Some((name, cert_data)) = handshake {
             cert_data
                 .verify(
                     &verifier,
@@ -466,7 +475,7 @@ fn build_mpc_tls(
 
     let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(rcot_recv.clone()));
 
-    let zk = Zk::new(delta, rcot_send.clone());
+    let zk = Zk::new(ZkVerifierConfig::default(), delta, rcot_send.clone());
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
 

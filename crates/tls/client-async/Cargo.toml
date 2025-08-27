@@ -35,3 +35,5 @@ hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["full"] }
 rstest = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+rustls-webpki = { workspace = true }
+rustls-pki-types = { workspace = true }

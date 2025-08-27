@@ -81,7 +81,11 @@ mod native {
 mod wasm {
     use super::IoProvider;
     use crate::io::Io;
-    use anyhow::Result;
+    use anyhow::{Result, anyhow};
+    use std::time::Duration;
+
+    const CHECK_WS_OPEN_DELAY_MS: usize = 50;
+    const MAX_RETRIES: usize = 50;
 
     impl IoProvider {
         /// Provides a connection to the server.
@@ -107,7 +111,27 @@ mod wasm {
                 &self.config.proto_1.0,
                 self.config.proto_1.1,
             );
-            let (_, io) = ws_stream_wasm::WsMeta::connect(url, None).await?;
+            let mut retries = 0;
+
+            let io = loop {
+                // Connect to the websocket relay.
+                let (_, io) = ws_stream_wasm::WsMeta::connect(url.clone(), None).await?;
+
+                // Allow some time for the relay to initiate a connection to
+                // the verifier.
+                std::thread::sleep(Duration::from_millis(CHECK_WS_OPEN_DELAY_MS as u64));
+
+                // If the relay didn't close the io, most likely the verifier
+                // accepted the connection.
+                if io.ready_state() == ws_stream_wasm::WsState::Open {
+                    break io;
+                }
+
+                retries += 1;
+                if retries > MAX_RETRIES {
+                    return Err(anyhow!("verifier did not accept connection"));
+                }
+            };
 
             Ok(io.into_io())
         }

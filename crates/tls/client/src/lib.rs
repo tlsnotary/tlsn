@@ -301,15 +301,11 @@ mod conn;
 mod error;
 mod hash_hs;
 mod limited_cache;
-mod msgs;
 mod rand;
 mod record_layer;
 //mod stream;
 mod vecbuf;
-pub(crate) use tls_core::verify;
-#[cfg(test)]
-mod verifybench;
-pub(crate) use tls_core::x509;
+pub(crate) use tls_core::{verify, x509};
 #[macro_use]
 mod check;
 mod bs_debug;
@@ -330,7 +326,7 @@ pub mod internal {
 
 // The public interface is:
 pub use crate::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
+    anchors::RootCertStore,
     builder::{ConfigBuilder, WantsCipherSuites, WantsKxGroups, WantsVerifier, WantsVersions},
     conn::{CommonState, ConnectionCommon, IoState, Reader, SideData},
     error::Error,
