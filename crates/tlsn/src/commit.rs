@@ -179,7 +179,7 @@ impl<'a> ProvingState<'a> {
     /// * `zk_aes_recv` - ZkAes for the received traffic.
     pub(crate) async fn prove(
         &mut self,
-        vm: &mut (impl EncodingVm<Binary> + Send),
+        vm: &mut (dyn EncodingVm<Binary> + Send),
         ctx: &mut Context,
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
@@ -249,7 +249,7 @@ impl<'a> ProvingState<'a> {
     /// * `certs` - The certificate chain.
     pub(crate) async fn verify(
         &mut self,
-        vm: &mut (impl EncodingVm<Binary> + Send),
+        vm: &mut (dyn EncodingVm<Binary> + Send),
         ctx: &mut Context,
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
