@@ -6,14 +6,17 @@ use std::time::Duration;
 
 use clap::Parser;
 
-use tls_core::verify::WebPkiVerifier;
-use tls_server_fixture::CA_CERT_DER;
-use tlsn::attestation::{
-    presentation::{Presentation, PresentationOutput},
-    signing::VerifyingKey,
-    CryptoProvider,
+use tlsn::{
+    attestation::{
+        presentation::{Presentation, PresentationOutput},
+        signing::VerifyingKey,
+        CryptoProvider,
+    },
+    config::{CertificateDer, RootCertStore},
+    verifier::ServerCertVerifier,
 };
 use tlsn_examples::ExampleType;
+use tlsn_server_fixture_certs::CA_CERT_DER;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -41,12 +44,11 @@ async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     //
     // This is only required for offline testing with the server-fixture. In
     // production, use `CryptoProvider::default()` instead.
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
+    let root_cert_store = RootCertStore {
+        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+    };
     let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
+        cert: ServerCertVerifier::new(&root_cert_store)?,
         ..Default::default()
     };
 

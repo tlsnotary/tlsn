@@ -10,14 +10,14 @@ This example demonstrates the simplest possible use case for TLSNotary. A Prover
 
 ### 1. Notarize
 
-Before starting the notarization, set up the local test server and local notary.
+Before starting the notarization, set up the local test server.
 Run the following commands from the root of this repository (not from this example's folder):
 
 1. Run the test server:
     ```shell
     RUST_LOG=info PORT=4000 cargo run --bin tlsn-server-fixture
     ```
-2. Run the prove example:
+2. Run the prove example (which also set up the local Notary):
     ```shell
     SERVER_PORT=4000 cargo run --release --example attestation_prove
     ```
@@ -31,12 +31,11 @@ If notarization is successful, you should see the following output in the consol
 ```log
 Starting an MPC TLS connection with the server
 Got a response from the server: 200 OK
-Notarization complete!
 Notarization completed successfully!
 The attestation has been written to `example-json.attestation.tlsn` and the corresponding secrets to `example-json.secrets.tlsn`.
 ```
 
-⚠️ Note: In this example, we run a local Notary server for demonstration purposes. In real-world applications, the Notary should be operated by a trusted third party. Refer to the [Notary Server Documentation](https://docs.tlsnotary.org/developers/notary_server.html) for more details on running a Notary server.
+⚠️ Note: In this example, we run a local Notary for demonstration purposes. In real-world applications, the Notary should be operated by a trusted third party.
 
 ### 2. Build a Verifiable Presentation
 
