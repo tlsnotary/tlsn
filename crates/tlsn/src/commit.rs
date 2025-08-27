@@ -179,7 +179,7 @@ impl<'a> ProvingState<'a> {
     /// * `zk_aes_recv` - ZkAes for the received traffic.
     pub(crate) async fn prove(
         &mut self,
-        vm: &mut (dyn EncodingVm<Binary> + Send),
+        vm: &mut (impl EncodingVm<Binary> + Send),
         ctx: &mut Context,
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
@@ -249,7 +249,7 @@ impl<'a> ProvingState<'a> {
     /// * `certs` - The certificate chain.
     pub(crate) async fn verify(
         &mut self,
-        vm: &mut (dyn EncodingVm<Binary> + Send),
+        vm: &mut (impl EncodingVm<Binary> + Send),
         ctx: &mut Context,
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
@@ -590,7 +590,7 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_garble_core::Delta;
     use mpz_memory_core::{
-        Array, MemoryExt, Vector, ViewExt,
+        Array, MemoryExt, ViewExt,
         binary::{Binary, U8},
     };
     use mpz_ot::ideal::rcot::ideal_rcot;
@@ -635,7 +635,6 @@ mod tests {
 
         {
             let keys_prover = set_keys(&mut prover, KEY, IV, Role::Prover);
-            assign_transcript_fixture(Role::Prover, &mut prover);
 
             // not needed
             let mac_key_prover = prover.alloc().unwrap();
@@ -652,7 +651,6 @@ mod tests {
             };
 
             let keys_verifier = set_keys(&mut verifier, KEY, IV, Role::Verifier);
-            assign_transcript_fixture(Role::Verifier, &mut verifier);
 
             // not needed
             let mac_key_verifier = verifier.alloc().unwrap();
@@ -775,62 +773,6 @@ mod tests {
         vm.commit(iv).unwrap();
 
         (key, iv)
-    }
-
-    fn assign_transcript_fixture(role: Role, vm: &mut dyn EncodingVm<Binary>) {
-        let fixture = transcript_fixture();
-
-        for record in fixture.iter_sent_app_data() {
-            if let Role::Prover = role {
-                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_public(ref_ciphertext).unwrap();
-                vm.assign(ref_ciphertext, record.ciphertext.clone())
-                    .unwrap();
-                vm.commit(ref_ciphertext).unwrap();
-
-                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_private(ref_plaintext).unwrap();
-                vm.assign(ref_plaintext, record.plaintext.as_ref().unwrap().clone())
-                    .unwrap();
-                vm.commit(ref_plaintext).unwrap();
-            } else {
-                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_public(ref_ciphertext).unwrap();
-                vm.assign(ref_ciphertext, record.ciphertext.clone())
-                    .unwrap();
-                vm.commit(ref_ciphertext).unwrap();
-
-                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_blind(ref_plaintext).unwrap();
-                vm.commit(ref_plaintext).unwrap();
-            }
-        }
-
-        for record in fixture.iter_recv_app_data() {
-            if let Role::Prover = role {
-                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_public(ref_ciphertext).unwrap();
-                vm.assign(ref_ciphertext, record.ciphertext.clone())
-                    .unwrap();
-                vm.commit(ref_ciphertext).unwrap();
-
-                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_private(ref_plaintext).unwrap();
-                vm.assign(ref_plaintext, record.plaintext.as_ref().unwrap().clone())
-                    .unwrap();
-                vm.commit(ref_plaintext).unwrap();
-            } else {
-                let ref_ciphertext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_public(ref_ciphertext).unwrap();
-                vm.assign(ref_ciphertext, record.ciphertext.clone())
-                    .unwrap();
-                vm.commit(ref_ciphertext).unwrap();
-
-                let ref_plaintext: Vector<U8> = vm.alloc_vec(record.ciphertext.len()).unwrap();
-                vm.mark_blind(ref_plaintext).unwrap();
-                vm.commit(ref_plaintext).unwrap();
-            }
-        }
     }
 
     #[fixture]

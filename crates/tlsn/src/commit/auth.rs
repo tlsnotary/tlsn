@@ -496,8 +496,8 @@ mod tests {
         Array, MemoryExt, ViewExt,
         binary::{Binary, U8},
     };
-    use mpz_ot::ideal::rcot::ideal_rcot;
-    use mpz_vm_core::Vm;
+    use mpz_ot::ideal::rcot::{IdealRCOTReceiver, IdealRCOTSender, ideal_rcot};
+    use mpz_vm_core::{Execute, Vm};
     use mpz_zk::{Prover, Verifier};
     use rand::{Rng, SeedableRng, rngs::StdRng};
     use rangeset::{RangeSet, UnionMut};
@@ -513,7 +513,6 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_authenticator_sent(
-        vms: (impl Vm<Binary> + Send, impl Vm<Binary> + Send),
         encoding: Vec<(Direction, Idx)>,
         hashes: Vec<(Direction, Idx, HashAlgId)>,
         decoding: (RangeSet<usize>, RangeSet<usize>),
@@ -528,7 +527,7 @@ mod tests {
 
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
-        let (mut prover, mut verifier) = vms;
+        let (mut prover, mut verifier) = vms();
         let mut refs_prover = transcript_refs.clone();
         let mut refs_verifier = transcript_refs;
 
@@ -591,7 +590,6 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_authenticator_recv(
-        vms: (impl Vm<Binary> + Send, impl Vm<Binary> + Send),
         encoding: Vec<(Direction, Idx)>,
         hashes: Vec<(Direction, Idx, HashAlgId)>,
         decoding: (RangeSet<usize>, RangeSet<usize>),
@@ -606,7 +604,7 @@ mod tests {
 
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
-        let (mut prover, mut verifier) = vms;
+        let (mut prover, mut verifier) = vms();
         let mut refs_prover = transcript_refs.clone();
         let mut refs_verifier = transcript_refs;
 
@@ -676,7 +674,6 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_authenticator_sent_verify_fail(
-        vms: (impl Vm<Binary> + Send, impl Vm<Binary> + Send),
         encoding: Vec<(Direction, Idx)>,
         hashes: Vec<(Direction, Idx, HashAlgId)>,
         decoding: (RangeSet<usize>, RangeSet<usize>),
@@ -691,7 +688,7 @@ mod tests {
 
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
-        let (mut prover, mut verifier) = vms;
+        let (mut prover, mut verifier) = vms();
         let mut refs_prover = transcript_refs.clone();
         let mut refs_verifier = transcript_refs;
 
@@ -734,7 +731,6 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_authenticator_recv_with_swk(
-        vms: (impl Vm<Binary> + Send, impl Vm<Binary> + Send),
         encoding: Vec<(Direction, Idx)>,
         hashes: Vec<(Direction, Idx, HashAlgId)>,
         full_decoding: (RangeSet<usize>, RangeSet<usize>),
@@ -749,7 +745,7 @@ mod tests {
 
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
-        let (mut prover, mut verifier) = vms;
+        let (mut prover, mut verifier) = vms();
         let mut refs_prover = transcript_refs.clone();
         let mut refs_verifier = transcript_refs;
 
@@ -887,8 +883,7 @@ mod tests {
         hashes
     }
 
-    #[fixture]
-    fn vms() -> (impl Vm<Binary> + Send, impl Vm<Binary> + Send) {
+    fn vms() -> (Prover<IdealRCOTReceiver>, Verifier<IdealRCOTSender>) {
         let mut rng = StdRng::seed_from_u64(0);
         let delta = Delta::random(&mut rng);
 

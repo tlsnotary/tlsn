@@ -279,7 +279,7 @@ mod test {
         MemoryExt, Vector, ViewExt,
         binary::{Binary, U8},
     };
-    use mpz_ot::ideal::rcot::ideal_rcot;
+    use mpz_ot::ideal::rcot::{IdealRCOTReceiver, IdealRCOTSender, ideal_rcot};
     use mpz_vm_core::{Execute, Vm};
     use mpz_zk::{Prover, Verifier};
     use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -402,7 +402,7 @@ mod test {
     }
 
     #[fixture]
-    fn vms() -> (impl Vm<Binary> + Send, impl Vm<Binary> + Send) {
+    fn vms() -> (Prover<IdealRCOTReceiver>, Verifier<IdealRCOTSender>) {
         let mut rng = StdRng::seed_from_u64(0);
         let delta = Delta::random(&mut rng);
 
