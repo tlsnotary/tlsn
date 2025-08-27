@@ -161,6 +161,5 @@ web-spawn = { version = "0.2" }
 web-time = { version = "0.2" }
 webpki-roots = { version = "1.0" }
 webpki-root-certs = { version = "1.0" }
-# Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
-ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51" }
+ws_stream_wasm = { version = "0.7.5" }
 zeroize = { version = "1.8" }
