@@ -23,9 +23,9 @@ thiserror = { workspace = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 
 [dev-dependencies]
-alloy-primitives = { version = "0.8.22", default-features = false }
-alloy-signer = { version = "0.12", default-features = false }
-alloy-signer-local = { version = "0.12", default-features = false }
+alloy-primitives = { version = "1.3.1", default-features = false }
+alloy-signer = { version = "1.0", default-features = false }
+alloy-signer-local = { version = "1.0", default-features = false }
 rand06-compat = { workspace = true }
 rstest = { workspace = true }
 tlsn-core = { workspace = true, features = ["fixtures"] }

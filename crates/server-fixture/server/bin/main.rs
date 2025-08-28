@@ -8,6 +8,8 @@ use tracing::info;
 #[tokio::main]
 async fn main() -> io::Result<()> {
     tracing_subscriber::fmt::init();
+    rustls::crypto::CryptoProvider::install_default(rustls::crypto::ring::default_provider())
+        .expect("failed to install rustls crypto provider");
     let addr = env::var("ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = env::var("PORT")
         .map(|port| port.parse().unwrap())

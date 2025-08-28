@@ -47,6 +47,7 @@ fn app(state: AppState) -> Router {
         .route("/formats/json", get(json))
         .route("/formats/html", get(html))
         .route("/protected", get(protected_route))
+        .route("/elster", get(elster_route))
         .layer(TraceLayer::new_for_http())
         .with_state(Arc::new(Mutex::new(state)))
 }
@@ -194,6 +195,12 @@ async fn protected_route(_: AuthenticatedUser) -> Result<Json<Value>, StatusCode
     info!("Handling /protected");
 
     get_json_value(include_str!("data/protected_data.json"))
+}
+
+async fn elster_route(_: AuthenticatedUser) -> Result<Json<Value>, StatusCode> {
+    info!("Handling /elster");
+
+    get_json_value(include_str!("data/elster.json"))
 }
 
 #[cfg(test)]
