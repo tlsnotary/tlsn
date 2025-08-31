@@ -31,7 +31,7 @@ use tlsn_common::{
     commit::{commit_records, hash::prove_hash},
     context::build_mt_context,
     encoding,
-    mux::attach_mux,
+    mux::{attach_mux, MuxControl, MuxFuture},
     tag::verify_tags,
     transcript::{decode_transcript, Record, TlsTranscript},
     zk_aes_ctr::ZkAesCtr,
@@ -565,6 +565,16 @@ impl Prover<state::Committed> {
         }
 
         Ok(())
+    }
+
+    /// Consumes the prover and returns the underlying connection
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn into_connection(self) -> Result<(MuxControl, MuxFuture, Context), ProverError> {
+        let state::Committed {
+            mux_ctrl, mux_fut, ctx, ..
+        } = self.state;
+
+        Ok((mux_ctrl, mux_fut, ctx))
     }
 }
 
