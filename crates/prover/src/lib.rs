@@ -568,13 +568,12 @@ impl Prover<state::Committed> {
     }
 
     /// Consumes the prover and returns the underlying connection
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn into_connection(self) -> Result<(MuxControl, MuxFuture, Context), ProverError> {
+    pub async fn into_connection(self) -> (MuxControl, MuxFuture, Context) {
         let state::Committed {
             mux_ctrl, mux_fut, ctx, ..
         } = self.state;
 
-        Ok((mux_ctrl, mux_fut, ctx))
+        (mux_ctrl, mux_fut, ctx)
     }
 }
 
