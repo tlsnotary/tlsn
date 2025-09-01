@@ -39,6 +39,8 @@ opt-level = 1
 [profile.wasm]
 inherits = "release"
 lto = true
+panic = "abort"
+codegen-units = 1
 
 [workspace.dependencies]
 tls-server-fixture = { path = "crates/tls/server-fixture" }
