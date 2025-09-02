@@ -7469,8 +7469,9 @@ checksum = "ea2f10b9bb0928dfb1b42b65e1f9e36f7f54dbdf08457afefb38afcdec4fa2bb"
 
 [[package]]
 name = "ws_stream_wasm"
-version = "0.7.4"
-source = "git+https://github.com/tlsnotary/ws_stream_wasm?rev=2ed12aad9f0236e5321f577672f309920b2aef51#2ed12aad9f0236e5321f577672f309920b2aef51"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c173014acad22e83f16403ee360115b38846fe754e735c5d9d3803fe70c6abc"
 dependencies = [
  "async_io_stream",
  "futures",
@@ -7479,7 +7480,7 @@ dependencies = [
  "pharos",
  "rustc_version 0.4.1",
  "send_wrapper",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
