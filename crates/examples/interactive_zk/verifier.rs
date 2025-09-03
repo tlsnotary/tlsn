@@ -128,7 +128,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
             hex::encode(committed_hash.value.as_bytes())
         );
     } else {
-        println!(
+        tracing::info!(
             "✅ The hash in the proof matches the committed hash in MPC-TLS ({})",
             hex::encode(committed_hash.value.as_bytes())
         );
@@ -137,10 +137,10 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     let is_valid = verify_ultra_honk(msg.proof, msg.vk).expect("Verification failed");
 
     if is_valid {
-        println!("✅ Age verification zk proof verified successfully");
+        tracing::info!("✅ Age verification ZKProof successfully verified");
     } else {
-        println!("❌ Age verification proof failed to verify");
-        panic!("Age verification proof failed to verify");
+        tracing::error!("❌ Age verification ZKProof failed to verify");
+        panic!("Age verification ZKProof failed to verify");
     }
 
     transcript

@@ -118,7 +118,10 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .unwrap();
     let response = request_sender.send_request(request).await.unwrap();
 
-    assert!(response.status() == StatusCode::OK);
+    if response.status() != StatusCode::OK {
+        tracing::error!("MPC-TLS request failed with status {}", response.status());
+        panic!()
+    }
 
     // Create proof for the Verifier.
     let mut prover = prover_task.await.unwrap().unwrap();
@@ -133,7 +136,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let received: &[u8] = transcript.received();
     let sent_len = sent.len();
     let recv_len = received.len();
-    println!("Sent length: {}, Received length: {}", sent_len, recv_len);
+    tracing::info!("Sent length: {}, Received length: {}", sent_len, recv_len);
 
     // Real request (except for authorization token)
     reveal_request(sent, &mut prove_config_builder);
@@ -286,7 +289,7 @@ fn generate_zk_proof(
     blinder: &[u8],
     dob: &[u8],
 ) -> Result<ZKProofBundle, Box<dyn std::error::Error>> {
-    println!("Generating ZK proof with Noir...");
+    tracing::info!("🔒 Generating ZK proof with Noir...");
 
     const PROGRAM_JSON: &str = include_str!("./noir/target/noir.json");
 
@@ -307,21 +310,33 @@ fn generate_zk_proof(
     inputs.extend(dob.iter().map(|b| b.to_string()));
     inputs.extend(blinder.iter().map(|b| b.to_string()));
 
-    // println!("🔢 Inputs: {:?}", inputs);
+    let check_date = check_date.format("%Y-%m-%d").to_string();
+    tracing::info!(
+        "Public inputs : Check date ({}) and committed hash ({})",
+        check_date,
+        hex::encode(committed_hash)
+    );
+    tracing::info!(
+        "Private inputs: Blinder ({}) and Date of Birth ({})",
+        hex::encode(blinder),
+        str::from_utf8(dob).unwrap()
+    );
+
+    tracing::debug!("Witness inputs {:?}", inputs);
 
     let input_refs: Vec<&str> = inputs.iter().map(String::as_str).collect();
     let witness = from_vec_str_to_witness_map(input_refs).unwrap();
 
-    // 4. Setup SRS
+    // Setup SRS
     setup_srs_from_bytecode(bytecode, None, false).unwrap();
 
-    // 5. Verification key
+    // Verification key
     let vk = get_ultra_honk_verification_key(bytecode, false).unwrap();
 
-    // 6. Generate proof
+    // Generate proof
     let proof = prove_ultra_honk(bytecode, witness.clone(), vk.clone(), false).unwrap();
-    println!("✅ Proof generated ({} bytes)", proof.len());
-    let check_date = check_date.format("%Y-%m-%d").to_string();
+    tracing::info!("✅ Proof generated ({} bytes)", proof.len());
+
     let proof_bundle = ZKProofBundle {
         vk,
         proof,
