@@ -20,6 +20,9 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Install bindgen-cli
+        run: cargo install --force --locked bindgen-cli
+
       - name: "rustdoc"
         run: crates/wasm/build-docs.sh
 

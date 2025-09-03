@@ -113,6 +113,9 @@ jobs:
         # we install a specific version which supports custom profiles
         run: cargo install --git https://github.com/rustwasm/wasm-pack.git --rev 32e52ca
 
+      - name: Install bindgen-cli
+        run: cargo install --force --locked bindgen-cli
+
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.7
 
