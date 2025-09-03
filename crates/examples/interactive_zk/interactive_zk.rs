@@ -12,7 +12,7 @@ use tlsn_server_fixture_certs::SERVER_DOMAIN;
 use verifier::verifier;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     let server_host: String = env::var("SERVER_HOST").unwrap_or("127.0.0.1".into());
@@ -23,7 +23,9 @@ async fn main() {
     // We use SERVER_DOMAIN here to make sure it matches the domain in the test
     // server's certificate.
     let uri = format!("https://{SERVER_DOMAIN}:{server_port}/elster");
-    let server_ip: IpAddr = server_host.parse().expect("Invalid IP address");
+    let server_ip: IpAddr = server_host
+        .parse()
+        .map_err(|e| format!("Invalid IP address '{}': {}", server_host, e))?;
     let server_addr = SocketAddr::from((server_ip, server_port));
 
     // Connect prover and verifier.
@@ -31,11 +33,16 @@ async fn main() {
     let (prover_extra_socket, verifier_extra_socket) = tokio::io::duplex(1 << 23);
     let prover = prover(prover_socket, prover_extra_socket, &server_addr, &uri);
     let verifier = verifier(verifier_socket, verifier_extra_socket);
-    let (_, transcript) = tokio::join!(prover, verifier);
+
+    let (prover_result, verifier_result) = tokio::join!(prover, verifier);
+
+    prover_result?;
+    let transcript = verifier_result?;
 
     println!("---");
     println!("Successfully verified {}", &uri);
     println!("Age verified in ZK: 18+ ✅\n");
+
     println!(
         "Verified sent data:\n{}",
         bytes_to_redacted_string(transcript.sent_unsafe())
@@ -44,11 +51,11 @@ async fn main() {
         "Verified received data:\n{}",
         bytes_to_redacted_string(transcript.received_unsafe())
     );
+
+    Ok(())
 }
 
 /// Render redacted bytes as `🙈`.
 pub fn bytes_to_redacted_string(bytes: &[u8]) -> String {
-    String::from_utf8(bytes.to_vec())
-        .unwrap()
-        .replace('\0', "🙈")
+    String::from_utf8_lossy(bytes).replace('\0', "🙈")
 }

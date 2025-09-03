@@ -17,17 +17,17 @@ use tlsn_server_fixture_certs::SERVER_DOMAIN;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
+
 #[instrument(skip(socket, extra_socket))]
 pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
     mut extra_socket: T,
-) -> PartialTranscript {
+) -> Result<PartialTranscript, Box<dyn std::error::Error>> {
     // Set up Verifier.
     let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
-        .build()
-        .unwrap();
+        .build()?;
 
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
@@ -37,8 +37,8 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
         })
         .protocol_config_validator(config_validator)
-        .build()
-        .unwrap();
+        .build()?;
+
     let verifier = Verifier::new(verifier_config);
 
     // Receive authenticated data.
@@ -49,99 +49,150 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         ..
     } = verifier
         .verify(socket.compat(), &VerifyConfig::default())
-        .await
-        .unwrap();
+        .await?;
 
-    let server_name = server_name.expect("prover should have revealed server name");
-    let transcript = transcript.expect("prover should have revealed transcript data");
+    let server_name = server_name.ok_or("Prover should have revealed server name")?;
+    let transcript = transcript.ok_or("Prover should have revealed transcript data")?;
 
-    // Check sent data.
+    // Create hash commitment for the date of birth field from the response
     let sent = transcript.sent_unsafe().to_vec();
-    let sent_data = String::from_utf8(sent.clone()).expect("Verifier expected sent data");
-    sent_data
-        .find(SERVER_DOMAIN)
-        .unwrap_or_else(|| panic!("Verification failed: Expected host {SERVER_DOMAIN}"));
+    let sent_data = String::from_utf8(sent.clone())
+        .map_err(|e| format!("Verifier expected valid UTF-8 sent data: {}", e))?;
+
+    if !sent_data.contains(SERVER_DOMAIN) {
+        return Err(format!(
+            "Verification failed: Expected host {} not found in sent data",
+            SERVER_DOMAIN
+        )
+        .into());
+    }
 
     // Check received data.
     let received_commitments = received_commitments(&transcript_commitments);
     let received_commitment = received_commitments
-        .iter()
-        .next()
-        .expect("missing received hash commitment");
-
-    // dbg!(&received_commitment.direction);
+        .first()
+        .ok_or("Missing received hash commitment")?;
 
     assert!(received_commitment.direction == Direction::Received);
     // dbg!(&received_commitment.idx);
     assert!(received_commitment.hash.alg == HashAlgId::SHA256);
+
     let committed_hash = &received_commitment.hash;
 
     // Check Session info: server name.
     let ServerName::Dns(server_name) = server_name;
-    assert_eq!(server_name.as_str(), SERVER_DOMAIN);
+    if server_name.as_str() != SERVER_DOMAIN {
+        return Err(format!(
+            "Server name mismatch: expected {}, got {}",
+            SERVER_DOMAIN,
+            server_name.as_str()
+        )
+        .into());
+    }
 
     // Receive ZKProof information from prover
     let mut buf = Vec::new();
-    extra_socket.read_to_end(&mut buf).await.unwrap();
-    let msg: ZKProofBundle = bincode::deserialize(&buf).unwrap();
+    extra_socket.read_to_end(&mut buf).await?;
+
+    if buf.is_empty() {
+        return Err("No ZK proof data received from prover".into());
+    }
+
+    let msg: ZKProofBundle = bincode::deserialize(&buf)
+        .map_err(|e| format!("Failed to deserialize ZK proof bundle: {}", e))?;
 
     // Verify zk proof
     const PROGRAM_JSON: &str = include_str!("./noir/target/noir.json");
-    let json: Value = serde_json::from_str(PROGRAM_JSON).unwrap();
-    let bytecode = json["bytecode"].as_str().unwrap();
+    let json: Value = serde_json::from_str(PROGRAM_JSON)
+        .map_err(|e| format!("Failed to parse Noir circuit: {}", e))?;
 
-    let vk = get_ultra_honk_verification_key(bytecode, false).unwrap();
-    assert_eq!(vk, msg.vk);
+    let bytecode = json["bytecode"]
+        .as_str()
+        .ok_or("Bytecode field missing in noir.json")?;
 
-    // check that the check date is correctly included in the proof
-    let check_date =
-        NaiveDate::parse_from_str(&msg.check_date, "%Y-%m-%d").expect("invalid date format");
+    let vk = get_ultra_honk_verification_key(bytecode, false)
+        .map_err(|e| format!("Failed to get verification key: {}", e))?;
+
+    if vk != msg.vk {
+        return Err("Verification key mismatch between computed and provided by prover".into());
+    }
+
+    // Check that the check date is correctly included in the proof
+    let check_date = NaiveDate::parse_from_str(&msg.check_date, "%Y-%m-%d")?;
 
     let proof = msg.proof.clone();
 
-    let check_date_day = u128::from_be_bytes(proof[16..32].try_into().unwrap());
-    let check_date_month = u128::from_be_bytes(proof[48..64].try_into().unwrap());
-    let check_date_year = u128::from_be_bytes(proof[80..96].try_into().unwrap());
+    // Validate proof has enough data
+    let min_bytes = 96 + 32 * 35;
+    if proof.len() < min_bytes {
+        return Err(format!(
+            "Proof too short: expected at least {} bytes, got {}",
+            min_bytes,
+            proof.len()
+        )
+        .into());
+    }
 
-    assert_eq!(check_date_day, check_date.day() as u128);
-    assert_eq!(check_date_month, check_date.month() as u128);
-    assert_eq!(check_date_year, check_date.year() as u128);
+    let check_date_day = u128::from_be_bytes(proof[16..32].try_into()?);
+    let check_date_month = u128::from_be_bytes(proof[48..64].try_into()?);
+    let check_date_year = u128::from_be_bytes(proof[80..96].try_into()?);
 
-    // check that the committed hash in the proof matches the hash from the
-    // commitment
+    if check_date_day != check_date.day() as u128 {
+        return Err(format!(
+            "Date day mismatch in proof: expected {}, got {} from prover",
+            check_date.day(),
+            check_date_day
+        )
+        .into());
+    }
+    if check_date_month != check_date.month() as u128 {
+        return Err(format!(
+            "Date month mismatch in proof: expected {}, got {} from prover",
+            check_date.month(),
+            check_date_month
+        )
+        .into());
+    }
+    if check_date_year != check_date.year() as u128 {
+        return Err(format!(
+            "Date year mismatch in proof: expected {}, got {} prover",
+            check_date.year(),
+            check_date_year
+        )
+        .into());
+    }
+
+    // Check that the committed hash in the proof matches the hash from the commitment
     let committed_hash_in_proof: Vec<u8> = proof
         .chunks(32)
         .skip(3) // skip the first 3 chunks
         .take(32)
-        .map(|chunk| *chunk.last().unwrap())
+        .map(|chunk| *chunk.last().unwrap_or(&0))
         .collect();
-    assert_eq!(
-        committed_hash_in_proof,
-        committed_hash.value.as_bytes().to_vec()
+
+    let expected_hash = committed_hash.value.as_bytes().to_vec();
+    if committed_hash_in_proof != expected_hash {
+        tracing::error!(
+            "❌ The hash in the proof does not match the committed hash in MPC-TLS: {} != {}",
+            hex::encode(&committed_hash_in_proof),
+            hex::encode(&expected_hash)
+        );
+        return Err("Hash in proof does not match committed hash in MPC-TLS".into());
+    }
+
+    tracing::info!(
+        "✅ The hash in the proof matches the committed hash in MPC-TLS ({})",
+        hex::encode(&expected_hash)
     );
 
-    if committed_hash_in_proof != committed_hash.value.as_bytes().to_vec() {
-        println!("❌ The hash in the proof does not match the committed hash in MPC-TLS");
-        println!(
-            "{} != {}",
-            hex::encode(committed_hash_in_proof.clone()),
-            hex::encode(committed_hash.value.as_bytes())
-        );
-    } else {
-        tracing::info!(
-            "✅ The hash in the proof matches the committed hash in MPC-TLS ({})",
-            hex::encode(committed_hash.value.as_bytes())
-        );
-    }
+    let is_valid = verify_ultra_honk(msg.proof, msg.vk)
+        .map_err(|e| format!("ZKProof Verification failed: {}", e))?;
 
-    let is_valid = verify_ultra_honk(msg.proof, msg.vk).expect("Verification failed");
-
-    if is_valid {
-        tracing::info!("✅ Age verification ZKProof successfully verified");
-    } else {
+    if !is_valid {
         tracing::error!("❌ Age verification ZKProof failed to verify");
-        panic!("Age verification ZKProof failed to verify");
+        return Err("Age verification ZKProof failed to verify".into());
     }
 
-    transcript
+    tracing::info!("✅ Age verification ZKProof successfully verified");
+    Ok(transcript)
 }
