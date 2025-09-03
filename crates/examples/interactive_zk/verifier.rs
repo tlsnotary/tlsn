@@ -162,7 +162,8 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .into());
     }
 
-    // Check that the committed hash in the proof matches the hash from the commitment
+    // Check that the committed hash in the proof matches the hash from the
+    // commitment
     let committed_hash_in_proof: Vec<u8> = proof
         .chunks(32)
         .skip(3) // skip the first 3 chunks
