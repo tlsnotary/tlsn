@@ -22,10 +22,24 @@ use webpki::anchor_from_trusted_cert;
 
 const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 
+fn init_crypto_provider() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        // Install the default crypto provider (ring-based)
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install default crypto provider");
+    });
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "expensive"]
 async fn mpc_tls_test() {
     tracing_subscriber::fmt::init();
+
+    init_crypto_provider();
 
     let config = Config::builder()
         .defer_decryption(false)

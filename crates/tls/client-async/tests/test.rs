@@ -19,6 +19,18 @@ use webpki::anchor_from_trusted_cert;
 
 const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 
+fn init_crypto_provider() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        // Install the default crypto provider (ring-based)
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install default crypto provider");
+    });
+}
+
 // An established client TLS connection
 struct TlsFixture {
     client_tls_conn: TlsConnection,
@@ -29,6 +41,8 @@ struct TlsFixture {
 // Sets up a TLS connection between client and server and sends a hello message
 #[fixture]
 async fn set_up_tls() -> TlsFixture {
+    init_crypto_provider();
+
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
 
     let _server_task = tokio::spawn(bind_test_server(server_socket.compat()));

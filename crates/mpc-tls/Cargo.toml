@@ -72,5 +72,6 @@ tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing-subscriber = { workspace = true }
 uid-mux = { workspace = true, features = ["serio", "test-utils"] }
+rustls = { workspace = true }
 rustls-pki-types = { workspace = true }
 rustls-webpki = { workspace = true }

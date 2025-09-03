@@ -22,10 +22,24 @@ const MAX_RECV_DATA: usize = 1 << 14;
 // Maximum number of application records received by prover from server
 const MAX_RECV_RECORDS: usize = 6;
 
+fn init_crypto_provider() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        // Install the default crypto provider (ring-based)
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install default crypto provider");
+    });
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
 async fn test() {
     tracing_subscriber::fmt::init();
+
+    init_crypto_provider();
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
 
