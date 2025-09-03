@@ -1,10 +1,9 @@
 use std::net::SocketAddr;
 
-use crate::types::received_commitments;
+use crate::types::{received_commitments, CheckDate};
 
 use super::types::ZKProofBundle;
 
-use chrono::{Datelike, Local};
 use http_body_util::Empty;
 use hyper::{body::Bytes, header, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
@@ -165,9 +164,8 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .first()
         .ok_or("No received commitments found")?; // committed hash (of date of birth string)
     let received_secret = received_secret(&prover_output)?; // hash blinder
-    let (dob, committed_hash, blinder) =
-        prepare_zk_proof_input(received, received_commitment, received_secret)?;
-    let proof_bundle = generate_zk_proof(committed_hash, blinder, dob)?;
+    let proof_input = prepare_zk_proof_input(received, received_commitment, received_secret)?;
+    let proof_bundle = generate_zk_proof(proof_input)?;
 
     // Sent zk proof bundle to verifier
     let serialized_proof = bincode::serialize(&proof_bundle)?;
@@ -278,12 +276,20 @@ fn received_secret(
         .ok_or("missing received hash commitment".into())
 }
 
+#[derive(Debug)]
+pub struct ZKProofInput<'a> {
+    dob: &'a [u8],
+    check_date: CheckDate,
+    blinder: &'a [u8],
+    committed_hash: &'a [u8],
+}
+
 // Verify that the blinded, committed hash is correct
 fn prepare_zk_proof_input<'a>(
     received: &'a [u8],
     received_commitment: &'a PlaintextHash,
     received_secret: &'a PlaintextHashSecret,
-) -> Result<(&'a [u8], &'a [u8], &'a [u8]), Box<dyn std::error::Error>> {
+) -> Result<ZKProofInput<'a>, Box<dyn std::error::Error>> {
     assert_eq!(received_commitment.direction, Direction::Received);
     assert_eq!(received_commitment.hash.alg, HashAlgId::SHA256);
 
@@ -292,6 +298,7 @@ fn prepare_zk_proof_input<'a>(
     let dob = &received[received_commitment.idx.start()..received_commitment.idx.end()];
     let blinder = received_secret.blinder.as_bytes();
     let committed_hash = hash.value.as_bytes();
+    let check_date = CheckDate::now();
 
     assert_eq!(received_secret.direction, Direction::Received);
     assert_eq!(received_secret.alg, HashAlgId::SHA256);
@@ -305,13 +312,16 @@ fn prepare_zk_proof_input<'a>(
         return Err("Computed hash does not match committed hash".into());
     }
 
-    Ok((dob, committed_hash, blinder))
+    Ok(ZKProofInput {
+        dob,
+        check_date,
+        committed_hash,
+        blinder,
+    })
 }
 
 fn generate_zk_proof(
-    committed_hash: &[u8],
-    blinder: &[u8],
-    dob: &[u8],
+    proof_input: ZKProofInput<'_>,
 ) -> Result<ZKProofBundle, Box<dyn std::error::Error>> {
     tracing::info!("🔒 Generating ZK proof with Noir...");
 
@@ -323,29 +333,24 @@ fn generate_zk_proof(
         .as_str()
         .ok_or("bytecode field not found in program.json")?;
 
-    let check_date: chrono::NaiveDate = Local::now().date_naive();
-    let check_year = check_date.year();
-    let check_month = check_date.month();
-    let check_day = check_date.day();
-
     let mut inputs: Vec<String> = vec![];
-    inputs.push(check_day.to_string());
-    inputs.push(check_month.to_string());
-    inputs.push(check_year.to_string());
-    inputs.extend(committed_hash.iter().map(|b| b.to_string()));
-    inputs.extend(dob.iter().map(|b| b.to_string()));
-    inputs.extend(blinder.iter().map(|b| b.to_string()));
+    inputs.push(proof_input.check_date.day().to_string());
+    inputs.push(proof_input.check_date.month().to_string());
+    inputs.push(proof_input.check_date.year().to_string());
+    inputs.extend(proof_input.committed_hash.iter().map(|b| b.to_string()));
+    inputs.extend(proof_input.dob.iter().map(|b| b.to_string()));
+    inputs.extend(proof_input.blinder.iter().map(|b| b.to_string()));
 
-    let check_date = check_date.format("%Y-%m-%d").to_string();
+    let check_date = proof_input.check_date.to_string();
     tracing::info!(
         "Public inputs : Check date ({}) and committed hash ({})",
         check_date,
-        hex::encode(committed_hash)
+        hex::encode(proof_input.committed_hash)
     );
     tracing::info!(
         "Private inputs: Blinder ({}) and Date of Birth ({})",
-        hex::encode(blinder),
-        String::from_utf8_lossy(dob)
+        hex::encode(proof_input.blinder),
+        String::from_utf8_lossy(proof_input.dob)
     );
 
     tracing::debug!("Witness inputs {:?}", inputs);

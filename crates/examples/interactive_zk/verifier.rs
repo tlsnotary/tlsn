@@ -1,7 +1,6 @@
-use crate::types::received_commitments;
+use crate::types::{received_commitments, CheckDate};
 
 use super::types::ZKProofBundle;
-use chrono::{Datelike, NaiveDate};
 use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_honk};
 use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
@@ -118,7 +117,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     }
 
     // Check that the check date is correctly included in the proof
-    let check_date = NaiveDate::parse_from_str(&msg.check_date, "%Y-%m-%d")?;
+    let check_date = CheckDate::from_str(&msg.check_date)?;
 
     let proof = msg.proof.clone();
 
