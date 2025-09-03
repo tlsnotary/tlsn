@@ -1,4 +1,6 @@
-use super::types::Message;
+use crate::types::received_commitments;
+
+use super::types::ZKProofBundle;
 use chrono::{Datelike, NaiveDate};
 use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_honk};
 use serde_json::Value;
@@ -7,7 +9,7 @@ use tlsn::{
     config::{CertificateDer, ProtocolConfigValidator, RootCertStore},
     connection::ServerName,
     hash::HashAlgId,
-    transcript::{Direction, PartialTranscript, TranscriptCommitment},
+    transcript::{Direction, PartialTranscript},
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
@@ -61,27 +63,9 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .unwrap_or_else(|| panic!("Verification failed: Expected host {SERVER_DOMAIN}"));
 
     // Check received data.
-    //TODO
-    // transcript_commitments.iter().for_each(|commitment| {
-    //     dbg!(commitment);
-    // });
-
-    let received_commitment = transcript_commitments
+    let received_commitments = received_commitments(&transcript_commitments);
+    let received_commitment = received_commitments
         .iter()
-        .filter(|commitment| {
-            if let TranscriptCommitment::Hash(hash) = commitment {
-                hash.direction == Direction::Received
-            } else {
-                false
-            }
-        })
-        .map(|commitment| {
-            if let TranscriptCommitment::Hash(hash) = commitment {
-                hash
-            } else {
-                unreachable!()
-            }
-        })
         .next()
         .expect("missing received hash commitment");
 
@@ -90,30 +74,24 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     assert!(received_commitment.direction == Direction::Received);
     // dbg!(&received_commitment.idx);
     assert!(received_commitment.hash.alg == HashAlgId::SHA256);
-    let commited_hash = &received_commitment.hash;
-    // dbg!(hash);
-    println!(
-        "Hash of received data: {}",
-        hex::encode(commited_hash.value.as_bytes())
-    );
+    let committed_hash = &received_commitment.hash;
 
     // Check Session info: server name.
     let ServerName::Dns(server_name) = server_name;
     assert_eq!(server_name.as_str(), SERVER_DOMAIN);
 
+    // Receive ZKProof information from prover
     let mut buf = Vec::new();
     extra_socket.read_to_end(&mut buf).await.unwrap();
-    let msg: Message = bincode::deserialize(&buf).unwrap();
+    let msg: ZKProofBundle = bincode::deserialize(&buf).unwrap();
 
-    // // 7. Verify zk proof
+    // Verify zk proof
     const PROGRAM_JSON: &str = include_str!("./noir/target/noir.json");
     let json: Value = serde_json::from_str(PROGRAM_JSON).unwrap();
     let bytecode = json["bytecode"].as_str().unwrap();
 
     let vk = get_ultra_honk_verification_key(bytecode, false).unwrap();
     assert_eq!(vk, msg.vk);
-
-    // println!("Message: {:?}", msg);
 
     // check that the check date is correctly included in the proof
     let check_date =
@@ -129,22 +107,32 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     assert_eq!(check_date_month, check_date.month() as u128);
     assert_eq!(check_date_year, check_date.year() as u128);
 
-    // check that the commited hash in the proof matches the hash from the
+    // check that the committed hash in the proof matches the hash from the
     // commitment
-    let commited_hash_in_proof: Vec<u8> = proof
+    let committed_hash_in_proof: Vec<u8> = proof
         .chunks(32)
         .skip(3) // skip the first 3 chunks
         .take(32)
         .map(|chunk| *chunk.last().unwrap())
         .collect();
-    println!(
-        "Hash in proof: {}",
-        hex::encode(commited_hash_in_proof.clone())
-    );
     assert_eq!(
-        commited_hash_in_proof,
-        commited_hash.value.as_bytes().to_vec()
+        committed_hash_in_proof,
+        committed_hash.value.as_bytes().to_vec()
     );
+
+    if committed_hash_in_proof != committed_hash.value.as_bytes().to_vec() {
+        println!("❌ The hash in the proof does not match the committed hash in MPC-TLS");
+        println!(
+            "{} != {}",
+            hex::encode(committed_hash_in_proof.clone()),
+            hex::encode(committed_hash.value.as_bytes())
+        );
+    } else {
+        println!(
+            "✅ The hash in the proof matches the committed hash in MPC-TLS ({})",
+            hex::encode(committed_hash.value.as_bytes())
+        );
+    }
 
     let is_valid = verify_ultra_honk(msg.proof, msg.vk).expect("Verification failed");
 
@@ -152,6 +140,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         println!("✅ Age verification zk proof verified successfully");
     } else {
         println!("❌ Age verification proof failed to verify");
+        panic!("Age verification proof failed to verify");
     }
 
     transcript

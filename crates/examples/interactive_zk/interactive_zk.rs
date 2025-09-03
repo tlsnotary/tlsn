@@ -33,7 +33,9 @@ async fn main() {
     let verifier = verifier(verifier_socket, verifier_extra_socket);
     let (_, transcript) = tokio::join!(prover, verifier);
 
+    println!("---");
     println!("Successfully verified {}", &uri);
+    println!("Age verified in ZK: 18+ ✅\n");
     println!(
         "Verified sent data:\n{}",
         bytes_to_redacted_string(transcript.sent_unsafe())

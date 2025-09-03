@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 
-use super::types::Message;
+use crate::types::received_commitments;
+
+use super::types::ZKProofBundle;
 
 use chrono::{Datelike, Local};
 use http_body_util::Empty;
@@ -27,8 +29,8 @@ use tlsn::{
     prover::{ProveConfig, ProveConfigBuilder, Prover, ProverConfig, ProverOutput, TlsConfig},
     transcript::{
         hash::{PlaintextHash, PlaintextHashSecret},
-        Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitment,
-        TranscriptCommitmentKind, TranscriptSecret,
+        Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitmentKind,
+        TranscriptSecret,
     },
 };
 
@@ -122,10 +124,10 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let mut prover = prover_task.await.unwrap().unwrap();
 
     let transcript = prover.transcript().clone();
-    let mut builder = ProveConfig::builder(&transcript);
+    let mut prove_config_builder = ProveConfig::builder(&transcript);
 
     // Reveal the DNS name.
-    builder.server_identity();
+    prove_config_builder.server_identity();
 
     let sent: &[u8] = transcript.sent();
     let received: &[u8] = transcript.received();
@@ -133,49 +135,49 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let recv_len = received.len();
     println!("Sent length: {}, Received length: {}", sent_len, recv_len);
 
-    reveal_request(sent, &mut builder);
+    // Real request (except for authorization token)
+    reveal_request(sent, &mut prove_config_builder);
 
+    // Reveal commitment to birthday
     let mut transcript_commitment_builder = TranscriptCommitConfig::builder(&transcript);
     transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash {
         alg: HashAlgId::SHA256,
     });
-
-    reveal_received(received, &mut builder, &mut transcript_commitment_builder);
+    reveal_received(
+        received,
+        &mut prove_config_builder,
+        &mut transcript_commitment_builder,
+    );
 
     let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-    builder.transcript_commit(transcripts_commitment_config);
+    prove_config_builder.transcript_commit(transcripts_commitment_config);
 
-    let prove_config = builder.build().unwrap();
+    let prove_config = prove_config_builder.build().unwrap();
+
+    // MPC-TLS prove
     let prover_output = prover.prove(&prove_config).await.unwrap();
-
     prover.close().await.unwrap();
 
-    let received_commitment: &PlaintextHash = received_commitment(&prover_output);
-
-    let received_secret = received_secret(&prover_output);
-
+    // Prove birthdate is more than 18 years ago.
+    let received_commitments = received_commitments(&prover_output.transcript_commitments);
+    let received_commitment = &received_commitments[0]; // committed hash (of birth day string)
+    let received_secret = received_secret(&prover_output); // blinder
     let (dob, committed_hash, blinder) =
-        debug_check(received, received_commitment, received_secret);
+        prepare_zk_proof_input(received, received_commitment, received_secret);
 
-    // Prepare inputs for Noir circuit
-    let (vk, proof, check_date) =
-        generate_zk_proof_with_noir_rs(committed_hash, blinder, dob).unwrap();
+    let proof_bundle = generate_zk_proof(committed_hash, blinder, dob).unwrap();
 
-    let msg = Message {
-        vk,
-        proof,
-        check_date,
-    };
-    let encoded_msg = bincode::serialize(&msg).unwrap();
-
-    // Sent a string through the socket
-    verifier_extra_socket.write_all(&encoded_msg).await.unwrap();
+    // Sent zk proof bundle to verifier
+    verifier_extra_socket
+        .write_all(&bincode::serialize(&proof_bundle).unwrap())
+        .await
+        .unwrap();
     verifier_extra_socket.shutdown().await.unwrap();
 }
 
-// Reveal everything sent, except for the authorization token.
-fn reveal_request(sent: &[u8], builder: &mut ProveConfigBuilder<'_>) {
-    let reqs = Requests::new_from_slice(sent)
+// Reveal everything from the request, except for the authorization token.
+fn reveal_request(request: &[u8], builder: &mut ProveConfigBuilder<'_>) {
+    let reqs = Requests::new_from_slice(request)
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     assert_eq!(reqs[0].request.method.as_str(), "GET");
@@ -190,7 +192,7 @@ fn reveal_request(sent: &[u8], builder: &mut ProveConfigBuilder<'_>) {
     let end_pos =
         start_pos + authorization_header.span().len() - header::AUTHORIZATION.as_str().len() - 2;
     builder.reveal_sent(&(0..start_pos)).unwrap();
-    builder.reveal_sent(&(end_pos..sent.len())).unwrap();
+    builder.reveal_sent(&(end_pos..request.len())).unwrap();
 }
 
 fn reveal_received(
@@ -213,7 +215,7 @@ fn reveal_received(
 
         // commit to hash of date of birth
         let dob = json.get("taxpayer.date_of_birth").unwrap();
-        println!("DOB: {:?}", dob);
+        // println!("DOB: {:?}", dob);
 
         transcript_commitment_builder
             .commit_recv(dob.span())
@@ -221,28 +223,7 @@ fn reveal_received(
     }
 }
 
-fn received_commitment(prover_output: &ProverOutput) -> &PlaintextHash {
-    prover_output
-        .transcript_commitments
-        .iter()
-        .filter(|commitment| {
-            if let TranscriptCommitment::Hash(hash) = commitment {
-                hash.direction == Direction::Received
-            } else {
-                false
-            }
-        })
-        .map(|commitment| {
-            if let TranscriptCommitment::Hash(hash) = commitment {
-                hash
-            } else {
-                unreachable!()
-            }
-        })
-        .next()
-        .expect("missing received hash commitment")
-}
-
+// extract secret from prover output
 fn received_secret(prover_output: &ProverOutput) -> &PlaintextHashSecret {
     prover_output
         .transcript_secrets
@@ -265,58 +246,47 @@ fn received_secret(prover_output: &ProverOutput) -> &PlaintextHashSecret {
         .expect("missing received hash commitment")
 }
 
-// Verify that the blinded, commited hash is correct
-fn debug_check<'a>(
+// Verify that the blinded, committed hash is correct
+fn prepare_zk_proof_input<'a>(
     received: &'a [u8],
     received_commitment: &'a PlaintextHash,
     received_secret: &'a PlaintextHashSecret,
 ) -> (&'a [u8], &'a [u8], &'a [u8]) {
-    assert!(received_commitment.direction == Direction::Received);
-    assert!(received_commitment.hash.alg == HashAlgId::SHA256);
+    assert_eq!(received_commitment.direction, Direction::Received);
+    assert_eq!(received_commitment.hash.alg, HashAlgId::SHA256);
     let hash = &received_commitment.hash;
-    println!(
-        "Hash of received data: {}",
-        hex::encode(hash.value.as_bytes())
-    );
+    // println!(
+    //     "Hash of received data (Prover): {}",
+    //     hex::encode(hash.value.as_bytes())
+    // );
 
     let dob = &received[received_commitment.idx.start()..received_commitment.idx.end()];
     let blinder = received_secret.blinder.as_bytes();
-    let committed_hash = received_commitment.hash.value.as_bytes();
+    let committed_hash = hash.value.as_bytes();
 
-    assert!(received_secret.direction == Direction::Received);
-    // dbg!(&received_commitment.idx);
-    assert!(received_secret.alg == HashAlgId::SHA256);
-    println!(
-        "Blinder of received data: {}",
-        hex::encode(received_secret.blinder.as_bytes())
-    );
+    assert_eq!(received_secret.direction, Direction::Received);
+    assert_eq!(received_secret.alg, HashAlgId::SHA256);
+    // println!(
+    //     "Blinder of received data (Prover): {}",
+    //     hex::encode(received_secret.blinder.as_bytes())
+    // );
 
     let mut hasher = Sha256::new();
     hasher.update(dob);
     hasher.update(blinder);
     let computed_hash = hasher.finalize();
 
-    // // Compare with the committed hash
-
-    if computed_hash.as_slice() == committed_hash {
-        println!("✅ Hash verification successful!");
-        println!("Computed: {}", hex::encode(computed_hash));
-        println!("Committed: {}", hex::encode(committed_hash));
-    } else {
-        println!("❌ Hash verification failed!");
-        println!("Computed: {}", hex::encode(computed_hash));
-        println!("Committed: {}", hex::encode(committed_hash));
-    }
+    assert_eq!(committed_hash, computed_hash.as_slice());
 
     (dob, committed_hash, blinder)
 }
 
-fn generate_zk_proof_with_noir_rs(
+fn generate_zk_proof(
     committed_hash: &[u8],
     blinder: &[u8],
     dob: &[u8],
-) -> Result<(Vec<u8>, Vec<u8>, String), Box<dyn std::error::Error>> {
-    println!("Generating ZK proof with noir_rs...");
+) -> Result<ZKProofBundle, Box<dyn std::error::Error>> {
+    println!("Generating ZK proof with Noir...");
 
     const PROGRAM_JSON: &str = include_str!("./noir/target/noir.json");
 
@@ -337,7 +307,7 @@ fn generate_zk_proof_with_noir_rs(
     inputs.extend(dob.iter().map(|b| b.to_string()));
     inputs.extend(blinder.iter().map(|b| b.to_string()));
 
-    println!("🔢 Inputs: {:?}", inputs);
+    // println!("🔢 Inputs: {:?}", inputs);
 
     let input_refs: Vec<&str> = inputs.iter().map(String::as_str).collect();
     let witness = from_vec_str_to_witness_map(input_refs).unwrap();
@@ -351,10 +321,11 @@ fn generate_zk_proof_with_noir_rs(
     // 6. Generate proof
     let proof = prove_ultra_honk(bytecode, witness.clone(), vk.clone(), false).unwrap();
     println!("✅ Proof generated ({} bytes)", proof.len());
-
-    Ok((
-        vk.clone(),
-        proof.clone(),
-        check_date.format("%Y-%m-%d").to_string(),
-    ))
+    let check_date = check_date.format("%Y-%m-%d").to_string();
+    let proof_bundle = ZKProofBundle {
+        vk,
+        proof,
+        check_date,
+    };
+    Ok(proof_bundle)
 }
