@@ -2,16 +2,14 @@ use std::net::SocketAddr;
 
 use super::types::Message;
 
-use chrono::Datelike;
-use chrono::Local;
+use chrono::{Datelike, Local};
 use http_body_util::Empty;
 use hyper::{body::Bytes, header, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
 use k256::sha2::{Digest, Sha256};
-use noir::barretenberg::srs::setup_srs_from_bytecode;
 use noir::{
     barretenberg::{
-        prove::prove_ultra_honk,
+        prove::prove_ultra_honk, srs::setup_srs_from_bytecode,
         verify::get_ultra_honk_verification_key,
     },
     witness::from_vec_str_to_witness_map,
@@ -26,10 +24,7 @@ use tlsn::{
     config::{CertificateDer, ProtocolConfig, RootCertStore},
     connection::ServerName,
     hash::HashAlgId,
-    prover::{
-        ProveConfig, ProveConfigBuilder, Prover, ProverConfig, ProverOutput,
-        TlsConfig,
-    },
+    prover::{ProveConfig, ProveConfigBuilder, Prover, ProverConfig, ProverOutput, TlsConfig},
     transcript::{
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitment,

@@ -12,8 +12,7 @@ use tlsn::{
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
-use tokio::io::AsyncReadExt;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
 #[instrument(skip(socket, extra_socket))]
@@ -130,7 +129,8 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     assert_eq!(check_date_month, check_date.month() as u128);
     assert_eq!(check_date_year, check_date.year() as u128);
 
-    // check that the commited hash in the proof matches the hash from the commitment
+    // check that the commited hash in the proof matches the hash from the
+    // commitment
     let commited_hash_in_proof: Vec<u8> = proof
         .chunks(32)
         .skip(3) // skip the first 3 chunks
