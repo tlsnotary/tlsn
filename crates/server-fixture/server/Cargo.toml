@@ -8,13 +8,13 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 axum = { workspace = true }
 anyhow = { workspace = true }
 futures = { workspace = true }
 futures-rustls = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat", "io"] }
 tower-service = { version = "0.3" }
 serde_json = { workspace = true }
