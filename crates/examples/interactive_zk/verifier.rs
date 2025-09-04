@@ -132,33 +132,21 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .into());
     }
 
-    let check_date_day = u128::from_be_bytes(proof[16..32].try_into()?);
-    let check_date_month = u128::from_be_bytes(proof[48..64].try_into()?);
-    let check_date_year = u128::from_be_bytes(proof[80..96].try_into()?);
+    let date_fields = [
+        ("day", 16..32, check_date.day() as u128),
+        ("month", 48..64, check_date.month() as u128),
+        ("year", 80..96, check_date.year() as u128),
+    ];
 
-    if check_date_day != check_date.day() as u128 {
-        return Err(format!(
-            "Date day mismatch in proof: expected {}, got {} from prover",
-            check_date.day(),
-            check_date_day
-        )
-        .into());
-    }
-    if check_date_month != check_date.month() as u128 {
-        return Err(format!(
-            "Date month mismatch in proof: expected {}, got {} from prover",
-            check_date.month(),
-            check_date_month
-        )
-        .into());
-    }
-    if check_date_year != check_date.year() as u128 {
-        return Err(format!(
-            "Date year mismatch in proof: expected {}, got {} prover",
-            check_date.year(),
-            check_date_year
-        )
-        .into());
+    for (field_name, range, expected) in date_fields {
+        let value = u128::from_be_bytes(proof[range].try_into()?);
+        if value != expected {
+            return Err(format!(
+                "Date {} mismatch in proof: expected {}, got {} from prover",
+                field_name, expected, value
+            )
+            .into());
+        }
     }
 
     // Check that the committed hash in the proof matches the hash from the
