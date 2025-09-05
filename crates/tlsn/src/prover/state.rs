@@ -9,7 +9,7 @@ use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
 use crate::{
-    commit::transcript::TranscriptRefs,
+    commit::TranscriptRefs,
     mux::{MuxControl, MuxFuture},
     prover::{Mpc, Zk},
     zk_aes_ctr::ZkAesCtr,
@@ -42,6 +42,9 @@ pub struct Committed {
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript: Transcript,
     pub(crate) transcript_refs: TranscriptRefs,
+    pub(crate) zk_aes_ctr_sent: ZkAesCtr,
+    pub(crate) zk_aes_ctr_recv: ZkAesCtr,
+    pub(crate) keys: SessionKeys,
 }
 
 opaque_debug::implement!(Committed);

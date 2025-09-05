@@ -12,7 +12,7 @@ const BIT_ENCODING_SIZE: usize = 16;
 const BYTE_ENCODING_SIZE: usize = 128;
 
 /// Secret used by an encoder to generate encodings.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncoderSecret {
     seed: [u8; 32],
     delta: [u8; BIT_ENCODING_SIZE],

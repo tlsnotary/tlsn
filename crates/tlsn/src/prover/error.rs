@@ -1,8 +1,6 @@
-use std::{error::Error, fmt};
-
+use crate::{commit::CommitError, zk_aes_ctr::ZkAesCtrError};
 use mpc_tls::MpcTlsError;
-
-use crate::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
+use std::{error::Error, fmt};
 
 /// Error for [`Prover`](crate::Prover).
 #[derive(Debug, thiserror::Error)]
@@ -41,13 +39,6 @@ impl ProverError {
         E: Into<Box<dyn Error + Send + Sync + 'static>>,
     {
         Self::new(ErrorKind::Zk, source)
-    }
-
-    pub(crate) fn commit<E>(source: E) -> Self
-    where
-        E: Into<Box<dyn Error + Send + Sync + 'static>>,
-    {
-        Self::new(ErrorKind::Commit, source)
     }
 }
 
@@ -116,8 +107,8 @@ impl From<ZkAesCtrError> for ProverError {
     }
 }
 
-impl From<EncodingError> for ProverError {
-    fn from(e: EncodingError) -> Self {
+impl From<CommitError> for ProverError {
+    fn from(e: CommitError) -> Self {
         Self::new(ErrorKind::Commit, e)
     }
 }

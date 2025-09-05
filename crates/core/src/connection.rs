@@ -1,12 +1,13 @@
 //! TLS connection types.
 
-use std::fmt;
-
+use crate::{
+    transcript::TlsTranscript,
+    webpki::{CertificateDer, ServerCertVerifier, ServerCertVerifierError},
+};
 use rustls_pki_types as webpki_types;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use tls_core::msgs::{codec::Codec, enums::NamedGroup, handshake::ServerECDHParams};
-
-use crate::webpki::{CertificateDer, ServerCertVerifier, ServerCertVerifierError};
 
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -312,6 +313,25 @@ pub struct HandshakeData {
 }
 
 impl HandshakeData {
+    /// Creates a new instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `transcript` - The TLS transcript.
+    pub fn new(transcript: &TlsTranscript) -> Self {
+        Self {
+            certs: transcript
+                .server_cert_chain()
+                .expect("server cert chain is present")
+                .to_vec(),
+            sig: transcript
+                .server_signature()
+                .expect("server signature is present")
+                .clone(),
+            binding: transcript.certificate_binding().clone(),
+        }
+    }
+
     /// Verifies the handshake data.
     ///
     /// # Arguments

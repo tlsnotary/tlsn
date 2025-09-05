@@ -344,8 +344,8 @@ mod tests {
         start_ctr: usize,
         msg: Vec<u8>,
     ) -> Vec<u8> {
-        use ::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
         use aes::Aes128;
+        use cipher_crypto::{KeyIvInit, StreamCipher, StreamCipherSeek};
         use ctr::Ctr32BE;
 
         let mut full_iv = [0u8; 16];
@@ -365,7 +365,7 @@ mod tests {
 
     fn aes128(key: [u8; 16], msg: [u8; 16]) -> [u8; 16] {
         use ::aes::Aes128 as TestAes128;
-        use ::cipher::{BlockEncrypt, KeyInit};
+        use cipher_crypto::{BlockEncrypt, KeyInit};
 
         let mut msg = msg.into();
         let cipher = TestAes128::new(&key.into());

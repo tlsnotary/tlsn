@@ -174,7 +174,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let config = builder.build().unwrap();
 
-    prover.prove(&config).await.unwrap();
+    prover.prove(config).await.unwrap();
     prover.close().await.unwrap();
 }
 

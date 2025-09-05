@@ -3,14 +3,14 @@
 use std::sync::Arc;
 
 use crate::{
-    commit::transcript::TranscriptRefs,
+    commit::TranscriptRefs,
     mux::{MuxControl, MuxFuture},
     zk_aes_ctr::ZkAesCtr,
 };
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_memory_core::correlated::Delta;
-use tlsn_core::transcript::TlsTranscript;
+use tlsn_core::{connection::ServerName, transcript::TlsTranscript};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
@@ -45,6 +45,10 @@ pub struct Committed {
     pub(crate) vm: Zk,
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript_refs: TranscriptRefs,
+    pub(crate) zk_aes_ctr_sent: ZkAesCtr,
+    pub(crate) zk_aes_ctr_recv: ZkAesCtr,
+    pub(crate) keys: SessionKeys,
+    pub(crate) verified_server_name: Option<ServerName>,
 }
 
 opaque_debug::implement!(Committed);

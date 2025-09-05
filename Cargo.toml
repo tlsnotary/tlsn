@@ -100,7 +100,7 @@ bytes = { version = "1.4" }
 cfg-if = { version = "1" }
 chromiumoxide = { version = "0.7" }
 chrono = { version = "0.4" }
-cipher = { version = "0.4" }
+cipher-crypto = { package = "cipher", version = "0.4" }
 clap = { version = "4.5" }
 criterion = { version = "0.5" }
 ctr = { version = "0.9" }
