@@ -31,13 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect prover and verifier.
     let (prover_socket, verifier_socket) = tokio::io::duplex(1 << 23);
     let (prover_extra_socket, verifier_extra_socket) = tokio::io::duplex(1 << 23);
-    let prover = prover(prover_socket, prover_extra_socket, &server_addr, &uri);
-    let verifier = verifier(verifier_socket, verifier_extra_socket);
-
-    let (prover_result, verifier_result) = tokio::join!(prover, verifier);
-
-    prover_result?;
-    let transcript = verifier_result?;
+       let (_, transcript) = tokio::try_join!(
+        prover(prover_socket, prover_extra_socket, &server_addr, &uri),
+        verifier(verifier_socket, verifier_extra_socket)
+    )?;
 
     println!("---");
     println!("Successfully verified {}", &uri);
