@@ -1,71 +1,81 @@
+# Attestation Example
 
-## Simple Attestation Example: Notarize Data (Rust) <a name="rust-simple"></a>
 
-This example demonstrates the simplest possible use case for TLSNotary. A Prover notarizes data from a local test server with a local Notary.
+This example demonstrates a **TLSNotary attestation workflow**: notarizing data from a server with a trusted third party (Notary), then creating verifiable presentations with selective disclosure of sensitive information to a Verifier.
 
-**Overview**:
-1. Notarize a request and response from the test server and acquire an attestation of its content.
-2. Create a redacted, verifiable presentation using the attestation.
-3. Verify the presentation.
+## 🔍 How It Works
 
-### 1. Notarize
+```mermaid
+sequenceDiagram
+    participant P as Prover
+    participant N as MPC-TLS<br/>Verifier
+    participant S as Server<br/>Fixture
+    participant V as Attestation<br/>Verifier
 
-Before starting the notarization, set up the local test server.
-Run the following commands from the root of this repository (not from this example's folder):
+    Note over P,S: 1. Notarization Phase
+    P->>N: Establish MPC-TLS connection
+    P->>S: Request (MPC-TLS)
+    S->>P: Response (MPC-TLS)
+    N->>P: Issue signed attestation
 
-1. Run the test server:
-    ```shell
-    RUST_LOG=info PORT=4000 cargo run --bin tlsn-server-fixture
-    ```
-2. Run the prove example (which also set up the local Notary):
-    ```shell
-    SERVER_PORT=4000 cargo run --release --example attestation_prove
-    ```
+    Note over P: 2. Presentation Phase
+    P->>P: Create redacted presentation
 
-To see more details, run with additional debug information:
-```shell
-RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release --example attestation_prove
+    Note over P,V: 3. Verification Phase
+    P->>V: Share presentation
+    V->>V: Verify attestation signature
 ```
 
-If notarization is successful, you should see the following output in the console:
-```log
-Starting an MPC TLS connection with the server
-Got a response from the server: 200 OK
+### The Three-Step Process
+
+1. **🔐 Notarize**: Prover collaborates with Notary to create an authenticated TLS session and obtain a signed attestation
+2. **✂️ Present**: Prover creates a selective presentation, choosing which data to reveal or redact
+3. **✅ Verify**: Anyone can verify the presentation's authenticity using the Notary's public key
+
+## 🚀 Quick Start
+
+### Step 1: Notarize Data
+
+**Start the test server** (from repository root):
+```bash
+RUST_LOG=info PORT=4000 cargo run --bin tlsn-server-fixture
+```
+
+**Run the notarization** (in a new terminal):
+```bash
+RUST_LOG=info SERVER_PORT=4000 cargo run --release --example attestation_prove
+```
+
+**Expected output:**
+```
 Notarization completed successfully!
 The attestation has been written to `example-json.attestation.tlsn` and the corresponding secrets to `example-json.secrets.tlsn`.
 ```
 
-⚠️ Note: In this example, we run a local Notary for demonstration purposes. In real-world applications, the Notary should be operated by a trusted third party.
+### Step 2: Create Verifiable Presentation
 
-### 2. Build a Verifiable Presentation
-
-This step creates a verifiable presentation with optional redactions, which can be shared with any verifier.
-
-Run the present example:
-```shell
+**Generate a redacted presentation:**
+```bash
 cargo run --release --example attestation_present
 ```
 
-If successful, you’ll see this output in the console:
-
-```log
+**Expected output:**
+```
 Presentation built successfully!
 The presentation has been written to `example-json.presentation.tlsn`.
 ```
 
-You can create multiple presentations from the attestation and secrets in the notarization step, each with customized data redactions. You are invited to experiment!
+> 💡 **Tip**: You can create multiple presentations from the same attestation, each with different redactions!
 
-### 3. Verify the Presentation
+### Step 3: Verify the Presentation
 
-This step reads the presentation created above, verifies it, and prints the disclosed data to the console.
-
-Run the verify binary:
-```shell
+**Verify the presentation:**
+```bash
 cargo run --release --example attestation_verify
 ```
 
-Upon success, you should see output similar to:
-```log
+**Expected output:**
+```
 Verifying presentation with {key algorithm} key: { hex encoded key }
 
 **Ask yourself, do you trust this key?**
@@ -75,33 +85,88 @@ Successfully verified that the data below came from a session with test-server.i
 Note that the data which the Prover chose not to disclose are shown as X.
 
 Data sent:
-...
+
+GET /formats/json HTTP/1.1
+host: test-server.io
+accept: */*
+accept-encoding: identity
+connection: close
+user-agent: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+Data received:
+
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 722
+connection: close
+date: Mon, 08 Sep 2025 09:18:29 GMT
+
+XXXXXX1234567890XXXXXXXXXXXXXXXXXXXXXXXXJohn DoeXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1.2XX
 ```
 
-⚠️ The presentation includes a “verifying key,” which the Notary used when issuing the attestation. If you trust this key, you can trust the authenticity of the presented data.
+## 🎯 Use Cases & Examples
 
-### HTML
+### JSON Data (Default)
+Perfect for API responses, configuration data, or structured information:
+```bash
+# All three steps use JSON by default
+SERVER_PORT=4000 cargo run --release --example attestation_prove
+cargo run --release --example attestation_present
+cargo run --release --example attestation_verify
+```
 
-In the example above, we notarized a JSON response. TLSNotary also supports notarizing HTML content. To run an HTML example, use:
-
-```shell
-# notarize
+### HTML Content
+Ideal for web pages, forms, or any HTML-based data:
+```bash
+# Notarize HTML content
 SERVER_PORT=4000 cargo run --release --example attestation_prove -- html
-# present
 cargo run --release --example attestation_present -- html
-# verify
 cargo run --release --example attestation_verify -- html
 ```
 
-### Private Data
-
-The examples above demonstrate how to use TLSNotary with publicly accessible data. TLSNotary can also be utilized for private data that requires authentication. To access this data, you can add the necessary headers (such as an authentication token) or cookies to your request. To run an example that uses an authentication token, execute the following command:
-
-```shell
-# notarize
+### Authenticated/Private Data
+For APIs requiring authentication tokens, cookies, or private access:
+```bash
+# Notarize private data with authentication
 SERVER_PORT=4000 cargo run --release --example attestation_prove -- authenticated
-# present
 cargo run --release --example attestation_present -- authenticated
-# verify
 cargo run --release --example attestation_verify -- authenticated
 ```
+
+### Debug Mode
+
+For detailed logging and troubleshooting:
+```bash
+RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release --example attestation_prove
+```
+
+### Generated Files
+
+After running the examples, you'll find:
+- **`*.attestation.tlsn`**: The cryptographically signed attestation from the Notary
+- **`*.secrets.tlsn`**: Cryptographic secrets needed to create presentations
+- **`*.presentation.tlsn`**: The verifiable presentation with your chosen redactions
+
+## 🔐 Security Considerations
+
+### Trust Model
+- ✅ **Notary Key**: The presentation includes the Notary's verifying key - The verifier must trust this key
+- ✅ **Data Authenticity**: Cryptographically guaranteed that data came from the specified server
+- ✅ **Tamper Evidence**: Any modification to the presentation will fail verification
+- ⚠️ **Notary Trust**: The verifier must trust the Notary not to collude with the Prover
+
+### Production Deployment
+- 🏭 **Independent Notary**: Use a trusted third-party Notary service (not a local one)
+- 🔒 **Key Management**: Implement proper Notary key distribution and verification
+- 📋 **Audit Trail**: Maintain logs of notarization and verification events
+- 🔄 **Key Rotation**: Plan for Notary key updates and migration
+
+## 📚 Learn More
+
+- [TLSNotary Documentation](https://docs.tlsnotary.org/)
+- [Attestation Format Specification](https://docs.tlsnotary.org/protocol/attestations.html)
+- [Presentation Creation Guide](https://docs.tlsnotary.org/quick_start/prover.html#presentng-data)
+- [Verification Best Practices](https://docs.tlsnotary.org/quick_start/verifier.html)
+
+---
+> ⚠️ **Demo Notice**: This example uses a local test server and local Notary for demonstration. In production, use trusted third-party Notary services and real server endpoints.

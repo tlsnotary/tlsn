@@ -14,7 +14,7 @@ use tokio::{
     sync::oneshot::{self, Receiver, Sender},
 };
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
-use tracing::debug;
+use tracing::info;
 
 use tlsn::{
     attestation::{
@@ -165,12 +165,12 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     }
     let request = request_builder.body(Empty::<Bytes>::new())?;
 
-    debug!("Starting an MPC TLS connection with the server");
+    info!("Starting an MPC TLS connection with the server");
 
     // Send the request to the server and wait for the response.
     let response = request_sender.send_request(request).await?;
 
-    debug!("Got a response from the server: {}", response.status());
+    info!("Got a response from the server: {}", response.status());
 
     assert!(response.status() == StatusCode::OK);
 
@@ -186,10 +186,10 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     match body_content {
         tlsn_formats::http::BodyContent::Json(_json) => {
             let parsed = serde_json::from_str::<serde_json::Value>(&body)?;
-            debug!("{}", serde_json::to_string_pretty(&parsed)?);
+            info!("{}", serde_json::to_string_pretty(&parsed)?);
         }
         tlsn_formats::http::BodyContent::Unknown(_span) => {
-            debug!("{}", &body);
+            info!("{}", &body);
         }
         _ => {}
     }
@@ -228,8 +228,8 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // Write the secrets to disk.
     tokio::fs::write(&secrets_path, bincode::serialize(&secrets)?).await?;
 
-    debug!("Notarization completed successfully!");
-    debug!(
+    println!("Notarization completed successfully!");
+    println!(
         "The attestation has been written to `{attestation_path}` and the \
         corresponding secrets to `{secrets_path}`."
     );
