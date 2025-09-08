@@ -277,7 +277,7 @@ fn received_secret(
 #[derive(Debug)]
 pub struct ZKProofInput<'a> {
     dob: &'a [u8],
-    check_date: NaiveDate,
+    proof_date: NaiveDate,
     blinder: &'a [u8],
     committed_hash: &'a [u8],
 }
@@ -296,7 +296,7 @@ fn prepare_zk_proof_input<'a>(
     let dob = &received[received_commitment.idx.start()..received_commitment.idx.end()];
     let blinder = received_secret.blinder.as_bytes();
     let committed_hash = hash.value.as_bytes();
-    let check_date = Local::now().date_naive();
+    let proof_date = Local::now().date_naive();
 
     assert_eq!(received_secret.direction, Direction::Received);
     assert_eq!(received_secret.alg, HashAlgId::SHA256);
@@ -312,7 +312,7 @@ fn prepare_zk_proof_input<'a>(
 
     Ok(ZKProofInput {
         dob,
-        check_date,
+        proof_date,
         committed_hash,
         blinder,
     })
@@ -332,17 +332,17 @@ fn generate_zk_proof(
         .ok_or("bytecode field not found in program.json")?;
 
     let mut inputs: Vec<String> = vec![];
-    inputs.push(proof_input.check_date.day().to_string());
-    inputs.push(proof_input.check_date.month().to_string());
-    inputs.push(proof_input.check_date.year().to_string());
+    inputs.push(proof_input.proof_date.day().to_string());
+    inputs.push(proof_input.proof_date.month().to_string());
+    inputs.push(proof_input.proof_date.year().to_string());
     inputs.extend(proof_input.committed_hash.iter().map(|b| b.to_string()));
     inputs.extend(proof_input.dob.iter().map(|b| b.to_string()));
     inputs.extend(proof_input.blinder.iter().map(|b| b.to_string()));
 
-    let check_date = proof_input.check_date.to_string();
+    let proof_date = proof_input.proof_date.to_string();
     tracing::info!(
-        "Public inputs : Check date ({}) and committed hash ({})",
-        check_date,
+        "Public inputs : Proof date ({}) and committed hash ({})",
+        proof_date,
         hex::encode(proof_input.committed_hash)
     );
     tracing::info!(

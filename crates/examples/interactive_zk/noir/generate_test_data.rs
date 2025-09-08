@@ -20,10 +20,10 @@ fn main() {
     // 1. Birthdate string (fixed)
     let dob_str = "1985-03-12"; // 10 bytes long
 
-    let check_date = Local::now().date_naive();
-    let check_year = check_date.year();
-    let check_month = check_date.month();
-    let check_day = check_date.day();
+    let proof_date = Local::now().date_naive();
+    let proof_year = proof_date.year();
+    let proof_month = proof_date.month();
+    let proof_day = proof_date.day();
 
     // 2. Generate random 16-byte blinder
     let mut blinder = [0u8; 16];
@@ -55,10 +55,10 @@ let date_of_birth = \"{dob_str}\";
 let blinder = [{blinder}];
 
 // Public input
-let check_date = date::Date {{ year: {check_year}, month: {check_month}, day: {check_day} }};
+let proof_date = date::Date {{ year: {proof_year}, month: {proof_month}, day: {proof_day} }};
 let committed_hash = [{committed_hash}];
 
-main(check_date, committed_hash, date_of_birth, blinder);
+main(proof_date, committed_hash, date_of_birth, blinder);
 "
     );
 }

@@ -2,13 +2,13 @@ use dep::date::Date;
 
 fn main(
     // Public inputs
-    check_date: pub date::Date, // "2025-08-29"
+    proof_date: pub date::Date, // "2025-08-29"
     committed_hash: pub [u8; 32], // Hash of (blinder || dob string)
     // Private inputs
     date_of_birth: str<10>, // "1985-03-12"
     blinder: [u8; 16], // Random 16-byte blinder
 ) {
-    let is_18 = check_18(date_of_birth, check_date);
+    let is_18 = check_18(date_of_birth, proof_date);
 
     let correct_hash = check_hash(date_of_birth, blinder, committed_hash);
 
@@ -16,9 +16,9 @@ fn main(
     assert(is_18);
 }
 
-fn check_18(date_of_birth: str<10>, check_date: date::Date) -> bool {
+fn check_18(date_of_birth: str<10>, proof_date: date::Date) -> bool {
     let dob = parse_birth_date(date_of_birth);
-    let is_18 = dob.add_years(18).lt(check_date);
+    let is_18 = dob.add_years(18).lt(proof_date);
     println(f"Is 18? {is_18}");
     is_18
 }
@@ -56,13 +56,13 @@ fn test_max_is_over_18() {
     let blinder = [120, 80, 62, 10, 76, 60, 130, 98, 147, 161, 139, 126, 27, 236, 36, 56];
 
     // Public input
-    let check_date = date::Date { year: 2025, month: 9, day: 2 };
+    let proof_date = date::Date { year: 2025, month: 9, day: 2 };
     let committed_hash = [
         229, 118, 202, 216, 213, 230, 125, 163, 48, 178, 118, 225, 84, 7, 140, 63, 173, 255, 163,
         208, 163, 3, 63, 204, 37, 120, 254, 246, 202, 116, 122, 145,
     ];
 
-    main(check_date, committed_hash, date_of_birth, blinder);
+    main(proof_date, committed_hash, date_of_birth, blinder);
 }
 
 #[test(should_fail)]
@@ -72,11 +72,11 @@ fn test_under_18() {
     let blinder = [160, 23, 57, 158, 141, 195, 155, 132, 109, 242, 48, 220, 70, 217, 229, 189];
 
     // Public input
-    let check_date = date::Date { year: 2025, month: 8, day: 29 };
+    let proof_date = date::Date { year: 2025, month: 8, day: 29 };
     let committed_hash = [
         16, 132, 194, 62, 232, 90, 157, 153, 4, 231, 1, 54, 226, 3, 87, 174, 129, 177, 80, 69, 37,
         222, 209, 91, 168, 156, 9, 109, 108, 144, 168, 109,
     ];
 
-    main(check_date, committed_hash, date_of_birth, blinder);
+    main(proof_date, committed_hash, date_of_birth, blinder);
 }

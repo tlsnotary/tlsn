@@ -1,7 +1,7 @@
 use crate::types::received_commitments;
 
 use super::types::ZKProofBundle;
-use chrono::Local;
+use chrono::{Local, NaiveDate};
 use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_honk};
 use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
@@ -132,21 +132,18 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .into());
     }
 
-    // Check that the check date is correctly included in the proof
-    let check_date_day: u128 = u128::from_be_bytes(proof[16..32].try_into()?);
-    let check_date_month: u128 = u128::from_be_bytes(proof[48..64].try_into()?);
-    let check_date_year: u128 = u128::from_be_bytes(proof[80..96].try_into()?);
-    let check_date_from_proof = chrono::NaiveDate::from_ymd_opt(
-        check_date_year as i32,
-        check_date_month as u32,
-        check_date_day as u32,
-    )
-    .ok_or("Invalid check date in proof")?;
-    if (Local::now().date_naive() - check_date_from_proof).num_days() < 0 {
+    // Check that the proof date is correctly included in the proof
+    let proof_date_day: u32 = u32::from_be_bytes(proof[28..32].try_into()?);
+    let proof_date_month: u32 = u32::from_be_bytes(proof[60..64].try_into()?);
+    let proof_date_year: i32 = i32::from_be_bytes(proof[92..96].try_into()?);
+    let proof_date_from_proof =
+        NaiveDate::from_ymd_opt(proof_date_year, proof_date_month, proof_date_day)
+            .ok_or("Invalid proof date in proof")?;
+    let today = Local::now().date_naive();
+    if (today - proof_date_from_proof).num_days() < 0 {
         return Err(format!(
-            "Check date can only be today or in the past: provided {}, today {}",
-            check_date_from_proof,
-            Local::now().date_naive()
+            "The proof date can only be today or in the past: provided {}, today {}",
+            proof_date_from_proof, today
         )
         .into());
     }
@@ -159,7 +156,6 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .take(32)
         .map(|chunk| *chunk.last().unwrap_or(&0))
         .collect();
-
     let expected_hash = committed_hash.value.as_bytes().to_vec();
     if committed_hash_in_proof != expected_hash {
         tracing::error!(
@@ -169,20 +165,19 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         );
         return Err("Hash in proof does not match committed hash in MPC-TLS".into());
     }
-
     tracing::info!(
         "✅ The hash in the proof matches the committed hash in MPC-TLS ({})",
         hex::encode(&expected_hash)
     );
 
+    // Finally verify the proof
     let is_valid = verify_ultra_honk(msg.proof, msg.vk)
         .map_err(|e| format!("ZKProof Verification failed: {}", e))?;
-
     if !is_valid {
         tracing::error!("❌ Age verification ZKProof failed to verify");
         return Err("Age verification ZKProof failed to verify".into());
     }
-
     tracing::info!("✅ Age verification ZKProof successfully verified");
+
     Ok(transcript)
 }
