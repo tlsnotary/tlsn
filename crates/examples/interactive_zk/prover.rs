@@ -1,9 +1,10 @@
 use std::net::SocketAddr;
 
-use crate::types::{received_commitments, CheckDate};
+use crate::types::received_commitments;
 
 use super::types::ZKProofBundle;
 
+use chrono::{Datelike, Local, NaiveDate};
 use http_body_util::Empty;
 use hyper::{body::Bytes, header, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
@@ -219,34 +220,34 @@ fn reveal_received(
     let response = resp.first().ok_or("No responses found")?;
     let body = response.body.as_ref().ok_or("Response body not found")?;
 
-    if let BodyContent::Json(json) = &body.content {
-        // reveal tax year
-        let tax_year = json
-            .get("tax_year")
-            .ok_or("tax_year field not found in JSON")?;
-        let start_pos = tax_year
-            .span()
-            .indices()
-            .min()
-            .ok_or("Could not find tax_year start position")?
-            - 11;
-        let end_pos = tax_year
-            .span()
-            .indices()
-            .max()
-            .ok_or("Could not find tax_year end position")?
-            + 1;
-        builder.reveal_recv(&(start_pos..end_pos))?;
-
-        // commit to hash of date of birth
-        let dob = json
-            .get("taxpayer.date_of_birth")
-            .ok_or("taxpayer.date_of_birth field not found in JSON")?;
-
-        transcript_commitment_builder.commit_recv(dob.span())?;
-    } else {
+    let BodyContent::Json(json) = &body.content else {
         return Err("Expected JSON body content".into());
-    }
+    };
+
+    // reveal tax year
+    let tax_year = json
+        .get("tax_year")
+        .ok_or("tax_year field not found in JSON")?;
+    let start_pos = tax_year
+        .span()
+        .indices()
+        .min()
+        .ok_or("Could not find tax_year start position")?
+        - 11;
+    let end_pos = tax_year
+        .span()
+        .indices()
+        .max()
+        .ok_or("Could not find tax_year end position")?
+        + 1;
+    builder.reveal_recv(&(start_pos..end_pos))?;
+
+    // commit to hash of date of birth
+    let dob = json
+        .get("taxpayer.date_of_birth")
+        .ok_or("taxpayer.date_of_birth field not found in JSON")?;
+
+    transcript_commitment_builder.commit_recv(dob.span())?;
 
     Ok(())
 }
@@ -258,18 +259,15 @@ fn received_secret(
     prover_output
         .transcript_secrets
         .iter()
-        .filter(|secret| {
+        .filter_map(|secret| {
             if let TranscriptSecret::Hash(hash) = secret {
-                hash.direction == Direction::Received
+                if hash.direction == Direction::Received {
+                    Some(hash)
+                } else {
+                    None
+                }
             } else {
-                false
-            }
-        })
-        .map(|secret| {
-            if let TranscriptSecret::Hash(hash) = secret {
-                hash
-            } else {
-                unreachable!()
+                None
             }
         })
         .next()
@@ -279,7 +277,7 @@ fn received_secret(
 #[derive(Debug)]
 pub struct ZKProofInput<'a> {
     dob: &'a [u8],
-    check_date: CheckDate,
+    check_date: NaiveDate,
     blinder: &'a [u8],
     committed_hash: &'a [u8],
 }
@@ -298,7 +296,7 @@ fn prepare_zk_proof_input<'a>(
     let dob = &received[received_commitment.idx.start()..received_commitment.idx.end()];
     let blinder = received_secret.blinder.as_bytes();
     let committed_hash = hash.value.as_bytes();
-    let check_date = CheckDate::now();
+    let check_date = Local::now().date_naive();
 
     assert_eq!(received_secret.direction, Direction::Received);
     assert_eq!(received_secret.alg, HashAlgId::SHA256);
@@ -368,10 +366,6 @@ fn generate_zk_proof(
     let proof = prove_ultra_honk(bytecode, witness.clone(), vk.clone(), false)?;
     tracing::info!("✅ Proof generated ({} bytes)", proof.len());
 
-    let proof_bundle = ZKProofBundle {
-        vk,
-        proof,
-        check_date,
-    };
+    let proof_bundle = ZKProofBundle { vk, proof };
     Ok(proof_bundle)
 }

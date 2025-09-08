@@ -1,6 +1,7 @@
-use crate::types::{received_commitments, CheckDate};
+use crate::types::received_commitments;
 
 use super::types::ZKProofBundle;
+use chrono::Local;
 use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_honk};
 use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
@@ -73,7 +74,6 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .ok_or("Missing received hash commitment")?;
 
     assert!(received_commitment.direction == Direction::Received);
-    // dbg!(&received_commitment.idx);
     assert!(received_commitment.hash.alg == HashAlgId::SHA256);
 
     let committed_hash = &received_commitment.hash;
@@ -116,13 +116,13 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         return Err("Verification key mismatch between computed and provided by prover".into());
     }
 
-    // Check that the check date is correctly included in the proof
-    let check_date = CheckDate::from_str(&msg.check_date)?;
-
     let proof = msg.proof.clone();
 
-    // Validate proof has enough data
-    let min_bytes = 96 + 32 * 35;
+    // Validate proof has enough data.
+    // The proof should start with the public inputs:
+    // * We expect at least 3 * 32 bytes for the three date fields (day, month, year)
+    // * and 32*32 bytes for the hash
+    let min_bytes = (32 + 3) * 32;
     if proof.len() < min_bytes {
         return Err(format!(
             "Proof too short: expected at least {} bytes, got {}",
@@ -132,21 +132,23 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .into());
     }
 
-    let date_fields = [
-        ("day", 16..32, check_date.day() as u128),
-        ("month", 48..64, check_date.month() as u128),
-        ("year", 80..96, check_date.year() as u128),
-    ];
-
-    for (field_name, range, expected) in date_fields {
-        let value = u128::from_be_bytes(proof[range].try_into()?);
-        if value != expected {
-            return Err(format!(
-                "Date {} mismatch in proof: expected {}, got {} from prover",
-                field_name, expected, value
-            )
-            .into());
-        }
+    // Check that the check date is correctly included in the proof
+    let check_date_day: u128 = u128::from_be_bytes(proof[16..32].try_into()?);
+    let check_date_month: u128 = u128::from_be_bytes(proof[48..64].try_into()?);
+    let check_date_year: u128 = u128::from_be_bytes(proof[80..96].try_into()?);
+    let check_date_from_proof = chrono::NaiveDate::from_ymd_opt(
+        check_date_year as i32,
+        check_date_month as u32,
+        check_date_day as u32,
+    )
+    .ok_or("Invalid check date in proof")?;
+    if (Local::now().date_naive() - check_date_from_proof).num_days() < 0 {
+        return Err(format!(
+            "Check date can only be today or in the past: provided {}, today {}",
+            check_date_from_proof,
+            Local::now().date_naive()
+        )
+        .into());
     }
 
     // Check that the committed hash in the proof matches the hash from the

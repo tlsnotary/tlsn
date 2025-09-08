@@ -6,9 +6,9 @@ This example demonstrates **privacy-preserving age verification** using TLSNotar
 
 ```mermaid
 sequenceDiagram
+    participant S as Tax Server<br/>(fixture)
     participant P as Prover
     participant V as Verifier
-    participant S as Tax Server<br/>(fixture)
 
     P->>S: Request tax data (with auth token) (MPC-TLS)
     S->>P: Tax data including `date_of_birth` (MPC-TLS)
@@ -25,7 +25,8 @@ sequenceDiagram
 1. **MPC-TLS Session**: The Prover fetches tax information containing their birth date, while the Verifier jointly verifies the TLS session to ensure the data comes from the authentic server.
 2. **Selective Disclosure**:
    * The authorization token is **redacted**: the Verifier sees the plaintext request but not the token.
-   * The birth date is **committed** as a blinded hash: the Verifier cannot see the date, but the Prover is cryptographically bound to it.
+   * The birth date is **committed** as a blinded hash: the Verifier cannot see the date, but the Prover is cryptographically bound to it.  
+   (Depending on the use case more data can be redacted or revealed)
 3. **Zero-Knowledge Proof**: The Prover generates a ZK proof that the committed birth date corresponds to an age ≥ 18.
 4. **Verification**: The Verifier checks both the TLS transcript and the ZK proof, confirming age ≥ 18 without learning the actual date of birth.
 
@@ -106,15 +107,16 @@ Verified received data:
 
 ```
 interactive_zk/
-├── src/
-│   ├── prover.rs           # Prover implementation
-│   ├── verifier.rs         # Verifier implementation  
-│   ├── types.rs            # Shared types
-│   └── interactive_zk.rs   # Main example runner
-├── noir/                   # Zero-knowledge circuit
-│   ├── src/main.nr         # Noir circuit code
-│   ├── target/             # Compiled circuit artifacts
-│   └── Nargo.toml          # Noir project config
+├── prover.rs                   # Prover implementation
+├── verifier.rs                 # Verifier implementation  
+├── types.rs                    # Shared types
+└── interactive_zk.rs           # Main example runner
+├── noir/                       # Zero-knowledge circuit
+│   ├── src/main.n              # Noir circuit code
+│   ├── target/                 # Compiled circuit artifacts
+│   └── Nargo.toml              # Noir project config
+│   └── Prover.toml             # Example input for Nargo execute
+│   └── generate_test_data.rs   # Rust script to generate Noir test data
 └── README.md
 ```
 
@@ -129,6 +131,8 @@ noirup --version 1.0.0-beta.8
 bbup -v 1.0.0-nightly.20250723
 ```
 
+If you don't have `noirup` and `bbup` installed yet, check [Noir's Quick Start](https://noir-lang.org/docs/getting_started/quick_start).
+
 To compile the circuit, go to the `noir` folder and run `nargo compile`.
 
 To check and experiment with the Noir circuit, you can use these commands:
@@ -137,13 +141,13 @@ To check and experiment with the Noir circuit, you can use these commands:
     ```sh
     nargo execute
     ```
-* Generate Proof: Create a zero-knowledge proof using the circuit and witness data.
-    ```sh
-    bb prove --bytecode_path ./target/noir.json --witness_path ./target/noir.gz -o ./target
-    ```
 * Generate Verification Key: Create the verification key needed to verify proofs
     ```sh
     bb write_vk -b ./target/noir.json -o ./target
+    ```
+* Generate Proof: Create a zero-knowledge proof using the circuit and witness data.
+    ```sh
+    bb prove --bytecode_path ./target/noir.json --witness_path ./target/noir.gz -o ./target
     ```
 * Verify Proof: Verify that a proof is valid using the verification key.
     ```sh
