@@ -115,7 +115,7 @@ interactive_zk/
 │   ├── src/main.n              # Noir circuit code
 │   ├── target/                 # Compiled circuit artifacts
 │   └── Nargo.toml              # Noir project config
-│   └── Prover.toml             # Example input for Nargo execute
+│   └── Prover.toml             # Example input for `nargo execute`
 │   └── generate_test_data.rs   # Rust script to generate Noir test data
 └── README.md
 ```

@@ -120,7 +120,8 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     // Validate proof has enough data.
     // The proof should start with the public inputs:
-    // * We expect at least 3 * 32 bytes for the three date fields (day, month, year)
+    // * We expect at least 3 * 32 bytes for the three date fields (day, month,
+    //   year)
     // * and 32*32 bytes for the hash
     let min_bytes = (32 + 3) * 32;
     if proof.len() < min_bytes {
