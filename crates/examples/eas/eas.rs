@@ -16,16 +16,17 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
-use tls_core::verify::WebPkiVerifier;
 use tls_server_fixture::CA_CERT_DER;
-use tlsn_common::config::{ProtocolConfig, ProtocolConfigValidator};
-use tlsn_core::{
-    transcript::PartialTranscript, CryptoProvider, ProveConfig, VerifierOutput, VerifyConfig,
+use tlsn::{
+    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    connection::ServerName,
+    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
+    transcript::PartialTranscript,
+    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
-use tlsn_prover::{Prover, ProverConfig};
+
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
-use tlsn_verifier::{Verifier, VerifierConfig};
 
 const SECRET: &str = "random_auth_token";
 
@@ -54,7 +55,7 @@ async fn main() {
 
     // We use SERVER_DOMAIN here to make sure it matches the domain in the test
     // server's certificate.
-    let uri = format!("https://{SERVER_DOMAIN}:{server_port}/protected");
+    let uri = format!("https://{SERVER_DOMAIN}:{server_port}/formats/html");
     let server_ip: IpAddr = server_host.parse().expect("Invalid IP address");
     let server_addr = SocketAddr::from((server_ip, server_port));
 
@@ -129,40 +130,37 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     assert_eq!(uri.scheme().unwrap().as_str(), "https");
     let server_domain = uri.authority().unwrap().host();
 
-    // Create a crypto provider accepting the server-fixture's self-signed
-    // root certificate.
-    //
-    // This is only required for offline testing with the server-fixture. In
-    // production, use `CryptoProvider::default()` instead.
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
+    // Create a root certificate store with the server-fixture's self-signed
+    // certificate. This is only required for offline testing with the
+    // server-fixture.
+    let mut tls_config_builder = TlsConfig::builder();
+    tls_config_builder.root_store(RootCertStore {
+        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+    });
+    let tls_config = tls_config_builder.build().unwrap();
+
+    // Set up protocol configuration for prover.
+    let mut prover_config_builder = ProverConfig::builder();
+    prover_config_builder
+        .server_name(ServerName::Dns(server_domain.try_into().unwrap()))
+        .tls_config(tls_config)
+        .protocol_config(
+            ProtocolConfig::builder()
+                .max_sent_data(MAX_SENT_DATA)
+                .max_recv_data(MAX_RECV_DATA)
+                .build()
+                .unwrap(),
+        );
+
+    let prover_config = prover_config_builder.build().unwrap();
 
     // Create prover and connect to verifier.
     //
     // Perform the setup phase with the verifier.
-    let prover = Prover::new(
-        ProverConfig::builder()
-            .server_name(server_domain)
-            .protocol_config(
-                ProtocolConfig::builder()
-                    .max_sent_data(MAX_SENT_DATA)
-                    .max_recv_data(MAX_RECV_DATA)
-                    .build()
-                    .unwrap(),
-            )
-            .crypto_provider(crypto_provider)
-            .build()
-            .unwrap(),
-    )
-    .setup(verifier_socket.compat())
-    .await
-    .unwrap();
+    let prover = Prover::new(prover_config)
+        .setup(verifier_socket.compat())
+        .await
+        .unwrap();
 
     // Connect to TLS Server.
     let tls_client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
@@ -191,13 +189,12 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .uri(uri.clone())
         .header("Host", server_domain)
         .header("Connection", "close")
-        .header("Authorization", format!("Bearer {}", SECRET))
+        .header("Secret", SECRET)
         .method("GET")
         .body(Empty::<Bytes>::new())
         .unwrap();
     let response = request_sender.send_request(request).await.unwrap();
 
-    println!("Response: {:?}", response);
     assert!(response.status() == StatusCode::OK);
 
     // Create proof for the Verifier.
@@ -253,23 +250,14 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()
         .unwrap();
 
-    // Create a crypto provider accepting the server-fixture's self-signed
-    // root certificate.
-    //
-    // This is only required for offline testing with the server-fixture. In
-    // production, use `CryptoProvider::default()` instead.
-    let mut root_store = tls_core::anchors::RootCertStore::empty();
-    root_store
-        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
-        .unwrap();
-    let crypto_provider = CryptoProvider {
-        cert: WebPkiVerifier::new(root_store, None),
-        ..Default::default()
-    };
-
+    // Create a root certificate store with the server-fixture's self-signed
+    // certificate. This is only required for offline testing with the
+    // server-fixture.
     let verifier_config = VerifierConfig::builder()
+        .root_store(RootCertStore {
+            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+        })
         .protocol_config_validator(config_validator)
-        .crypto_provider(crypto_provider)
         .build()
         .unwrap();
     let verifier = Verifier::new(verifier_config);
@@ -292,16 +280,17 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let sent_data = String::from_utf8(sent.clone()).expect("Verifier expected sent data");
     sent_data
         .find(SERVER_DOMAIN)
-        .unwrap_or_else(|| panic!("Verification failed: Expected host {}", SERVER_DOMAIN));
+        .unwrap_or_else(|| panic!("Verification failed: Expected host {SERVER_DOMAIN}"));
 
     // Check received data.
     let received = transcript.received_unsafe().to_vec();
     let response = String::from_utf8(received.clone()).expect("Verifier expected received data");
     response
-        .find("John Doe")
-        .unwrap_or_else(|| panic!("Expected valid data from {}", SERVER_DOMAIN));
+        .find("Herman Melville")
+        .unwrap_or_else(|| panic!("Expected valid data from {SERVER_DOMAIN}"));
 
     // Check Session info: server name.
+    let ServerName::Dns(server_name) = server_name;
     assert_eq!(server_name.as_str(), SERVER_DOMAIN);
 
     transcript
