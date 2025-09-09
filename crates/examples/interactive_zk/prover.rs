@@ -166,7 +166,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .ok_or("No received commitments found")?; // committed hash (of date of birth string)
     let received_secret = received_secret(&prover_output)?; // hash blinder
     let proof_input = prepare_zk_proof_input(received, received_commitment, received_secret)?;
-    let proof_bundle = generate_zk_proof(proof_input)?;
+    let proof_bundle = generate_zk_proof(&proof_input)?;
 
     // Sent zk proof bundle to verifier
     let serialized_proof = bincode::serialize(&proof_bundle)?;
@@ -275,35 +275,35 @@ fn received_secret(
 }
 
 #[derive(Debug)]
-pub struct ZKProofInput<'a> {
-    dob: &'a [u8],
+pub struct ZKProofInput {
+    dob: Vec<u8>,
     proof_date: NaiveDate,
-    blinder: &'a [u8],
-    committed_hash: &'a [u8],
+    blinder: Vec<u8>,
+    committed_hash: Vec<u8>,
 }
 
 // Verify that the blinded, committed hash is correct
-fn prepare_zk_proof_input<'a>(
-    received: &'a [u8],
-    received_commitment: &'a PlaintextHash,
-    received_secret: &'a PlaintextHashSecret,
-) -> Result<ZKProofInput<'a>, Box<dyn std::error::Error>> {
+fn prepare_zk_proof_input(
+    received: &[u8],
+    received_commitment: &PlaintextHash,
+    received_secret: &PlaintextHashSecret,
+) -> Result<ZKProofInput, Box<dyn std::error::Error>> {
     assert_eq!(received_commitment.direction, Direction::Received);
     assert_eq!(received_commitment.hash.alg, HashAlgId::SHA256);
 
     let hash = &received_commitment.hash;
 
-    let dob = &received[received_commitment.idx.start()..received_commitment.idx.end()];
-    let blinder = received_secret.blinder.as_bytes();
-    let committed_hash = hash.value.as_bytes();
+    let dob = received[received_commitment.idx.start()..received_commitment.idx.end()].to_vec();
+    let blinder = received_secret.blinder.as_bytes().to_vec();
+    let committed_hash = hash.value.as_bytes().to_vec();
     let proof_date = Local::now().date_naive();
 
     assert_eq!(received_secret.direction, Direction::Received);
     assert_eq!(received_secret.alg, HashAlgId::SHA256);
 
     let mut hasher = Sha256::new();
-    hasher.update(dob);
-    hasher.update(blinder);
+    hasher.update(&dob);
+    hasher.update(&blinder);
     let computed_hash = hasher.finalize();
 
     if committed_hash != computed_hash.as_slice() {
@@ -319,7 +319,7 @@ fn prepare_zk_proof_input<'a>(
 }
 
 fn generate_zk_proof(
-    proof_input: ZKProofInput<'_>,
+    proof_input: &ZKProofInput,
 ) -> Result<ZKProofBundle, Box<dyn std::error::Error>> {
     tracing::info!("🔒 Generating ZK proof with Noir...");
 
@@ -343,12 +343,12 @@ fn generate_zk_proof(
     tracing::info!(
         "Public inputs : Proof date ({}) and committed hash ({})",
         proof_date,
-        hex::encode(proof_input.committed_hash)
+        hex::encode(&proof_input.committed_hash)
     );
     tracing::info!(
         "Private inputs: Blinder ({}) and Date of Birth ({})",
-        hex::encode(proof_input.blinder),
-        String::from_utf8_lossy(proof_input.dob)
+        hex::encode(&proof_input.blinder),
+        String::from_utf8_lossy(&proof_input.dob)
     );
 
     tracing::debug!("Witness inputs {:?}", inputs);
