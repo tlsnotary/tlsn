@@ -161,12 +161,4 @@ After running the examples, you'll find:
 - 📋 **Audit Trail**: Maintain logs of notarization and verification events
 - 🔄 **Key Rotation**: Plan for Notary key updates and migration
 
-## 📚 Learn More
-
-- [TLSNotary Documentation](https://docs.tlsnotary.org/)
-- [Attestation Format Specification](https://docs.tlsnotary.org/protocol/attestations.html)
-- [Presentation Creation Guide](https://docs.tlsnotary.org/quick_start/prover.html#presentng-data)
-- [Verification Best Practices](https://docs.tlsnotary.org/quick_start/verifier.html)
-
----
 > ⚠️ **Demo Notice**: This example uses a local test server and local Notary for demonstration. In production, use trusted third-party Notary services and real server endpoints.
