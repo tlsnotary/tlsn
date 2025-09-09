@@ -1,26 +1,24 @@
 //! Verifier.
 
-pub(crate) mod config;
 mod error;
 pub mod state;
 
 use std::sync::Arc;
 
-pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
 pub use tlsn_core::{
-    VerifierOutput, VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError,
+    VerifierOutput,
+    config::{VerifyConfig, VerifyConfigBuilder, VerifyConfigBuilderError},
     webpki::ServerCertVerifier,
 };
 
 use crate::{
-    Role,
+    Role, build_mpc_tls_config,
     commit::{
         commit_records,
         hash::verify_hash,
         transcript::{TranscriptRefs, decode_transcript, verify_transcript},
     },
-    config::ProtocolConfig,
     context::build_mt_context,
     encoding,
     mux::attach_mux,
@@ -37,6 +35,7 @@ use serio::stream::IoStreamExt;
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     ProvePayload,
+    config::{ProtocolConfig, VerifierConfig},
     connection::{ConnectionInfo, ServerName},
     transcript::{TlsTranscript, TranscriptCommitment},
 };
@@ -481,7 +480,7 @@ fn build_mpc_tls(
     (
         vm.clone(),
         MpcTlsFollower::new(
-            config.build_mpc_tls_config(protocol_config),
+            build_mpc_tls_config(protocol_config),
             ctx,
             vm,
             rcot_send,

@@ -1,15 +1,17 @@
 //! Prover.
 
-mod config;
 mod error;
 mod future;
 pub mod state;
 
-pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
 use rustls_pki_types::CertificateDer;
-pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
+pub use tls_client_async::TlsConnection;
+pub use tlsn_core::{
+    ProverOutput,
+    config::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError},
+};
 
 use mpz_common::Context;
 use mpz_core::Block;
@@ -18,7 +20,7 @@ use mpz_vm_core::prelude::*;
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
-    Role,
+    Role, build_mpc_tls_config,
     commit::{
         commit_records,
         hash::prove_hash,
@@ -37,10 +39,11 @@ use rand::Rng;
 use serio::SinkExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_client_async::{TlsConnection, bind_client};
+use tls_client_async::bind_client;
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     ProvePayload,
+    config::ProverConfig,
     connection::{HandshakeData, ServerName},
     hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256},
     transcript::{TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
@@ -530,7 +533,7 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
     (
         vm.clone(),
         MpcTlsLeader::new(
-            config.build_mpc_tls_config(),
+            build_mpc_tls_config(config.protocol_config()),
             ctx,
             vm,
             (rcot_send.clone(), rcot_send.clone(), rcot_send),

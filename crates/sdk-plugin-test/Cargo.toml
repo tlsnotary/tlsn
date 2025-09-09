@@ -1,0 +1,15 @@
+[package]
+name = "sdk-plugin-test"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tlsn-pdk = { workspace = true }
+futures = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+
+[lints]
+workspace = true

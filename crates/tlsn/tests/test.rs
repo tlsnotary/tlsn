@@ -1,10 +1,11 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    config::{ProtocolConfig, ProtocolConfigValidator, ProverConfig, TlsConfig, VerifierConfig},
     connection::ServerName,
-    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
+    prover::{ProveConfig, Prover},
     transcript::{TranscriptCommitConfig, TranscriptCommitment},
-    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
+    verifier::{Verifier, VerifierOutput, VerifyConfig},
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};

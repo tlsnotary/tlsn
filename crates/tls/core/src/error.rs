@@ -1,5 +1,9 @@
 use crate::msgs::enums::{AlertDescription, ContentType, HandshakeType};
 use std::{error::Error as StdError, fmt};
+
+#[cfg(not(feature = "web"))]
+use std::time::SystemTimeError;
+#[cfg(feature = "web")]
 use web_time::SystemTimeError;
 
 /// rustls reports protocol errors using this type.

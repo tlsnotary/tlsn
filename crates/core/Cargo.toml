@@ -23,6 +23,7 @@ rangeset = { workspace = true, features = ["serde"] }
 
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
+derive_builder = { workspace = true }
 hex = { workspace = true, optional = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
@@ -31,15 +32,15 @@ rand_chacha = { workspace = true }
 rs_merkle = { workspace = true, features = ["serde"] }
 rstest = { workspace = true, optional = true }
 serde = { workspace = true }
+semver = { workspace = true, features = ["serde"] }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
-web-time = { workspace = true }
 webpki-roots = { workspace = true }
 rustls-webpki = { workspace = true, features = ["ring"] }
 rustls-pki-types = { workspace = true }
 itybity = { workspace = true }
-zeroize = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 bincode = { workspace = true }

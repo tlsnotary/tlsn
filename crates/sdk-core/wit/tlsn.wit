@@ -1,0 +1,115 @@
+package tlsn:tlsn;
+
+world plugin {
+    import prove;
+    import verify;
+    
+    variant poll-return {
+        pending,
+        ready(result<list<u8>, string>)
+    }
+
+    export start: func(arg: list<u8>);
+    export poll: func() -> poll-return;
+}
+
+interface prove {
+    use io.{io};
+
+    variant setup-return {
+        pending,
+        ready
+    }
+
+    variant connect-return {
+        pending,
+        ready(io)
+    }
+
+    variant commit-return {
+        pending,
+        ready(result<list<u8>, string>)
+    }
+
+    variant prove-return {
+        pending,
+        ready(result<list<u8>, string>)
+    }
+
+    variant close-return {
+        pending,
+        ready,
+    }
+
+    resource prover {
+        constructor(config: list<u8>);
+
+        setup: func() -> setup-return;
+        connect: func() -> connect-return;
+        finish-commit: func() -> commit-return;
+        prove: func(config: list<u8>);
+        finish-prove: func() -> prove-return;
+        close: func() -> close-return;
+    }
+}
+
+interface verify {
+    variant setup-return {
+        pending,
+        ready
+    }
+
+    variant commit-return {
+        pending,
+        ready(result<list<u8>, string>)
+    }
+
+    variant verify-return {
+        pending,
+        ready(result<list<u8>, string>)
+    }
+
+    variant close-return {
+        pending,
+        ready
+    }
+
+    resource verifier {
+        constructor(config: list<u8>);
+
+        setup: func() -> setup-return;
+        commit: func() -> commit-return;
+        verify: func(config: list<u8>);
+        finish-verify: func() -> verify-return;
+        close: func() -> close-return;
+    }
+}
+
+interface io {
+    variant error {
+        closed,
+        other(string),
+    }
+
+    variant check-write-return {
+        pending,
+        ready(result<u32, error>)
+    }
+
+    variant close-return {
+        pending,
+        ready(result<_, error>)
+    }
+
+    variant read-return {
+        pending,
+        ready(result<list<u8>, error>)
+    }
+
+    resource io {
+        check-write: func() -> check-write-return;
+        write: func(buf: list<u8>) -> result<_, error>;
+        close: func() -> close-return;
+        read: func(len: u32) -> read-return;
+    }
+}

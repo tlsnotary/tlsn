@@ -1,3 +1,6 @@
+#[cfg(not(feature = "web"))]
+use std::time::SystemTime;
+#[cfg(feature = "web")]
 use web_time::SystemTime;
 
 use crate::{

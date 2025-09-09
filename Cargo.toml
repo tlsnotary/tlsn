@@ -22,7 +22,10 @@ members = [
     "crates/harness/executor",
     "crates/harness/runner",
     "crates/harness/plot",
+    "crates/sdk-core",
+    "crates/pdk",
     "crates/tlsn",
+    "crates/sdk-plugin-test",
 ]
 resolver = "2"
 
@@ -51,6 +54,7 @@ tlsn-formats = { path = "crates/formats" }
 tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
+tlsn-pdk = { path = "crates/pdk" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
@@ -83,6 +87,7 @@ serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 uid-mux = { version = "0.2" }
 websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "eb48413" }
 
 aes = { version = "0.8" }
 aes-gcm = { version = "0.9" }
@@ -164,3 +169,4 @@ webpki-root-certs = { version = "1.0" }
 # Use the patched ws_stream_wasm to fix the issue https://github.com/najamelan/ws_stream_wasm/issues/12#issuecomment-1711902958
 ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "2ed12aad9f0236e5321f577672f309920b2aef51" }
 zeroize = { version = "1.8" }
+zerocopy = { version = "0.8" }

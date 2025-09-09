@@ -10,6 +10,10 @@ use crate::{
 };
 use ring::digest::Digest;
 use rustls_pki_types as pki_types;
+
+#[cfg(not(feature = "web"))]
+use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(feature = "web")]
 use web_time::{SystemTime, UNIX_EPOCH};
 
 type SignatureAlgorithms = &'static [&'static dyn pki_types::SignatureVerificationAlgorithm];
