@@ -74,7 +74,8 @@ impl<'a> ProvingState<'a> {
     /// * `config` - The config for proving.
     /// * `transcript` - The TLS transcript.
     /// * `transcript_refs` - The transcript references.
-    /// * `encodings_transferred` - If the encoding protocol has already been executed.
+    /// * `encodings_transferred` - If the encoding protocol has already been
+    ///   executed.
     pub(crate) fn for_prover(
         config: ProveConfig,
         transcript: &'a TlsTranscript,
@@ -126,7 +127,8 @@ impl<'a> ProvingState<'a> {
     /// * `transcript` - The TLS transcript.
     /// * `transcript_refs` - The transcript references.
     /// * `verified_server_name` - The verified server name.
-    /// * `encodings_transferred` - If the encoding protocol has already been executed.
+    /// * `encodings_transferred` - If the encoding protocol has already been
+    ///   executed.
     pub(crate) fn for_verifier(
         payload: ProvePayload,
         transcript: &'a TlsTranscript,
@@ -166,7 +168,8 @@ impl<'a> ProvingState<'a> {
 
     /// Proves the transcript and generates the prover output.
     ///
-    /// Returns the output for the prover and if the encoding protocol has been executed.
+    /// Returns the output for the prover and if the encoding protocol has been
+    /// executed.
     ///
     /// # Arguments
     ///
@@ -246,7 +249,8 @@ impl<'a> ProvingState<'a> {
 
     /// Verifies the transcript and generates the verifier output.
     ///
-    /// Returns the output for the verifier and if the encoding protocol has been executed.
+    /// Returns the output for the verifier and if the encoding protocol has
+    /// been executed.
     ///
     /// # Arguments
     ///
