@@ -415,7 +415,8 @@ pub(crate) fn pki_error(error: webpki::Error) -> Error {
     match error {
         BadDer | BadDerTime => Error::InvalidCertificateEncoding,
         InvalidSignatureForPublicKey => Error::InvalidCertificateSignature,
-        UnsupportedSignatureAlgorithm | UnsupportedSignatureAlgorithmForPublicKey => {
+        UnsupportedSignatureAlgorithmContext(_)
+        | UnsupportedSignatureAlgorithmForPublicKeyContext(_) => {
             Error::InvalidCertificateSignatureType
         }
         e => Error::InvalidCertificateData(format!("invalid peer certificate: {e}")),
@@ -475,12 +476,17 @@ fn verify_sig_using_any_alg(
     // we try them all.
     for alg in algs {
         match cert.verify_signature(*alg, message, sig) {
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey) => continue,
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_)) => continue,
             res => return res,
         }
     }
 
-    Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
+    Err(webpki::Error::UnsupportedSignatureAlgorithmContext(
+        webpki::UnsupportedSignatureAlgorithmContext {
+            signature_algorithm_id: vec![],
+            supported_algorithms: algs.iter().map(|alg| alg.signature_alg_id()).collect(),
+        },
+    ))
 }
 
 fn verify_signed_struct(
