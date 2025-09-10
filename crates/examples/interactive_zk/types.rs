@@ -8,22 +8,14 @@ pub struct ZKProofBundle {
 }
 
 // extract commitment from prover output
-pub fn received_commitments(transcript_commitments: &[TranscriptCommitment]) -> Vec<PlaintextHash> {
+pub fn received_commitments(
+    transcript_commitments: &[TranscriptCommitment],
+) -> Vec<&PlaintextHash> {
     transcript_commitments
         .iter()
-        .filter(|commitment| {
-            if let TranscriptCommitment::Hash(hash) = commitment {
-                hash.direction == Direction::Received
-            } else {
-                false
-            }
-        })
-        .map(|commitment| {
-            if let TranscriptCommitment::Hash(hash) = commitment {
-                hash.clone()
-            } else {
-                unreachable!()
-            }
+        .filter_map(|commitment| match commitment {
+            TranscriptCommitment::Hash(hash) if hash.direction == Direction::Received => Some(hash),
+            _ => None,
         })
         .collect()
 }

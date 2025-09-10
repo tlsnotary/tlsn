@@ -26,7 +26,7 @@ use tlsn::{
     config::{CertificateDer, ProtocolConfig, RootCertStore},
     connection::ServerName,
     hash::HashAlgId,
-    prover::{ProveConfig, ProveConfigBuilder, Prover, ProverConfig, ProverOutput, TlsConfig},
+    prover::{ProveConfig, ProveConfigBuilder, Prover, ProverConfig, TlsConfig},
     transcript::{
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitmentKind,
@@ -164,7 +164,10 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let received_commitment = received_commitments
         .first()
         .ok_or("No received commitments found")?; // committed hash (of date of birth string)
-    let received_secret = received_secret(&prover_output)?; // hash blinder
+    let received_secrets = received_secrets(&prover_output.transcript_secrets);
+    let received_secret = received_secrets
+        .first()
+        .ok_or("No received secrets found")?; // hash blinder
     let proof_input = prepare_zk_proof_input(received, received_commitment, received_secret)?;
     let proof_bundle = generate_zk_proof(&proof_input)?;
 
@@ -253,25 +256,14 @@ fn reveal_received(
 }
 
 // extract secret from prover output
-fn received_secret(
-    prover_output: &ProverOutput,
-) -> Result<&PlaintextHashSecret, Box<dyn std::error::Error>> {
-    prover_output
-        .transcript_secrets
+fn received_secrets(transcript_secrets: &[TranscriptSecret]) -> Vec<&PlaintextHashSecret> {
+    transcript_secrets
         .iter()
-        .filter_map(|secret| {
-            if let TranscriptSecret::Hash(hash) = secret {
-                if hash.direction == Direction::Received {
-                    Some(hash)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+        .filter_map(|secret| match secret {
+            TranscriptSecret::Hash(hash) if hash.direction == Direction::Received => Some(hash),
+            _ => None,
         })
-        .next()
-        .ok_or("missing received hash commitment".into())
+        .collect()
 }
 
 #[derive(Debug)]
