@@ -416,7 +416,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                             encoding_tree
                                 .transcript_indices()
                                 .filter(|(dir, _)| *dir == Direction::Sent),
-                            |(_, idx)| &idx,
+                            |(_, idx)| idx,
                         );
                         // Uncovered ranges will be checked with ranges of the next
                         // preferred commitment kind.
@@ -426,7 +426,7 @@ impl<'a> TranscriptProofBuilder<'a> {
                             encoding_tree
                                 .transcript_indices()
                                 .filter(|(dir, _)| *dir == Direction::Received),
-                            |(_, idx)| &idx,
+                            |(_, idx)| idx,
                         );
                         uncovered_query_idx.recv = recv_uncovered;
 

@@ -107,7 +107,7 @@ impl Transcript {
         }
 
         Some(
-            Subsequence::new(idx.clone(), data.index_ranges(&idx))
+            Subsequence::new(idx.clone(), data.index_ranges(idx))
                 .expect("data is same length as index"),
         )
     }
@@ -742,7 +742,7 @@ mod tests {
             simple_partial.received_unsafe(),
             [0, 1, 0, 3, 4, 5, 6, 7, 8, 0, 0, 0]
         );
-        assert_eq!(simple_partial.sent_authed(), &RangeSet::from([0..5]));
+        assert_eq!(simple_partial.sent_authed(), &RangeSet::from(0..5));
         assert_eq!(
             simple_partial.received_authed(),
             &RangeSet::from([1..2, 3..9])
