@@ -11,15 +11,17 @@ pub mod hash;
 pub mod merkle;
 pub mod transcript;
 pub mod webpki;
+pub use rangeset;
+pub(crate) mod display;
 
-use rangeset::ToRangeSet;
+use rangeset::{RangeSet, ToRangeSet, UnionMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::{HandshakeData, ServerName},
     transcript::{
-        Direction, Idx, PartialTranscript, Transcript, TranscriptCommitConfig,
-        TranscriptCommitRequest, TranscriptCommitment, TranscriptSecret,
+        Direction, PartialTranscript, Transcript, TranscriptCommitConfig, TranscriptCommitRequest,
+        TranscriptCommitment, TranscriptSecret,
     },
 };
 
@@ -58,8 +60,8 @@ impl ProveConfig {
 pub struct ProveConfigBuilder<'a> {
     transcript: &'a Transcript,
     server_identity: bool,
-    reveal_sent: Idx,
-    reveal_recv: Idx,
+    reveal_sent: RangeSet<usize>,
+    reveal_recv: RangeSet<usize>,
     transcript_commit: Option<TranscriptCommitConfig>,
 }
 
@@ -69,8 +71,8 @@ impl<'a> ProveConfigBuilder<'a> {
         Self {
             transcript,
             server_identity: false,
-            reveal_sent: Idx::default(),
-            reveal_recv: Idx::default(),
+            reveal_sent: RangeSet::default(),
+            reveal_recv: RangeSet::default(),
             transcript_commit: None,
         }
     }
@@ -93,13 +95,13 @@ impl<'a> ProveConfigBuilder<'a> {
         direction: Direction,
         ranges: &dyn ToRangeSet<usize>,
     ) -> Result<&mut Self, ProveConfigBuilderError> {
-        let idx = Idx::new(ranges.to_range_set());
+        let idx = ranges.to_range_set();
 
-        if idx.end() > self.transcript.len_of_direction(direction) {
+        if idx.end().unwrap_or(0) > self.transcript.len_of_direction(direction) {
             return Err(ProveConfigBuilderError(
                 ProveConfigBuilderErrorRepr::IndexOutOfBounds {
                     direction,
-                    actual: idx.end(),
+                    actual: idx.end().unwrap_or(0),
                     len: self.transcript.len_of_direction(direction),
                 },
             ));
