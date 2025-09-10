@@ -27,7 +27,7 @@ use tlsn::{
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::{state::Committed, ProveConfig, Prover, ProverConfig, ProverOutput, TlsConfig},
-    transcript::{ContentType, Direction, TranscriptCommitConfig},
+    transcript::{ContentType, TranscriptCommitConfig},
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
 use tlsn_examples::ExampleType;
@@ -246,24 +246,6 @@ async fn notarize(
     let mut builder = ProveConfig::builder(prover.transcript());
 
     if let Some(config) = config.transcript_commit() {
-        // Temporarily, we reject attestation requests which contain hash commitments to
-        // subsets of the transcript. We do this because we want to preserve the
-        // obliviousness of the notary, and hash commitments currently leak
-        // the ranges which are being committed.
-        for ((direction, idx), _) in config.iter_hash() {
-            let len = match direction {
-                Direction::Sent => prover.transcript().sent().len(),
-                Direction::Received => prover.transcript().received().len(),
-            };
-
-            if idx.start() > 0 || idx.end() < len || idx.count() != 1 {
-                return Err(
-                    "hash commitments to subsets of the transcript are currently not supported in attestation requests"
-                        .to_string().into(),
-                );
-            }
-        }
-
         builder.transcript_commit(config.clone());
     }
 
@@ -344,24 +326,13 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .await?;
 
     let VerifierOutput {
-        server_name,
-        transcript,
         transcript_commitments,
+        ..
     } = verifier.verify(&VerifyConfig::default()).await?;
 
     let tls_transcript = verifier.tls_transcript().clone();
 
     verifier.close().await?;
-
-    if server_name.is_some() {
-        return Err("server name can not be revealed to a notary"
-            .to_string()
-            .into());
-    } else if transcript.is_some() {
-        return Err("transcript data can not be revealed to a notary"
-            .to_string()
-            .into());
-    }
 
     let sent_len = tls_transcript
         .sent()
