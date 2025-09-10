@@ -59,6 +59,7 @@ pub(crate) struct ProvingState<'a> {
 
     authenticator: Authenticator,
     encoding: EncodingCreator,
+    encodings_transferred: bool,
     hasher: PlaintextHasher,
 
     transcript: &'a TlsTranscript,
@@ -73,10 +74,12 @@ impl<'a> ProvingState<'a> {
     /// * `config` - The config for proving.
     /// * `transcript` - The TLS transcript.
     /// * `transcript_refs` - The transcript references.
+    /// * `encodings_transferred` - If the encoding protocol has already been executed.
     pub(crate) fn for_prover(
         config: ProveConfig,
         transcript: &'a TlsTranscript,
         transcript_refs: &'a mut TranscriptRefs,
+        encodings_transferred: bool,
     ) -> Self {
         let mut encoding_hash_id = None;
         let mut encoding_idxs: Vec<(Direction, Idx)> = Vec::new();
@@ -108,6 +111,7 @@ impl<'a> ProvingState<'a> {
             verified_server_name: None,
             authenticator,
             encoding,
+            encodings_transferred,
             hasher,
             transcript,
             transcript_refs,
@@ -122,11 +126,13 @@ impl<'a> ProvingState<'a> {
     /// * `transcript` - The TLS transcript.
     /// * `transcript_refs` - The transcript references.
     /// * `verified_server_name` - The verified server name.
+    /// * `encodings_transferred` - If the encoding protocol has already been executed.
     pub(crate) fn for_verifier(
         payload: ProvePayload,
         transcript: &'a TlsTranscript,
         transcript_refs: &'a mut TranscriptRefs,
         verified_server_name: Option<ServerName>,
+        encodings_transferred: bool,
     ) -> Self {
         let mut encoding_idxs: Vec<(Direction, Idx)> = Vec::new();
         let mut hash_idxs: Vec<(Direction, Idx, HashAlgId)> = Vec::new();
@@ -151,6 +157,7 @@ impl<'a> ProvingState<'a> {
             verified_server_name,
             authenticator,
             encoding,
+            encodings_transferred,
             hasher,
             transcript,
             transcript_refs,
@@ -158,6 +165,8 @@ impl<'a> ProvingState<'a> {
     }
 
     /// Proves the transcript and generates the prover output.
+    ///
+    /// Returns the output for the prover and if the encoding protocol has been executed.
     ///
     /// # Arguments
     ///
@@ -173,7 +182,7 @@ impl<'a> ProvingState<'a> {
         zk_aes_sent: &mut ZkAesCtr,
         zk_aes_recv: &mut ZkAesCtr,
         keys: SessionKeys,
-    ) -> Result<ProverOutput, CommitError> {
+    ) -> Result<(ProverOutput, bool), CommitError> {
         // Authenticates only necessary parts of the transcript. Proof is not needed on
         // the prover side.
         let _ =
@@ -232,10 +241,12 @@ impl<'a> ProvingState<'a> {
             }
         }
 
-        Ok(output)
+        Ok((output, self.encodings_transferred))
     }
 
     /// Verifies the transcript and generates the verifier output.
+    ///
+    /// Returns the output for the verifier and if the encoding protocol has been executed.
     ///
     /// # Arguments
     ///
@@ -256,7 +267,7 @@ impl<'a> ProvingState<'a> {
         keys: SessionKeys,
         delta: Delta,
         certs: Option<&RootCertStore>,
-    ) -> Result<VerifierOutput, CommitError> {
+    ) -> Result<(VerifierOutput, bool), CommitError> {
         self.verify_server_identity(certs)?;
 
         // Authenticate only necessary parts of the transcript.
@@ -331,7 +342,8 @@ impl<'a> ProvingState<'a> {
 
         output.transcript = self.partial;
         output.server_name = self.verified_server_name;
-        Ok(output)
+
+        Ok((output, self.encodings_transferred))
     }
 
     /// Checks the server identity.
@@ -379,6 +391,11 @@ impl<'a> ProvingState<'a> {
         ctx: &mut Context,
         delta: Delta,
     ) -> Result<EncodingCommitment, CommitError> {
+        if self.encodings_transferred {
+            return Err(CommitError(ErrorRepr::EncodingOnlyOnce));
+        }
+        self.encodings_transferred = true;
+
         let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
 
         let encodings = self.encoding.transfer(vm, secret, self.transcript_refs)?;
@@ -404,6 +421,11 @@ impl<'a> ProvingState<'a> {
         vm: &mut dyn EncodingMemory<Binary>,
         ctx: &mut Context,
     ) -> Result<(EncodingCommitment, EncodingTree), CommitError> {
+        if self.encodings_transferred {
+            return Err(CommitError(ErrorRepr::EncodingOnlyOnce));
+        }
+        self.encodings_transferred = true;
+
         let frame_limit = self.encoding_size().saturating_add(ctx.io().limit());
 
         let encodings: Encodings = ctx.io_mut().with_limit(frame_limit).expect_next().await?;
@@ -462,6 +484,8 @@ enum ErrorRepr {
     Hash(HashCommitError),
     #[error("encoding error: {0}")]
     Encoding(EncodingError),
+    #[error("encoding commitments can be created only once")]
+    EncodingOnlyOnce,
     #[error("decode error: {0}")]
     Decode(DecodeError),
     #[error("authentication error: {0}")]
@@ -606,7 +630,8 @@ mod tests {
             server_write_mac_key: mac_key_verifier,
         };
 
-        let prover_state = ProvingState::for_prover(prove_config, &transcript, &mut refs_prover);
+        let prover_state =
+            ProvingState::for_prover(prove_config, &transcript, &mut refs_prover, false);
 
         let mut zk_prover_sent = ZkAesCtr::new(Role::Prover);
         zk_prover_sent.set_key(keys_prover.0, keys_prover.1);
@@ -617,7 +642,7 @@ mod tests {
         zk_prover_recv.alloc(&mut prover, RECV_LEN).unwrap();
 
         let verifier_state =
-            ProvingState::for_verifier(prove_payload, &transcript, &mut refs_verifier, None);
+            ProvingState::for_verifier(prove_payload, &transcript, &mut refs_verifier, None, false);
 
         let mut zk_verifier_sent = ZkAesCtr::new(Role::Verifier);
         zk_verifier_sent.set_key(keys_verifier.0, keys_verifier.1);
@@ -633,7 +658,7 @@ mod tests {
         )
         .unwrap();
 
-        let (prover_output, verifier_output) = tokio::try_join!(
+        let ((prover_output, _), (verifier_output, _)) = tokio::try_join!(
             prover_state.prove(
                 &mut prover,
                 &mut ctx_p,

@@ -274,6 +274,7 @@ impl Verifier<state::Setup> {
                 zk_aes_ctr_recv,
                 keys,
                 verified_server_name: None,
+                encodings_transferred: false,
             },
         })
     }
@@ -306,6 +307,7 @@ impl Verifier<state::Committed> {
             zk_aes_ctr_recv,
             keys,
             verified_server_name,
+            encodings_transferred,
             ..
         } = &mut self.state;
 
@@ -318,9 +320,10 @@ impl Verifier<state::Committed> {
             tls_transcript,
             transcript_refs,
             verified_server_name.clone(),
+            *encodings_transferred,
         );
 
-        let output = mux_fut
+        let (output, encodings_executed) = mux_fut
             .poll_with(proving_state.verify(
                 vm,
                 ctx,
@@ -333,6 +336,8 @@ impl Verifier<state::Committed> {
             .await?;
 
         *verified_server_name = output.server_name.clone();
+        *encodings_transferred = encodings_executed;
+
         Ok(output)
     }
 

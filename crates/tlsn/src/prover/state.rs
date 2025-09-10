@@ -45,6 +45,7 @@ pub struct Committed {
     pub(crate) zk_aes_ctr_sent: ZkAesCtr,
     pub(crate) zk_aes_ctr_recv: ZkAesCtr,
     pub(crate) keys: SessionKeys,
+    pub(crate) encodings_transferred: bool,
 }
 
 opaque_debug::implement!(Committed);

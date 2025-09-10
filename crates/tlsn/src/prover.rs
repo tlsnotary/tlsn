@@ -313,6 +313,7 @@ impl Prover<state::Setup> {
                         zk_aes_ctr_sent,
                         zk_aes_ctr_recv,
                         keys,
+                        encodings_transferred: false,
                     },
                 })
             }
@@ -356,6 +357,7 @@ impl Prover<state::Committed> {
             zk_aes_ctr_sent,
             zk_aes_ctr_recv,
             keys,
+            encodings_transferred,
             ..
         } = &mut self.state;
 
@@ -370,15 +372,23 @@ impl Prover<state::Committed> {
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
 
-        let proving_state = ProvingState::for_prover(config, tls_transcript, transcript_refs);
+        let proving_state = ProvingState::for_prover(
+            config,
+            tls_transcript,
+            transcript_refs,
+            *encodings_transferred,
+        );
 
-        mux_fut
+        let (output, encodings_executed) = mux_fut
             .poll_with(
                 proving_state
                     .prove(vm, ctx, zk_aes_ctr_sent, zk_aes_ctr_recv, *keys)
                     .map_err(ProverError::from),
             )
-            .await
+            .await?;
+
+        *encodings_transferred = encodings_executed;
+        Ok(output)
     }
 
     /// Closes the connection with the verifier.
