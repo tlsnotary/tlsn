@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["IV","KEY","RECORD_SIZE"],"fn":["transcript_fixture"]};
