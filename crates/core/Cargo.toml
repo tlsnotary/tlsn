@@ -13,7 +13,13 @@ workspace = true
 
 [features]
 default = []
-fixtures = ["dep:hex", "dep:tlsn-data-fixtures", "dep:aead", "dep:aes-gcm", "dep:generic-array"]
+fixtures = [
+    "dep:hex",
+    "dep:tlsn-data-fixtures",
+    "dep:aead",
+    "dep:aes-gcm",
+    "dep:generic-array",
+]
 
 [dependencies]
 tlsn-data-fixtures = { workspace = true, optional = true }
@@ -42,7 +48,7 @@ webpki-roots = { workspace = true }
 rustls-webpki = { workspace = true, features = ["ring"] }
 rustls-pki-types = { workspace = true }
 itybity = { workspace = true }
-zeroize = { workspace = true }
+zeroize = { workspace = true, features = ["zeroize_derive"] }
 
 [dev-dependencies]
 bincode = { workspace = true }
