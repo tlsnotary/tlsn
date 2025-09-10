@@ -5,7 +5,7 @@
     commitment: &amp;<a class="struct" href="struct.EncodingCommitment.html" title="struct tlsn::transcript::encoding::EncodingCommitment">EncodingCommitment</a>,
     sent: &amp;[u8],
     recv: &amp;[u8],
-) -&gt; Result&lt;(<a class="struct" href="../struct.Idx.html" title="struct tlsn::transcript::Idx">Idx</a>, <a class="struct" href="../struct.Idx.html" title="struct tlsn::transcript::Idx">Idx</a>), <a class="struct" href="struct.EncodingProofError.html" title="struct tlsn::transcript::encoding::EncodingProofError">EncodingProofError</a>&gt;</h4></section></summary><div class="docblock"><p>Verifies the proof against the commitment.</p>
+) -&gt; Result&lt;(RangeSet&lt;usize&gt;, RangeSet&lt;usize&gt;), <a class="struct" href="struct.EncodingProofError.html" title="struct tlsn::transcript::encoding::EncodingProofError">EncodingProofError</a>&gt;</h4></section></summary><div class="docblock"><p>Verifies the proof against the commitment.</p>
 <p>Returns the authenticated indices of the sent and received data,
 respectively.</p>
 <h5 id="arguments"><a class="doc-anchor" href="#arguments">§</a>Arguments</h5>

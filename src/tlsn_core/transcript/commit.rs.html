@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a>    transcript::{
 <a href=#11 id=11 data-nosnippet>11</a>        encoding::{EncodingCommitment, EncodingTree},
 <a href=#12 id=12 data-nosnippet>12</a>        hash::{PlaintextHash, PlaintextHashSecret},
-<a href=#13 id=13 data-nosnippet>13</a>        Direction, Idx, Transcript,
+<a href=#13 id=13 data-nosnippet>13</a>        Direction, RangeSet, Transcript,
 <a href=#14 id=14 data-nosnippet>14</a>    },
 <a href=#15 id=15 data-nosnippet>15</a>};
 <a href=#16 id=16 data-nosnippet>16</a>
@@ -71,7 +71,7 @@
 <a href=#71 id=71 data-nosnippet>71</a>    encoding_hash_alg: HashAlgId,
 <a href=#72 id=72 data-nosnippet>72</a>    has_encoding: bool,
 <a href=#73 id=73 data-nosnippet>73</a>    has_hash: bool,
-<a href=#74 id=74 data-nosnippet>74</a>    commits: Vec&lt;((Direction, Idx), TranscriptCommitmentKind)&gt;,
+<a href=#74 id=74 data-nosnippet>74</a>    commits: Vec&lt;((Direction, RangeSet&lt;usize&gt;), TranscriptCommitmentKind)&gt;,
 <a href=#75 id=75 data-nosnippet>75</a>}
 <a href=#76 id=76 data-nosnippet>76</a>
 <a href=#77 id=77 data-nosnippet>77</a><span class="kw">impl </span>TranscriptCommitConfig {
@@ -96,7 +96,7 @@
 <a href=#96 id=96 data-nosnippet>96</a>    }
 <a href=#97 id=97 data-nosnippet>97</a>
 <a href=#98 id=98 data-nosnippet>98</a>    <span class="doccomment">/// Returns an iterator over the encoding commitment indices.
-<a href=#99 id=99 data-nosnippet>99</a>    </span><span class="kw">pub fn </span>iter_encoding(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(Direction, Idx)&gt; {
+<a href=#99 id=99 data-nosnippet>99</a>    </span><span class="kw">pub fn </span>iter_encoding(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(Direction, RangeSet&lt;usize&gt;)&gt; {
 <a href=#100 id=100 data-nosnippet>100</a>        <span class="self">self</span>.commits.iter().filter_map(|(idx, kind)| <span class="kw">match </span>kind {
 <a href=#101 id=101 data-nosnippet>101</a>            TranscriptCommitmentKind::Encoding =&gt; <span class="prelude-val">Some</span>(idx),
 <a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -104,7 +104,7 @@
 <a href=#104 id=104 data-nosnippet>104</a>    }
 <a href=#105 id=105 data-nosnippet>105</a>
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="doccomment">/// Returns an iterator over the hash commitment indices.
-<a href=#107 id=107 data-nosnippet>107</a>    </span><span class="kw">pub fn </span>iter_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (<span class="kw-2">&amp;</span>(Direction, Idx), <span class="kw-2">&amp;</span>HashAlgId)&gt; {
+<a href=#107 id=107 data-nosnippet>107</a>    </span><span class="kw">pub fn </span>iter_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (<span class="kw-2">&amp;</span>(Direction, RangeSet&lt;usize&gt;), <span class="kw-2">&amp;</span>HashAlgId)&gt; {
 <a href=#108 id=108 data-nosnippet>108</a>        <span class="self">self</span>.commits.iter().filter_map(|(idx, kind)| <span class="kw">match </span>kind {
 <a href=#109 id=109 data-nosnippet>109</a>            TranscriptCommitmentKind::Hash { alg } =&gt; <span class="prelude-val">Some</span>((idx, alg)),
 <a href=#110 id=110 data-nosnippet>110</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -134,7 +134,7 @@
 <a href=#134 id=134 data-nosnippet>134</a>    has_encoding: bool,
 <a href=#135 id=135 data-nosnippet>135</a>    has_hash: bool,
 <a href=#136 id=136 data-nosnippet>136</a>    default_kind: TranscriptCommitmentKind,
-<a href=#137 id=137 data-nosnippet>137</a>    commits: HashSet&lt;((Direction, Idx), TranscriptCommitmentKind)&gt;,
+<a href=#137 id=137 data-nosnippet>137</a>    commits: HashSet&lt;((Direction, RangeSet&lt;usize&gt;), TranscriptCommitmentKind)&gt;,
 <a href=#138 id=138 data-nosnippet>138</a>}
 <a href=#139 id=139 data-nosnippet>139</a>
 <a href=#140 id=140 data-nosnippet>140</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TranscriptCommitConfigBuilder&lt;<span class="lifetime">'a</span>&gt; {
@@ -175,15 +175,15 @@
 <a href=#175 id=175 data-nosnippet>175</a>        direction: Direction,
 <a href=#176 id=176 data-nosnippet>176</a>        kind: TranscriptCommitmentKind,
 <a href=#177 id=177 data-nosnippet>177</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>, TranscriptCommitConfigBuilderError&gt; {
-<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">let </span>idx = Idx::new(ranges.to_range_set());
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">let </span>idx = ranges.to_range_set();
 <a href=#179 id=179 data-nosnippet>179</a>
-<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">if </span>idx.end() &gt; <span class="self">self</span>.transcript.len_of_direction(direction) {
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">if </span>idx.end().unwrap_or(<span class="number">0</span>) &gt; <span class="self">self</span>.transcript.len_of_direction(direction) {
 <a href=#181 id=181 data-nosnippet>181</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(TranscriptCommitConfigBuilderError::new(
 <a href=#182 id=182 data-nosnippet>182</a>                ErrorKind::Index,
 <a href=#183 id=183 data-nosnippet>183</a>                <span class="macro">format!</span>(
 <a href=#184 id=184 data-nosnippet>184</a>                    <span class="string">"range is out of bounds of the transcript ({}): {} &gt; {}"</span>,
 <a href=#185 id=185 data-nosnippet>185</a>                    direction,
-<a href=#186 id=186 data-nosnippet>186</a>                    idx.end(),
+<a href=#186 id=186 data-nosnippet>186</a>                    idx.end().unwrap_or(<span class="number">0</span>),
 <a href=#187 id=187 data-nosnippet>187</a>                    <span class="self">self</span>.transcript.len_of_direction(direction)
 <a href=#188 id=188 data-nosnippet>188</a>                ),
 <a href=#189 id=189 data-nosnippet>189</a>            ));
@@ -290,7 +290,7 @@
 <a href=#290 id=290 data-nosnippet>290</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 <a href=#291 id=291 data-nosnippet>291</a></span><span class="kw">pub struct </span>TranscriptCommitRequest {
 <a href=#292 id=292 data-nosnippet>292</a>    encoding: bool,
-<a href=#293 id=293 data-nosnippet>293</a>    hash: Vec&lt;(Direction, Idx, HashAlgId)&gt;,
+<a href=#293 id=293 data-nosnippet>293</a>    hash: Vec&lt;(Direction, RangeSet&lt;usize&gt;, HashAlgId)&gt;,
 <a href=#294 id=294 data-nosnippet>294</a>}
 <a href=#295 id=295 data-nosnippet>295</a>
 <a href=#296 id=296 data-nosnippet>296</a><span class="kw">impl </span>TranscriptCommitRequest {
@@ -305,7 +305,7 @@
 <a href=#305 id=305 data-nosnippet>305</a>    }
 <a href=#306 id=306 data-nosnippet>306</a>
 <a href=#307 id=307 data-nosnippet>307</a>    <span class="doccomment">/// Returns an iterator over the hash commitments.
-<a href=#308 id=308 data-nosnippet>308</a>    </span><span class="kw">pub fn </span>iter_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(Direction, Idx, HashAlgId)&gt; {
+<a href=#308 id=308 data-nosnippet>308</a>    </span><span class="kw">pub fn </span>iter_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(Direction, RangeSet&lt;usize&gt;, HashAlgId)&gt; {
 <a href=#309 id=309 data-nosnippet>309</a>        <span class="self">self</span>.hash.iter()
 <a href=#310 id=310 data-nosnippet>310</a>    }
 <a href=#311 id=311 data-nosnippet>311</a>}

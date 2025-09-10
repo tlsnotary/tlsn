@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use crate</span>::{
 <a href=#6 id=6 data-nosnippet>6</a>    hash::{Blinder, HashAlgId, HashAlgorithm, TypedHash},
-<a href=#7 id=7 data-nosnippet>7</a>    transcript::{Direction, Idx},
+<a href=#7 id=7 data-nosnippet>7</a>    transcript::{Direction, RangeSet},
 <a href=#8 id=8 data-nosnippet>8</a>};
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="doccomment">/// Hashes plaintext with a blinder.
@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a>    <span class="doccomment">/// Direction of the plaintext.
 <a href=#24 id=24 data-nosnippet>24</a>    </span><span class="kw">pub </span>direction: Direction,
 <a href=#25 id=25 data-nosnippet>25</a>    <span class="doccomment">/// Index of plaintext.
-<a href=#26 id=26 data-nosnippet>26</a>    </span><span class="kw">pub </span>idx: Idx,
+<a href=#26 id=26 data-nosnippet>26</a>    </span><span class="kw">pub </span>idx: RangeSet&lt;usize&gt;,
 <a href=#27 id=27 data-nosnippet>27</a>    <span class="doccomment">/// The hash of the data.
 <a href=#28 id=28 data-nosnippet>28</a>    </span><span class="kw">pub </span>hash: TypedHash,
 <a href=#29 id=29 data-nosnippet>29</a>}
@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Direction of the plaintext.
 <a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">pub </span>direction: Direction,
 <a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Index of plaintext.
-<a href=#37 id=37 data-nosnippet>37</a>    </span><span class="kw">pub </span>idx: Idx,
+<a href=#37 id=37 data-nosnippet>37</a>    </span><span class="kw">pub </span>idx: RangeSet&lt;usize&gt;,
 <a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// The algorithm of the hash.
 <a href=#39 id=39 data-nosnippet>39</a>    </span><span class="kw">pub </span>alg: HashAlgId,
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// Blinder for the hash.
