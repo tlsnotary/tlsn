@@ -362,6 +362,7 @@ impl Prover<state::Committed> {
             ctx,
             vm,
             tls_transcript,
+            transcript,
             transcript_refs,
             ..
         } = &mut self.state;
@@ -369,6 +370,14 @@ impl Prover<state::Committed> {
         let mut output = ProverOutput {
             transcript_commitments: Vec::new(),
             transcript_secrets: Vec::new(),
+        };
+
+        let partial_transcript = if let Some((sent, recv)) = config.reveal() {
+            decode_transcript(vm, sent, recv, transcript_refs).map_err(ProverError::zk)?;
+
+            Some(transcript.to_partial(sent.clone(), recv.clone()))
+        } else {
+            None
         };
 
         let payload = ProvePayload {
@@ -388,7 +397,7 @@ impl Prover<state::Committed> {
                     },
                 )
             }),
-            transcript: config.transcript().cloned(),
+            transcript: partial_transcript,
             transcript_commit: config.transcript_commit().map(|config| config.to_request()),
         };
 
@@ -396,16 +405,6 @@ impl Prover<state::Committed> {
         mux_fut
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
             .await?;
-
-        if let Some(partial_transcript) = config.transcript() {
-            decode_transcript(
-                vm,
-                partial_transcript.sent_authed(),
-                partial_transcript.received_authed(),
-                transcript_refs,
-            )
-            .map_err(ProverError::zk)?;
-        }
 
         let mut hash_commitments = None;
         if let Some(commit_config) = config.transcript_commit() {
