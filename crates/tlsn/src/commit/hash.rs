@@ -9,10 +9,11 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, VmError, prelude::*};
+use rangeset::RangeSet;
 use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
-        Direction, Idx,
+        Direction,
         hash::{PlaintextHash, PlaintextHashSecret},
     },
 };
@@ -26,7 +27,7 @@ pub(crate) struct HashCommitFuture {
     #[allow(clippy::type_complexity)]
     futs: Vec<(
         Direction,
-        Idx,
+        RangeSet<usize>,
         HashAlgId,
         DecodeFutureTyped<BitVec, Vec<u8>>,
     )>,
@@ -60,7 +61,7 @@ impl HashCommitFuture {
 pub(crate) fn prove_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
-    idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
+    idxs: impl IntoIterator<Item = (Direction, RangeSet<usize>, HashAlgId)>,
 ) -> Result<(HashCommitFuture, Vec<PlaintextHashSecret>), HashCommitError> {
     let mut futs = Vec::new();
     let mut secrets = Vec::new();
@@ -90,7 +91,7 @@ pub(crate) fn prove_hash(
 pub(crate) fn verify_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
-    idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
+    idxs: impl IntoIterator<Item = (Direction, RangeSet<usize>, HashAlgId)>,
 ) -> Result<HashCommitFuture, HashCommitError> {
     let mut futs = Vec::new();
     for (direction, idx, alg, hash_ref, blinder_ref) in
@@ -112,8 +113,17 @@ fn hash_commit_inner(
     vm: &mut dyn Vm<Binary>,
     role: Role,
     refs: &TranscriptRefs,
-    idxs: impl IntoIterator<Item = (Direction, Idx, HashAlgId)>,
-) -> Result<Vec<(Direction, Idx, HashAlgId, Array<U8, 32>, Vector<U8>)>, HashCommitError> {
+    idxs: impl IntoIterator<Item = (Direction, RangeSet<usize>, HashAlgId)>,
+) -> Result<
+    Vec<(
+        Direction,
+        RangeSet<usize>,
+        HashAlgId,
+        Array<U8, 32>,
+        Vector<U8>,
+    )>,
+    HashCommitError,
+> {
     let mut output = Vec::new();
     let mut hashers = HashMap::new();
     for (direction, idx, alg) in idxs {

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     hash::{Blinder, HashAlgId, HashAlgorithm, TypedHash},
-    transcript::{Direction, Idx},
+    transcript::{Direction, RangeSet},
 };
 
 /// Hashes plaintext with a blinder.
@@ -23,7 +23,7 @@ pub struct PlaintextHash {
     /// Direction of the plaintext.
     pub direction: Direction,
     /// Index of plaintext.
-    pub idx: Idx,
+    pub idx: RangeSet<usize>,
     /// The hash of the data.
     pub hash: TypedHash,
 }
@@ -34,7 +34,7 @@ pub struct PlaintextHashSecret {
     /// Direction of the plaintext.
     pub direction: Direction,
     /// Index of plaintext.
-    pub idx: Idx,
+    pub idx: RangeSet<usize>,
     /// The algorithm of the hash.
     pub alg: HashAlgId,
     /// Blinder for the hash.

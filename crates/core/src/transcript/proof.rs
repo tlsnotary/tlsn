@@ -1,17 +1,18 @@
 //! Transcript proofs.
 
-use rangeset::{Cover, ToRangeSet};
+use rangeset::{Cover, Difference, Subset, ToRangeSet, UnionMut};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt};
 
 use crate::{
     connection::TranscriptLength,
+    display::FmtRangeSet,
     hash::{HashAlgId, HashProvider},
     transcript::{
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
         encoding::{EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
-        Direction, Idx, PartialTranscript, Transcript, TranscriptSecret,
+        Direction, PartialTranscript, RangeSet, Transcript, TranscriptSecret,
     },
 };
 
@@ -77,8 +78,8 @@ impl TranscriptProof {
             ));
         }
 
-        let mut total_auth_sent = Idx::default();
-        let mut total_auth_recv = Idx::default();
+        let mut total_auth_sent = RangeSet::default();
+        let mut total_auth_recv = RangeSet::default();
 
         // Verify encoding proof.
         if let Some(proof) = self.encoding_proof {
@@ -120,7 +121,7 @@ impl TranscriptProof {
                 Direction::Received => (self.transcript.received_unsafe(), &mut total_auth_recv),
             };
 
-            if idx.end() > plaintext.len() {
+            if idx.end().unwrap_or(0) > plaintext.len() {
                 return Err(TranscriptProofError::new(
                     ErrorKind::Hash,
                     "hash opening index is out of bounds",
@@ -215,15 +216,15 @@ impl From<EncodingProofError> for TranscriptProofError {
 /// Union of ranges to reveal.
 #[derive(Clone, Debug, PartialEq)]
 struct QueryIdx {
-    sent: Idx,
-    recv: Idx,
+    sent: RangeSet<usize>,
+    recv: RangeSet<usize>,
 }
 
 impl QueryIdx {
     fn new() -> Self {
         Self {
-            sent: Idx::empty(),
-            recv: Idx::empty(),
+            sent: RangeSet::default(),
+            recv: RangeSet::default(),
         }
     }
 
@@ -231,7 +232,7 @@ impl QueryIdx {
         self.sent.is_empty() && self.recv.is_empty()
     }
 
-    fn union(&mut self, direction: &Direction, other: &Idx) {
+    fn union(&mut self, direction: &Direction, other: &RangeSet<usize>) {
         match direction {
             Direction::Sent => self.sent.union_mut(other),
             Direction::Received => self.recv.union_mut(other),
@@ -241,7 +242,12 @@ impl QueryIdx {
 
 impl std::fmt::Display for QueryIdx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sent: {}, received: {}", self.sent, self.recv)
+        write!(
+            f,
+            "sent: {}, received: {}",
+            FmtRangeSet(&self.sent),
+            FmtRangeSet(&self.recv)
+        )
     }
 }
 
@@ -253,8 +259,8 @@ pub struct TranscriptProofBuilder<'a> {
     transcript: &'a Transcript,
     encoding_tree: Option<&'a EncodingTree>,
     hash_secrets: Vec<&'a PlaintextHashSecret>,
-    committed_sent: Idx,
-    committed_recv: Idx,
+    committed_sent: RangeSet<usize>,
+    committed_recv: RangeSet<usize>,
     query_idx: QueryIdx,
 }
 
@@ -264,8 +270,8 @@ impl<'a> TranscriptProofBuilder<'a> {
         transcript: &'a Transcript,
         secrets: impl IntoIterator<Item = &'a TranscriptSecret>,
     ) -> Self {
-        let mut committed_sent = Idx::empty();
-        let mut committed_recv = Idx::empty();
+        let mut committed_sent = RangeSet::default();
+        let mut committed_recv = RangeSet::default();
 
         let mut encoding_tree = None;
         let mut hash_secrets = Vec::new();
@@ -323,15 +329,15 @@ impl<'a> TranscriptProofBuilder<'a> {
         ranges: &dyn ToRangeSet<usize>,
         direction: Direction,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
-        let idx = Idx::new(ranges.to_range_set());
+        let idx = ranges.to_range_set();
 
-        if idx.end() > self.transcript.len_of_direction(direction) {
+        if idx.end().unwrap_or(0) > self.transcript.len_of_direction(direction) {
             return Err(TranscriptProofBuilderError::new(
                 BuilderErrorKind::Index,
                 format!(
                     "range is out of bounds of the transcript ({}): {} > {}",
                     direction,
-                    idx.end(),
+                    idx.end().unwrap_or(0),
                     self.transcript.len_of_direction(direction)
                 ),
             ));
@@ -348,7 +354,10 @@ impl<'a> TranscriptProofBuilder<'a> {
             let missing = idx.difference(committed);
             return Err(TranscriptProofBuilderError::new(
                 BuilderErrorKind::MissingCommitment,
-                format!("commitment is missing for ranges in {direction} transcript: {missing}"),
+                format!(
+                    "commitment is missing for ranges in {direction} transcript: {}",
+                    FmtRangeSet(&missing)
+                ),
             ));
         }
         Ok(self)
@@ -403,25 +412,23 @@ impl<'a> TranscriptProofBuilder<'a> {
                             continue;
                         };
 
-                        let (sent_dir_idxs, sent_uncovered) =
-                            uncovered_query_idx.sent.as_range_set().cover_by(
-                                encoding_tree
-                                    .transcript_indices()
-                                    .filter(|(dir, _)| *dir == Direction::Sent),
-                                |(_, idx)| &idx.0,
-                            );
+                        let (sent_dir_idxs, sent_uncovered) = uncovered_query_idx.sent.cover_by(
+                            encoding_tree
+                                .transcript_indices()
+                                .filter(|(dir, _)| *dir == Direction::Sent),
+                            |(_, idx)| &idx,
+                        );
                         // Uncovered ranges will be checked with ranges of the next
                         // preferred commitment kind.
-                        uncovered_query_idx.sent = Idx(sent_uncovered);
+                        uncovered_query_idx.sent = sent_uncovered;
 
-                        let (recv_dir_idxs, recv_uncovered) =
-                            uncovered_query_idx.recv.as_range_set().cover_by(
-                                encoding_tree
-                                    .transcript_indices()
-                                    .filter(|(dir, _)| *dir == Direction::Received),
-                                |(_, idx)| &idx.0,
-                            );
-                        uncovered_query_idx.recv = Idx(recv_uncovered);
+                        let (recv_dir_idxs, recv_uncovered) = uncovered_query_idx.recv.cover_by(
+                            encoding_tree
+                                .transcript_indices()
+                                .filter(|(dir, _)| *dir == Direction::Received),
+                            |(_, idx)| &idx,
+                        );
+                        uncovered_query_idx.recv = recv_uncovered;
 
                         let dir_idxs = sent_dir_idxs
                             .into_iter()
@@ -439,25 +446,23 @@ impl<'a> TranscriptProofBuilder<'a> {
                         }
                     }
                     TranscriptCommitmentKind::Hash { alg } => {
-                        let (sent_hashes, sent_uncovered) =
-                            uncovered_query_idx.sent.as_range_set().cover_by(
-                                self.hash_secrets.iter().filter(|hash| {
-                                    hash.direction == Direction::Sent && &hash.alg == alg
-                                }),
-                                |hash| &hash.idx.0,
-                            );
+                        let (sent_hashes, sent_uncovered) = uncovered_query_idx.sent.cover_by(
+                            self.hash_secrets.iter().filter(|hash| {
+                                hash.direction == Direction::Sent && &hash.alg == alg
+                            }),
+                            |hash| &hash.idx,
+                        );
                         // Uncovered ranges will be checked with ranges of the next
                         // preferred commitment kind.
-                        uncovered_query_idx.sent = Idx(sent_uncovered);
+                        uncovered_query_idx.sent = sent_uncovered;
 
-                        let (recv_hashes, recv_uncovered) =
-                            uncovered_query_idx.recv.as_range_set().cover_by(
-                                self.hash_secrets.iter().filter(|hash| {
-                                    hash.direction == Direction::Received && &hash.alg == alg
-                                }),
-                                |hash| &hash.idx.0,
-                            );
-                        uncovered_query_idx.recv = Idx(recv_uncovered);
+                        let (recv_hashes, recv_uncovered) = uncovered_query_idx.recv.cover_by(
+                            self.hash_secrets.iter().filter(|hash| {
+                                hash.direction == Direction::Received && &hash.alg == alg
+                            }),
+                            |hash| &hash.idx,
+                        );
+                        uncovered_query_idx.recv = recv_uncovered;
 
                         transcript_proof.hash_secrets.extend(
                             sent_hashes
@@ -577,7 +582,7 @@ mod tests {
     #[rstest]
     fn test_verify_missing_encoding_commitment_root() {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let idxs = vec![(Direction::Received, Idx::new(0..transcript.len().1))];
+        let idxs = vec![(Direction::Received, RangeSet::from(0..transcript.len().1))];
         let encoding_tree = EncodingTree::new(
             &Blake3::default(),
             &idxs,
@@ -638,7 +643,7 @@ mod tests {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
 
         let direction = Direction::Sent;
-        let idx = Idx::new(0..10);
+        let idx = RangeSet::from(0..10);
         let blinder: Blinder = rng.random();
         let alg = HashAlgId::SHA256;
         let hasher = provider.get(&alg).unwrap();
@@ -684,7 +689,7 @@ mod tests {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
 
         let direction = Direction::Sent;
-        let idx = Idx::new(0..10);
+        let idx = RangeSet::from(0..10);
         let blinder: Blinder = rng.random();
         let alg = HashAlgId::SHA256;
         let hasher = provider.get(&alg).unwrap();
@@ -894,10 +899,10 @@ mod tests {
             match kind {
                 BuilderErrorKind::Cover { uncovered, .. } => {
                     if !uncovered_sent_rangeset.is_empty() {
-                        assert_eq!(uncovered.sent, Idx(uncovered_sent_rangeset));
+                        assert_eq!(uncovered.sent, uncovered_sent_rangeset);
                     }
                     if !uncovered_recv_rangeset.is_empty() {
-                        assert_eq!(uncovered.recv, Idx(uncovered_recv_rangeset));
+                        assert_eq!(uncovered.recv, uncovered_recv_rangeset);
                     }
                 }
                 _ => panic!("unexpected error kind: {kind:?}"),

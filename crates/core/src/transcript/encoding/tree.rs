@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bimap::BiMap;
+use rangeset::{RangeSet, UnionMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
             proof::{EncodingProof, Opening},
             EncodingProvider,
         },
-        Direction, Idx,
+        Direction,
     },
 };
 
@@ -22,7 +23,7 @@ pub enum EncodingTreeError {
     #[error("index is out of bounds of the transcript")]
     OutOfBounds {
         /// The index.
-        index: Idx,
+        index: RangeSet<usize>,
         /// The transcript length.
         transcript_length: usize,
     },
@@ -30,13 +31,13 @@ pub enum EncodingTreeError {
     #[error("encoding provider is missing an encoding for an index")]
     MissingEncoding {
         /// The index which is missing.
-        index: Idx,
+        index: RangeSet<usize>,
     },
     /// Index is missing from the tree.
     #[error("index is missing from the tree")]
     MissingLeaf {
         /// The index which is missing.
-        index: Idx,
+        index: RangeSet<usize>,
     },
 }
 
@@ -49,11 +50,11 @@ pub struct EncodingTree {
     blinders: Vec<Blinder>,
     /// Mapping between the index of a leaf and the transcript index it
     /// corresponds to.
-    idxs: BiMap<usize, (Direction, Idx)>,
+    idxs: BiMap<usize, (Direction, RangeSet<usize>)>,
     /// Union of all transcript indices in the sent direction.
-    sent_idx: Idx,
+    sent_idx: RangeSet<usize>,
     /// Union of all transcript indices in the received direction.
-    received_idx: Idx,
+    received_idx: RangeSet<usize>,
 }
 
 opaque_debug::implement!(EncodingTree);
@@ -68,15 +69,15 @@ impl EncodingTree {
     /// * `provider` - The encoding provider.
     pub fn new<'idx>(
         hasher: &dyn HashAlgorithm,
-        idxs: impl IntoIterator<Item = &'idx (Direction, Idx)>,
+        idxs: impl IntoIterator<Item = &'idx (Direction, RangeSet<usize>)>,
         provider: &dyn EncodingProvider,
     ) -> Result<Self, EncodingTreeError> {
         let mut this = Self {
             tree: MerkleTree::new(hasher.id()),
             blinders: Vec::new(),
             idxs: BiMap::new(),
-            sent_idx: Idx::empty(),
-            received_idx: Idx::empty(),
+            sent_idx: RangeSet::default(),
+            received_idx: RangeSet::default(),
         };
 
         let mut leaves = Vec::new();
@@ -138,7 +139,7 @@ impl EncodingTree {
     /// * `idxs` - The transcript indices to prove.
     pub fn proof<'idx>(
         &self,
-        idxs: impl Iterator<Item = &'idx (Direction, Idx)>,
+        idxs: impl Iterator<Item = &'idx (Direction, RangeSet<usize>)>,
     ) -> Result<EncodingProof, EncodingTreeError> {
         let mut openings = HashMap::new();
         for dir_idx in idxs {
@@ -171,11 +172,11 @@ impl EncodingTree {
     }
 
     /// Returns whether the tree contains the given transcript index.
-    pub fn contains(&self, idx: &(Direction, Idx)) -> bool {
+    pub fn contains(&self, idx: &(Direction, RangeSet<usize>)) -> bool {
         self.idxs.contains_right(idx)
     }
 
-    pub(crate) fn idx(&self, direction: Direction) -> &Idx {
+    pub(crate) fn idx(&self, direction: Direction) -> &RangeSet<usize> {
         match direction {
             Direction::Sent => &self.sent_idx,
             Direction::Received => &self.received_idx,
@@ -183,7 +184,7 @@ impl EncodingTree {
     }
 
     /// Returns the committed transcript indices.
-    pub(crate) fn transcript_indices(&self) -> impl Iterator<Item = &(Direction, Idx)> {
+    pub(crate) fn transcript_indices(&self) -> impl Iterator<Item = &(Direction, RangeSet<usize>)> {
         self.idxs.right_values()
     }
 }
@@ -200,7 +201,7 @@ mod tests {
 
     fn new_tree<'seq>(
         transcript: &Transcript,
-        idxs: impl Iterator<Item = &'seq (Direction, Idx)>,
+        idxs: impl Iterator<Item = &'seq (Direction, RangeSet<usize>)>,
     ) -> Result<EncodingTree, EncodingTreeError> {
         let provider = encoding_provider(transcript.sent(), transcript.received());
 
@@ -211,8 +212,8 @@ mod tests {
     fn test_encoding_tree() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
-        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()));
+        let idx_0 = (Direction::Sent, RangeSet::from(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, RangeSet::from(0..OK_JSON.len()));
 
         let tree = new_tree(&transcript, [&idx_0, &idx_1].into_iter()).unwrap();
 
@@ -243,10 +244,10 @@ mod tests {
     fn test_encoding_tree_multiple_ranges() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..1));
-        let idx_1 = (Direction::Sent, Idx::new(1..POST_JSON.len()));
-        let idx_2 = (Direction::Received, Idx::new(0..1));
-        let idx_3 = (Direction::Received, Idx::new(1..OK_JSON.len()));
+        let idx_0 = (Direction::Sent, RangeSet::from(0..1));
+        let idx_1 = (Direction::Sent, RangeSet::from(1..POST_JSON.len()));
+        let idx_2 = (Direction::Received, RangeSet::from(0..1));
+        let idx_3 = (Direction::Received, RangeSet::from(1..OK_JSON.len()));
 
         let tree = new_tree(&transcript, [&idx_0, &idx_1, &idx_2, &idx_3].into_iter()).unwrap();
 
@@ -273,11 +274,11 @@ mod tests {
             )
             .unwrap();
 
-        let mut expected_auth_sent = Idx::default();
+        let mut expected_auth_sent = RangeSet::default();
         expected_auth_sent.union_mut(&idx_0.1);
         expected_auth_sent.union_mut(&idx_1.1);
 
-        let mut expected_auth_recv = Idx::default();
+        let mut expected_auth_recv = RangeSet::default();
         expected_auth_recv.union_mut(&idx_2.1);
         expected_auth_recv.union_mut(&idx_3.1);
 
@@ -289,9 +290,9 @@ mod tests {
     fn test_encoding_tree_proof_missing_leaf() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
-        let idx_1 = (Direction::Received, Idx::new(0..4));
-        let idx_2 = (Direction::Received, Idx::new(4..OK_JSON.len()));
+        let idx_0 = (Direction::Sent, RangeSet::from(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, RangeSet::from(0..4));
+        let idx_2 = (Direction::Received, RangeSet::from(4..OK_JSON.len()));
 
         let tree = new_tree(&transcript, [&idx_0, &idx_1].into_iter()).unwrap();
 
@@ -305,8 +306,8 @@ mod tests {
     fn test_encoding_tree_out_of_bounds() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len() + 1));
-        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len() + 1));
+        let idx_0 = (Direction::Sent, RangeSet::from(0..POST_JSON.len() + 1));
+        let idx_1 = (Direction::Received, RangeSet::from(0..OK_JSON.len() + 1));
 
         let result = new_tree(&transcript, [&idx_0].into_iter()).unwrap_err();
         assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
@@ -321,7 +322,7 @@ mod tests {
 
         let result = EncodingTree::new(
             &Blake3::default(),
-            [(Direction::Sent, Idx::new(0..8))].iter(),
+            [(Direction::Sent, RangeSet::from(0..8))].iter(),
             &provider,
         )
         .unwrap_err();

@@ -26,7 +26,7 @@ mod tls;
 
 use std::{fmt, ops::Range};
 
-use rangeset::{Difference, IndexRanges, RangeSet, Subset, ToRangeSet, Union, UnionMut};
+use rangeset::{Difference, IndexRanges, RangeSet, Union};
 use serde::{Deserialize, Serialize};
 
 use crate::connection::TranscriptLength;
@@ -96,18 +96,18 @@ impl Transcript {
 
     /// Returns the subsequence of the transcript with the provided index,
     /// returning `None` if the index is out of bounds.
-    pub fn get(&self, direction: Direction, idx: &Idx) -> Option<Subsequence> {
+    pub fn get(&self, direction: Direction, idx: &RangeSet<usize>) -> Option<Subsequence> {
         let data = match direction {
             Direction::Sent => &self.sent,
             Direction::Received => &self.received,
         };
 
-        if idx.end() > data.len() {
+        if idx.end().unwrap_or(0) > data.len() {
             return None;
         }
 
         Some(
-            Subsequence::new(idx.clone(), data.index_ranges(&idx.0))
+            Subsequence::new(idx.clone(), data.index_ranges(&idx))
                 .expect("data is same length as index"),
         )
     }
@@ -122,7 +122,11 @@ impl Transcript {
     ///
     /// * `sent_idx` - The indices of the sent data to include.
     /// * `recv_idx` - The indices of the received data to include.
-    pub fn to_partial(&self, sent_idx: Idx, recv_idx: Idx) -> PartialTranscript {
+    pub fn to_partial(
+        &self,
+        sent_idx: RangeSet<usize>,
+        recv_idx: RangeSet<usize>,
+    ) -> PartialTranscript {
         let mut sent = vec![0; self.sent.len()];
         let mut received = vec![0; self.received.len()];
 
@@ -157,9 +161,9 @@ pub struct PartialTranscript {
     /// Data received by the Prover from the Server.
     received: Vec<u8>,
     /// Index of `sent` which have been authenticated.
-    sent_authed_idx: Idx,
+    sent_authed_idx: RangeSet<usize>,
     /// Index of `received` which have been authenticated.
-    received_authed_idx: Idx,
+    received_authed_idx: RangeSet<usize>,
 }
 
 /// `PartialTranscript` in a compressed form.
@@ -171,9 +175,9 @@ pub struct CompressedPartialTranscript {
     /// Received data which has been authenticated.
     received_authed: Vec<u8>,
     /// Index of `sent_authed`.
-    sent_idx: Idx,
+    sent_idx: RangeSet<usize>,
     /// Index of `received_authed`.
-    recv_idx: Idx,
+    recv_idx: RangeSet<usize>,
     /// Total bytelength of sent data in the original partial transcript.
     sent_total: usize,
     /// Total bytelength of received data in the original partial transcript.
@@ -185,10 +189,10 @@ impl From<PartialTranscript> for CompressedPartialTranscript {
         Self {
             sent_authed: uncompressed
                 .sent
-                .index_ranges(&uncompressed.sent_authed_idx.0),
+                .index_ranges(&uncompressed.sent_authed_idx),
             received_authed: uncompressed
                 .received
-                .index_ranges(&uncompressed.received_authed_idx.0),
+                .index_ranges(&uncompressed.received_authed_idx),
             sent_idx: uncompressed.sent_authed_idx,
             recv_idx: uncompressed.received_authed_idx,
             sent_total: uncompressed.sent.len(),
@@ -238,8 +242,8 @@ impl PartialTranscript {
         Self {
             sent: vec![0; sent_len],
             received: vec![0; received_len],
-            sent_authed_idx: Idx::default(),
-            received_authed_idx: Idx::default(),
+            sent_authed_idx: RangeSet::default(),
+            received_authed_idx: RangeSet::default(),
         }
     }
 
@@ -260,10 +264,10 @@ impl PartialTranscript {
     }
 
     /// Returns whether the index is in bounds of the transcript.
-    pub fn contains(&self, direction: Direction, idx: &Idx) -> bool {
+    pub fn contains(&self, direction: Direction, idx: &RangeSet<usize>) -> bool {
         match direction {
-            Direction::Sent => idx.end() <= self.sent.len(),
-            Direction::Received => idx.end() <= self.received.len(),
+            Direction::Sent => idx.end().unwrap_or(0) <= self.sent.len(),
+            Direction::Received => idx.end().unwrap_or(0) <= self.received.len(),
         }
     }
 
@@ -290,23 +294,23 @@ impl PartialTranscript {
     }
 
     /// Returns the index of sent data which have been authenticated.
-    pub fn sent_authed(&self) -> &Idx {
+    pub fn sent_authed(&self) -> &RangeSet<usize> {
         &self.sent_authed_idx
     }
 
     /// Returns the index of received data which have been authenticated.
-    pub fn received_authed(&self) -> &Idx {
+    pub fn received_authed(&self) -> &RangeSet<usize> {
         &self.received_authed_idx
     }
 
     /// Returns the index of sent data which haven't been authenticated.
-    pub fn sent_unauthed(&self) -> Idx {
-        Idx(RangeSet::from(0..self.sent.len()).difference(&self.sent_authed_idx.0))
+    pub fn sent_unauthed(&self) -> RangeSet<usize> {
+        (0..self.sent.len()).difference(&self.sent_authed_idx)
     }
 
     /// Returns the index of received data which haven't been authenticated.
-    pub fn received_unauthed(&self) -> Idx {
-        Idx(RangeSet::from(0..self.received.len()).difference(&self.received_authed_idx.0))
+    pub fn received_unauthed(&self) -> RangeSet<usize> {
+        (0..self.received.len()).difference(&self.received_authed_idx)
     }
 
     /// Returns an iterator over the authenticated data in the transcript.
@@ -316,7 +320,7 @@ impl PartialTranscript {
             Direction::Received => (&self.received, &self.received_authed_idx),
         };
 
-        authed.0.iter().map(|i| data[i])
+        authed.iter().map(|i| data[i])
     }
 
     /// Unions the authenticated data of this transcript with another.
@@ -338,8 +342,7 @@ impl PartialTranscript {
 
         for range in other
             .sent_authed_idx
-            .0
-            .difference(&self.sent_authed_idx.0)
+            .difference(&self.sent_authed_idx)
             .iter_ranges()
         {
             self.sent[range.clone()].copy_from_slice(&other.sent[range]);
@@ -347,8 +350,7 @@ impl PartialTranscript {
 
         for range in other
             .received_authed_idx
-            .0
-            .difference(&self.received_authed_idx.0)
+            .difference(&self.received_authed_idx)
             .iter_ranges()
         {
             self.received[range.clone()].copy_from_slice(&other.received[range]);
@@ -400,12 +402,12 @@ impl PartialTranscript {
     pub fn set_unauthed_range(&mut self, value: u8, direction: Direction, range: Range<usize>) {
         match direction {
             Direction::Sent => {
-                for range in range.difference(&self.sent_authed_idx.0).iter_ranges() {
+                for range in range.difference(&self.sent_authed_idx).iter_ranges() {
                     self.sent[range].fill(value);
                 }
             }
             Direction::Received => {
-                for range in range.difference(&self.received_authed_idx.0).iter_ranges() {
+                for range in range.difference(&self.received_authed_idx).iter_ranges() {
                     self.received[range].fill(value);
                 }
             }
@@ -434,130 +436,19 @@ impl fmt::Display for Direction {
     }
 }
 
-/// Transcript index.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Idx(RangeSet<usize>);
-
-impl Idx {
-    /// Creates a new index builder.
-    pub fn builder() -> IdxBuilder {
-        IdxBuilder::default()
-    }
-
-    /// Creates an empty index.
-    pub fn empty() -> Self {
-        Self(RangeSet::default())
-    }
-
-    /// Creates a new transcript index.
-    pub fn new(ranges: impl Into<RangeSet<usize>>) -> Self {
-        Self(ranges.into())
-    }
-
-    /// Returns the start of the index.
-    pub fn start(&self) -> usize {
-        self.0.min().unwrap_or_default()
-    }
-
-    /// Returns the end of the index, non-inclusive.
-    pub fn end(&self) -> usize {
-        self.0.end().unwrap_or_default()
-    }
-
-    /// Returns an iterator over the values in the index.
-    pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
-        self.0.iter()
-    }
-
-    /// Returns an iterator over the ranges of the index.
-    pub fn iter_ranges(&self) -> impl Iterator<Item = Range<usize>> + '_ {
-        self.0.iter_ranges()
-    }
-
-    /// Returns the number of values in the index.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns whether the index is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Returns the number of disjoint ranges in the index.
-    pub fn count(&self) -> usize {
-        self.0.len_ranges()
-    }
-
-    pub(crate) fn as_range_set(&self) -> &RangeSet<usize> {
-        &self.0
-    }
-
-    /// Returns the union of this index with another.
-    pub(crate) fn union(&self, other: &Idx) -> Idx {
-        Idx(self.0.union(&other.0))
-    }
-
-    /// Unions this index with another.
-    pub(crate) fn union_mut(&mut self, other: &Idx) {
-        self.0.union_mut(&other.0);
-    }
-
-    /// Returns the difference between `self` and `other`.
-    pub(crate) fn difference(&self, other: &Idx) -> Idx {
-        Idx(self.0.difference(&other.0))
-    }
-
-    /// Returns `true` if `self` is a subset of `other`.
-    pub(crate) fn is_subset(&self, other: &Idx) -> bool {
-        self.0.is_subset(&other.0)
-    }
-}
-
-impl std::fmt::Display for Idx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Idx([")?;
-        let count = self.0.len_ranges();
-        for (i, range) in self.0.iter_ranges().enumerate() {
-            write!(f, "{}..{}", range.start, range.end)?;
-            if i < count - 1 {
-                write!(f, ", ")?;
-            }
-        }
-        f.write_str("])")?;
-        Ok(())
-    }
-}
-
-/// Builder for [`Idx`].
-#[derive(Debug, Default)]
-pub struct IdxBuilder(RangeSet<usize>);
-
-impl IdxBuilder {
-    /// Unions ranges.
-    pub fn union(self, ranges: &dyn ToRangeSet<usize>) -> Self {
-        IdxBuilder(self.0.union(&ranges.to_range_set()))
-    }
-
-    /// Builds the index.
-    pub fn build(self) -> Idx {
-        Idx(self.0)
-    }
-}
-
 /// Transcript subsequence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "validation::SubsequenceUnchecked")]
 pub struct Subsequence {
     /// Index of the subsequence.
-    idx: Idx,
+    idx: RangeSet<usize>,
     /// Data of the subsequence.
     data: Vec<u8>,
 }
 
 impl Subsequence {
     /// Creates a new subsequence.
-    pub fn new(idx: Idx, data: Vec<u8>) -> Result<Self, InvalidSubsequence> {
+    pub fn new(idx: RangeSet<usize>, data: Vec<u8>) -> Result<Self, InvalidSubsequence> {
         if idx.len() != data.len() {
             return Err(InvalidSubsequence(
                 "index length does not match data length",
@@ -568,7 +459,7 @@ impl Subsequence {
     }
 
     /// Returns the index of the subsequence.
-    pub fn index(&self) -> &Idx {
+    pub fn index(&self) -> &RangeSet<usize> {
         &self.idx
     }
 
@@ -584,7 +475,7 @@ impl Subsequence {
     }
 
     /// Returns the inner parts of the subsequence.
-    pub fn into_parts(self) -> (Idx, Vec<u8>) {
+    pub fn into_parts(self) -> (RangeSet<usize>, Vec<u8>) {
         (self.idx, self.data)
     }
 
@@ -612,7 +503,7 @@ mod validation {
 
     #[derive(Debug, Deserialize)]
     pub(super) struct SubsequenceUnchecked {
-        idx: Idx,
+        idx: RangeSet<usize>,
         data: Vec<u8>,
     }
 
@@ -634,8 +525,8 @@ mod validation {
     pub(super) struct CompressedPartialTranscriptUnchecked {
         sent_authed: Vec<u8>,
         received_authed: Vec<u8>,
-        sent_idx: Idx,
-        recv_idx: Idx,
+        sent_idx: RangeSet<usize>,
+        recv_idx: RangeSet<usize>,
         sent_total: usize,
         recv_total: usize,
     }
@@ -652,8 +543,8 @@ mod validation {
                 ));
             }
 
-            if unchecked.sent_idx.end() > unchecked.sent_total
-                || unchecked.recv_idx.end() > unchecked.recv_total
+            if unchecked.sent_idx.end().unwrap_or(0) > unchecked.sent_total
+                || unchecked.recv_idx.end().unwrap_or(0) > unchecked.recv_total
             {
                 return Err(InvalidCompressedPartialTranscript(
                     "ranges are not in bounds of the data",
@@ -682,8 +573,8 @@ mod validation {
             CompressedPartialTranscriptUnchecked {
                 received_authed: vec![1, 2, 3, 11, 12, 13],
                 sent_authed: vec![4, 5, 6, 14, 15, 16],
-                recv_idx: Idx(RangeSet::new(&[1..4, 11..14])),
-                sent_idx: Idx(RangeSet::new(&[4..7, 14..17])),
+                recv_idx: RangeSet::from([1..4, 11..14]),
+                sent_idx: RangeSet::from([4..7, 14..17]),
                 sent_total: 20,
                 recv_total: 20,
             }
@@ -722,7 +613,6 @@ mod validation {
             // Change the total to be less than the last range's end bound.
             let end = partial_transcript
                 .sent_idx
-                .0
                 .iter_ranges()
                 .next_back()
                 .unwrap()
@@ -754,31 +644,25 @@ mod tests {
 
     #[fixture]
     fn partial_transcript() -> PartialTranscript {
-        transcript().to_partial(
-            Idx::new(RangeSet::new(&[1..4, 6..9])),
-            Idx::new(RangeSet::new(&[2..5, 7..10])),
-        )
+        transcript().to_partial(RangeSet::from([1..4, 6..9]), RangeSet::from([2..5, 7..10]))
     }
 
     #[rstest]
     fn test_transcript_get_subsequence(transcript: Transcript) {
         let subseq = transcript
-            .get(Direction::Received, &Idx(RangeSet::from([0..4, 7..10])))
+            .get(Direction::Received, &RangeSet::from([0..4, 7..10]))
             .unwrap();
         assert_eq!(subseq.data, vec![0, 1, 2, 3, 7, 8, 9]);
 
         let subseq = transcript
-            .get(Direction::Sent, &Idx(RangeSet::from([0..4, 9..12])))
+            .get(Direction::Sent, &RangeSet::from([0..4, 9..12]))
             .unwrap();
         assert_eq!(subseq.data, vec![0, 1, 2, 3, 9, 10, 11]);
 
-        let subseq = transcript.get(
-            Direction::Received,
-            &Idx(RangeSet::from([0..4, 7..10, 11..13])),
-        );
+        let subseq = transcript.get(Direction::Received, &RangeSet::from([0..4, 7..10, 11..13]));
         assert_eq!(subseq, None);
 
-        let subseq = transcript.get(Direction::Sent, &Idx(RangeSet::from([0..4, 7..10, 11..13])));
+        let subseq = transcript.get(Direction::Sent, &RangeSet::from([0..4, 7..10, 11..13]));
         assert_eq!(subseq, None);
     }
 
@@ -791,7 +675,7 @@ mod tests {
 
     #[rstest]
     fn test_transcript_to_partial_success(transcript: Transcript) {
-        let partial = transcript.to_partial(Idx::new(0..2), Idx::new(3..7));
+        let partial = transcript.to_partial(RangeSet::from(0..2), RangeSet::from(3..7));
         assert_eq!(partial.sent_unsafe(), [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         assert_eq!(
             partial.received_unsafe(),
@@ -802,29 +686,30 @@ mod tests {
     #[rstest]
     #[should_panic]
     fn test_transcript_to_partial_failure(transcript: Transcript) {
-        let _ = transcript.to_partial(Idx::new(0..14), Idx::new(3..7));
+        let _ = transcript.to_partial(RangeSet::from(0..14), RangeSet::from(3..7));
     }
 
     #[rstest]
     fn test_partial_transcript_contains(transcript: Transcript) {
-        let partial = transcript.to_partial(Idx::new(0..2), Idx::new(3..7));
-        assert!(partial.contains(Direction::Sent, &Idx::new([0..5, 7..10])));
-        assert!(!partial.contains(Direction::Received, &Idx::new([4..6, 7..13])))
+        let partial = transcript.to_partial(RangeSet::from(0..2), RangeSet::from(3..7));
+        assert!(partial.contains(Direction::Sent, &RangeSet::from([0..5, 7..10])));
+        assert!(!partial.contains(Direction::Received, &RangeSet::from([4..6, 7..13])))
     }
 
     #[rstest]
     fn test_partial_transcript_unauthed(transcript: Transcript) {
-        let partial = transcript.to_partial(Idx::new(0..2), Idx::new(3..7));
-        assert_eq!(partial.sent_unauthed(), Idx::new(2..12));
-        assert_eq!(partial.received_unauthed(), Idx::new([0..3, 7..12]));
+        let partial = transcript.to_partial(RangeSet::from(0..2), RangeSet::from(3..7));
+        assert_eq!(partial.sent_unauthed(), RangeSet::from(2..12));
+        assert_eq!(partial.received_unauthed(), RangeSet::from([0..3, 7..12]));
     }
 
     #[rstest]
     fn test_partial_transcript_union_success(transcript: Transcript) {
         // Non overlapping ranges.
-        let mut simple_partial = transcript.to_partial(Idx::new(0..2), Idx::new(3..7));
+        let mut simple_partial = transcript.to_partial(RangeSet::from(0..2), RangeSet::from(3..7));
 
-        let other_simple_partial = transcript.to_partial(Idx::new(3..5), Idx::new(1..2));
+        let other_simple_partial =
+            transcript.to_partial(RangeSet::from(3..5), RangeSet::from(1..2));
 
         simple_partial.union_transcript(&other_simple_partial);
 
@@ -836,12 +721,16 @@ mod tests {
             simple_partial.received_unsafe(),
             [0, 1, 0, 3, 4, 5, 6, 0, 0, 0, 0, 0]
         );
-        assert_eq!(simple_partial.sent_authed(), &Idx::new([0..2, 3..5]));
-        assert_eq!(simple_partial.received_authed(), &Idx::new([1..2, 3..7]));
+        assert_eq!(simple_partial.sent_authed(), &RangeSet::from([0..2, 3..5]));
+        assert_eq!(
+            simple_partial.received_authed(),
+            &RangeSet::from([1..2, 3..7])
+        );
 
         // Overwrite with another partial transcript.
 
-        let another_simple_partial = transcript.to_partial(Idx::new(1..4), Idx::new(6..9));
+        let another_simple_partial =
+            transcript.to_partial(RangeSet::from(1..4), RangeSet::from(6..9));
 
         simple_partial.union_transcript(&another_simple_partial);
 
@@ -853,13 +742,17 @@ mod tests {
             simple_partial.received_unsafe(),
             [0, 1, 0, 3, 4, 5, 6, 7, 8, 0, 0, 0]
         );
-        assert_eq!(simple_partial.sent_authed(), &Idx::new(0..5));
-        assert_eq!(simple_partial.received_authed(), &Idx::new([1..2, 3..9]));
+        assert_eq!(simple_partial.sent_authed(), &RangeSet::from([0..5]));
+        assert_eq!(
+            simple_partial.received_authed(),
+            &RangeSet::from([1..2, 3..9])
+        );
 
         // Overlapping ranges.
-        let mut overlap_partial = transcript.to_partial(Idx::new(4..6), Idx::new(3..7));
+        let mut overlap_partial = transcript.to_partial(RangeSet::from(4..6), RangeSet::from(3..7));
 
-        let other_overlap_partial = transcript.to_partial(Idx::new(3..5), Idx::new(5..9));
+        let other_overlap_partial =
+            transcript.to_partial(RangeSet::from(3..5), RangeSet::from(5..9));
 
         overlap_partial.union_transcript(&other_overlap_partial);
 
@@ -871,13 +764,16 @@ mod tests {
             overlap_partial.received_unsafe(),
             [0, 0, 0, 3, 4, 5, 6, 7, 8, 0, 0, 0]
         );
-        assert_eq!(overlap_partial.sent_authed(), &Idx::new([3..5, 4..6]));
-        assert_eq!(overlap_partial.received_authed(), &Idx::new([3..7, 5..9]));
+        assert_eq!(overlap_partial.sent_authed(), &RangeSet::from([3..5, 4..6]));
+        assert_eq!(
+            overlap_partial.received_authed(),
+            &RangeSet::from([3..7, 5..9])
+        );
 
         // Equal ranges.
-        let mut equal_partial = transcript.to_partial(Idx::new(4..6), Idx::new(3..7));
+        let mut equal_partial = transcript.to_partial(RangeSet::from(4..6), RangeSet::from(3..7));
 
-        let other_equal_partial = transcript.to_partial(Idx::new(4..6), Idx::new(3..7));
+        let other_equal_partial = transcript.to_partial(RangeSet::from(4..6), RangeSet::from(3..7));
 
         equal_partial.union_transcript(&other_equal_partial);
 
@@ -889,13 +785,15 @@ mod tests {
             equal_partial.received_unsafe(),
             [0, 0, 0, 3, 4, 5, 6, 0, 0, 0, 0, 0]
         );
-        assert_eq!(equal_partial.sent_authed(), &Idx::new(4..6));
-        assert_eq!(equal_partial.received_authed(), &Idx::new(3..7));
+        assert_eq!(equal_partial.sent_authed(), &RangeSet::from(4..6));
+        assert_eq!(equal_partial.received_authed(), &RangeSet::from(3..7));
 
         // Subset ranges.
-        let mut subset_partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..11));
+        let mut subset_partial =
+            transcript.to_partial(RangeSet::from(4..10), RangeSet::from(3..11));
 
-        let other_subset_partial = transcript.to_partial(Idx::new(6..9), Idx::new(5..6));
+        let other_subset_partial =
+            transcript.to_partial(RangeSet::from(6..9), RangeSet::from(5..6));
 
         subset_partial.union_transcript(&other_subset_partial);
 
@@ -907,30 +805,32 @@ mod tests {
             subset_partial.received_unsafe(),
             [0, 0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 0]
         );
-        assert_eq!(subset_partial.sent_authed(), &Idx::new(4..10));
-        assert_eq!(subset_partial.received_authed(), &Idx::new(3..11));
+        assert_eq!(subset_partial.sent_authed(), &RangeSet::from(4..10));
+        assert_eq!(subset_partial.received_authed(), &RangeSet::from(3..11));
     }
 
     #[rstest]
     #[should_panic]
     fn test_partial_transcript_union_failure(transcript: Transcript) {
-        let mut partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..11));
+        let mut partial = transcript.to_partial(RangeSet::from(4..10), RangeSet::from(3..11));
 
         let other_transcript = Transcript::new(
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         );
 
-        let other_partial = other_transcript.to_partial(Idx::new(6..9), Idx::new(5..6));
+        let other_partial = other_transcript.to_partial(RangeSet::from(6..9), RangeSet::from(5..6));
 
         partial.union_transcript(&other_partial);
     }
 
     #[rstest]
     fn test_partial_transcript_union_subseq_success(transcript: Transcript) {
-        let mut partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..11));
-        let sent_seq = Subsequence::new(Idx::new([0..3, 5..7]), [0, 1, 2, 5, 6].into()).unwrap();
-        let recv_seq = Subsequence::new(Idx::new([0..4, 5..7]), [0, 1, 2, 3, 5, 6].into()).unwrap();
+        let mut partial = transcript.to_partial(RangeSet::from(4..10), RangeSet::from(3..11));
+        let sent_seq =
+            Subsequence::new(RangeSet::from([0..3, 5..7]), [0, 1, 2, 5, 6].into()).unwrap();
+        let recv_seq =
+            Subsequence::new(RangeSet::from([0..4, 5..7]), [0, 1, 2, 3, 5, 6].into()).unwrap();
 
         partial.union_subsequence(Direction::Sent, &sent_seq);
         partial.union_subsequence(Direction::Received, &recv_seq);
@@ -940,30 +840,31 @@ mod tests {
             partial.received_unsafe(),
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0]
         );
-        assert_eq!(partial.sent_authed(), &Idx::new([0..3, 4..10]));
-        assert_eq!(partial.received_authed(), &Idx::new(0..11));
+        assert_eq!(partial.sent_authed(), &RangeSet::from([0..3, 4..10]));
+        assert_eq!(partial.received_authed(), &RangeSet::from(0..11));
 
         // Overwrite with another subseq.
-        let other_sent_seq = Subsequence::new(Idx::new(0..3), [3, 2, 1].into()).unwrap();
+        let other_sent_seq = Subsequence::new(RangeSet::from(0..3), [3, 2, 1].into()).unwrap();
 
         partial.union_subsequence(Direction::Sent, &other_sent_seq);
         assert_eq!(partial.sent_unsafe(), [3, 2, 1, 0, 4, 5, 6, 7, 8, 9, 0, 0]);
-        assert_eq!(partial.sent_authed(), &Idx::new([0..3, 4..10]));
+        assert_eq!(partial.sent_authed(), &RangeSet::from([0..3, 4..10]));
     }
 
     #[rstest]
     #[should_panic]
     fn test_partial_transcript_union_subseq_failure(transcript: Transcript) {
-        let mut partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..11));
+        let mut partial = transcript.to_partial(RangeSet::from(4..10), RangeSet::from(3..11));
 
-        let sent_seq = Subsequence::new(Idx::new([0..3, 13..15]), [0, 1, 2, 5, 6].into()).unwrap();
+        let sent_seq =
+            Subsequence::new(RangeSet::from([0..3, 13..15]), [0, 1, 2, 5, 6].into()).unwrap();
 
         partial.union_subsequence(Direction::Sent, &sent_seq);
     }
 
     #[rstest]
     fn test_partial_transcript_set_unauthed_range(transcript: Transcript) {
-        let mut partial = transcript.to_partial(Idx::new(4..10), Idx::new(3..7));
+        let mut partial = transcript.to_partial(RangeSet::from(4..10), RangeSet::from(3..7));
 
         partial.set_unauthed_range(7, Direction::Sent, 2..5);
         partial.set_unauthed_range(5, Direction::Sent, 0..2);
@@ -980,13 +881,13 @@ mod tests {
     #[rstest]
     #[should_panic]
     fn test_subsequence_new_invalid_len() {
-        let _ = Subsequence::new(Idx::new([0..3, 5..8]), [0, 1, 2, 5, 6].into()).unwrap();
+        let _ = Subsequence::new(RangeSet::from([0..3, 5..8]), [0, 1, 2, 5, 6].into()).unwrap();
     }
 
     #[rstest]
     #[should_panic]
     fn test_subsequence_copy_to_invalid_len() {
-        let seq = Subsequence::new(Idx::new([0..3, 5..7]), [0, 1, 2, 5, 6].into()).unwrap();
+        let seq = Subsequence::new(RangeSet::from([0..3, 5..7]), [0, 1, 2, 5, 6].into()).unwrap();
 
         let mut data: [u8; 3] = [0, 1, 2];
         seq.copy_to(&mut data);

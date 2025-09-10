@@ -9,12 +9,13 @@ use mpz_memory_core::{
     correlated::{Delta, Key, Mac},
 };
 use rand::Rng;
+use rangeset::RangeSet;
 use serde::{Deserialize, Serialize};
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     hash::HashAlgorithm,
     transcript::{
-        Direction, Idx,
+        Direction,
         encoding::{
             Encoder, EncoderSecret, EncodingCommitment, EncodingProvider, EncodingProviderError,
             EncodingTree, EncodingTreeError, new_encoder,
@@ -117,7 +118,7 @@ pub(crate) async fn receive<'a>(
     hasher: &(dyn HashAlgorithm + Send + Sync),
     refs: &TranscriptRefs,
     f: impl Fn(Vector<U8>) -> &'a [Mac],
-    idxs: impl IntoIterator<Item = &(Direction, Idx)>,
+    idxs: impl IntoIterator<Item = &(Direction, RangeSet<usize>)>,
 ) -> Result<(EncodingCommitment, EncodingTree), EncodingError> {
     // Set frame limit and add some extra bytes cushion room.
     let (sent, recv) = refs.len();
