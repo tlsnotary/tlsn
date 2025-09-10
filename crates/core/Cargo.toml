@@ -45,9 +45,6 @@ itybity = { workspace = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
-aead = { workspace = true, features = ["alloc"] }
-aes-gcm = { workspace = true }
-generic-array = { workspace = true }
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
