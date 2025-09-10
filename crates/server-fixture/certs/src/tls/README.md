@@ -33,5 +33,8 @@ openssl req -new -key client_cert.key -out client_cert.csr -subj "/C=US/ST=State
 # Sign the CSR with the root CA to create the end entity certificate (100 years validity)
 openssl x509 -req -in client_cert.csr -CA root_ca.crt -CAkey root_ca.key -CAcreateserial -out client_cert.crt -days 36525 -sha256 -extfile openssl.cnf -extensions v3_req
 
-# Convert the end entity certificate to PEM format
-openssl x509 -in client_cert.crt -outform pem -out client_cert.pem
+# Convert the end entity certificate to DER format
+openssl x509 -in client_cert.crt -outform der -out client_cert.der
+
+# Convert the end entity certificate private key to DER format
+openssl pkcs8 -topk8 -inform PEM -outform DER -in client_cert.key -out client_cert_private_key.der -nocrypt
