@@ -20,14 +20,14 @@ use tlsn::{
     attestation::{
         request::{Request as AttestationRequest, RequestConfig},
         signing::Secp256k1Signer,
-        Attestation, AttestationConfig, ContentType, CryptoProvider, Secrets,
+        Attestation, AttestationConfig, CryptoProvider, Secrets,
     },
     config::{
         CertificateDer, PrivateKeyDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore,
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::{state::Committed, ProveConfig, Prover, ProverConfig, ProverOutput, TlsConfig},
-    transcript::{Direction, TranscriptCommitConfig},
+    transcript::{ContentType, Direction, TranscriptCommitConfig},
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
 use tlsn_examples::ExampleType;

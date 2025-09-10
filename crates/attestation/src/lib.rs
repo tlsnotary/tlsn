@@ -215,7 +215,6 @@ use std::fmt;
 use rand::distr::{Distribution, StandardUniform};
 use serde::{Deserialize, Serialize};
 
-pub use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     connection::{ConnectionInfo, ServerEphemKey},
     hash::{Hash, HashAlgorithm, TypedHash},
