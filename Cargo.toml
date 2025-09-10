@@ -123,7 +123,6 @@ inventory = { version = "0.3" }
 itybity = { version = "0.2" }
 js-sys = { version = "0.3" }
 k256 = { version = "0.13" }
-lipsum = { version = "0.9" }
 log = { version = "0.4" }
 once_cell = { version = "1.19" }
 opaque-debug = { version = "0.3" }

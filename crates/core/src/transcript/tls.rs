@@ -249,20 +249,6 @@ impl TlsTranscript {
         &self.recv
     }
 
-    /// Returns an iterator over the sent application data.
-    pub fn iter_sent_app_data(&self) -> impl Iterator<Item = &Record> {
-        self.sent
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-    }
-
-    /// Returns an iterator over the received application data.
-    pub fn iter_recv_app_data(&self) -> impl Iterator<Item = &Record> {
-        self.recv
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData)
-    }
-
     /// Returns the application data transcript.
     pub fn to_transcript(&self) -> Result<Transcript, TlsTranscriptError> {
         let mut sent = Vec::new();

@@ -13,7 +13,7 @@ workspace = true
 
 [features]
 default = []
-fixtures = ["dep:hex", "dep:tlsn-data-fixtures", "dep:aead", "dep:aes-gcm", "dep:generic-array", "dep:lipsum"]
+fixtures = ["dep:hex", "dep:tlsn-data-fixtures", "dep:aead", "dep:aes-gcm", "dep:generic-array"]
 
 [dependencies]
 tlsn-data-fixtures = { workspace = true, optional = true }
@@ -27,7 +27,6 @@ generic-array = { workspace = true, optional = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
 hex = { workspace = true, optional = true }
-lipsum = { workspace = true, optional = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
 rand_core = { workspace = true }
@@ -49,7 +48,6 @@ zeroize = { workspace = true }
 aead = { workspace = true, features = ["alloc"] }
 aes-gcm = { workspace = true }
 generic-array = { workspace = true }
-lipsum = { workspace = true }
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }

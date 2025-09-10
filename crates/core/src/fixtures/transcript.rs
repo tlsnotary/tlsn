@@ -3,7 +3,6 @@
 use aead::Payload as AeadPayload;
 use aes_gcm::{aead::Aead, Aes128Gcm, NewAead};
 use generic_array::GenericArray;
-use lipsum::{lipsum, LIBER_PRIMUS};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tls_core::msgs::{
     base::Payload,
@@ -16,7 +15,7 @@ use tls_core::msgs::{
 use crate::{
     connection::{TranscriptLength, VerifyData},
     fixtures::ConnectionFixture,
-    transcript::{Direction, Record, TlsTranscript},
+    transcript::{Record, TlsTranscript},
 };
 
 /// The key used for encryption of the sent and received transcript.
@@ -25,46 +24,12 @@ pub const KEY: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 /// The iv used for encryption of the sent and received transcript.
 pub const IV: [u8; 4] = [1, 3, 3, 7];
 
-/// The length of the sent transcript in bytes.
-pub const SENT_LEN: usize = 4096;
-
-/// The length of the received transcript in bytes.
-pub const RECV_LEN: usize = 8192;
-
 /// The record size in bytes.
 pub const RECORD_SIZE: usize = 512;
 
 /// Creates a transript fixture for testing.
-pub fn transcript_fixture() -> TlsTranscript {
-    let generator = TranscriptGenerator::new(KEY, IV);
-
-    let sent = &LIBER_PRIMUS.as_bytes()[..SENT_LEN];
-    let mut recv = lipsum(RECV_LEN).into_bytes();
-    recv.truncate(RECV_LEN);
-
-    generator.generate(sent, &recv)
-}
-
-/// Returns a forged transcript.
-///
-/// # Arguments
-///
-/// * `direction` - The direction to forge.
-/// * `pos` - The byte index to forge.
-pub fn forged_transcript(direction: Direction, pos: usize) -> TlsTranscript {
-    let mut sent = LIBER_PRIMUS.as_bytes()[..SENT_LEN].to_vec();
-    let mut recv = lipsum(RECV_LEN).into_bytes();
-    recv.truncate(RECV_LEN);
-
-    let forged = match direction {
-        Direction::Sent => &mut sent,
-        Direction::Received => &mut recv,
-    };
-
-    forged[pos] = forged[pos].wrapping_add(1);
-
-    let generator = TranscriptGenerator::new(KEY, IV);
-    generator.generate(&sent, &recv)
+pub fn transcript_fixture(sent: &[u8], recv: &[u8]) -> TlsTranscript {
+    TranscriptGenerator::new(KEY, IV).generate(sent, recv)
 }
 
 struct TranscriptGenerator {
@@ -230,18 +195,5 @@ fn aes_gcm_encrypt(
         typ: msg.typ,
         version: msg.version,
         payload: Payload::new(nonce_ct_mac),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::fixtures::transcript::transcript_fixture;
-
-    #[test]
-    fn test_transcript_fixture_is_valid() {
-        let transcript = transcript_fixture();
-
-        assert!(transcript.iter_sent_app_data().count() > 1);
-        assert!(transcript.iter_recv_app_data().count() > 1);
     }
 }
