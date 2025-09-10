@@ -1,6 +1,7 @@
 //! Fixtures for testing
 
 mod provider;
+pub mod transcript;
 
 pub use provider::FixtureEncodingProvider;
 

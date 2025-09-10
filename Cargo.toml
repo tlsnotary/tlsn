@@ -86,6 +86,7 @@ spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 uid-mux = { version = "0.2" }
 websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 
+aead = { version = "0.4" }
 aes = { version = "0.8" }
 aes-gcm = { version = "0.9" }
 anyhow = { version = "1.0" }
