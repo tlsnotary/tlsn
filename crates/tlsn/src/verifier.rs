@@ -36,7 +36,7 @@ use std::sync::Arc;
 use tlsn_core::{
     ProvePayload,
     connection::{ConnectionInfo, ServerName},
-    transcript::TlsTranscript,
+    transcript::{ContentType, TlsTranscript},
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
@@ -249,12 +249,26 @@ impl Verifier<state::Setup> {
         tag_proof.verify().map_err(VerifierError::zk)?;
 
         let sent_len = tls_transcript
-            .iter_sent_app_data()
-            .map(|record| record.ciphertext.len())
+            .sent()
+            .iter()
+            .filter_map(|record| {
+                if matches!(record.typ, ContentType::ApplicationData) {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
             .sum();
         let recv_len = tls_transcript
-            .iter_recv_app_data()
-            .map(|record| record.ciphertext.len())
+            .recv()
+            .iter()
+            .filter_map(|record| {
+                if matches!(record.typ, ContentType::ApplicationData) {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
             .sum();
 
         let transcript_refs = TranscriptRefs::new(sent_len, recv_len);

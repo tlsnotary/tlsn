@@ -113,25 +113,17 @@ impl TranscriptRefs {
         }
     }
 
-        transcript_refs
-    }
-
-    fn compute_missing(&self, index: &RangeSet<usize>) -> RangeSet<usize> {
-        let byte_index = to_byte_index(&self.index);
-        index.difference(&byte_index)
-    }
-
-    fn decoded(&self) -> RangeSet<usize> {
-        to_byte_index(&self.decoded)
-    }
-
-    fn max_len(&self) -> usize {
-        self.max_len / 8
-    }
-
+    /// Returns the set ranges of the transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `direction` - The direction of the transcript.
     #[cfg(test)]
-    fn index(&self) -> RangeSet<usize> {
-        to_byte_index(&self.index)
+    pub(crate) fn index(&self, direction: Direction) -> RangeSet<usize> {
+        match direction {
+            Direction::Sent => self.sent.index(),
+            Direction::Received => self.recv.index(),
+        }
     }
 }
 
@@ -247,7 +239,27 @@ impl RefStorage {
         index.difference(&byte_index)
     }
 
-    byte_index
+    fn decoded(&self) -> RangeSet<usize> {
+        to_byte_index(&self.decoded)
+    }
+
+    fn max_len(&self) -> usize {
+        self.max_len / 8
+    }
+
+    #[cfg(test)]
+    fn index(&self) -> RangeSet<usize> {
+        to_byte_index(&self.index)
+    }
+}
+
+fn to_bit_index(index: &RangeSet<usize>) -> RangeSet<usize> {
+    let mut bit_index = RangeSet::default();
+
+    for r in index.iter_ranges() {
+        bit_index.union_mut(&(8 * r.start..8 * r.end));
+    }
+    bit_index
 }
 
 fn to_byte_index(index: &RangeSet<usize>) -> RangeSet<usize> {

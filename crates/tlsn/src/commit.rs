@@ -24,13 +24,15 @@ use mpz_garble_core::Delta;
 use mpz_memory_core::binary::Binary;
 use mpz_vm_core::VmError;
 use rand::Rng;
+use rangeset::RangeSet;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     ProveConfig, ProvePayload, ProverOutput, VerifierOutput,
     connection::{HandshakeData, HandshakeVerificationError, ServerName},
     hash::{HashAlgId, TypedHash},
     transcript::{
-        Direction, Idx, PartialTranscript, TlsTranscript, TranscriptCommitment, TranscriptSecret,
+        Direction, PartialTranscript, TlsTranscript, Transcript, TranscriptCommitment,
+        TranscriptSecret,
         encoding::{EncoderSecret, EncodingCommitment, EncodingTree},
     },
     webpki::{RootCertStore, ServerCertVerifier, ServerCertVerifierError},
@@ -62,7 +64,7 @@ pub(crate) struct ProvingState<'a> {
     encodings_transferred: bool,
     hasher: PlaintextHasher,
 
-    transcript: &'a TlsTranscript,
+    tls_transcript: &'a TlsTranscript,
     transcript_refs: &'a mut TranscriptRefs,
 }
 
@@ -72,19 +74,21 @@ impl<'a> ProvingState<'a> {
     /// # Arguments
     ///
     /// * `config` - The config for proving.
-    /// * `transcript` - The TLS transcript.
+    /// * `tls_transcript` - The TLS transcript.
+    /// * `transcript` - The transcript.
     /// * `transcript_refs` - The transcript references.
     /// * `encodings_transferred` - If the encoding protocol has already been
     ///   executed.
     pub(crate) fn for_prover(
         config: ProveConfig,
-        transcript: &'a TlsTranscript,
+        tls_transcript: &'a TlsTranscript,
+        transcript: &Transcript,
         transcript_refs: &'a mut TranscriptRefs,
         encodings_transferred: bool,
     ) -> Self {
         let mut encoding_hash_id = None;
-        let mut encoding_idxs: Vec<(Direction, Idx)> = Vec::new();
-        let mut hash_idxs: Vec<(Direction, Idx, HashAlgId)> = Vec::new();
+        let mut encoding_idxs: Vec<(Direction, RangeSet<usize>)> = Vec::new();
+        let mut hash_idxs: Vec<(Direction, RangeSet<usize>, HashAlgId)> = Vec::new();
 
         if let Some(commit_config) = config.transcript_commit() {
             encoding_hash_id = Some(*commit_config.encoding_hash_alg());
@@ -99,7 +103,11 @@ impl<'a> ProvingState<'a> {
                 .collect();
         }
 
-        let partial = config.into_transcript();
+        let partial = if let Some((sent_reveal, recv_reveal)) = config.reveal() {
+            Some(transcript.to_partial(sent_reveal.clone(), recv_reveal.clone()))
+        } else {
+            None
+        };
         let authenticator =
             Authenticator::new(encoding_idxs.iter(), hash_idxs.iter(), partial.as_ref());
 
@@ -114,7 +122,7 @@ impl<'a> ProvingState<'a> {
             encoding,
             encodings_transferred,
             hasher,
-            transcript,
+            tls_transcript,
             transcript_refs,
         }
     }
@@ -136,8 +144,8 @@ impl<'a> ProvingState<'a> {
         verified_server_name: Option<ServerName>,
         encodings_transferred: bool,
     ) -> Self {
-        let mut encoding_idxs: Vec<(Direction, Idx)> = Vec::new();
-        let mut hash_idxs: Vec<(Direction, Idx, HashAlgId)> = Vec::new();
+        let mut encoding_idxs: Vec<(Direction, RangeSet<usize>)> = Vec::new();
+        let mut hash_idxs: Vec<(Direction, RangeSet<usize>, HashAlgId)> = Vec::new();
 
         if let Some(commit_config) = payload.transcript_commit.as_ref() {
             encoding_idxs = commit_config.iter_encoding().cloned().collect();
@@ -161,7 +169,7 @@ impl<'a> ProvingState<'a> {
             encoding,
             encodings_transferred,
             hasher,
-            transcript,
+            tls_transcript: transcript,
             transcript_refs,
         }
     }
@@ -188,12 +196,18 @@ impl<'a> ProvingState<'a> {
     ) -> Result<(ProverOutput, bool), CommitError> {
         // Authenticates only necessary parts of the transcript. Proof is not needed on
         // the prover side.
-        let _ =
-            self.authenticator
-                .auth_sent(vm, zk_aes_sent, self.transcript, self.transcript_refs)?;
-        let _ =
-            self.authenticator
-                .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
+        let _ = self.authenticator.auth_sent(
+            vm,
+            zk_aes_sent,
+            self.tls_transcript,
+            self.transcript_refs,
+        )?;
+        let _ = self.authenticator.auth_recv(
+            vm,
+            zk_aes_recv,
+            self.tls_transcript,
+            self.transcript_refs,
+        )?;
 
         vm.execute_all(ctx).await?;
 
@@ -275,12 +289,18 @@ impl<'a> ProvingState<'a> {
         self.verify_server_identity(certs)?;
 
         // Authenticate only necessary parts of the transcript.
-        let sent_proof =
-            self.authenticator
-                .auth_sent(vm, zk_aes_sent, self.transcript, self.transcript_refs)?;
-        let recv_proof =
-            self.authenticator
-                .auth_recv(vm, zk_aes_recv, self.transcript, self.transcript_refs)?;
+        let sent_proof = self.authenticator.auth_sent(
+            vm,
+            zk_aes_sent,
+            self.tls_transcript,
+            self.transcript_refs,
+        )?;
+        let recv_proof = self.authenticator.auth_recv(
+            vm,
+            zk_aes_recv,
+            self.tls_transcript,
+            self.transcript_refs,
+        )?;
 
         vm.execute_all(ctx).await?;
 
@@ -291,7 +311,7 @@ impl<'a> ProvingState<'a> {
         // Decodes the transcript parts that should be disclosed and checks the
         // transcript length.
         if self.has_decoding_ranges() {
-            check_transcript_length(self.partial.as_ref(), self.transcript)?;
+            check_transcript_length(self.partial.as_ref(), self.tls_transcript)?;
             decode_transcript(
                 vm,
                 keys.server_write_key,
@@ -340,7 +360,7 @@ impl<'a> ProvingState<'a> {
                 self.authenticator.decoding(),
                 self.partial.as_ref(),
                 self.transcript_refs,
-                self.transcript,
+                self.tls_transcript,
             )?;
         }
 
@@ -373,8 +393,8 @@ impl<'a> ProvingState<'a> {
             ServerCertVerifier::mozilla()
         };
 
-        let time = self.transcript.time();
-        let ephemeral_key = self.transcript.server_ephemeral_key();
+        let time = self.tls_transcript.time();
+        let ephemeral_key = self.tls_transcript.server_ephemeral_key();
 
         handshake_data.verify(&verifier, time, ephemeral_key, server_name)?;
         self.verified_server_name = Some(server_name.clone());
@@ -567,7 +587,7 @@ mod tests {
     use tlsn_core::{
         ProveConfig, ProvePayload,
         connection::{HandshakeData, ServerName},
-        fixtures::transcript::{IV, KEY, RECV_LEN, SENT_LEN, transcript_fixture},
+        fixtures::transcript::{IV, KEY, transcript_fixture},
         hash::HashAlgId,
         transcript::{
             Direction, TlsTranscript, TranscriptCommitConfig, TranscriptCommitment,

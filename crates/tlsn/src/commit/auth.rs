@@ -13,7 +13,7 @@ use rangeset::{Disjoint, RangeSet, Union, UnionMut};
 use std::ops::Range;
 use tlsn_core::{
     hash::HashAlgId,
-    transcript::{Direction, Idx, PartialTranscript, Record, TlsTranscript},
+    transcript::{ContentType, Direction, PartialTranscript, Record, TlsTranscript},
 };
 
 /// Transcript Authenticator.
@@ -33,8 +33,8 @@ impl Authenticator {
     /// * `hash` - Ranges for hash commitments.
     /// * `partial` - The partial transcript.
     pub(crate) fn new<'a>(
-        encoding: impl Iterator<Item = &'a (Direction, Idx)>,
-        hash: impl Iterator<Item = &'a (Direction, Idx, HashAlgId)>,
+        encoding: impl Iterator<Item = &'a (Direction, RangeSet<usize>)>,
+        hash: impl Iterator<Item = &'a (Direction, RangeSet<usize>, HashAlgId)>,
         partial: Option<&PartialTranscript>,
     ) -> Self {
         // Compute encoding index.
@@ -43,8 +43,8 @@ impl Authenticator {
 
         for (d, idx) in encoding {
             match d {
-                Direction::Sent => encoding_sent.union_mut(idx.as_range_set()),
-                Direction::Received => encoding_recv.union_mut(idx.as_range_set()),
+                Direction::Sent => encoding_sent.union_mut(idx),
+                Direction::Received => encoding_recv.union_mut(idx),
             }
         }
 
@@ -56,8 +56,8 @@ impl Authenticator {
 
         for (d, idx, _) in hash {
             match d {
-                Direction::Sent => hash_sent.union_mut(idx.as_range_set()),
-                Direction::Received => hash_recv.union_mut(idx.as_range_set()),
+                Direction::Sent => hash_sent.union_mut(idx),
+                Direction::Received => hash_recv.union_mut(idx),
             }
         }
 
@@ -71,8 +71,8 @@ impl Authenticator {
         let mut decoding_recv = RangeSet::default();
 
         if let Some(partial) = partial {
-            decoding_sent.union_mut(partial.sent_authed().as_range_set());
-            decoding_recv.union_mut(partial.received_authed().as_range_set());
+            decoding_sent.union_mut(partial.sent_authed());
+            decoding_recv.union_mut(partial.received_authed());
         }
 
         let decoding = Index::new(decoding_sent, decoding_recv);
@@ -122,11 +122,16 @@ impl Authenticator {
             return Ok(RecordProof::default());
         }
 
+        let sent = transcript
+            .sent()
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData);
+
         authenticate(
             vm,
             zk_aes_sent,
             Direction::Sent,
-            transcript.iter_sent_app_data(),
+            sent,
             transcript_refs,
             missing_index,
         )
@@ -169,11 +174,16 @@ impl Authenticator {
             return Ok(RecordProof::default());
         }
 
+        let recv = transcript
+            .recv()
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData);
+
         authenticate(
             vm,
             zk_aes_recv,
             Direction::Received,
-            transcript.iter_recv_app_data(),
+            recv,
             transcript_refs,
             missing_index,
         )
@@ -362,18 +372,16 @@ mod tests {
     use rangeset::{RangeSet, UnionMut};
     use rstest::{fixture, rstest};
     use tlsn_core::{
-        fixtures::transcript::{
-            IV, KEY, RECORD_SIZE, RECV_LEN, SENT_LEN, forged_transcript, transcript_fixture,
-        },
+        fixtures::transcript::{IV, KEY, RECORD_SIZE, transcript_fixture},
         hash::HashAlgId,
-        transcript::{Direction, Idx, TlsTranscript},
+        transcript::{Direction, TlsTranscript},
     };
 
     #[rstest]
     #[tokio::test]
     async fn test_authenticator_sent(
-        encoding: Vec<(Direction, Idx)>,
-        hashes: Vec<(Direction, Idx, HashAlgId)>,
+        encoding: Vec<(Direction, RangeSet<usize>)>,
+        hashes: Vec<(Direction, RangeSet<usize>, HashAlgId)>,
         decoding: (RangeSet<usize>, RangeSet<usize>),
         transcript: TlsTranscript,
         transcript_refs: TranscriptRefs,
@@ -382,7 +390,7 @@ mod tests {
         let partial = transcript
             .to_transcript()
             .unwrap()
-            .to_partial(Idx::new(sent_decdoding), Idx::new(recv_decdoding));
+            .to_partial(sent_decdoding, recv_decdoding);
 
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 

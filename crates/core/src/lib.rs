@@ -53,11 +53,6 @@ impl ProveConfig {
     pub fn transcript_commit(&self) -> Option<&TranscriptCommitConfig> {
         self.transcript_commit.as_ref()
     }
-
-    /// Returns the partial transcript.
-    pub fn into_transcript(self) -> Option<PartialTranscript> {
-        self.transcript
-    }
 }
 
 /// Builder for [`ProveConfig`].
@@ -222,9 +217,13 @@ impl ProvePayload {
     /// # Arguments
     ///
     /// * `config` - The prove config.
+    /// * `transcript` - The partial transcript.
     /// * `handshake` - The server name and handshake data.
-    pub fn new(config: &ProveConfig, handshake: Option<(ServerName, HandshakeData)>) -> Self {
-        let transcript = config.transcript().cloned();
+    pub fn new(
+        config: &ProveConfig,
+        transcript: Option<PartialTranscript>,
+        handshake: Option<(ServerName, HandshakeData)>,
+    ) -> Self {
         let transcript_commit = config.transcript_commit().map(|config| config.to_request());
 
         Self {

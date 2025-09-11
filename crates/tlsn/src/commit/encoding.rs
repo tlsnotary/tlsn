@@ -8,7 +8,7 @@ use std::ops::Range;
 use tlsn_core::{
     hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256, TypedHash},
     transcript::{
-        Direction, Idx,
+        Direction,
         encoding::{
             Encoder, EncoderSecret, EncodingProvider, EncodingProviderError, EncodingTree,
             EncodingTreeError, new_encoder,
@@ -32,7 +32,7 @@ pub(crate) struct EncodingCreator {
     hash_id: Option<HashAlgId>,
     sent: RangeSet<usize>,
     recv: RangeSet<usize>,
-    idxs: Vec<(Direction, Idx)>,
+    idxs: Vec<(Direction, RangeSet<usize>)>,
 }
 
 impl EncodingCreator {
@@ -42,13 +42,12 @@ impl EncodingCreator {
     ///
     /// * `hash_id` - The id of the hash algorithm.
     /// * `idxs` - The indices for encoding commitments.
-    pub(crate) fn new(hash_id: Option<HashAlgId>, idxs: Vec<(Direction, Idx)>) -> Self {
+    pub(crate) fn new(hash_id: Option<HashAlgId>, idxs: Vec<(Direction, RangeSet<usize>)>) -> Self {
         let mut sent = RangeSet::default();
         let mut recv = RangeSet::default();
 
         for (direction, idx) in idxs.iter() {
-            let ranges = idx.as_range_set();
-            for range in ranges.iter_ranges() {
+            for range in idx.iter_ranges() {
                 match direction {
                     Direction::Sent => sent.union_mut(&range),
                     Direction::Received => recv.union_mut(&range),

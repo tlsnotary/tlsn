@@ -7,7 +7,7 @@ use mpz_memory_core::{
 };
 use mpz_vm_core::Vm;
 use rangeset::{Intersection, RangeSet, Subset, Union};
-use tlsn_core::transcript::{Direction, PartialTranscript, TlsTranscript};
+use tlsn_core::transcript::{ContentType, Direction, PartialTranscript, TlsTranscript};
 
 /// Decodes parts of the transcript.
 ///
@@ -143,13 +143,26 @@ pub(crate) fn check_transcript_length(
     };
 
     let sent_len: usize = transcript
-        .iter_sent_app_data()
-        .map(|record| record.ciphertext.len())
+        .sent()
+        .iter()
+        .filter_map(|record| {
+            if matches!(record.typ, ContentType::ApplicationData) {
+                Some(record.ciphertext.len())
+            } else {
+                None
+            }
+        })
         .sum();
-
     let recv_len: usize = transcript
-        .iter_recv_app_data()
-        .map(|record| record.ciphertext.len())
+        .recv()
+        .iter()
+        .filter_map(|record| {
+            if matches!(record.typ, ContentType::ApplicationData) {
+                Some(record.ciphertext.len())
+            } else {
+                None
+            }
+        })
         .sum();
 
     // Check ranges.
@@ -169,7 +182,12 @@ fn verify_with_keys(
     let mut plaintexts = Vec::with_capacity(decoding_ranges.len());
     let mut position = 0_usize;
 
-    for record in transcript.iter_recv_app_data() {
+    let recv_data = transcript
+        .recv()
+        .iter()
+        .filter(|record| record.typ == ContentType::ApplicationData);
+
+    for record in recv_data {
         let current = position..position + record.ciphertext.len();
 
         if !current.is_subset(decoding_ranges) {

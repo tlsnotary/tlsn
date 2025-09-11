@@ -353,6 +353,7 @@ impl Prover<state::Committed> {
             ctx,
             vm,
             tls_transcript,
+            transcript,
             transcript_refs,
             zk_aes_ctr_sent,
             zk_aes_ctr_recv,
@@ -366,7 +367,14 @@ impl Prover<state::Committed> {
         let handshake = config
             .server_identity()
             .then(|| (server_name.clone(), HandshakeData::new(tls_transcript)));
-        let payload = ProvePayload::new(&config, handshake);
+
+        let partial = if let Some((reveal_sent, reveal_recv)) = config.reveal() {
+            Some(transcript.to_partial(reveal_sent.clone(), reveal_recv.clone()))
+        } else {
+            None
+        };
+
+        let payload = ProvePayload::new(&config, partial, handshake);
 
         mux_fut
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
@@ -375,6 +383,7 @@ impl Prover<state::Committed> {
         let proving_state = ProvingState::for_prover(
             config,
             tls_transcript,
+            transcript,
             transcript_refs,
             *encodings_transferred,
         );

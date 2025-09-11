@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
-        Direction, Idx,
+        Direction,
         hash::{PlaintextHash, PlaintextHashSecret},
     },
 };
@@ -30,11 +30,13 @@ impl PlaintextHasher {
     /// # Arguments
     ///
     /// * `indices` - The hash indices.
-    pub(crate) fn new<'a>(indices: impl Iterator<Item = &'a (Direction, Idx, HashAlgId)>) -> Self {
+    pub(crate) fn new<'a>(
+        indices: impl Iterator<Item = &'a (Direction, RangeSet<usize>, HashAlgId)>,
+    ) -> Self {
         let mut ranges = Vec::new();
 
         for (direction, index, id) in indices {
-            let hash_range = HashRange::new(*direction, index.as_range_set().clone(), *id);
+            let hash_range = HashRange::new(*direction, index.clone(), *id);
             ranges.push(hash_range);
         }
 
@@ -68,7 +70,7 @@ impl PlaintextHasher {
             futures.push((range.clone(), hash_fut));
             secrets.push(PlaintextHashSecret {
                 direction: range.direction,
-                idx: Idx::new(range.range.clone()),
+                idx: range.range.clone(),
                 blinder,
                 alg: range.id,
             });
@@ -96,7 +98,8 @@ impl PlaintextHasher {
         for ((range, hash_ref), blinder) in self.ranges.iter().zip(hash_refs).zip(blinders) {
             vm.commit(blinder)?;
 
-            futs.push((direction, idx, alg, hash_fut));
+            let hash_fut = vm.decode(Vector::<U8>::from(hash_ref))?;
+            futures.push((range.clone(), hash_fut))
         }
 
         let hashes = HashFuture { futures };
@@ -177,7 +180,7 @@ impl HashFuture {
 
             output.push(PlaintextHash {
                 direction: hash_range.direction,
-                idx: Idx::new(hash_range.range),
+                idx: hash_range.range,
                 hash: TypedHash {
                     alg: hash_range.id,
                     value: Hash::try_from(hash).map_err(HashCommitError::convert)?,
