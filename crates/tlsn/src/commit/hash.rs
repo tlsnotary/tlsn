@@ -1,6 +1,7 @@
 //! Plaintext hash commitments.
 
-use crate::{Role, commit::transcript::TranscriptRefs};
+use std::collections::HashMap;
+
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
 use mpz_memory_core::{
@@ -9,7 +10,6 @@ use mpz_memory_core::{
 };
 use mpz_vm_core::{Vm, VmError, prelude::*};
 use rangeset::RangeSet;
-use std::collections::HashMap;
 use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
@@ -17,6 +17,8 @@ use tlsn_core::{
         hash::{PlaintextHash, PlaintextHashSecret},
     },
 };
+
+use crate::{Role, commit::transcript::TranscriptRefs};
 
 /// Creates plaintext hashes.
 #[derive(Debug)]

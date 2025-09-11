@@ -1,19 +1,21 @@
 //! Authentication of the transcript plaintext and creation of the transcript
 //! references.
 
-use crate::{
-    Role,
-    commit::transcript::TranscriptRefs,
-    zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
-};
+use std::ops::Range;
+
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{DecodeError, DecodeFutureTyped, MemoryExt, binary::Binary};
 use mpz_vm_core::Vm;
 use rangeset::{Disjoint, RangeSet, Union, UnionMut};
-use std::ops::Range;
 use tlsn_core::{
     hash::HashAlgId,
     transcript::{ContentType, Direction, PartialTranscript, Record, TlsTranscript},
+};
+
+use crate::{
+    Role,
+    commit::transcript::TranscriptRefs,
+    zk_aes_ctr::{ZkAesCtr, ZkAesCtrError},
 };
 
 /// Transcript Authenticator.

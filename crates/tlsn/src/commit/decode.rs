@@ -1,6 +1,5 @@
 //! Selective disclosure.
 
-use crate::commit::TranscriptRefs;
 use mpz_memory_core::{
     Array, MemoryExt,
     binary::{Binary, U8},
@@ -8,6 +7,8 @@ use mpz_memory_core::{
 use mpz_vm_core::Vm;
 use rangeset::{Intersection, RangeSet, Subset, Union};
 use tlsn_core::transcript::{ContentType, Direction, PartialTranscript, TlsTranscript};
+
+use crate::commit::TranscriptRefs;
 
 /// Decodes parts of the transcript.
 ///

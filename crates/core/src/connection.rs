@@ -1,13 +1,15 @@
 //! TLS connection types.
 
+use std::fmt;
+
+use rustls_pki_types as webpki_types;
+use serde::{Deserialize, Serialize};
+use tls_core::msgs::{codec::Codec, enums::NamedGroup, handshake::ServerECDHParams};
+
 use crate::{
     transcript::TlsTranscript,
     webpki::{CertificateDer, ServerCertVerifier, ServerCertVerifierError},
 };
-use rustls_pki_types as webpki_types;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use tls_core::msgs::{codec::Codec, enums::NamedGroup, handshake::ServerECDHParams};
 
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

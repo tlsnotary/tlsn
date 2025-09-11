@@ -1,10 +1,10 @@
 //! Encoding commitment protocol.
 
-use crate::{EncodingMemory, commit::transcript::TranscriptRefs};
+use std::ops::Range;
+
 use mpz_memory_core::binary::Binary;
 use rangeset::{RangeSet, Subset, UnionMut};
 use serde::{Deserialize, Serialize};
-use std::ops::Range;
 use tlsn_core::{
     hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256, TypedHash},
     transcript::{
@@ -15,6 +15,8 @@ use tlsn_core::{
         },
     },
 };
+
+use crate::{EncodingMemory, commit::transcript::TranscriptRefs};
 
 /// Bytes of encoding, per byte.
 pub(crate) const ENCODING_SIZE: usize = 128;

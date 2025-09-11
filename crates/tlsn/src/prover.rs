@@ -10,14 +10,8 @@ pub use error::ProverError;
 pub use future::ProverFuture;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
-use crate::{
-    EncodingMemory, Role,
-    commit::{ENCODING_SIZE, ProvingState, TranscriptRefs},
-    context::build_mt_context,
-    mux::attach_mux,
-    tag::verify_tags,
-    zk_aes_ctr::ZkAesCtr,
-};
+use std::sync::Arc;
+
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
@@ -32,7 +26,6 @@ use mpz_zk::ProverConfig as ZkProverConfig;
 use rand::Rng;
 use rustls_pki_types::CertificateDer;
 use serio::SinkExt;
-use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
 use tlsn_core::{
@@ -44,6 +37,15 @@ use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::{Instrument, Span, debug, info, info_span, instrument};
 use webpki::anchor_from_trusted_cert;
+
+use crate::{
+    EncodingMemory, Role,
+    commit::{ENCODING_SIZE, ProvingState, TranscriptRefs},
+    context::build_mt_context,
+    mux::attach_mux,
+    tag::verify_tags,
+    zk_aes_ctr::ZkAesCtr,
+};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,

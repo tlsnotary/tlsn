@@ -7,6 +7,15 @@
 //! - encoding commitments in [`encoding`]
 //! - hash commitments in [`hash`]
 
+mod auth;
+mod decode;
+mod encoding;
+mod hash;
+mod transcript;
+
+pub(crate) use encoding::ENCODING_SIZE;
+pub(crate) use transcript::TranscriptRefs;
+
 use crate::{
     EncodingMemory, EncodingVm,
     commit::{
@@ -17,6 +26,7 @@ use crate::{
     },
     zk_aes_ctr::ZkAesCtr,
 };
+
 use encoding::{EncodingError, Encodings};
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
@@ -37,15 +47,6 @@ use tlsn_core::{
     },
     webpki::{RootCertStore, ServerCertVerifier, ServerCertVerifierError},
 };
-
-mod auth;
-mod decode;
-mod encoding;
-mod hash;
-mod transcript;
-
-pub(crate) use encoding::ENCODING_SIZE;
-pub(crate) use transcript::TranscriptRefs;
 
 /// Internal proving state used by [`Prover`](crate::prover::Prover) and
 /// [`Verifier`](crate::verifier::Verifier).

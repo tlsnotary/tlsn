@@ -1,8 +1,9 @@
 //! Transcript reference storage.
 
+use std::ops::Range;
+
 use mpz_memory_core::{FromRaw, Slice, ToRaw, Vector, binary::U8};
 use rangeset::{Difference, Disjoint, RangeSet, Subset, UnionMut};
-use std::ops::Range;
 use tlsn_core::transcript::Direction;
 
 /// References to the application plaintext in the transcript.

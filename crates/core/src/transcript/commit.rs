@@ -1,5 +1,10 @@
 //! Transcript commitments.
 
+use std::fmt;
+
+use rangeset::ToRangeSet;
+use serde::{Deserialize, Serialize};
+
 use crate::{
     hash::HashAlgId,
     transcript::{
@@ -8,9 +13,6 @@ use crate::{
         Direction, RangeSet, Transcript,
     },
 };
-use rangeset::ToRangeSet;
-use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// The maximum allowed total bytelength of committed data for a single
 /// commitment kind. Used to prevent DoS during verification. (May cause the

@@ -11,15 +11,8 @@ pub use tlsn_core::{
     webpki::ServerCertVerifier,
 };
 
-use crate::{
-    EncodingMemory, Role,
-    commit::{ENCODING_SIZE, ProvingState, TranscriptRefs},
-    config::ProtocolConfig,
-    context::build_mt_context,
-    mux::attach_mux,
-    tag::verify_tags,
-    zk_aes_ctr::ZkAesCtr,
-};
+use std::sync::Arc;
+
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
@@ -32,7 +25,6 @@ use mpz_memory_core::{
 use mpz_vm_core::prelude::*;
 use mpz_zk::VerifierConfig as ZkVerifierConfig;
 use serio::stream::IoStreamExt;
-use std::sync::Arc;
 use tlsn_core::{
     ProvePayload,
     connection::{ConnectionInfo, ServerName},
@@ -41,6 +33,16 @@ use tlsn_core::{
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::{Span, debug, info, info_span, instrument};
+
+use crate::{
+    EncodingMemory, Role,
+    commit::{ENCODING_SIZE, ProvingState, TranscriptRefs},
+    config::ProtocolConfig,
+    context::build_mt_context,
+    mux::attach_mux,
+    tag::verify_tags,
+    zk_aes_ctr::ZkAesCtr,
+};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::ferret::Sender<mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>>,
