@@ -39,7 +39,7 @@ pub(crate) enum Role {
 }
 
 /// TLS session keys.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SessionKeys {
     /// Client write key.
     pub client_write_key: Array<U8, 16>,

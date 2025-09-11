@@ -235,7 +235,7 @@ impl ProvePayload {
 }
 
 /// Prover output.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ProverOutput {
     /// Transcript commitments.
     pub transcript_commitments: Vec<TranscriptCommitment>,
@@ -246,7 +246,7 @@ pub struct ProverOutput {
 opaque_debug::implement!(ProverOutput);
 
 /// Verifier output.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct VerifierOutput {
     /// Server identity.
     pub server_name: Option<ServerName>,

@@ -345,7 +345,7 @@ impl Verifier<state::Committed> {
                 ctx,
                 zk_aes_ctr_sent,
                 zk_aes_ctr_recv,
-                *keys,
+                keys.clone(),
                 *delta,
                 self.config.root_store(),
             ))

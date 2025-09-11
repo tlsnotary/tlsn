@@ -223,7 +223,10 @@ impl<'a> ProvingState<'a> {
             )?;
         }
 
-        let mut output = ProverOutput::default();
+        let mut output = ProverOutput {
+            transcript_commitments: Vec::new(),
+            transcript_secrets: Vec::new(),
+        };
 
         // Creates encoding commitments if necessary.
         if self.has_encoding_ranges() {
@@ -322,7 +325,11 @@ impl<'a> ProvingState<'a> {
             )?;
         }
 
-        let mut output = VerifierOutput::default();
+        let mut output = VerifierOutput {
+            server_name: None,
+            transcript: None,
+            transcript_commitments: Vec::new(),
+        };
 
         // Creates encoding commitments if necessary.
         if self.has_encoding_ranges() {

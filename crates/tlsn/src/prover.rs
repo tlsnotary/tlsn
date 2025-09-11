@@ -393,7 +393,7 @@ impl Prover<state::Committed> {
         let (output, encodings_executed) = mux_fut
             .poll_with(
                 proving_state
-                    .prove(vm, ctx, zk_aes_ctr_sent, zk_aes_ctr_recv, *keys)
+                    .prove(vm, ctx, zk_aes_ctr_sent, zk_aes_ctr_recv, keys.clone())
                     .map_err(ProverError::from),
             )
             .await?;
