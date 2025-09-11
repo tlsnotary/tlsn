@@ -26,7 +26,7 @@ use rand::Rng;
 use rangeset::RangeSet;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
-    ProveConfig, ProvePayload, ProverOutput, VerifierOutput,
+    ProveConfig, ProveRequest, ProverOutput, VerifierOutput,
     connection::{HandshakeData, HandshakeVerificationError, ServerName},
     hash::{HashAlgId, TypedHash},
     transcript::{
@@ -138,7 +138,7 @@ impl<'a> ProvingState<'a> {
     /// * `encodings_transferred` - If the encoding protocol has already been
     ///   executed.
     pub(crate) fn for_verifier(
-        payload: ProvePayload,
+        payload: ProveRequest,
         transcript: &'a TlsTranscript,
         transcript_refs: &'a mut TranscriptRefs,
         verified_server_name: Option<ServerName>,
@@ -593,7 +593,7 @@ mod tests {
     use rangeset::{RangeSet, UnionMut};
     use rstest::{fixture, rstest};
     use tlsn_core::{
-        ProveConfig, ProvePayload,
+        ProveConfig, ProveRequest,
         connection::{HandshakeData, ServerName},
         fixtures::transcript::{IV, KEY},
         hash::HashAlgId,
@@ -615,7 +615,7 @@ mod tests {
         tls_transcript: TlsTranscript,
         transcript_refs: TranscriptRefs,
         prove_config: ProveConfig,
-        prove_payload: ProvePayload,
+        prove_payload: ProveRequest,
     ) {
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
@@ -819,7 +819,7 @@ mod tests {
         prove_config: ProveConfig,
         tls_transcript: TlsTranscript,
         decoding: (RangeSet<usize>, RangeSet<usize>),
-    ) -> ProvePayload {
+    ) -> ProveRequest {
         let (sent, recv) = decoding;
 
         let handshake = HandshakeData::new(&tls_transcript);
@@ -829,7 +829,7 @@ mod tests {
             .unwrap()
             .to_partial(sent, recv);
 
-        ProvePayload::new(&prove_config, Some(partial), Some((server_name, handshake)))
+        ProveRequest::new(&prove_config, Some(partial), Some((server_name, handshake)))
     }
 
     fn set_keys(

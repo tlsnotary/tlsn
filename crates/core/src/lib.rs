@@ -199,10 +199,10 @@ pub struct VerifyConfigBuilderError(#[from] VerifyConfigBuilderErrorRepr);
 #[derive(Debug, thiserror::Error)]
 enum VerifyConfigBuilderErrorRepr {}
 
-/// Payload sent to the verifier.
+/// Request to prove statements about the connection.
 #[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ProvePayload {
+pub struct ProveRequest {
     /// Handshake data.
     pub handshake: Option<(ServerName, HandshakeData)>,
     /// Transcript data.
@@ -211,7 +211,7 @@ pub struct ProvePayload {
     pub transcript_commit: Option<TranscriptCommitRequest>,
 }
 
-impl ProvePayload {
+impl ProveRequest {
     /// Creates a new prove payload.
     ///
     /// # Arguments

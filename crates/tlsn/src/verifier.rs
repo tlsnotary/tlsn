@@ -22,7 +22,7 @@ use mpz_vm_core::prelude::*;
 use mpz_zk::VerifierConfig as ZkVerifierConfig;
 use serio::stream::IoStreamExt;
 use tlsn_core::{
-    ProvePayload,
+    ProveRequest,
     connection::{ConnectionInfo, ServerName},
     transcript::{ContentType, TlsTranscript},
 };
@@ -310,7 +310,7 @@ impl Verifier<state::Committed> {
             ..
         } = &mut self.state;
 
-        let payload: ProvePayload = mux_fut
+        let payload: ProveRequest = mux_fut
             .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
             .await?;
 

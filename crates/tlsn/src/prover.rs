@@ -25,7 +25,7 @@ use serio::SinkExt;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
 use tlsn_core::{
-    ProvePayload,
+    ProveRequest,
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
 };
@@ -359,7 +359,7 @@ impl Prover<state::Committed> {
             None
         };
 
-        let payload = ProvePayload::new(&config, partial, handshake);
+        let payload = ProveRequest::new(&config, partial, handshake);
 
         mux_fut
             .poll_with(ctx.io_mut().send(payload).map_err(ProverError::from))
