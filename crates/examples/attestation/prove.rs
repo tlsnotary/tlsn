@@ -255,7 +255,7 @@ async fn notarize(
         transcript_commitments,
         transcript_secrets,
         ..
-    } = prover.prove(&disclosure_config).await?;
+    } = prover.prove(disclosure_config).await?;
 
     // Build an attestation request.
     let mut builder = AttestationRequest::builder(config);

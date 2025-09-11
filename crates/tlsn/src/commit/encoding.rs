@@ -340,7 +340,7 @@ mod tests {
     use tlsn_core::{
         hash::{HashAlgId, HashProvider},
         transcript::{
-            Direction, Idx,
+            Direction,
             encoding::{EncoderSecret, EncodingCommitment, EncodingProvider},
         },
     };
@@ -349,7 +349,7 @@ mod tests {
     fn test_encoding_adjust(
         index: (RangeSet<usize>, RangeSet<usize>),
         transcript_refs: TranscriptRefs,
-        encoding_idxs: Vec<(Direction, Idx)>,
+        encoding_idxs: Vec<(Direction, RangeSet<usize>)>,
     ) {
         let creator = EncodingCreator::new(Some(HashAlgId::SHA256), encoding_idxs);
 
@@ -371,8 +371,8 @@ mod tests {
         let mut idxs = Vec::new();
 
         let (sent_range, recv_range) = index;
-        idxs.push((Direction::Sent, Idx::new(sent_range.clone())));
-        idxs.push((Direction::Received, Idx::new(recv_range.clone())));
+        idxs.push((Direction::Sent, sent_range.clone()));
+        idxs.push((Direction::Received, recv_range.clone()));
 
         let commitment = EncodingCommitment { root, secret };
         let proof = tree.proof(idxs.iter()).unwrap();
@@ -442,13 +442,12 @@ mod tests {
     }
 
     #[fixture]
-    fn encoding_idxs(index: (RangeSet<usize>, RangeSet<usize>)) -> Vec<(Direction, Idx)> {
+    fn encoding_idxs(
+        index: (RangeSet<usize>, RangeSet<usize>),
+    ) -> Vec<(Direction, RangeSet<usize>)> {
         let (sent, recv) = index;
 
-        vec![
-            (Direction::Sent, Idx::new(sent)),
-            (Direction::Received, Idx::new(recv)),
-        ]
+        vec![(Direction::Sent, sent), (Direction::Received, recv)]
     }
 
     #[fixture]

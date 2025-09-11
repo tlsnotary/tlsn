@@ -60,6 +60,7 @@ rangeset = { workspace = true }
 webpki-roots = { workspace = true }
 
 [dev-dependencies]
+lipsum = { workspace = true }
 sha2 = { workspace = true }
 rstest = { workspace = true }
 tlsn-server-fixture = { workspace = true }

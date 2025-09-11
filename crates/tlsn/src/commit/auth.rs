@@ -359,6 +359,7 @@ mod tests {
         },
         zk_aes_ctr::ZkAesCtr,
     };
+    use lipsum::{LIBER_PRIMUS, lipsum};
     use mpz_common::context::test_st_context;
     use mpz_garble_core::Delta;
     use mpz_memory_core::{
@@ -372,9 +373,9 @@ mod tests {
     use rangeset::{RangeSet, UnionMut};
     use rstest::{fixture, rstest};
     use tlsn_core::{
-        fixtures::transcript::{IV, KEY, RECORD_SIZE, transcript_fixture},
+        fixtures::transcript::{IV, KEY, RECORD_SIZE},
         hash::HashAlgId,
-        transcript::{Direction, TlsTranscript},
+        transcript::{ContentType, Direction, TlsTranscript},
     };
 
     #[rstest]
@@ -452,8 +453,8 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_authenticator_recv(
-        encoding: Vec<(Direction, Idx)>,
-        hashes: Vec<(Direction, Idx, HashAlgId)>,
+        encoding: Vec<(Direction, RangeSet<usize>)>,
+        hashes: Vec<(Direction, RangeSet<usize>, HashAlgId)>,
         decoding: (RangeSet<usize>, RangeSet<usize>),
         transcript: TlsTranscript,
         transcript_refs: TranscriptRefs,
@@ -462,7 +463,7 @@ mod tests {
         let partial = transcript
             .to_transcript()
             .unwrap()
-            .to_partial(Idx::new(sent_decdoding), Idx::new(recv_decdoding));
+            .to_partial(sent_decdoding, recv_decdoding);
 
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
@@ -525,8 +526,8 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_authenticator_sent_verify_fail(
-        encoding: Vec<(Direction, Idx)>,
-        hashes: Vec<(Direction, Idx, HashAlgId)>,
+        encoding: Vec<(Direction, RangeSet<usize>)>,
+        hashes: Vec<(Direction, RangeSet<usize>, HashAlgId)>,
         decoding: (RangeSet<usize>, RangeSet<usize>),
         transcript: TlsTranscript,
         transcript_refs: TranscriptRefs,
@@ -535,7 +536,7 @@ mod tests {
         let partial = transcript
             .to_transcript()
             .unwrap()
-            .to_partial(Idx::new(sent_decdoding), Idx::new(recv_decdoding));
+            .to_partial(sent_decdoding, recv_decdoding);
 
         let (mut ctx_p, mut ctx_v) = test_st_context(8);
 
@@ -561,7 +562,7 @@ mod tests {
 
         // Forge verifier transcript to check if verify fails.
         // Use an index which is part of the proving range.
-        let forged = forged_transcript(Direction::Sent, 610);
+        let forged = forged();
 
         let proof = auth_verifier
             .auth_sent(&mut verifier, &mut zk_verifier, &forged, &mut refs_verifier)
@@ -612,24 +613,27 @@ mod tests {
     }
 
     #[fixture]
-    fn encoding() -> Vec<(Direction, Idx)> {
-        let sent = Idx::new(800..2000);
-        let recv = Idx::new(5000..5800);
+    fn encoding() -> Vec<(Direction, RangeSet<usize>)> {
+        let sent = 800..2000;
+        let recv = 5000..5800;
 
-        let encoding = vec![(Direction::Sent, sent), (Direction::Received, recv)];
+        let encoding = vec![
+            (Direction::Sent, sent.into()),
+            (Direction::Received, recv.into()),
+        ];
         encoding
     }
 
     #[fixture]
-    fn hashes() -> Vec<(Direction, Idx, HashAlgId)> {
-        let sent = Idx::new(2600..3700);
-        let recv = Idx::new(6800..RECV_LEN);
+    fn hashes() -> Vec<(Direction, RangeSet<usize>, HashAlgId)> {
+        let sent = 2600..3700;
+        let recv = 6800..RECV_LEN;
 
         let alg = HashAlgId::SHA256;
 
         let hashes = vec![
-            (Direction::Sent, sent, alg),
-            (Direction::Received, recv, alg),
+            (Direction::Sent, sent.into(), alg),
+            (Direction::Received, recv.into(), alg),
         ];
         hashes
     }
@@ -648,20 +652,55 @@ mod tests {
 
     #[fixture]
     fn transcript() -> TlsTranscript {
-        transcript_fixture()
+        let sent = LIBER_PRIMUS.as_bytes()[..SENT_LEN].to_vec();
+
+        let mut recv = lipsum(RECV_LEN).into_bytes();
+        recv.truncate(RECV_LEN);
+
+        tlsn_core::fixtures::transcript::transcript_fixture(&sent, &recv)
+    }
+
+    #[fixture]
+    fn forged() -> TlsTranscript {
+        const WRONG_BYTE_INDEX: usize = 610;
+
+        let mut sent = LIBER_PRIMUS.as_bytes()[..SENT_LEN].to_vec();
+        sent[WRONG_BYTE_INDEX] = sent[WRONG_BYTE_INDEX].wrapping_add(1);
+
+        let mut recv = lipsum(RECV_LEN).into_bytes();
+        recv.truncate(RECV_LEN);
+
+        tlsn_core::fixtures::transcript::transcript_fixture(&sent, &recv)
     }
 
     #[fixture]
     fn transcript_refs(transcript: TlsTranscript) -> TranscriptRefs {
-        let len_sent = transcript
-            .iter_sent_app_data()
-            .map(|record| record.ciphertext.len())
+        let sent_len = transcript
+            .sent()
+            .iter()
+            .filter_map(|record| {
+                if matches!(record.typ, ContentType::ApplicationData) {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
             .sum();
-        let len_recv = transcript
-            .iter_recv_app_data()
-            .map(|record| record.ciphertext.len())
+        let recv_len = transcript
+            .recv()
+            .iter()
+            .filter_map(|record| {
+                if matches!(record.typ, ContentType::ApplicationData) {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
             .sum();
 
-        TranscriptRefs::new(len_sent, len_recv)
+        TranscriptRefs::new(sent_len, recv_len)
     }
+
+    const SENT_LEN: usize = 4096;
+    const RECV_LEN: usize = 8192;
 }

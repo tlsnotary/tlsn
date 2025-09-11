@@ -271,6 +271,7 @@ mod tests {
             decode::{DecodeError, ErrorRepr, decode_transcript, verify_transcript},
         },
     };
+    use lipsum::{LIBER_PRIMUS, lipsum};
     use mpz_common::context::test_st_context;
     use mpz_garble_core::Delta;
     use mpz_memory_core::{
@@ -284,8 +285,8 @@ mod tests {
     use rangeset::{RangeSet, UnionMut};
     use rstest::{fixture, rstest};
     use tlsn_core::{
-        fixtures::transcript::{IV, KEY, forged_transcript, transcript_fixture},
-        transcript::{Direction, Idx, PartialTranscript, TlsTranscript},
+        fixtures::transcript::{IV, KEY},
+        transcript::{ContentType, Direction, PartialTranscript, TlsTranscript},
     };
 
     #[rstest]
@@ -447,7 +448,13 @@ mod tests {
         transcript_refs: &mut TranscriptRefs,
     ) {
         let mut pos = 0_usize;
-        for record in transcript.iter_sent_app_data() {
+
+        let sent = transcript
+            .sent()
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData);
+
+        for record in sent {
             let len = record.ciphertext.len();
 
             let cipher_ref: Vector<U8> = vm.alloc_vec(len).unwrap();
@@ -472,7 +479,13 @@ mod tests {
         }
 
         pos = 0;
-        for record in transcript.iter_recv_app_data() {
+
+        let recv = transcript
+            .recv()
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData);
+
+        for record in recv {
             let len = record.ciphertext.len();
 
             let cipher_ref: Vector<U8> = vm.alloc_vec(len).unwrap();
@@ -503,10 +516,7 @@ mod tests {
     ) -> PartialTranscript {
         let (sent, recv) = decoding;
 
-        transcript
-            .to_transcript()
-            .unwrap()
-            .to_partial(Idx::new(sent), Idx::new(recv))
+        transcript.to_transcript().unwrap().to_partial(sent, recv)
     }
 
     #[fixture]
@@ -537,26 +547,54 @@ mod tests {
 
     #[fixture]
     fn transcript() -> TlsTranscript {
-        transcript_fixture()
+        let sent = LIBER_PRIMUS.as_bytes()[..SENT_LEN].to_vec();
+
+        let mut recv = lipsum(RECV_LEN).into_bytes();
+        recv.truncate(RECV_LEN);
+
+        tlsn_core::fixtures::transcript::transcript_fixture(&sent, &recv)
     }
 
     #[fixture]
     fn forged() -> TlsTranscript {
-        forged_transcript(Direction::Received, 2200)
+        const WRONG_BYTE_INDEX: usize = 2200;
+
+        let sent = LIBER_PRIMUS.as_bytes()[..SENT_LEN].to_vec();
+
+        let mut recv = lipsum(RECV_LEN).into_bytes();
+        recv.truncate(RECV_LEN);
+        recv[WRONG_BYTE_INDEX] = recv[WRONG_BYTE_INDEX].wrapping_add(1);
+
+        tlsn_core::fixtures::transcript::transcript_fixture(&sent, &recv)
     }
 
     #[fixture]
     fn transcript_refs(transcript: TlsTranscript) -> TranscriptRefs {
-        let len_sent = transcript
-            .iter_sent_app_data()
-            .map(|record| record.ciphertext.len())
-            .sum();
-        let len_recv = transcript
-            .iter_recv_app_data()
-            .map(|record| record.ciphertext.len())
-            .sum();
+        let sent_len = transcript
+            .sent()
+            .iter()
+            .filter_map(|record| {
+                if let ContentType::ApplicationData = record.typ {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
+            .sum::<usize>();
 
-        TranscriptRefs::new(len_sent, len_recv)
+        let recv_len = transcript
+            .recv()
+            .iter()
+            .filter_map(|record| {
+                if let ContentType::ApplicationData = record.typ {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
+            .sum::<usize>();
+
+        TranscriptRefs::new(sent_len, recv_len)
     }
 
     fn vms() -> (Prover<IdealRCOTReceiver>, Verifier<IdealRCOTSender>) {
@@ -570,4 +608,7 @@ mod tests {
 
         (prover, verifier)
     }
+
+    const SENT_LEN: usize = 4096;
+    const RECV_LEN: usize = 8192;
 }

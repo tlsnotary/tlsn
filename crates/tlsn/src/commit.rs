@@ -411,7 +411,7 @@ impl<'a> ProvingState<'a> {
     /// * `delta` - The Delta.
     async fn transfer_encodings(
         &mut self,
-        vm: &mut dyn EncodingMemory<Binary>,
+        vm: &mut (dyn EncodingMemory<Binary> + Send),
         ctx: &mut Context,
         delta: Delta,
     ) -> Result<EncodingCommitment, CommitError> {
@@ -442,7 +442,7 @@ impl<'a> ProvingState<'a> {
     /// * `ctx` - The thread context.
     async fn receive_encodings(
         &mut self,
-        vm: &mut dyn EncodingMemory<Binary>,
+        vm: &mut (dyn EncodingMemory<Binary> + Send),
         ctx: &mut Context,
     ) -> Result<(EncodingCommitment, EncodingTree), CommitError> {
         if self.encodings_transferred {
@@ -571,6 +571,7 @@ impl From<HandshakeVerificationError> for CommitError {
 
 #[cfg(test)]
 mod tests {
+    use lipsum::{LIBER_PRIMUS, lipsum};
     use mpc_tls::SessionKeys;
     use mpz_common::context::test_st_context;
     use mpz_garble_core::Delta;
@@ -587,10 +588,10 @@ mod tests {
     use tlsn_core::{
         ProveConfig, ProvePayload,
         connection::{HandshakeData, ServerName},
-        fixtures::transcript::{IV, KEY, transcript_fixture},
+        fixtures::transcript::{IV, KEY},
         hash::HashAlgId,
         transcript::{
-            Direction, TlsTranscript, TranscriptCommitConfig, TranscriptCommitment,
+            ContentType, Direction, TlsTranscript, TranscriptCommitConfig, TranscriptCommitment,
             TranscriptCommitmentKind, TranscriptSecret,
         },
     };
@@ -604,7 +605,7 @@ mod tests {
     #[tokio::main]
     #[rstest]
     async fn test_commit(
-        transcript: TlsTranscript,
+        tls_transcript: TlsTranscript,
         transcript_refs: TranscriptRefs,
         prove_config: ProveConfig,
         prove_payload: ProvePayload,
@@ -654,8 +655,15 @@ mod tests {
             server_write_mac_key: mac_key_verifier,
         };
 
-        let prover_state =
-            ProvingState::for_prover(prove_config, &transcript, &mut refs_prover, false);
+        let transcript = tls_transcript.to_transcript().unwrap();
+
+        let prover_state = ProvingState::for_prover(
+            prove_config,
+            &tls_transcript,
+            &transcript,
+            &mut refs_prover,
+            false,
+        );
 
         let mut zk_prover_sent = ZkAesCtr::new(Role::Prover);
         zk_prover_sent.set_key(keys_prover.0, keys_prover.1);
@@ -665,8 +673,13 @@ mod tests {
         zk_prover_recv.set_key(keys_prover.0, keys_prover.1);
         zk_prover_recv.alloc(&mut prover, RECV_LEN).unwrap();
 
-        let verifier_state =
-            ProvingState::for_verifier(prove_payload, &transcript, &mut refs_verifier, None, false);
+        let verifier_state = ProvingState::for_verifier(
+            prove_payload,
+            &tls_transcript,
+            &mut refs_verifier,
+            None,
+            false,
+        );
 
         let mut zk_verifier_sent = ZkAesCtr::new(Role::Verifier);
         zk_verifier_sent.set_key(keys_verifier.0, keys_verifier.1);
@@ -742,9 +755,9 @@ mod tests {
         decoding: (RangeSet<usize>, RangeSet<usize>),
         encoding: (RangeSet<usize>, RangeSet<usize>),
         hash: (RangeSet<usize>, RangeSet<usize>),
-        transcript: TlsTranscript,
+        tls_transcript: TlsTranscript,
     ) -> ProveConfig {
-        let transcript = transcript.to_transcript().unwrap();
+        let transcript = tls_transcript.to_transcript().unwrap();
         let mut builder = ProveConfig::builder(&transcript);
 
         builder.reveal_sent(&decoding.0).unwrap();
@@ -795,11 +808,21 @@ mod tests {
     }
 
     #[fixture]
-    fn prove_payload(prove_config: ProveConfig, transcript: TlsTranscript) -> ProvePayload {
-        let handshake = HandshakeData::new(&transcript);
-        let server_name = ServerName::Dns("tlsnotary.org".try_into().unwrap());
+    fn prove_payload(
+        prove_config: ProveConfig,
+        tls_transcript: TlsTranscript,
+        decoding: (RangeSet<usize>, RangeSet<usize>),
+    ) -> ProvePayload {
+        let (sent, recv) = decoding;
 
-        ProvePayload::new(&prove_config, Some((server_name, handshake)))
+        let handshake = HandshakeData::new(&tls_transcript);
+        let server_name = ServerName::Dns("tlsnotary.org".try_into().unwrap());
+        let partial = tls_transcript
+            .to_transcript()
+            .unwrap()
+            .to_partial(sent, recv);
+
+        ProvePayload::new(&prove_config, Some(partial), Some((server_name, handshake)))
     }
 
     fn set_keys(
@@ -869,21 +892,43 @@ mod tests {
     }
 
     #[fixture]
-    fn transcript() -> TlsTranscript {
-        transcript_fixture()
+    fn tls_transcript() -> TlsTranscript {
+        let sent = LIBER_PRIMUS.as_bytes()[..SENT_LEN].to_vec();
+
+        let mut recv = lipsum(RECV_LEN).into_bytes();
+        recv.truncate(RECV_LEN);
+
+        tlsn_core::fixtures::transcript::transcript_fixture(&sent, &recv)
     }
 
     #[fixture]
-    fn transcript_refs(transcript: TlsTranscript) -> TranscriptRefs {
-        let len_sent = transcript
-            .iter_sent_app_data()
-            .map(|record| record.ciphertext.len())
+    fn transcript_refs(tls_transcript: TlsTranscript) -> TranscriptRefs {
+        let sent_len = tls_transcript
+            .sent()
+            .iter()
+            .filter_map(|record| {
+                if matches!(record.typ, ContentType::ApplicationData) {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
             .sum();
-        let len_recv = transcript
-            .iter_recv_app_data()
-            .map(|record| record.ciphertext.len())
+        let recv_len = tls_transcript
+            .recv()
+            .iter()
+            .filter_map(|record| {
+                if matches!(record.typ, ContentType::ApplicationData) {
+                    Some(record.ciphertext.len())
+                } else {
+                    None
+                }
+            })
             .sum();
 
-        TranscriptRefs::new(len_sent, len_recv)
+        TranscriptRefs::new(sent_len, recv_len)
     }
+
+    const SENT_LEN: usize = 4096;
+    const RECV_LEN: usize = 8192;
 }

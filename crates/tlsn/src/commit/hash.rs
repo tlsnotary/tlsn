@@ -275,10 +275,7 @@ mod test {
     use rangeset::{RangeSet, UnionMut};
     use rstest::{fixture, rstest};
     use sha2::Digest;
-    use tlsn_core::{
-        hash::HashAlgId,
-        transcript::{Direction, Idx},
-    };
+    use tlsn_core::{hash::HashAlgId, transcript::Direction};
 
     #[rstest]
     #[tokio::test]
@@ -294,9 +291,9 @@ mod test {
         recv.union_mut(&(20..25));
 
         let hash_ranges = [
-            (Direction::Sent, Idx::new(sent1), HashAlgId::SHA256),
-            (Direction::Sent, Idx::new(sent2), HashAlgId::SHA256),
-            (Direction::Received, Idx::new(recv), HashAlgId::SHA256),
+            (Direction::Sent, sent1, HashAlgId::SHA256),
+            (Direction::Sent, sent2, HashAlgId::SHA256),
+            (Direction::Received, recv, HashAlgId::SHA256),
         ];
 
         let mut refs_prover = TranscriptRefs::new(1000, 1000);
