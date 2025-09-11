@@ -18,10 +18,6 @@ use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use mpz_memory_core::{
-    Vector,
-    binary::{Binary, U8},
-};
 use mpz_vm_core::prelude::*;
 use mpz_zk::VerifierConfig as ZkVerifierConfig;
 use serio::stream::IoStreamExt;
@@ -35,8 +31,8 @@ use tokio::sync::Mutex;
 use tracing::{Span, debug, info, info_span, instrument};
 
 use crate::{
-    EncodingMemory, Role,
-    commit::{ENCODING_SIZE, ProvingState, TranscriptRefs},
+    Role,
+    commit::{ProvingState, TranscriptRefs},
     config::ProtocolConfig,
     context::build_mt_context,
     mux::attach_mux,
@@ -56,19 +52,6 @@ pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
 pub(crate) type Mpc =
     mpz_garble::protocol::semihonest::Evaluator<mpz_ot::cot::DerandCOTReceiver<RCOTReceiver>>;
 pub(crate) type Zk = mpz_zk::Verifier<RCOTSender>;
-
-impl<T> EncodingMemory<Binary> for mpz_zk::Verifier<T> {
-    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
-        let len = values.iter().map(|v| v.len()).sum::<usize>() * ENCODING_SIZE;
-        let mut encodings = Vec::with_capacity(len);
-
-        for &v in values {
-            let keys = self.get_keys(v).expect("keys should be available");
-            encodings.extend(keys.iter().flat_map(|key| key.as_block().as_bytes()));
-        }
-        encodings
-    }
-}
 
 /// Information about the TLS session.
 #[derive(Debug)]

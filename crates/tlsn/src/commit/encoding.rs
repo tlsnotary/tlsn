@@ -2,7 +2,11 @@
 
 use std::ops::Range;
 
-use mpz_memory_core::binary::Binary;
+use mpz_memory_core::{
+    MemoryType, Vector,
+    binary::{Binary, U8},
+};
+use mpz_vm_core::Vm;
 use rangeset::{RangeSet, Subset, UnionMut};
 use serde::{Deserialize, Serialize};
 use tlsn_core::{
@@ -16,10 +20,44 @@ use tlsn_core::{
     },
 };
 
-use crate::{EncodingMemory, commit::transcript::TranscriptRefs};
+use crate::commit::transcript::TranscriptRefs;
 
 /// Bytes of encoding, per byte.
 pub(crate) const ENCODING_SIZE: usize = 128;
+
+pub(crate) trait EncodingVm<T: MemoryType>: EncodingMemory<T> + Vm<T> {}
+
+impl<T: MemoryType, U> EncodingVm<T> for U where U: EncodingMemory<T> + Vm<T> {}
+
+pub(crate) trait EncodingMemory<T: MemoryType> {
+    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8>;
+}
+
+impl<T> EncodingMemory<Binary> for mpz_zk::Prover<T> {
+    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
+        let len = values.iter().map(|v| v.len()).sum::<usize>() * ENCODING_SIZE;
+        let mut encodings = Vec::with_capacity(len);
+
+        for &v in values {
+            let macs = self.get_macs(v).expect("macs should be available");
+            encodings.extend(macs.iter().flat_map(|mac| mac.as_bytes()));
+        }
+        encodings
+    }
+}
+
+impl<T> EncodingMemory<Binary> for mpz_zk::Verifier<T> {
+    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
+        let len = values.iter().map(|v| v.len()).sum::<usize>() * ENCODING_SIZE;
+        let mut encodings = Vec::with_capacity(len);
+
+        for &v in values {
+            let keys = self.get_keys(v).expect("keys should be available");
+            encodings.extend(keys.iter().flat_map(|key| key.as_block().as_bytes()));
+        }
+        encodings
+    }
+}
 
 /// The encoding adjustments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -322,14 +360,12 @@ impl From<EncodingTreeError> for EncodingError {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::ops::Range;
 
-    use crate::{
-        EncodingMemory,
-        commit::{
-            encoding::{ENCODING_SIZE, EncodingCreator, Encodings, Provider},
-            transcript::TranscriptRefs,
-        },
+    use crate::commit::{
+        encoding::{ENCODING_SIZE, EncodingCreator, Encodings, Provider},
+        transcript::TranscriptRefs,
     };
     use mpz_core::Block;
     use mpz_garble_core::Delta;

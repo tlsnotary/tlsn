@@ -17,10 +17,6 @@ use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use mpz_memory_core::{
-    Vector,
-    binary::{Binary, U8},
-};
 use mpz_vm_core::prelude::*;
 use mpz_zk::ProverConfig as ZkProverConfig;
 use rand::Rng;
@@ -39,8 +35,8 @@ use tracing::{Instrument, Span, debug, info, info_span, instrument};
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
-    EncodingMemory, Role,
-    commit::{ENCODING_SIZE, ProvingState, TranscriptRefs},
+    Role,
+    commit::{ProvingState, TranscriptRefs},
     context::build_mt_context,
     mux::attach_mux,
     tag::verify_tags,
@@ -59,19 +55,6 @@ pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
 pub(crate) type Mpc =
     mpz_garble::protocol::semihonest::Garbler<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
 pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
-
-impl<T> EncodingMemory<Binary> for mpz_zk::Prover<T> {
-    fn get_encodings(&self, values: &[Vector<U8>]) -> Vec<u8> {
-        let len = values.iter().map(|v| v.len()).sum::<usize>() * ENCODING_SIZE;
-        let mut encodings = Vec::with_capacity(len);
-
-        for &v in values {
-            let macs = self.get_macs(v).expect("macs should be available");
-            encodings.extend(macs.iter().flat_map(|mac| mac.as_bytes()));
-        }
-        encodings
-    }
-}
 
 /// A prover instance.
 #[derive(Debug)]

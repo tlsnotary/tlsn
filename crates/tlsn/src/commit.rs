@@ -17,11 +17,10 @@ pub(crate) use encoding::ENCODING_SIZE;
 pub(crate) use transcript::TranscriptRefs;
 
 use crate::{
-    EncodingMemory, EncodingVm,
     commit::{
         auth::{AuthError, Authenticator},
         decode::{DecodeError, check_transcript_length, decode_transcript, verify_transcript},
-        encoding::EncodingCreator,
+        encoding::{EncodingCreator, EncodingMemory, EncodingVm},
         hash::{HashCommitError, PlaintextHasher},
     },
     zk_aes_ctr::ZkAesCtr,
@@ -605,8 +604,8 @@ mod tests {
     };
 
     use crate::{
-        EncodingVm, Role,
-        commit::{ProvingState, transcript::TranscriptRefs},
+        Role,
+        commit::{ProvingState, encoding::EncodingVm, transcript::TranscriptRefs},
         zk_aes_ctr::ZkAesCtr,
     };
 
