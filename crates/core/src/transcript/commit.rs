@@ -10,7 +10,7 @@ use crate::{
     transcript::{
         encoding::{EncodingCommitment, EncodingTree},
         hash::{PlaintextHash, PlaintextHashSecret},
-        Direction, Idx, Transcript,
+        Direction, RangeSet, Transcript,
     },
 };
 
@@ -71,7 +71,7 @@ pub struct TranscriptCommitConfig {
     encoding_hash_alg: HashAlgId,
     has_encoding: bool,
     has_hash: bool,
-    commits: Vec<((Direction, Idx), TranscriptCommitmentKind)>,
+    commits: Vec<((Direction, RangeSet<usize>), TranscriptCommitmentKind)>,
 }
 
 impl TranscriptCommitConfig {
@@ -96,7 +96,7 @@ impl TranscriptCommitConfig {
     }
 
     /// Returns an iterator over the encoding commitment indices.
-    pub fn iter_encoding(&self) -> impl Iterator<Item = &(Direction, Idx)> {
+    pub fn iter_encoding(&self) -> impl Iterator<Item = &(Direction, RangeSet<usize>)> {
         self.commits.iter().filter_map(|(idx, kind)| match kind {
             TranscriptCommitmentKind::Encoding => Some(idx),
             _ => None,
@@ -104,7 +104,7 @@ impl TranscriptCommitConfig {
     }
 
     /// Returns an iterator over the hash commitment indices.
-    pub fn iter_hash(&self) -> impl Iterator<Item = (&(Direction, Idx), &HashAlgId)> {
+    pub fn iter_hash(&self) -> impl Iterator<Item = (&(Direction, RangeSet<usize>), &HashAlgId)> {
         self.commits.iter().filter_map(|(idx, kind)| match kind {
             TranscriptCommitmentKind::Hash { alg } => Some((idx, alg)),
             _ => None,
@@ -134,7 +134,7 @@ pub struct TranscriptCommitConfigBuilder<'a> {
     has_encoding: bool,
     has_hash: bool,
     default_kind: TranscriptCommitmentKind,
-    commits: HashSet<((Direction, Idx), TranscriptCommitmentKind)>,
+    commits: HashSet<((Direction, RangeSet<usize>), TranscriptCommitmentKind)>,
 }
 
 impl<'a> TranscriptCommitConfigBuilder<'a> {
@@ -175,15 +175,15 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
         direction: Direction,
         kind: TranscriptCommitmentKind,
     ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
-        let idx = Idx::new(ranges.to_range_set());
+        let idx = ranges.to_range_set();
 
-        if idx.end() > self.transcript.len_of_direction(direction) {
+        if idx.end().unwrap_or(0) > self.transcript.len_of_direction(direction) {
             return Err(TranscriptCommitConfigBuilderError::new(
                 ErrorKind::Index,
                 format!(
                     "range is out of bounds of the transcript ({}): {} > {}",
                     direction,
-                    idx.end(),
+                    idx.end().unwrap_or(0),
                     self.transcript.len_of_direction(direction)
                 ),
             ));
@@ -290,7 +290,7 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptCommitRequest {
     encoding: bool,
-    hash: Vec<(Direction, Idx, HashAlgId)>,
+    hash: Vec<(Direction, RangeSet<usize>, HashAlgId)>,
 }
 
 impl TranscriptCommitRequest {
@@ -305,7 +305,7 @@ impl TranscriptCommitRequest {
     }
 
     /// Returns an iterator over the hash commitments.
-    pub fn iter_hash(&self) -> impl Iterator<Item = &(Direction, Idx, HashAlgId)> {
+    pub fn iter_hash(&self) -> impl Iterator<Item = &(Direction, RangeSet<usize>, HashAlgId)> {
         self.hash.iter()
     }
 }

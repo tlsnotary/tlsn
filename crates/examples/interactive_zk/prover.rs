@@ -285,7 +285,15 @@ fn prepare_zk_proof_input(
 
     let hash = &received_commitment.hash;
 
-    let dob = received[received_commitment.idx.start()..received_commitment.idx.end()].to_vec();
+    let dob_start = received_commitment
+        .idx
+        .min()
+        .ok_or("No start index for DOB")?;
+    let dob_end = received_commitment
+        .idx
+        .end()
+        .ok_or("No end index for DOB")?;
+    let dob = received[dob_start..dob_end].to_vec();
     let blinder = received_secret.blinder.as_bytes().to_vec();
     let committed_hash = hash.value.as_bytes().to_vec();
     let proof_date = Local::now().date_naive();

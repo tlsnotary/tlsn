@@ -9,7 +9,7 @@ use crate::{
     transcript::{
         commit::MAX_TOTAL_COMMITTED_DATA,
         encoding::{new_encoder, Encoder, EncodingCommitment},
-        Direction, Idx,
+        Direction,
     },
 };
 
@@ -17,7 +17,7 @@ use crate::{
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct Opening {
     pub(super) direction: Direction,
-    pub(super) idx: Idx,
+    pub(super) idx: RangeSet<usize>,
     pub(super) blinder: Blinder,
 }
 
@@ -51,7 +51,7 @@ impl EncodingProof {
         commitment: &EncodingCommitment,
         sent: &[u8],
         recv: &[u8],
-    ) -> Result<(Idx, Idx), EncodingProofError> {
+    ) -> Result<(RangeSet<usize>, RangeSet<usize>), EncodingProofError> {
         let hasher = provider.get(&commitment.root.alg)?;
 
         let encoder = new_encoder(&commitment.secret);
@@ -89,13 +89,13 @@ impl EncodingProof {
             };
 
             // Make sure the ranges are within the bounds of the transcript.
-            if idx.end() > data.len() {
+            if idx.end().unwrap_or(0) > data.len() {
                 return Err(EncodingProofError::new(
                     ErrorKind::Proof,
                     format!(
                         "index out of bounds of the transcript ({}): {} > {}",
                         direction,
-                        idx.end(),
+                        idx.end().unwrap_or(0),
                         data.len()
                     ),
                 ));
@@ -111,7 +111,7 @@ impl EncodingProof {
             // present in the merkle tree.
             leaves.push((*id, hasher.hash(&expected_leaf)));
 
-            auth.union_mut(idx.as_range_set());
+            auth.union_mut(idx);
         }
 
         // Verify that the expected hashes are present in the merkle tree.
@@ -121,7 +121,7 @@ impl EncodingProof {
         // data is authentic.
         inclusion_proof.verify(hasher, &commitment.root, leaves)?;
 
-        Ok((Idx(auth_sent), Idx(auth_recv)))
+        Ok((auth_sent, auth_recv))
     }
 }
 
@@ -234,7 +234,7 @@ mod test {
         hash::Blake3,
         transcript::{
             encoding::{EncoderSecret, EncodingTree},
-            Idx, Transcript,
+            Transcript,
         },
     };
 
@@ -249,8 +249,8 @@ mod test {
     fn new_encoding_fixture(secret: EncoderSecret) -> EncodingFixture {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let idx_0 = (Direction::Sent, Idx::new(0..POST_JSON.len()));
-        let idx_1 = (Direction::Received, Idx::new(0..OK_JSON.len()));
+        let idx_0 = (Direction::Sent, RangeSet::from(0..POST_JSON.len()));
+        let idx_1 = (Direction::Received, RangeSet::from(0..OK_JSON.len()));
 
         let provider = encoding_provider(transcript.sent(), transcript.received());
         let tree = EncodingTree::new(&Blake3::default(), [&idx_0, &idx_1], &provider).unwrap();
@@ -317,7 +317,7 @@ mod test {
 
         let Opening { idx, .. } = proof.openings.values_mut().next().unwrap();
 
-        *idx = Idx::new([0..3, 13..15]);
+        *idx = RangeSet::from([0..3, 13..15]);
 
         let err = proof
             .verify_with_provider(

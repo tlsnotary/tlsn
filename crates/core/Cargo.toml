@@ -13,7 +13,13 @@ workspace = true
 
 [features]
 default = []
-fixtures = ["dep:hex", "dep:tlsn-data-fixtures"]
+fixtures = [
+    "dep:hex",
+    "dep:tlsn-data-fixtures",
+    "dep:aead",
+    "dep:aes-gcm",
+    "dep:generic-array",
+]
 
 [dependencies]
 tlsn-data-fixtures = { workspace = true, optional = true }
@@ -21,6 +27,9 @@ tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
 rangeset = { workspace = true, features = ["serde"] }
 
+aead = { workspace = true, features = ["alloc"], optional = true }
+aes-gcm = { workspace = true, optional = true }
+generic-array = { workspace = true, optional = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
 hex = { workspace = true, optional = true }
@@ -39,9 +48,12 @@ webpki-roots = { workspace = true }
 rustls-webpki = { workspace = true, features = ["ring"] }
 rustls-pki-types = { workspace = true }
 itybity = { workspace = true }
-zeroize = { workspace = true }
+zeroize = { workspace = true, features = ["zeroize_derive"] }
 
 [dev-dependencies]
+aead = { workspace = true, features = ["alloc"] }
+aes-gcm = { workspace = true }
+generic-array = { workspace = true }
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }

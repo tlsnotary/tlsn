@@ -10,7 +10,6 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
-use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
     config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
     connection::ServerName,
@@ -19,7 +18,7 @@ use tlsn::{
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
-use tlsn_server_fixture_certs::SERVER_DOMAIN;
+use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
 const SECRET: &str = "TLSNotary's private key 🤡";
 

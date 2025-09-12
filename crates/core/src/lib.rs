@@ -11,15 +11,17 @@ pub mod hash;
 pub mod merkle;
 pub mod transcript;
 pub mod webpki;
+pub use rangeset;
+pub(crate) mod display;
 
-use rangeset::ToRangeSet;
+use rangeset::{RangeSet, ToRangeSet, UnionMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::{HandshakeData, ServerName},
     transcript::{
-        Direction, Idx, PartialTranscript, Transcript, TranscriptCommitConfig,
-        TranscriptCommitRequest, TranscriptCommitment, TranscriptSecret,
+        Direction, PartialTranscript, Transcript, TranscriptCommitConfig, TranscriptCommitRequest,
+        TranscriptCommitment, TranscriptSecret,
     },
 };
 
@@ -27,7 +29,7 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProveConfig {
     server_identity: bool,
-    transcript: Option<PartialTranscript>,
+    reveal: Option<(RangeSet<usize>, RangeSet<usize>)>,
     transcript_commit: Option<TranscriptCommitConfig>,
 }
 
@@ -42,9 +44,9 @@ impl ProveConfig {
         self.server_identity
     }
 
-    /// Returns the transcript to be proven.
-    pub fn transcript(&self) -> Option<&PartialTranscript> {
-        self.transcript.as_ref()
+    /// Returns the ranges of the transcript to be revealed.
+    pub fn reveal(&self) -> Option<&(RangeSet<usize>, RangeSet<usize>)> {
+        self.reveal.as_ref()
     }
 
     /// Returns the transcript commitment configuration.
@@ -58,8 +60,7 @@ impl ProveConfig {
 pub struct ProveConfigBuilder<'a> {
     transcript: &'a Transcript,
     server_identity: bool,
-    reveal_sent: Idx,
-    reveal_recv: Idx,
+    reveal: Option<(RangeSet<usize>, RangeSet<usize>)>,
     transcript_commit: Option<TranscriptCommitConfig>,
 }
 
@@ -69,8 +70,7 @@ impl<'a> ProveConfigBuilder<'a> {
         Self {
             transcript,
             server_identity: false,
-            reveal_sent: Idx::default(),
-            reveal_recv: Idx::default(),
+            reveal: None,
             transcript_commit: None,
         }
     }
@@ -93,22 +93,24 @@ impl<'a> ProveConfigBuilder<'a> {
         direction: Direction,
         ranges: &dyn ToRangeSet<usize>,
     ) -> Result<&mut Self, ProveConfigBuilderError> {
-        let idx = Idx::new(ranges.to_range_set());
+        let idx = ranges.to_range_set();
 
-        if idx.end() > self.transcript.len_of_direction(direction) {
+        if idx.end().unwrap_or(0) > self.transcript.len_of_direction(direction) {
             return Err(ProveConfigBuilderError(
                 ProveConfigBuilderErrorRepr::IndexOutOfBounds {
                     direction,
-                    actual: idx.end(),
+                    actual: idx.end().unwrap_or(0),
                     len: self.transcript.len_of_direction(direction),
                 },
             ));
         }
 
+        let (sent, recv) = self.reveal.get_or_insert_default();
         match direction {
-            Direction::Sent => self.reveal_sent.union_mut(&idx),
-            Direction::Received => self.reveal_recv.union_mut(&idx),
+            Direction::Sent => sent.union_mut(&idx),
+            Direction::Received => recv.union_mut(&idx),
         }
+
         Ok(self)
     }
 
@@ -130,18 +132,9 @@ impl<'a> ProveConfigBuilder<'a> {
 
     /// Builds the configuration.
     pub fn build(self) -> Result<ProveConfig, ProveConfigBuilderError> {
-        let transcript = if !self.reveal_sent.is_empty() || !self.reveal_recv.is_empty() {
-            Some(
-                self.transcript
-                    .to_partial(self.reveal_sent, self.reveal_recv),
-            )
-        } else {
-            None
-        };
-
         Ok(ProveConfig {
             server_identity: self.server_identity,
-            transcript,
+            reveal: self.reveal,
             transcript_commit: self.transcript_commit,
         })
     }

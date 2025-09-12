@@ -886,6 +886,7 @@ async fn client_error_is_sticky() {
 }
 
 #[tokio::test]
+#[allow(clippy::no_effect)]
 #[allow(clippy::unnecessary_operation)]
 async fn client_is_send() {
     let (client, _) = make_pair(KeyType::Rsa).await;

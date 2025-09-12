@@ -3,8 +3,8 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, VmError};
-use rangeset::Intersection;
-use tlsn_core::transcript::{Direction, Idx, PartialTranscript};
+use rangeset::{Intersection, RangeSet};
+use tlsn_core::transcript::{Direction, PartialTranscript};
 
 /// References to the application plaintext in the transcript.
 #[derive(Debug, Default, Clone)]
@@ -38,7 +38,11 @@ impl TranscriptRefs {
 
     /// Returns VM references for the given direction and index, otherwise
     /// `None` if the index is out of bounds.
-    pub(crate) fn get(&self, direction: Direction, idx: &Idx) -> Option<Vec<Vector<U8>>> {
+    pub(crate) fn get(
+        &self,
+        direction: Direction,
+        idx: &RangeSet<usize>,
+    ) -> Option<Vec<Vector<U8>>> {
         if idx.is_empty() {
             return Some(Vec::new());
         }
@@ -83,8 +87,8 @@ impl TranscriptRefs {
 /// Decodes the transcript.
 pub(crate) fn decode_transcript(
     vm: &mut dyn Vm<Binary>,
-    sent: &Idx,
-    recv: &Idx,
+    sent: &RangeSet<usize>,
+    recv: &RangeSet<usize>,
     refs: &TranscriptRefs,
 ) -> Result<(), VmError> {
     let sent_refs = refs.get(Direction::Sent, sent).expect("index is in bounds");
@@ -149,7 +153,7 @@ mod tests {
     use mpz_memory_core::{FromRaw, Slice, Vector, binary::U8};
     use rangeset::RangeSet;
     use std::ops::Range;
-    use tlsn_core::transcript::{Direction, Idx};
+    use tlsn_core::transcript::Direction;
 
     // TRANSCRIPT_REFS:
     //
@@ -185,7 +189,7 @@ mod tests {
         };
 
         let vm_refs = transcript_refs
-            .get(Direction::Sent, &idx_fixture())
+            .get(Direction::Sent, &RangeSet::from(IDXS))
             .unwrap();
 
         let expected_refs: Vec<Vector<U8>> = EXPECTED_REFS
@@ -203,10 +207,5 @@ mod tests {
         for (&expected, actual) in expected_refs.iter().zip(vm_refs) {
             assert_eq!(expected, actual);
         }
-    }
-
-    fn idx_fixture() -> Idx {
-        let set = RangeSet::from(IDXS);
-        Idx::builder().union(&set).build()
     }
 }
