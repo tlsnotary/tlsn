@@ -191,6 +191,11 @@ impl Hash {
             len: value.len(),
         }
     }
+
+    /// Returns a byte slice of the hash value.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.value[..self.len]
+    }
 }
 
 impl rs_merkle::Hash for Hash {

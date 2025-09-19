@@ -110,7 +110,7 @@ elliptic-curve = { version = "0.13" }
 enum-try-as-inner = { version = "0.1" }
 env_logger = { version = "0.10" }
 futures = { version = "0.3" }
-futures-rustls = { version = "0.26" }
+futures-rustls = { version = "0.25" }
 generic-array = { version = "0.14" }
 ghash = { version = "0.5" }
 hex = { version = "0.4" }
