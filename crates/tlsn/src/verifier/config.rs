@@ -12,7 +12,7 @@ use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
 #[builder(pattern = "owned")]
 pub struct VerifierConfig {
     protocol_config_validator: ProtocolConfigValidator,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     root_store: Option<RootCertStore>,
 }
 
