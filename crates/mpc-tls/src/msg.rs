@@ -72,4 +72,5 @@ pub(crate) struct ServerFinishedVd {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub(crate) struct CloseConnection;
