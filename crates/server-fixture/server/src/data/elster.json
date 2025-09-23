@@ -1,0 +1,37 @@
+{
+    "tax_year": 2024,
+    "taxpayer": {
+        "idnr": "12345678901",
+        "first_name": "Max",
+        "last_name": "Mustermann",
+        "date_of_birth": "1985-03-12",
+        "address": {
+            "street": "Musterstraße 1",
+            "postal_code": "10115",
+            "city": "Berlin"
+        }
+    },
+    "income": {
+        "employment_income": 54200.00,
+        "other_income": 1200.00,
+        "capital_gains": 350.00
+    },
+    "deductions": {
+        "pension_insurance": 4200.00,
+        "health_insurance": 3600.00,
+        "donations": 500.00,
+        "work_related_expenses": 1100.00
+    },
+    "assessment": {
+        "taxable_income": 49200.00,
+        "income_tax": 9156.00,
+        "solidarity_surcharge": 503.58,
+        "total_tax": 9659.58,
+        "prepaid_tax": 9500.00,
+        "refund": 159.58
+    },
+    "submission": {
+        "submitted_at": "2025-03-01T14:22:30Z",
+        "submitted_by": "ElsterOnline-Portal"
+    }
+}
