@@ -193,7 +193,7 @@ where
         };
 
         // Divide by block length and round up.
-        let block_count = input.len() / 16 + (input.len() % 16 != 0) as usize;
+        let block_count = input.len() / 16 + !input.len().is_multiple_of(16) as usize;
 
         if block_count > MAX_POWER {
             return Err(ErrorRepr::InputLength {
@@ -282,11 +282,11 @@ fn build_ghash_data(mut aad: Vec<u8>, mut ciphertext: Vec<u8>) -> Vec<u8> {
     let len_block = ((associated_data_bitlen as u128) << 64) + (text_bitlen as u128);
 
     // Pad data to be a multiple of 16 bytes.
-    let aad_padded_block_count = (aad.len() / 16) + (aad.len() % 16 != 0) as usize;
+    let aad_padded_block_count = (aad.len() / 16) + !aad.len().is_multiple_of(16) as usize;
     aad.resize(aad_padded_block_count * 16, 0);
 
     let ciphertext_padded_block_count =
-        (ciphertext.len() / 16) + (ciphertext.len() % 16 != 0) as usize;
+        (ciphertext.len() / 16) + !ciphertext.len().is_multiple_of(16) as usize;
     ciphertext.resize(ciphertext_padded_block_count * 16, 0);
 
     let mut data: Vec<u8> = Vec::with_capacity(aad.len() + ciphertext.len() + 16);
