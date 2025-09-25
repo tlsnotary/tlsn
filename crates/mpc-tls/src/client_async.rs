@@ -1,16 +1,9 @@
 //! Provides a TLS client which exposes an async socket.
 //!
-//! This library provides the [bind_client] function which attaches a TLS client
-//! to a socket connection and then exposes a [TlsConnection] object, which
-//! provides an async socket API for reading and writing cleartext. The TLS
-//! client will then automatically encrypt and decrypt traffic and forward that
-//! to the provided socket.
-
-#![deny(missing_docs, unreachable_pub, unused_must_use)]
-#![deny(clippy::all)]
-#![forbid(unsafe_code)]
-
-mod conn;
+//! The [bind_client] function attaches a TLS client to a socket connection and
+//! then exposes a [TlsConnection] object, which provides an async socket API
+//! for reading and writing cleartext. The TLS client will then automatically
+//! encrypt and decrypt traffic and forward that to the provided socket.
 
 use bytes::{Buf, Bytes};
 use futures::{
@@ -23,12 +16,8 @@ use std::{
     task::{Context, Poll},
 };
 
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, error, trace, warn, Instrument};
-
 use tls_client::ClientConnection;
-
-pub use conn::TlsConnection;
+use tracing::{debug, debug_span, error, trace, warn, Instrument};
 
 const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
 const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
@@ -115,11 +104,9 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
         'conn: loop {
             // Write all pending TLS data to the server.
             if client.wants_write() && !client_closed {
-                #[cfg(feature = "tracing")]
                 trace!("client wants to write");
                 while client.wants_write() {
                     let _sent = client.write_tls_async(&mut server_tx).await?;
-                    #[cfg(feature = "tracing")]
                     trace!("sent {} tls bytes to server", _sent);
                 }
                 server_tx.flush().await?;
@@ -133,12 +120,10 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 _ = rx_sender
                     .send(Ok(Bytes::copy_from_slice(&rx_buf[..read])))
                     .await;
-                #[cfg(feature = "tracing")]
                 trace!("forwarded {} plaintext bytes to conn", read);
             }
 
             if !client.is_handshaking() && !handshake_done {
-                #[cfg(feature = "tracing")]
                 debug!("handshake complete");
                 handshake_done = true;
                 // Start reading application data that needs to be transmitted from the
@@ -154,7 +139,6 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 // Reads TLS data from the server and writes it into the client.
                 received = &mut rx_tls_fut => {
                     let received = received?;
-                    #[cfg(feature = "tracing")]
                     trace!("received {} tls bytes from server", received);
 
                     // Loop until we've processed all the data we received in this read.
@@ -171,13 +155,11 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                         }
                     }
 
-                    #[cfg(feature = "tracing")]
                     trace!("processed {} tls bytes from server", processed);
 
                     // By convention if `AsyncRead::read` returns 0, it means EOF, i.e. the peer
                     // has closed the socket.
                     if received == 0 {
-                        #[cfg(feature = "tracing")]
                         debug!("server closed connection");
                         server_closed = true;
                         client.server_closed().await?;
@@ -192,7 +174,6 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 // send a close_notify to the server.
                 data = &mut tx_recv_fut => {
                     if let Some(data) = data {
-                        #[cfg(feature = "tracing")]
                         trace!("writing {} plaintext bytes to client", data.len());
 
                         sent.extend(&data);
@@ -204,7 +185,6 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     } else {
                         if !server_closed {
                             if let Err(e) = send_close_notify(&mut client, &mut server_tx).await {
-                                #[cfg(feature = "tracing")]
                                 warn!("failed to send close_notify to server: {}", e);
                             }
                         }
@@ -216,7 +196,6 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 }
                 // Waits for a notification from the backend that it is ready to decrypt data.
                 _ = &mut notify => {
-                    #[cfg(feature = "tracing")]
                     trace!("backend is ready to decrypt");
 
                     client.process_new_packets().await?;
@@ -224,14 +203,12 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
             }
         }
 
-        #[cfg(feature = "tracing")]
         debug!("client shutdown");
 
         _ = server_tx.close().await;
         tx_receiver.close();
         rx_sender.close_channel();
 
-        #[cfg(feature = "tracing")]
         trace!(
             "server close notify: {}, sent: {}, recv: {}",
             client.received_close_notify(),
@@ -242,7 +219,6 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
         Ok(ClosedConnection { client, sent, recv })
     };
 
-    #[cfg(feature = "tracing")]
     let fut = fut.instrument(debug_span!("tls_connection"));
 
     let fut = ConnectionFuture { fut: Box::pin(fut) };
@@ -254,7 +230,6 @@ async fn send_close_notify(
     client: &mut ClientConnection,
     server_tx: &mut (impl AsyncWrite + Unpin),
 ) -> Result<(), ConnectionError> {
-    #[cfg(feature = "tracing")]
     trace!("sending close_notify to server");
     client.send_close_notify().await?;
     client.process_new_packets().await?;

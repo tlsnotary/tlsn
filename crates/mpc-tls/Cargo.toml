@@ -22,6 +22,7 @@ tlsn-cipher = { workspace = true }
 tlsn-hmac-sha256 = { workspace = true }
 tlsn-key-exchange = { workspace = true }
 tlsn-tls-backend = { workspace = true }
+tlsn-tls-client = { workspace = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-core = { workspace = true }
 
@@ -39,6 +40,7 @@ ludi = { git = "https://github.com/sinui0/ludi", rev = "e511c3b", default-featur
 serio = { workspace = true }
 
 async-trait = { workspace = true }
+bytes = { workspace = true }
 derive_builder = { workspace = true }
 enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
@@ -53,6 +55,7 @@ aes-gcm = { workspace = true }
 ctr = { workspace = true }
 ghash_rc = { package = "ghash", version = "0.5" }
 tokio = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["io", "compat"] }
 pin-project-lite = { workspace = true }
 web-time = { workspace = true }
 
@@ -63,11 +66,13 @@ mpz-garble = { workspace = true }
 
 cipher-crate = { package = "cipher", version = "0.4" }
 generic-array = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true, features = ["full"] }
 rand_chacha = { workspace = true }
 rstest = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-tls-client = { workspace = true }
-tlsn-tls-client-async = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing-subscriber = { workspace = true }

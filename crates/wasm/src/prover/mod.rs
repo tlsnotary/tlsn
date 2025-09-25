@@ -6,7 +6,7 @@ use enum_try_as_inner::EnumTryAsInner;
 use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
-use tls_client_async::TlsConnection;
+use mpc_tls::client_async::TlsConnection;
 use tlsn::prover::{state, ProveConfig, Prover};
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};

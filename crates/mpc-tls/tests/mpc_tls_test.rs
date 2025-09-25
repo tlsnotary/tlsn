@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::{AsyncReadExt, AsyncWriteExt};
-use mpc_tls::{Config, MpcTlsFollower, MpcTlsLeader};
+use mpc_tls::{client_async::bind_client, Config, MpcTlsFollower, MpcTlsLeader};
 use mpz_common::context::test_mt_context;
 use mpz_core::Block;
 use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
@@ -14,7 +14,6 @@ use mpz_ot::{
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rustls_pki_types::CertificateDer;
 use tls_client::RootCertStore;
-use tls_client_async::bind_client;
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tokio::sync::Mutex;
 use tokio_util::compat::TokioAsyncReadCompatExt;

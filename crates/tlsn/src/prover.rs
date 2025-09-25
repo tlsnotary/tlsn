@@ -33,12 +33,14 @@ use crate::{
 };
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
+use mpc_tls::{
+    LeaderCtrl, MpcTlsLeader, SessionKeys,
+    client_async::{TlsConnection, bind_client},
+};
 use rand::Rng;
 use serio::SinkExt;
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_client_async::{TlsConnection, bind_client};
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     ProvePayload,

@@ -86,8 +86,8 @@ impl From<std::io::Error> for ProverError {
     }
 }
 
-impl From<tls_client_async::ConnectionError> for ProverError {
-    fn from(e: tls_client_async::ConnectionError) -> Self {
+impl From<mpc_tls::client_async::ConnectionError> for ProverError {
+    fn from(e: mpc_tls::client_async::ConnectionError) -> Self {
         Self::new(ErrorKind::Io, e)
     }
 }

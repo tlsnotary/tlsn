@@ -5,10 +5,10 @@ use futures::{AsyncReadExt, AsyncWriteExt};
 use http_body_util::{BodyExt as _, Full};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
+use mpc_tls::{client_async::bind_client, ClosedConnection, ConnectionError, TlsConnection};
 use rstest::{fixture, rstest};
 use rustls_pki_types::CertificateDer;
 use tls_client::{ClientConfig, ClientConnection, RustCryptoBackend, ServerName};
-use tls_client_async::{bind_client, ClosedConnection, ConnectionError, TlsConnection};
 use tls_server_fixture::{
     bind_test_server, bind_test_server_hyper, APP_RECORD_LENGTH, CA_CERT_DER, CLOSE_DELAY,
     SERVER_DOMAIN,
