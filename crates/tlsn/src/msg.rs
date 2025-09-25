@@ -6,6 +6,7 @@ use tlsn_core::connection::{HandshakeData, ServerName};
 
 /// Message sent from Prover to Verifier to prove the server identity.
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub(crate) struct ServerIdentityProof {
     /// Server name.
     pub name: ServerName,
