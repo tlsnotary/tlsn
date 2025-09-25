@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use mpz_core::bitvec::BitVec;
-use mpz_hash::sha256::Sha256;
+use mpz_hash::{blake3::Blake3, sha256::Sha256};
 use mpz_memory_core::{
     DecodeFutureTyped, MemoryExt, Vector,
     binary::{Binary, U8},
@@ -107,6 +107,12 @@ pub(crate) fn verify_hash(
     Ok(HashCommitFuture { futs })
 }
 
+#[derive(Clone)]
+enum Hasher {
+    Sha256(Sha256),
+    Blake3(Blake3),
+}
+
 /// Commit plaintext hashes of the transcript.
 #[allow(clippy::type_complexity)]
 fn hash_commit_inner(
@@ -135,11 +141,11 @@ fn hash_commit_inner(
 
         let hash = match alg {
             HashAlgId::SHA256 => {
-                let mut hasher = if let Some(hasher) = hashers.get(&alg).cloned() {
+                let mut hasher = if let Some(Hasher::Sha256(hasher)) = hashers.get(&alg).cloned() {
                     hasher
                 } else {
                     let hasher = Sha256::new_with_init(vm).map_err(HashCommitError::hasher)?;
-                    hashers.insert(alg, hasher.clone());
+                    hashers.insert(alg, Hasher::Sha256(hasher.clone()));
                     hasher
                 };
 
@@ -148,6 +154,26 @@ fn hash_commit_inner(
                 }
                 hasher.update(&blinder);
                 hasher.finalize(vm).map_err(HashCommitError::hasher)?
+            }
+            HashAlgId::BLAKE3 => {
+                let mut hasher = if let Some(Hasher::Blake3(hasher)) = hashers.get(&alg).cloned() {
+                    hasher
+                } else {
+                    let hasher = Blake3::new(vm).map_err(HashCommitError::hasher)?;
+                    hashers.insert(alg, Hasher::Blake3(hasher.clone()));
+                    hasher
+                };
+
+                for plaintext in refs.get(direction, &idx).expect("plaintext refs are valid") {
+                    hasher
+                        .update(vm, &plaintext)
+                        .map_err(HashCommitError::hasher)?;
+                }
+                hasher
+                    .update(vm, &blinder)
+                    .map_err(HashCommitError::hasher)?;
+                hasher.finalize(vm).map_err(HashCommitError::hasher)?
+                
             }
             alg => {
                 return Err(HashCommitError::unsupported_alg(alg));

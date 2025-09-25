@@ -22,6 +22,9 @@ const DEFAULT_COMMITMENT_KINDS: &[TranscriptCommitmentKind] = &[
     TranscriptCommitmentKind::Hash {
         alg: HashAlgId::SHA256,
     },
+    TranscriptCommitmentKind::Hash {
+        alg: HashAlgId::BLAKE3,
+    },
     TranscriptCommitmentKind::Encoding,
 ];
 
@@ -637,7 +640,9 @@ mod tests {
     }
 
     #[rstest]
-    fn test_reveal_with_hash_commitment() {
+    #[case::sha256(HashAlgId::SHA256)]
+    #[case::blake3(HashAlgId::BLAKE3)]
+    fn test_reveal_with_hash_commitment(#[case] alg: HashAlgId) {
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let provider = HashProvider::default();
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
@@ -645,7 +650,6 @@ mod tests {
         let direction = Direction::Sent;
         let idx = RangeSet::from(0..10);
         let blinder: Blinder = rng.random();
-        let alg = HashAlgId::SHA256;
         let hasher = provider.get(&alg).unwrap();
 
         let commitment = PlaintextHash {
@@ -683,7 +687,9 @@ mod tests {
     }
 
     #[rstest]
-    fn test_reveal_with_inconsistent_hash_commitment() {
+    #[case::sha256(HashAlgId::SHA256)]
+    #[case::blake3(HashAlgId::BLAKE3)]
+    fn test_reveal_with_inconsistent_hash_commitment(#[case] alg: HashAlgId) {
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let provider = HashProvider::default();
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
@@ -691,7 +697,6 @@ mod tests {
         let direction = Direction::Sent;
         let idx = RangeSet::from(0..10);
         let blinder: Blinder = rng.random();
-        let alg = HashAlgId::SHA256;
         let hasher = provider.get(&alg).unwrap();
 
         let commitment = PlaintextHash {
