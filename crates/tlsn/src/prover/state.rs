@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use mpc_tls::{MpcTlsLeader, SessionKeys};
+use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use tlsn_core::transcript::{TlsTranscript, Transcript};
 use tlsn_deap::Deap;
@@ -33,6 +33,13 @@ pub struct Setup {
 
 opaque_debug::implement!(Setup);
 
+/// State during the MPC-TLS connection.
+pub struct Connected {
+    pub(crate) mpc_ctrl: LeaderCtrl,
+}
+
+opaque_debug::implement!(Connected);
+
 /// State after the TLS connection has been committed and closed.
 pub struct Committed {
     pub(crate) mux_ctrl: MuxControl,
@@ -51,11 +58,13 @@ pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
 impl ProverState for Setup {}
+impl ProverState for Connected {}
 impl ProverState for Committed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl Sealed for super::Setup {}
+    impl Sealed for super::Connected {}
     impl Sealed for super::Committed {}
 }

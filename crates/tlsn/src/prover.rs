@@ -2,6 +2,7 @@
 
 mod client_async;
 mod config;
+mod control;
 mod error;
 mod future;
 pub mod state;
@@ -37,7 +38,7 @@ use crate::{
 };
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
+use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
 use std::sync::Arc;
@@ -159,19 +160,11 @@ impl Prover<state::Initialized> {
 }
 
 impl Prover<state::Setup> {
-    /// Connects to the server using the provided socket.
+    /// Connects to the server.
     ///
-    /// Returns a handle to the TLS connection, a future which returns the
-    /// prover once the connection is closed.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - The socket to the server.
+    /// Returns a connected Prover which has to be polled and a control handle.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn connect<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-    ) -> Result<(TlsConnection, ProverFuture), ProverError> {
+    pub async fn connect(self) -> Result<(Prover<state::Connected>, ProverFuture), ProverError> {
         let state::Setup {
             mux_ctrl,
             mut mux_fut,
@@ -332,13 +325,63 @@ impl Prover<state::Setup> {
             .instrument(span)
         });
 
-        Ok((
-            conn,
-            ProverFuture {
-                fut,
-                ctrl: ProverControl { mpc_ctrl },
-            },
-        ))
+        Ok((conn, ProverFuture { fut }))
+    }
+}
+
+impl Prover<state::Connected> {
+    /// Returns `true` if the Prover wants to read TLS data from the server.
+    pub fn wants_read(&self) -> bool {
+        todo!()
+    }
+
+    /// Reads TLS data from the server.
+    pub fn read_tls(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+        todo!()
+    }
+
+    /// Returns `true` if the Prover wants to write TLS data to the server.
+    pub fn wants_write(&self) -> bool {
+        todo!()
+    }
+
+    /// Writes TLS data to the server.
+    pub fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        todo!()
+    }
+
+    /// Reads plaintext data from the server into the provided buffer.
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        todo!()
+    }
+
+    /// Writes plaintext data to be sent to the server.
+    pub fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+        todo!()
+    }
+
+    /// Closes the server connection.
+    pub fn close(&mut self) -> Result<(), std::io::Error> {
+        todo!()
+    }
+
+    /// Defers decryption of data from the server until the server has closed
+    /// the connection.
+    ///
+    /// This is a performance optimization which will significantly reduce the
+    /// amount of upload bandwidth used by the prover.
+    ///
+    /// # Notes
+    ///
+    /// The prover may need to close the connection to the server in order for
+    /// it to close the connection on its end. If neither the prover or server
+    /// close the connection this will cause a deadlock.
+    pub async fn defer_decryption(&self) -> Result<(), ProverError> {
+        self.state
+            .mpc_ctrl
+            .defer_decryption()
+            .await
+            .map_err(ProverError::from)
     }
 }
 
@@ -540,32 +583,6 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
             rcot_recv,
         ),
     )
-}
-
-/// A controller for the prover.
-#[derive(Clone)]
-pub struct ProverControl {
-    mpc_ctrl: LeaderCtrl,
-}
-
-impl ProverControl {
-    /// Defers decryption of data from the server until the server has closed
-    /// the connection.
-    ///
-    /// This is a performance optimization which will significantly reduce the
-    /// amount of upload bandwidth used by the prover.
-    ///
-    /// # Notes
-    ///
-    /// * The prover may need to close the connection to the server in order for
-    ///   it to close the connection on its end. If neither the prover or server
-    ///   close the connection this will cause a deadlock.
-    pub async fn defer_decryption(&self) -> Result<(), ProverError> {
-        self.mpc_ctrl
-            .defer_decryption()
-            .await
-            .map_err(ProverError::from)
-    }
 }
 
 /// Translates VM references to the ZK address space.
