@@ -57,7 +57,7 @@ tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
 tlsn-tls-client = { path = "crates/tls/client" }
 tlsn-tls-core = { path = "crates/tls/core" }
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "dea3db2" }
 tlsn-harness-core = { path = "crates/harness/core" }
 tlsn-harness-executor = { path = "crates/harness/executor" }
 tlsn-harness-runner = { path = "crates/harness/runner" }
@@ -80,9 +80,10 @@ mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "3d90b6c" }
 
 rangeset = { version = "0.2" }
 serio = { version = "0.2" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "dea3db2" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "dea3db2" }
 uid-mux = { version = "0.2" }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "dea3db2" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }

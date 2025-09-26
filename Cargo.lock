@@ -3169,6 +3169,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures-plex"
+version = "0.1.0"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dea3db2#dea3db250c374f049dcce9d3a0042b0fd7f4b09f"
+dependencies = [
+ "bytes",
+ "futures-io",
+ "futures-util",
+]
+
+[[package]]
 name = "futures-rustls"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6758,7 +6768,7 @@ dependencies = [
 [[package]]
 name = "spansy"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f2c1b2c1734dc276cecc4d36ef1"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dea3db2#dea3db250c374f049dcce9d3a0042b0fd7f4b09f"
 dependencies = [
  "bytes",
  "httparse",
@@ -7140,6 +7150,7 @@ dependencies = [
  "bytes",
  "derive_builder 0.12.0",
  "futures",
+ "futures-plex",
  "ghash 0.5.1",
  "http-body-util",
  "hyper",
@@ -7581,7 +7592,7 @@ dependencies = [
 [[package]]
 name = "tlsn-utils"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f2c1b2c1734dc276cecc4d36ef1"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dea3db2#dea3db250c374f049dcce9d3a0042b0fd7f4b09f"
 
 [[package]]
 name = "tlsn-wasm"
@@ -8435,7 +8446,7 @@ dependencies = [
 [[package]]
 name = "websocket-relay"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f2c1b2c1734dc276cecc4d36ef1"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dea3db2#dea3db250c374f049dcce9d3a0042b0fd7f4b09f"
 dependencies = [
  "anyhow",
  "form_urlencoded",

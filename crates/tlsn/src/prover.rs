@@ -160,6 +160,21 @@ impl Prover<state::Initialized> {
 }
 
 impl Prover<state::Setup> {
+    /// Connects to the server using the provided socket.
+    ///
+    /// Returns a connection and a control handle.
+    pub async fn connect_with<S>(
+        self,
+        socket: S,
+    ) -> Result<(TlsConnection, ProverFuture), ProverError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    {
+        let (prover, future) = self.connect().await?;
+
+        todo!()
+    }
+
     /// Connects to the server.
     ///
     /// Returns a connected Prover which has to be polled and a control handle.
