@@ -39,6 +39,7 @@ mpz-ot = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-zk = { workspace = true }
 
+bytes = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
@@ -48,6 +49,7 @@ rustls-webpki = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["io", "compat"] }
 serde = { workspace = true, features = ["derive"] }
 ghash = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
@@ -56,11 +58,13 @@ rangeset = { workspace = true }
 webpki-roots = { workspace = true }
 
 [dev-dependencies]
+mpz-ot = { workspace = true, features = ["ideal"] }
+
+hyper = { workspace = true, features = ["client", "http1"] }
+http-body-util = { workspace = true }
+hyper-util = { workspace = true, features = ["full"] }
 rstest = { workspace = true }
+tls-server-fixture = { workspace = true }
 tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
-tokio-util = { workspace = true, features = ["compat"] }
-hyper = { workspace = true, features = ["client"] }
-http-body-util = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

@@ -3,16 +3,16 @@ use std::{str, sync::Arc};
 use core::future::Future;
 use futures::{AsyncReadExt, AsyncWriteExt};
 use http_body_util::{BodyExt as _, Full};
-use hyper::{body::Bytes, Request, StatusCode};
+use hyper::{Request, StatusCode, body::Bytes};
 use hyper_util::rt::TokioIo;
-use mpc_tls::{client_async::bind_client, ClosedConnection, ConnectionError, TlsConnection};
 use rstest::{fixture, rstest};
 use rustls_pki_types::CertificateDer;
 use tls_client::{ClientConfig, ClientConnection, RustCryptoBackend, ServerName};
 use tls_server_fixture::{
-    bind_test_server, bind_test_server_hyper, APP_RECORD_LENGTH, CA_CERT_DER, CLOSE_DELAY,
-    SERVER_DOMAIN,
+    APP_RECORD_LENGTH, CA_CERT_DER, CLOSE_DELAY, SERVER_DOMAIN, bind_test_server,
+    bind_test_server_hyper,
 };
+use tlsn::prover::{ClosedConnection, ConnectionError, TlsConnection, bind_client};
 use tokio::task::JoinHandle;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use webpki::anchor_from_trusted_cert;

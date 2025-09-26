@@ -1,10 +1,14 @@
 //! Prover.
 
+mod client_async;
 mod config;
 mod error;
 mod future;
 pub mod state;
 
+pub use client_async::{
+    ClosedConnection, ConnectionError, ConnectionFuture, TlsConnection, bind_client,
+};
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
@@ -33,10 +37,7 @@ use crate::{
 };
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{
-    LeaderCtrl, MpcTlsLeader, SessionKeys,
-    client_async::{TlsConnection, bind_client},
-};
+use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
 use std::sync::Arc;

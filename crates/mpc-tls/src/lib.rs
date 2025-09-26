@@ -4,7 +4,6 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod client_async;
 mod config;
 mod decode;
 mod error;

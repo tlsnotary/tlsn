@@ -5,10 +5,12 @@
 //! for reading and writing cleartext. The TLS client will then automatically
 //! encrypt and decrypt traffic and forward that to the provided socket.
 
+mod conn;
+
 use bytes::{Buf, Bytes};
 use futures::{
-    channel::mpsc, future::Fuse, select_biased, stream::Next, AsyncRead, AsyncReadExt, AsyncWrite,
-    AsyncWriteExt, Future, FutureExt, SinkExt, StreamExt,
+    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future, FutureExt, SinkExt, StreamExt,
+    channel::mpsc, future::Fuse, select_biased, stream::Next,
 };
 
 use std::{
@@ -17,7 +19,9 @@ use std::{
 };
 
 use tls_client::ClientConnection;
-use tracing::{debug, debug_span, error, trace, warn, Instrument};
+use tracing::{Instrument, debug, debug_span, error, trace, warn};
+
+pub use conn::TlsConnection;
 
 const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
 const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
