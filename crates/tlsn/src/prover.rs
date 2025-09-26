@@ -13,6 +13,7 @@ pub use client_async::{
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
+use futures_plex::{DuplexStream, duplex};
 use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
@@ -236,7 +237,10 @@ impl Prover<state::Setup> {
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;
 
-        let (conn, conn_fut) = bind_client(socket, client);
+        // `client_handle` needs to be stored in the prover and is used for `read` and `write`.
+        // `prover_duplex` needs to be stored in the prover and is used for `read_tls` and `write_tls`.
+        let (server_duplex, prover_duplex) = duplex(1 << 13);
+        let (client_handle, conn_fut) = bind_client(server_duplex, client);
 
         let fut = Box::pin({
             let span = self.span.clone();
@@ -340,7 +344,7 @@ impl Prover<state::Setup> {
             .instrument(span)
         });
 
-        Ok((conn, ProverFuture { fut }))
+        Ok((client_handle, ProverFuture { fut }))
     }
 }
 

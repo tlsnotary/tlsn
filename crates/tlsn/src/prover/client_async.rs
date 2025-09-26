@@ -18,6 +18,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use futures_plex::{DuplexStream, SimplexStream};
 use tls_client::ClientConnection;
 use tracing::{Instrument, debug, debug_span, error, trace, warn};
 
@@ -72,20 +73,22 @@ impl Future for ConnectionFuture {
 ///
 /// Any connection errors that occur will be returned from the future, not
 /// [`TlsConnection`].
-pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
-    socket: T,
+pub fn bind_client(
+    server: DuplexStream,
     mut client: ClientConnection,
 ) -> (TlsConnection, ConnectionFuture) {
     let (tx_sender, mut tx_receiver) = mpsc::channel(1 << 14);
     let (mut rx_sender, rx_receiver) = mpsc::channel(1 << 14);
 
+    // TODO: Do not use `TlsConnection` instead return raw duplex.
+    // Move `conn` module up into prover. Use there with `connect_with`.
     let conn = TlsConnection::new(tx_sender, rx_receiver);
 
     let fut = async move {
         client.start().await?;
         let mut notify = client.get_notify().await?;
 
-        let (mut server_rx, mut server_tx) = socket.split();
+        let (mut server_rx, mut server_tx) = server.split();
 
         let mut rx_tls_buf = [0u8; RX_TLS_BUF_SIZE];
         let mut rx_buf = [0u8; RX_BUF_SIZE];
