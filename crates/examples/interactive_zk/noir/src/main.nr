@@ -25,7 +25,7 @@ fn check_18(date_of_birth: str<10>, proof_date: date::Date) -> bool {
 
 fn check_hash(date_of_birth: str<10>, blinder: [u8; 16], committed_hash: [u8; 32]) -> bool {
     let hash_input: [u8; 26] = make_hash_input(date_of_birth, blinder);
-    let computed_hash = sha256::sha256_var(hash_input, 26);
+    let computed_hash = std::hash::blake3(hash_input);
     let correct_hash = computed_hash == committed_hash;
     println(f"Correct hash? {correct_hash}");
     correct_hash
@@ -53,13 +53,13 @@ pub fn parse_birth_date(birth_date: str<10>) -> date::Date {
 fn test_max_is_over_18() {
     // Private input
     let date_of_birth = "1985-03-12";
-    let blinder = [120, 80, 62, 10, 76, 60, 130, 98, 147, 161, 139, 126, 27, 236, 36, 56];
+    let blinder = [109, 224, 222, 179, 60, 44, 41, 65, 166, 94, 111, 216, 73, 231, 63, 83];
 
     // Public input
-    let proof_date = date::Date { year: 2025, month: 9, day: 2 };
+    let proof_date = date::Date { year: 2025, month: 9, day: 26 };
     let committed_hash = [
-        229, 118, 202, 216, 213, 230, 125, 163, 48, 178, 118, 225, 84, 7, 140, 63, 173, 255, 163,
-        208, 163, 3, 63, 204, 37, 120, 254, 246, 202, 116, 122, 145,
+        114, 34, 41, 235, 91, 156, 13, 57, 254, 112, 250, 35, 104, 217, 20, 182, 240, 170, 57, 39,
+        187, 154, 14, 39, 91, 67, 50, 199, 149, 231, 78, 46,
     ];
 
     main(proof_date, committed_hash, date_of_birth, blinder);

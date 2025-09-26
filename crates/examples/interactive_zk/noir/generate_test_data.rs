@@ -7,14 +7,13 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sha2 = "0.10"
+blake3 = "1.5"
 rand = "0.8"
 chrono = "0.4"
 ---
 use chrono::Datelike;
 use chrono::Local;
 use rand::RngCore;
-use sha2::{Digest, Sha256};
 
 fn main() {
     // 1. Birthdate string (fixed)
@@ -35,7 +34,8 @@ fn main() {
     preimage.extend_from_slice(&blinder);
 
     // 4. Hash it
-    let hash = Sha256::digest(&preimage);
+    let hash = blake3::hash(&preimage);
+    let hash = hash.as_bytes();
 
     let blinder = blinder
         .iter()

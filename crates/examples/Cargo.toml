@@ -38,6 +38,7 @@ tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 noir = { git = "https://github.com/zkmopro/noir-rs", tag = "v1.0.0-beta.8", features = ["barretenberg"] }
+blake3 = { workspace = true }
 
 [[example]]
 name = "interactive"

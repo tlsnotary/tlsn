@@ -8,7 +8,7 @@ use chrono::{Datelike, Local, NaiveDate};
 use http_body_util::Empty;
 use hyper::{body::Bytes, header, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
-use k256::sha2::{Digest, Sha256};
+use k256::sha2::Digest;
 use noir::{
     barretenberg::{
         prove::prove_ultra_honk, srs::setup_srs_from_bytecode,
@@ -142,7 +142,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Create hash commitment for the date of birth field from the response
     let mut transcript_commitment_builder = TranscriptCommitConfig::builder(&transcript);
     transcript_commitment_builder.default_kind(TranscriptCommitmentKind::Hash {
-        alg: HashAlgId::SHA256,
+        alg: HashAlgId::BLAKE3,
     });
     reveal_received(
         received,
@@ -168,8 +168,16 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let received_secret = received_secrets
         .first()
         .ok_or("No received secrets found")?; // hash blinder
+
+    let start_time = std::time::Instant::now();
     let proof_input = prepare_zk_proof_input(received, received_commitment, received_secret)?;
+    let prepare_duration = start_time.elapsed();
+    tracing::info!("🔢 prepare_zk_proof_input took: {:?}", prepare_duration);
+
+    let start_time = std::time::Instant::now();
     let proof_bundle = generate_zk_proof(&proof_input)?;
+    let generate_duration = start_time.elapsed();
+    tracing::info!("⚡ generate_zk_proof took: {:?}", generate_duration);
 
     // Sent zk proof bundle to verifier
     let serialized_proof = bincode::serialize(&proof_bundle)?;
@@ -281,7 +289,7 @@ fn prepare_zk_proof_input(
     received_secret: &PlaintextHashSecret,
 ) -> Result<ZKProofInput, Box<dyn std::error::Error>> {
     assert_eq!(received_commitment.direction, Direction::Received);
-    assert_eq!(received_commitment.hash.alg, HashAlgId::SHA256);
+    assert_eq!(received_commitment.hash.alg, HashAlgId::BLAKE3);
 
     let hash = &received_commitment.hash;
 
@@ -299,12 +307,12 @@ fn prepare_zk_proof_input(
     let proof_date = Local::now().date_naive();
 
     assert_eq!(received_secret.direction, Direction::Received);
-    assert_eq!(received_secret.alg, HashAlgId::SHA256);
+    assert_eq!(received_secret.alg, HashAlgId::BLAKE3);
 
-    let mut hasher = Sha256::new();
+    let mut hasher = blake3::Hasher::new();
     hasher.update(&dob);
     hasher.update(&blinder);
-    let computed_hash = hasher.finalize();
+    let computed_hash = hasher.finalize().as_bytes().to_vec();
 
     if committed_hash != computed_hash.as_slice() {
         return Err("Computed hash does not match committed hash".into());

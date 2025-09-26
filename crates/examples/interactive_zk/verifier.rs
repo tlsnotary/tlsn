@@ -74,7 +74,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
         .ok_or("Missing received hash commitment")?;
 
     assert!(received_commitment.direction == Direction::Received);
-    assert!(received_commitment.hash.alg == HashAlgId::SHA256);
+    assert!(received_commitment.hash.alg == HashAlgId::BLAKE3);
 
     let committed_hash = &received_commitment.hash;
 
