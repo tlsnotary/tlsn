@@ -211,8 +211,8 @@ pub fn bind_client(
 
         debug!("client shutdown");
 
-        _ = server_tx.close().await;
-        rx_sender.close();
+        server_tx.close().await?;
+        rx_sender.close().await?;
 
         trace!(
             "server close notify: {}, sent: {}, recv: {}",

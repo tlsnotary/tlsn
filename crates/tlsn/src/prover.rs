@@ -2,7 +2,6 @@
 
 mod client_async;
 mod config;
-mod control;
 mod error;
 mod future;
 pub mod state;
@@ -38,7 +37,7 @@ use crate::{
     zk_aes_ctr::ZkAesCtr,
 };
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
@@ -172,6 +171,19 @@ impl Prover<state::Setup> {
         S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
         let (prover, future) = self.connect().await?;
+        let Prover {
+            config,
+            span,
+            state:
+                state::Connected {
+                    mpc_ctrl,
+                    client_handle,
+                    server_handle,
+                },
+        } = prover;
+
+        let (sender, receiver) = client_handle.split();
+        // let tls_connection = TlsConnection::new(tx_sender, rx_receiver);
 
         todo!()
     }
@@ -237,10 +249,11 @@ impl Prover<state::Setup> {
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;
 
-        // `client_handle` needs to be stored in the prover and is used for `read` and `write`.
-        // `prover_duplex` needs to be stored in the prover and is used for `read_tls` and `write_tls`.
-        let (server_duplex, prover_duplex) = duplex(1 << 13);
+        let (server_duplex, server_handle) = duplex(1 << 14);
         let (client_handle, conn_fut) = bind_client(server_duplex, client);
+
+        let prover_config = self.config.clone();
+        let span = self.span.clone();
 
         let fut = Box::pin({
             let span = self.span.clone();
@@ -344,7 +357,17 @@ impl Prover<state::Setup> {
             .instrument(span)
         });
 
-        Ok((client_handle, ProverFuture { fut }))
+        let prover = Prover {
+            config: prover_config,
+            span,
+            state: state::Connected {
+                mpc_ctrl,
+                client_handle,
+                server_handle,
+            },
+        };
+
+        Ok((prover, ProverFuture { fut }))
     }
 }
 
