@@ -3,15 +3,15 @@ use std::error::Error;
 
 use mpz_hash::sha256::Sha256Error;
 
-/// A PRF error.
+/// An error type used by the functionalities of this crate.
 #[derive(Debug, thiserror::Error)]
-pub struct PrfError {
+pub struct FError {
     kind: ErrorKind,
     #[source]
     source: Option<Box<dyn Error + Send + Sync>>,
 }
 
-impl PrfError {
+impl FError {
     pub(crate) fn new<E>(kind: ErrorKind, source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync>>,
@@ -34,7 +34,7 @@ impl PrfError {
     }
 }
 
-impl From<Sha256Error> for PrfError {
+impl From<Sha256Error> for FError {
     fn from(value: Sha256Error) -> Self {
         Self::new(ErrorKind::Hash, value)
     }
@@ -47,7 +47,7 @@ pub(crate) enum ErrorKind {
     Hash,
 }
 
-impl fmt::Display for PrfError {
+impl fmt::Display for FError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
             ErrorKind::Vm => write!(f, "vm error")?,

@@ -1,10 +1,10 @@
-//! PRF modes.
+//! Modes of operation.
 
-/// Modes for the PRF.
-#[derive(Debug, Clone, Copy)]
+/// Modes for the TLS 1.2 PRF and the TLS 1.3 key schedule.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Mode {
     /// Computes some hashes locally.
     Reduced,
-    /// Computes the whole PRF in MPC.
+    /// Computes the whole function in MPC.
     Normal,
 }

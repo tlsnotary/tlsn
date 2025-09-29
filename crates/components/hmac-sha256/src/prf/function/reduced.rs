@@ -1,46 +1,30 @@
-//! Computes some hashes of the PRF locally.
+//! TLS 1.2 PRF function.
 
 use std::collections::VecDeque;
 
-use crate::{hmac::hmac_sha256, sha256, state_to_bytes, PrfError};
-use mpz_core::bitvec::BitVec;
-use mpz_hash::sha256::Sha256;
+use crate::{hmac::reduced::HmacReduced, tls12::merge_vectors, FError};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U8},
-        Array, DecodeFutureTyped, MemoryExt, ViewExt,
+        MemoryExt, Vector,
     },
     Vm,
 };
 
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
-    // The label, e.g. "master secret".
+    // The human-readable label, e.g. "master secret".
     label: &'static [u8],
     // The start seed and the label, e.g. client_random + server_random + "master_secret".
     start_seed_label: Option<Vec<u8>>,
-    iterations: usize,
-    state: PrfState,
-    a: VecDeque<AHash>,
-    p: VecDeque<PHash>,
-}
-
-#[derive(Debug)]
-enum PrfState {
-    InnerPartial {
-        inner_partial: DecodeFutureTyped<BitVec, [u32; 8]>,
-    },
-    ComputeA {
-        iter: usize,
-        inner_partial: [u32; 8],
-        msg: Vec<u8>,
-    },
-    ComputeP {
-        iter: usize,
-        inner_partial: [u32; 8],
-        a_output: DecodeFutureTyped<BitVec, [u8; 32]>,
-    },
-    Done,
+    state: State,
+    /// A_Hash functionalities for each iteration instantiated with the PRF
+    /// secret.
+    a_hash: VecDeque<HmacReduced>,
+    /// P_Hash functionalities for each iteration instantiated with the PRF
+    /// secret.
+    p_hash: VecDeque<HmacReduced>,
+    output: Vector<U8>,
 }
 
 impl PrfFunction {
@@ -49,103 +33,213 @@ impl PrfFunction {
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
 
+    /// Allocates master secret.
     pub(crate) fn alloc_master_secret(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48)
+        hmac: HmacReduced,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::MS_LABEL, hmac, 48)
     }
 
+    /// Allocates key expansion.
     pub(crate) fn alloc_key_expansion(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::KEY_LABEL, outer_partial, inner_partial, 40)
+        hmac: HmacReduced,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::KEY_LABEL, hmac, 40)
     }
 
+    /// Allocates client finished.
     pub(crate) fn alloc_client_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::CF_LABEL, outer_partial, inner_partial, 12)
+        hmac: HmacReduced,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::CF_LABEL, hmac, 12)
     }
 
+    /// Allocates server finished.
     pub(crate) fn alloc_server_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12)
+        hmac: HmacReduced,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::SF_LABEL, hmac, 12)
     }
 
+    /// Allocates a new PRF with the given `hmac` instantiated with the PRF
+    /// secret.
+    fn alloc(
+        vm: &mut dyn Vm<Binary>,
+        label: &'static [u8],
+        hmac: HmacReduced,
+        output_len: usize,
+    ) -> Result<Self, FError> {
+        assert!(output_len > 0, "cannot compute 0 bytes for prf");
+
+        let iterations = output_len.div_ceil(32);
+        let mut a_hash = VecDeque::with_capacity(iterations);
+        let mut p_hash = VecDeque::with_capacity(iterations);
+
+        // Create the required amount of HMAC instances.
+        let mut hmacs = vec![hmac];
+        for _ in 0..iterations * 2 - 1 {
+            hmacs.push(HmacReduced::from_other(vm, &hmacs[0])?);
+        }
+
+        let mut p_out: Vec<Vector<U8>> = Vec::with_capacity(iterations);
+        for _ in 0..iterations {
+            let a = hmacs.pop().expect("enough instances");
+            let p = hmacs.pop().expect("enough instances");
+            // Decode output as soon as it becomes available.
+            std::mem::drop(vm.decode(a.output()).map_err(FError::vm)?);
+            p_out.push(p.output().into());
+
+            a_hash.push_back(a);
+            p_hash.push_back(p);
+        }
+
+        Ok(Self {
+            label,
+            start_seed_label: None,
+            state: State::WantsSeed,
+            a_hash,
+            p_hash,
+            output: merge_vectors(vm, p_out, output_len)?,
+        })
+    }
+
+    /// Whether this functionality needs to be flushed.
     pub(crate) fn wants_flush(&self) -> bool {
-        !matches!(self.state, PrfState::Done) && self.start_seed_label.is_some()
+        let state_wants_flush = match self.state {
+            State::WantsSeed => self.start_seed_label.is_some(),
+            State::ComputeFirstCycle { .. } => true,
+            State::ComputeCycle { .. } => true,
+            State::ComputeLastCycle { .. } => true,
+            _ => false,
+        };
+
+        state_wants_flush
+            || self.a_hash.iter().any(|h| h.wants_flush())
+            || self.p_hash.iter().any(|h| h.wants_flush())
     }
 
-    pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        match &mut self.state {
-            PrfState::InnerPartial { inner_partial } => {
-                let Some(inner_partial) = inner_partial.try_recv().map_err(PrfError::vm)? else {
-                    return Ok(());
-                };
+    /// Flushes the functionality.
+    pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), FError> {
+        // Flush every HMAC functionality.
+        self.a_hash.iter_mut().try_for_each(|h| h.flush(vm))?;
+        self.p_hash.iter_mut().try_for_each(|h| h.flush(vm))?;
 
-                self.state = PrfState::ComputeA {
-                    iter: 1,
-                    inner_partial,
-                    msg: self
-                        .start_seed_label
-                        .clone()
-                        .expect("Start seed should have been set"),
-                };
-                self.flush(vm)?;
-            }
-            PrfState::ComputeA {
-                iter,
-                inner_partial,
-                msg,
-            } => {
-                let a = self.a.pop_front().expect("Prf AHash should be present");
-                assign_inner_local(vm, a.inner_local, *inner_partial, msg)?;
-
-                self.state = PrfState::ComputeP {
-                    iter: *iter,
-                    inner_partial: *inner_partial,
-                    a_output: a.output,
-                };
-            }
-            PrfState::ComputeP {
-                iter,
-                inner_partial,
-                a_output,
-            } => {
-                let Some(output) = a_output.try_recv().map_err(PrfError::vm)? else {
-                    return Ok(());
-                };
-                let p = self.p.pop_front().expect("Prf PHash should be present");
-
-                let mut msg = output.to_vec();
-                msg.extend_from_slice(
-                    self.start_seed_label
-                        .as_ref()
-                        .expect("Start seed should have been set"),
-                );
-
-                assign_inner_local(vm, p.inner_local, *inner_partial, &msg)?;
-
-                if *iter == self.iterations {
-                    self.state = PrfState::Done;
-                } else {
-                    self.state = PrfState::ComputeA {
-                        iter: *iter + 1,
-                        inner_partial: *inner_partial,
-                        msg: output.to_vec(),
-                    };
-                    // We recurse, so that this PHash and the next AHash could
-                    // be computed in a single VM execute call.
+        match &self.state {
+            State::WantsSeed => {
+                if let Some(seed) = &self.start_seed_label {
+                    self.state = State::ComputeFirstCycle { msg: seed.to_vec() };
+                    // recurse.
                     self.flush(vm)?;
+                }
+            }
+            State::ComputeFirstCycle { msg } => {
+                let mut a = self.a_hash.pop_front().expect("not empty");
+
+                if !a.is_msg_set() {
+                    a.set_msg(msg)?;
+                    a.flush(vm)?;
+                }
+
+                let out = if a.is_complete() {
+                    let mut a_out = vm.decode(a.output()).map_err(FError::vm)?;
+                    a_out.try_recv().map_err(FError::vm)?
+                } else {
+                    None
+                };
+
+                match out {
+                    Some(out) => {
+                        self.state = State::ComputeCycle { msg: out.to_vec() };
+                        // Recurse to the next cycle.
+                        self.flush(vm)?;
+                    }
+                    None => {
+                        // Prepare to process this cycle again after VM executes.
+                        self.a_hash.push_front(a);
+                        self.state = State::ComputeFirstCycle { msg: msg.to_vec() };
+                    }
+                }
+            }
+            State::ComputeCycle { msg } => {
+                if self.p_hash.len() == 1 {
+                    // Recurse to the last cycle.
+                    self.state = State::ComputeLastCycle { msg: msg.to_vec() };
+                    self.flush(vm)?;
+                    return Ok(());
+                }
+
+                let mut a = self.a_hash.pop_front().expect("not empty");
+                let mut p = self.p_hash.pop_front().expect("not empty");
+
+                if !a.is_msg_set() {
+                    a.set_msg(msg)?;
+                    a.flush(vm)?;
+                }
+
+                if !p.is_msg_set() {
+                    let mut p_msg = msg.clone();
+                    p_msg.extend_from_slice(
+                        self.start_seed_label
+                            .as_ref()
+                            .expect("Start seed should have been set"),
+                    );
+                    p.set_msg(&p_msg)?;
+                    p.flush(vm)?;
+                }
+
+                if !p.is_complete() {
+                    // Prepare to process this cycle again after VM executes.
+                    self.a_hash.push_front(a);
+                    self.p_hash.push_front(p);
+                    self.state = State::ComputeCycle { msg: msg.to_vec() };
+                    return Ok(());
+                }
+
+                let out = if a.is_complete() {
+                    let mut a_out = vm.decode(a.output()).map_err(FError::vm)?;
+                    a_out.try_recv().map_err(FError::vm)?
+                } else {
+                    None
+                };
+
+                match out {
+                    Some(out) => {
+                        // Recurse to the next cycle.
+                        self.state = State::ComputeCycle { msg: out.to_vec() };
+                        self.flush(vm)?;
+                    }
+                    None => {
+                        // Prepare to process this cycle again after VM executes.
+                        self.a_hash.push_front(a);
+                        self.p_hash.push_front(p);
+                        self.state = State::ComputeCycle { msg: msg.to_vec() };
+                    }
+                }
+            }
+            State::ComputeLastCycle { msg } => {
+                let mut p = self.p_hash.pop_front().expect("not empty");
+
+                if !p.is_msg_set() {
+                    let mut p_msg = msg.clone();
+                    p_msg.extend_from_slice(
+                        self.start_seed_label
+                            .as_ref()
+                            .expect("Start seed should have been set"),
+                    );
+                    p.set_msg(&p_msg)?;
+                    p.flush(vm)?;
+                }
+
+                if !p.is_complete() {
+                    // Prepare to process this cycle again after VM executes.
+                    self.p_hash.push_front(p);
+                    self.state = State::ComputeLastCycle { msg: msg.to_vec() };
+                } else {
+                    self.state = State::Complete;
                 }
             }
             _ => (),
@@ -154,6 +248,7 @@ impl PrfFunction {
         Ok(())
     }
 
+    /// Sets the seed.
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
         let mut start_seed_label = self.label.to_vec();
         start_seed_label.extend_from_slice(&seed);
@@ -161,88 +256,33 @@ impl PrfFunction {
         self.start_seed_label = Some(start_seed_label);
     }
 
-    pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
-        self.p.iter().map(|p| p.output).collect()
+    /// Returns the PRF output.
+    pub(crate) fn output(&self) -> Vector<U8> {
+        self.output
     }
 
-    fn alloc(
-        vm: &mut dyn Vm<Binary>,
-        label: &'static [u8],
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-        len: usize,
-    ) -> Result<Self, PrfError> {
-        assert!(len > 0, "cannot compute 0 bytes for prf");
-
-        let iterations = len.div_ceil(32);
-
-        let (inner_partial, _) = inner_partial
-            .state()
-            .expect("state should be set for inner_partial");
-        let inner_partial = vm.decode(inner_partial).map_err(PrfError::vm)?;
-
-        let mut prf = Self {
-            label,
-            start_seed_label: None,
-            iterations,
-            state: PrfState::InnerPartial { inner_partial },
-            a: VecDeque::new(),
-            p: VecDeque::new(),
-        };
-
-        for _ in 0..iterations {
-            // setup A[i]
-            let inner_local: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
-            let output = hmac_sha256(vm, outer_partial.clone(), inner_local)?;
-
-            let output = vm.decode(output).map_err(PrfError::vm)?;
-            let a_hash = AHash {
-                inner_local,
-                output,
-            };
-
-            prf.a.push_front(a_hash);
-
-            // setup P[i]
-            let inner_local: Array<U8, 32> = vm.alloc().map_err(PrfError::vm)?;
-            let output = hmac_sha256(vm, outer_partial.clone(), inner_local)?;
-            let p_hash = PHash {
-                inner_local,
-                output,
-            };
-            prf.p.push_front(p_hash);
-        }
-
-        Ok(prf)
+    /// Whether this functionality is complete.
+    pub(crate) fn is_complete(&self) -> bool {
+        matches!(self.state, State::Complete)
     }
 }
 
-fn assign_inner_local(
-    vm: &mut dyn Vm<Binary>,
-    inner_local: Array<U8, 32>,
-    inner_partial: [u32; 8],
-    msg: &[u8],
-) -> Result<(), PrfError> {
-    let inner_local_value = sha256(inner_partial, 64, msg);
-
-    vm.mark_public(inner_local).map_err(PrfError::vm)?;
-    vm.assign(inner_local, state_to_bytes(inner_local_value))
-        .map_err(PrfError::vm)?;
-    vm.commit(inner_local).map_err(PrfError::vm)?;
-
-    Ok(())
-}
-
-/// Like PHash but stores the output as the decoding future because in the
-/// reduced Prf we need to decode this output.
-#[derive(Debug)]
-struct AHash {
-    inner_local: Array<U8, 32>,
-    output: DecodeFutureTyped<BitVec, [u8; 32]>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct PHash {
-    inner_local: Array<U8, 32>,
-    output: Array<U8, 32>,
+#[derive(Debug, PartialEq)]
+enum State {
+    WantsSeed,
+    /// To minimize the amount of VM execute calls, the PRF iterations are
+    /// divided into cycles.
+    /// Starting with iteration count i == 1, each cycle computes a tuple
+    /// (A_Hash(i), P_Hash(i-1)). Thus, during the first cycle, only A_Hash(1)
+    /// is computed and during the last cycle only P_Hash(i) is computed.
+    ComputeFirstCycle {
+        msg: Vec<u8>,
+    },
+    ComputeCycle {
+        msg: Vec<u8>,
+    },
+    ComputeLastCycle {
+        msg: Vec<u8>,
+    },
+    Complete,
 }

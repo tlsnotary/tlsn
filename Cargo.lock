@@ -7409,6 +7409,7 @@ version = "0.1.0-alpha.13-pre"
 dependencies = [
  "criterion",
  "hex",
+ "hmac",
  "mpz-circuits",
  "mpz-common",
  "mpz-core",
@@ -7418,6 +7419,7 @@ dependencies = [
  "mpz-vm-core",
  "rand 0.9.2",
  "ring 0.17.14",
+ "rstest",
  "sha2",
  "thiserror 1.0.69",
  "tokio",

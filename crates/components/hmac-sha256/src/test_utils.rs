@@ -1,12 +1,8 @@
-use crate::{sha256, state_to_bytes};
+use crate::hmac::clear;
 use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
 use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
 use mpz_vm_core::memory::correlated::Delta;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-
-pub(crate) const SHA256_IV: [u32; 8] = [
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-];
 
 pub(crate) fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
     let mut rng = StdRng::seed_from_u64(0);
@@ -72,7 +68,7 @@ pub(crate) fn phash(key: Vec<u8>, seed: &[u8], iterations: usize) -> Vec<u8> {
     a_cache.push(seed.to_vec());
 
     for i in 0..iterations {
-        let a_i = hmac_sha256(key.clone(), &a_cache[i]);
+        let a_i = clear::hmac_sha256(&key, &a_cache[i]);
         a_cache.push(a_i.to_vec());
     }
 
@@ -82,62 +78,11 @@ pub(crate) fn phash(key: Vec<u8>, seed: &[u8], iterations: usize) -> Vec<u8> {
         let mut a_i_seed = a_cache[i + 1].clone();
         a_i_seed.extend_from_slice(seed);
 
-        let hash = hmac_sha256(key.clone(), &a_i_seed);
+        let hash = clear::hmac_sha256(&key, &a_i_seed);
         output.extend_from_slice(&hash);
     }
 
     output
-}
-
-pub(crate) fn hmac_sha256(key: Vec<u8>, msg: &[u8]) -> [u8; 32] {
-    let outer_partial = compute_outer_partial(key.clone());
-    let inner_local = compute_inner_local(key, msg);
-
-    let hmac = sha256(outer_partial, 64, &state_to_bytes(inner_local));
-    state_to_bytes(hmac)
-}
-
-pub(crate) fn compute_outer_partial(mut key: Vec<u8>) -> [u32; 8] {
-    assert!(key.len() <= 64);
-
-    key.resize(64, 0_u8);
-    let key_padded: [u8; 64] = key
-        .into_iter()
-        .map(|b| b ^ 0x5c)
-        .collect::<Vec<u8>>()
-        .try_into()
-        .unwrap();
-
-    compress_256(SHA256_IV, &key_padded)
-}
-
-pub(crate) fn compute_inner_local(mut key: Vec<u8>, msg: &[u8]) -> [u32; 8] {
-    assert!(key.len() <= 64);
-
-    key.resize(64, 0_u8);
-    let key_padded: [u8; 64] = key
-        .into_iter()
-        .map(|b| b ^ 0x36)
-        .collect::<Vec<u8>>()
-        .try_into()
-        .unwrap();
-
-    let state = compress_256(SHA256_IV, &key_padded);
-    sha256(state, 64, msg)
-}
-
-pub(crate) fn compress_256(mut state: [u32; 8], msg: &[u8]) -> [u32; 8] {
-    use sha2::{
-        compress256,
-        digest::{
-            block_buffer::{BlockBuffer, Eager},
-            generic_array::typenum::U64,
-        },
-    };
-
-    let mut buffer = BlockBuffer::<U64, Eager>::default();
-    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
-    state
 }
 
 // Borrowed from Rustls for testing
@@ -244,6 +189,24 @@ fn test_prf_reference_cf() {
 
 #[test]
 fn test_prf_reference_sf() {
+    use ring_prf::prf as prf_ref;
+
+    let mut rng = StdRng::from_seed([4; 32]);
+
+    let ms: [u8; 48] = rng.random();
+    let label: &[u8] = b"server finished";
+    let handshake_hash: [u8; 32] = rng.random();
+
+    let sf_vd = prf_sf_vd(ms, handshake_hash);
+
+    let mut expected_sf_vd: [u8; 12] = [0; 12];
+    prf_ref(&mut expected_sf_vd, &ms, label, &handshake_hash);
+
+    assert_eq!(sf_vd, expected_sf_vd);
+}
+
+#[test]
+fn test_key_schedule_reference_sf() {
     use ring_prf::prf as prf_ref;
 
     let mut rng = StdRng::from_seed([4; 32]);
