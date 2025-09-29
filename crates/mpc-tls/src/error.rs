@@ -1,4 +1,4 @@
-use hmac_sha256::PrfError;
+use hmac_sha256::FError;
 use key_exchange::KeyExchangeError;
 use tls_backend::BackendError;
 
@@ -106,8 +106,8 @@ impl From<KeyExchangeError> for MpcTlsError {
     }
 }
 
-impl From<PrfError> for MpcTlsError {
-    fn from(value: PrfError) -> Self {
+impl From<FError> for MpcTlsError {
+    fn from(value: FError) -> Self {
         MpcTlsError::hs(value)
     }
 }

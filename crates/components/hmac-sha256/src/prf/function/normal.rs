@@ -1,24 +1,30 @@
-//! Computes the whole PRF in MPC.
+//! TLS 1.2 PRF function.
 
-use crate::{hmac::hmac_sha256, PrfError};
-use mpz_hash::sha256::Sha256;
+use crate::{hmac::normal::HmacNormal, tls12::merge_vectors, FError};
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U8},
-        Array, MemoryExt, Vector, ViewExt,
+        MemoryExt, Vector, ViewExt,
     },
     Vm,
 };
 
 #[derive(Debug)]
 pub(crate) struct PrfFunction {
-    // The label, e.g. "master secret".
+    // The human-readable label, e.g. "master secret".
     label: &'static [u8],
     state: State,
-    // The start seed and the label, e.g. client_random + server_random + "master_secret".
+    /// The start seed and the label, e.g. client_random + server_random +
+    /// "master_secret".
     start_seed_label: Option<Vec<u8>>,
-    a: Vec<PHash>,
-    p: Vec<PHash>,
+    seed_label_ref: Vector<U8>,
+    /// A_Hash functionalities for each iteration instantiated with the PRF
+    /// secret.
+    a_hash: Vec<HmacNormal>,
+    /// P_Hash functionalities for each iteration instantiated with the PRF
+    /// secret.
+    p_hash: Vec<HmacNormal>,
+    output: Vector<U8>,
 }
 
 impl PrfFunction {
@@ -27,64 +33,128 @@ impl PrfFunction {
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
 
+    /// Allocates master secret.
     pub(crate) fn alloc_master_secret(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48, 64)
+        hmac: HmacNormal,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::MS_LABEL, hmac, 48, 64)
     }
 
+    /// Allocates key expansion.
     pub(crate) fn alloc_key_expansion(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::KEY_LABEL, outer_partial, inner_partial, 40, 64)
+        hmac: HmacNormal,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::KEY_LABEL, hmac, 40, 64)
     }
 
+    /// Allocates client finished.
     pub(crate) fn alloc_client_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::CF_LABEL, outer_partial, inner_partial, 12, 32)
+        hmac: HmacNormal,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::CF_LABEL, hmac, 12, 32)
     }
 
+    /// Allocates server finished.
     pub(crate) fn alloc_server_finished(
         vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-    ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::SF_LABEL, outer_partial, inner_partial, 12, 32)
+        hmac: HmacNormal,
+    ) -> Result<Self, FError> {
+        Self::alloc(vm, Self::SF_LABEL, hmac, 12, 32)
     }
 
+    /// Allocates a new PRF with the given `hmac` instantiated with the PRF
+    /// secret.
+    fn alloc(
+        vm: &mut dyn Vm<Binary>,
+        label: &'static [u8],
+        hmac: HmacNormal,
+        output_len: usize,
+        seed_len: usize,
+    ) -> Result<Self, FError> {
+        assert!(output_len > 0, "cannot compute 0 bytes for prf");
+
+        let iterations = output_len.div_ceil(32);
+
+        let msg_len_a = label.len() + seed_len;
+        let seed_label_ref: Vector<U8> = vm.alloc_vec(msg_len_a).map_err(FError::vm)?;
+        vm.mark_public(seed_label_ref).map_err(FError::vm)?;
+
+        let mut msg_a = seed_label_ref;
+
+        let mut p_out: Vec<Vector<U8>> = Vec::with_capacity(iterations);
+        let mut a_hash = Vec::with_capacity(iterations);
+        let mut p_hash = Vec::with_capacity(iterations);
+
+        for _ in 0..iterations {
+            let mut a = HmacNormal::from_other(&hmac)?;
+            a.set_msg(vm, &[msg_a])?;
+            let a_out: Vector<U8> = a.output()?.into();
+            msg_a = a_out;
+            a_hash.push(a);
+
+            let mut p = HmacNormal::from_other(&hmac)?;
+            p.set_msg(vm, &[a_out, seed_label_ref])?;
+            p_out.push(p.output()?.into());
+            p_hash.push(p);
+        }
+
+        Ok(Self {
+            label,
+            state: State::WantsSeed,
+            start_seed_label: None,
+            seed_label_ref,
+            a_hash,
+            p_hash,
+            output: merge_vectors(vm, p_out, output_len)?,
+        })
+    }
+
+    /// Whether this functionality needs to be flushed.
     pub(crate) fn wants_flush(&self) -> bool {
-        let is_computing = match self.state {
-            State::Computing => true,
-            State::Finished => false,
+        let state_wants_flush = match self.state {
+            State::WantsSeed => self.start_seed_label.is_some(),
+            _ => false,
         };
-        is_computing && self.start_seed_label.is_some()
+        state_wants_flush
+            || self.a_hash.iter().any(|h| h.wants_flush())
+            || self.p_hash.iter().any(|h| h.wants_flush())
     }
 
-    pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
-        if let State::Computing = self.state {
-            let a = self.a.first().expect("prf should be allocated");
-            let msg = *a.msg.first().expect("message for prf should be present");
+    /// Flushes the functionality.
+    pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), FError> {
+        // Flush every HMAC functionality.
+        self.a_hash.iter_mut().try_for_each(|h| h.flush())?;
+        self.p_hash.iter_mut().try_for_each(|h| h.flush())?;
 
-            let msg_value = self
-                .start_seed_label
-                .clone()
-                .expect("Start seed should have been set");
+        match self.state {
+            State::WantsSeed => {
+                if let Some(seed) = &self.start_seed_label {
+                    vm.assign(self.seed_label_ref, seed.clone())
+                        .map_err(FError::vm)?;
+                    vm.commit(self.seed_label_ref).map_err(FError::vm)?;
 
-            vm.assign(msg, msg_value).map_err(PrfError::vm)?;
-            vm.commit(msg).map_err(PrfError::vm)?;
-
-            self.state = State::Finished;
+                    self.state = State::SeedSet;
+                    // Recurse.
+                    self.flush(vm)?;
+                }
+            }
+            State::SeedSet => {
+                // We are complete when all HMACs are complete.
+                if self.a_hash.iter().all(|h| h.is_complete())
+                    && self.p_hash.iter().all(|h| h.is_complete())
+                {
+                    self.state = State::Complete;
+                }
+            }
+            _ => (),
         }
         Ok(())
     }
 
+    /// Sets the seed.
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
         let mut start_seed_label = self.label.to_vec();
         start_seed_label.extend_from_slice(&seed);
@@ -92,83 +162,20 @@ impl PrfFunction {
         self.start_seed_label = Some(start_seed_label);
     }
 
-    pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
-        self.p.iter().map(|p| p.output).collect()
+    /// Returns the PRF output.
+    pub(crate) fn output(&self) -> Vector<U8> {
+        self.output
     }
 
-    fn alloc(
-        vm: &mut dyn Vm<Binary>,
-        label: &'static [u8],
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-        output_len: usize,
-        seed_len: usize,
-    ) -> Result<Self, PrfError> {
-        let mut prf = Self {
-            label,
-            state: State::Computing,
-            start_seed_label: None,
-            a: vec![],
-            p: vec![],
-        };
-
-        assert!(output_len > 0, "cannot compute 0 bytes for prf");
-
-        let iterations = output_len.div_ceil(32);
-
-        let msg_len_a = label.len() + seed_len;
-        let seed_label_ref: Vector<U8> = vm.alloc_vec(msg_len_a).map_err(PrfError::vm)?;
-        vm.mark_public(seed_label_ref).map_err(PrfError::vm)?;
-
-        let mut msg_a = seed_label_ref;
-        for _ in 0..iterations {
-            let a = PHash::alloc(vm, outer_partial.clone(), inner_partial.clone(), &[msg_a])?;
-            msg_a = Vector::<U8>::from(a.output);
-            prf.a.push(a);
-
-            let p = PHash::alloc(
-                vm,
-                outer_partial.clone(),
-                inner_partial.clone(),
-                &[msg_a, seed_label_ref],
-            )?;
-            prf.p.push(p);
-        }
-
-        Ok(prf)
+    /// Whether this functionality is complete.
+    pub(crate) fn is_complete(&self) -> bool {
+        matches!(self.state, State::Complete)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 enum State {
-    Computing,
-    Finished,
-}
-
-#[derive(Debug, Clone)]
-struct PHash {
-    msg: Vec<Vector<U8>>,
-    output: Array<U8, 32>,
-}
-
-impl PHash {
-    fn alloc(
-        vm: &mut dyn Vm<Binary>,
-        outer_partial: Sha256,
-        inner_partial: Sha256,
-        msg: &[Vector<U8>],
-    ) -> Result<Self, PrfError> {
-        let mut inner_local = inner_partial;
-
-        msg.iter().for_each(|m| inner_local.update(m));
-        inner_local.compress(vm)?;
-        let inner_local = inner_local.finalize(vm)?;
-
-        let output = hmac_sha256(vm, outer_partial, inner_local)?;
-        let p_hash = Self {
-            msg: msg.to_vec(),
-            output,
-        };
-        Ok(p_hash)
-    }
+    WantsSeed,
+    SeedSet,
+    Complete,
 }

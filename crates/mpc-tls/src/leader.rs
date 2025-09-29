@@ -11,7 +11,7 @@ use crate::{
     Config, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfOutput};
+use hmac_sha256::{PrfOutput, Tls12Prf};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use ludi::Context as LudiContext;
@@ -92,7 +92,7 @@ impl MpcTlsLeader {
             ))),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(config.prf);
+        let prf = Tls12Prf::new(config.prf);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
@@ -1039,14 +1039,14 @@ enum State {
         ctx: Context,
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Tls12Prf,
         record_layer: RecordLayer,
     },
     Setup {
         ctx: Context,
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Tls12Prf,
         record_layer: RecordLayer,
         cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
@@ -1056,7 +1056,7 @@ enum State {
         ctx: Context,
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Tls12Prf,
         record_layer: RecordLayer,
         cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
@@ -1073,7 +1073,7 @@ enum State {
         ctx: Context,
         vm: Vm,
         _ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Tls12Prf,
         record_layer: RecordLayer,
         cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,

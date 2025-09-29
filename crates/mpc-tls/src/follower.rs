@@ -3,7 +3,7 @@ use crate::{
     record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, MpcTlsError, Role, SessionKeys, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfOutput};
+use hmac_sha256::{PrfOutput, Tls12Prf};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -64,7 +64,7 @@ impl MpcTlsFollower {
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(config.prf);
+        let prf = Tls12Prf::new(config.prf);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -436,13 +436,13 @@ enum State {
     Init {
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Tls12Prf,
         record_layer: RecordLayer,
     },
     Setup {
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Tls12Prf,
         record_layer: RecordLayer,
         cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
@@ -450,7 +450,7 @@ enum State {
     Ready {
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Tls12Prf,
         record_layer: RecordLayer,
         cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,

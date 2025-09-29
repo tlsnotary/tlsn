@@ -20,9 +20,10 @@ mpz-core = { workspace = true }
 mpz-circuits = { workspace = true }
 mpz-hash = { workspace = true }
 
+rand = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-sha2 = { workspace = true }
 
 [dev-dependencies]
 mpz-ot = { workspace = true, features = ["ideal"] }
@@ -30,11 +31,17 @@ mpz-garble = { workspace = true }
 mpz-common = { workspace = true, features = ["test-utils"] }
 
 criterion = { workspace = true, features = ["async_tokio"] }
-tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
-rand = { workspace = true }
 hex = { workspace = true }
+hmac = { workspace = true }
 ring = { workspace = true }
+rstest = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 
 [[bench]]
-name = "prf"
+name = "tls12"
+harness = false
+
+[[bench]]
+name = "tls13"
 harness = false
