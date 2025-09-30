@@ -144,6 +144,35 @@ impl Network {
         )
         .run()?;
 
+        // Fix both TCP send/receive buffers at ~100 MB (min=default=max).
+        // This avoids RTT-sized stalls that occur if SO_SNDBUF/SO_RCVBUF are too small,
+        // even when initcwnd/initrwnd are set very large.
+        duct::cmd!(
+            "sudo",
+            "ip",
+            "netns",
+            "exec",
+            &self.ns_0.name,
+            "sysctl",
+            "-w",
+            "net.ipv4.tcp_rmem=100000000 100000000 100000000",
+            "net.ipv4.tcp_wmem=100000000 100000000 100000000",
+        )
+        .run()?;
+
+        duct::cmd!(
+            "sudo",
+            "ip",
+            "netns",
+            "exec",
+            &self.ns_1.name,
+            "sysctl",
+            "-w",
+            "net.ipv4.tcp_rmem=100000000 100000000 100000000",
+            "net.ipv4.tcp_wmem=100000000 100000000 100000000",
+        )
+        .run()?;
+
         ip_route(&self.ns_0, "default", &self.veth_rpc_0.0.name)?;
         ip_route(&self.ns_1, "default", &self.veth_rpc_1.0.name)?;
         ip_route(&self.ns_app, "default", &self.veth_app.0.name)?;
@@ -669,7 +698,14 @@ fn ip_route(ns: &Namespace, dest: impl ToString, dev: &str) -> Result<()> {
         "add",
         dest.to_string(),
         "dev",
-        dev
+        dev,
+        // A ~138 MB initial congestion window (100k × 1448 MSS)
+        // and receive window, to avoid TCP slow start stalls and
+        // extra RTTs in our test environment.
+        "initcwnd",
+        "100000",
+        "initrwnd",
+        "100000"
     )
     .run()?;
 
