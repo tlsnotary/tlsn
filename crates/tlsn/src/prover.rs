@@ -6,13 +6,11 @@ mod error;
 mod future;
 pub mod state;
 
-pub use client_async::{
-    ClosedConnection, ConnectionError, ConnectionFuture, TlsConnection, bind_client,
-};
+pub use client_async::{ClosedConnection, ConnectionError, ConnectionFuture, bind_client};
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
-use futures_plex::{DuplexStream, duplex};
+use futures_plex::duplex;
 use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
@@ -30,6 +28,7 @@ use crate::{
         hash::prove_hash,
         transcript::{TranscriptRefs, decode_transcript},
     },
+    conn::TlsConnection,
     context::build_mt_context,
     encoding,
     mux::attach_mux,
@@ -37,7 +36,7 @@ use crate::{
     zk_aes_ctr::ZkAesCtr,
 };
 
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite, TryFutureExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, TryFutureExt, channel::mpsc};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
@@ -249,8 +248,11 @@ impl Prover<state::Setup> {
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;
 
+        let (a1, a2) = mpsc::channel(1 << 14);
+        let (b1, b2) = mpsc::channel(1 << 14);
+
         let (server_duplex, server_handle) = duplex(1 << 14);
-        let (client_handle, conn_fut) = bind_client(server_duplex, client);
+        let (client_handle, conn_fut) = bind_client(a1, b2, client);
 
         let prover_config = self.config.clone();
         let span = self.span.clone();
