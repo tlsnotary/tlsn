@@ -281,8 +281,8 @@ impl Prover<state::Setup> {
                 )
                 .map_err(ProverError::zk)?;
 
-                // Prove received plaintext. Prover drops the proof output, as
-                // they trust themselves.
+                // Prove sent and received plaintext. Prover drops the proof 
+                // output, as they trust themselves.
                 let (sent_refs, _) = commit_records(
                     &mut vm,
                     &mut zk_aes_ctr_sent,
@@ -293,6 +293,7 @@ impl Prover<state::Setup> {
                 )
                 .map_err(ProverError::zk)?;
 
+
                 let (recv_refs, _) = commit_records(
                     &mut vm,
                     &mut zk_aes_ctr_recv,
@@ -301,7 +302,13 @@ impl Prover<state::Setup> {
                         .iter()
                         .filter(|record| record.typ == ContentType::ApplicationData),
                 )
-                .map_err(ProverError::zk)?;
+                .map_err(|e| {
+                        if e.is_insufficient() {
+                            ProverError::zk(format!("{e}. Attempted to prove more received data than was configured, increase `max_recv_data` in the config."))
+                        } else {
+                            ProverError::zk(e)
+                        }
+                    })?;
 
                 mux_fut
                     .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))

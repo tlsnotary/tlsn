@@ -184,6 +184,10 @@ impl ZkAesCtrError {
     {
         Self(ErrorRepr::Vm(err.into()))
     }
+
+    pub fn is_insufficient(&self) -> bool {
+        matches!(self.0, ErrorRepr::InsufficientPreprocessing { .. })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
