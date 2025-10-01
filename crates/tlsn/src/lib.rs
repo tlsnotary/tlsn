@@ -4,6 +4,7 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+pub(crate) mod byte_stream;
 pub(crate) mod commit;
 pub mod config;
 pub mod conn;
