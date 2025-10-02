@@ -86,8 +86,6 @@ pub struct SimplexStream {
     max_buf_size: usize,
     /// The buffer storing the bytes written, also read from.
     buffer: BytesMut,
-    // TODO: Use this field to expose a slice for other `Read` and `Write` implementations.
-    side_buffer: BytesMut,
 }
 
 pub fn simplex(max_buf_size: usize) -> (ReadHalf<SimplexStream>, WriteHalf<SimplexStream>) {
@@ -111,7 +109,6 @@ impl SimplexStream {
         SimplexStream {
             max_buf_size,
             buffer: BytesMut::new(),
-            side_buffer: BytesMut::new(),
         }
     }
 }

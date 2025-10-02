@@ -22,7 +22,7 @@ use mpz_zk::ProverConfig as ZkProverConfig;
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
-    Role,
+    Role, byte_stream,
     commit::{
         commit_records,
         hash::prove_hash,
@@ -248,11 +248,8 @@ impl Prover<state::Setup> {
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;
 
-        let (a1, a2) = mpsc::channel(1 << 14);
-        let (b1, b2) = mpsc::channel(1 << 14);
-
-        let (server_duplex, server_handle) = duplex(1 << 14);
-        let (client_handle, conn_fut) = bind_client(a1, b2, client);
+        let (server_socket, server_handle) = byte_stream::duplex(1024 * 16);
+        let (client_handle, conn_fut) = bind_client(server_socket, client);
 
         let prover_config = self.config.clone();
         let span = self.span.clone();

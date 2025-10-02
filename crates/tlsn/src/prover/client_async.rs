@@ -10,7 +10,6 @@ use futures::{
     AsyncReadExt, AsyncWrite, AsyncWriteExt, Future, FutureExt, SinkExt, StreamExt, channel::mpsc,
     future::Fuse, select_biased, stream::Next,
 };
-use futures_plex::DuplexStream;
 use std::{
     pin::Pin,
     task::{Context, Poll},
@@ -18,8 +17,9 @@ use std::{
 use tls_client::ClientConnection;
 use tracing::{Instrument, debug, debug_span, error, trace, warn};
 
-const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
-const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
+use crate::byte_stream::{self, DuplexStream};
+
+const BUF_SIZE: usize = 1 << 13; // 8 KiB
 
 /// An error that can occur during a TLS connection.
 #[allow(missing_docs)]
@@ -68,30 +68,27 @@ impl Future for ConnectionFuture {
 /// Any connection errors that occur will be returned from the future, not
 /// [`TlsConnection`].
 pub fn bind_client(
-    mut server_tx: mpsc::Sender<Bytes>,
-    mut server_rx: mpsc::Receiver<Result<Bytes, std::io::Error>>,
+    mut server_handle: DuplexStream,
     mut client: ClientConnection,
 ) -> (DuplexStream, ConnectionFuture) {
-    let (tx_sender, mut tx_receiver) = mpsc::channel(1 << 14);
-    let (mut rx_sender, rx_receiver) = mpsc::channel(1 << 14);
-
-    // let conn = TlsConnection::new(tx_sender, rx_receiver);
+    let (client_socket, client_handle) = byte_stream::duplex(1024 * 16);
 
     let fut = async move {
         client.start().await?;
         let mut notify = client.get_notify().await?;
 
-        let mut rx_tls_buf = [0u8; RX_TLS_BUF_SIZE];
-        let mut rx_buf = [0u8; RX_BUF_SIZE];
+        let mut rx_tls_buf = [0u8; BUF_SIZE];
+        let mut rx_buf = [0u8; BUF_SIZE];
+
+        let mut tx_tls_buf = [0u8; BUF_SIZE];
+        let mut tx_buf = [0u8; BUF_SIZE];
 
         let mut handshake_done = false;
         let mut client_closed = false;
         let mut server_closed = false;
 
-        let mut sent = Vec::with_capacity(1024);
-        let mut recv = Vec::with_capacity(1024);
-
-        let mut rx_tls_fut = server_rx.read(&mut rx_tls_buf).fuse();
+        let mut rx_tls_fut =
+            futures::future::ready(std::io::Read::read(&mut server_handle, &mut rx_tls_buf));
         // We don't start writing application data until the handshake is complete.
         let mut tx_recv_fut: Fuse<Next<'_, mpsc::Receiver<Bytes>>> = Fuse::terminated();
 
@@ -221,7 +218,7 @@ pub fn bind_client(
 
     let fut = ConnectionFuture { fut: Box::pin(fut) };
 
-    (conn, fut)
+    (client_handle, fut)
 }
 
 async fn send_close_notify(
