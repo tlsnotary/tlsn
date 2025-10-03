@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/tlsn/src/zk_aes_ctr.rs`."><title>zk_aes_ctr.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tlsn" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (975e6c8fe 2025-09-23)" data-channel="nightly" data-search-js="search-e256b49e.js" data-stringdex-js="stringdex-061df703.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn/</div>zk_aes_ctr.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Zero-knowledge AES-CTR encryption.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/tlsn/src/zk_aes_ctr.rs`."><title>zk_aes_ctr.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tlsn" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (5c7ae0c7e 2025-10-02)" data-channel="nightly" data-search-js="search-e256b49e.js" data-stringdex-js="stringdex-828709d0.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn/</div>zk_aes_ctr.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Zero-knowledge AES-CTR encryption.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>cipher::{
 <a href=#4 id=4 data-nosnippet>4</a>    Cipher, CipherError, Keystream,
@@ -184,31 +184,35 @@
 <a href=#184 id=184 data-nosnippet>184</a>    {
 <a href=#185 id=185 data-nosnippet>185</a>        <span class="self">Self</span>(ErrorRepr::Vm(err.into()))
 <a href=#186 id=186 data-nosnippet>186</a>    }
-<a href=#187 id=187 data-nosnippet>187</a>}
-<a href=#188 id=188 data-nosnippet>188</a>
-<a href=#189 id=189 data-nosnippet>189</a><span class="attr">#[derive(Debug, thiserror::Error)]
-<a href=#190 id=190 data-nosnippet>190</a>#[error(<span class="string">"zk aes error"</span>)]
-<a href=#191 id=191 data-nosnippet>191</a></span><span class="kw">enum </span>ErrorRepr {
-<a href=#192 id=192 data-nosnippet>192</a>    <span class="attr">#[error(<span class="string">"invalid state: {reason}"</span>)]
-<a href=#193 id=193 data-nosnippet>193</a>    </span>State { reason: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str },
-<a href=#194 id=194 data-nosnippet>194</a>    <span class="attr">#[error(<span class="string">"cipher error: {0}"</span>)]
-<a href=#195 id=195 data-nosnippet>195</a>    </span>Cipher(Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync + <span class="lifetime">'static</span>&gt;),
-<a href=#196 id=196 data-nosnippet>196</a>    <span class="attr">#[error(<span class="string">"vm error: {0}"</span>)]
-<a href=#197 id=197 data-nosnippet>197</a>    </span>Vm(Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync + <span class="lifetime">'static</span>&gt;),
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="attr">#[error(<span class="string">"invalid explicit nonce length: expected {expected}, got {actual}"</span>)]
-<a href=#199 id=199 data-nosnippet>199</a>    </span>ExplicitNonceLength { expected: usize, actual: usize },
-<a href=#200 id=200 data-nosnippet>200</a>    <span class="attr">#[error(<span class="string">"insufficient preprocessing: expected {expected}, got {actual}"</span>)]
-<a href=#201 id=201 data-nosnippet>201</a>    </span>InsufficientPreprocessing { expected: usize, actual: usize },
-<a href=#202 id=202 data-nosnippet>202</a>}
-<a href=#203 id=203 data-nosnippet>203</a>
-<a href=#204 id=204 data-nosnippet>204</a><span class="kw">impl </span>From&lt;AesError&gt; <span class="kw">for </span>ZkAesCtrError {
-<a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">fn </span>from(err: AesError) -&gt; <span class="self">Self </span>{
-<a href=#206 id=206 data-nosnippet>206</a>        <span class="self">Self</span>(ErrorRepr::Cipher(Box::new(err)))
-<a href=#207 id=207 data-nosnippet>207</a>    }
-<a href=#208 id=208 data-nosnippet>208</a>}
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a><span class="kw">impl </span>From&lt;CipherError&gt; <span class="kw">for </span>ZkAesCtrError {
-<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">fn </span>from(err: CipherError) -&gt; <span class="self">Self </span>{
-<a href=#212 id=212 data-nosnippet>212</a>        <span class="self">Self</span>(ErrorRepr::Cipher(Box::new(err)))
-<a href=#213 id=213 data-nosnippet>213</a>    }
-<a href=#214 id=214 data-nosnippet>214</a>}</code></pre></div></section></main></body></html>
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">pub fn </span>is_insufficient(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#189 id=189 data-nosnippet>189</a>        <span class="macro">matches!</span>(<span class="self">self</span>.<span class="number">0</span>, ErrorRepr::InsufficientPreprocessing { .. })
+<a href=#190 id=190 data-nosnippet>190</a>    }
+<a href=#191 id=191 data-nosnippet>191</a>}
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a><span class="attr">#[derive(Debug, thiserror::Error)]
+<a href=#194 id=194 data-nosnippet>194</a>#[error(<span class="string">"zk aes error"</span>)]
+<a href=#195 id=195 data-nosnippet>195</a></span><span class="kw">enum </span>ErrorRepr {
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="attr">#[error(<span class="string">"invalid state: {reason}"</span>)]
+<a href=#197 id=197 data-nosnippet>197</a>    </span>State { reason: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str },
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="attr">#[error(<span class="string">"cipher error: {0}"</span>)]
+<a href=#199 id=199 data-nosnippet>199</a>    </span>Cipher(Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync + <span class="lifetime">'static</span>&gt;),
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="attr">#[error(<span class="string">"vm error: {0}"</span>)]
+<a href=#201 id=201 data-nosnippet>201</a>    </span>Vm(Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync + <span class="lifetime">'static</span>&gt;),
+<a href=#202 id=202 data-nosnippet>202</a>    <span class="attr">#[error(<span class="string">"invalid explicit nonce length: expected {expected}, got {actual}"</span>)]
+<a href=#203 id=203 data-nosnippet>203</a>    </span>ExplicitNonceLength { expected: usize, actual: usize },
+<a href=#204 id=204 data-nosnippet>204</a>    <span class="attr">#[error(<span class="string">"insufficient preprocessing: expected {expected}, got {actual}"</span>)]
+<a href=#205 id=205 data-nosnippet>205</a>    </span>InsufficientPreprocessing { expected: usize, actual: usize },
+<a href=#206 id=206 data-nosnippet>206</a>}
+<a href=#207 id=207 data-nosnippet>207</a>
+<a href=#208 id=208 data-nosnippet>208</a><span class="kw">impl </span>From&lt;AesError&gt; <span class="kw">for </span>ZkAesCtrError {
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">fn </span>from(err: AesError) -&gt; <span class="self">Self </span>{
+<a href=#210 id=210 data-nosnippet>210</a>        <span class="self">Self</span>(ErrorRepr::Cipher(Box::new(err)))
+<a href=#211 id=211 data-nosnippet>211</a>    }
+<a href=#212 id=212 data-nosnippet>212</a>}
+<a href=#213 id=213 data-nosnippet>213</a>
+<a href=#214 id=214 data-nosnippet>214</a><span class="kw">impl </span>From&lt;CipherError&gt; <span class="kw">for </span>ZkAesCtrError {
+<a href=#215 id=215 data-nosnippet>215</a>    <span class="kw">fn </span>from(err: CipherError) -&gt; <span class="self">Self </span>{
+<a href=#216 id=216 data-nosnippet>216</a>        <span class="self">Self</span>(ErrorRepr::Cipher(Box::new(err)))
+<a href=#217 id=217 data-nosnippet>217</a>    }
+<a href=#218 id=218 data-nosnippet>218</a>}</code></pre></div></section></main></body></html>
