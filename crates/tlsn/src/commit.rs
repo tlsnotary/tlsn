@@ -91,6 +91,13 @@ impl RecordProofError {
     {
         Self(ErrorRepr::Vm(err.into()))
     }
+
+    pub(crate) fn is_insufficient(&self) -> bool {
+        match &self.0 {
+            ErrorRepr::Aes(err) => err.is_insufficient(),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
