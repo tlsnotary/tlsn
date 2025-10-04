@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use futures_plex::DuplexStream;
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use tlsn_core::transcript::{TlsTranscript, Transcript};
@@ -10,6 +9,7 @@ use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
 use crate::{
+    byte_stream::DuplexStream,
     commit::transcript::TranscriptRefs,
     mux::{MuxControl, MuxFuture},
     prover::{Mpc, Zk},
@@ -37,8 +37,8 @@ opaque_debug::implement!(Setup);
 /// State during the MPC-TLS connection.
 pub struct Connected {
     pub(crate) mpc_ctrl: LeaderCtrl,
-    pub(crate) client_handle: DuplexStream,
-    pub(crate) server_handle: DuplexStream,
+    pub(crate) client_socket: DuplexStream,
+    pub(crate) server_socket: DuplexStream,
 }
 
 opaque_debug::implement!(Connected);

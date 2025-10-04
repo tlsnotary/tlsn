@@ -10,7 +10,6 @@ pub use client_async::{ClosedConnection, ConnectionError, ConnectionFuture, bind
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
-use futures_plex::duplex;
 use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
@@ -22,13 +21,12 @@ use mpz_zk::ProverConfig as ZkProverConfig;
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
-    Role, byte_stream,
+    Role,
     commit::{
         commit_records,
         hash::prove_hash,
         transcript::{TranscriptRefs, decode_transcript},
     },
-    conn::TlsConnection,
     context::build_mt_context,
     encoding,
     mux::attach_mux,
@@ -36,7 +34,7 @@ use crate::{
     zk_aes_ctr::ZkAesCtr,
 };
 
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite, TryFutureExt, channel::mpsc};
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
@@ -162,10 +160,7 @@ impl Prover<state::Setup> {
     /// Connects to the server using the provided socket.
     ///
     /// Returns a connection and a control handle.
-    pub async fn connect_with<S>(
-        self,
-        socket: S,
-    ) -> Result<(TlsConnection, ProverFuture), ProverError>
+    pub async fn connect_with<S>(self, socket: S) -> Result<((), ProverFuture), ProverError>
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
@@ -176,12 +171,11 @@ impl Prover<state::Setup> {
             state:
                 state::Connected {
                     mpc_ctrl,
-                    client_handle,
-                    server_handle,
+                    client_socket,
+                    server_socket,
                 },
         } = prover;
 
-        let (sender, receiver) = client_handle.split();
         // let tls_connection = TlsConnection::new(tx_sender, rx_receiver);
 
         todo!()
@@ -248,8 +242,7 @@ impl Prover<state::Setup> {
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;
 
-        let (server_socket, server_handle) = byte_stream::duplex(1024 * 16);
-        let (client_handle, conn_fut) = bind_client(server_socket, client);
+        let (client_socket, server_socket, conn_fut) = bind_client(client);
 
         let prover_config = self.config.clone();
         let span = self.span.clone();
@@ -361,8 +354,8 @@ impl Prover<state::Setup> {
             span,
             state: state::Connected {
                 mpc_ctrl,
-                client_handle,
-                server_handle,
+                client_socket,
+                server_socket,
             },
         };
 

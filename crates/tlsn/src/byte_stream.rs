@@ -5,9 +5,31 @@ use std::{
 };
 
 #[derive(Debug)]
-pub struct DuplexStream {
+pub(crate) struct DuplexStream {
     read: ReadHalf<SimplexStream>,
     write: WriteHalf<SimplexStream>,
+    is_closed: Arc<Mutex<bool>>,
+}
+
+impl DuplexStream {
+    pub(crate) fn is_closed(&self) -> bool {
+        *self
+            .is_closed
+            .lock()
+            .expect("should be able to acquire lock")
+    }
+
+    pub(crate) fn close(self) {}
+}
+
+impl Drop for DuplexStream {
+    fn drop(&mut self) {
+        let mut is_closed = self
+            .is_closed
+            .lock()
+            .expect("should be able to acquire lock");
+        *is_closed = true;
+    }
 }
 
 /// Create a new pair of `DuplexStream`s that act like a pair of connected
@@ -15,18 +37,21 @@ pub struct DuplexStream {
 ///
 /// The `max_buf_size` argument is the maximum amount of bytes that can be
 /// written to a side.
-pub fn duplex(max_buf_size: usize) -> (DuplexStream, DuplexStream) {
+pub(crate) fn duplex(max_buf_size: usize) -> (DuplexStream, DuplexStream) {
     let (read_0, write_0) = simplex(max_buf_size);
     let (read_1, write_1) = simplex(max_buf_size);
+    let is_closed = Arc::new(Mutex::new(false));
 
     (
         DuplexStream {
             read: read_0,
             write: write_1,
+            is_closed: Arc::clone(&is_closed),
         },
         DuplexStream {
             read: read_1,
             write: write_0,
+            is_closed,
         },
     )
 }
@@ -48,7 +73,7 @@ impl Write for DuplexStream {
 }
 
 #[derive(Debug)]
-pub struct ReadHalf<T>(Arc<Mutex<T>>);
+pub(crate) struct ReadHalf<T>(Arc<Mutex<T>>);
 
 impl<T: Read> Read for ReadHalf<T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
@@ -61,7 +86,7 @@ impl<T: Read> Read for ReadHalf<T> {
 }
 
 #[derive(Debug)]
-pub struct WriteHalf<T>(Arc<Mutex<T>>);
+pub(crate) struct WriteHalf<T>(Arc<Mutex<T>>);
 
 impl<T: Write> Write for WriteHalf<T> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
@@ -82,13 +107,13 @@ impl<T: Write> Write for WriteHalf<T> {
 }
 
 #[derive(Debug)]
-pub struct SimplexStream {
+struct SimplexStream {
     max_buf_size: usize,
     /// The buffer storing the bytes written, also read from.
     buffer: BytesMut,
 }
 
-pub fn simplex(max_buf_size: usize) -> (ReadHalf<SimplexStream>, WriteHalf<SimplexStream>) {
+fn simplex(max_buf_size: usize) -> (ReadHalf<SimplexStream>, WriteHalf<SimplexStream>) {
     let stream = SimplexStream::new_unsplit(max_buf_size);
     let stream = Arc::new(Mutex::new(stream));
 
@@ -105,7 +130,7 @@ impl SimplexStream {
     ///
     /// The `max_buf_size` argument is the maximum amount of bytes that can be
     /// written to a buffer.
-    pub fn new_unsplit(max_buf_size: usize) -> SimplexStream {
+    pub(crate) fn new_unsplit(max_buf_size: usize) -> SimplexStream {
         SimplexStream {
             max_buf_size,
             buffer: BytesMut::new(),

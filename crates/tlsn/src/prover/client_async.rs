@@ -5,19 +5,16 @@
 //! for reading and writing cleartext. The TLS client will then automatically
 //! encrypt and decrypt traffic and forward that to the provided socket.
 
-use bytes::{Buf, Bytes};
-use futures::{
-    AsyncReadExt, AsyncWrite, AsyncWriteExt, Future, FutureExt, SinkExt, StreamExt, channel::mpsc,
-    future::Fuse, select_biased, stream::Next,
-};
+use futures::{Future, FutureExt, select_biased};
 use std::{
+    io::{Read, Write},
     pin::Pin,
     task::{Context, Poll},
 };
 use tls_client::ClientConnection;
 use tracing::{Instrument, debug, debug_span, error, trace, warn};
 
-use crate::byte_stream::{self, DuplexStream};
+use crate::byte_stream::{DuplexStream, duplex};
 
 const BUF_SIZE: usize = 1 << 13; // 8 KiB
 
@@ -36,10 +33,6 @@ pub enum ConnectionError {
 pub struct ClosedConnection {
     /// The connection for the client
     pub client: ClientConnection,
-    /// Sent plaintext bytes
-    pub sent: Vec<u8>,
-    /// Received plaintext bytes
-    pub recv: Vec<u8>,
 }
 
 /// A future which runs the TLS connection to completion.
@@ -67,13 +60,11 @@ impl Future for ConnectionFuture {
 ///
 /// Any connection errors that occur will be returned from the future, not
 /// [`TlsConnection`].
-pub fn bind_client(
-    mut server_handle: DuplexStream,
-    mut client: ClientConnection,
-) -> (DuplexStream, ConnectionFuture) {
-    let (client_socket, client_handle) = byte_stream::duplex(1024 * 16);
+pub fn bind_client(mut client: ClientConnection) -> (DuplexStream, DuplexStream, ConnectionFuture) {
+    let (client_socket, mut client_handle) = duplex(BUF_SIZE);
+    let (server_socket, mut server_handle) = duplex(BUF_SIZE);
 
-    let fut = async move {
+    let poll_loop = async move {
         client.start().await?;
         let mut notify = client.get_notify().await?;
 
@@ -85,145 +76,94 @@ pub fn bind_client(
 
         let mut handshake_done = false;
         let mut client_closed = false;
-        let mut server_closed = false;
 
-        let mut rx_tls_fut =
-            futures::future::ready(std::io::Read::read(&mut server_handle, &mut rx_tls_buf));
-        // We don't start writing application data until the handshake is complete.
-        let mut tx_recv_fut: Fuse<Next<'_, mpsc::Receiver<Bytes>>> = Fuse::terminated();
-
-        // Runs both the tx and rx halves of the connection to completion.
-        // This loop does not terminate until the *SERVER* closes the connection and
-        // we've processed all received data. If an error occurs, the `TlsConnection`
-        // channels will be closed and the error will be returned from this future.
-        'conn: loop {
-            // Write all pending TLS data to the server.
+        loop {
+            // Write all pending TLS data to `server_handle`.
             if client.wants_write() && !client_closed {
                 trace!("client wants to write");
                 while client.wants_write() {
-                    let _sent = client.write_tls_async(&mut server_tx).await?;
-                    trace!("sent {} tls bytes to server", _sent);
+                    let sent_tls = client.write_tls(&mut tx_tls_buf.as_mut_slice())?;
+                    server_handle.write_all(&tx_tls_buf[..sent_tls])?;
+                    trace!("sent {} tls bytes to server_handle", sent_tls);
                 }
-                server_tx.flush().await?;
+                server_handle.flush()?;
             }
 
-            // Forward received plaintext to `TlsConnection`.
+            // Forward received plaintext to `client_handle`.
             while !client.plaintext_is_empty() {
                 let read = client.read_plaintext(&mut rx_buf)?;
-                recv.extend(&rx_buf[..read]);
-                // Ignore if the receiver has hung up.
-                _ = rx_sender
-                    .send(Ok(Bytes::copy_from_slice(&rx_buf[..read])))
-                    .await;
-                trace!("forwarded {} plaintext bytes to conn", read);
+                client_handle.write_all(&rx_buf[..read])?;
+                trace!("sent {} clear bytes to client_handle", read);
             }
 
+            // Read application data, which should be sent to the server, only if handshake is done
             if !client.is_handshaking() && !handshake_done {
                 debug!("handshake complete");
                 handshake_done = true;
-                // Start reading application data that needs to be transmitted from the
-                // `TlsConnection`.
-                tx_recv_fut = tx_receiver.next().fuse();
             }
 
-            if server_closed && client.plaintext_is_empty() && client.is_empty().await? {
-                break 'conn;
+            if handshake_done {
+                while let read = client_handle.read(&mut tx_buf)?
+                    && read > 0
+                {
+                    client.write_all_plaintext(&tx_buf[..read]).await?;
+                }
+            }
+
+            if client_handle.is_closed() {
+                if !server_handle.is_closed() {
+                    if let Err(e) = send_close_notify(&mut client, &mut server_handle).await {
+                        warn!("failed to send close_notify to server: {}", e);
+                    }
+                }
+                client_closed = true;
+            }
+
+            if server_handle.is_closed() && client.plaintext_is_empty() && client.is_empty().await?
+            {
+                client.server_closed().await?;
+                break;
+            }
+
+            // Reads TLS data from the server and writes it into the client.
+            let read_tls = server_handle.read(&mut rx_tls_buf)?;
+            trace!("received {} tls bytes from server_handle", read_tls);
+            while let processed = client.read_tls(&mut &rx_tls_buf[..read_tls])?
+                && processed < read_tls
+            {
+                client.process_new_packets().await?;
+                trace!("processed {} tls bytes from server", processed);
             }
 
             select_biased! {
-                // Reads TLS data from the server and writes it into the client.
-                received = &mut rx_tls_fut => {
-                    let received = received?;
-                    trace!("received {} tls bytes from server", received);
-
-                    // Loop until we've processed all the data we received in this read.
-                    // Note that we must make one iteration even if `received == 0`.
-                    let mut processed = 0;
-                    let mut reader = rx_tls_buf[..received].reader();
-                    loop {
-                        processed += client.read_tls(&mut reader)?;
-                        client.process_new_packets().await?;
-
-                        debug_assert!(processed <= received);
-                        if processed >= received {
-                            break;
-                        }
-                    }
-
-                    trace!("processed {} tls bytes from server", processed);
-
-                    // By convention if `AsyncRead::read` returns 0, it means EOF, i.e. the peer
-                    // has closed the socket.
-                    if received == 0 {
-                        debug!("server closed connection");
-                        server_closed = true;
-                        client.server_closed().await?;
-                        // Do not read from the socket again.
-                        rx_tls_fut = Fuse::terminated();
-                    } else {
-                        // Reset the read future so next iteration we can read again.
-                        rx_tls_fut = server_rx.read(&mut rx_tls_buf).fuse();
-                    }
-                }
-                // If we receive None from `TlsConnection`, it has closed, so we
-                // send a close_notify to the server.
-                data = &mut tx_recv_fut => {
-                    if let Some(data) = data {
-                        trace!("writing {} plaintext bytes to client", data.len());
-
-                        sent.extend(&data);
-                        client
-                            .write_all_plaintext(&data)
-                            .await?;
-
-                        tx_recv_fut = tx_receiver.next().fuse();
-                    } else {
-                        if !server_closed {
-                            if let Err(e) = send_close_notify(&mut client, &mut server_tx).await {
-                                warn!("failed to send close_notify to server: {}", e);
-                            }
-                        }
-
-                        client_closed = true;
-
-                        tx_recv_fut = Fuse::terminated();
-                    }
-                }
                 // Waits for a notification from the backend that it is ready to decrypt data.
                 _ = &mut notify => {
                     trace!("backend is ready to decrypt");
 
                     client.process_new_packets().await?;
-                }
+                },
+                _ = futures::future::ready(()) => {}
             }
         }
-
         debug!("client shutdown");
 
-        _ = server_tx.close().await;
-        tx_receiver.close();
-        rx_sender.close_channel();
+        server_handle.close();
+        client_handle.close();
 
-        trace!(
-            "server close notify: {}, sent: {}, recv: {}",
-            client.received_close_notify(),
-            sent.len(),
-            recv.len()
-        );
+        trace!("server close notify: {}", client.received_close_notify());
 
-        Ok(ClosedConnection { client, sent, recv })
+        Ok(ClosedConnection { client })
     };
 
-    let fut = fut.instrument(debug_span!("tls_connection"));
-
+    let fut = poll_loop.instrument(debug_span!("tls_connection"));
     let fut = ConnectionFuture { fut: Box::pin(fut) };
 
-    (client_handle, fut)
+    (client_socket, server_socket, fut)
 }
 
 async fn send_close_notify(
     client: &mut ClientConnection,
-    server_tx: &mut (impl AsyncWrite + Unpin),
+    server_handle: &mut (impl std::io::Write + Unpin),
 ) -> Result<(), ConnectionError> {
     trace!("sending close_notify to server");
     client.send_close_notify().await?;
@@ -231,9 +171,9 @@ async fn send_close_notify(
 
     // Flush all remaining plaintext
     while client.wants_write() {
-        client.write_tls_async(server_tx).await?;
+        client.write_tls(server_handle)?;
     }
-    server_tx.flush().await?;
+    server_handle.flush()?;
 
     Ok(())
 }
