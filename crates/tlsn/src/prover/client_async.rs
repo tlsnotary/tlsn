@@ -28,23 +28,16 @@ pub enum ConnectionError {
     IOError(#[from] std::io::Error),
 }
 
-/// Closed connection data.
-#[derive(Debug)]
-pub struct ClosedConnection {
-    /// The connection for the client
-    pub client: ClientConnection,
-}
-
 /// A future which runs the TLS connection to completion.
 ///
 /// This future must be polled in order for the connection to make progress.
 #[must_use = "futures do nothing unless polled"]
-pub struct ConnectionFuture {
-    fut: Pin<Box<dyn Future<Output = Result<ClosedConnection, ConnectionError>> + Send>>,
+pub(crate) struct ConnectionFuture {
+    fut: Pin<Box<dyn Future<Output = Result<ClientConnection, ConnectionError>> + Send>>,
 }
 
 impl Future for ConnectionFuture {
-    type Output = Result<ClosedConnection, ConnectionError>;
+    type Output = Result<ClientConnection, ConnectionError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.fut.poll_unpin(cx)
@@ -60,7 +53,9 @@ impl Future for ConnectionFuture {
 ///
 /// Any connection errors that occur will be returned from the future, not
 /// [`TlsConnection`].
-pub fn bind_client(mut client: ClientConnection) -> (DuplexStream, DuplexStream, ConnectionFuture) {
+pub(crate) fn bind_client(
+    mut client: ClientConnection,
+) -> (DuplexStream, DuplexStream, ConnectionFuture) {
     let (client_socket, mut client_handle) = duplex(BUF_SIZE);
     let (server_socket, mut server_handle) = duplex(BUF_SIZE);
 
@@ -152,7 +147,7 @@ pub fn bind_client(mut client: ClientConnection) -> (DuplexStream, DuplexStream,
 
         trace!("server close notify: {}", client.received_close_notify());
 
-        Ok(ClosedConnection { client })
+        Ok(client)
     };
 
     let fut = poll_loop.instrument(debug_span!("tls_connection"));

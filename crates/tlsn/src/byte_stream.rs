@@ -19,7 +19,17 @@ impl DuplexStream {
             .expect("should be able to acquire lock")
     }
 
-    pub(crate) fn close(self) {}
+    pub(crate) fn close(&mut self) {
+        let mut is_closed = self
+            .is_closed
+            .lock()
+            .expect("should be able to acquire lock");
+        *is_closed = true;
+    }
+
+    pub(crate) fn wants_write(&self) -> bool {
+        self.read.has_remaining()
+    }
 }
 
 impl Drop for DuplexStream {
@@ -74,6 +84,13 @@ impl Write for DuplexStream {
 
 #[derive(Debug)]
 pub(crate) struct ReadHalf<T>(Arc<Mutex<T>>);
+
+impl ReadHalf<SimplexStream> {
+    fn has_remaining(&self) -> bool {
+        let inner = self.0.lock().expect("should be able to acquire lock");
+        inner.has_remaining()
+    }
+}
 
 impl<T: Read> Read for ReadHalf<T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
@@ -135,6 +152,10 @@ impl SimplexStream {
             max_buf_size,
             buffer: BytesMut::new(),
         }
+    }
+
+    pub(crate) fn has_remaining(&self) -> bool {
+        self.buffer.has_remaining()
     }
 }
 

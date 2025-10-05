@@ -6,13 +6,13 @@ mod error;
 mod future;
 pub mod state;
 
-pub use client_async::{ClosedConnection, ConnectionError, ConnectionFuture, bind_client};
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
 use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
+use client_async::bind_client;
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
@@ -38,7 +38,10 @@ use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
-use std::sync::Arc;
+use std::{
+    io::{Read, Write},
+    sync::Arc,
+};
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
@@ -364,39 +367,39 @@ impl Prover<state::Setup> {
 }
 
 impl Prover<state::Connected> {
-    /// Returns `true` if the Prover wants to read TLS data from the server.
-    pub fn wants_read(&self) -> bool {
-        todo!()
+    /// Returns `true` if the prover wants to write TLS data to the server.
+    pub fn wants_write_tls(&self) -> bool {
+        self.state.server_socket.wants_write()
+    }
+
+    /// Returns `true` if the prover wants to write plaintext data to the client.
+    pub fn wants_write(&self) -> bool {
+        self.state.client_socket.wants_write()
     }
 
     /// Reads TLS data from the server.
     pub fn read_tls(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        todo!()
+        self.state.server_socket.write(buf)
     }
 
-    /// Returns `true` if the Prover wants to write TLS data to the server.
-    pub fn wants_write(&self) -> bool {
-        todo!()
-    }
-
-    /// Writes TLS data to the server.
+    /// Writes TLS data for the server into the provided buffer.
     pub fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
-        todo!()
+        self.state.server_socket.read(buf)
     }
 
     /// Reads plaintext data from the server into the provided buffer.
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
-        todo!()
+        self.state.client_socket.read(buf)
     }
 
     /// Writes plaintext data to be sent to the server.
     pub fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        todo!()
+        self.state.client_socket.write(buf)
     }
 
     /// Closes the server connection.
-    pub fn close(&mut self) -> Result<(), std::io::Error> {
-        todo!()
+    pub fn close(&mut self) {
+        self.state.server_socket.close();
     }
 
     /// Defers decryption of data from the server until the server has closed
