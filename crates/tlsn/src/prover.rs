@@ -2,11 +2,15 @@
 
 mod client_async;
 mod config;
+mod conn;
+mod control;
 mod error;
 mod future;
 pub mod state;
 
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
+pub use conn::TlsConnection;
+pub use control::ProverControl;
 pub use error::ProverError;
 pub use future::ProverFuture;
 use rustls_pki_types::CertificateDer;
@@ -34,7 +38,7 @@ use crate::{
     zk_aes_ctr::ZkAesCtr,
 };
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use futures::{AsyncRead, AsyncWrite, FutureExt, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
@@ -163,10 +167,14 @@ impl Prover<state::Setup> {
     /// Connects to the server using the provided socket.
     ///
     /// Returns a connection and a control handle.
-    pub async fn connect_with<S>(self, socket: S) -> Result<((), ProverFuture), ProverError>
+    pub async fn connect_with<S>(
+        self,
+        socket: S,
+    ) -> Result<(TlsConnection, ProverControl, ProverFuture), ProverError>
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
+        let (client_async_socket, client_async_handle) = futures_plex::duplex(16 * 1024);
         let (prover, future) = self.connect().await?;
         let Prover {
             config,
@@ -179,9 +187,20 @@ impl Prover<state::Setup> {
                 },
         } = prover;
 
-        // let tls_connection = TlsConnection::new(tx_sender, rx_receiver);
+        let client_future = async { todo!() };
 
-        todo!()
+        let server_future = async { todo!() };
+
+        let prover_future = ProverFuture {
+            fut: Box::pin(
+                futures::future::join3(client_future, server_future, future)
+                    .map(|(_, _, prover)| prover),
+            ),
+        };
+
+        let connection = TlsConnection::new(client_async_socket);
+        let control = ProverControl::new(mpc_ctrl);
+        Ok((connection, control, prover_future))
     }
 
     /// Connects to the server.
