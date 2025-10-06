@@ -1,6 +1,6 @@
 //! This module collects futures which are used by the [Prover].
 
-use super::{Prover, ProverError, state};
+use super::{Prover, ProverControl, ProverError, state};
 use futures::Future;
 use std::pin::Pin;
 
@@ -10,6 +10,14 @@ pub struct ProverFuture {
     pub(crate) fut: Pin<
         Box<dyn Future<Output = Result<Prover<state::Committed>, ProverError>> + Send + 'static>,
     >,
+    pub(crate) ctrl: ProverControl,
+}
+
+impl ProverFuture {
+    /// Returns a controller for the prover for advanced functionality.
+    pub fn control(&self) -> ProverControl {
+        self.ctrl.clone()
+    }
 }
 
 impl Future for ProverFuture {

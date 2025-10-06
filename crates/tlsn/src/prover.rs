@@ -38,7 +38,7 @@ use crate::{
     zk_aes_ctr::ZkAesCtr,
 };
 
-use futures::{AsyncRead, AsyncWrite, FutureExt, TryFutureExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, FutureExt, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
@@ -170,37 +170,85 @@ impl Prover<state::Setup> {
     pub async fn connect_with<S>(
         self,
         socket: S,
-    ) -> Result<(TlsConnection, ProverControl, ProverFuture), ProverError>
+    ) -> Result<(TlsConnection, ProverFuture), ProverError>
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
         let (client_async_socket, client_async_handle) = futures_plex::duplex(16 * 1024);
         let (prover, future) = self.connect().await?;
         let Prover {
-            config,
-            span,
             state:
                 state::Connected {
                     mpc_ctrl,
-                    client_socket,
-                    server_socket,
+                    mut client_socket,
+                    mut server_socket,
                 },
+            ..
         } = prover;
 
-        let client_future = async { todo!() };
+        let client_future = async move {
+            let mut buffer1 = [0_u8; 8 * 1024];
+            let mut buffer2 = [0_u8; 8 * 1024];
 
-        let server_future = async { todo!() };
+            let (mut async_read, mut async_write) = client_async_handle.split();
+
+            loop {
+                let mut read_op = async_read.read(&mut buffer1).fuse();
+                let mut write_op = futures::future::ready(client_socket.read(&mut buffer2))
+                    .and_then(|read_count| async_write.write_all(&buffer2[..read_count]));
+                futures::select! {
+                    read_count = read_op => {
+                        client_socket.write_all(&buffer1[..read_count?])?;
+                    },
+                    _ = write_op => {}
+
+                }
+            }
+            #[allow(unreachable_code)]
+            Ok::<_, std::io::Error>(())
+        };
+
+        let server_future = async move {
+            let mut buffer1 = [0_u8; 8 * 1024];
+            let mut buffer2 = [0_u8; 8 * 1024];
+
+            let (mut async_read, mut async_write) = socket.split();
+
+            loop {
+                let mut read_op = async_read.read(&mut buffer1).fuse();
+                let mut write_op = futures::future::ready(server_socket.read(&mut buffer2))
+                    .and_then(|read_count| async_write.write_all(&buffer2[..read_count]));
+                futures::select! {
+                    read_count = read_op => {
+                        let read_count = read_count?;
+                        if read_count > 0 {
+                            server_socket.write_all(&buffer1[..read_count])?;
+                        } else {
+                            server_socket.close();
+                        }
+                    },
+                    _ = write_op => {}
+
+                }
+            }
+            #[allow(unreachable_code)]
+            Ok::<_, std::io::Error>(())
+        };
 
         let prover_future = ProverFuture {
-            fut: Box::pin(
-                futures::future::join3(client_future, server_future, future)
-                    .map(|(_, _, prover)| prover),
-            ),
+            fut: Box::pin(async {
+                futures::select! {
+                    _ = client_future.fuse() => panic!("unexpected client polling loop error"),
+                    _ = server_future.fuse() => panic!("unexpected server polling loop error"),
+                    prover = future.fuse() => prover
+                }
+            }),
+            ctrl: ProverControl::new(mpc_ctrl),
         };
 
         let connection = TlsConnection::new(client_async_socket);
-        let control = ProverControl::new(mpc_ctrl);
-        Ok((connection, control, prover_future))
+
+        Ok((connection, prover_future))
     }
 
     /// Connects to the server.
@@ -375,13 +423,19 @@ impl Prover<state::Setup> {
             config: prover_config,
             span,
             state: state::Connected {
-                mpc_ctrl,
+                mpc_ctrl: mpc_ctrl.clone(),
                 client_socket,
                 server_socket,
             },
         };
 
-        Ok((prover, ProverFuture { fut }))
+        Ok((
+            prover,
+            ProverFuture {
+                fut,
+                ctrl: ProverControl::new(mpc_ctrl),
+            },
+        ))
     }
 }
 
