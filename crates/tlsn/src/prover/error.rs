@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use mpc_tls::MpcTlsError;
 
-use crate::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
+use crate::encoding::EncodingError;
 
 /// Error for [`Prover`](crate::Prover).
 #[derive(Debug, thiserror::Error)]
@@ -107,12 +107,6 @@ impl From<mpz_common::ContextError> for ProverError {
 impl From<MpcTlsError> for ProverError {
     fn from(e: MpcTlsError) -> Self {
         Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<ZkAesCtrError> for ProverError {
-    fn from(e: ZkAesCtrError) -> Self {
-        Self::new(ErrorKind::Zk, e)
     }
 }
 

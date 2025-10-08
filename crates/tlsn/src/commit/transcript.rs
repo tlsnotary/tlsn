@@ -1,211 +1,175 @@
-use mpz_memory_core::{
-    MemoryExt, Vector,
-    binary::{Binary, U8},
-};
-use mpz_vm_core::{Vm, VmError};
-use rangeset::{Intersection, RangeSet};
-use tlsn_core::transcript::{Direction, PartialTranscript};
+use std::ops::Range;
+
+use mpz_memory_core::{Vector, binary::U8};
+use rangeset::RangeSet;
+
+pub(crate) type ReferenceMap = RangeMap<Vector<U8>>;
 
 /// References to the application plaintext in the transcript.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct TranscriptRefs {
-    sent: Vec<Vector<U8>>,
-    recv: Vec<Vector<U8>>,
+    pub(crate) sent: ReferenceMap,
+    pub(crate) recv: ReferenceMap,
 }
 
-impl TranscriptRefs {
-    pub(crate) fn new(sent: Vec<Vector<U8>>, recv: Vec<Vector<U8>>) -> Self {
-        Self { sent, recv }
+#[derive(Debug, Clone)]
+pub(crate) struct RangeMap<T> {
+    map: Vec<(usize, T)>,
+}
+
+impl<T> Default for RangeMap<T>
+where
+    T: Item,
+{
+    fn default() -> Self {
+        Self { map: Vec::new() }
     }
+}
 
-    /// Returns the sent plaintext references.
-    pub(crate) fn sent(&self) -> &[Vector<U8>] {
-        &self.sent
-    }
+impl<T> RangeMap<T>
+where
+    T: Item,
+{
+    pub(crate) fn new(map: Vec<(usize, T)>) -> Self {
+        let mut pos = 0;
+        for (idx, item) in &map {
+            assert!(
+                *idx >= pos,
+                "items must be sorted by index and non-overlapping"
+            );
 
-    /// Returns the received plaintext references.
-    pub(crate) fn recv(&self) -> &[Vector<U8>] {
-        &self.recv
-    }
-
-    /// Returns the transcript lengths.
-    pub(crate) fn len(&self) -> (usize, usize) {
-        let sent = self.sent.iter().map(|v| v.len()).sum();
-        let recv = self.recv.iter().map(|v| v.len()).sum();
-
-        (sent, recv)
-    }
-
-    /// Returns VM references for the given direction and index, otherwise
-    /// `None` if the index is out of bounds.
-    pub(crate) fn get(
-        &self,
-        direction: Direction,
-        idx: &RangeSet<usize>,
-    ) -> Option<Vec<Vector<U8>>> {
-        if idx.is_empty() {
-            return Some(Vec::new());
+            pos = *idx + item.length();
         }
 
-        let refs = match direction {
-            Direction::Sent => &self.sent,
-            Direction::Received => &self.recv,
+        Self { map }
+    }
+
+    pub(crate) fn from_iter(items: impl IntoIterator<Item = (usize, T)>) -> Self {
+        let mut pos = 0;
+        let mut map = Vec::new();
+        for (idx, item) in items {
+            assert!(
+                idx >= pos,
+                "items must be sorted by index and non-overlapping"
+            );
+
+            pos = idx + item.length();
+            map.push((idx, item));
+        }
+
+        Self { map }
+    }
+
+    /// Returns the length of the map.
+    pub(crate) fn len(&self) -> usize {
+        self.map.iter().map(|(_, item)| item.length()).sum()
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Range<usize>, &T)> {
+        self.map
+            .iter()
+            .map(|(idx, item)| (*idx..*idx + item.length(), item))
+    }
+
+    pub(crate) fn get(&self, range: Range<usize>) -> Option<T::Slice<'_>> {
+        if range.start >= range.end {
+            return None;
+        }
+
+        // Find the item with the greatest start index <= range.start
+        let pos = match self.map.binary_search_by(|(idx, _)| idx.cmp(&range.start)) {
+            Ok(i) => i,
+            Err(0) => return None,
+            Err(i) => i - 1,
         };
 
-        // Computes the transcript range for each reference.
-        let mut start = 0;
-        let mut slice_iter = refs.iter().map(move |slice| {
-            let out = (slice, start..start + slice.len());
-            start += slice.len();
-            out
-        });
+        let (base, item) = &self.map[pos];
 
-        let mut slices = Vec::new();
-        let (mut slice, mut slice_range) = slice_iter.next()?;
-        for range in idx.iter_ranges() {
-            loop {
-                if let Some(intersection) = slice_range.intersection(&range) {
-                    let start = intersection.start - slice_range.start;
-                    let end = intersection.end - slice_range.start;
-                    slices.push(slice.get(start..end).expect("range should be in bounds"));
-                }
+        item.slice(range.start - *base..range.end - *base)
+    }
 
-                // Proceed to next range if the current slice extends beyond. Otherwise, proceed
-                // to the next slice.
-                if range.end <= slice_range.end {
-                    break;
-                } else {
-                    (slice, slice_range) = slice_iter.next()?;
-                }
+    pub(crate) fn index(&self, idx: &RangeSet<usize>) -> Option<Self> {
+        let mut map = Vec::new();
+        for idx in idx.iter_ranges() {
+            let pos = match self.map.binary_search_by(|(base, _)| base.cmp(&idx.start)) {
+                Ok(i) => i,
+                Err(0) => return None,
+                Err(i) => i - 1,
+            };
+
+            let (base, item) = self.map.get(pos)?;
+            if idx.start < *base || idx.end > *base + item.length() {
+                return None;
             }
+
+            let start = idx.start - *base;
+            let end = start + idx.len();
+
+            map.push((
+                idx.start,
+                item.slice(start..end)
+                    .expect("slice length is checked")
+                    .into(),
+            ));
         }
 
-        Some(slices)
+        Some(Self { map })
     }
 }
 
-/// Decodes the transcript.
-pub(crate) fn decode_transcript(
-    vm: &mut dyn Vm<Binary>,
-    sent: &RangeSet<usize>,
-    recv: &RangeSet<usize>,
-    refs: &TranscriptRefs,
-) -> Result<(), VmError> {
-    let sent_refs = refs.get(Direction::Sent, sent).expect("index is in bounds");
-    let recv_refs = refs
-        .get(Direction::Received, recv)
-        .expect("index is in bounds");
+pub(crate) trait Item: Sized {
+    type Slice<'a>: Into<Self>
+    where
+        Self: 'a;
 
-    for slice in sent_refs.into_iter().chain(recv_refs) {
-        // Drop the future, we don't need it.
-        drop(vm.decode(slice)?);
-    }
+    fn length(&self) -> usize;
 
-    Ok(())
+    fn slice<'a>(&'a self, range: Range<usize>) -> Option<Self::Slice<'a>>;
 }
 
-/// Verifies a partial transcript.
-pub(crate) fn verify_transcript(
-    vm: &mut dyn Vm<Binary>,
-    transcript: &PartialTranscript,
-    refs: &TranscriptRefs,
-) -> Result<(), InconsistentTranscript> {
-    let sent_refs = refs
-        .get(Direction::Sent, transcript.sent_authed())
-        .expect("index is in bounds");
-    let recv_refs = refs
-        .get(Direction::Received, transcript.received_authed())
-        .expect("index is in bounds");
+impl Item for Vector<U8> {
+    type Slice<'a> = Vector<U8>;
 
-    let mut authenticated_data = Vec::new();
-    for data in sent_refs.into_iter().chain(recv_refs) {
-        let plaintext = vm
-            .get(data)
-            .expect("reference is valid")
-            .expect("plaintext is decoded");
-        authenticated_data.extend_from_slice(&plaintext);
+    fn length(&self) -> usize {
+        self.len()
     }
 
-    let mut purported_data = Vec::with_capacity(authenticated_data.len());
-    for range in transcript.sent_authed().iter_ranges() {
-        purported_data.extend_from_slice(&transcript.sent_unsafe()[range]);
+    fn slice<'a>(&'a self, range: Range<usize>) -> Option<Self::Slice<'a>> {
+        self.get(range)
     }
-
-    for range in transcript.received_authed().iter_ranges() {
-        purported_data.extend_from_slice(&transcript.received_unsafe()[range]);
-    }
-
-    if purported_data != authenticated_data {
-        return Err(InconsistentTranscript {});
-    }
-
-    Ok(())
 }
-
-/// Error for [`verify_transcript`].
-#[derive(Debug, thiserror::Error)]
-#[error("inconsistent transcript")]
-pub(crate) struct InconsistentTranscript {}
 
 #[cfg(test)]
 mod tests {
-    use super::TranscriptRefs;
-    use mpz_memory_core::{FromRaw, Slice, Vector, binary::U8};
-    use rangeset::RangeSet;
-    use std::ops::Range;
-    use tlsn_core::transcript::Direction;
+    use super::*;
 
-    // TRANSCRIPT_REFS:
-    //
-    // 48..96 -> 6 slots
-    // 112..176 -> 8 slots
-    // 240..288 -> 6 slots
-    // 352..392 -> 5 slots
-    // 440..480 -> 5 slots
-    const TRANSCRIPT_REFS: &[Range<usize>] = &[48..96, 112..176, 240..288, 352..392, 440..480];
+    impl Item for Range<usize> {
+        type Slice<'a> = Range<usize>;
 
-    const IDXS: &[Range<usize>] = &[0..4, 5..10, 14..16, 16..28];
+        fn length(&self) -> usize {
+            self.end - self.start
+        }
 
-    // 1. Take slots 0..4,   4  slots -> 48..80 (4)
-    // 2. Take slots 5..10,  5  slots -> 88..96 (1) + 112..144 (4)
-    // 3. Take slots 14..16, 2  slots -> 240..256 (2)
-    // 4. Take slots 16..28, 12 slots -> 256..288 (4) + 352..392 (5) + 440..464 (3)
-    //
-    // 5. Merge slots 240..256 and 256..288 => 240..288 and get EXPECTED_REFS
-    const EXPECTED_REFS: &[Range<usize>] =
-        &[48..80, 88..96, 112..144, 240..288, 352..392, 440..464];
+        fn slice(&self, range: Range<usize>) -> Option<Self> {
+            if range.end > self.end - self.start {
+                return None;
+            }
+
+            Some(range.start + self.start..range.end + self.start)
+        }
+    }
 
     #[test]
-    fn test_transcript_refs_get() {
-        let transcript_refs: Vec<Vector<U8>> = TRANSCRIPT_REFS
-            .iter()
-            .cloned()
-            .map(|range| Vector::from_raw(Slice::from_range_unchecked(range)))
-            .collect();
+    fn test_range_map() {
+        let map = RangeMap::from_iter([(0, 10..14), (10, 20..24), (20, 30..32)]);
 
-        let transcript_refs = TranscriptRefs {
-            sent: transcript_refs.clone(),
-            recv: transcript_refs,
-        };
-
-        let vm_refs = transcript_refs
-            .get(Direction::Sent, &RangeSet::from(IDXS))
-            .unwrap();
-
-        let expected_refs: Vec<Vector<U8>> = EXPECTED_REFS
-            .iter()
-            .cloned()
-            .map(|range| Vector::from_raw(Slice::from_range_unchecked(range)))
-            .collect();
-
-        assert_eq!(
-            vm_refs.len(),
-            expected_refs.len(),
-            "Length of actual and expected refs are not equal"
-        );
-
-        for (&expected, actual) in expected_refs.iter().zip(vm_refs) {
-            assert_eq!(expected, actual);
-        }
+        assert_eq!(map.get(0..4), Some(10..14));
+        assert_eq!(map.get(10..14), Some(20..24));
+        assert_eq!(map.get(20..22), Some(30..32));
+        assert_eq!(map.get(0..2), Some(10..12));
+        assert_eq!(map.get(11..13), Some(21..23));
+        assert_eq!(map.get(0..10), None);
+        assert_eq!(map.get(10..20), None);
+        assert_eq!(map.get(20..30), None);
     }
 }

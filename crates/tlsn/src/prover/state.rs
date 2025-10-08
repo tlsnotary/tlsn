@@ -9,10 +9,8 @@ use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
 use crate::{
-    commit::transcript::TranscriptRefs,
     mux::{MuxControl, MuxFuture},
     prover::{Mpc, Zk},
-    zk_aes_ctr::ZkAesCtr,
 };
 
 /// Entry state
@@ -25,8 +23,6 @@ pub struct Setup {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsLeader,
-    pub(crate) zk_aes_ctr_sent: ZkAesCtr,
-    pub(crate) zk_aes_ctr_recv: ZkAesCtr,
     pub(crate) keys: SessionKeys,
     pub(crate) vm: Arc<Mutex<Deap<Mpc, Zk>>>,
 }
@@ -39,9 +35,9 @@ pub struct Committed {
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
     pub(crate) vm: Zk,
+    pub(crate) keys: SessionKeys,
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript: Transcript,
-    pub(crate) transcript_refs: TranscriptRefs,
 }
 
 opaque_debug::implement!(Committed);

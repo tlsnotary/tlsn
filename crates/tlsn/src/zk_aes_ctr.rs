@@ -1,181 +1,226 @@
-//! Zero-knowledge AES-CTR encryption.
+use std::{ops::Range, sync::Arc};
 
-use cipher::{
-    Cipher, CipherError, Keystream,
-    aes::{Aes128, AesError},
-};
+use mpz_circuits::circuits::{AES128, xor};
 use mpz_memory_core::{
-    Array, Vector,
+    Array, MemoryExt, Vector, ViewExt,
     binary::{Binary, U8},
 };
-use mpz_vm_core::{Vm, prelude::*};
+use mpz_vm_core::{Call, CallableExt, Vm};
+use rangeset::RangeSet;
+use tlsn_core::transcript::Record;
 
-use crate::Role;
-
-type Nonce = Array<U8, 8>;
-type Ctr = Array<U8, 4>;
-type Block = Array<U8, 16>;
-
-const START_CTR: u32 = 2;
+use crate::commit::transcript::ReferenceMap;
 
 /// ZK AES-CTR encryption.
 #[derive(Debug)]
 pub(crate) struct ZkAesCtr {
-    role: Role,
-    aes: Aes128,
-    state: State,
+    key: Array<U8, 16>,
+    iv: Array<U8, 4>,
+    records: Vec<(usize, RecordState)>,
+    total_len: usize,
 }
 
 impl ZkAesCtr {
-    /// Creates a new ZK AES-CTR instance.
-    pub(crate) fn new(role: Role) -> Self {
+    /// Creates a new instance.
+    pub(crate) fn new<'record>(
+        key: Array<U8, 16>,
+        iv: Array<U8, 4>,
+        records: impl IntoIterator<Item = &'record Record>,
+    ) -> Self {
+        let mut pos = 0;
+        let mut record_state = Vec::new();
+        for record in records {
+            record_state.push((
+                pos,
+                RecordState {
+                    explicit_nonce: Some(record.explicit_nonce.clone()),
+                    explicit_nonce_ref: None,
+                    range: pos..pos + record.ciphertext.len(),
+                },
+            ));
+            pos += record.ciphertext.len();
+        }
+
         Self {
-            role,
-            aes: Aes128::default(),
-            state: State::Init,
+            key,
+            iv,
+            records: record_state,
+            total_len: pos,
         }
     }
 
-    /// Returns the role.
-    pub(crate) fn role(&self) -> &Role {
-        &self.role
-    }
-
-    /// Allocates `len` bytes for encryption.
-    pub(crate) fn alloc(
+    /// Allocates the plaintext for the provided ranges.
+    ///
+    /// Returns a reference to the plaintext and the ciphertext.
+    pub(crate) fn alloc_plaintext(
         &mut self,
         vm: &mut dyn Vm<Binary>,
-        len: usize,
-    ) -> Result<(), ZkAesCtrError> {
-        let State::Init = self.state.take() else {
-            Err(ErrorRepr::State {
-                reason: "must be in init state to allocate",
-            })?
-        };
+        ranges: &RangeSet<usize>,
+    ) -> Result<(ReferenceMap, ReferenceMap), ZkAesCtrError> {
+        let len = ranges.len();
 
-        // Round up to the nearest block size.
-        let len = 16 * len.div_ceil(16);
-
-        let input = vm.alloc_vec::<U8>(len).map_err(ZkAesCtrError::vm)?;
-        let keystream = self.aes.alloc_keystream(vm, len)?;
-
-        match self.role {
-            Role::Prover => vm.mark_private(input).map_err(ZkAesCtrError::vm)?,
-            Role::Verifier => vm.mark_blind(input).map_err(ZkAesCtrError::vm)?,
+        if len > self.total_len {
+            return Err(ZkAesCtrError(ErrorRepr::TranscriptBounds {
+                len,
+                max: self.total_len,
+            }));
         }
 
-        self.state = State::Ready { input, keystream };
+        let plaintext = vm.alloc_vec::<U8>(len).map_err(ZkAesCtrError::vm)?;
+        let keystream = self.alloc_keystream(vm, ranges)?;
 
-        Ok(())
+        let mut builder = Call::builder(Arc::new(xor(len * 8))).arg(plaintext);
+        for slice in keystream {
+            builder = builder.arg(slice);
+        }
+        let call = builder.build().expect("call should be valid");
+
+        let ciphertext: Vector<U8> = vm.call(call).map_err(ZkAesCtrError::vm)?;
+
+        let mut pos = 0;
+        let plaintext = ReferenceMap::from_iter(ranges.iter_ranges().map(move |range| {
+            let chunk = plaintext
+                .get(pos..pos + range.len())
+                .expect("length was checked");
+            pos += range.len();
+            (range.start, chunk)
+        }));
+
+        let mut pos = 0;
+        let ciphertext = ReferenceMap::from_iter(ranges.iter_ranges().map(move |range| {
+            let chunk = ciphertext
+                .get(pos..pos + range.len())
+                .expect("length was checked");
+            pos += range.len();
+            (range.start, chunk)
+        }));
+
+        Ok((plaintext, ciphertext))
     }
 
-    /// Sets the key and IV for the cipher.
-    pub(crate) fn set_key(&mut self, key: Array<U8, 16>, iv: Array<U8, 4>) {
-        self.aes.set_key(key);
-        self.aes.set_iv(iv);
-    }
-
-    /// Proves the encryption of `len` bytes.
-    ///
-    /// Here we only assign certain values in the VM but the actual proving
-    /// happens later when the plaintext is assigned and the VM is executed.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - Virtual machine.
-    /// * `explicit_nonce` - Explicit nonce.
-    /// * `len` - Length of the plaintext in bytes.
-    ///
-    /// # Returns
-    ///
-    /// A VM reference to the plaintext and the ciphertext.
-    pub(crate) fn encrypt(
+    fn alloc_keystream(
         &mut self,
         vm: &mut dyn Vm<Binary>,
-        explicit_nonce: Vec<u8>,
-        len: usize,
-    ) -> Result<(Vector<U8>, Vector<U8>), ZkAesCtrError> {
-        let State::Ready { input, keystream } = &mut self.state else {
-            Err(ErrorRepr::State {
-                reason: "must be in ready state to encrypt",
-            })?
-        };
+        ranges: &RangeSet<usize>,
+    ) -> Result<Vec<Vector<U8>>, ZkAesCtrError> {
+        let mut keystream = Vec::new();
 
-        let explicit_nonce: [u8; 8] =
-            explicit_nonce
-                .try_into()
-                .map_err(|explicit_nonce: Vec<_>| ErrorRepr::ExplicitNonceLength {
-                    expected: 8,
-                    actual: explicit_nonce.len(),
-                })?;
+        let mut range_iter = ranges.iter_ranges();
+        let mut current_range = range_iter.next();
+        for (pos, record) in self.records.iter_mut() {
+            let pos = *pos;
+            let mut current_block = None;
+            loop {
+                let Some(range) = current_range.take().or_else(|| range_iter.next()) else {
+                    return Ok(keystream);
+                };
 
-        let block_count = len.div_ceil(16);
-        let padded_len = block_count * 16;
-        let padding_len = padded_len - len;
+                if range.start >= record.range.end {
+                    current_range = Some(range);
+                    break;
+                }
 
-        if padded_len > input.len() {
-            Err(ErrorRepr::InsufficientPreprocessing {
-                expected: padded_len,
-                actual: input.len(),
-            })?
-        }
+                const BLOCK_SIZE: usize = 16;
+                let block_num = (range.start - pos) / BLOCK_SIZE;
+                let block = if let Some((current_block_num, block)) = current_block.take()
+                    && current_block_num == block_num
+                {
+                    block
+                } else {
+                    let block = record.alloc_block(vm, self.key, self.iv, block_num)?;
 
-        let mut input = input.split_off(input.len() - padded_len);
-        let keystream = keystream.consume(padded_len)?;
-        let mut output = keystream.apply(vm, input)?;
+                    current_block = Some((block_num, block));
 
-        // Assign counter block inputs.
-        let mut ctr = START_CTR..;
-        keystream.assign(vm, explicit_nonce, move || {
-            ctr.next().expect("range is unbounded").to_be_bytes()
-        })?;
+                    block
+                };
 
-        // Assign zeroes to the padding.
-        if padding_len > 0 {
-            let padding = input.split_off(input.len() - padding_len);
-            // To simplify the impl, we don't mark the padding as public, that's why only
-            // the prover assigns it.
-            if let Role::Prover = self.role {
-                vm.assign(padding, vec![0; padding_len])
-                    .map_err(ZkAesCtrError::vm)?;
+                let start = (range.start - pos) % BLOCK_SIZE;
+                let end = (range.len() - start).min(BLOCK_SIZE);
+                let len = end - start;
+
+                keystream.push(block.get(start..end).expect("range is checked"));
+
+                // If the range is larger than a block, process the tail.
+                if range.len() > BLOCK_SIZE {
+                    current_range = Some(range.start + len..range.end);
+                }
             }
-            vm.commit(padding).map_err(ZkAesCtrError::vm)?;
-            output.truncate(len);
         }
 
-        Ok((input, output))
+        unreachable!("plaintext length was checked");
     }
 }
 
-enum State {
-    Init,
-    Ready {
-        input: Vector<U8>,
-        keystream: Keystream<Nonce, Ctr, Block>,
-    },
-    Error,
+#[derive(Debug)]
+struct RecordState {
+    explicit_nonce: Option<Vec<u8>>,
+    range: Range<usize>,
+    explicit_nonce_ref: Option<Vector<U8>>,
 }
 
-impl State {
-    fn take(&mut self) -> Self {
-        std::mem::replace(self, State::Error)
-    }
-}
+impl RecordState {
+    fn alloc_explicit_nonce(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+    ) -> Result<Vector<U8>, ZkAesCtrError> {
+        if let Some(explicit_nonce) = self.explicit_nonce_ref.clone() {
+            Ok(explicit_nonce)
+        } else {
+            const EXPLICIT_NONCE_LEN: usize = 8;
+            let explicit_nonce_ref = vm
+                .alloc_vec::<U8>(EXPLICIT_NONCE_LEN)
+                .map_err(ZkAesCtrError::vm)?;
+            vm.mark_public(explicit_nonce_ref)
+                .map_err(ZkAesCtrError::vm)?;
+            vm.assign(
+                explicit_nonce_ref,
+                self.explicit_nonce
+                    .take()
+                    .expect("explicit nonce only set once"),
+            )
+            .map_err(ZkAesCtrError::vm)?;
+            vm.commit(explicit_nonce_ref).map_err(ZkAesCtrError::vm)?;
 
-impl std::fmt::Debug for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            State::Init => write!(f, "Init"),
-            State::Ready { .. } => write!(f, "Ready"),
-            State::Error => write!(f, "Error"),
+            self.explicit_nonce_ref = Some(explicit_nonce_ref);
+            Ok(explicit_nonce_ref)
         }
+    }
+
+    fn alloc_block(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        key: Array<U8, 16>,
+        iv: Array<U8, 4>,
+        block: usize,
+    ) -> Result<Vector<U8>, ZkAesCtrError> {
+        let explicit_nonce = self.alloc_explicit_nonce(vm)?;
+        let ctr: Array<U8, 4> = vm.alloc().map_err(ZkAesCtrError::vm)?;
+        vm.mark_public(ctr).map_err(ZkAesCtrError::vm)?;
+        const START_CTR: u32 = 2;
+        vm.assign(ctr, (START_CTR + block as u32).to_be_bytes())
+            .map_err(ZkAesCtrError::vm)?;
+        vm.commit(ctr).map_err(ZkAesCtrError::vm)?;
+
+        let block: Array<U8, 16> = vm
+            .call(
+                Call::builder(AES128.clone())
+                    .arg(key)
+                    .arg(iv)
+                    .arg(explicit_nonce)
+                    .arg(ctr)
+                    .build()
+                    .expect("call should be valid"),
+            )
+            .map_err(ZkAesCtrError::vm)?;
+
+        Ok(Vector::from(block))
     }
 }
 
 /// Error for [`ZkAesCtr`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct ZkAesCtrError(#[from] ErrorRepr);
+pub(crate) struct ZkAesCtrError(#[from] ErrorRepr);
 
 impl ZkAesCtrError {
     fn vm<E>(err: E) -> Self
@@ -184,35 +229,13 @@ impl ZkAesCtrError {
     {
         Self(ErrorRepr::Vm(err.into()))
     }
-
-    pub fn is_insufficient(&self) -> bool {
-        matches!(self.0, ErrorRepr::InsufficientPreprocessing { .. })
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error("zk aes error")]
 enum ErrorRepr {
-    #[error("invalid state: {reason}")]
-    State { reason: &'static str },
-    #[error("cipher error: {0}")]
-    Cipher(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error("vm error: {0}")]
     Vm(Box<dyn std::error::Error + Send + Sync + 'static>),
-    #[error("invalid explicit nonce length: expected {expected}, got {actual}")]
-    ExplicitNonceLength { expected: usize, actual: usize },
-    #[error("insufficient preprocessing: expected {expected}, got {actual}")]
-    InsufficientPreprocessing { expected: usize, actual: usize },
-}
-
-impl From<AesError> for ZkAesCtrError {
-    fn from(err: AesError) -> Self {
-        Self(ErrorRepr::Cipher(Box::new(err)))
-    }
-}
-
-impl From<CipherError> for ZkAesCtrError {
-    fn from(err: CipherError) -> Self {
-        Self(ErrorRepr::Cipher(Box::new(err)))
-    }
+    #[error("transcript bounds exceeded: {len} > {max}")]
+    TranscriptBounds { len: usize, max: usize },
 }

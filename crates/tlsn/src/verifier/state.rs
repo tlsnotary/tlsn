@@ -2,14 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::{
-    commit::transcript::TranscriptRefs,
-    mux::{MuxControl, MuxFuture},
-    zk_aes_ctr::ZkAesCtr,
-};
+use crate::mux::{MuxControl, MuxFuture};
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
-use mpz_memory_core::correlated::Delta;
 use tlsn_core::transcript::TlsTranscript;
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
@@ -28,10 +23,7 @@ opaque_debug::implement!(Initialized);
 pub struct Setup {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-    pub(crate) delta: Delta,
     pub(crate) mpc_tls: MpcTlsFollower,
-    pub(crate) zk_aes_ctr_sent: ZkAesCtr,
-    pub(crate) zk_aes_ctr_recv: ZkAesCtr,
     pub(crate) keys: SessionKeys,
     pub(crate) vm: Arc<Mutex<Deap<Mpc, Zk>>>,
 }
@@ -40,11 +32,10 @@ pub struct Setup {
 pub struct Committed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
-    pub(crate) delta: Delta,
     pub(crate) ctx: Context,
     pub(crate) vm: Zk,
+    pub(crate) keys: SessionKeys,
     pub(crate) tls_transcript: TlsTranscript,
-    pub(crate) transcript_refs: TranscriptRefs,
 }
 
 opaque_debug::implement!(Committed);

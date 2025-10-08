@@ -1,4 +1,4 @@
-use crate::{encoding::EncodingError, zk_aes_ctr::ZkAesCtrError};
+use crate::encoding::EncodingError;
 use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
 
@@ -107,12 +107,6 @@ impl From<mpz_common::ContextError> for VerifierError {
 impl From<MpcTlsError> for VerifierError {
     fn from(e: MpcTlsError) -> Self {
         Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<ZkAesCtrError> for VerifierError {
-    fn from(e: ZkAesCtrError) -> Self {
-        Self::new(ErrorKind::Zk, e)
     }
 }
 
