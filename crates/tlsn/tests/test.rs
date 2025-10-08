@@ -153,15 +153,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
 
     let prove_sent = RangeSet::from(1..sent_tx_len - 1);
     let prove_recv = RangeSet::from(1..recv_tx_len - 1);
-    let idxs = vec![
-        (Direction::Sent, prove_sent.clone()),
-        (Direction::Received, prove_recv.clone()),
-    ];
+    let idxs = [(Direction::Sent, prove_sent.clone()),
+        (Direction::Received, prove_recv.clone())];
     let proof = encoding_tree.proof(idxs.iter()).unwrap();
     let (auth_sent, auth_recv) = proof
         .verify_with_provider(
             &HashProvider::default(),
-            &encoding_commitment,
+            encoding_commitment,
             transcript.sent(),
             transcript.received(),
         )
