@@ -140,6 +140,7 @@ enum ErrorRepr {
 #[must_use]
 pub(crate) struct PlaintextProof {
     // (expected, actual)
+    #[allow(clippy::type_complexity)]
     ciphertexts: Vec<(Vec<u8>, DecodeFutureTyped<BitVec, Vec<u8>>)>,
 }
 
