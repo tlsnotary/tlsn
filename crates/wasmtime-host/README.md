@@ -1,5 +1,5 @@
 # Info
-This crate builds a wasmtime runtime to be run in Android. The runtime can load and run a wasm component model plugin. UniFFI is used to generate Kotlin bindings and allow the async main function to be driven by Android's async executor.
+This crate builds a wasmtime binary to be run in Android. The binary loads and run a wasm component model plugin. UniFFI is used to generate Kotlin bindings and allow the binary's future to be driven by Android's async executor.
 
 # Step
 Build this crate by running [build.sh](build.sh). The build script assumes the following to be available.
