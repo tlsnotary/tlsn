@@ -208,7 +208,7 @@ impl EncodingProvider for Provider {
             Direction::Received => &self.recv,
         };
 
-        let encoding = encodings.get(range).ok_or_else(|| EncodingProviderError)?;
+        let encoding = encodings.get(range).ok_or(EncodingProviderError)?;
 
         dest.extend_from_slice(encoding);
 

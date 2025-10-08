@@ -37,7 +37,7 @@ pub(crate) fn prove_plaintext(
     }
 
     for (range, chunk) in plaintext_map
-        .index(&public)
+        .index(public)
         .expect("map contains all ranges")
         .iter()
     {
@@ -87,7 +87,7 @@ pub(crate) fn verify_plaintext(
     }
 
     for (range, chunk) in plaintext_map
-        .index(&public)
+        .index(public)
         .expect("map contains all ranges")
         .iter()
     {
@@ -99,7 +99,7 @@ pub(crate) fn verify_plaintext(
 
     let mut ciphertexts = Vec::new();
     for (range, chunk) in ciphertext_map
-        .index(&ranges)
+        .index(ranges)
         .expect("map contains all ranges")
         .iter()
     {

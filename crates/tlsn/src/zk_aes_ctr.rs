@@ -163,7 +163,7 @@ impl RecordState {
         &mut self,
         vm: &mut dyn Vm<Binary>,
     ) -> Result<Vector<U8>, ZkAesCtrError> {
-        if let Some(explicit_nonce) = self.explicit_nonce_ref.clone() {
+        if let Some(explicit_nonce) = self.explicit_nonce_ref {
             Ok(explicit_nonce)
         } else {
             const EXPLICIT_NONCE_LEN: usize = 8;

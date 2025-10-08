@@ -128,22 +128,21 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
 
     let mut transcript_commitments = Vec::new();
     let mut hash_commitments = None;
-    if let Some(commit_config) = transcript_commit.as_ref() {
-        if commit_config.has_hash() {
+    if let Some(commit_config) = transcript_commit.as_ref()
+        && commit_config.has_hash() {
             hash_commitments = Some(
                 verify_hash(vm, &transcript_refs, commit_config.iter_hash().cloned())
                     .map_err(VerifierError::verify)?,
             );
         }
-    }
 
     vm.execute_all(ctx).await.map_err(VerifierError::zk)?;
 
     sent_proof.verify().map_err(VerifierError::verify)?;
     recv_proof.verify().map_err(VerifierError::verify)?;
 
-    if let Some(commit_config) = transcript_commit {
-        if let Some((sent, recv)) = commit_config.encoding() {
+    if let Some(commit_config) = transcript_commit
+        && let Some((sent, recv)) = commit_config.encoding() {
             let sent_map = transcript_refs
                 .sent
                 .index(sent)
@@ -156,7 +155,6 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
             let commitment = encoding::transfer(ctx, vm, &sent_map, &recv_map).await?;
             transcript_commitments.push(TranscriptCommitment::Encoding(commitment));
         }
-    }
 
     if let Some(hash_commitments) = hash_commitments {
         for commitment in hash_commitments.try_recv().map_err(VerifierError::verify)? {
