@@ -1,10 +1,14 @@
 [target.wasm32-unknown-unknown]
 rustflags = [
-    "-C",
-    "target-feature=+atomics,+bulk-memory,+mutable-globals,+simd128",
-    "-C",
+    "-Ctarget-feature=+atomics,+bulk-memory,+mutable-globals,+simd128",
+    "-Clink-arg=--shared-memory",
     # 4GB
-    "link-arg=--max-memory=4294967296",
+    "-Clink-arg=--max-memory=4294967296",
+    "-Clink-arg=--import-memory",
+    "-Clink-arg=--export=__wasm_init_tls",
+    "-Clink-arg=--export=__tls_size",
+    "-Clink-arg=--export=__tls_align",
+    "-Clink-arg=--export=__tls_base",
     "--cfg",
     'getrandom_backend="wasm_js"',
 ]
