@@ -73,7 +73,10 @@ pub(crate) async fn transfer<K: KeyStore>(
         recv: collect_encodings(&encoder, store, Direction::Received, recv),
     };
 
-    let frame_limit = ctx.io().limit() + encodings.sent.len() + encodings.recv.len();
+    let frame_limit = ctx
+        .io()
+        .limit()
+        .saturating_add(encodings.sent.len() + encodings.recv.len());
     ctx.io_mut().with_limit(frame_limit).send(encodings).await?;
 
     let root = ctx.io_mut().expect_next().await?;
@@ -101,7 +104,10 @@ pub(crate) async fn receive<M: MacStore>(
     };
 
     let (sent_len, recv_len) = (sent.len(), recv.len());
-    let frame_limit = ctx.io().limit() + ENCODING_SIZE * (sent_len + recv_len);
+    let frame_limit = ctx
+        .io()
+        .limit()
+        .saturating_add(ENCODING_SIZE * (sent_len + recv_len));
     let encodings: Encodings = ctx.io_mut().with_limit(frame_limit).expect_next().await?;
 
     if encodings.sent.len() != sent_len * ENCODING_SIZE {
