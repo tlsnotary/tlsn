@@ -12,7 +12,7 @@ pub(crate) struct TranscriptRefs {
     pub(crate) recv: ReferenceMap,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RangeMap<T> {
     map: Vec<(usize, T)>,
 }
@@ -39,22 +39,6 @@ where
             );
 
             pos = *idx + item.length();
-        }
-
-        Self { map }
-    }
-
-    pub(crate) fn from_iter(items: impl IntoIterator<Item = (usize, T)>) -> Self {
-        let mut pos = 0;
-        let mut map = Vec::new();
-        for (idx, item) in items {
-            assert!(
-                idx >= pos,
-                "items must be sorted by index and non-overlapping"
-            );
-
-            pos = idx + item.length();
-            map.push((idx, item));
         }
 
         Self { map }
@@ -117,6 +101,27 @@ where
     }
 }
 
+impl<T> FromIterator<(usize, T)> for RangeMap<T>
+where
+    T: Item,
+{
+    fn from_iter<I: IntoIterator<Item = (usize, T)>>(items: I) -> Self {
+        let mut pos = 0;
+        let mut map = Vec::new();
+        for (idx, item) in items {
+            assert!(
+                idx >= pos,
+                "items must be sorted by index and non-overlapping"
+            );
+
+            pos = idx + item.length();
+            map.push((idx, item));
+        }
+
+        Self { map }
+    }
+}
+
 pub(crate) trait Item: Sized {
     type Slice<'a>: Into<Self>
     where
@@ -171,5 +176,30 @@ mod tests {
         assert_eq!(map.get(0..10), None);
         assert_eq!(map.get(10..20), None);
         assert_eq!(map.get(20..30), None);
+    }
+
+    #[test]
+    fn test_range_map_index() {
+        let map = RangeMap::from_iter([(0, 10..14), (10, 20..24), (20, 30..32)]);
+
+        let idx = RangeSet::from([0..4, 10..14, 20..22]);
+        assert_eq!(map.index(&idx), Some(map.clone()));
+
+        let idx = RangeSet::from([25..30]);
+        assert_eq!(map.index(&idx), None);
+
+        let idx = RangeSet::from([15..20]);
+        assert_eq!(map.index(&idx), None);
+
+        let idx = RangeSet::from([1..3, 11..12, 13..14, 21..22]);
+        assert_eq!(
+            map.index(&idx),
+            Some(RangeMap::from_iter([
+                (1, 11..13),
+                (11, 21..22),
+                (13, 23..24),
+                (21, 31..32)
+            ]))
+        );
     }
 }
