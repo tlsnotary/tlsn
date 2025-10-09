@@ -135,7 +135,7 @@ impl ZkAesCtr {
                 };
 
                 let start = (range.start - pos) % BLOCK_SIZE;
-                let end = (range.len() - start).min(BLOCK_SIZE);
+                let end = (start + range.len()).min(BLOCK_SIZE);
                 let len = end - start;
 
                 keystream.push(block.get(start..end).expect("range is checked"));
