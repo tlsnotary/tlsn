@@ -2,7 +2,7 @@
 
 use std::{collections::HashSet, fmt};
 
-use rangeset::ToRangeSet;
+use rangeset::{ToRangeSet, UnionMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -114,7 +114,19 @@ impl TranscriptCommitConfig {
     /// Returns a request for the transcript commitments.
     pub fn to_request(&self) -> TranscriptCommitRequest {
         TranscriptCommitRequest {
-            encoding: self.has_encoding,
+            encoding: self.has_encoding.then(|| {
+                let mut sent = RangeSet::default();
+                let mut recv = RangeSet::default();
+
+                for (dir, idx) in self.iter_encoding() {
+                    match dir {
+                        Direction::Sent => sent.union_mut(idx),
+                        Direction::Received => recv.union_mut(idx),
+                    }
+                }
+
+                (sent, recv)
+            }),
             hash: self
                 .iter_hash()
                 .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg))
@@ -289,14 +301,14 @@ impl fmt::Display for TranscriptCommitConfigBuilderError {
 /// Request to compute transcript commitments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptCommitRequest {
-    encoding: bool,
+    encoding: Option<(RangeSet<usize>, RangeSet<usize>)>,
     hash: Vec<(Direction, RangeSet<usize>, HashAlgId)>,
 }
 
 impl TranscriptCommitRequest {
     /// Returns `true` if an encoding commitment is requested.
-    pub fn encoding(&self) -> bool {
-        self.encoding
+    pub fn has_encoding(&self) -> bool {
+        self.encoding.is_some()
     }
 
     /// Returns `true` if a hash commitment is requested.
@@ -307,6 +319,11 @@ impl TranscriptCommitRequest {
     /// Returns an iterator over the hash commitments.
     pub fn iter_hash(&self) -> impl Iterator<Item = &(Direction, RangeSet<usize>, HashAlgId)> {
         self.hash.iter()
+    }
+
+    /// Returns the ranges of the encoding commitments.
+    pub fn encoding(&self) -> Option<&(RangeSet<usize>, RangeSet<usize>)> {
+        self.encoding.as_ref()
     }
 }
 

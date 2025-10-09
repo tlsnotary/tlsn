@@ -13,7 +13,7 @@ use rangeset::RangeSet;
 use serde::{Deserialize, Serialize};
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
-    hash::HashAlgorithm,
+    hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256},
     transcript::{
         Direction,
         encoding::{
@@ -23,7 +23,7 @@ use tlsn_core::{
     },
 };
 
-use crate::commit::transcript::TranscriptRefs;
+use crate::commit::transcript::{Item, RangeMap, ReferenceMap};
 
 /// Bytes of encoding, per byte.
 const ENCODING_SIZE: usize = 128;
@@ -34,145 +34,130 @@ struct Encodings {
     recv: Vec<u8>,
 }
 
-/// Transfers the encodings using the provided seed and keys.
-///
-/// The keys must be consistent with the global delta used in the encodings.
-pub(crate) async fn transfer<'a>(
+/// Transfers encodings for the provided plaintext ranges.
+pub(crate) async fn transfer<K: KeyStore>(
     ctx: &mut Context,
-    refs: &TranscriptRefs,
-    delta: &Delta,
-    f: impl Fn(Vector<U8>) -> &'a [Key],
+    store: &K,
+    sent: &ReferenceMap,
+    recv: &ReferenceMap,
 ) -> Result<EncodingCommitment, EncodingError> {
-    let secret = EncoderSecret::new(rand::rng().random(), delta.as_block().to_bytes());
+    let secret = EncoderSecret::new(rand::rng().random(), store.delta().as_block().to_bytes());
     let encoder = new_encoder(&secret);
 
-    let sent_keys: Vec<u8> = refs
-        .sent()
-        .iter()
-        .copied()
-        .flat_map(&f)
-        .flat_map(|key| key.as_block().as_bytes())
-        .copied()
-        .collect();
-    let recv_keys: Vec<u8> = refs
-        .recv()
-        .iter()
-        .copied()
-        .flat_map(&f)
-        .flat_map(|key| key.as_block().as_bytes())
-        .copied()
-        .collect();
+    // Collects the encodings for the provided plaintext ranges.
+    fn collect_encodings(
+        encoder: &impl Encoder,
+        store: &impl KeyStore,
+        direction: Direction,
+        map: &ReferenceMap,
+    ) -> Vec<u8> {
+        let mut encodings = Vec::with_capacity(map.len() * ENCODING_SIZE);
+        for (range, chunk) in map.iter() {
+            let start = encodings.len();
+            encoder.encode_range(direction, range, &mut encodings);
+            let keys = store
+                .get_keys(*chunk)
+                .expect("keys are present for provided plaintext ranges");
+            encodings[start..]
+                .iter_mut()
+                .zip(keys.iter().flat_map(|key| key.as_block().as_bytes()))
+                .for_each(|(encoding, key)| {
+                    *encoding ^= *key;
+                });
+        }
+        encodings
+    }
 
-    assert_eq!(sent_keys.len() % ENCODING_SIZE, 0);
-    assert_eq!(recv_keys.len() % ENCODING_SIZE, 0);
+    let encodings = Encodings {
+        sent: collect_encodings(&encoder, store, Direction::Sent, sent),
+        recv: collect_encodings(&encoder, store, Direction::Received, recv),
+    };
 
-    let mut sent_encoding = Vec::with_capacity(sent_keys.len());
-    let mut recv_encoding = Vec::with_capacity(recv_keys.len());
-
-    encoder.encode_range(
-        Direction::Sent,
-        0..sent_keys.len() / ENCODING_SIZE,
-        &mut sent_encoding,
-    );
-    encoder.encode_range(
-        Direction::Received,
-        0..recv_keys.len() / ENCODING_SIZE,
-        &mut recv_encoding,
-    );
-
-    sent_encoding
-        .iter_mut()
-        .zip(sent_keys)
-        .for_each(|(enc, key)| *enc ^= key);
-    recv_encoding
-        .iter_mut()
-        .zip(recv_keys)
-        .for_each(|(enc, key)| *enc ^= key);
-
-    // Set frame limit and add some extra bytes cushion room.
-    let (sent, recv) = refs.len();
-    let frame_limit = ENCODING_SIZE * (sent + recv) + ctx.io().limit();
-
-    ctx.io_mut()
-        .with_limit(frame_limit)
-        .send(Encodings {
-            sent: sent_encoding,
-            recv: recv_encoding,
-        })
-        .await?;
+    let frame_limit = ctx
+        .io()
+        .limit()
+        .saturating_add(encodings.sent.len() + encodings.recv.len());
+    ctx.io_mut().with_limit(frame_limit).send(encodings).await?;
 
     let root = ctx.io_mut().expect_next().await?;
     ctx.io_mut().send(secret.clone()).await?;
 
-    Ok(EncodingCommitment {
-        root,
-        secret: secret.clone(),
-    })
+    Ok(EncodingCommitment { root, secret })
 }
 
-/// Receives the encodings using the provided MACs.
-///
-/// The MACs must be consistent with the global delta used in the encodings.
-pub(crate) async fn receive<'a>(
+/// Receives and commits to the encodings for the provided plaintext ranges.
+pub(crate) async fn receive<M: MacStore>(
     ctx: &mut Context,
-    hasher: &(dyn HashAlgorithm + Send + Sync),
-    refs: &TranscriptRefs,
-    f: impl Fn(Vector<U8>) -> &'a [Mac],
+    store: &M,
+    hash_alg: HashAlgId,
+    sent: &ReferenceMap,
+    recv: &ReferenceMap,
     idxs: impl IntoIterator<Item = &(Direction, RangeSet<usize>)>,
 ) -> Result<(EncodingCommitment, EncodingTree), EncodingError> {
-    // Set frame limit and add some extra bytes cushion room.
-    let (sent, recv) = refs.len();
-    let frame_limit = ENCODING_SIZE * (sent + recv) + ctx.io().limit();
+    let hasher: &(dyn HashAlgorithm + Send + Sync) = match hash_alg {
+        HashAlgId::SHA256 => &Sha256::default(),
+        HashAlgId::KECCAK256 => &Keccak256::default(),
+        HashAlgId::BLAKE3 => &Blake3::default(),
+        alg => {
+            return Err(ErrorRepr::UnsupportedHashAlgorithm(alg).into());
+        }
+    };
 
-    let Encodings { mut sent, mut recv } =
-        ctx.io_mut().with_limit(frame_limit).expect_next().await?;
+    let (sent_len, recv_len) = (sent.len(), recv.len());
+    let frame_limit = ctx
+        .io()
+        .limit()
+        .saturating_add(ENCODING_SIZE * (sent_len + recv_len));
+    let encodings: Encodings = ctx.io_mut().with_limit(frame_limit).expect_next().await?;
 
-    let sent_macs: Vec<u8> = refs
-        .sent()
-        .iter()
-        .copied()
-        .flat_map(&f)
-        .flat_map(|mac| mac.as_bytes())
-        .copied()
-        .collect();
-    let recv_macs: Vec<u8> = refs
-        .recv()
-        .iter()
-        .copied()
-        .flat_map(&f)
-        .flat_map(|mac| mac.as_bytes())
-        .copied()
-        .collect();
-
-    assert_eq!(sent_macs.len() % ENCODING_SIZE, 0);
-    assert_eq!(recv_macs.len() % ENCODING_SIZE, 0);
-
-    if sent.len() != sent_macs.len() {
+    if encodings.sent.len() != sent_len * ENCODING_SIZE {
         return Err(ErrorRepr::IncorrectMacCount {
             direction: Direction::Sent,
-            expected: sent_macs.len(),
-            got: sent.len(),
+            expected: sent_len,
+            got: encodings.sent.len() / ENCODING_SIZE,
         }
         .into());
     }
 
-    if recv.len() != recv_macs.len() {
+    if encodings.recv.len() != recv_len * ENCODING_SIZE {
         return Err(ErrorRepr::IncorrectMacCount {
             direction: Direction::Received,
-            expected: recv_macs.len(),
-            got: recv.len(),
+            expected: recv_len,
+            got: encodings.recv.len() / ENCODING_SIZE,
         }
         .into());
     }
 
-    sent.iter_mut()
-        .zip(sent_macs)
-        .for_each(|(enc, mac)| *enc ^= mac);
-    recv.iter_mut()
-        .zip(recv_macs)
-        .for_each(|(enc, mac)| *enc ^= mac);
+    // Collects a map of plaintext ranges to their encodings.
+    fn collect_map(
+        store: &impl MacStore,
+        mut encodings: Vec<u8>,
+        map: &ReferenceMap,
+    ) -> RangeMap<EncodingSlice> {
+        let mut encoding_map = Vec::new();
+        let mut pos = 0;
+        for (range, chunk) in map.iter() {
+            let macs = store
+                .get_macs(*chunk)
+                .expect("MACs are present for provided plaintext ranges");
+            let encoding = &mut encodings[pos..pos + range.len() * ENCODING_SIZE];
+            encoding
+                .iter_mut()
+                .zip(macs.iter().flat_map(|mac| mac.as_bytes()))
+                .for_each(|(encoding, mac)| {
+                    *encoding ^= *mac;
+                });
 
-    let provider = Provider { sent, recv };
+            encoding_map.push((range.start, EncodingSlice::from(&(*encoding))));
+            pos += range.len() * ENCODING_SIZE;
+        }
+        RangeMap::new(encoding_map)
+    }
+
+    let provider = Provider {
+        sent: collect_map(store, encodings.sent, sent),
+        recv: collect_map(store, encodings.recv, recv),
+    };
 
     let tree = EncodingTree::new(hasher, idxs, &provider)?;
     let root = tree.root();
@@ -185,10 +170,36 @@ pub(crate) async fn receive<'a>(
     Ok((commitment, tree))
 }
 
+pub(crate) trait KeyStore {
+    fn delta(&self) -> &Delta;
+
+    fn get_keys(&self, data: Vector<U8>) -> Option<&[Key]>;
+}
+
+impl KeyStore for crate::verifier::Zk {
+    fn delta(&self) -> &Delta {
+        crate::verifier::Zk::delta(self)
+    }
+
+    fn get_keys(&self, data: Vector<U8>) -> Option<&[Key]> {
+        self.get_keys(data).ok()
+    }
+}
+
+pub(crate) trait MacStore {
+    fn get_macs(&self, data: Vector<U8>) -> Option<&[Mac]>;
+}
+
+impl MacStore for crate::prover::Zk {
+    fn get_macs(&self, data: Vector<U8>) -> Option<&[Mac]> {
+        self.get_macs(data).ok()
+    }
+}
+
 #[derive(Debug)]
 struct Provider {
-    sent: Vec<u8>,
-    recv: Vec<u8>,
+    sent: RangeMap<EncodingSlice>,
+    recv: RangeMap<EncodingSlice>,
 }
 
 impl EncodingProvider for Provider {
@@ -203,16 +214,36 @@ impl EncodingProvider for Provider {
             Direction::Received => &self.recv,
         };
 
-        let start = range.start * ENCODING_SIZE;
-        let end = range.end * ENCODING_SIZE;
+        let encoding = encodings.get(range).ok_or(EncodingProviderError)?;
 
-        if end > encodings.len() {
-            return Err(EncodingProviderError);
-        }
-
-        dest.extend_from_slice(&encodings[start..end]);
+        dest.extend_from_slice(encoding);
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct EncodingSlice(Vec<u8>);
+
+impl From<&[u8]> for EncodingSlice {
+    fn from(value: &[u8]) -> Self {
+        Self(value.to_vec())
+    }
+}
+
+impl Item for EncodingSlice {
+    type Slice<'a>
+        = &'a [u8]
+    where
+        Self: 'a;
+
+    fn length(&self) -> usize {
+        self.0.len() / ENCODING_SIZE
+    }
+
+    fn slice<'a>(&'a self, range: Range<usize>) -> Option<Self::Slice<'a>> {
+        self.0
+            .get(range.start * ENCODING_SIZE..range.end * ENCODING_SIZE)
     }
 }
 
@@ -234,6 +265,8 @@ enum ErrorRepr {
     },
     #[error("encoding tree error: {0}")]
     EncodingTree(EncodingTreeError),
+    #[error("unsupported hash algorithm: {0}")]
+    UnsupportedHashAlgorithm(HashAlgId),
 }
 
 impl From<std::io::Error> for EncodingError {

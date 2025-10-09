@@ -149,9 +149,15 @@ fn hash_commit_inner(
                     hasher
                 };
 
-                for plaintext in refs.get(direction, &idx).expect("plaintext refs are valid") {
-                    hasher.update(&plaintext);
+                let refs = match direction {
+                    Direction::Sent => &refs.sent,
+                    Direction::Received => &refs.recv,
+                };
+
+                for range in idx.iter_ranges() {
+                    hasher.update(&refs.get(range).expect("plaintext refs are valid"));
                 }
+
                 hasher.update(&blinder);
                 hasher.finalize(vm).map_err(HashCommitError::hasher)?
             }
@@ -164,9 +170,14 @@ fn hash_commit_inner(
                     hasher
                 };
 
-                for plaintext in refs.get(direction, &idx).expect("plaintext refs are valid") {
+                let refs = match direction {
+                    Direction::Sent => &refs.sent,
+                    Direction::Received => &refs.recv,
+                };
+
+                for range in idx.iter_ranges() {
                     hasher
-                        .update(vm, &plaintext)
+                        .update(vm, &refs.get(range).expect("plaintext refs are valid"))
                         .map_err(HashCommitError::hasher)?;
                 }
                 hasher

@@ -1,9 +1,14 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
+use rangeset::RangeSet;
 use tlsn::{
     config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
     connection::ServerName,
+    hash::{HashAlgId, HashProvider},
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
-    transcript::{TranscriptCommitConfig, TranscriptCommitment},
+    transcript::{
+        Direction, TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind,
+        TranscriptSecret,
+    },
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
 use tlsn_server_fixture::bind;
@@ -86,9 +91,25 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
 
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
-    // Commit to everything
-    builder.commit_sent(&(0..sent_tx_len)).unwrap();
-    builder.commit_recv(&(0..recv_tx_len)).unwrap();
+    for kind in [
+        TranscriptCommitmentKind::Encoding,
+        TranscriptCommitmentKind::Hash {
+            alg: HashAlgId::SHA256,
+        },
+    ] {
+        builder
+            .commit_with_kind(&(0..sent_tx_len), Direction::Sent, kind)
+            .unwrap();
+        builder
+            .commit_with_kind(&(0..recv_tx_len), Direction::Received, kind)
+            .unwrap();
+        builder
+            .commit_with_kind(&(1..sent_tx_len - 1), Direction::Sent, kind)
+            .unwrap();
+        builder
+            .commit_with_kind(&(1..recv_tx_len - 1), Direction::Received, kind)
+            .unwrap();
+    }
 
     let transcript_commit = builder.build().unwrap();
 
@@ -102,9 +123,52 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
     builder.transcript_commit(transcript_commit);
 
     let config = builder.build().unwrap();
-
-    prover.prove(&config).await.unwrap();
+    let transcript = prover.transcript().clone();
+    let output = prover.prove(&config).await.unwrap();
     prover.close().await.unwrap();
+
+    let encoding_tree = output
+        .transcript_secrets
+        .iter()
+        .find_map(|secret| {
+            if let TranscriptSecret::Encoding(tree) = secret {
+                Some(tree)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    let encoding_commitment = output
+        .transcript_commitments
+        .iter()
+        .find_map(|commitment| {
+            if let TranscriptCommitment::Encoding(commitment) = commitment {
+                Some(commitment)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    let prove_sent = RangeSet::from(1..sent_tx_len - 1);
+    let prove_recv = RangeSet::from(1..recv_tx_len - 1);
+    let idxs = [
+        (Direction::Sent, prove_sent.clone()),
+        (Direction::Received, prove_recv.clone()),
+    ];
+    let proof = encoding_tree.proof(idxs.iter()).unwrap();
+    let (auth_sent, auth_recv) = proof
+        .verify_with_provider(
+            &HashProvider::default(),
+            encoding_commitment,
+            transcript.sent(),
+            transcript.received(),
+        )
+        .unwrap();
+
+    assert_eq!(auth_sent, prove_sent);
+    assert_eq!(auth_recv, prove_recv);
 }
 
 #[instrument(skip(socket))]
@@ -125,14 +189,21 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(soc
             .unwrap(),
     );
 
+    let mut verifier = verifier
+        .setup(socket.compat())
+        .await
+        .unwrap()
+        .run()
+        .await
+        .unwrap();
+
     let VerifierOutput {
         server_name,
         transcript,
         transcript_commitments,
-    } = verifier
-        .verify(socket.compat(), &VerifyConfig::default())
-        .await
-        .unwrap();
+    } = verifier.verify(&VerifyConfig::default()).await.unwrap();
+
+    verifier.close().await.unwrap();
 
     let transcript = transcript.unwrap();
 

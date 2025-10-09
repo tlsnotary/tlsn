@@ -66,19 +66,19 @@ tlsn-harness-runner = { path = "crates/harness/runner" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-common = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "8dce54e" }
+mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-common = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
+mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "f30e07c" }
 
 rangeset = { version = "0.2" }
 serio = { version = "0.2" }
