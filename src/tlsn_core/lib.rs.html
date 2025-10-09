@@ -190,10 +190,10 @@
 <a href=#190 id=190 data-nosnippet>190</a><span class="attr">#[derive(Debug, thiserror::Error)]
 <a href=#191 id=191 data-nosnippet>191</a></span><span class="kw">enum </span>VerifyConfigBuilderErrorRepr {}
 <a href=#192 id=192 data-nosnippet>192</a>
-<a href=#193 id=193 data-nosnippet>193</a><span class="doccomment">/// Payload sent to the verifier.
+<a href=#193 id=193 data-nosnippet>193</a><span class="doccomment">/// Request to prove statements about the connection.
 <a href=#194 id=194 data-nosnippet>194</a></span><span class="attr">#[doc(hidden)]
 <a href=#195 id=195 data-nosnippet>195</a>#[derive(Debug, Serialize, Deserialize)]
-<a href=#196 id=196 data-nosnippet>196</a></span><span class="kw">pub struct </span>ProvePayload {
+<a href=#196 id=196 data-nosnippet>196</a></span><span class="kw">pub struct </span>ProveRequest {
 <a href=#197 id=197 data-nosnippet>197</a>    <span class="doccomment">/// Handshake data.
 <a href=#198 id=198 data-nosnippet>198</a>    </span><span class="kw">pub </span>handshake: <span class="prelude-ty">Option</span>&lt;(ServerName, HandshakeData)&gt;,
 <a href=#199 id=199 data-nosnippet>199</a>    <span class="doccomment">/// Transcript data.
