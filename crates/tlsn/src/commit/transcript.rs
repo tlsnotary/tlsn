@@ -185,10 +185,10 @@ mod tests {
         let idx = RangeSet::from([0..4, 10..14, 20..22]);
         assert_eq!(map.index(&idx), Some(map.clone()));
 
-        let idx = RangeSet::from([25..30]);
+        let idx = RangeSet::from(25..30);
         assert_eq!(map.index(&idx), None);
 
-        let idx = RangeSet::from([15..20]);
+        let idx = RangeSet::from(15..20);
         assert_eq!(map.index(&idx), None);
 
         let idx = RangeSet::from([1..3, 11..12, 13..14, 21..22]);
