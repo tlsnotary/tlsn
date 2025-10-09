@@ -32,22 +32,24 @@ aes-gcm = { workspace = true, optional = true }
 generic-array = { workspace = true, optional = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
+const-oid = { version = "0.10", features = ["db"] }
 hex = { workspace = true, optional = true }
+itybity = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
 rand_core = { workspace = true }
 rand_chacha = { workspace = true }
 rs_merkle = { workspace = true, features = ["serde"] }
 rstest = { workspace = true, optional = true }
+rustls-pki-types = { workspace = true }
+rustls-webpki = { workspace = true, features = ["ring"] }
 serde = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 web-time = { workspace = true }
 webpki-roots = { workspace = true }
-rustls-webpki = { workspace = true, features = ["ring"] }
-rustls-pki-types = { workspace = true }
-itybity = { workspace = true }
+x509-parser = { version = "0.18" }
 zeroize = { workspace = true, features = ["zeroize_derive"] }
 
 [dev-dependencies]

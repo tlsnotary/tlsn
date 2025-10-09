@@ -2,9 +2,11 @@
 
 use std::fmt;
 
+use const_oid::{db::rfc5912::*, ObjectIdentifier};
 use rustls_pki_types as webpki_types;
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::{codec::Codec, enums::NamedGroup, handshake::ServerECDHParams};
+use x509_parser::prelude::*;
 
 use crate::webpki::{CertificateDer, ServerCertVerifier, ServerCertVerifierError};
 
@@ -114,6 +116,10 @@ impl TryFrom<String> for DnsName {
 pub enum KeyType {
     /// secp256r1.
     SECP256R1 = 0x0017,
+    /// secp384r1.
+    SECP384R1 = 0x0018,
+    /// secp521r1.
+    SECP521R1 = 0x0019,
 }
 
 /// Signature scheme on the key exchange parameters.
@@ -222,6 +228,7 @@ impl ServerEphemKey {
     pub(crate) fn kx_params(&self) -> Vec<u8> {
         let group = match self.typ {
             KeyType::SECP256R1 => NamedGroup::secp256r1,
+            _ => unreachable!("tlsn currently only supports key exchange over secp256r1"),
         };
 
         let mut kx_params = Vec::new();
@@ -366,8 +373,16 @@ impl HandshakeData {
             SignatureScheme::RSA_PSS_SHA256 => alg::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
             SignatureScheme::RSA_PSS_SHA384 => alg::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
             SignatureScheme::RSA_PSS_SHA512 => alg::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
-            SignatureScheme::ECDSA_NISTP256_SHA256 => alg::ECDSA_P256_SHA256,
-            SignatureScheme::ECDSA_NISTP384_SHA384 => alg::ECDSA_P384_SHA384,
+            SignatureScheme::ECDSA_NISTP256_SHA256 => match nist_key_type(end_entity)? {
+                KeyType::SECP256R1 => alg::ECDSA_P256_SHA256,
+                KeyType::SECP384R1 => alg::ECDSA_P384_SHA256,
+                KeyType::SECP521R1 => unimplemented!("p521 is not supported by ring"),
+            },
+            SignatureScheme::ECDSA_NISTP384_SHA384 => match nist_key_type(end_entity)? {
+                KeyType::SECP256R1 => alg::ECDSA_P256_SHA384,
+                KeyType::SECP384R1 => alg::ECDSA_P384_SHA384,
+                KeyType::SECP521R1 => unimplemented!("p521 is not supported by ring"),
+            },
             SignatureScheme::ED25519 => alg::ED25519,
             scheme => {
                 return Err(HandshakeVerificationError::UnsupportedSignatureScheme(
@@ -386,6 +401,41 @@ impl HandshakeData {
 
         Ok(())
     }
+}
+
+/// Given the certificate `cert` containing either P256, P384, or P521 pubkey,
+/// returns the pubkey type.
+fn nist_key_type(cert: &CertificateDer) -> Result<KeyType, HandshakeVerificationError> {
+    let (_, parsed) = X509Certificate::from_der(&cert.0)
+        .map_err(|_| HandshakeVerificationError::InvalidEndEntityCertificate)?;
+
+    let pki = parsed
+        .tbs_certificate
+        .subject_pki
+        .parsed()
+        .map_err(|_| HandshakeVerificationError::InvalidEndEntityCertificate)?;
+    if !matches!(pki, public_key::PublicKey::EC(..)) {
+        return Err(HandshakeVerificationError::InvalidEndEntityCertificate);
+    }
+
+    let nist_curve = match parsed.tbs_certificate.subject_pki.algorithm.parameters {
+        Some(param) => {
+            let oid = param
+                .as_oid()
+                .map_err(|_| HandshakeVerificationError::InvalidEndEntityCertificate)?;
+            ObjectIdentifier::new_unwrap(oid.to_id_string().as_str())
+        }
+        None => return Err(HandshakeVerificationError::InvalidEndEntityCertificate),
+    };
+
+    let typ = match nist_curve {
+        SECP_256_R_1 => KeyType::SECP256R1,
+        SECP_384_R_1 => KeyType::SECP384R1,
+        SECP_521_R_1 => KeyType::SECP521R1,
+        _ => return Err(HandshakeVerificationError::InvalidEndEntityCertificate),
+    };
+
+    Ok(typ)
 }
 
 /// Errors that can occur when verifying a certificate chain or signature.
@@ -705,5 +755,20 @@ mod tests {
             err.unwrap_err(),
             HandshakeVerificationError::MissingCerts
         ));
+    }
+
+    #[test]
+    fn test_nist_key_type() {
+        let data = appliedzkp();
+        let ee = &data.server_cert_data.certs[0];
+        assert_eq!(nist_key_type(ee).unwrap(), KeyType::SECP256R1);
+    }
+
+    #[test]
+    fn test_nist_key_type_fail() {
+        let data = tlsnotary();
+        let ee = &data.server_cert_data.certs[0];
+        // Will error because key type is RSA.
+        assert!(nist_key_type(ee).is_err());
     }
 }
