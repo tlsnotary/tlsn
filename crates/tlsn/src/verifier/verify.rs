@@ -12,10 +12,9 @@ use tlsn_core::{
 };
 
 use crate::{
-    commit::{auth::verify_plaintext, hash::verify_hash, transcript::TranscriptRefs},
     encoding::{self, KeyStore},
+    transcript_internal::{TranscriptRefs, auth::verify_plaintext, commit::hash::verify_hash},
     verifier::VerifierError,
-    zk_aes_ctr::ZkAesCtr,
 };
 
 pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
@@ -65,59 +64,47 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
         None
     };
 
-    let mut auth_sent_ranges = RangeSet::default();
-    let mut auth_recv_ranges = RangeSet::default();
-
-    auth_sent_ranges.union_mut(transcript.sent_authed());
-    auth_recv_ranges.union_mut(transcript.received_authed());
-
+    let (mut commit_sent, mut commit_recv) = (RangeSet::default(), RangeSet::default());
     if let Some(commit_config) = transcript_commit.as_ref() {
         commit_config
             .iter_hash()
             .for_each(|(direction, idx, _)| match direction {
-                Direction::Sent => auth_sent_ranges.union_mut(idx),
-                Direction::Received => auth_recv_ranges.union_mut(idx),
+                Direction::Sent => commit_sent.union_mut(idx),
+                Direction::Received => commit_recv.union_mut(idx),
             });
 
         if let Some((sent, recv)) = commit_config.encoding() {
-            auth_sent_ranges.union_mut(sent);
-            auth_recv_ranges.union_mut(recv);
+            commit_sent.union_mut(sent);
+            commit_recv.union_mut(recv);
         }
     }
 
-    let mut zk_aes_sent = ZkAesCtr::new(
+    let (sent_refs, sent_proof) = verify_plaintext(
+        vm,
         keys.client_write_key,
         keys.client_write_iv,
+        transcript.sent_unsafe(),
+        &ciphertext_sent,
         tls_transcript
             .sent()
             .iter()
             .filter(|record| record.typ == ContentType::ApplicationData),
-    );
-    let mut zk_aes_recv = ZkAesCtr::new(
-        keys.server_write_key,
-        keys.server_write_iv,
-        tls_transcript
-            .recv()
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData),
-    );
-
-    let (sent_refs, sent_proof) = verify_plaintext(
-        vm,
-        &mut zk_aes_sent,
-        transcript.sent_unsafe(),
-        &ciphertext_sent,
-        &auth_sent_ranges,
         transcript.sent_authed(),
+        &commit_sent,
     )
     .map_err(VerifierError::zk)?;
     let (recv_refs, recv_proof) = verify_plaintext(
         vm,
-        &mut zk_aes_recv,
+        keys.server_write_key,
+        keys.server_write_iv,
         transcript.received_unsafe(),
         &ciphertext_recv,
-        &auth_recv_ranges,
+        tls_transcript
+            .recv()
+            .iter()
+            .filter(|record| record.typ == ContentType::ApplicationData),
         transcript.received_authed(),
+        &commit_recv,
     )
     .map_err(VerifierError::zk)?;
 

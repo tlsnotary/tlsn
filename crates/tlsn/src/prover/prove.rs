@@ -13,10 +13,9 @@ use tlsn_core::{
 };
 
 use crate::{
-    commit::{auth::prove_plaintext, hash::prove_hash, transcript::TranscriptRefs},
     encoding::{self, MacStore},
     prover::ProverError,
-    zk_aes_ctr::ZkAesCtr,
+    transcript_internal::{TranscriptRefs, auth::prove_plaintext, commit::hash::prove_hash},
 };
 
 pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
@@ -61,67 +60,51 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
         .await
         .map_err(ProverError::from)?;
 
-    let mut auth_sent_ranges = RangeSet::default();
-    let mut auth_recv_ranges = RangeSet::default();
-
     let (reveal_sent, reveal_recv) = config.reveal().cloned().unwrap_or_default();
-
-    auth_sent_ranges.union_mut(&reveal_sent);
-    auth_recv_ranges.union_mut(&reveal_recv);
-
+    let (mut commit_sent, mut commit_recv) = (RangeSet::default(), RangeSet::default());
     if let Some(commit_config) = config.transcript_commit() {
         commit_config
             .iter_hash()
             .for_each(|((direction, idx), _)| match direction {
-                Direction::Sent => auth_sent_ranges.union_mut(idx),
-                Direction::Received => auth_recv_ranges.union_mut(idx),
+                Direction::Sent => commit_sent.union_mut(idx),
+                Direction::Received => commit_recv.union_mut(idx),
             });
 
         commit_config
             .iter_encoding()
             .for_each(|(direction, idx)| match direction {
-                Direction::Sent => auth_sent_ranges.union_mut(idx),
-                Direction::Received => auth_recv_ranges.union_mut(idx),
+                Direction::Sent => commit_sent.union_mut(idx),
+                Direction::Received => commit_recv.union_mut(idx),
             });
     }
 
-    let mut zk_aes_sent = ZkAesCtr::new(
-        keys.client_write_key,
-        keys.client_write_iv,
-        tls_transcript
-            .sent()
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData),
-    );
-    let mut zk_aes_recv = ZkAesCtr::new(
-        keys.server_write_key,
-        keys.server_write_iv,
-        tls_transcript
-            .recv()
-            .iter()
-            .filter(|record| record.typ == ContentType::ApplicationData),
-    );
-
-    let sent_refs = prove_plaintext(
-        vm,
-        &mut zk_aes_sent,
-        transcript.sent(),
-        &auth_sent_ranges,
-        &reveal_sent,
-    )
-    .map_err(ProverError::commit)?;
-    let recv_refs = prove_plaintext(
-        vm,
-        &mut zk_aes_recv,
-        transcript.received(),
-        &auth_recv_ranges,
-        &reveal_recv,
-    )
-    .map_err(ProverError::commit)?;
-
     let transcript_refs = TranscriptRefs {
-        sent: sent_refs,
-        recv: recv_refs,
+        sent: prove_plaintext(
+            vm,
+            keys.client_write_key,
+            keys.client_write_iv,
+            transcript.sent(),
+            tls_transcript
+                .sent()
+                .iter()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+            &reveal_sent,
+            &commit_sent,
+        )
+        .map_err(ProverError::commit)?,
+        recv: prove_plaintext(
+            vm,
+            keys.server_write_key,
+            keys.server_write_iv,
+            transcript.received(),
+            tls_transcript
+                .recv()
+                .iter()
+                .filter(|record| record.typ == ContentType::ApplicationData),
+            &reveal_recv,
+            &commit_recv,
+        )
+        .map_err(ProverError::commit)?,
     };
 
     let hash_commitments = if let Some(commit_config) = config.transcript_commit()

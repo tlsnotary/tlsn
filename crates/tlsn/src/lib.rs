@@ -4,16 +4,16 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub(crate) mod commit;
 pub mod config;
 pub(crate) mod context;
 pub(crate) mod encoding;
 pub(crate) mod ghash;
+pub(crate) mod map;
 pub(crate) mod mux;
 pub mod prover;
 pub(crate) mod tag;
+pub(crate) mod transcript_internal;
 pub mod verifier;
-pub(crate) mod zk_aes_ctr;
 
 pub use tlsn_attestation as attestation;
 pub use tlsn_core::{connection, hash, transcript};

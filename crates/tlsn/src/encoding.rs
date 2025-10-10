@@ -23,7 +23,10 @@ use tlsn_core::{
     },
 };
 
-use crate::commit::transcript::{Item, RangeMap, ReferenceMap};
+use crate::{
+    map::{Item, RangeMap},
+    transcript_internal::ReferenceMap,
+};
 
 /// Bytes of encoding, per byte.
 const ENCODING_SIZE: usize = 128;
