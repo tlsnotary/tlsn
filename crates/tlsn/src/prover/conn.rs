@@ -1,3 +1,5 @@
+//! Provides [`TlsConnection`], a wrapper type for [`DuplexStream`].
+
 use futures::{AsyncRead, AsyncWrite};
 use futures_plex::DuplexStream;
 use std::{

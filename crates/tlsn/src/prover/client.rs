@@ -1,9 +1,10 @@
-//! Provides a TLS client which exposes an async socket.
+//! Provides a TLS client.
 //!
-//! The [bind_client] function attaches a TLS client to a socket connection and
-//! then exposes a [TlsConnection] object, which provides an async socket API
-//! for reading and writing cleartext. The TLS client will then automatically
-//! encrypt and decrypt traffic and forward that to the provided socket.
+//! The [bind_client] function attaches duplex streams to a TLS client. The streams are for
+//! reading and writing
+//!   - cleartext between client and the TLS client
+//!   - TLS traffic between the TLS client and the server
+//! The TLS client sits in between and encrypts/decrypts between cleartext and TLS traffic.
 
 use futures::{Future, FutureExt, select_biased};
 use std::{
@@ -44,15 +45,16 @@ impl Future for ConnectionFuture {
     }
 }
 
-/// Binds a client connection to the provided socket.
+/// Attaches duplex byte streams to the provided TLS client.
 ///
-/// Returns a connection handle and a future which runs the connection to
-/// completion.
+/// # Returns
+///   - a duplex stream for reading/writing cleartext between client and TLS client
+///   - a duplex stream for reading/writing TLS traffic between TLS client and server
+///   - a future which runs the connection to completion.
 ///
 /// # Errors
 ///
-/// Any connection errors that occur will be returned from the future, not
-/// [`TlsConnection`].
+/// Any connection errors that occur will be returned from the future.
 pub(crate) fn bind_client(
     mut client: ClientConnection,
 ) -> (DuplexStream, DuplexStream, ConnectionFuture) {

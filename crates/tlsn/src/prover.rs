@@ -1,6 +1,6 @@
 //! Prover.
 
-mod client_async;
+mod client;
 mod config;
 mod conn;
 mod control;
@@ -16,7 +16,7 @@ pub use future::ProverFuture;
 use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
-use client_async::bind_client;
+use client::bind_client;
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
@@ -166,7 +166,8 @@ impl Prover<state::Initialized> {
 impl Prover<state::Setup> {
     /// Connects to the server using the provided socket.
     ///
-    /// Returns a connection and a control handle.
+    /// Returns a connection for reading and writing traffic from/to the server and a future that
+    /// must be polled to drive the connection.
     pub async fn connect_with<S>(
         self,
         socket: S,

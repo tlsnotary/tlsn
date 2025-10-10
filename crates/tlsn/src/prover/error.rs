@@ -86,8 +86,8 @@ impl From<std::io::Error> for ProverError {
     }
 }
 
-impl From<crate::prover::client_async::ConnectionError> for ProverError {
-    fn from(e: crate::prover::client_async::ConnectionError) -> Self {
+impl From<crate::prover::client::ConnectionError> for ProverError {
+    fn from(e: crate::prover::client::ConnectionError) -> Self {
         Self::new(ErrorKind::Io, e)
     }
 }
