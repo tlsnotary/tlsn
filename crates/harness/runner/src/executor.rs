@@ -21,6 +21,9 @@ use harness_core::{
 
 use crate::{Target, network::Namespace, rpc::Rpc};
 
+#[cfg(feature = "debug")]
+use crate::debug_prelude::*;
+
 pub struct Executor {
     ns: Namespace,
     config: ExecutorConfig,
@@ -66,20 +69,34 @@ impl Executor {
                     Id::One => self.config.network().rpc_1,
                 };
 
-                let process = duct::cmd!(
-                    "sudo",
-                    "ip",
-                    "netns",
-                    "exec",
-                    self.ns.name(),
-                    "env",
+                let mut args = vec![
+                    "ip".into(),
+                    "netns".into(),
+                    "exec".into(),
+                    self.ns.name().into(),
+                    "env".into(),
                     format!("CONFIG={}", serde_json::to_string(&self.config)?),
-                    executor_path
-                )
-                .stdout_capture()
-                .stderr_capture()
-                .unchecked()
-                .start()?;
+                ];
+
+                if cfg!(feature = "debug") {
+                    let level = &std::env::var("RUST_LOG").unwrap_or("debug".to_string());
+                    args.push("env".into());
+                    args.push(format!("RUST_LOG={}", level));
+                };
+
+                args.push(executor_path.to_str().expect("valid path").into());
+
+                let process = duct::cmd("sudo", args);
+
+                let process = if !cfg!(feature = "debug") {
+                    process
+                        .stdout_capture()
+                        .stderr_capture()
+                        .unchecked()
+                        .start()?
+                } else {
+                    process.unchecked().start()?
+                };
 
                 let rpc = Rpc::new_native(rpc_addr).await?;
 
@@ -119,10 +136,13 @@ impl Executor {
                     "--no-sandbox",
                     format!("--user-data-dir={tmp}"),
                     format!("--allowed-ips=10.250.0.1"),
-                )
-                .stderr_capture()
-                .stdout_capture()
-                .start()?;
+                );
+
+                let process = if !cfg!(feature = "debug") {
+                    process.stderr_capture().stdout_capture().start()?
+                } else {
+                    process.start()?
+                };
 
                 const TIMEOUT: usize = 10000;
                 const DELAY: usize = 100;
@@ -170,6 +190,38 @@ impl Executor {
                 let page = browser
                     .new_page(&format!("http://{wasm_addr}:{wasm_port}/index.html"))
                     .await?;
+
+                #[cfg(feature = "debug")]
+                tokio::spawn(register_listeners(page.clone()).await?);
+
+                #[cfg(feature = "debug")]
+                async fn register_listeners(page: Page) -> Result<impl Future<Output = ()>> {
+                    let mut logs = page.event_listener::<EventEntryAdded>().await?.fuse();
+                    let mut exceptions =
+                        page.event_listener::<EventExceptionThrown>().await?.fuse();
+
+                    Ok(futures::future::join(
+                        async move {
+                            while let Some(event) = logs.next().await {
+                                let entry = &event.entry;
+                                match entry.level {
+                                    LogEntryLevel::Error => {
+                                        error!("{:?}", entry);
+                                    }
+                                    _ => {
+                                        debug!("{:?}: {}", entry.timestamp, entry.text);
+                                    }
+                                }
+                            }
+                        },
+                        async move {
+                            while let Some(event) = exceptions.next().await {
+                                error!("{:?}", event);
+                            }
+                        },
+                    )
+                    .map(|_| ()))
+                }
 
                 page.execute(EnableParams::builder().build()).await?;
                 page.execute(SetCacheDisabledParams {

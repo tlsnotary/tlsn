@@ -7,6 +7,10 @@ publish = false
 [lib]
 name = "harness_runner"
 
+[features]
+# Used to debug the runner itself.
+debug = []
+
 [dependencies]
 tlsn-harness-core = { workspace = true }
 tlsn-server-fixture = { workspace = true }

@@ -1,4 +1,5 @@
 pub mod cli;
+mod debug_prelude;
 mod executor;
 mod network;
 pub(crate) mod rpc;
@@ -23,6 +24,9 @@ use harness_core::{
 use cli::{Cli, Command};
 use executor::Executor;
 use server_fixture::ServerFixture;
+
+#[cfg(feature = "debug")]
+use crate::debug_prelude::*;
 
 use crate::{cli::Route, network::Network, wasm_server::WasmServer, ws_proxy::WsProxy};
 
@@ -113,6 +117,9 @@ impl Runner {
 }
 
 pub async fn main() -> Result<()> {
+    #[cfg(feature = "debug")]
+    tracing_subscriber::fmt::init();
+
     let cli = Cli::parse();
     let mut runner = Runner::new(&cli)?;
 
@@ -226,6 +233,9 @@ pub async fn main() -> Result<()> {
 
                 // Wait for the network to stabilize
                 tokio::time::sleep(Duration::from_millis(100)).await;
+
+                #[cfg(feature = "debug")]
+                debug!("Starting bench in group {:?}", config.group);
 
                 let (output, _) = tokio::try_join!(
                     runner.exec_p.bench(BenchCmd {
