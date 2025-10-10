@@ -168,6 +168,10 @@ fn alloc_plaintext(
 ) -> Result<ReferenceMap, PlaintextAuthError> {
     let len = ranges.len();
 
+    if len == 0 {
+        return Ok(ReferenceMap::default());
+    }
+
     let plaintext = vm.alloc_vec::<U8>(len).map_err(PlaintextAuthError::vm)?;
 
     let mut pos = 0;
@@ -189,6 +193,10 @@ fn alloc_ciphertext<'a>(
     plaintext: ReferenceMap,
     records: impl IntoIterator<Item = &'a RecordParams>,
 ) -> Result<ReferenceMap, PlaintextAuthError> {
+    if plaintext.is_empty() {
+        return Ok(ReferenceMap::default());
+    }
+
     let ranges = RangeSet::from(plaintext.keys().collect::<Vec<_>>());
 
     let keystream = alloc_keystream(vm, key, iv, &ranges, records)?;
