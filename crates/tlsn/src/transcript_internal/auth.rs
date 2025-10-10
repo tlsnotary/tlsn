@@ -464,6 +464,7 @@ enum ErrorRepr {
 }
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use super::*;
     use mpz_common::context::test_st_context;
