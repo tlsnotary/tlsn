@@ -49,7 +49,7 @@ async fn prover(provider: &IoProvider) {
     .unwrap();
 
     let (tls_connection, prover_fut) = prover
-        .connect(provider.provide_server_io().await.unwrap())
+        .connect_with(provider.provide_server_io().await.unwrap())
         .await
         .unwrap();
 

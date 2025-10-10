@@ -66,7 +66,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
     .await
     .unwrap();
 
-    let (mut tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+    let (mut tls_connection, prover_fut) =
+        prover.connect_with(client_socket.compat()).await.unwrap();
     let prover_task = tokio::spawn(prover_fut);
 
     tls_connection
