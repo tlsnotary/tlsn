@@ -3,7 +3,19 @@
 # Ensure the script runs in the folder that contains this script
 cd "$(dirname "$0")"
 
-cargo build --release --package tlsn-harness-runner --package tlsn-harness-executor --package tlsn-server-fixture --package tlsn-harness-plot
+RUNNER_FEATURES=""
+EXECUTOR_FEATURES=""
+
+if [ "$1" = "debug" ]; then
+    RUNNER_FEATURES="--features debug"
+    EXECUTOR_FEATURES="--no-default-features --features debug"
+fi
+
+cargo build --release \
+    --package tlsn-harness-runner $RUNNER_FEATURES \
+    --package tlsn-harness-executor $EXECUTOR_FEATURES \
+    --package tlsn-server-fixture \
+    --package tlsn-harness-plot
 
 mkdir -p bin
 
