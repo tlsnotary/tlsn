@@ -60,7 +60,9 @@ rangeset = { workspace = true }
 webpki-roots = { workspace = true }
 
 [dev-dependencies]
+mpz-ideal-vm = { workspace = true }
 rstest = { workspace = true }
+tlsn-core = { workspace = true, features = ["fixtures"] }
 tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 tokio = { workspace = true, features = ["full"] }

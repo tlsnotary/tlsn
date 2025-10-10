@@ -235,10 +235,14 @@ fn alloc_keystream<'a>(
                 return Ok(keystream);
             };
 
-            if range.start >= pos + record.len {
+            let record_range = pos..pos + record.len;
+            if range.start >= record_range.end {
                 current_range = Some(range);
                 break;
             }
+
+            // Range with record offset applied.
+            let offset_range = range.start - pos..range.end - pos;
 
             let explicit_nonce = if let Some(explicit_nonce) = explicit_nonce {
                 explicit_nonce
@@ -249,7 +253,7 @@ fn alloc_keystream<'a>(
             };
 
             const BLOCK_SIZE: usize = 16;
-            let block_num = (range.start - pos) / BLOCK_SIZE;
+            let block_num = offset_range.start / BLOCK_SIZE;
             let block = if let Some((current_block_num, block)) = current_block.take()
                 && current_block_num == block_num
             {
@@ -260,14 +264,16 @@ fn alloc_keystream<'a>(
                 block
             };
 
-            let start = (range.start - pos) % BLOCK_SIZE;
-            let end = (start + range.len()).min(BLOCK_SIZE);
-            let len = end - start;
+            // Range within the block.
+            let block_range_start = offset_range.start % BLOCK_SIZE;
+            let len =
+                (range.end.min(record_range.end) - range.start).min(BLOCK_SIZE - block_range_start);
+            let block_range = block_range_start..block_range_start + len;
 
-            keystream.push(block.get(start..end).expect("range is checked"));
+            keystream.push(block.get(block_range).expect("range is checked"));
 
-            // If the range is larger than a block, process the tail.
-            if range.len() > BLOCK_SIZE {
+            // If the range extends past the block, process the tail.
+            if range.start + len < range.end {
                 current_range = Some(range.start + len..range.end);
             }
         }
@@ -394,6 +400,19 @@ enum ProofInner<'a> {
     },
 }
 
+fn aes_ctr_apply_keystream(key: &[u8; 16], iv: &[u8; 4], explicit_nonce: &[u8], input: &mut [u8]) {
+    let mut full_iv = [0u8; 16];
+    full_iv[0..4].copy_from_slice(iv);
+    full_iv[4..12].copy_from_slice(&explicit_nonce[..8]);
+
+    const START_CTR: u32 = 2;
+    let mut cipher = Ctr32BE::<Aes128>::new(key.into(), &full_iv.into());
+    cipher
+        .try_seek(START_CTR * 16)
+        .expect("start counter is less than keystream length");
+    cipher.apply_keystream(input);
+}
+
 fn verify_plaintext_with_key<'a>(
     key: [u8; 16],
     iv: [u8; 4],
@@ -404,20 +423,10 @@ fn verify_plaintext_with_key<'a>(
     let mut pos = 0;
     let mut text = Vec::new();
     for record in records {
-        let mut full_iv = [0u8; 16];
-        full_iv[0..4].copy_from_slice(&iv);
-        full_iv[4..12].copy_from_slice(&record.explicit_nonce[..8]);
-
-        const START_CTR: u32 = 2;
-        let mut cipher = Ctr32BE::<Aes128>::new(&key.into(), &full_iv.into());
-        cipher
-            .try_seek(START_CTR * 16)
-            .expect("start counter is less than keystream length");
-
         text.clear();
         text.extend_from_slice(&plaintext[pos..pos + record.len]);
 
-        cipher.apply_keystream(&mut text);
+        aes_ctr_apply_keystream(&key, &iv, &record.explicit_nonce, &mut text);
 
         if text != ciphertext[pos..pos + record.len] {
             return Err(PlaintextAuthError(ErrorRepr::InvalidPlaintext));
@@ -452,4 +461,170 @@ enum ErrorRepr {
     MissingDecoding,
     #[error("plaintext does not match ciphertext")]
     InvalidPlaintext,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mpz_common::context::test_st_context;
+    use mpz_ideal_vm::IdealVm;
+    use mpz_vm_core::prelude::*;
+    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rstest::*;
+    use std::ops::Range;
+
+    fn build_vm(key: [u8; 16], iv: [u8; 4]) -> (IdealVm, Array<U8, 16>, Array<U8, 4>) {
+        let mut vm = IdealVm::new();
+        let key_ref = vm.alloc::<Array<U8, 16>>().unwrap();
+        let iv_ref = vm.alloc::<Array<U8, 4>>().unwrap();
+
+        vm.mark_public(key_ref).unwrap();
+        vm.mark_public(iv_ref).unwrap();
+        vm.assign(key_ref, key).unwrap();
+        vm.assign(iv_ref, iv).unwrap();
+        vm.commit(key_ref).unwrap();
+        vm.commit(iv_ref).unwrap();
+
+        (vm, key_ref, iv_ref)
+    }
+
+    fn expected_aes_ctr<'a>(
+        key: [u8; 16],
+        iv: [u8; 4],
+        records: impl IntoIterator<Item = &'a RecordParams>,
+        ranges: &RangeSet<usize>,
+    ) -> Vec<u8> {
+        let mut keystream = Vec::new();
+        let mut pos = 0;
+        for record in records {
+            let mut record_keystream = vec![0u8; record.len];
+            aes_ctr_apply_keystream(&key, &iv, &record.explicit_nonce, &mut record_keystream);
+            for mut range in ranges.iter_ranges() {
+                range.start = range.start.max(pos);
+                range.end = range.end.min(pos + record.len);
+                if range.start < range.end {
+                    keystream
+                        .extend_from_slice(&record_keystream[range.start - pos..range.end - pos]);
+                }
+            }
+            pos += record.len;
+        }
+
+        keystream
+    }
+
+    #[rstest]
+    #[case::single_record_empty([0], [])]
+    #[case::multiple_empty_records_empty([0, 0], [])]
+    #[case::multiple_records_empty([128, 64], [])]
+    #[case::single_block_full([16], [0..16])]
+    #[case::single_block_partial([16], [2..14])]
+    #[case::partial_block_full([15], [0..15])]
+    #[case::out_of_bounds([16], [0..17])]
+    #[case::multiple_records_full([128, 63, 33, 15, 4], [0..243])]
+    #[case::multiple_records_partial([128, 63, 33, 15, 4], [1..15, 16..17, 18..19, 126..130, 224..225, 242..243])]
+    #[tokio::test]
+    async fn test_alloc_keystream(
+        #[case] record_lens: impl IntoIterator<Item = usize>,
+        #[case] ranges: impl IntoIterator<Item = Range<usize>>,
+    ) {
+        let mut rng = StdRng::seed_from_u64(0);
+        let mut key = [0u8; 16];
+        let mut iv = [0u8; 4];
+        rng.fill(&mut key);
+        rng.fill(&mut iv);
+
+        let mut total_len = 0;
+        let records = record_lens
+            .into_iter()
+            .map(|len| {
+                let mut explicit_nonce = [0u8; 8];
+                rng.fill(&mut explicit_nonce);
+                total_len += len;
+                RecordParams {
+                    explicit_nonce: explicit_nonce.to_vec(),
+                    len,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let ranges = RangeSet::from(ranges.into_iter().collect::<Vec<_>>());
+        let is_out_of_bounds = ranges.end().unwrap_or(0) > total_len;
+
+        let (mut ctx, _) = test_st_context(1024);
+        let (mut vm, key_ref, iv_ref) = build_vm(key, iv);
+
+        let keystream = match alloc_keystream(&mut vm, key_ref, iv_ref, &ranges, &records) {
+            Ok(_) if is_out_of_bounds => panic!("should be out of bounds"),
+            Ok(keystream) => keystream,
+            Err(PlaintextAuthError(ErrorRepr::OutOfBounds)) if is_out_of_bounds => {
+                return;
+            }
+            Err(e) => panic!("unexpected error: {:?}", e),
+        };
+
+        vm.execute(&mut ctx).await.unwrap();
+
+        let keystream: Vec<u8> = keystream
+            .iter()
+            .flat_map(|slice| vm.get(*slice).unwrap().unwrap())
+            .collect();
+
+        assert_eq!(keystream.len(), ranges.len());
+
+        let expected = expected_aes_ctr(key, iv, &records, &ranges);
+
+        assert_eq!(keystream, expected);
+    }
+
+    #[rstest]
+    #[case::single_record_empty([0])]
+    #[case::single_record([32])]
+    #[case::multiple_records([128, 63, 33, 15, 4])]
+    #[case::multiple_records_with_empty([128, 63, 33, 0, 15, 4])]
+    fn test_verify_plaintext_with_key(
+        #[case] record_lens: impl IntoIterator<Item = usize>,
+        #[values(false, true)] tamper: bool,
+    ) {
+        let mut rng = StdRng::seed_from_u64(0);
+        let mut key = [0u8; 16];
+        let mut iv = [0u8; 4];
+        rng.fill(&mut key);
+        rng.fill(&mut iv);
+
+        let mut total_len = 0;
+        let records = record_lens
+            .into_iter()
+            .map(|len| {
+                let mut explicit_nonce = [0u8; 8];
+                rng.fill(&mut explicit_nonce);
+                total_len += len;
+                RecordParams {
+                    explicit_nonce: explicit_nonce.to_vec(),
+                    len,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let mut plaintext = vec![0u8; total_len];
+        rng.fill(plaintext.as_mut_slice());
+
+        let mut ciphertext = plaintext.clone();
+        expected_aes_ctr(key, iv, &records, &(0..total_len).into())
+            .iter()
+            .zip(ciphertext.iter_mut())
+            .for_each(|(key, pt)| {
+                *pt ^= *key;
+            });
+
+        if tamper {
+            plaintext.first_mut().map(|pt| *pt ^= 1);
+        }
+
+        match verify_plaintext_with_key(key, iv, &records, &plaintext, &ciphertext) {
+            Ok(_) if tamper && !plaintext.is_empty() => panic!("should be invalid"),
+            Err(e) if !tamper => panic!("unexpected error: {:?}", e),
+            _ => {}
+        }
+    }
 }
