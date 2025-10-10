@@ -219,7 +219,7 @@ use tlsn_core::{
     connection::{ConnectionInfo, ServerEphemKey},
     hash::{Hash, HashAlgorithm, TypedHash},
     merkle::MerkleTree,
-    transcript::TranscriptCommitment,
+    transcript::{TranscriptCommitment, encoding::EncoderSecret},
 };
 
 use crate::{
@@ -327,6 +327,7 @@ pub struct Body {
     connection_info: Field<ConnectionInfo>,
     server_ephemeral_key: Field<ServerEphemKey>,
     cert_commitment: Field<ServerCertCommitment>,
+    encoder_secret: Option<Field<EncoderSecret>>,
     extensions: Vec<Field<Extension>>,
     transcript_commitments: Vec<Field<TranscriptCommitment>>,
 }
@@ -372,6 +373,7 @@ impl Body {
             connection_info: conn_info,
             server_ephemeral_key,
             cert_commitment,
+            encoder_secret,
             extensions,
             transcript_commitments,
         } = self;
@@ -388,6 +390,13 @@ impl Body {
                 hasher.hash_separated(&cert_commitment.data),
             ),
         ];
+
+        if let Some(encoder_secret) = encoder_secret {
+            fields.push((
+                encoder_secret.id,
+                hasher.hash_separated(&encoder_secret.data),
+            ));
+        }
 
         for field in extensions.iter() {
             fields.push((field.id, hasher.hash_separated(&field.data)));

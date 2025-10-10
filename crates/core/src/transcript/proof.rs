@@ -10,7 +10,7 @@ use crate::{
     hash::{HashAlgId, HashProvider},
     transcript::{
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
-        encoding::{EncodingProof, EncodingProofError, EncodingTree},
+        encoding::{EncoderSecret, EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
         Direction, PartialTranscript, RangeSet, Transcript, TranscriptSecret,
     },
@@ -51,6 +51,7 @@ impl TranscriptProof {
         self,
         provider: &HashProvider,
         length: &TranscriptLength,
+        encoder_secret: Option<&EncoderSecret>,
         commitments: impl IntoIterator<Item = &'a TranscriptCommitment>,
     ) -> Result<PartialTranscript, TranscriptProofError> {
         let mut encoding_commitment = None;
@@ -86,6 +87,13 @@ impl TranscriptProof {
 
         // Verify encoding proof.
         if let Some(proof) = self.encoding_proof {
+            let secret = encoder_secret.ok_or_else(|| {
+                TranscriptProofError::new(
+                    ErrorKind::Encoding,
+                    "contains an encoding proof but missing encoder secret",
+                )
+            })?;
+
             let commitment = encoding_commitment.ok_or_else(|| {
                 TranscriptProofError::new(
                     ErrorKind::Encoding,
@@ -95,6 +103,7 @@ impl TranscriptProof {
 
             let (auth_sent, auth_recv) = proof.verify_with_provider(
                 provider,
+                secret,
                 commitment,
                 self.transcript.sent_unsafe(),
                 self.transcript.received_unsafe(),
@@ -575,7 +584,7 @@ mod tests {
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     use crate::{
-        fixtures::encoding_provider,
+        fixtures::{encoder_secret, encoding_provider},
         hash::{Blake3, Blinder, HashAlgId},
         transcript::TranscriptCommitConfigBuilder,
     };
@@ -602,7 +611,12 @@ mod tests {
 
         let provider = HashProvider::default();
         let err = transcript_proof
-            .verify_with_provider(&provider, &transcript.length(), &[])
+            .verify_with_provider(
+                &provider,
+                &transcript.length(),
+                Some(&encoder_secret()),
+                &[],
+            )
             .err()
             .unwrap();
 
@@ -676,6 +690,7 @@ mod tests {
             .verify_with_provider(
                 &provider,
                 &transcript.length(),
+                None,
                 &[TranscriptCommitment::Hash(commitment)],
             )
             .unwrap();
@@ -724,6 +739,7 @@ mod tests {
             .verify_with_provider(
                 &provider,
                 &transcript.length(),
+                None,
                 &[TranscriptCommitment::Hash(commitment)],
             )
             .unwrap_err();
