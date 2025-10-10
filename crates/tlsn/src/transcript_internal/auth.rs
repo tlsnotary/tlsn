@@ -59,7 +59,7 @@ pub(crate) fn prove_plaintext<'a>(
         }
 
         for (_, slice) in plaintext_refs
-            .index(&reveal)
+            .index(reveal)
             .expect("all ranges are allocated")
             .iter()
         {
@@ -81,6 +81,7 @@ pub(crate) fn prove_plaintext<'a>(
     Ok(plaintext_refs)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn verify_plaintext<'a>(
     vm: &mut dyn Vm<Binary>,
     key: Array<U8, 16>,
@@ -132,7 +133,7 @@ pub(crate) fn verify_plaintext<'a>(
         }
 
         for (range, slice) in plaintext_refs
-            .index(&reveal)
+            .index(reveal)
             .expect("all ranges are allocated")
             .iter()
         {
@@ -274,7 +275,7 @@ fn alloc_keystream<'a>(
         pos += record.len;
     }
 
-    return Err(ErrorRepr::OutOfBounds.into());
+    Err(ErrorRepr::OutOfBounds.into())
 }
 
 fn alloc_explicit_nonce(
@@ -358,7 +359,7 @@ impl<'a> PlaintextProof<'a> {
                     .map_err(PlaintextAuthError::vm)?
                     .ok_or(ErrorRepr::MissingDecoding)?;
 
-                verify_plaintext_with_key(key, iv, &records, &plaintext, &ciphertext)?;
+                verify_plaintext_with_key(key, iv, &records, plaintext, ciphertext)?;
             }
             ProofInner::WithZk { ciphertexts } => {
                 for (expected, mut actual) in ciphertexts {
@@ -418,7 +419,7 @@ fn verify_plaintext_with_key<'a>(
 
         cipher.apply_keystream(&mut text);
 
-        if text != &ciphertext[pos..pos + record.len] {
+        if text != ciphertext[pos..pos + record.len] {
             return Err(PlaintextAuthError(ErrorRepr::InvalidPlaintext));
         }
 
