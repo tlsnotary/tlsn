@@ -6,11 +6,12 @@ use tlsn::{
     hash::{HashAlgId, HashProvider},
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
     transcript::{
-        Direction, TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind,
-        TranscriptSecret,
+        Direction, Transcript, TranscriptCommitConfig, TranscriptCommitment,
+        TranscriptCommitmentKind, TranscriptSecret,
     },
     verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
 };
+use tlsn_core::ProverOutput;
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
@@ -34,11 +35,80 @@ async fn test() {
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
 
-    tokio::join!(prover(socket_0), verifier(socket_1));
+    let ((full_transcript, prover_output), verifier_output) =
+        tokio::join!(prover(socket_0), verifier(socket_1));
+
+    let partial_transcript = verifier_output.transcript.unwrap();
+    let ServerName::Dns(server_name) = verifier_output.server_name.unwrap();
+
+    assert_eq!(server_name.as_str(), SERVER_DOMAIN);
+    assert!(!partial_transcript.is_complete());
+    assert_eq!(
+        partial_transcript
+            .sent_authed()
+            .iter_ranges()
+            .next()
+            .unwrap(),
+        0..10
+    );
+    assert_eq!(
+        partial_transcript
+            .received_authed()
+            .iter_ranges()
+            .next()
+            .unwrap(),
+        0..10
+    );
+
+    let encoding_tree = prover_output
+        .transcript_secrets
+        .iter()
+        .find_map(|secret| {
+            if let TranscriptSecret::Encoding(tree) = secret {
+                Some(tree)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    let encoding_commitment = prover_output
+        .transcript_commitments
+        .iter()
+        .find_map(|commitment| {
+            if let TranscriptCommitment::Encoding(commitment) = commitment {
+                Some(commitment)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    let prove_sent = RangeSet::from(1..full_transcript.sent().len() - 1);
+    let prove_recv = RangeSet::from(1..full_transcript.received().len() - 1);
+    let idxs = [
+        (Direction::Sent, prove_sent.clone()),
+        (Direction::Received, prove_recv.clone()),
+    ];
+    let proof = encoding_tree.proof(idxs.iter()).unwrap();
+    let (auth_sent, auth_recv) = proof
+        .verify_with_provider(
+            &HashProvider::default(),
+            &verifier_output.encoder_secret.unwrap(),
+            encoding_commitment,
+            full_transcript.sent(),
+            full_transcript.received(),
+        )
+        .unwrap();
+
+    assert_eq!(auth_sent, prove_sent);
+    assert_eq!(auth_recv, prove_recv);
 }
 
 #[instrument(skip(verifier_socket))]
-async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_socket: T) {
+async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    verifier_socket: T,
+) -> (Transcript, ProverOutput) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
     let server_task = tokio::spawn(bind(server_socket.compat()));
@@ -127,52 +197,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(verifier_soc
     let output = prover.prove(&config).await.unwrap();
     prover.close().await.unwrap();
 
-    let encoding_tree = output
-        .transcript_secrets
-        .iter()
-        .find_map(|secret| {
-            if let TranscriptSecret::Encoding(tree) = secret {
-                Some(tree)
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    let encoding_commitment = output
-        .transcript_commitments
-        .iter()
-        .find_map(|commitment| {
-            if let TranscriptCommitment::Encoding(commitment) = commitment {
-                Some(commitment)
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    let prove_sent = RangeSet::from(1..sent_tx_len - 1);
-    let prove_recv = RangeSet::from(1..recv_tx_len - 1);
-    let idxs = [
-        (Direction::Sent, prove_sent.clone()),
-        (Direction::Received, prove_recv.clone()),
-    ];
-    let proof = encoding_tree.proof(idxs.iter()).unwrap();
-    let (auth_sent, auth_recv) = proof
-        .verify_with_provider(
-            &HashProvider::default(),
-            encoding_commitment,
-            transcript.sent(),
-            transcript.received(),
-        )
-        .unwrap();
-
-    assert_eq!(auth_sent, prove_sent);
-    assert_eq!(auth_recv, prove_recv);
+    (transcript, output)
 }
 
 #[instrument(skip(socket))]
-async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
+async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+    socket: T,
+) -> VerifierOutput {
     let config_validator = ProtocolConfigValidator::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_recv_data(MAX_RECV_DATA)
@@ -197,30 +228,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(soc
         .await
         .unwrap();
 
-    let VerifierOutput {
-        server_name,
-        transcript,
-        transcript_commitments,
-    } = verifier.verify(&VerifyConfig::default()).await.unwrap();
-
+    let output = verifier.verify(&VerifyConfig::default()).await.unwrap();
     verifier.close().await.unwrap();
 
-    let transcript = transcript.unwrap();
-
-    let ServerName::Dns(server_name) = server_name.unwrap();
-
-    assert_eq!(server_name.as_str(), SERVER_DOMAIN);
-    assert!(!transcript.is_complete());
-    assert_eq!(
-        transcript.sent_authed().iter_ranges().next().unwrap(),
-        0..10
-    );
-    assert_eq!(
-        transcript.received_authed().iter_ranges().next().unwrap(),
-        0..10
-    );
-    assert!(matches!(
-        transcript_commitments[0],
-        TranscriptCommitment::Encoding(_)
-    ));
+    output
 }

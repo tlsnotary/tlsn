@@ -19,6 +19,4 @@ use crate::hash::TypedHash;
 pub struct EncodingCommitment {
     /// Merkle root of the encoding commitments.
     pub root: TypedHash,
-    /// Seed used to generate the encodings.
-    pub secret: EncoderSecret,
 }

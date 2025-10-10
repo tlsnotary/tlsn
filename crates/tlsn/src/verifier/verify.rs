@@ -135,6 +135,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     sent_proof.verify().map_err(VerifierError::verify)?;
     recv_proof.verify().map_err(VerifierError::verify)?;
 
+    let mut encoder_secret = None;
     if let Some(commit_config) = transcript_commit
         && let Some((sent, recv)) = commit_config.encoding()
     {
@@ -147,7 +148,8 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
             .index(recv)
             .expect("ranges were authenticated");
 
-        let commitment = encoding::transfer(ctx, vm, &sent_map, &recv_map).await?;
+        let (secret, commitment) = encoding::transfer(ctx, vm, &sent_map, &recv_map).await?;
+        encoder_secret = Some(secret);
         transcript_commitments.push(TranscriptCommitment::Encoding(commitment));
     }
 
@@ -160,6 +162,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     Ok(VerifierOutput {
         server_name,
         transcript: has_reveal.then_some(transcript),
+        encoder_secret,
         transcript_commitments,
     })
 }
