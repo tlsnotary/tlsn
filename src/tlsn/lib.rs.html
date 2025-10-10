@@ -4,27 +4,26 @@
 <a href=#4 id=4 data-nosnippet>4</a>#![deny(clippy::all)]
 <a href=#5 id=5 data-nosnippet>5</a>#![forbid(unsafe_code)]
 <a href=#6 id=6 data-nosnippet>6</a>
-<a href=#7 id=7 data-nosnippet>7</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>commit;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">pub mod </span>config;
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>context;
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>encoding;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>ghash;
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>mux;
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">pub mod </span>prover;
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>tag;
+<a href=#7 id=7 data-nosnippet>7</a></span><span class="kw">pub mod </span>config;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>context;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>ghash;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>map;
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>mux;
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">pub mod </span>prover;
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>tag;
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>transcript_internal;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">pub mod </span>verifier;
-<a href=#16 id=16 data-nosnippet>16</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>zk_aes_ctr;
-<a href=#17 id=17 data-nosnippet>17</a>
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">pub use </span>tlsn_attestation <span class="kw">as </span>attestation;
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">pub use </span>tlsn_core::{connection, hash, transcript};
-<a href=#20 id=20 data-nosnippet>20</a>
-<a href=#21 id=21 data-nosnippet>21</a><span class="doccomment">/// The party's role in the TLSN protocol.
-<a href=#22 id=22 data-nosnippet>22</a>///
-<a href=#23 id=23 data-nosnippet>23</a>/// A Notary is classified as a Verifier.
-<a href=#24 id=24 data-nosnippet>24</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>Role {
-<a href=#26 id=26 data-nosnippet>26</a>    <span class="doccomment">/// The prover.
-<a href=#27 id=27 data-nosnippet>27</a>    </span>Prover,
-<a href=#28 id=28 data-nosnippet>28</a>    <span class="doccomment">/// The verifier.
-<a href=#29 id=29 data-nosnippet>29</a>    </span>Verifier,
-<a href=#30 id=30 data-nosnippet>30</a>}</code></pre></div></section></main></body></html>
+<a href=#16 id=16 data-nosnippet>16</a>
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">pub use </span>tlsn_attestation <span class="kw">as </span>attestation;
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">pub use </span>tlsn_core::{connection, hash, transcript};
+<a href=#19 id=19 data-nosnippet>19</a>
+<a href=#20 id=20 data-nosnippet>20</a><span class="doccomment">/// The party's role in the TLSN protocol.
+<a href=#21 id=21 data-nosnippet>21</a>///
+<a href=#22 id=22 data-nosnippet>22</a>/// A Notary is classified as a Verifier.
+<a href=#23 id=23 data-nosnippet>23</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>Role {
+<a href=#25 id=25 data-nosnippet>25</a>    <span class="doccomment">/// The prover.
+<a href=#26 id=26 data-nosnippet>26</a>    </span>Prover,
+<a href=#27 id=27 data-nosnippet>27</a>    <span class="doccomment">/// The verifier.
+<a href=#28 id=28 data-nosnippet>28</a>    </span>Verifier,
+<a href=#29 id=29 data-nosnippet>29</a>}</code></pre></div></section></main></body></html>
