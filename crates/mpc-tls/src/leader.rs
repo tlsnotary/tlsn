@@ -41,6 +41,7 @@ use tls_core::{
         message::{OpaqueMessage, PlainMessage},
     },
     suites::SupportedCipherSuite,
+    verify::verify_sig_determine_alg,
 };
 use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2, ServerSignature, TlsVersion, VerifyData},
@@ -327,12 +328,20 @@ impl MpcTlsLeader {
             .map(|cert| CertificateDer(cert.0.clone()))
             .collect();
 
+        let mut sig_msg = Vec::new();
+        sig_msg.extend_from_slice(&client_random.0);
+        sig_msg.extend_from_slice(&server_random.0);
+        sig_msg.extend_from_slice(server_kx_details.kx_params());
+
+        let server_signature_alg = verify_sig_determine_alg(
+            &server_cert_details.cert_chain()[0],
+            &sig_msg,
+            server_kx_details.kx_sig(),
+        )
+        .expect("only supported signature should have been accepted");
+
         let server_signature = ServerSignature {
-            scheme: server_kx_details
-                .kx_sig()
-                .scheme
-                .try_into()
-                .expect("only supported signature scheme should have been accepted"),
+            alg: server_signature_alg.into(),
             sig: server_kx_details.kx_sig().sig.0.clone(),
         };
 

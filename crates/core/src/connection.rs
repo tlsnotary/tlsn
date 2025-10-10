@@ -116,84 +116,75 @@ pub enum KeyType {
     SECP256R1 = 0x0017,
 }
 
-/// Signature scheme on the key exchange parameters.
+/// Signature algorithm used on the key exchange parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[allow(non_camel_case_types, missing_docs)]
-pub enum SignatureScheme {
-    RSA_PKCS1_SHA1 = 0x0201,
-    ECDSA_SHA1_Legacy = 0x0203,
-    RSA_PKCS1_SHA256 = 0x0401,
-    ECDSA_NISTP256_SHA256 = 0x0403,
-    RSA_PKCS1_SHA384 = 0x0501,
-    ECDSA_NISTP384_SHA384 = 0x0503,
-    RSA_PKCS1_SHA512 = 0x0601,
-    ECDSA_NISTP521_SHA512 = 0x0603,
-    RSA_PSS_SHA256 = 0x0804,
-    RSA_PSS_SHA384 = 0x0805,
-    RSA_PSS_SHA512 = 0x0806,
-    ED25519 = 0x0807,
+pub enum SignatureAlgorithm {
+    ECDSA_NISTP256_SHA256,
+    ECDSA_NISTP256_SHA384,
+    ECDSA_NISTP384_SHA256,
+    ECDSA_NISTP384_SHA384,
+    ED25519,
+    RSA_PKCS1_2048_8192_SHA256,
+    RSA_PKCS1_2048_8192_SHA384,
+    RSA_PKCS1_2048_8192_SHA512,
+    RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+    RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+    RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
 }
 
-impl fmt::Display for SignatureScheme {
+impl fmt::Display for SignatureAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SignatureScheme::RSA_PKCS1_SHA1 => write!(f, "RSA_PKCS1_SHA1"),
-            SignatureScheme::ECDSA_SHA1_Legacy => write!(f, "ECDSA_SHA1_Legacy"),
-            SignatureScheme::RSA_PKCS1_SHA256 => write!(f, "RSA_PKCS1_SHA256"),
-            SignatureScheme::ECDSA_NISTP256_SHA256 => write!(f, "ECDSA_NISTP256_SHA256"),
-            SignatureScheme::RSA_PKCS1_SHA384 => write!(f, "RSA_PKCS1_SHA384"),
-            SignatureScheme::ECDSA_NISTP384_SHA384 => write!(f, "ECDSA_NISTP384_SHA384"),
-            SignatureScheme::RSA_PKCS1_SHA512 => write!(f, "RSA_PKCS1_SHA512"),
-            SignatureScheme::ECDSA_NISTP521_SHA512 => write!(f, "ECDSA_NISTP521_SHA512"),
-            SignatureScheme::RSA_PSS_SHA256 => write!(f, "RSA_PSS_SHA256"),
-            SignatureScheme::RSA_PSS_SHA384 => write!(f, "RSA_PSS_SHA384"),
-            SignatureScheme::RSA_PSS_SHA512 => write!(f, "RSA_PSS_SHA512"),
-            SignatureScheme::ED25519 => write!(f, "ED25519"),
+            SignatureAlgorithm::ECDSA_NISTP256_SHA256 => write!(f, "ECDSA_NISTP256_SHA256"),
+            SignatureAlgorithm::ECDSA_NISTP256_SHA384 => write!(f, "ECDSA_NISTP256_SHA384"),
+            SignatureAlgorithm::ECDSA_NISTP384_SHA256 => write!(f, "ECDSA_NISTP384_SHA256"),
+            SignatureAlgorithm::ECDSA_NISTP384_SHA384 => write!(f, "ECDSA_NISTP384_SHA384"),
+            SignatureAlgorithm::ED25519 => write!(f, "ED25519"),
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA256 => {
+                write!(f, "RSA_PKCS1_2048_8192_SHA256")
+            }
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA384 => {
+                write!(f, "RSA_PKCS1_2048_8192_SHA384")
+            }
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA512 => {
+                write!(f, "RSA_PKCS1_2048_8192_SHA512")
+            }
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA256_LEGACY_KEY => {
+                write!(f, "RSA_PSS_2048_8192_SHA256_LEGACY_KEY")
+            }
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA384_LEGACY_KEY => {
+                write!(f, "RSA_PSS_2048_8192_SHA384_LEGACY_KEY")
+            }
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA512_LEGACY_KEY => {
+                write!(f, "RSA_PSS_2048_8192_SHA512_LEGACY_KEY")
+            }
         }
     }
 }
 
-impl TryFrom<tls_core::msgs::enums::SignatureScheme> for SignatureScheme {
-    type Error = &'static str;
-
-    fn try_from(value: tls_core::msgs::enums::SignatureScheme) -> Result<Self, Self::Error> {
-        use tls_core::msgs::enums::SignatureScheme as Core;
-        use SignatureScheme::*;
-        Ok(match value {
-            Core::RSA_PKCS1_SHA1 => RSA_PKCS1_SHA1,
-            Core::ECDSA_SHA1_Legacy => ECDSA_SHA1_Legacy,
-            Core::RSA_PKCS1_SHA256 => RSA_PKCS1_SHA256,
-            Core::ECDSA_NISTP256_SHA256 => ECDSA_NISTP256_SHA256,
-            Core::RSA_PKCS1_SHA384 => RSA_PKCS1_SHA384,
-            Core::ECDSA_NISTP384_SHA384 => ECDSA_NISTP384_SHA384,
-            Core::RSA_PKCS1_SHA512 => RSA_PKCS1_SHA512,
-            Core::ECDSA_NISTP521_SHA512 => ECDSA_NISTP521_SHA512,
-            Core::RSA_PSS_SHA256 => RSA_PSS_SHA256,
-            Core::RSA_PSS_SHA384 => RSA_PSS_SHA384,
-            Core::RSA_PSS_SHA512 => RSA_PSS_SHA512,
-            Core::ED25519 => ED25519,
-            _ => return Err("unsupported signature scheme"),
-        })
-    }
-}
-
-impl From<SignatureScheme> for tls_core::msgs::enums::SignatureScheme {
-    fn from(value: SignatureScheme) -> Self {
-        use tls_core::msgs::enums::SignatureScheme::*;
+impl From<tls_core::verify::SignatureAlgorithm> for SignatureAlgorithm {
+    fn from(value: tls_core::verify::SignatureAlgorithm) -> Self {
+        use tls_core::verify::SignatureAlgorithm as Core;
         match value {
-            SignatureScheme::RSA_PKCS1_SHA1 => RSA_PKCS1_SHA1,
-            SignatureScheme::ECDSA_SHA1_Legacy => ECDSA_SHA1_Legacy,
-            SignatureScheme::RSA_PKCS1_SHA256 => RSA_PKCS1_SHA256,
-            SignatureScheme::ECDSA_NISTP256_SHA256 => ECDSA_NISTP256_SHA256,
-            SignatureScheme::RSA_PKCS1_SHA384 => RSA_PKCS1_SHA384,
-            SignatureScheme::ECDSA_NISTP384_SHA384 => ECDSA_NISTP384_SHA384,
-            SignatureScheme::RSA_PKCS1_SHA512 => RSA_PKCS1_SHA512,
-            SignatureScheme::ECDSA_NISTP521_SHA512 => ECDSA_NISTP521_SHA512,
-            SignatureScheme::RSA_PSS_SHA256 => RSA_PSS_SHA256,
-            SignatureScheme::RSA_PSS_SHA384 => RSA_PSS_SHA384,
-            SignatureScheme::RSA_PSS_SHA512 => RSA_PSS_SHA512,
-            SignatureScheme::ED25519 => ED25519,
+            Core::ECDSA_NISTP256_SHA256 => SignatureAlgorithm::ECDSA_NISTP256_SHA256,
+            Core::ECDSA_NISTP256_SHA384 => SignatureAlgorithm::ECDSA_NISTP256_SHA384,
+            Core::ECDSA_NISTP384_SHA256 => SignatureAlgorithm::ECDSA_NISTP384_SHA256,
+            Core::ECDSA_NISTP384_SHA384 => SignatureAlgorithm::ECDSA_NISTP384_SHA384,
+            Core::ED25519 => SignatureAlgorithm::ED25519,
+            Core::RSA_PKCS1_2048_8192_SHA256 => SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA256,
+            Core::RSA_PKCS1_2048_8192_SHA384 => SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA384,
+            Core::RSA_PKCS1_2048_8192_SHA512 => SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA512,
+            Core::RSA_PSS_2048_8192_SHA256_LEGACY_KEY => {
+                SignatureAlgorithm::RSA_PSS_2048_8192_SHA256_LEGACY_KEY
+            }
+            Core::RSA_PSS_2048_8192_SHA384_LEGACY_KEY => {
+                SignatureAlgorithm::RSA_PSS_2048_8192_SHA384_LEGACY_KEY
+            }
+            Core::RSA_PSS_2048_8192_SHA512_LEGACY_KEY => {
+                SignatureAlgorithm::RSA_PSS_2048_8192_SHA512_LEGACY_KEY
+            }
         }
     }
 }
@@ -201,8 +192,8 @@ impl From<SignatureScheme> for tls_core::msgs::enums::SignatureScheme {
 /// Server's signature of the key exchange parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerSignature {
-    /// Signature scheme.
-    pub scheme: SignatureScheme,
+    /// Signature algorithm.
+    pub alg: SignatureAlgorithm,
     /// Signature data.
     pub sig: Vec<u8>,
 }
@@ -359,20 +350,23 @@ impl HandshakeData {
         message.extend_from_slice(&server_ephemeral_key.kx_params());
 
         use webpki::ring as alg;
-        let sig_alg = match self.sig.scheme {
-            SignatureScheme::RSA_PKCS1_SHA256 => alg::RSA_PKCS1_2048_8192_SHA256,
-            SignatureScheme::RSA_PKCS1_SHA384 => alg::RSA_PKCS1_2048_8192_SHA384,
-            SignatureScheme::RSA_PKCS1_SHA512 => alg::RSA_PKCS1_2048_8192_SHA512,
-            SignatureScheme::RSA_PSS_SHA256 => alg::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-            SignatureScheme::RSA_PSS_SHA384 => alg::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
-            SignatureScheme::RSA_PSS_SHA512 => alg::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
-            SignatureScheme::ECDSA_NISTP256_SHA256 => alg::ECDSA_P256_SHA256,
-            SignatureScheme::ECDSA_NISTP384_SHA384 => alg::ECDSA_P384_SHA384,
-            SignatureScheme::ED25519 => alg::ED25519,
-            scheme => {
-                return Err(HandshakeVerificationError::UnsupportedSignatureScheme(
-                    scheme,
-                ))
+        let sig_alg = match self.sig.alg {
+            SignatureAlgorithm::ECDSA_NISTP256_SHA256 => alg::ECDSA_P256_SHA256,
+            SignatureAlgorithm::ECDSA_NISTP256_SHA384 => alg::ECDSA_P256_SHA384,
+            SignatureAlgorithm::ECDSA_NISTP384_SHA256 => alg::ECDSA_P384_SHA256,
+            SignatureAlgorithm::ECDSA_NISTP384_SHA384 => alg::ECDSA_P384_SHA384,
+            SignatureAlgorithm::ED25519 => alg::ED25519,
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA256 => alg::RSA_PKCS1_2048_8192_SHA256,
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA384 => alg::RSA_PKCS1_2048_8192_SHA384,
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA512 => alg::RSA_PKCS1_2048_8192_SHA512,
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA256_LEGACY_KEY => {
+                alg::RSA_PSS_2048_8192_SHA256_LEGACY_KEY
+            }
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA384_LEGACY_KEY => {
+                alg::RSA_PSS_2048_8192_SHA384_LEGACY_KEY
+            }
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA512_LEGACY_KEY => {
+                alg::RSA_PSS_2048_8192_SHA512_LEGACY_KEY
             }
         };
 
@@ -402,8 +396,6 @@ pub enum HandshakeVerificationError {
     InvalidServerEphemeralKey,
     #[error("server certificate verification failed: {0}")]
     ServerCert(ServerCertVerifierError),
-    #[error("unsupported signature scheme: {0}")]
-    UnsupportedSignatureScheme(SignatureScheme),
 }
 
 #[cfg(test)]
