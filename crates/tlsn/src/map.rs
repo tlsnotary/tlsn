@@ -35,6 +35,11 @@ where
         Self { map }
     }
 
+    /// Returns `true` if the map is empty.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
     /// Returns the keys of the map.
     pub(crate) fn keys(&self) -> impl Iterator<Item = Range<usize>> {
         self.map
