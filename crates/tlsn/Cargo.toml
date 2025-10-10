@@ -41,6 +41,8 @@ mpz-ot = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-zk = { workspace = true }
 
+aes = { workspace = true }
+ctr = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }

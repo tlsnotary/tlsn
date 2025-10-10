@@ -18,7 +18,7 @@ use tlsn_core::{
     },
 };
 
-use crate::{Role, commit::transcript::TranscriptRefs};
+use crate::{Role, transcript_internal::TranscriptRefs};
 
 /// Future which will resolve to the committed hash values.
 #[derive(Debug)]

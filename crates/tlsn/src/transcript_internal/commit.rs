@@ -1,5 +1,4 @@
 //! Plaintext commitment and proof of encryption.
 
-pub(crate) mod auth;
+pub(crate) mod encoding;
 pub(crate) mod hash;
-pub(crate) mod transcript;

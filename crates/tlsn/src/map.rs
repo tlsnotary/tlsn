@@ -3,15 +3,6 @@ use std::ops::Range;
 use mpz_memory_core::{Vector, binary::U8};
 use rangeset::RangeSet;
 
-pub(crate) type ReferenceMap = RangeMap<Vector<U8>>;
-
-/// References to the application plaintext in the transcript.
-#[derive(Debug, Default, Clone)]
-pub(crate) struct TranscriptRefs {
-    pub(crate) sent: ReferenceMap,
-    pub(crate) recv: ReferenceMap,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RangeMap<T> {
     map: Vec<(usize, T)>,
@@ -42,6 +33,13 @@ where
         }
 
         Self { map }
+    }
+
+    /// Returns the keys of the map.
+    pub(crate) fn keys(&self) -> impl Iterator<Item = Range<usize>> {
+        self.map
+            .iter()
+            .map(|(idx, item)| *idx..*idx + item.length())
     }
 
     /// Returns the length of the map.

@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use mpc_tls::MpcTlsError;
 
-use crate::encoding::EncodingError;
+use crate::transcript_internal::commit::encoding::EncodingError;
 
 /// Error for [`Prover`](crate::Prover).
 #[derive(Debug, thiserror::Error)]
