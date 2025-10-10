@@ -1,11 +1,13 @@
 pub mod cli;
-mod debug_prelude;
 mod executor;
 mod network;
 pub(crate) mod rpc;
 mod server_fixture;
 pub mod wasm_server;
 mod ws_proxy;
+
+#[cfg(feature = "debug")]
+mod debug_prelude;
 
 use std::time::Duration;
 

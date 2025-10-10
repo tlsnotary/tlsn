@@ -1,11 +1,8 @@
 #![allow(unused_imports)]
-#[cfg(feature = "debug")]
 pub use futures::FutureExt;
 
-#[cfg(feature = "debug")]
 pub use tracing::{debug, error};
 
-#[cfg(feature = "debug")]
 pub use chromiumoxide::{
     Browser, Page,
     cdp::{
