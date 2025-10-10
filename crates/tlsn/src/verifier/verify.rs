@@ -12,8 +12,14 @@ use tlsn_core::{
 };
 
 use crate::{
-    encoding::{self, KeyStore},
-    transcript_internal::{TranscriptRefs, auth::verify_plaintext, commit::hash::verify_hash},
+    transcript_internal::{
+        TranscriptRefs,
+        auth::verify_plaintext,
+        commit::{
+            encoding::{self, KeyStore},
+            hash::verify_hash,
+        },
+    },
     verifier::VerifierError,
 };
 

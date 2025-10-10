@@ -1,6 +1,8 @@
-use crate::encoding::EncodingError;
-use mpc_tls::MpcTlsError;
 use std::{error::Error, fmt};
+
+use mpc_tls::MpcTlsError;
+
+use crate::transcript_internal::commit::encoding::EncodingError;
 
 /// Error for [`Verifier`](crate::Verifier).
 #[derive(Debug, thiserror::Error)]

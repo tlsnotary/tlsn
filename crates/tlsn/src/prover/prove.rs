@@ -13,9 +13,15 @@ use tlsn_core::{
 };
 
 use crate::{
-    encoding::{self, MacStore},
     prover::ProverError,
-    transcript_internal::{TranscriptRefs, auth::prove_plaintext, commit::hash::prove_hash},
+    transcript_internal::{
+        TranscriptRefs,
+        auth::prove_plaintext,
+        commit::{
+            encoding::{self, MacStore},
+            hash::prove_hash,
+        },
+    },
 };
 
 pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
