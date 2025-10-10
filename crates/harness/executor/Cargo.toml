@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+[features]
+# Disable tracing events as a workaround for issue 959. 
+default = ["tracing/release_max_level_off"]
+# Used to debug the executor itself.
+debug = []
+
 [lib]
 name = "harness_executor"
 crate-type = ["cdylib", "rlib"]
@@ -28,8 +34,7 @@ tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-# Disable tracing events as a workaround for issue 959. 
-tracing = { workspace = true, features = ["release_max_level_off"] }
+tracing = { workspace = true }
 wasm-bindgen = { workspace = true }
 tlsn-wasm = { workspace = true }
 js-sys = { workspace = true }
