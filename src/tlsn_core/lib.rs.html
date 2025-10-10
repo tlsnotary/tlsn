@@ -20,8 +20,8 @@
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use crate</span>::{
 <a href=#21 id=21 data-nosnippet>21</a>    connection::{HandshakeData, ServerName},
 <a href=#22 id=22 data-nosnippet>22</a>    transcript::{
-<a href=#23 id=23 data-nosnippet>23</a>        Direction, PartialTranscript, Transcript, TranscriptCommitConfig, TranscriptCommitRequest,
-<a href=#24 id=24 data-nosnippet>24</a>        TranscriptCommitment, TranscriptSecret,
+<a href=#23 id=23 data-nosnippet>23</a>        encoding::EncoderSecret, Direction, PartialTranscript, Transcript, TranscriptCommitConfig,
+<a href=#24 id=24 data-nosnippet>24</a>        TranscriptCommitRequest, TranscriptCommitment, TranscriptSecret,
 <a href=#25 id=25 data-nosnippet>25</a>    },
 <a href=#26 id=26 data-nosnippet>26</a>};
 <a href=#27 id=27 data-nosnippet>27</a>
@@ -220,8 +220,10 @@
 <a href=#220 id=220 data-nosnippet>220</a>    </span><span class="kw">pub </span>server_name: <span class="prelude-ty">Option</span>&lt;ServerName&gt;,
 <a href=#221 id=221 data-nosnippet>221</a>    <span class="doccomment">/// Transcript data.
 <a href=#222 id=222 data-nosnippet>222</a>    </span><span class="kw">pub </span>transcript: <span class="prelude-ty">Option</span>&lt;PartialTranscript&gt;,
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// Transcript commitments.
-<a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">pub </span>transcript_commitments: Vec&lt;TranscriptCommitment&gt;,
-<a href=#225 id=225 data-nosnippet>225</a>}
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="macro">opaque_debug::implement!</span>(VerifierOutput);</code></pre></div></section></main></body></html>
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// Encoding commitment secret.
+<a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">pub </span>encoder_secret: <span class="prelude-ty">Option</span>&lt;EncoderSecret&gt;,
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// Transcript commitments.
+<a href=#226 id=226 data-nosnippet>226</a>    </span><span class="kw">pub </span>transcript_commitments: Vec&lt;TranscriptCommitment&gt;,
+<a href=#227 id=227 data-nosnippet>227</a>}
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a><span class="macro">opaque_debug::implement!</span>(VerifierOutput);</code></pre></div></section></main></body></html>
