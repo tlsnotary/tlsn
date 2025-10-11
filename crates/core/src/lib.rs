@@ -122,12 +122,28 @@ impl<'a> ProveConfigBuilder<'a> {
         self.reveal(Direction::Sent, ranges)
     }
 
+    /// Reveals all of the sent data transcript.
+    pub fn reveal_sent_all(&mut self) -> Result<&mut Self, ProveConfigBuilderError> {
+        let len = self.transcript.len_of_direction(Direction::Sent);
+        let (sent, _) = self.reveal.get_or_insert_default();
+        sent.union_mut(&(0..len));
+        Ok(self)
+    }
+
     /// Reveals the given ranges of the received data transcript.
     pub fn reveal_recv(
         &mut self,
         ranges: &dyn ToRangeSet<usize>,
     ) -> Result<&mut Self, ProveConfigBuilderError> {
         self.reveal(Direction::Received, ranges)
+    }
+
+    /// Reveals all of the received data transcript.
+    pub fn reveal_recv_all(&mut self) -> Result<&mut Self, ProveConfigBuilderError> {
+        let len = self.transcript.len_of_direction(Direction::Received);
+        let (_, recv) = self.reveal.get_or_insert_default();
+        recv.union_mut(&(0..len));
+        Ok(self)
     }
 
     /// Builds the configuration.
