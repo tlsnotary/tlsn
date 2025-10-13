@@ -465,19 +465,81 @@ fn convert_scheme(scheme: SignatureScheme) -> Result<SignatureAlgorithms, Error>
     }
 }
 
+/// Signature algorithm.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(non_camel_case_types)]
+pub enum SignatureAlgorithm {
+    ECDSA_NISTP256_SHA256,
+    ECDSA_NISTP256_SHA384,
+    ECDSA_NISTP384_SHA256,
+    ECDSA_NISTP384_SHA384,
+    ED25519,
+    RSA_PKCS1_2048_8192_SHA256,
+    RSA_PKCS1_2048_8192_SHA384,
+    RSA_PKCS1_2048_8192_SHA512,
+    RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+    RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+    RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+}
+
+impl SignatureAlgorithm {
+    pub fn from_alg(alg: &dyn pki_types::SignatureVerificationAlgorithm) -> Self {
+        let id = alg.signature_alg_id();
+        if id == webpki::ring::ECDSA_P256_SHA256.signature_alg_id() {
+            SignatureAlgorithm::ECDSA_NISTP256_SHA256
+        } else if id == webpki::ring::ECDSA_P256_SHA384.signature_alg_id() {
+            SignatureAlgorithm::ECDSA_NISTP256_SHA384
+        } else if id == webpki::ring::ECDSA_P384_SHA256.signature_alg_id() {
+            SignatureAlgorithm::ECDSA_NISTP384_SHA256
+        } else if id == webpki::ring::ECDSA_P384_SHA384.signature_alg_id() {
+            SignatureAlgorithm::ECDSA_NISTP384_SHA384
+        } else if id == webpki::ring::ED25519.signature_alg_id() {
+            SignatureAlgorithm::ED25519
+        } else if id == webpki::ring::RSA_PKCS1_2048_8192_SHA256.signature_alg_id() {
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA256
+        } else if id == webpki::ring::RSA_PKCS1_2048_8192_SHA384.signature_alg_id() {
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA384
+        } else if id == webpki::ring::RSA_PKCS1_2048_8192_SHA512.signature_alg_id() {
+            SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA512
+        } else if id == webpki::ring::RSA_PSS_2048_8192_SHA256_LEGACY_KEY.signature_alg_id() {
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA256_LEGACY_KEY
+        } else if id == webpki::ring::RSA_PSS_2048_8192_SHA384_LEGACY_KEY.signature_alg_id() {
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA384_LEGACY_KEY
+        } else if id == webpki::ring::RSA_PSS_2048_8192_SHA512_LEGACY_KEY.signature_alg_id() {
+            SignatureAlgorithm::RSA_PSS_2048_8192_SHA512_LEGACY_KEY
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+/// Verify the signature and return the algorithm which passed verification.
+pub fn verify_sig_determine_alg(
+    cert: &Certificate,
+    message: &[u8],
+    dss: &DigitallySignedStruct,
+) -> Result<SignatureAlgorithm, Error> {
+    let cert = pki_types::CertificateDer::from(cert.0.as_slice());
+    let cert = webpki::EndEntityCert::try_from(&cert).map_err(pki_error)?;
+
+    verify_sig_using_any_alg(&cert, convert_scheme(dss.scheme)?, message, &dss.sig.0)
+        .map_err(pki_error)
+}
+
 fn verify_sig_using_any_alg(
     cert: &webpki::EndEntityCert,
     algs: SignatureAlgorithms,
     message: &[u8],
     sig: &[u8],
-) -> Result<(), webpki::Error> {
+) -> Result<SignatureAlgorithm, webpki::Error> {
     // TLS doesn't itself give us enough info to map to a single
     // webpki::SignatureAlgorithm. Therefore, convert_algs maps to several and
     // we try them all.
     for alg in algs {
         match cert.verify_signature(*alg, message, sig) {
+            Ok(_) => return Ok(SignatureAlgorithm::from_alg(*alg)),
             Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_)) => continue,
-            res => return res,
+            Err(e) => return Err(e),
         }
     }
 
