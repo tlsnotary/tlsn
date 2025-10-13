@@ -47,6 +47,7 @@ impl Future for ProverFuture {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_prover_fut(
     config: &ProverConfig,
     span: &Span,

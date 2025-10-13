@@ -1,9 +1,5 @@
-use std::{
-    io::{Read, Write},
-    sync::Arc,
-};
-
-use crate::prover::client::bind_client;
+use crate::prover::client::bind_client_with;
+use futures::{AsyncReadExt, AsyncWriteExt};
 use mpc_tls::{Config, MpcTlsFollower, MpcTlsLeader};
 use mpz_common::context::test_mt_context;
 use mpz_core::Block;
@@ -16,6 +12,7 @@ use mpz_ot::{
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use rustls_pki_types::CertificateDer;
+use std::sync::Arc;
 use tls_client::RootCertStore;
 use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN, bind_test_server_hyper};
 use tokio::sync::Mutex;
@@ -73,7 +70,7 @@ async fn leader_task(mut leader: MpcTlsLeader) {
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
     tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
-    let (mut client, mut server, conn_fut) = bind_client(client);
+    let (mut conn, conn_fut) = bind_client_with(client_socket.compat(), client);
     let handle = tokio::spawn(async { conn_fut.await.unwrap() });
 
     let msg = concat!(
@@ -87,10 +84,10 @@ async fn leader_task(mut leader: MpcTlsLeader) {
         "\r\n"
     );
 
-    client.write_all(msg.as_bytes()).unwrap();
+    conn.write_all(msg.as_bytes()).await.unwrap();
 
     let mut buf = vec![0u8; 48];
-    client.read_exact(&mut buf).unwrap();
+    conn.read_exact(&mut buf).await.unwrap();
 
     leader_ctrl.defer_decryption().await.unwrap();
 
@@ -105,11 +102,11 @@ async fn leader_task(mut leader: MpcTlsLeader) {
         "\r\n"
     );
 
-    client.write_all(msg.as_bytes()).unwrap();
-    client.close();
+    conn.write_all(msg.as_bytes()).await.unwrap();
+    conn.close().await.unwrap();
 
     let mut buf = vec![0u8; 1024];
-    client.read_to_end(&mut buf).unwrap();
+    conn.read_to_end(&mut buf).await.unwrap();
 
     leader_ctrl.stop().await.unwrap();
 

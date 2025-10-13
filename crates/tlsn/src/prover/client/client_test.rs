@@ -1,7 +1,7 @@
-use std::io::{Read, Write};
-use std::{str, sync::Arc};
-
-use crate::prover::{TlsConnection, bind_client, client::ConnectionError};
+use crate::prover::{
+    TlsConnection,
+    client::{ClientConnection, ConnectionError, bind_client_with},
+};
 use core::future::Future;
 use futures::{AsyncReadExt, AsyncWriteExt};
 use http_body_util::{BodyExt as _, Full};
@@ -9,7 +9,8 @@ use hyper::{Request, StatusCode, body::Bytes};
 use hyper_util::rt::TokioIo;
 use rstest::{fixture, rstest};
 use rustls_pki_types::CertificateDer;
-use tls_client::{ClientConfig, ClientConnection, RustCryptoBackend, ServerName};
+use std::{str, sync::Arc};
+use tls_client::{ClientConfig, RustCryptoBackend, ServerName};
 use tls_server_fixture::{
     APP_RECORD_LENGTH, CA_CERT_DER, CLOSE_DELAY, SERVER_DOMAIN, bind_test_server,
     bind_test_server_hyper,
@@ -24,7 +25,7 @@ const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 struct TlsFixture {
     client_tls_conn: TlsConnection,
     // a handle that must be `.await`ed to get the result of a TLS connection
-    closed_tls_task: JoinHandle<Result<ConnectionError, ConnectionError>>,
+    closed_tls_task: JoinHandle<Result<ClientConnection, ConnectionError>>,
 }
 
 // Sets up a TLS connection between client and server and sends a hello message
@@ -49,25 +50,27 @@ async fn set_up_tls() -> TlsFixture {
     )
     .unwrap();
 
-    let (mut client, mut server, tls_fut) = bind_client(client);
+    let (client, tls_fut) = bind_client_with(client_socket.compat(), client);
+    let mut client_tls_conn = TlsConnection::new(client);
 
     let closed_tls_task = tokio::spawn(tls_fut);
 
-    client
+    client_tls_conn
         .write_all(&pad("expecting you to send back hello".to_string()))
+        .await
         .unwrap();
 
     // give the server some time to respond
     std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut plaintext = vec![0u8; 320];
-    let n = client.read(&mut plaintext).unwrap();
+    let n = client_tls_conn.read(&mut plaintext).await.unwrap();
     let s = str::from_utf8(&plaintext[0..n]).unwrap();
 
     assert_eq!(s, "hello");
 
     TlsFixture {
-        client,
+        client_tls_conn,
         closed_tls_task,
     }
 }
@@ -95,7 +98,7 @@ async fn test_hyper_ok() {
     )
     .unwrap();
 
-    let (mut client, mut server, tls_fut) = bind_client(client_socket.compat(), client);
+    let (conn, tls_fut) = bind_client_with(client_socket.compat(), client);
 
     let closed_tls_task = tokio::spawn(tls_fut);
 
@@ -125,7 +128,7 @@ async fn test_hyper_ok() {
 
     let closed_conn = closed_tls_task.await.unwrap().unwrap();
 
-    assert!(closed_conn.client.received_close_notify());
+    assert!(closed_conn.received_close_notify());
 }
 
 // Expect a clean TLS connection closure when server responds to the client's
@@ -150,7 +153,7 @@ async fn test_ok_server_no_socket_close(set_up_tls: impl Future<Output = TlsFixt
 
     let closed_conn = closed_tls_task.await.unwrap().unwrap();
 
-    assert!(closed_conn.client.received_close_notify());
+    assert!(closed_conn.received_close_notify());
 }
 
 // Expect a clean TLS connection closure when server responds to the client's
@@ -176,7 +179,7 @@ async fn test_ok_server_socket_close(set_up_tls: impl Future<Output = TlsFixture
 
     let closed_conn = closed_tls_task.await.unwrap().unwrap();
 
-    assert!(closed_conn.client.received_close_notify());
+    assert!(closed_conn.received_close_notify());
 }
 
 // Expect a clean TLS connection closure when server sends close_notify first
@@ -203,7 +206,7 @@ async fn test_ok_server_close_notify(set_up_tls: impl Future<Output = TlsFixture
 
     let closed_conn = closed_tls_task.await.unwrap().unwrap();
 
-    assert!(closed_conn.client.received_close_notify());
+    assert!(closed_conn.received_close_notify());
 }
 
 // Expect a clean TLS connection closure when server sends close_notify first
@@ -232,7 +235,7 @@ async fn test_ok_server_close_notify_and_socket_close(
 
     let closed_conn = closed_tls_task.await.unwrap().unwrap();
 
-    assert!(closed_conn.client.received_close_notify());
+    assert!(closed_conn.received_close_notify());
 }
 
 // Expect to be able to read the data after server closes the socket abruptly
@@ -292,7 +295,7 @@ async fn test_ok_server_no_close_notify(set_up_tls: impl Future<Output = TlsFixt
 
     let closed_conn = closed_tls_task.await.unwrap().unwrap();
 
-    assert!(!closed_conn.client.received_close_notify());
+    assert!(!closed_conn.received_close_notify());
 }
 
 // Expect to register a delay when the server delays closing the socket
@@ -323,7 +326,7 @@ async fn test_ok_delay_close(set_up_tls: impl Future<Output = TlsFixture>) {
     // (give or take timing variations)
     assert!(elapsed.as_millis() as u64 > CLOSE_DELAY - 50);
 
-    assert!(!closed_conn.client.received_close_notify());
+    assert!(!closed_conn.received_close_notify());
 }
 
 // Expect client to error when server sends a corrupted message
