@@ -43,7 +43,7 @@ pub(crate) async fn transfer<K: KeyStore>(
     store: &K,
     sent: &ReferenceMap,
     recv: &ReferenceMap,
-) -> Result<EncodingCommitment, EncodingError> {
+) -> Result<(EncoderSecret, EncodingCommitment), EncodingError> {
     let secret = EncoderSecret::new(rand::rng().random(), store.delta().as_block().to_bytes());
     let encoder = new_encoder(&secret);
 
@@ -83,9 +83,8 @@ pub(crate) async fn transfer<K: KeyStore>(
     ctx.io_mut().with_limit(frame_limit).send(encodings).await?;
 
     let root = ctx.io_mut().expect_next().await?;
-    ctx.io_mut().send(secret.clone()).await?;
 
-    Ok(EncodingCommitment { root, secret })
+    Ok((secret, EncodingCommitment { root }))
 }
 
 /// Receives and commits to the encodings for the provided plaintext ranges.
@@ -166,9 +165,8 @@ pub(crate) async fn receive<M: MacStore>(
     let root = tree.root();
 
     ctx.io_mut().send(root.clone()).await?;
-    let secret = ctx.io_mut().expect_next().await?;
 
-    let commitment = EncodingCommitment { root, secret };
+    let commitment = EncodingCommitment { root };
 
     Ok((commitment, tree))
 }

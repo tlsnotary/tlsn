@@ -49,5 +49,6 @@ impl_domain_separator!(tlsn_core::connection::ConnectionInfo);
 impl_domain_separator!(tlsn_core::connection::CertBinding);
 impl_domain_separator!(tlsn_core::transcript::TranscriptCommitment);
 impl_domain_separator!(tlsn_core::transcript::TranscriptSecret);
+impl_domain_separator!(tlsn_core::transcript::encoding::EncoderSecret);
 impl_domain_separator!(tlsn_core::transcript::encoding::EncodingCommitment);
 impl_domain_separator!(tlsn_core::transcript::hash::PlaintextHash);

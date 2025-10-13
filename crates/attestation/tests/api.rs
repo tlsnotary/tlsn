@@ -64,7 +64,6 @@ fn test_api() {
 
     let encoding_commitment = EncodingCommitment {
         root: encoding_tree.root(),
-        secret: encoder_secret(),
     };
 
     let request_config = RequestConfig::default();
@@ -96,6 +95,7 @@ fn test_api() {
         .connection_info(connection_info.clone())
         // Server key Notary received during handshake
         .server_ephemeral_key(server_ephemeral_key)
+        .encoder_secret(encoder_secret())
         .transcript_commitments(vec![TranscriptCommitment::Encoding(encoding_commitment)]);
 
     let attestation = attestation_builder.build(&provider).unwrap();

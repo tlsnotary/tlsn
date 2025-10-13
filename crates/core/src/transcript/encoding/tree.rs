@@ -222,14 +222,12 @@ mod tests {
 
         let proof = tree.proof([&idx_0, &idx_1].into_iter()).unwrap();
 
-        let commitment = EncodingCommitment {
-            root: tree.root(),
-            secret: encoder_secret(),
-        };
+        let commitment = EncodingCommitment { root: tree.root() };
 
         let (auth_sent, auth_recv) = proof
             .verify_with_provider(
                 &HashProvider::default(),
+                &encoder_secret(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),
@@ -260,14 +258,12 @@ mod tests {
             .proof([&idx_0, &idx_1, &idx_2, &idx_3].into_iter())
             .unwrap();
 
-        let commitment = EncodingCommitment {
-            root: tree.root(),
-            secret: encoder_secret(),
-        };
+        let commitment = EncodingCommitment { root: tree.root() };
 
         let (auth_sent, auth_recv) = proof
             .verify_with_provider(
                 &HashProvider::default(),
+                &encoder_secret(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),

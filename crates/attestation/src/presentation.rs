@@ -91,6 +91,11 @@ impl Presentation {
                 transcript.verify_with_provider(
                     &provider.hash,
                     &attestation.body.connection_info().transcript_length,
+                    attestation
+                        .body
+                        .encoder_secret
+                        .as_ref()
+                        .map(|field| &field.data),
                     attestation.body.transcript_commitments(),
                 )
             })

@@ -8,7 +8,7 @@ use crate::{
     merkle::{MerkleError, MerkleProof},
     transcript::{
         commit::MAX_TOTAL_COMMITTED_DATA,
-        encoding::{new_encoder, Encoder, EncodingCommitment},
+        encoding::{new_encoder, Encoder, EncoderSecret, EncodingCommitment},
         Direction,
     },
 };
@@ -48,13 +48,14 @@ impl EncodingProof {
     pub fn verify_with_provider(
         &self,
         provider: &HashProvider,
+        secret: &EncoderSecret,
         commitment: &EncodingCommitment,
         sent: &[u8],
         recv: &[u8],
     ) -> Result<(RangeSet<usize>, RangeSet<usize>), EncodingProofError> {
         let hasher = provider.get(&commitment.root.alg)?;
 
-        let encoder = new_encoder(&commitment.secret);
+        let encoder = new_encoder(secret);
         let Self {
             inclusion_proof,
             openings,
@@ -232,10 +233,7 @@ mod test {
     use crate::{
         fixtures::{encoder_secret, encoder_secret_tampered_seed, encoding_provider},
         hash::Blake3,
-        transcript::{
-            encoding::{EncoderSecret, EncodingTree},
-            Transcript,
-        },
+        transcript::{encoding::EncodingTree, Transcript},
     };
 
     use super::*;
@@ -246,7 +244,7 @@ mod test {
         commitment: EncodingCommitment,
     }
 
-    fn new_encoding_fixture(secret: EncoderSecret) -> EncodingFixture {
+    fn new_encoding_fixture() -> EncodingFixture {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
         let idx_0 = (Direction::Sent, RangeSet::from(0..POST_JSON.len()));
@@ -257,10 +255,7 @@ mod test {
 
         let proof = tree.proof([&idx_0, &idx_1].into_iter()).unwrap();
 
-        let commitment = EncodingCommitment {
-            root: tree.root(),
-            secret,
-        };
+        let commitment = EncodingCommitment { root: tree.root() };
 
         EncodingFixture {
             transcript,
@@ -275,11 +270,12 @@ mod test {
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_secret_tampered_seed());
+        } = new_encoding_fixture();
 
         let err = proof
             .verify_with_provider(
                 &HashProvider::default(),
+                &encoder_secret_tampered_seed(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),
@@ -295,13 +291,19 @@ mod test {
             transcript,
             proof,
             commitment,
-        } = new_encoding_fixture(encoder_secret());
+        } = new_encoding_fixture();
 
         let sent = &transcript.sent()[transcript.sent().len() - 1..];
         let recv = &transcript.received()[transcript.received().len() - 2..];
 
         let err = proof
-            .verify_with_provider(&HashProvider::default(), &commitment, sent, recv)
+            .verify_with_provider(
+                &HashProvider::default(),
+                &encoder_secret(),
+                &commitment,
+                sent,
+                recv,
+            )
             .unwrap_err();
 
         assert!(matches!(err.kind, ErrorKind::Proof));
@@ -313,7 +315,7 @@ mod test {
             transcript,
             mut proof,
             commitment,
-        } = new_encoding_fixture(encoder_secret());
+        } = new_encoding_fixture();
 
         let Opening { idx, .. } = proof.openings.values_mut().next().unwrap();
 
@@ -322,6 +324,7 @@ mod test {
         let err = proof
             .verify_with_provider(
                 &HashProvider::default(),
+                &encoder_secret(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),
@@ -337,7 +340,7 @@ mod test {
             transcript,
             mut proof,
             commitment,
-        } = new_encoding_fixture(encoder_secret());
+        } = new_encoding_fixture();
 
         let Opening { blinder, .. } = proof.openings.values_mut().next().unwrap();
 
@@ -346,6 +349,7 @@ mod test {
         let err = proof
             .verify_with_provider(
                 &HashProvider::default(),
+                &encoder_secret(),
                 &commitment,
                 transcript.sent(),
                 transcript.received(),

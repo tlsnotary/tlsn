@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     connection::{HandshakeData, ServerName},
     transcript::{
-        Direction, PartialTranscript, Transcript, TranscriptCommitConfig, TranscriptCommitRequest,
-        TranscriptCommitment, TranscriptSecret,
+        encoding::EncoderSecret, Direction, PartialTranscript, Transcript, TranscriptCommitConfig,
+        TranscriptCommitRequest, TranscriptCommitment, TranscriptSecret,
     },
 };
 
@@ -220,6 +220,8 @@ pub struct VerifierOutput {
     pub server_name: Option<ServerName>,
     /// Transcript data.
     pub transcript: Option<PartialTranscript>,
+    /// Encoding commitment secret.
+    pub encoder_secret: Option<EncoderSecret>,
     /// Transcript commitments.
     pub transcript_commitments: Vec<TranscriptCommitment>,
 }
