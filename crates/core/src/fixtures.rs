@@ -10,7 +10,8 @@ use hex::FromHex;
 use crate::{
     connection::{
         CertBinding, CertBindingV1_2, ConnectionInfo, DnsName, HandshakeData, KeyType,
-        ServerEphemKey, ServerName, ServerSignature, SignatureScheme, TlsVersion, TranscriptLength,
+        ServerEphemKey, ServerName, ServerSignature, SignatureAlgorithm, TlsVersion,
+        TranscriptLength,
     },
     transcript::{
         encoding::{EncoderSecret, EncodingProvider},
@@ -47,7 +48,7 @@ impl ConnectionFixture {
                     CertificateDer(include_bytes!("fixtures/data/tlsnotary.org/ca.der").to_vec()),
                 ],
                 sig: ServerSignature {
-                    scheme: SignatureScheme::RSA_PKCS1_SHA256,
+                    alg: SignatureAlgorithm::RSA_PKCS1_2048_8192_SHA256,
                     sig: Vec::<u8>::from_hex(include_bytes!(
                         "fixtures/data/tlsnotary.org/signature"
                     ))
@@ -92,7 +93,7 @@ impl ConnectionFixture {
                     CertificateDer(include_bytes!("fixtures/data/appliedzkp.org/ca.der").to_vec()),
                 ],
                 sig: ServerSignature {
-                    scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
+                    alg: SignatureAlgorithm::ECDSA_NISTP256_SHA256,
                     sig: Vec::<u8>::from_hex(include_bytes!(
                         "fixtures/data/appliedzkp.org/signature"
                     ))
