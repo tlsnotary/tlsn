@@ -13,7 +13,6 @@ pub use conn::TlsConnection;
 pub use control::ProverControl;
 pub use error::ProverError;
 pub use future::ProverFuture;
-use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
 use client::bind_client;
@@ -22,23 +21,21 @@ use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
 use mpz_zk::ProverConfig as ZkProverConfig;
-use webpki::anchor_from_trusted_cert;
 
 use crate::{
     Role,
-    commit::{
-        commit_records,
-        hash::prove_hash,
-        transcript::{TranscriptRefs, decode_transcript},
-    },
+    commit::{hash::prove_hash, transcript::decode_transcript},
     context::build_mt_context,
     encoding,
     mux::attach_mux,
-    tag::verify_tags,
+    prover::{
+        client::{bind_client_with, build_tls_client},
+        future::build_prover_fut,
+    },
     zk_aes_ctr::ZkAesCtr,
 };
 
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, FutureExt, TryFutureExt};
+use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::SinkExt;
@@ -46,18 +43,15 @@ use std::{
     io::{Read, Write},
     sync::Arc,
 };
-use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_core::msgs::enums::ContentType;
 use tlsn_core::{
     ProvePayload,
-    connection::{HandshakeData, ServerName},
+    connection::HandshakeData,
     hash::{Blake3, HashAlgId, HashAlgorithm, Keccak256, Sha256},
     transcript::{TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret},
 };
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
-
-use tracing::{Instrument, Span, debug, info, info_span, instrument};
+use tracing::{Span, debug, info_span, instrument};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,
@@ -175,253 +169,85 @@ impl Prover<state::Setup> {
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        let (client_async_socket, client_async_handle) = futures_plex::duplex(16 * 1024);
-        let (prover, future) = self.connect().await?;
         let Prover {
+            config,
+            span,
             state:
-                state::Connected {
-                    mpc_ctrl,
-                    mut client_socket,
-                    mut server_socket,
+                state::Setup {
+                    mux_ctrl,
+                    mux_fut,
+                    mpc_tls,
+                    zk_aes_ctr_sent,
+                    zk_aes_ctr_recv,
+                    keys,
+                    vm,
                 },
-            ..
-        } = prover;
+        } = self;
 
-        let client_future = async move {
-            let mut buffer1 = [0_u8; 8 * 1024];
-            let mut buffer2 = [0_u8; 8 * 1024];
+        let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
-            let (mut async_read, mut async_write) = client_async_handle.split();
+        let client = build_tls_client(&config, &mpc_ctrl)?;
+        let (client, conn_fut) = bind_client_with(socket, client);
 
-            loop {
-                let mut read_op = async_read.read(&mut buffer1).fuse();
-                let mut write_op = futures::future::ready(client_socket.read(&mut buffer2))
-                    .and_then(|read_count| async_write.write_all(&buffer2[..read_count]));
-                futures::select! {
-                    read_count = read_op => {
-                        client_socket.write_all(&buffer1[..read_count?])?;
-                    },
-                    _ = write_op => {}
+        let tls_conn = TlsConnection::new(client);
 
-                }
-            }
-            #[allow(unreachable_code)]
-            Ok::<_, std::io::Error>(())
-        };
+        let prover_fut = build_prover_fut(
+            &config,
+            &span,
+            mux_ctrl,
+            mux_fut,
+            &mpc_ctrl,
+            mpc_fut,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
+            keys,
+            vm,
+            conn_fut,
+        )?;
 
-        let server_future = async move {
-            let mut buffer1 = [0_u8; 8 * 1024];
-            let mut buffer2 = [0_u8; 8 * 1024];
-
-            let (mut async_read, mut async_write) = socket.split();
-
-            loop {
-                let mut read_op = async_read.read(&mut buffer1).fuse();
-                let mut write_op = futures::future::ready(server_socket.read(&mut buffer2))
-                    .and_then(|read_count| async_write.write_all(&buffer2[..read_count]));
-                futures::select! {
-                    read_count = read_op => {
-                        let read_count = read_count?;
-                        if read_count > 0 {
-                            server_socket.write_all(&buffer1[..read_count])?;
-                        } else {
-                            server_socket.close();
-                        }
-                    },
-                    _ = write_op => {}
-
-                }
-            }
-            #[allow(unreachable_code)]
-            Ok::<_, std::io::Error>(())
-        };
-
-        let prover_future = ProverFuture {
-            fut: Box::pin(async {
-                futures::select! {
-                    _ = client_future.fuse() => panic!("unexpected client polling loop error"),
-                    _ = server_future.fuse() => panic!("unexpected server polling loop error"),
-                    prover = future.fuse() => prover
-                }
-            }),
-            ctrl: ProverControl::new(mpc_ctrl),
-        };
-
-        let connection = TlsConnection::new(client_async_socket);
-
-        Ok((connection, prover_future))
+        Ok((tls_conn, prover_fut))
     }
 
     /// Connects to the server.
     ///
-    /// Returns a connected Prover which has to be polled and a control handle.
+    /// Returns a connected Prover and a future that must be polled to drive the connection.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn connect(self) -> Result<(Prover<state::Connected>, ProverFuture), ProverError> {
-        let state::Setup {
-            mux_ctrl,
-            mut mux_fut,
-            mpc_tls,
-            mut zk_aes_ctr_sent,
-            mut zk_aes_ctr_recv,
-            keys,
-            vm,
-            ..
-        } = self.state;
+        let Prover {
+            config,
+            span,
+            state:
+                state::Setup {
+                    mux_ctrl,
+                    mux_fut,
+                    mpc_tls,
+                    zk_aes_ctr_sent,
+                    zk_aes_ctr_recv,
+                    keys,
+                    vm,
+                },
+        } = self;
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
-
-        let ServerName::Dns(server_name) = self.config.server_name();
-        let server_name =
-            TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
-
-        let root_store = if let Some(root_store) = self.config.tls_config().root_store() {
-            let roots = root_store
-                .roots
-                .iter()
-                .map(|cert| {
-                    let der = CertificateDer::from_slice(&cert.0);
-                    anchor_from_trusted_cert(&der)
-                        .map(|anchor| anchor.to_owned())
-                        .map_err(ProverError::config)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            tls_client::RootCertStore { roots }
-        } else {
-            tls_client::RootCertStore {
-                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-            }
-        };
-
-        let config = tls_client::ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(root_store);
-
-        let config = if let Some((cert, key)) = self.config.tls_config().client_auth() {
-            config
-                .with_single_cert(
-                    cert.iter()
-                        .map(|cert| tls_client::Certificate(cert.0.clone()))
-                        .collect(),
-                    tls_client::PrivateKey(key.0.clone()),
-                )
-                .map_err(ProverError::config)?
-        } else {
-            config.with_no_client_auth()
-        };
-
-        let client =
-            ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
-                .map_err(ProverError::config)?;
-
+        let client = build_tls_client(&config, &mpc_ctrl)?;
         let (client_socket, server_socket, conn_fut) = bind_client(client);
 
-        let prover_config = self.config.clone();
-        let span = self.span.clone();
-
-        let fut = Box::pin({
-            let span = self.span.clone();
-            let mpc_ctrl = mpc_ctrl.clone();
-            async move {
-                let conn_fut = async {
-                    mux_fut
-                        .poll_with(conn_fut.map_err(ProverError::from))
-                        .await?;
-
-                    mpc_ctrl.stop().await?;
-
-                    Ok::<_, ProverError>(())
-                };
-
-                info!("starting MPC-TLS");
-
-                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
-                    conn_fut,
-                    mpc_fut.in_current_span().map_err(ProverError::from)
-                )?;
-
-                info!("finished MPC-TLS");
-
-                {
-                    let mut vm = vm.try_lock().expect("VM should not be locked");
-
-                    debug!("finalizing mpc");
-
-                    // Finalize DEAP.
-                    mux_fut
-                        .poll_with(vm.finalize(&mut ctx))
-                        .await
-                        .map_err(ProverError::mpc)?;
-
-                    debug!("mpc finalized");
-                }
-
-                // Pull out ZK VM.
-                let (_, mut vm) = Arc::into_inner(vm)
-                    .expect("vm should have only 1 reference")
-                    .into_inner()
-                    .into_inner();
-
-                // Prove tag verification of received records.
-                // The prover drops the proof output.
-                let _ = verify_tags(
-                    &mut vm,
-                    (keys.server_write_key, keys.server_write_iv),
-                    keys.server_write_mac_key,
-                    *tls_transcript.version(),
-                    tls_transcript.recv().to_vec(),
-                )
-                .map_err(ProverError::zk)?;
-
-                // Prove received plaintext. Prover drops the proof output, as
-                // they trust themselves.
-                let (sent_refs, _) = commit_records(
-                    &mut vm,
-                    &mut zk_aes_ctr_sent,
-                    tls_transcript
-                        .sent()
-                        .iter()
-                        .filter(|record| record.typ == ContentType::ApplicationData),
-                )
-                .map_err(ProverError::zk)?;
-
-                let (recv_refs, _) = commit_records(
-                    &mut vm,
-                    &mut zk_aes_ctr_recv,
-                    tls_transcript
-                        .recv()
-                        .iter()
-                        .filter(|record| record.typ == ContentType::ApplicationData),
-                )
-                .map_err(ProverError::zk)?;
-
-                mux_fut
-                    .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
-                    .await?;
-
-                let transcript = tls_transcript
-                    .to_transcript()
-                    .expect("transcript is complete");
-                let transcript_refs = TranscriptRefs::new(sent_refs, recv_refs);
-
-                Ok(Prover {
-                    config: self.config,
-                    span: self.span,
-                    state: state::Committed {
-                        mux_ctrl,
-                        mux_fut,
-                        ctx,
-                        vm,
-                        tls_transcript,
-                        transcript,
-                        transcript_refs,
-                    },
-                })
-            }
-            .instrument(span)
-        });
+        let prover_fut = build_prover_fut(
+            &config,
+            &span,
+            mux_ctrl,
+            mux_fut,
+            &mpc_ctrl,
+            mpc_fut,
+            zk_aes_ctr_sent,
+            zk_aes_ctr_recv,
+            keys,
+            vm,
+            conn_fut,
+        )?;
 
         let prover = Prover {
-            config: prover_config,
+            config,
             span,
             state: state::Connected {
                 mpc_ctrl: mpc_ctrl.clone(),
@@ -430,13 +256,7 @@ impl Prover<state::Setup> {
             },
         };
 
-        Ok((
-            prover,
-            ProverFuture {
-                fut,
-                ctrl: ProverControl::new(mpc_ctrl),
-            },
-        ))
+        Ok((prover, prover_fut))
     }
 }
 
