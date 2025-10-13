@@ -174,3 +174,8 @@ async fn send_close_notify(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod client_test;
+#[cfg(test)]
+mod mpc_tls_test;

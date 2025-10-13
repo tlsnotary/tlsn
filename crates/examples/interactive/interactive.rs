@@ -105,8 +105,10 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let tls_client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
 
     // Pass server connection into the prover.
-    let (mpc_tls_connection, prover_fut) =
-        prover.connect(tls_client_socket.compat()).await.unwrap();
+    let (mpc_tls_connection, prover_fut) = prover
+        .connect_with(tls_client_socket.compat())
+        .await
+        .unwrap();
 
     // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());

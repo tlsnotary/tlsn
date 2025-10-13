@@ -136,7 +136,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // The returned `mpc_tls_connection` is an MPC TLS connection to the server: all
     // data written to/read from it will be encrypted/decrypted using MPC with
     // the notary.
-    let (mpc_tls_connection, prover_fut) = prover.connect(client_socket.compat()).await?;
+    let (mpc_tls_connection, prover_fut) = prover.connect_with(client_socket.compat()).await?;
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
     // Spawn the prover task to be run concurrently in the background.

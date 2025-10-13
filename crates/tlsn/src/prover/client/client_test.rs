@@ -1,5 +1,7 @@
+use std::io::{Read, Write};
 use std::{str, sync::Arc};
 
+use crate::prover::{TlsConnection, bind_client, client::ConnectionError};
 use core::future::Future;
 use futures::{AsyncReadExt, AsyncWriteExt};
 use http_body_util::{BodyExt as _, Full};
@@ -12,7 +14,6 @@ use tls_server_fixture::{
     APP_RECORD_LENGTH, CA_CERT_DER, CLOSE_DELAY, SERVER_DOMAIN, bind_test_server,
     bind_test_server_hyper,
 };
-use tlsn::prover::{ClosedConnection, ConnectionError, TlsConnection, bind_client};
 use tokio::task::JoinHandle;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use webpki::anchor_from_trusted_cert;
@@ -23,7 +24,7 @@ const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 struct TlsFixture {
     client_tls_conn: TlsConnection,
     // a handle that must be `.await`ed to get the result of a TLS connection
-    closed_tls_task: JoinHandle<Result<ClosedConnection, ConnectionError>>,
+    closed_tls_task: JoinHandle<Result<ConnectionError, ConnectionError>>,
 }
 
 // Sets up a TLS connection between client and server and sends a hello message
@@ -48,26 +49,25 @@ async fn set_up_tls() -> TlsFixture {
     )
     .unwrap();
 
-    let (mut client_tls_conn, tls_fut) = bind_client(client_socket.compat(), client);
+    let (mut client, mut server, tls_fut) = bind_client(client);
 
     let closed_tls_task = tokio::spawn(tls_fut);
 
-    client_tls_conn
+    client
         .write_all(&pad("expecting you to send back hello".to_string()))
-        .await
         .unwrap();
 
     // give the server some time to respond
     std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut plaintext = vec![0u8; 320];
-    let n = client_tls_conn.read(&mut plaintext).await.unwrap();
+    let n = client.read(&mut plaintext).unwrap();
     let s = str::from_utf8(&plaintext[0..n]).unwrap();
 
     assert_eq!(s, "hello");
 
     TlsFixture {
-        client_tls_conn,
+        client,
         closed_tls_task,
     }
 }
@@ -95,7 +95,7 @@ async fn test_hyper_ok() {
     )
     .unwrap();
 
-    let (conn, tls_fut) = bind_client(client_socket.compat(), client);
+    let (mut client, mut server, tls_fut) = bind_client(client_socket.compat(), client);
 
     let closed_tls_task = tokio::spawn(tls_fut);
 

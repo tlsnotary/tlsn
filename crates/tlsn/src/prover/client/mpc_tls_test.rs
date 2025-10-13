@@ -1,6 +1,9 @@
-use std::sync::Arc;
+use std::{
+    io::{Read, Write},
+    sync::Arc,
+};
 
-use futures::{AsyncReadExt, AsyncWriteExt};
+use crate::prover::client::bind_client;
 use mpc_tls::{Config, MpcTlsFollower, MpcTlsLeader};
 use mpz_common::context::test_mt_context;
 use mpz_core::Block;
@@ -15,7 +18,6 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use rustls_pki_types::CertificateDer;
 use tls_client::RootCertStore;
 use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN, bind_test_server_hyper};
-use tlsn::prover::bind_client;
 use tokio::sync::Mutex;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use webpki::anchor_from_trusted_cert;
@@ -71,7 +73,7 @@ async fn leader_task(mut leader: MpcTlsLeader) {
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
     tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
-    let (mut conn, conn_fut) = bind_client(client_socket.compat(), client);
+    let (mut client, mut server, conn_fut) = bind_client(client);
     let handle = tokio::spawn(async { conn_fut.await.unwrap() });
 
     let msg = concat!(
@@ -85,10 +87,10 @@ async fn leader_task(mut leader: MpcTlsLeader) {
         "\r\n"
     );
 
-    conn.write_all(msg.as_bytes()).await.unwrap();
+    client.write_all(msg.as_bytes()).unwrap();
 
     let mut buf = vec![0u8; 48];
-    conn.read_exact(&mut buf).await.unwrap();
+    client.read_exact(&mut buf).unwrap();
 
     leader_ctrl.defer_decryption().await.unwrap();
 
@@ -103,11 +105,11 @@ async fn leader_task(mut leader: MpcTlsLeader) {
         "\r\n"
     );
 
-    conn.write_all(msg.as_bytes()).await.unwrap();
-    conn.close().await.unwrap();
+    client.write_all(msg.as_bytes()).unwrap();
+    client.close();
 
     let mut buf = vec![0u8; 1024];
-    conn.read_to_end(&mut buf).await.unwrap();
+    client.read_to_end(&mut buf).unwrap();
 
     leader_ctrl.stop().await.unwrap();
 
