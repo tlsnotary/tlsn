@@ -15,7 +15,6 @@ pub use error::ProverError;
 pub use future::ProverFuture;
 pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
 
-use client::bind_client;
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
@@ -35,6 +34,7 @@ use crate::{
     zk_aes_ctr::ZkAesCtr,
 };
 
+use client::bind_client;
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
@@ -160,8 +160,13 @@ impl Prover<state::Initialized> {
 impl Prover<state::Setup> {
     /// Connects to the server using the provided socket.
     ///
-    /// Returns a connection for reading and writing traffic from/to the server and a future that
-    /// must be polled to drive the connection.
+    /// Returns a handle to the TLS connection and a future which returns the
+    /// prover once the connection is closed.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to the server.
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn connect_with<S>(
         self,
         socket: S,
@@ -210,7 +215,11 @@ impl Prover<state::Setup> {
 
     /// Connects to the server.
     ///
-    /// Returns a connected Prover and a future that must be polled to drive the connection.
+    /// Returns the connected prover, and a future which returns the
+    /// closed prover once the connection is closed.
+    ///
+    /// The connected prover can be used to read and write data between client
+    /// and server.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn connect(self) -> Result<(Prover<state::Connected>, ProverFuture), ProverError> {
         let Prover {
@@ -261,14 +270,14 @@ impl Prover<state::Setup> {
 }
 
 impl Prover<state::Connected> {
+    /// Returns `true` if the prover can read TLS data from the server.
+    pub fn can_read_tls(&self) -> bool {
+        self.state.server_socket.can_read()
+    }
+
     /// Returns `true` if the prover wants to write TLS data to the server.
     pub fn wants_write_tls(&self) -> bool {
         self.state.server_socket.wants_write()
-    }
-
-    /// Returns `true` if the prover wants to write plaintext data to the client.
-    pub fn wants_write(&self) -> bool {
-        self.state.client_socket.wants_write()
     }
 
     /// Reads TLS data from the server.
@@ -279,6 +288,16 @@ impl Prover<state::Connected> {
     /// Writes TLS data for the server into the provided buffer.
     pub fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
         self.state.server_socket.read(buf)
+    }
+
+    /// Returns `true` if the prover can read plaintext data.
+    pub fn can_read(&self) -> bool {
+        self.state.client_socket.can_read()
+    }
+
+    /// Returns `true` if the prover wants to write plaintext data.
+    pub fn wants_write(&self) -> bool {
+        self.state.client_socket.wants_write()
     }
 
     /// Reads plaintext data from the server into the provided buffer.

@@ -1,9 +1,16 @@
-use bytes::{Buf, BytesMut};
+//! Provides [`DuplexStream`].
+
+use bytes::{Buf, BufMut, BytesMut};
 use std::{
     io::{Read, Write},
     sync::{Arc, Mutex},
 };
 
+/// A sync duplex byte stream.
+///
+/// Use [`duplex`] function to create two handles of [`DuplexStream`], which
+/// behave like a sync pipe for reading and writing bytes. Implements
+/// [`std::io::Read`] and [`std::io::Write`].
 #[derive(Debug)]
 pub(crate) struct DuplexStream {
     read: ReadHalf<SimplexStream>,
@@ -12,6 +19,7 @@ pub(crate) struct DuplexStream {
 }
 
 impl DuplexStream {
+    /// Returns if the stream has been closed.
     pub(crate) fn is_closed(&self) -> bool {
         *self
             .is_closed
@@ -19,6 +27,7 @@ impl DuplexStream {
             .expect("should be able to acquire lock")
     }
 
+    /// Closes the stream.
     pub(crate) fn close(&mut self) {
         let mut is_closed = self
             .is_closed
@@ -27,8 +36,14 @@ impl DuplexStream {
         *is_closed = true;
     }
 
+    /// Returns if the stream has new data available.
     pub(crate) fn wants_write(&self) -> bool {
-        self.read.has_remaining()
+        self.read.can_read_from()
+    }
+
+    /// Returns if new data can be written to the stream.
+    pub(crate) fn can_read(&self) -> bool {
+        self.write.can_write_to()
     }
 }
 
@@ -86,7 +101,7 @@ impl Write for DuplexStream {
 pub(crate) struct ReadHalf<T>(Arc<Mutex<T>>);
 
 impl ReadHalf<SimplexStream> {
-    fn has_remaining(&self) -> bool {
+    fn can_read_from(&self) -> bool {
         let inner = self.0.lock().expect("should be able to acquire lock");
         inner.has_remaining()
     }
@@ -104,6 +119,13 @@ impl<T: Read> Read for ReadHalf<T> {
 
 #[derive(Debug)]
 pub(crate) struct WriteHalf<T>(Arc<Mutex<T>>);
+
+impl WriteHalf<SimplexStream> {
+    fn can_write_to(&self) -> bool {
+        let inner = self.0.lock().expect("should be able to acquire lock");
+        inner.has_remaining_mut()
+    }
+}
 
 impl<T: Write> Write for WriteHalf<T> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
@@ -147,15 +169,19 @@ impl SimplexStream {
     ///
     /// The `max_buf_size` argument is the maximum amount of bytes that can be
     /// written to a buffer.
-    pub(crate) fn new_unsplit(max_buf_size: usize) -> SimplexStream {
+    fn new_unsplit(max_buf_size: usize) -> SimplexStream {
         SimplexStream {
             max_buf_size,
             buffer: BytesMut::new(),
         }
     }
 
-    pub(crate) fn has_remaining(&self) -> bool {
+    fn has_remaining(&self) -> bool {
         self.buffer.has_remaining()
+    }
+
+    fn has_remaining_mut(&self) -> bool {
+        self.buffer.has_remaining_mut()
     }
 }
 

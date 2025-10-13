@@ -1,11 +1,10 @@
-//! Provides a TLS client.
+//! Provides a TLS client that sits in between client and server and
+//! encrypts/decrypts between cleartext and TLS traffic.
 //!
-//! The [bind_client] function attaches duplex streams to a TLS client. The streams are for
-//! reading and writing
-//!   - cleartext between client and the TLS client
-//!   - TLS traffic between the TLS client and the server
-//!
-//! The TLS client sits in between and encrypts/decrypts between cleartext and TLS traffic.
+//! The [`build_tls_client`] function is a helper to create the TLS
+//! [`ClientConnection`]. [`bind_client`] attaches sync duplex streams to this
+//! client. If an async interface is desired then [`bind_client_with`] can be
+//! used.
 
 use futures::{
     AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future, FutureExt, TryFutureExt,
@@ -112,8 +111,9 @@ pub(crate) fn build_tls_client(
 /// Attaches an async socket to the provided TLS client.
 ///
 /// # Returns
-///   - an async TLS client
-///   - a future which runs the connection to completion
+///   - an async duplex stream for reading and writing cleartext to/from the
+///     server, i.e. the client handle.
+///   - a future which must be polled and runs the connection to completion.
 ///
 /// # Errors
 ///
@@ -190,9 +190,11 @@ pub(crate) fn bind_client_with<S: AsyncRead + AsyncWrite + Send + Unpin + 'stati
 /// Attaches duplex byte streams to the provided TLS client.
 ///
 /// # Returns
-///   - a duplex stream for reading/writing cleartext between client and TLS client
-///   - a duplex stream for reading/writing TLS traffic between TLS client and server
-///   - a future which runs the connection to completion.
+///   - a duplex stream for reading/writing cleartext between client and TLS
+///     client
+///   - a duplex stream for reading/writing TLS traffic between TLS client and
+///     server
+///   - a future which must be polled and runs the connection to completion.
 ///
 /// # Errors
 ///
@@ -235,7 +237,8 @@ pub(crate) fn bind_client(
                 trace!("sent {} clear bytes to client_handle", read);
             }
 
-            // Read application data, which should be sent to the server, only if handshake is done
+            // Read application data, which should be sent to the server, only if handshake
+            // is done
             if !client.is_handshaking() && !handshake_done {
                 debug!("handshake complete");
                 handshake_done = true;
