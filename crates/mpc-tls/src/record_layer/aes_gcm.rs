@@ -1,4 +1,4 @@
-use aes_gcm::{aead::AeadMutInPlace, Aes128Gcm, NewAead};
+use aes_gcm::{aead::AeadInOut, Aes128Gcm, KeyInit};
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
     binary::{Binary, U8},
@@ -200,18 +200,20 @@ impl AesGcm {
         let key = key.as_ref().expect("leader knows key");
         let iv = iv.as_ref().expect("leader knows iv");
 
-        let mut aes_gcm = Aes128Gcm::new(key.into());
+        let aes_gcm = Aes128Gcm::new(key.into());
 
         let mut full_iv = [0u8; 12];
         full_iv[..4].copy_from_slice(iv);
         full_iv[4..12].copy_from_slice(&explicit_nonce);
 
         aes_gcm
-            .decrypt_in_place_detached(
+            .decrypt_inout_detached(
                 (&full_iv).into(),
                 &aad,
-                &mut ciphertext,
-                tag.as_slice().into(),
+                ciphertext.as_mut_slice().into(),
+                tag.as_slice()
+                    .try_into()
+                    .map_err(|_| MpcTlsError::record_layer("tag is not 16 bytes"))?,
             )
             .map_err(|_| MpcTlsError::record_layer("tag verification failed"))?;
 
@@ -222,7 +224,7 @@ impl AesGcm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aes_gcm::{aead::AeadMutInPlace, Aes128Gcm, NewAead};
+    use aes_gcm::Aes128Gcm;
 
     #[test]
     fn test_aes_gcm_local() {
@@ -241,13 +243,13 @@ mod tests {
             iv: Some(iv),
         };
 
-        let mut aes_gcm = Aes128Gcm::new(&key.into());
+        let aes_gcm = Aes128Gcm::new(&key.into());
 
         let msg = b"hello world";
 
         let mut ciphertext = msg.to_vec();
         let tag = aes_gcm
-            .encrypt_in_place_detached(&nonce.into(), &aad, &mut ciphertext)
+            .encrypt_inout_detached(&nonce.into(), &aad, ciphertext.as_mut_slice().into())
             .unwrap();
 
         let decrypted = aes_gcm_local

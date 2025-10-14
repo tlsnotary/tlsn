@@ -2,7 +2,6 @@
 
 use crate::ghash::ghash;
 
-use cipher::{Cipher, aes::Aes128};
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
     DecodeFutureTyped,
@@ -11,6 +10,7 @@ use mpz_memory_core::{
 use mpz_vm_core::{Vm, prelude::*};
 use tls_client::ProtocolVersion;
 use tls_core::cipher::make_tls12_aad;
+use tlsn_cipher::{Cipher, aes::Aes128};
 use tlsn_core::{connection::TlsVersion, transcript::Record};
 
 /// Proves the verification of tags of the given `records`,

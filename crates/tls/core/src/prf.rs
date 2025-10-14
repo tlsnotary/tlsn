@@ -1,6 +1,7 @@
-//! Implementation of the TLS Pseudo-Random Function (PRF) as defined in RFC 5246.
+//! Implementation of the TLS Pseudo-Random Function (PRF) as defined in RFC
+//! 5246.
 
-use hmac::Mac;
+use hmac::{KeyInit, Mac};
 
 type Hmac = hmac::Hmac<sha2::Sha256>;
 

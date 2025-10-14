@@ -1,8 +1,7 @@
 //! Transcript fixtures for testing.
 
-use aead::Payload as AeadPayload;
-use aes_gcm::{aead::Aead, Aes128Gcm, NewAead};
-use generic_array::GenericArray;
+use aead::{KeyInit, Payload as AeadPayload};
+use aes_gcm::{aead::Aead, Aes128Gcm, Nonce};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tls_core::msgs::{
     base::Payload,
@@ -180,11 +179,11 @@ fn aes_gcm_encrypt(
     let mut nonce = [0u8; 12];
     nonce[..4].copy_from_slice(&iv);
     nonce[4..].copy_from_slice(&explicit_nonce);
-    let nonce = GenericArray::from_slice(&nonce);
+    let nonce = Nonce::from(nonce);
     let cipher = Aes128Gcm::new_from_slice(&key).unwrap();
 
     // ciphertext will have the MAC appended
-    let ciphertext = cipher.encrypt(nonce, payload).unwrap();
+    let ciphertext = cipher.encrypt(&nonce, payload).unwrap();
 
     // prepend the explicit nonce
     let mut nonce_ct_mac = vec![0u8; 0];

@@ -2,8 +2,8 @@ mod aes_gcm;
 mod ghash;
 
 pub(crate) use aes_gcm::MpcAesGcm;
-use cipher::{aes::AesError, CipherError};
 pub(crate) use ghash::{ComputeTags, VerifyTags};
+use tlsn_cipher::{aes::AesError, CipherError};
 
 use mpz_memory_core::{binary::U8, Array};
 use mpz_vm_core::VmError;

@@ -2,7 +2,6 @@
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use hmac_sha256::{Mode, MpcPrf};
 use mpz_common::context::test_mt_context;
 use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
 use mpz_ot::ideal::cot::ideal_cot;
@@ -12,6 +11,7 @@ use mpz_vm_core::{
     Execute,
 };
 use rand::{rngs::StdRng, SeedableRng};
+use tlsn_hmac_sha256::{Mode, MpcPrf};
 
 #[allow(clippy::unit_arg)]
 fn criterion_benchmark(c: &mut Criterion) {

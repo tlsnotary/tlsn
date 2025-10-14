@@ -11,7 +11,6 @@ use crate::{
     Config, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use ludi::Context as LudiContext;
@@ -48,6 +47,7 @@ use tlsn_core::{
     transcript::TlsTranscript,
     webpki::CertificateDer,
 };
+use tlsn_hmac_sha256::{MpcPrf, PrfOutput};
 use tracing::{debug, instrument, trace, warn};
 
 /// Controller for MPC-TLS leader.

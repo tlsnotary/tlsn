@@ -30,7 +30,7 @@ p256 = { workspace = true, features = ["ecdh"] }
 rand = { workspace = true }
 rand06-compat = { workspace = true }
 hmac = { workspace = true }
-sha2 = { workspace = true, features = ["compress"] }
+sha2 = { workspace = true }
 digest = { workspace = true }
 futures = { workspace = true }
 web-time = { workspace = true }

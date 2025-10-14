@@ -51,7 +51,7 @@ opaque-debug = { workspace = true }
 aes = { workspace = true }
 aes-gcm = { workspace = true }
 ctr = { workspace = true }
-ghash_rc = { package = "ghash", version = "0.5" }
+ghash = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 pin-project-lite = { workspace = true }
 web-time = { workspace = true }
@@ -61,8 +61,7 @@ mpz-ole = { workspace = true, features = ["test-utils"] }
 mpz-ot = { workspace = true }
 mpz-garble = { workspace = true }
 
-cipher-crate = { package = "cipher", version = "0.4" }
-generic-array = { workspace = true }
+cipher = { workspace = true }
 rand_chacha = { workspace = true }
 rstest = { workspace = true }
 tls-server-fixture = { workspace = true }

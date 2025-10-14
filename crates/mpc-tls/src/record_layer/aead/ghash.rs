@@ -336,7 +336,7 @@ impl From<GhashError> for AeadError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ghash_rc::{
+    use ::ghash::{
         universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
         GHash as GhashReference,
     };

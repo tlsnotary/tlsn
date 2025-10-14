@@ -45,17 +45,19 @@ pub struct SessionKeys {
 
 fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u32; 8] {
     use sha2::{
-        compress256,
+        block_api::compress256,
         digest::{
             block_buffer::{BlockBuffer, Eager},
-            generic_array::typenum::U64,
+            consts::U64,
         },
     };
 
     let mut buffer = BlockBuffer::<U64, Eager>::default();
-    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
+    buffer.digest_blocks(msg, |b| {
+        compress256(&mut state, hybrid_array::Array::cast_slice_to_core(b))
+    });
     buffer.digest_pad(0x80, &(((msg.len() + pos) * 8) as u64).to_be_bytes(), |b| {
-        compress256(&mut state, &[*b])
+        compress256(&mut state, &[b.0])
     });
     state
 }

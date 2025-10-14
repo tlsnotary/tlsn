@@ -3,7 +3,6 @@ use crate::{
     record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, MpcTlsError, Role, SessionKeys, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -25,6 +24,7 @@ use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2, TlsVersion, VerifyData},
     transcript::TlsTranscript,
 };
+use tlsn_hmac_sha256::{MpcPrf, PrfOutput};
 use tracing::{debug, instrument};
 
 // Maximum handshake time difference in seconds.

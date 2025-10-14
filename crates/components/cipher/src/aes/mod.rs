@@ -171,6 +171,7 @@ impl Cipher for Aes128 {
 mod tests {
     use super::*;
     use crate::Cipher;
+    use aes::cipher::KeyIvInit;
     use mpz_common::context::test_st_context;
     use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
     use mpz_memory_core::{
@@ -344,7 +345,7 @@ mod tests {
         start_ctr: usize,
         msg: Vec<u8>,
     ) -> Vec<u8> {
-        use ::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+        use ::cipher::{StreamCipher, StreamCipherSeek};
         use aes::Aes128;
         use ctr::Ctr32BE;
 
@@ -365,7 +366,7 @@ mod tests {
 
     fn aes128(key: [u8; 16], msg: [u8; 16]) -> [u8; 16] {
         use ::aes::Aes128 as TestAes128;
-        use ::cipher::{BlockEncrypt, KeyInit};
+        use ::cipher::{BlockCipherEncrypt, KeyInit};
 
         let mut msg = msg.into();
         let cipher = TestAes128::new(&key.into());

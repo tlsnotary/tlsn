@@ -128,15 +128,17 @@ pub(crate) fn compute_inner_local(mut key: Vec<u8>, msg: &[u8]) -> [u32; 8] {
 
 pub(crate) fn compress_256(mut state: [u32; 8], msg: &[u8]) -> [u32; 8] {
     use sha2::{
-        compress256,
+        block_api::compress256,
         digest::{
             block_buffer::{BlockBuffer, Eager},
-            generic_array::typenum::U64,
+            consts::U64,
         },
     };
 
     let mut buffer = BlockBuffer::<U64, Eager>::default();
-    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
+    buffer.digest_blocks(msg, |b| {
+        compress256(&mut state, hybrid_array::Array::cast_slice_to_core(b))
+    });
     state
 }
 

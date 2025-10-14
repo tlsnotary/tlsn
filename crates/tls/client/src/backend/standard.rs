@@ -1,8 +1,8 @@
 use super::{Backend, BackendError};
 use crate::{DecryptMode, EncryptMode, Error};
 use aes_gcm::{
-    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
-    Aes128Gcm,
+    aead::{Aead, Payload},
+    Aes128Gcm, KeyInit, Nonce,
 };
 use async_trait::async_trait;
 use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
@@ -507,11 +507,11 @@ impl Encrypter {
         let mut nonce = [0u8; 12];
         nonce[..4].copy_from_slice(&self.write_iv);
         nonce[4..].copy_from_slice(explicit_nonce);
-        let nonce = GenericArray::from_slice(&nonce);
+        let nonce = Nonce::from(nonce);
         let cipher = Aes128Gcm::new_from_slice(&self.write_key).unwrap();
         // ciphertext will have the MAC appended
         let ciphertext = cipher
-            .encrypt(nonce, payload)
+            .encrypt(&nonce, payload)
             .map_err(|e| BackendError::EncryptionError(e.to_string()))?;
 
         // prepend the explicit nonce
@@ -568,9 +568,9 @@ impl Decrypter {
         let mut nonce = [0u8; 12];
         nonce[..4].copy_from_slice(&self.write_iv);
         nonce[4..].copy_from_slice(&m.payload.0[0..8]);
-        let nonce = GenericArray::from_slice(&nonce);
+        let nonce = Nonce::from(nonce);
         let plaintext = cipher
-            .decrypt(nonce, aes_payload)
+            .decrypt(&nonce, aes_payload)
             .map_err(|e| BackendError::DecryptionError(e.to_string()))?;
 
         Ok(PlainMessage {

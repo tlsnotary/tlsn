@@ -11,9 +11,6 @@ edition = "2021"
 [lints]
 workspace = true
 
-[lib]
-name = "hmac_sha256"
-
 [dependencies]
 mpz-vm-core = { workspace = true }
 mpz-core = { workspace = true }
@@ -23,6 +20,7 @@ mpz-hash = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 sha2 = { workspace = true }
+hybrid-array = { workspace = true }
 
 [dev-dependencies]
 mpz-ot = { workspace = true, features = ["ideal"] }

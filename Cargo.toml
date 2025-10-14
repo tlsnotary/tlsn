@@ -87,9 +87,9 @@ spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 uid-mux = { version = "0.2" }
 websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 
-aead = { version = "0.4" }
-aes = { version = "0.8" }
-aes-gcm = { version = "0.9" }
+aead = { version = "0.6.0-rc.2" }
+aes = { version = "0.9.0-rc.1" }
+aes-gcm = { version = "0.11.0-rc.1" }
 anyhow = { version = "1.0" }
 async-trait = { version = "0.1" }
 axum = { version = "0.8" }
@@ -101,10 +101,10 @@ bytes = { version = "1.4" }
 cfg-if = { version = "1" }
 chromiumoxide = { version = "0.7" }
 chrono = { version = "0.4" }
-cipher = { version = "0.4" }
+cipher = { version = "0.5.0-rc.1" }
 clap = { version = "4.5" }
 criterion = { version = "0.5" }
-ctr = { version = "0.9" }
+ctr = { version = "0.10.0-rc.1" }
 derive_builder = { version = "0.12" }
 digest = { version = "0.10" }
 elliptic-curve = { version = "0.13" }
@@ -112,11 +112,11 @@ enum-try-as-inner = { version = "0.1" }
 env_logger = { version = "0.10" }
 futures = { version = "0.3" }
 futures-rustls = { version = "0.25" }
-generic-array = { version = "0.14" }
 ghash = { version = "0.5" }
 hex = { version = "0.4" }
-hmac = { version = "0.12" }
+hmac = { version = "0.13.0-rc.2" }
 http-body-util = { version = "0.1" }
+hybrid-array = { version = "0.4" }
 hyper = { version = "1.1" }
 hyper-util = { version = "0.1" }
 ipnet = { version = "2.11" }
@@ -147,7 +147,7 @@ sct = { version = "0.7" }
 semver = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
-sha2 = { version = "0.10" }
+sha2 = { version = "0.11.0-rc.2" }
 signature = { version = "2.2" }
 thiserror = { version = "1.0" }
 tiny-keccak = { version = "2.0" }

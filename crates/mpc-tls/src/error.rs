@@ -1,6 +1,6 @@
-use hmac_sha256::PrfError;
 use key_exchange::KeyExchangeError;
 use tls_backend::BackendError;
+use tlsn_hmac_sha256::PrfError;
 
 /// MPC-TLS error.
 #[derive(Debug, thiserror::Error)]

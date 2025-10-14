@@ -1,6 +1,5 @@
 use std::{future::Future, sync::Arc};
 
-use cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
 use mpz_common::{Context, Flush};
 use mpz_fields::gf2_128::Gf2_128;
 use mpz_memory_core::{
@@ -9,6 +8,7 @@ use mpz_memory_core::{
 };
 use mpz_share_conversion::ShareConvert;
 use mpz_vm_core::{prelude::*, Vm};
+use tlsn_cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
 use tracing::instrument;
 
 use crate::{
@@ -450,10 +450,7 @@ fn assign_j0(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aes_gcm::{
-        aead::{AeadInPlace, NewAead},
-        Aes128Gcm,
-    };
+    use aes_gcm::{AeadInOut, Aes128Gcm, KeyInit};
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
     use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
@@ -667,7 +664,7 @@ mod tests {
 
         let mut payload = msg.to_vec();
         let tag = aes
-            .encrypt_in_place_detached(&nonce.into(), aad, &mut payload)
+            .encrypt_inout_detached(&nonce.into(), aad, payload.as_mut_slice().into())
             .unwrap();
 
         (payload, tag.to_vec())

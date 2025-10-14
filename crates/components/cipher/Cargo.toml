@@ -11,9 +11,6 @@ edition = "2021"
 [lints]
 workspace = true
 
-[lib]
-name = "cipher"
-
 [dependencies]
 mpz-circuits = { workspace = true }
 mpz-vm-core = { workspace = true }
