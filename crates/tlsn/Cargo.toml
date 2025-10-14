@@ -4,7 +4,7 @@ authors = ["TLSNotary Team"]
 keywords = ["tls", "mpc", "2pc", "prover"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.13-pre"
+version = "0.1.0-alpha.13"
 edition = "2024"
 
 [lints]

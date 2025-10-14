@@ -66,20 +66,20 @@ tlsn-harness-runner = { path = "crates/harness/runner" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-common = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
-mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "c6e8a53" }
+mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-common = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
+mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
 
 rangeset = { version = "0.2" }
 serio = { version = "0.2" }
