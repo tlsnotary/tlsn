@@ -1,6 +1,6 @@
 use crate::prover::{
     TlsConnection,
-    client::{ClientConnection, ConnectionError, bind_client_with},
+    client::{ClientConnection, ConnectionError, ConnectionFuture},
 };
 use core::future::Future;
 use futures::{AsyncReadExt, AsyncWriteExt};
@@ -50,7 +50,7 @@ async fn set_up_tls() -> TlsFixture {
     )
     .unwrap();
 
-    let (client, tls_fut) = bind_client_with(client_socket.compat(), client);
+    let (client, tls_fut) = ConnectionFuture::new_with_socket(client_socket.compat(), client);
     let mut client_tls_conn = TlsConnection::new(client);
 
     let closed_tls_task = tokio::spawn(tls_fut);
@@ -98,7 +98,7 @@ async fn test_hyper_ok() {
     )
     .unwrap();
 
-    let (conn, tls_fut) = bind_client_with(client_socket.compat(), client);
+    let (conn, tls_fut) = ConnectionFuture::new_with_socket(client_socket.compat(), client);
 
     let closed_tls_task = tokio::spawn(tls_fut);
 

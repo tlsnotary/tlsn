@@ -264,34 +264,47 @@ impl Future for ConnectionFuture {
     }
 }
 
-enum InnerFuture {
-    Init {
-        client: ClientConnection,
-        client_handle: DuplexStream,
-        server_handle: DuplexStream,
-    },
-    Starting {
-        start: Pin<Box<dyn Future<Output = Result<(), ConnectionError>>>>,
-        client_handle: DuplexStream,
-        server_handle: DuplexStream,
-    },
-    CreateNotify {
-        notify: Pin<Box<dyn Future<Output = Result<BackendNotify, ConnectionError>>>>,
-        client_handle: DuplexStream,
-        server_handle: DuplexStream,
-    },
-    Running {
-        client_handle: DuplexStream,
-        server_handle: DuplexStream,
-        rx_tls_buf: [u8; BUF_SIZE],
-        rx_buf: [u8; BUF_SIZE],
-        tx_tls_buf: [u8; BUF_SIZE],
-        tx_buf: [u8; BUF_SIZE],
-        handshake_done: bool,
-        client_closed: bool,
-        notify: Option<BackendNotify>,
-        waker: Option<Waker>,
-    },
+pin_project_lite::pin_project! {
+    struct InnerFuture {
+        inner: InnerState,
+    }
+}
+
+pin_project_lite::pin_project! {
+    #[project = InnerStateProj]
+    enum InnerState {
+        Init {
+            client: ClientConnection,
+            client_handle: DuplexStream,
+            server_handle: DuplexStream,
+        },
+        Starting {
+            #[pin]
+            start: Pin<Box<dyn Future<Output = Result<ClientConnection, ConnectionError>>>>,
+            client_handle: DuplexStream,
+            server_handle: DuplexStream,
+        },
+        CreateNotify {
+            #[pin]
+            notify: Pin<Box<dyn Future<Output = Result<(ClientConnection, BackendNotify), ConnectionError>>>>,
+            client_handle: DuplexStream,
+            server_handle: DuplexStream,
+        },
+        Running {
+            client: ClientConnection,
+            client_handle: DuplexStream,
+            server_handle: DuplexStream,
+            rx_tls_buf: [u8; BUF_SIZE],
+            rx_buf: [u8; BUF_SIZE],
+            tx_tls_buf: [u8; BUF_SIZE],
+            tx_buf: [u8; BUF_SIZE],
+            handshake_done: bool,
+            client_closed: bool,
+            notify: BackendNotify,
+            waker: Option<Waker>,
+        },
+       Interim
+    }
 }
 
 impl InnerFuture {
@@ -299,22 +312,15 @@ impl InnerFuture {
         let (client_socket, client_handle) = duplex(BUF_SIZE);
         let (server_socket, server_handle) = duplex(BUF_SIZE);
 
-        let rx_tls_buf = [0u8; BUF_SIZE];
-        let rx_buf = [0u8; BUF_SIZE];
-
-        let tx_tls_buf = [0u8; BUF_SIZE];
-        let tx_buf = [0u8; BUF_SIZE];
-
-        let handshake_done = false;
-        let client_closed = false;
-
         (
             client_socket,
             server_socket,
-            Self::Init {
-                client,
-                client_handle,
-                server_handle,
+            InnerFuture {
+                inner: InnerState::Init {
+                    client,
+                    client_handle,
+                    server_handle,
+                },
             },
         )
     }
@@ -323,37 +329,82 @@ impl InnerFuture {
 impl Future for InnerFuture {
     type Output = Result<ClientConnection, ConnectionError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match *self {
-            InnerFuture::Init {
-                client,
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.as_mut().project();
+        let inner = this.inner;
+        let current = std::mem::replace(inner, InnerState::Interim);
+
+        match current {
+            InnerState::Init {
+                mut client,
                 client_handle,
                 server_handle,
             } => {
-                let start = client.start();
-
-                match start.poll(cx) {
-                    Poll::Ready(_) => todo!(),
-                    Poll::Pending => {
-                        self = Self::Starting {
-                            start: (),
-                            client_handle: (),
-                            server_handle: (),
-                        }
-                    }
-                }
+                let start = Box::pin(async move {
+                    client.start().map_err(ConnectionError::from).await?;
+                    Ok(client)
+                });
+                *inner = InnerState::Starting {
+                    start,
+                    client_handle,
+                    server_handle,
+                };
+                self.poll(cx)
             }
-            InnerFuture::Starting {
-                start,
+            InnerState::Starting {
+                mut start,
                 client_handle,
                 server_handle,
-            } => todo!(),
-            InnerFuture::CreateNotify {
-                notify,
+            } => match start.as_mut().poll(cx) {
+                Poll::Ready(client) => {
+                    let mut client = client?;
+                    *inner = InnerState::CreateNotify {
+                        notify: Box::pin(async move {
+                            let notify = client.get_notify().map_err(ConnectionError::from).await?;
+                            Ok((client, notify))
+                        }),
+                        client_handle,
+                        server_handle,
+                    };
+                    self.poll(cx)
+                }
+                Poll::Pending => return Poll::Pending,
+            },
+            InnerState::CreateNotify {
+                mut notify,
                 client_handle,
                 server_handle,
-            } => todo!(),
-            InnerFuture::Running {
+            } => match notify.as_mut().poll(cx) {
+                Poll::Ready(res) => {
+                    let (client, notify) = res?;
+                    let rx_tls_buf = [0u8; BUF_SIZE];
+                    let rx_buf = [0u8; BUF_SIZE];
+
+                    let tx_tls_buf = [0u8; BUF_SIZE];
+                    let tx_buf = [0u8; BUF_SIZE];
+
+                    let handshake_done = false;
+                    let client_closed = false;
+
+                    *inner = InnerState::Running {
+                        client,
+                        client_handle,
+                        server_handle,
+                        rx_tls_buf,
+                        rx_buf,
+                        tx_tls_buf,
+                        tx_buf,
+                        handshake_done,
+                        client_closed,
+                        notify,
+                        waker: None,
+                    };
+                    self.poll(cx)
+                }
+                Poll::Pending => return Poll::Pending,
+            },
+            InnerState::Running {
+                client,
                 client_handle,
                 server_handle,
                 rx_tls_buf,
@@ -364,7 +415,11 @@ impl Future for InnerFuture {
                 client_closed,
                 notify,
                 waker,
-            } => todo!(),
+            } => {
+                // TODO: Implement the polling loop here without the loop...
+                return Poll::Pending;
+            }
+            InnerState::Interim => unreachable!("interim state should be unreachable"),
         }
     }
 }

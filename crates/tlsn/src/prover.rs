@@ -27,14 +27,11 @@ use crate::{
     context::build_mt_context,
     encoding,
     mux::attach_mux,
-    prover::{
-        client::{bind_client_with, build_tls_client},
-        future::build_prover_fut,
-    },
+    prover::client::{ConnectionFuture, build_tls_client},
     zk_aes_ctr::ZkAesCtr,
 };
 
-use client::bind_client;
+use future::build_prover_fut;
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
@@ -192,7 +189,7 @@ impl Prover<state::Setup> {
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
         let client = build_tls_client(&config, &mpc_ctrl)?;
-        let (client, conn_fut) = bind_client_with(socket, client);
+        let (client, conn_fut) = ConnectionFuture::new_with_socket(socket, client);
 
         let tls_conn = TlsConnection::new(client);
 
@@ -239,7 +236,7 @@ impl Prover<state::Setup> {
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
         let client = build_tls_client(&config, &mpc_ctrl)?;
-        let (client_socket, server_socket, conn_fut) = bind_client(client);
+        let (client_socket, server_socket, conn_fut) = ConnectionFuture::new(client);
 
         let prover_fut = build_prover_fut(
             &config,

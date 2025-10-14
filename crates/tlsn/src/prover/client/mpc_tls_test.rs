@@ -1,4 +1,3 @@
-use crate::prover::client::bind_client_with;
 use futures::{AsyncReadExt, AsyncWriteExt};
 use mpc_tls::{Config, MpcTlsFollower, MpcTlsLeader};
 use mpz_common::context::test_mt_context;
@@ -18,6 +17,8 @@ use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN, bind_test_server_hyper};
 use tokio::sync::Mutex;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use webpki::anchor_from_trusted_cert;
+
+use crate::prover::client::ConnectionFuture;
 
 const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 
@@ -70,7 +71,7 @@ async fn leader_task(mut leader: MpcTlsLeader) {
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
     tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
-    let (mut conn, conn_fut) = bind_client_with(client_socket.compat(), client);
+    let (mut conn, conn_fut) = ConnectionFuture::new_with_socket(client_socket.compat(), client);
     let handle = tokio::spawn(async { conn_fut.await.unwrap() });
 
     let msg = concat!(
