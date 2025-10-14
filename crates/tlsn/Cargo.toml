@@ -17,6 +17,7 @@ web = ["dep:web-spawn"]
 
 [dependencies]
 tlsn-attestation = { workspace = true }
+tlsn-tls-backend = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
 tlsn-tls-client = { workspace = true }
@@ -43,6 +44,7 @@ mpz-zk = { workspace = true }
 bytes = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
+pin-project-lite = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
 rustls-pki-types = { workspace = true }

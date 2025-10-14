@@ -16,8 +16,9 @@ use std::{
     io::{Read, Write},
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
+use tls_backend::BackendNotify;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tlsn_core::connection::ServerName;
 use tracing::{Instrument, debug, debug_span, error, trace, warn};
@@ -48,6 +49,213 @@ pub(crate) struct ConnectionFuture {
     fut: Pin<Box<dyn Future<Output = Result<ClientConnection, ConnectionError>> + Send>>,
 }
 
+impl ConnectionFuture {
+    /// Attaches duplex byte streams to the provided TLS client.
+    ///
+    /// # Returns
+    ///   - a duplex stream for reading/writing cleartext between client and TLS
+    ///     client
+    ///   - a duplex stream for reading/writing TLS traffic between TLS client and
+    ///     server
+    ///   - a future which must be polled and runs the connection to completion.
+    ///
+    /// # Errors
+    ///
+    /// Any connection errors that occur will be returned from the future.
+    pub(crate) fn new(mut client: ClientConnection) -> (DuplexStream, DuplexStream, Self) {
+        let (client_socket, mut client_handle) = duplex(BUF_SIZE);
+        let (server_socket, mut server_handle) = duplex(BUF_SIZE);
+
+        let poll_loop = async move {
+            client.start().await?;
+            let mut notify = client.get_notify().await?;
+
+            let mut rx_tls_buf = [0u8; BUF_SIZE];
+            let mut rx_buf = [0u8; BUF_SIZE];
+
+            let mut tx_tls_buf = [0u8; BUF_SIZE];
+            let mut tx_buf = [0u8; BUF_SIZE];
+
+            let mut handshake_done = false;
+            let mut client_closed = false;
+
+            loop {
+                // Write all pending TLS data to `server_handle`.
+                if client.wants_write() && !client_closed {
+                    trace!("client wants to write");
+                    while client.wants_write() {
+                        let sent_tls = client.write_tls(&mut tx_tls_buf.as_mut_slice())?;
+                        server_handle.write_all(&tx_tls_buf[..sent_tls])?;
+                        trace!("sent {} tls bytes to server_handle", sent_tls);
+                    }
+                    server_handle.flush()?;
+                }
+
+                // Forward received plaintext to `client_handle`.
+                while !client.plaintext_is_empty() {
+                    let read = client.read_plaintext(&mut rx_buf)?;
+                    client_handle.write_all(&rx_buf[..read])?;
+                    trace!("sent {} clear bytes to client_handle", read);
+                }
+
+                // Read application data, which should be sent to the server, only if handshake
+                // is done
+                if !client.is_handshaking() && !handshake_done {
+                    debug!("handshake complete");
+                    handshake_done = true;
+                }
+
+                if handshake_done {
+                    while let read = client_handle.read(&mut tx_buf)?
+                        && read > 0
+                    {
+                        client.write_all_plaintext(&tx_buf[..read]).await?;
+                    }
+                }
+
+                if client_handle.is_closed() {
+                    if !server_handle.is_closed()
+                        && let Err(e) = send_close_notify(&mut client, &mut server_handle).await
+                    {
+                        warn!("failed to send close_notify to server: {}", e);
+                    }
+                    client_closed = true;
+                }
+
+                if server_handle.is_closed()
+                    && client.plaintext_is_empty()
+                    && client.is_empty().await?
+                {
+                    client.server_closed().await?;
+                    break;
+                }
+
+                // Reads TLS data from the server and writes it into the client.
+                let read_tls = server_handle.read(&mut rx_tls_buf)?;
+                trace!("received {} tls bytes from server_handle", read_tls);
+                while let processed = client.read_tls(&mut &rx_tls_buf[..read_tls])?
+                    && processed < read_tls
+                {
+                    client.process_new_packets().await?;
+                    trace!("processed {} tls bytes from server", processed);
+                }
+
+                select_biased! {
+                    // Waits for a notification from the backend that it is ready to decrypt data.
+                    _ = &mut notify => {
+                        trace!("backend is ready to decrypt");
+
+                        client.process_new_packets().await?;
+                    },
+                    _ = futures::future::ready(()) => {}
+                }
+            }
+            debug!("client shutdown");
+
+            server_handle.close();
+            client_handle.close();
+
+            trace!("server close notify: {}", client.received_close_notify());
+
+            Ok(client)
+        };
+
+        let fut = poll_loop.instrument(debug_span!("tls_connection"));
+        let fut = ConnectionFuture { fut: Box::pin(fut) };
+
+        (client_socket, server_socket, fut)
+    }
+
+    /// Attaches an async socket to the provided TLS client.
+    ///
+    /// # Returns
+    ///   - an async duplex stream for reading and writing cleartext to/from the
+    ///     server, i.e. the client handle.
+    ///   - a future which must be polled and runs the connection to completion.
+    ///
+    /// # Errors
+    ///
+    /// Any connection errors that occur will be returned from the future.
+    pub(crate) fn new_with_socket<S: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
+        socket: S,
+        client_conn: ClientConnection,
+    ) -> (futures_plex::DuplexStream, Self) {
+        let (client_async_socket, client_async_handle) = futures_plex::duplex(BUF_SIZE);
+        let (mut client_handle, mut server_handle, conn_fut) = Self::new(client_conn);
+
+        let mut client_buffer1 = [0_u8; BUF_SIZE];
+        let mut client_buffer2 = [0_u8; BUF_SIZE];
+        let mut server_buffer1 = [0_u8; BUF_SIZE];
+        let mut server_buffer2 = [0_u8; BUF_SIZE];
+
+        let (mut client_async_read, mut client_async_write) = client_async_handle.split();
+        let (mut server_async_read, mut server_async_write) = socket.split();
+
+        let future = ConnectionFuture {
+            fut: Box::pin(async move {
+                let mut conn_fut = conn_fut.fuse();
+
+                loop {
+                    let mut client_future = std::pin::pin!(
+                        async {
+                            let mut read_op = client_async_read.read(&mut client_buffer1).fuse();
+                            let mut write_op =
+                                futures::future::ready(client_handle.read(&mut client_buffer2))
+                                    .and_then(|read_count| {
+                                        client_async_write.write(&client_buffer2[..read_count])
+                                    });
+
+                            futures::select! {
+                                read_count = read_op => {
+                                    client_handle.write_all(&client_buffer1[..read_count?])?;
+                                },
+                                _ = write_op => {}
+
+                            }
+                            Ok::<_, std::io::Error>(())
+                        }
+                        .fuse()
+                    );
+
+                    let mut server_future = std::pin::pin!(
+                        async {
+                            let mut read_op = server_async_read.read(&mut server_buffer1).fuse();
+                            let mut write_op =
+                                futures::future::ready(server_handle.read(&mut server_buffer2))
+                                    .and_then(|read_count| {
+                                        server_async_write.write(&server_buffer2[..read_count])
+                                    });
+
+                            futures::select! {
+                                read_count = read_op => {
+                                    let read_count = read_count?;
+                                    if read_count > 0 {
+                                        server_handle.write_all(&server_buffer1[..read_count])?;
+                                    } else {
+                                        server_handle.close();
+                                    }
+                                },
+                                _ = write_op => {}
+
+                            }
+                            Ok::<_, std::io::Error>(())
+                        }
+                        .fuse()
+                    );
+
+                    futures::select_biased! {
+                        conn = &mut conn_fut => break conn,
+                        _ = client_future => (),
+                        _ = server_future => (),
+                    }
+                }
+            }),
+        };
+
+        (client_async_socket, future)
+    }
+}
+
 impl Future for ConnectionFuture {
     type Output = Result<ClientConnection, ConnectionError>;
 
@@ -56,208 +264,109 @@ impl Future for ConnectionFuture {
     }
 }
 
-/// Attaches an async socket to the provided TLS client.
-///
-/// # Returns
-///   - an async duplex stream for reading and writing cleartext to/from the
-///     server, i.e. the client handle.
-///   - a future which must be polled and runs the connection to completion.
-///
-/// # Errors
-///
-/// Any connection errors that occur will be returned from the future.
-pub(crate) fn bind_client_with<S: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
-    socket: S,
-    client_conn: ClientConnection,
-) -> (futures_plex::DuplexStream, ConnectionFuture) {
-    let (client_async_socket, client_async_handle) = futures_plex::duplex(BUF_SIZE);
-    let (mut client_handle, mut server_handle, conn_fut) = bind_client(client_conn);
-
-    let mut client_buffer1 = [0_u8; BUF_SIZE];
-    let mut client_buffer2 = [0_u8; BUF_SIZE];
-    let mut server_buffer1 = [0_u8; BUF_SIZE];
-    let mut server_buffer2 = [0_u8; BUF_SIZE];
-
-    let (mut client_async_read, mut client_async_write) = client_async_handle.split();
-    let (mut server_async_read, mut server_async_write) = socket.split();
-
-    let future = ConnectionFuture {
-        fut: Box::pin(async move {
-            let mut conn_fut = conn_fut.fuse();
-            loop {
-                let mut client_future = std::pin::pin!(
-                    async move {
-                        let mut read_op = client_async_read.read(&mut client_buffer1).fuse();
-                        let mut write_op =
-                            futures::future::ready(client_handle.read(&mut client_buffer2))
-                                .and_then(|read_count| {
-                                    client_async_write.write_all(&client_buffer2[..read_count])
-                                });
-
-                        futures::select! {
-                            read_count = read_op => {
-                                client_handle.write_all(&client_buffer1[..read_count?])?;
-                            },
-                            _ = write_op => {}
-
-                        }
-                        Ok::<_, std::io::Error>(())
-                    }
-                    .fuse()
-                );
-
-                let mut server_future = std::pin::pin!(
-                    async move {
-                        let mut read_op = server_async_read.read(&mut server_buffer1).fuse();
-                        let mut write_op =
-                            futures::future::ready(server_handle.read(&mut server_buffer2))
-                                .and_then(|read_count| {
-                                    server_async_write.write_all(&server_buffer2[..read_count])
-                                });
-
-                        futures::select! {
-                            read_count = read_op => {
-                                let read_count = read_count?;
-                                if read_count > 0 {
-                                    server_handle.write_all(&server_buffer1[..read_count])?;
-                                } else {
-                                    server_handle.close();
-                                }
-                            },
-                            _ = write_op => {}
-
-                        }
-                        Ok::<_, std::io::Error>(())
-                    }
-                    .fuse()
-                );
-
-                futures::select! {
-                    _ = client_future => panic!("unexpected client polling loop error"),
-                    _ = server_future => panic!("unexpected server polling loop error"),
-                    conn = &mut conn_fut => break conn
-                }
-            }
-        }),
-    };
-
-    (client_async_socket, future)
+enum InnerFuture {
+    Init {
+        client: ClientConnection,
+        client_handle: DuplexStream,
+        server_handle: DuplexStream,
+    },
+    Starting {
+        start: Pin<Box<dyn Future<Output = Result<(), ConnectionError>>>>,
+        client_handle: DuplexStream,
+        server_handle: DuplexStream,
+    },
+    CreateNotify {
+        notify: Pin<Box<dyn Future<Output = Result<BackendNotify, ConnectionError>>>>,
+        client_handle: DuplexStream,
+        server_handle: DuplexStream,
+    },
+    Running {
+        client_handle: DuplexStream,
+        server_handle: DuplexStream,
+        rx_tls_buf: [u8; BUF_SIZE],
+        rx_buf: [u8; BUF_SIZE],
+        tx_tls_buf: [u8; BUF_SIZE],
+        tx_buf: [u8; BUF_SIZE],
+        handshake_done: bool,
+        client_closed: bool,
+        notify: Option<BackendNotify>,
+        waker: Option<Waker>,
+    },
 }
 
-/// Attaches duplex byte streams to the provided TLS client.
-///
-/// # Returns
-///   - a duplex stream for reading/writing cleartext between client and TLS
-///     client
-///   - a duplex stream for reading/writing TLS traffic between TLS client and
-///     server
-///   - a future which must be polled and runs the connection to completion.
-///
-/// # Errors
-///
-/// Any connection errors that occur will be returned from the future.
-pub(crate) fn bind_client(
-    mut client: ClientConnection,
-) -> (DuplexStream, DuplexStream, ConnectionFuture) {
-    let (client_socket, mut client_handle) = duplex(BUF_SIZE);
-    let (server_socket, mut server_handle) = duplex(BUF_SIZE);
+impl InnerFuture {
+    fn new(client: ClientConnection) -> (DuplexStream, DuplexStream, Self) {
+        let (client_socket, client_handle) = duplex(BUF_SIZE);
+        let (server_socket, server_handle) = duplex(BUF_SIZE);
 
-    let poll_loop = async move {
-        client.start().await?;
-        let mut notify = client.get_notify().await?;
+        let rx_tls_buf = [0u8; BUF_SIZE];
+        let rx_buf = [0u8; BUF_SIZE];
 
-        let mut rx_tls_buf = [0u8; BUF_SIZE];
-        let mut rx_buf = [0u8; BUF_SIZE];
+        let tx_tls_buf = [0u8; BUF_SIZE];
+        let tx_buf = [0u8; BUF_SIZE];
 
-        let mut tx_tls_buf = [0u8; BUF_SIZE];
-        let mut tx_buf = [0u8; BUF_SIZE];
+        let handshake_done = false;
+        let client_closed = false;
 
-        let mut handshake_done = false;
-        let mut client_closed = false;
+        (
+            client_socket,
+            server_socket,
+            Self::Init {
+                client,
+                client_handle,
+                server_handle,
+            },
+        )
+    }
+}
 
-        loop {
-            // Write all pending TLS data to `server_handle`.
-            if client.wants_write() && !client_closed {
-                trace!("client wants to write");
-                while client.wants_write() {
-                    let sent_tls = client.write_tls(&mut tx_tls_buf.as_mut_slice())?;
-                    server_handle.write_all(&tx_tls_buf[..sent_tls])?;
-                    trace!("sent {} tls bytes to server_handle", sent_tls);
-                }
-                server_handle.flush()?;
-            }
+impl Future for InnerFuture {
+    type Output = Result<ClientConnection, ConnectionError>;
 
-            // Forward received plaintext to `client_handle`.
-            while !client.plaintext_is_empty() {
-                let read = client.read_plaintext(&mut rx_buf)?;
-                client_handle.write_all(&rx_buf[..read])?;
-                trace!("sent {} clear bytes to client_handle", read);
-            }
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match *self {
+            InnerFuture::Init {
+                client,
+                client_handle,
+                server_handle,
+            } => {
+                let start = client.start();
 
-            // Read application data, which should be sent to the server, only if handshake
-            // is done
-            if !client.is_handshaking() && !handshake_done {
-                debug!("handshake complete");
-                handshake_done = true;
-            }
-
-            if handshake_done {
-                while let read = client_handle.read(&mut tx_buf)?
-                    && read > 0
-                {
-                    client.write_all_plaintext(&tx_buf[..read]).await?;
+                match start.poll(cx) {
+                    Poll::Ready(_) => todo!(),
+                    Poll::Pending => {
+                        self = Self::Starting {
+                            start: (),
+                            client_handle: (),
+                            server_handle: (),
+                        }
+                    }
                 }
             }
-
-            if client_handle.is_closed() {
-                if !server_handle.is_closed()
-                    && let Err(e) = send_close_notify(&mut client, &mut server_handle).await
-                {
-                    warn!("failed to send close_notify to server: {}", e);
-                }
-                client_closed = true;
-            }
-
-            if server_handle.is_closed() && client.plaintext_is_empty() && client.is_empty().await?
-            {
-                client.server_closed().await?;
-                break;
-            }
-
-            // Reads TLS data from the server and writes it into the client.
-            let read_tls = server_handle.read(&mut rx_tls_buf)?;
-            trace!("received {} tls bytes from server_handle", read_tls);
-            while let processed = client.read_tls(&mut &rx_tls_buf[..read_tls])?
-                && processed < read_tls
-            {
-                client.process_new_packets().await?;
-                trace!("processed {} tls bytes from server", processed);
-            }
-
-            select_biased! {
-                // Waits for a notification from the backend that it is ready to decrypt data.
-                _ = &mut notify => {
-                    trace!("backend is ready to decrypt");
-
-                    client.process_new_packets().await?;
-                },
-                _ = futures::future::ready(()) => {}
-            }
+            InnerFuture::Starting {
+                start,
+                client_handle,
+                server_handle,
+            } => todo!(),
+            InnerFuture::CreateNotify {
+                notify,
+                client_handle,
+                server_handle,
+            } => todo!(),
+            InnerFuture::Running {
+                client_handle,
+                server_handle,
+                rx_tls_buf,
+                rx_buf,
+                tx_tls_buf,
+                tx_buf,
+                handshake_done,
+                client_closed,
+                notify,
+                waker,
+            } => todo!(),
         }
-        debug!("client shutdown");
-
-        server_handle.close();
-        client_handle.close();
-
-        trace!("server close notify: {}", client.received_close_notify());
-
-        Ok(client)
-    };
-
-    let fut = poll_loop.instrument(debug_span!("tls_connection"));
-    let fut = ConnectionFuture { fut: Box::pin(fut) };
-
-    (client_socket, server_socket, fut)
+    }
 }
 
 pub(crate) fn build_tls_client(
