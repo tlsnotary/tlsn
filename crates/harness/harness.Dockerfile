@@ -1,6 +1,8 @@
 FROM rust AS builder
 WORKDIR /usr/src/tlsn
 
+ARG DEBUG=0
+
 RUN \
     rustup update; \
     apt update && apt install -y clang; \
@@ -10,7 +12,12 @@ RUN \
 COPY . .
 RUN \
     cd crates/harness; \
-    ./build.sh;
+    # Pass `--build-arg DEBUG=1` to `docker build` if you need to debug the harness.
+    if [ "$DEBUG" = "1" ]; then \
+      ./build.sh debug; \
+    else \
+      ./build.sh; \
+    fi
 
 FROM debian:latest
 
