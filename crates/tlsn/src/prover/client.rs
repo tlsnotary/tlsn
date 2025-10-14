@@ -56,58 +56,6 @@ impl Future for ConnectionFuture {
     }
 }
 
-pub(crate) fn build_tls_client(
-    config: &ProverConfig,
-    mpc_ctrl: &LeaderCtrl,
-) -> Result<ClientConnection, ProverError> {
-    let ServerName::Dns(server_name) = config.server_name();
-    let server_name = TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
-
-    let root_store = if let Some(root_store) = config.tls_config().root_store() {
-        let roots = root_store
-            .roots
-            .iter()
-            .map(|cert| {
-                let der = CertificateDer::from_slice(&cert.0);
-                anchor_from_trusted_cert(&der)
-                    .map(|anchor| anchor.to_owned())
-                    .map_err(ProverError::config)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        tls_client::RootCertStore { roots }
-    } else {
-        tls_client::RootCertStore {
-            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-        }
-    };
-
-    let client_config_builder = tls_client::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_store);
-
-    let client_config = if let Some((cert, key)) = config.tls_config().client_auth() {
-        client_config_builder
-            .with_single_cert(
-                cert.iter()
-                    .map(|cert| tls_client::Certificate(cert.0.clone()))
-                    .collect(),
-                tls_client::PrivateKey(key.0.clone()),
-            )
-            .map_err(ProverError::config)?
-    } else {
-        client_config_builder.with_no_client_auth()
-    };
-
-    let client = ClientConnection::new(
-        Arc::new(client_config),
-        Box::new(mpc_ctrl.clone()),
-        server_name,
-    )
-    .map_err(ProverError::config)?;
-
-    Ok(client)
-}
-
 /// Attaches an async socket to the provided TLS client.
 ///
 /// # Returns
@@ -123,63 +71,72 @@ pub(crate) fn bind_client_with<S: AsyncRead + AsyncWrite + Send + Unpin + 'stati
     client_conn: ClientConnection,
 ) -> (futures_plex::DuplexStream, ConnectionFuture) {
     let (client_async_socket, client_async_handle) = futures_plex::duplex(BUF_SIZE);
-    let (mut client_handle, mut server_handle, future) = bind_client(client_conn);
+    let (mut client_handle, mut server_handle, conn_fut) = bind_client(client_conn);
 
-    let client_future = async move {
-        let mut buffer1 = [0_u8; BUF_SIZE];
-        let mut buffer2 = [0_u8; BUF_SIZE];
+    let mut client_buffer1 = [0_u8; BUF_SIZE];
+    let mut client_buffer2 = [0_u8; BUF_SIZE];
+    let mut server_buffer1 = [0_u8; BUF_SIZE];
+    let mut server_buffer2 = [0_u8; BUF_SIZE];
 
-        let (mut async_read, mut async_write) = client_async_handle.split();
-
-        loop {
-            let mut read_op = async_read.read(&mut buffer1).fuse();
-            let mut write_op = futures::future::ready(client_handle.read(&mut buffer2))
-                .and_then(|read_count| async_write.write_all(&buffer2[..read_count]));
-            futures::select! {
-                read_count = read_op => {
-                    client_handle.write_all(&buffer1[..read_count?])?;
-                },
-                _ = write_op => {}
-
-            }
-        }
-        #[allow(unreachable_code)]
-        Ok::<_, std::io::Error>(())
-    };
-
-    let server_future = async move {
-        let mut buffer1 = [0_u8; BUF_SIZE];
-        let mut buffer2 = [0_u8; BUF_SIZE];
-
-        let (mut async_read, mut async_write) = socket.split();
-
-        loop {
-            let mut read_op = async_read.read(&mut buffer1).fuse();
-            let mut write_op = futures::future::ready(server_handle.read(&mut buffer2))
-                .and_then(|read_count| async_write.write_all(&buffer2[..read_count]));
-            futures::select! {
-                read_count = read_op => {
-                    let read_count = read_count?;
-                    if read_count > 0 {
-                        server_handle.write_all(&buffer1[..read_count])?;
-                    } else {
-                        server_handle.close();
-                    }
-                },
-                _ = write_op => {}
-
-            }
-        }
-        #[allow(unreachable_code)]
-        Ok::<_, std::io::Error>(())
-    };
+    let (mut client_async_read, mut client_async_write) = client_async_handle.split();
+    let (mut server_async_read, mut server_async_write) = socket.split();
 
     let future = ConnectionFuture {
-        fut: Box::pin(async {
-            futures::select! {
-                _ = client_future.fuse() => panic!("unexpected client polling loop error"),
-                _ = server_future.fuse() => panic!("unexpected server polling loop error"),
-                conn = future.fuse() => conn
+        fut: Box::pin(async move {
+            let mut conn_fut = conn_fut.fuse();
+            loop {
+                let mut client_future = std::pin::pin!(
+                    async move {
+                        let mut read_op = client_async_read.read(&mut client_buffer1).fuse();
+                        let mut write_op =
+                            futures::future::ready(client_handle.read(&mut client_buffer2))
+                                .and_then(|read_count| {
+                                    client_async_write.write_all(&client_buffer2[..read_count])
+                                });
+
+                        futures::select! {
+                            read_count = read_op => {
+                                client_handle.write_all(&client_buffer1[..read_count?])?;
+                            },
+                            _ = write_op => {}
+
+                        }
+                        Ok::<_, std::io::Error>(())
+                    }
+                    .fuse()
+                );
+
+                let mut server_future = std::pin::pin!(
+                    async move {
+                        let mut read_op = server_async_read.read(&mut server_buffer1).fuse();
+                        let mut write_op =
+                            futures::future::ready(server_handle.read(&mut server_buffer2))
+                                .and_then(|read_count| {
+                                    server_async_write.write_all(&server_buffer2[..read_count])
+                                });
+
+                        futures::select! {
+                            read_count = read_op => {
+                                let read_count = read_count?;
+                                if read_count > 0 {
+                                    server_handle.write_all(&server_buffer1[..read_count])?;
+                                } else {
+                                    server_handle.close();
+                                }
+                            },
+                            _ = write_op => {}
+
+                        }
+                        Ok::<_, std::io::Error>(())
+                    }
+                    .fuse()
+                );
+
+                futures::select! {
+                    _ = client_future => panic!("unexpected client polling loop error"),
+                    _ = server_future => panic!("unexpected server polling loop error"),
+                    conn = &mut conn_fut => break conn
+                }
             }
         }),
     };
@@ -301,6 +258,58 @@ pub(crate) fn bind_client(
     let fut = ConnectionFuture { fut: Box::pin(fut) };
 
     (client_socket, server_socket, fut)
+}
+
+pub(crate) fn build_tls_client(
+    config: &ProverConfig,
+    mpc_ctrl: &LeaderCtrl,
+) -> Result<ClientConnection, ProverError> {
+    let ServerName::Dns(server_name) = config.server_name();
+    let server_name = TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
+
+    let root_store = if let Some(root_store) = config.tls_config().root_store() {
+        let roots = root_store
+            .roots
+            .iter()
+            .map(|cert| {
+                let der = CertificateDer::from_slice(&cert.0);
+                anchor_from_trusted_cert(&der)
+                    .map(|anchor| anchor.to_owned())
+                    .map_err(ProverError::config)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        tls_client::RootCertStore { roots }
+    } else {
+        tls_client::RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        }
+    };
+
+    let client_config_builder = tls_client::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store);
+
+    let client_config = if let Some((cert, key)) = config.tls_config().client_auth() {
+        client_config_builder
+            .with_single_cert(
+                cert.iter()
+                    .map(|cert| tls_client::Certificate(cert.0.clone()))
+                    .collect(),
+                tls_client::PrivateKey(key.0.clone()),
+            )
+            .map_err(ProverError::config)?
+    } else {
+        client_config_builder.with_no_client_auth()
+    };
+
+    let client = ClientConnection::new(
+        Arc::new(client_config),
+        Box::new(mpc_ctrl.clone()),
+        server_name,
+    )
+    .map_err(ProverError::config)?;
+
+    Ok(client)
 }
 
 async fn send_close_notify(
