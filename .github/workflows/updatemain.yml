@@ -1,6 +1,7 @@
 name: Fast-forward main branch to published release tag
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
