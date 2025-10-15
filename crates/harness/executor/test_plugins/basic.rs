@@ -1,10 +1,10 @@
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    config::{CertificateDer, ProtocolConfig, RootCertStore},
     connection::ServerName,
     hash::HashAlgId,
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
-    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
+    verifier::{Verifier, VerifierConfig, VerifierOutput},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
@@ -113,32 +113,33 @@ async fn prover(provider: &IoProvider) {
 
 async fn verifier(provider: &IoProvider) {
     let config = VerifierConfig::builder()
-        .protocol_config_validator(
-            ProtocolConfigValidator::builder()
-                .max_sent_data(MAX_SENT_DATA)
-                .max_recv_data(MAX_RECV_DATA)
-                .build()
-                .unwrap(),
-        )
         .root_store(RootCertStore {
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
         })
         .build()
         .unwrap();
 
-    let verifier = Verifier::new(config);
-
-    let VerifierOutput {
-        server_name,
-        transcript_commitments,
-        ..
-    } = verifier
-        .verify(
-            provider.provide_proto_io().await.unwrap(),
-            &VerifyConfig::default(),
-        )
+    let verifier = Verifier::new(config)
+        .setup(provider.provide_proto_io().await.unwrap())
+        .await
+        .unwrap()
+        .accept()
+        .await
+        .unwrap()
+        .run()
         .await
         .unwrap();
+
+    let (
+        VerifierOutput {
+            server_name,
+            transcript_commitments,
+            ..
+        },
+        verifier,
+    ) = verifier.verify().await.unwrap().accept().await.unwrap();
+
+    verifier.close().await.unwrap();
 
     let ServerName::Dns(server_name) = server_name.unwrap();
 

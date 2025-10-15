@@ -1,7 +1,7 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 use rangeset::RangeSet;
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    config::{CertificateDer, ProtocolConfig, RootCertStore},
     connection::ServerName,
     hash::{HashAlgId, HashProvider},
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
@@ -9,7 +9,7 @@ use tlsn::{
         Direction, Transcript, TranscriptCommitConfig, TranscriptCommitment,
         TranscriptCommitmentKind, TranscriptSecret,
     },
-    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
+    verifier::{Verifier, VerifierConfig, VerifierOutput},
 };
 use tlsn_core::ProverOutput;
 use tlsn_server_fixture::bind;
@@ -204,31 +204,27 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
 ) -> VerifierOutput {
-    let config_validator = ProtocolConfigValidator::builder()
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
-        .build()
-        .unwrap();
-
     let verifier = Verifier::new(
         VerifierConfig::builder()
             .root_store(RootCertStore {
                 roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
             })
-            .protocol_config_validator(config_validator)
             .build()
             .unwrap(),
     );
 
-    let mut verifier = verifier
+    let verifier = verifier
         .setup(socket.compat())
+        .await
+        .unwrap()
+        .accept()
         .await
         .unwrap()
         .run()
         .await
         .unwrap();
 
-    let output = verifier.verify(&VerifyConfig::default()).await.unwrap();
+    let (output, verifier) = verifier.verify().await.unwrap().accept().await.unwrap();
     verifier.close().await.unwrap();
 
     output

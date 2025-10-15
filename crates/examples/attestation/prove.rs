@@ -22,13 +22,11 @@ use tlsn::{
         signing::Secp256k1Signer,
         Attestation, AttestationConfig, CryptoProvider, Secrets,
     },
-    config::{
-        CertificateDer, PrivateKeyDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore,
-    },
+    config::{CertificateDer, PrivateKeyDer, ProtocolConfig, RootCertStore},
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::{state::Committed, ProveConfig, Prover, ProverConfig, ProverOutput, TlsConfig},
     transcript::{ContentType, TranscriptCommitConfig},
-    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
+    verifier::{Verifier, VerifierConfig, VerifierOutput},
 };
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
@@ -301,13 +299,6 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     request_rx: Receiver<AttestationRequest>,
     attestation_tx: Sender<Attestation>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Set up Verifier.
-    let config_validator = ProtocolConfigValidator::builder()
-        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
-        .max_recv_data(tlsn_examples::MAX_RECV_DATA)
-        .build()
-        .unwrap();
-
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -315,20 +306,24 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .root_store(RootCertStore {
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
         })
-        .protocol_config_validator(config_validator)
         .build()
         .unwrap();
 
-    let mut verifier = Verifier::new(verifier_config)
+    let verifier = Verifier::new(verifier_config)
         .setup(socket.compat())
+        .await?
+        .accept()
         .await?
         .run()
         .await?;
 
-    let VerifierOutput {
-        transcript_commitments,
-        ..
-    } = verifier.verify(&VerifyConfig::default()).await?;
+    let (
+        VerifierOutput {
+            transcript_commitments,
+            ..
+        },
+        verifier,
+    ) = verifier.verify().await?.accept().await?;
 
     let tls_transcript = verifier.tls_transcript().clone();
 

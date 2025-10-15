@@ -4,23 +4,20 @@ use mpc_tls::Config;
 use serde::{Deserialize, Serialize};
 use tlsn_core::webpki::RootCertStore;
 
-use crate::config::{NetworkSetting, ProtocolConfig, ProtocolConfigValidator};
+use crate::config::{NetworkSetting, ProtocolConfig};
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier).
 #[allow(missing_docs)]
 #[derive(derive_builder::Builder, Serialize, Deserialize)]
 #[builder(pattern = "owned")]
 pub struct VerifierConfig {
-    protocol_config_validator: ProtocolConfigValidator,
     #[builder(default, setter(strip_option))]
     root_store: Option<RootCertStore>,
 }
 
 impl Debug for VerifierConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        f.debug_struct("VerifierConfig")
-            .field("protocol_config_validator", &self.protocol_config_validator)
-            .finish_non_exhaustive()
+        f.debug_struct("VerifierConfig").finish_non_exhaustive()
     }
 }
 
@@ -28,11 +25,6 @@ impl VerifierConfig {
     /// Creates a new configuration builder.
     pub fn builder() -> VerifierConfigBuilder {
         VerifierConfigBuilder::default()
-    }
-
-    /// Returns the protocol configuration validator.
-    pub fn protocol_config_validator(&self) -> &ProtocolConfigValidator {
-        &self.protocol_config_validator
     }
 
     /// Returns the root certificate store.

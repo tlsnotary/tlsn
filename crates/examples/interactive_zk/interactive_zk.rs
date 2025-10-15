@@ -2,6 +2,7 @@ mod prover;
 mod types;
 mod verifier;
 
+use anyhow::Result;
 use prover::prover;
 use std::{
     env,
@@ -12,7 +13,7 @@ use tlsn_server_fixture_certs::SERVER_DOMAIN;
 use verifier::verifier;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let server_host: String = env::var("SERVER_HOST").unwrap_or("127.0.0.1".into());
@@ -25,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let uri = format!("https://{SERVER_DOMAIN}:{server_port}/elster");
     let server_ip: IpAddr = server_host
         .parse()
-        .map_err(|e| format!("Invalid IP address '{}': {}", server_host, e))?;
+        .map_err(|e| anyhow::anyhow!("Invalid IP address '{server_host}': {e}"))?;
     let server_addr = SocketAddr::from((server_ip, server_port));
 
     // Connect prover and verifier.
