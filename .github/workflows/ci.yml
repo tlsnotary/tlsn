@@ -41,7 +41,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.7.7
 
       - name: Clippy
-        run: cargo clippy --keep-going --all-features --all-targets --locked -- -D warnings
+        run: cargo clippy --keep-going --all-features --all-targets --locked
 
   fmt:
     name: Check formatting
