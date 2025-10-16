@@ -75,7 +75,7 @@ impl ConnectionFuture {
                         futures::select! {
                             conn = &mut inner_fut => break conn,
                             default => {
-                                if let Some(waker) = waker {
+                                if let Some(waker) = waker.take() {
                                     waker.wake();
                                 }
                             }
@@ -107,14 +107,15 @@ impl ConnectionFuture {
         let (client_async_socket, client_async_handle) = futures_plex::duplex(BUF_SIZE);
         let (client_handle, server_handle, mut inner_fut) = InnerFuture::new(client_conn);
 
-        let mut client_buffer1 = [0_u8; BUF_SIZE];
-        let mut client_buffer2 = [0_u8; BUF_SIZE];
-        let mut server_buffer1 = [0_u8; BUF_SIZE];
-        let mut server_buffer2 = [0_u8; BUF_SIZE];
+        let mut client_buffer_incoming = [0_u8; BUF_SIZE];
+        let mut client_buffer_outgoing = [0_u8; BUF_SIZE];
+        let mut server_buffer_incoming = [0_u8; BUF_SIZE];
+        let mut server_buffer_outgoing = [0_u8; BUF_SIZE];
 
         let (mut client_async_read, mut client_async_write) = client_async_handle.split();
-        let (mut server_async_read, mut server_async_write) = socket.split();
         let (mut client_inner_read, mut client_inner_write) = client_handle.split();
+
+        let (mut server_async_read, mut server_async_write) = socket.split();
         let (mut server_inner_read, mut server_inner_write) = server_handle.split();
 
         let future = ConnectionFuture {
@@ -131,10 +132,12 @@ impl ConnectionFuture {
                         if client_read_op.is_terminated() {
                             client_read_op = Box::pin(
                                 async {
+                                    println!("attempting to read from outer client socket");
                                     let read_count =
-                                        client_async_read.read(&mut client_buffer1).await?;
+                                        client_async_read.read(&mut client_buffer_incoming).await?;
                                     println!("read {} bytes from outer client socket", read_count);
-                                    client_inner_write.write_all(&client_buffer1[..read_count])?;
+                                    let write_count = client_inner_write.write(&client_buffer_incoming[..read_count])?;
+                                    println!("forwarded {} bytes from outer client socket", write_count);
                                     Ok::<_, std::io::Error>(())
                                 }
                                 .fuse(),
@@ -143,15 +146,18 @@ impl ConnectionFuture {
                         if client_write_op.is_terminated() {
                             client_write_op = Box::pin(
                                 async {
-                                    let read_count = client_inner_read.read(&mut client_buffer2)?;
-                                    println!(
-                                        "writing {} bytes into outer client socket",
-                                        read_count
-                                    );
-                                    client_async_write
-                                        .write_all(&client_buffer2[..read_count])
-                                        .await?;
-                                    client_async_write.flush().await?;
+                                    println!("attempting to write into outer client socket");
+                                    let read_count = client_inner_read.read(&mut client_buffer_outgoing)?;
+                                    if read_count > 0 {
+                                        let write_count = client_async_write
+                                            .write(&client_buffer_outgoing[..read_count])
+                                            .await?;
+                                        println!(
+                                            "writing {} bytes into outer client socket",
+                                            write_count
+                                        );
+                                        client_async_write.flush().await?;
+                                    }
                                     Ok::<_, std::io::Error>(())
                                 }
                                 .fuse(),
@@ -160,15 +166,12 @@ impl ConnectionFuture {
                         if server_read_op.is_terminated() {
                             server_read_op = Box::pin(
                                 async {
+                                    println!("attempting to read from outer server socket");
                                     let read_count =
-                                        server_async_read.read(&mut server_buffer1).await?;
+                                        server_async_read.read(&mut server_buffer_incoming).await?;
                                     println!("read {} bytes from outer server socket", read_count);
-                                    if read_count > 0 {
-                                        server_inner_write
-                                            .write_all(&server_buffer1[..read_count])?;
-                                    } else {
-                                        server_inner_write.close();
-                                    }
+                                    let write_count = server_inner_write.write(&server_buffer_incoming[..read_count])?;
+                                    println!("forwarded {} bytes from outer server socket", write_count);
                                     Ok::<_, std::io::Error>(())
                                 }
                                 .fuse(),
@@ -177,15 +180,19 @@ impl ConnectionFuture {
                         if server_write_op.is_terminated() {
                             server_write_op = Box::pin(
                                 async {
-                                    let read_count = server_inner_read.read(&mut server_buffer2)?;
-                                    let write_count = server_async_write
-                                        .write(&server_buffer2[..read_count])
-                                        .await?;
-                                    println!(
-                                        "writing {} bytes into outer server socket",
-                                        write_count
-                                    );
-                                    server_async_write.flush().await?;
+                                    println!("attempting to write into outer server socket");
+                                    let read_count = server_inner_read.read(&mut server_buffer_outgoing)?;
+                                    println!("buffer content: {:x?}", &server_buffer_outgoing[..read_count]);
+                                    if read_count > 0 {
+                                        let write_count = server_async_write
+                                            .write(&server_buffer_outgoing[..read_count])
+                                            .await?;
+                                        println!(
+                                            "writing {} bytes into outer server socket",
+                                            write_count
+                                        );
+                                        server_async_write.flush().await?;
+                                    }
                                     Ok::<_, std::io::Error>(())
                                 }
                                 .fuse(),
@@ -194,13 +201,13 @@ impl ConnectionFuture {
 
                         futures::select! {
                             conn = &mut inner_fut => break conn,
-                            _ = &mut client_read_op => (),
-                            _ = &mut client_write_op => (),
-                            _ = &mut server_read_op => (),
-                            _ = &mut server_write_op => (),
+                            client_read_result = &mut client_read_op => client_read_result.unwrap(),
+                            client_write_result = &mut client_write_op => client_write_result.unwrap(),
+                            server_read_result = &mut server_read_op => server_read_result.unwrap(),
+                            server_write_result = &mut server_write_op => server_write_result.unwrap(),
                             default => {
-                                if let Some(waker) = waker {
-                                    waker.wake_by_ref();
+                                if let Some(waker) = waker.take() {
+                                    waker.wake();
                                 }
                             }
                         }
@@ -319,10 +326,8 @@ impl Future for InnerFuture {
             } => match fut.as_mut().poll(cx) {
                 Poll::Ready(client) => {
                     let (client, notify) = client?;
-                    let rx_tls_buf = [0u8; BUF_SIZE];
-                    let rx_buf = [0u8; BUF_SIZE];
 
-                    let tx_tls_buf = [0u8; BUF_SIZE];
+                    let rx_buf = [0u8; BUF_SIZE];
                     let tx_buf = [0u8; BUF_SIZE];
 
                     let handshake_done = false;
@@ -334,9 +339,7 @@ impl Future for InnerFuture {
                         client_handle,
                         server_handle,
                         notify,
-                        rx_tls_buf,
                         rx_buf,
-                        tx_tls_buf,
                         tx_buf,
                         handshake_done,
                         client_closed,
@@ -397,9 +400,7 @@ struct PollingLoop {
     client_handle: DuplexStream,
     server_handle: DuplexStream,
     notify: BackendNotify,
-    rx_tls_buf: [u8; BUF_SIZE],
     rx_buf: [u8; BUF_SIZE],
-    tx_tls_buf: [u8; BUF_SIZE],
     tx_buf: [u8; BUF_SIZE],
     handshake_done: bool,
     client_closed: bool,
@@ -412,8 +413,7 @@ impl PollingLoop {
         if self.client.wants_write() && !self.client_closed {
             trace!("client wants to write");
             while self.client.wants_write() {
-                let sent_tls = self.client.write_tls(&mut self.tx_tls_buf.as_mut_slice())?;
-                self.server_handle.write_all(&self.tx_tls_buf[..sent_tls])?;
+                let sent_tls = self.client.write_tls(&mut self.server_handle)?;
                 trace!("sent {} tls bytes to server_handle", sent_tls);
                 println!("poll loop: sent {} tls bytes to server_handle", sent_tls);
             }
@@ -423,7 +423,7 @@ impl PollingLoop {
         // Forward received plaintext to `client_handle`.
         while !self.client.plaintext_is_empty() {
             let read = self.client.read_plaintext(&mut self.rx_buf)?;
-            self.client_handle.write_all(&self.rx_buf[..read])?;
+            self.client_handle.write(&self.rx_buf[..read])?;
             trace!("sent {} clear bytes to client_handle", read);
             trace!("poll loop: sent {} clear bytes to client_handle", read);
         }
@@ -456,25 +456,13 @@ impl PollingLoop {
         }
 
         // Reads TLS data from the server and writes it into the client.
-        let mut processed = 0;
-        let read_tls = self.server_handle.read(&mut self.rx_tls_buf)?;
+        let read_tls = self.client.read_tls(&mut self.server_handle)?;
         trace!("received {} tls bytes from server_handle", read_tls);
         println!(
             "poll loop: received {} tls bytes from server_handle",
             read_tls
         );
-        loop {
-            let new_processed = self.client.read_tls(&mut &self.rx_tls_buf[..read_tls])?;
-            processed += new_processed;
-
-            self.client.process_new_packets().await?;
-            trace!("processed {} tls bytes from server", processed);
-            println!("poll loop: processed {} tls bytes from server", processed);
-
-            if processed >= read_tls {
-                break;
-            }
-        }
+        self.client.process_new_packets().await?;
 
         select_biased! {
             // Waits for a notification from the backend that it is ready to decrypt data.

@@ -204,7 +204,7 @@ impl SimplexStream {
     fn new_unsplit(max_buf_size: usize) -> SimplexStream {
         SimplexStream {
             max_buf_size,
-            buffer: BytesMut::zeroed(max_buf_size),
+            buffer: BytesMut::new(),
         }
     }
 

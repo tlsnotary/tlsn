@@ -117,9 +117,7 @@ async fn test_hyper_ok() {
         .body(Full::<Bytes>::new("hello".into()))
         .unwrap();
 
-    println!("now trying to write request...");
     let response = request_sender.send_request(request).await.unwrap();
-    println!("wrote request and got response.");
 
     assert!(response.status() == StatusCode::OK);
 
