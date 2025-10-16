@@ -45,15 +45,12 @@ impl DuplexStream {
     pub(crate) fn can_read(&self) -> bool {
         self.write.can_write_to()
     }
-}
 
-impl Drop for DuplexStream {
-    fn drop(&mut self) {
-        let mut is_closed = self
-            .is_closed
-            .lock()
-            .expect("should be able to acquire lock");
-        *is_closed = true;
+    pub(crate) fn split(mut self) -> (ReadHalf<SimplexStream>, WriteHalf<SimplexStream>) {
+        self.read.set_closed(Arc::clone(&self.is_closed));
+        self.write.set_closed(Arc::clone(&self.is_closed));
+
+        (self.read, self.write)
     }
 }
 
@@ -98,19 +95,34 @@ impl Write for DuplexStream {
 }
 
 #[derive(Debug)]
-pub(crate) struct ReadHalf<T>(Arc<Mutex<T>>);
+pub(crate) struct ReadHalf<T> {
+    stream: Arc<Mutex<T>>,
+    is_closed: Arc<Mutex<bool>>,
+}
 
 impl ReadHalf<SimplexStream> {
+    pub(crate) fn close(&self) {
+        let mut is_closed = self
+            .is_closed
+            .lock()
+            .expect("should be able to acquire lock");
+        *is_closed = true;
+    }
+
     fn can_read_from(&self) -> bool {
-        let inner = self.0.lock().expect("should be able to acquire lock");
+        let inner = self.stream.lock().expect("should be able to acquire lock");
         inner.has_remaining()
+    }
+
+    fn set_closed(&mut self, is_closed: Arc<Mutex<bool>>) {
+        let _ = std::mem::replace(&mut self.is_closed, is_closed);
     }
 }
 
 impl<T: Read> Read for ReadHalf<T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut inner = self
-            .0
+            .stream
             .lock()
             .map_err(|err| std::io::Error::other(err.to_string()))?;
         inner.read(buf)
@@ -118,19 +130,34 @@ impl<T: Read> Read for ReadHalf<T> {
 }
 
 #[derive(Debug)]
-pub(crate) struct WriteHalf<T>(Arc<Mutex<T>>);
+pub(crate) struct WriteHalf<T> {
+    stream: Arc<Mutex<T>>,
+    is_closed: Arc<Mutex<bool>>,
+}
 
 impl WriteHalf<SimplexStream> {
+    pub(crate) fn close(&self) {
+        let mut is_closed = self
+            .is_closed
+            .lock()
+            .expect("should be able to acquire lock");
+        *is_closed = true;
+    }
+
     fn can_write_to(&self) -> bool {
-        let inner = self.0.lock().expect("should be able to acquire lock");
+        let inner = self.stream.lock().expect("should be able to acquire lock");
         inner.has_remaining_mut()
+    }
+
+    fn set_closed(&mut self, is_closed: Arc<Mutex<bool>>) {
+        let _ = std::mem::replace(&mut self.is_closed, is_closed);
     }
 }
 
 impl<T: Write> Write for WriteHalf<T> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut inner = self
-            .0
+            .stream
             .lock()
             .map_err(|err| std::io::Error::other(err.to_string()))?;
         inner.write(buf)
@@ -138,7 +165,7 @@ impl<T: Write> Write for WriteHalf<T> {
 
     fn flush(&mut self) -> std::io::Result<()> {
         let mut inner = self
-            .0
+            .stream
             .lock()
             .map_err(|err| std::io::Error::other(err.to_string()))?;
         inner.flush()
@@ -146,7 +173,7 @@ impl<T: Write> Write for WriteHalf<T> {
 }
 
 #[derive(Debug)]
-struct SimplexStream {
+pub(crate) struct SimplexStream {
     max_buf_size: usize,
     /// The buffer storing the bytes written, also read from.
     buffer: BytesMut,
@@ -156,8 +183,13 @@ fn simplex(max_buf_size: usize) -> (ReadHalf<SimplexStream>, WriteHalf<SimplexSt
     let stream = SimplexStream::new_unsplit(max_buf_size);
     let stream = Arc::new(Mutex::new(stream));
 
-    let read = ReadHalf(stream.clone());
-    let write = WriteHalf(stream);
+    let is_closed = Arc::new(Mutex::new(false));
+
+    let read = ReadHalf {
+        stream: Arc::clone(&stream),
+        is_closed: Arc::clone(&is_closed),
+    };
+    let write = WriteHalf { stream, is_closed };
 
     (read, write)
 }
@@ -172,7 +204,7 @@ impl SimplexStream {
     fn new_unsplit(max_buf_size: usize) -> SimplexStream {
         SimplexStream {
             max_buf_size,
-            buffer: BytesMut::new(),
+            buffer: BytesMut::zeroed(max_buf_size),
         }
     }
 

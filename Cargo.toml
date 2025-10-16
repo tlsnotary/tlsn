@@ -165,3 +165,6 @@ webpki-roots = { version = "1.0" }
 webpki-root-certs = { version = "1.0" }
 ws_stream_wasm = { version = "0.7.5" }
 zeroize = { version = "1.8" }
+
+[patch."https://github.com/tlsnotary/tlsn-utils"]
+futures-plex = { path = "../tlsn-utils/futures-plex/" }
