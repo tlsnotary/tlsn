@@ -10,7 +10,9 @@ pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder}
 pub use error::ProverError;
 pub use future::ProverFuture;
 use rustls_pki_types::CertificateDer;
-pub use tlsn_core::{ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProverOutput};
+pub use tlsn_core::{
+    ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProveRequest, ProverOutput,
+};
 
 use mpz_common::Context;
 use mpz_core::Block;
@@ -19,17 +21,23 @@ use mpz_vm_core::prelude::*;
 use mpz_zk::ProverConfig as ZkProverConfig;
 use webpki::anchor_from_trusted_cert;
 
-use crate::{Role, context::build_mt_context, mux::attach_mux, tag::verify_tags};
+use crate::{
+    Role,
+    context::build_mt_context,
+    msg::{Response, SetupRequest},
+    mux::attach_mux,
+    tag::verify_tags,
+};
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use rand::Rng;
-use serio::SinkExt;
+use serio::{SinkExt, stream::IoStreamExt};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
 use tlsn_core::{
-    connection::ServerName,
+    connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
 };
 use tlsn_deap::Deap;
@@ -92,7 +100,20 @@ impl Prover<state::Initialized> {
 
         // Sends protocol configuration to verifier for compatibility check.
         mux_fut
-            .poll_with(ctx.io_mut().send(self.config.protocol_config().clone()))
+            .poll_with(async {
+                ctx.io_mut()
+                    .send(SetupRequest {
+                        config: self.config.protocol_config().clone(),
+                        version: crate::config::VERSION.clone(),
+                    })
+                    .await?;
+
+                ctx.io_mut()
+                    .expect_next::<Response>()
+                    .await?
+                    .result
+                    .map_err(ProverError::from)
+            })
             .await?;
 
         let (vm, mut mpc_tls) = build_mpc_tls(&self.config, ctx);
@@ -310,16 +331,40 @@ impl Prover<state::Committed> {
             ..
         } = &mut self.state;
 
+        let request = ProveRequest {
+            handshake: config.server_identity().then(|| {
+                (
+                    self.config.server_name().clone(),
+                    HandshakeData {
+                        certs: tls_transcript
+                            .server_cert_chain()
+                            .expect("server cert chain is present")
+                            .to_vec(),
+                        sig: tls_transcript
+                            .server_signature()
+                            .expect("server signature is present")
+                            .clone(),
+                        binding: tls_transcript.certificate_binding().clone(),
+                    },
+                )
+            }),
+            transcript: config
+                .reveal()
+                .map(|(sent, recv)| transcript.to_partial(sent.clone(), recv.clone())),
+            transcript_commit: config.transcript_commit().map(|config| config.to_request()),
+        };
+
         let output = mux_fut
-            .poll_with(prove::prove(
-                ctx,
-                vm,
-                keys,
-                self.config.server_name(),
-                transcript,
-                tls_transcript,
-                config,
-            ))
+            .poll_with(async {
+                ctx.io_mut()
+                    .send(request)
+                    .await
+                    .map_err(ProverError::from)?;
+
+                ctx.io_mut().expect_next::<Response>().await?.result?;
+
+                prove::prove(ctx, vm, keys, transcript, tls_transcript, config).await
+            })
             .await?;
 
         Ok(output)

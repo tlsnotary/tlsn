@@ -171,43 +171,7 @@ enum ProveConfigBuilderErrorRepr {
     },
 }
 
-/// Configuration to verify information from the prover.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct VerifyConfig {}
-
-impl VerifyConfig {
-    /// Creates a new builder.
-    pub fn builder() -> VerifyConfigBuilder {
-        VerifyConfigBuilder::new()
-    }
-}
-
-/// Builder for [`VerifyConfig`].
-#[derive(Debug, Default)]
-pub struct VerifyConfigBuilder {}
-
-impl VerifyConfigBuilder {
-    /// Creates a new builder.
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    /// Builds the configuration.
-    pub fn build(self) -> Result<VerifyConfig, VerifyConfigBuilderError> {
-        Ok(VerifyConfig {})
-    }
-}
-
-/// Error for [`VerifyConfigBuilder`].
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct VerifyConfigBuilderError(#[from] VerifyConfigBuilderErrorRepr);
-
-#[derive(Debug, thiserror::Error)]
-enum VerifyConfigBuilderErrorRepr {}
-
 /// Request to prove statements about the connection.
-#[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProveRequest {
     /// Handshake data.

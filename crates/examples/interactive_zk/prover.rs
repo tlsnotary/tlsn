@@ -4,6 +4,7 @@ use crate::types::received_commitments;
 
 use super::types::ZKProofBundle;
 
+use anyhow::Result;
 use chrono::{Datelike, Local, NaiveDate};
 use http_body_util::Empty;
 use hyper::{body::Bytes, header, Request, StatusCode, Uri};
@@ -48,14 +49,17 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     mut verifier_extra_socket: T,
     server_addr: &SocketAddr,
     uri: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let uri = uri.parse::<Uri>()?;
 
     if uri.scheme().map(|s| s.as_str()) != Some("https") {
-        return Err("URI must use HTTPS scheme".into());
+        return Err(anyhow::anyhow!("URI must use HTTPS scheme"));
     }
 
-    let server_domain = uri.authority().ok_or("URI must have authority")?.host();
+    let server_domain = uri
+        .authority()
+        .ok_or_else(|| anyhow::anyhow!("URI must have authority"))?
+        .host();
 
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
@@ -118,7 +122,10 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let response = request_sender.send_request(request).await?;
 
     if response.status() != StatusCode::OK {
-        return Err(format!("MPC-TLS request failed with status {}", response.status()).into());
+        return Err(anyhow::anyhow!(
+            "MPC-TLS request failed with status {}",
+            response.status()
+        ));
     }
 
     // Create proof for the Verifier.
@@ -163,11 +170,11 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let received_commitments = received_commitments(&prover_output.transcript_commitments);
     let received_commitment = received_commitments
         .first()
-        .ok_or("No received commitments found")?; // committed hash (of date of birth string)
+        .ok_or_else(|| anyhow::anyhow!("No received commitments found"))?; // committed hash (of date of birth string)
     let received_secrets = received_secrets(&prover_output.transcript_secrets);
     let received_secret = received_secrets
         .first()
-        .ok_or("No received secrets found")?; // hash blinder
+        .ok_or_else(|| anyhow::anyhow!("No received secrets found"))?; // hash blinder
     let proof_input = prepare_zk_proof_input(received, received_commitment, received_secret)?;
     let proof_bundle = generate_zk_proof(&proof_input)?;
 
@@ -180,28 +187,30 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 }
 
 // Reveal everything from the request, except for the authorization token.
-fn reveal_request(
-    request: &[u8],
-    builder: &mut ProveConfigBuilder<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn reveal_request(request: &[u8], builder: &mut ProveConfigBuilder<'_>) -> Result<()> {
     let reqs = Requests::new_from_slice(request).collect::<Result<Vec<_>, _>>()?;
 
-    let req = reqs.first().ok_or("No requests found")?;
+    let req = reqs
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("No requests found"))?;
 
     if req.request.method.as_str() != "GET" {
-        return Err(format!("Expected GET method, found {}", req.request.method.as_str()).into());
+        return Err(anyhow::anyhow!(
+            "Expected GET method, found {}",
+            req.request.method.as_str()
+        ));
     }
 
     let authorization_header = req
         .headers_with_name(header::AUTHORIZATION.as_str())
         .next()
-        .ok_or("Authorization header not found")?;
+        .ok_or_else(|| anyhow::anyhow!("Authorization header not found"))?;
 
     let start_pos = authorization_header
         .span()
         .indices()
         .min()
-        .ok_or("Could not find authorization header start position")?
+        .ok_or_else(|| anyhow::anyhow!("Could not find authorization header start position"))?
         + header::AUTHORIZATION.as_str().len()
         + 2;
     let end_pos =
@@ -217,38 +226,43 @@ fn reveal_received(
     received: &[u8],
     builder: &mut ProveConfigBuilder<'_>,
     transcript_commitment_builder: &mut TranscriptCommitConfigBuilder,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let resp = Responses::new_from_slice(received).collect::<Result<Vec<_>, _>>()?;
 
-    let response = resp.first().ok_or("No responses found")?;
-    let body = response.body.as_ref().ok_or("Response body not found")?;
+    let response = resp
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("No responses found"))?;
+    let body = response
+        .body
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Response body not found"))?;
 
     let BodyContent::Json(json) = &body.content else {
-        return Err("Expected JSON body content".into());
+        return Err(anyhow::anyhow!("Expected JSON body content"));
     };
 
     // reveal tax year
     let tax_year = json
         .get("tax_year")
-        .ok_or("tax_year field not found in JSON")?;
+        .ok_or_else(|| anyhow::anyhow!("tax_year field not found in JSON"))?;
     let start_pos = tax_year
         .span()
         .indices()
         .min()
-        .ok_or("Could not find tax_year start position")?
+        .ok_or_else(|| anyhow::anyhow!("Could not find tax_year start position"))?
         - 11;
     let end_pos = tax_year
         .span()
         .indices()
         .max()
-        .ok_or("Could not find tax_year end position")?
+        .ok_or_else(|| anyhow::anyhow!("Could not find tax_year end position"))?
         + 1;
     builder.reveal_recv(&(start_pos..end_pos))?;
 
     // commit to hash of date of birth
     let dob = json
         .get("taxpayer.date_of_birth")
-        .ok_or("taxpayer.date_of_birth field not found in JSON")?;
+        .ok_or_else(|| anyhow::anyhow!("taxpayer.date_of_birth field not found in JSON"))?;
 
     transcript_commitment_builder.commit_recv(dob.span())?;
 
@@ -279,7 +293,7 @@ fn prepare_zk_proof_input(
     received: &[u8],
     received_commitment: &PlaintextHash,
     received_secret: &PlaintextHashSecret,
-) -> Result<ZKProofInput, Box<dyn std::error::Error>> {
+) -> Result<ZKProofInput> {
     assert_eq!(received_commitment.direction, Direction::Received);
     assert_eq!(received_commitment.hash.alg, HashAlgId::SHA256);
 
@@ -288,11 +302,11 @@ fn prepare_zk_proof_input(
     let dob_start = received_commitment
         .idx
         .min()
-        .ok_or("No start index for DOB")?;
+        .ok_or_else(|| anyhow::anyhow!("No start index for DOB"))?;
     let dob_end = received_commitment
         .idx
         .end()
-        .ok_or("No end index for DOB")?;
+        .ok_or_else(|| anyhow::anyhow!("No end index for DOB"))?;
     let dob = received[dob_start..dob_end].to_vec();
     let blinder = received_secret.blinder.as_bytes().to_vec();
     let committed_hash = hash.value.as_bytes().to_vec();
@@ -307,7 +321,9 @@ fn prepare_zk_proof_input(
     let computed_hash = hasher.finalize();
 
     if committed_hash != computed_hash.as_slice() {
-        return Err("Computed hash does not match committed hash".into());
+        return Err(anyhow::anyhow!(
+            "Computed hash does not match committed hash"
+        ));
     }
 
     Ok(ZKProofInput {
@@ -318,9 +334,7 @@ fn prepare_zk_proof_input(
     })
 }
 
-fn generate_zk_proof(
-    proof_input: &ZKProofInput,
-) -> Result<ZKProofBundle, Box<dyn std::error::Error>> {
+fn generate_zk_proof(proof_input: &ZKProofInput) -> Result<ZKProofBundle> {
     tracing::info!("🔒 Generating ZK proof with Noir...");
 
     const PROGRAM_JSON: &str = include_str!("./noir/target/noir.json");
@@ -329,7 +343,7 @@ fn generate_zk_proof(
     let json: Value = serde_json::from_str(PROGRAM_JSON)?;
     let bytecode = json["bytecode"]
         .as_str()
-        .ok_or("bytecode field not found in program.json")?;
+        .ok_or_else(|| anyhow::anyhow!("bytecode field not found in program.json"))?;
 
     let mut inputs: Vec<String> = vec![];
     inputs.push(proof_input.proof_date.day().to_string());
@@ -354,16 +368,17 @@ fn generate_zk_proof(
     tracing::debug!("Witness inputs {:?}", inputs);
 
     let input_refs: Vec<&str> = inputs.iter().map(String::as_str).collect();
-    let witness = from_vec_str_to_witness_map(input_refs)?;
+    let witness = from_vec_str_to_witness_map(input_refs).map_err(|e| anyhow::anyhow!(e))?;
 
     // Setup SRS
-    setup_srs_from_bytecode(bytecode, None, false)?;
+    setup_srs_from_bytecode(bytecode, None, false).map_err(|e| anyhow::anyhow!(e))?;
 
     // Verification key
-    let vk = get_ultra_honk_verification_key(bytecode, false)?;
+    let vk = get_ultra_honk_verification_key(bytecode, false).map_err(|e| anyhow::anyhow!(e))?;
 
     // Generate proof
-    let proof = prove_ultra_honk(bytecode, witness.clone(), vk.clone(), false)?;
+    let proof = prove_ultra_honk(bytecode, witness.clone(), vk.clone(), false)
+        .map_err(|e| anyhow::anyhow!(e))?;
     tracing::info!("✅ Proof generated ({} bytes)", proof.len());
 
     let proof_bundle = ZKProofBundle { vk, proof };

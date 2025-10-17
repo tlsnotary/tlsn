@@ -3,10 +3,8 @@ use mpz_common::Context;
 use mpz_memory_core::binary::Binary;
 use mpz_vm_core::Vm;
 use rangeset::{RangeSet, UnionMut};
-use serio::SinkExt;
 use tlsn_core::{
-    ProveConfig, ProveRequest, ProverOutput,
-    connection::{HandshakeData, ServerName},
+    ProveConfig, ProverOutput,
     transcript::{
         ContentType, Direction, TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret,
     },
@@ -28,7 +26,6 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
     ctx: &mut Context,
     vm: &mut T,
     keys: &SessionKeys,
-    server_name: &ServerName,
     transcript: &Transcript,
     tls_transcript: &TlsTranscript,
     config: &ProveConfig,
@@ -37,34 +34,6 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
         transcript_commitments: Vec::default(),
         transcript_secrets: Vec::default(),
     };
-
-    let request = ProveRequest {
-        handshake: config.server_identity().then(|| {
-            (
-                server_name.clone(),
-                HandshakeData {
-                    certs: tls_transcript
-                        .server_cert_chain()
-                        .expect("server cert chain is present")
-                        .to_vec(),
-                    sig: tls_transcript
-                        .server_signature()
-                        .expect("server signature is present")
-                        .clone(),
-                    binding: tls_transcript.certificate_binding().clone(),
-                },
-            )
-        }),
-        transcript: config
-            .reveal()
-            .map(|(sent, recv)| transcript.to_partial(sent.clone(), recv.clone())),
-        transcript_commit: config.transcript_commit().map(|config| config.to_request()),
-    };
-
-    ctx.io_mut()
-        .send(request)
-        .await
-        .map_err(ProverError::from)?;
 
     let (reveal_sent, reveal_recv) = config.reveal().cloned().unwrap_or_default();
     let (mut commit_sent, mut commit_recv) = (RangeSet::default(), RangeSet::default());
