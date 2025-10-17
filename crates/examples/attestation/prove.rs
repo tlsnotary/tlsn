@@ -173,7 +173,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     assert!(response.status() == StatusCode::OK);
 
     // The prover task should be done now, so we can await it.
-    let mut prover = prover_task.await??;
+    let prover = prover_task.await??;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -215,7 +215,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let request_config = builder.build()?;
 
-    let (attestation, secrets) = notarize(&mut prover, &request_config, req_tx, resp_rx).await?;
+    let (attestation, secrets) = notarize(prover, &request_config, req_tx, resp_rx).await?;
 
     // Write the attestation to disk.
     let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
@@ -236,7 +236,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 }
 
 async fn notarize(
-    prover: &mut Prover<Committed>,
+    mut prover: Prover<Committed>,
     config: &RequestConfig,
     request_tx: Sender<AttestationRequest>,
     attestation_rx: Receiver<Attestation>,
@@ -255,25 +255,27 @@ async fn notarize(
         ..
     } = prover.prove(&disclosure_config).await?;
 
+    let transcript = prover.transcript().clone();
+    let tls_transcript = prover.tls_transcript().clone();
+    prover.close().await?;
+
     // Build an attestation request.
     let mut builder = AttestationRequest::builder(config);
 
     builder
         .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
         .handshake_data(HandshakeData {
-            certs: prover
-                .tls_transcript()
+            certs: tls_transcript
                 .server_cert_chain()
                 .expect("server cert chain is present")
                 .to_vec(),
-            sig: prover
-                .tls_transcript()
+            sig: tls_transcript
                 .server_signature()
                 .expect("server signature is present")
                 .clone(),
-            binding: prover.tls_transcript().certificate_binding().clone(),
+            binding: tls_transcript.certificate_binding().clone(),
         })
-        .transcript(prover.transcript().clone())
+        .transcript(transcript)
         .transcript_commitments(transcript_secrets, transcript_commitments);
 
     let (request, secrets) = builder.build(&CryptoProvider::default())?;
