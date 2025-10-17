@@ -34,9 +34,7 @@ impl From<RejectionReason> for crate::prover::ProverError {
         if let Some(msg) = value.0 {
             crate::prover::ProverError::config(format!("verifier rejected with reason: {msg}"))
         } else {
-            crate::prover::ProverError::config(format!(
-                "verifier rejected without providing a reason"
-            ))
+            crate::prover::ProverError::config("verifier rejected without providing a reason")
         }
     }
 }
