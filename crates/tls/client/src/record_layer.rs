@@ -97,7 +97,7 @@ impl RecordLayer {
 
     /// Set and start using the given `MessageDecrypter` for future incoming
     /// message decryption.
-    pub(crate) fn set_message_decrypter(&mut self) {
+    pub(crate) fn set_messake_decrypter(&mut self) {
         self.prepare_message_decrypter();
         self.start_decrypting();
         self.trial_decryption_len = None;
@@ -145,13 +145,13 @@ impl RecordLayer {
     /// `encr` is a decoded message allegedly received from the peer.
     /// If it can be decrypted, its decryption is returned.  Otherwise,
     /// an error is returned.
-    pub(crate) async fn decrypt_incoming(
+    pub(crate) fn decrypt_incoming(
         &mut self,
         backend: &mut dyn Backend,
         encr: OpaqueMessage,
     ) -> Result<(), Error> {
         debug_assert!(self.is_decrypting());
-        backend.push_incoming(encr).await?;
+        backend.push_incoming(encr)?;
         self.read_seq += 1;
         Ok(())
     }
@@ -160,14 +160,14 @@ impl RecordLayer {
     ///
     /// `plain` is a TLS message we'd like to send.  This function
     /// panics if the requisite keying material hasn't been established yet.
-    pub(crate) async fn encrypt_outgoing(
+    pub(crate) fn encrypt_outgoing(
         &mut self,
         backend: &mut dyn Backend,
         plain: PlainMessage,
     ) -> Result<(), Error> {
         debug_assert!(self.encrypt_state == DirectionState::Active);
         assert!(!self.encrypt_exhausted());
-        backend.push_outgoing(plain).await?;
+        backend.push_outgoing(plain)?;
         self.write_seq += 1;
         Ok(())
     }

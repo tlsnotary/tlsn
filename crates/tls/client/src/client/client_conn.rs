@@ -1,5 +1,3 @@
-use async_trait::async_trait;
-
 use super::hs;
 #[cfg(feature = "logging")]
 use crate::log::trace;
@@ -268,16 +266,15 @@ pub struct Initialized {
     config: Arc<ClientConfig>,
 }
 
-#[async_trait]
 impl State<ClientConnectionData> for Initialized {
-    async fn start(
+    fn start(
         self: Box<Self>,
         cx: &mut crate::conn::Context<'_>,
     ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
-        hs::start_handshake(self.server_name, self.extra_exts, self.config, cx).await
+        hs::start_handshake(self.server_name, self.extra_exts, self.config, cx)
     }
 
-    async fn handle(
+    fn handle(
         self: Box<Self>,
         _cx: &mut crate::conn::Context<'_>,
         _message: Message,

@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use futures::{AsyncRead, AsyncWrite};
 use rustls::{server::AllowAnyAuthenticatedClient, ServerConfig, ServerConnection};
 use rustls_pki_types::CertificateDer;
 use std::{
@@ -494,18 +493,18 @@ pub fn make_client_config_with_versions_with_auth(
     finish_client_config_with_creds(kt, builder)
 }
 
-pub async fn make_pair(kt: KeyType) -> (ClientConnection, ServerConnection) {
-    make_pair_for_configs(make_client_config(kt), make_server_config(kt)).await
+pub fn make_pair(kt: KeyType) -> (ClientConnection, ServerConnection) {
+    make_pair_for_configs(make_client_config(kt), make_server_config(kt))
 }
 
-pub async fn make_pair_for_configs(
+pub fn make_pair_for_configs(
     client_config: ClientConfig,
     server_config: ServerConfig,
 ) -> (ClientConnection, ServerConnection) {
-    make_pair_for_arc_configs(&Arc::new(client_config), &Arc::new(server_config)).await
+    make_pair_for_arc_configs(&Arc::new(client_config), &Arc::new(server_config))
 }
 
-pub async fn make_pair_for_arc_configs(
+pub fn make_pair_for_arc_configs(
     client_config: &Arc<ClientConfig>,
     server_config: &Arc<ServerConfig>,
 ) -> (ClientConnection, ServerConnection) {
@@ -515,14 +514,14 @@ pub async fn make_pair_for_arc_configs(
         dns_name("localhost"),
     )
     .unwrap();
-    client.start().await.unwrap();
+    client.start().unwrap();
     (
         client,
         ServerConnection::new(Arc::clone(server_config)).unwrap(),
     )
 }
 
-pub async fn do_handshake(
+pub fn do_handshake(
     client: &mut ClientConnection,
     server: &mut ServerConnection,
 ) -> (usize, usize) {
@@ -531,7 +530,7 @@ pub async fn do_handshake(
         to_server += send(client, server);
         server.process_new_packets().unwrap();
         to_client += receive(server, client);
-        client.process_new_packets().await.unwrap();
+        client.process_new_packets().unwrap();
     }
     (to_server, to_client)
 }
@@ -542,7 +541,7 @@ pub enum ErrorFromPeer {
     Server(rustls::Error),
 }
 
-pub async fn do_handshake_until_error(
+pub fn do_handshake_until_error(
     client: &mut ClientConnection,
     server: &mut ServerConnection,
 ) -> Result<(), ErrorFromPeer> {
@@ -554,24 +553,22 @@ pub async fn do_handshake_until_error(
         receive(server, client);
         client
             .process_new_packets()
-            .await
             .map_err(ErrorFromPeer::Client)?;
     }
 
     Ok(())
 }
 
-pub async fn do_handshake_until_both_error(
+pub fn do_handshake_until_both_error(
     client: &mut ClientConnection,
     server: &mut ServerConnection,
 ) -> Result<(), Vec<ErrorFromPeer>> {
-    match do_handshake_until_error(client, server).await {
+    match do_handshake_until_error(client, server) {
         Err(server_err @ ErrorFromPeer::Server(_)) => {
             let mut errors = vec![server_err];
             receive(server, client);
             let client_err = client
                 .process_new_packets()
-                .await
                 .map_err(ErrorFromPeer::Client)
                 .expect_err("client didn't produce error after server error");
             errors.push(client_err);
@@ -615,54 +612,4 @@ impl io::Read for FailsReads {
 
 pub fn version_compat(v: Option<rustls::ProtocolVersion>) -> Option<tls_client::ProtocolVersion> {
     v.map(|v| tls_client::ProtocolVersion::from(v.get_u16()))
-}
-
-pub struct BlockingIo<T>(pub T);
-
-impl<T> AsyncWrite for BlockingIo<T>
-where
-    T: std::io::Write + Unpin,
-{
-    fn poll_write(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-        buf: &[u8],
-    ) -> std::task::Poll<io::Result<usize>> {
-        std::task::Poll::Ready(self.get_mut().0.write(buf))
-    }
-
-    fn poll_write_vectored(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-        bufs: &[io::IoSlice<'_>],
-    ) -> std::task::Poll<io::Result<usize>> {
-        std::task::Poll::Ready(self.get_mut().0.write_vectored(bufs))
-    }
-
-    fn poll_flush(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<io::Result<()>> {
-        std::task::Poll::Ready(self.get_mut().0.flush())
-    }
-
-    fn poll_close(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<io::Result<()>> {
-        std::task::Poll::Ready(Ok(()))
-    }
-}
-
-impl<T> AsyncRead for BlockingIo<T>
-where
-    T: std::io::Read + Unpin,
-{
-    fn poll_read(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-        buf: &mut [u8],
-    ) -> std::task::Poll<io::Result<usize>> {
-        std::task::Poll::Ready(self.get_mut().0.read(buf))
-    }
 }

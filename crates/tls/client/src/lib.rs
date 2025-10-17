@@ -296,14 +296,12 @@ pub extern crate tls_core;
 
 pub(crate) use tls_core::anchors;
 mod backend;
-mod cipher;
 mod conn;
 mod error;
 mod hash_hs;
 mod limited_cache;
 mod rand;
 mod record_layer;
-//mod stream;
 mod vecbuf;
 pub(crate) use tls_core::{verify, x509};
 #[macro_use]
@@ -335,7 +333,6 @@ pub use crate::{
     kx::{SupportedKxGroup, ALL_KX_GROUPS},
 };
 pub use backend::{Backend, BackendError, DecryptMode, EncryptMode, RustCryptoBackend};
-pub use cipher::{MessageDecrypter, MessageEncrypter};
 pub use tls_core::{
     key::{Certificate, PrivateKey},
     msgs::{

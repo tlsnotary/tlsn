@@ -7,13 +7,12 @@ use crate::{
     record_layer,
     vecbuf::ChunkVecBuffer,
 };
-use async_trait::async_trait;
-use futures::{AsyncRead, AsyncWrite};
 use std::{
     backtrace::Backtrace,
     collections::VecDeque,
     convert::TryFrom,
-    io, mem,
+    io::{self},
+    mem,
     ops::{Deref, DerefMut},
 };
 use tls_backend::BackendNotify;
@@ -200,16 +199,12 @@ impl ConnectionCommon {
     }
 
     /// Returns whether there are buffered data.
-    pub async fn is_empty(&mut self) -> Result<bool, Error> {
-        self.common_state
-            .backend
-            .is_empty()
-            .await
-            .map_err(Error::from)
+    pub fn is_empty(&mut self) -> Result<bool, Error> {
+        self.common_state.backend.is_empty().map_err(Error::from)
     }
 
     /// Initiate the TLS protocol
-    pub async fn start(&mut self) -> Result<(), Error> {
+    pub fn start(&mut self) -> Result<(), Error> {
         let state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
             Ok(state) => state,
             Err(e) => {
@@ -221,13 +216,13 @@ impl ConnectionCommon {
             common: &mut self.common_state,
             data: &mut self.data,
         };
-        self.state = state.start(&mut cx).await;
+        self.state = state.start(&mut cx);
         Ok(())
     }
 
     /// Signals that the server has closed the connection.
-    pub async fn server_closed(&mut self) -> Result<(), Error> {
-        self.common_state.backend.server_closed().await?;
+    pub fn server_closed(&mut self) -> Result<(), Error> {
+        self.common_state.backend.server_closed()?;
         Ok(())
     }
 
@@ -259,10 +254,10 @@ impl ConnectionCommon {
     /// [`write_tls`]: CommonState::write_tls
     /// [`read_tls`]: ConnectionCommon::read_tls
     /// [`process_new_packets`]: ConnectionCommon::process_new_packets
-    pub async fn complete_io<T>(&mut self, io: &mut T) -> Result<(usize, usize), io::Error>
+    pub fn complete_io<T>(&mut self, io: &mut T) -> Result<(usize, usize), io::Error>
     where
         Self: Sized,
-        T: AsyncRead + AsyncWrite + Unpin,
+        T: io::Read + io::Write + Unpin,
     {
         let until_handshaked = self.is_handshaking();
         let mut eof = false;
@@ -271,7 +266,7 @@ impl ConnectionCommon {
 
         loop {
             while self.wants_write() {
-                wrlen += self.write_tls_async(io).await?;
+                wrlen += self.write_tls(io)?;
             }
 
             if !until_handshaked && wrlen > 0 {
@@ -279,19 +274,19 @@ impl ConnectionCommon {
             }
 
             if !eof && self.wants_read() {
-                match self.read_tls_async(io).await? {
+                match self.read_tls(io)? {
                     0 => eof = true,
                     n => rdlen += n,
                 }
             }
 
-            match self.process_new_packets().await {
+            match self.process_new_packets() {
                 Ok(_) => {}
                 Err(e) => {
                     // In case we have an alert to send describing this error,
                     // try a last-gasp write -- but don't predate the primary
                     // error.
-                    let _ignored = self.write_tls_async(io).await;
+                    let _ignored = self.write_tls(io);
 
                     return Err(io::Error::new(io::ErrorKind::InvalidData, e));
                 }
@@ -311,7 +306,7 @@ impl ConnectionCommon {
     /// This is a shortcut to the `process_new_packets()` -> `process_msg()` ->
     /// `process_handshake_messages()` path, specialized for the first handshake
     /// message.
-    pub(crate) async fn first_handshake_message(&mut self) -> Result<Option<Message>, Error> {
+    pub(crate) fn first_handshake_message(&mut self) -> Result<Option<Message>, Error> {
         if self.message_deframer.desynced {
             return Err(Error::CorruptMessage);
         }
@@ -328,8 +323,7 @@ impl ConnectionCommon {
 
         if self.handshake_joiner.take_message(msg).is_none() {
             self.common_state
-                .send_fatal_alert(AlertDescription::DecodeError)
-                .await?;
+                .send_fatal_alert(AlertDescription::DecodeError)?;
             return Err(Error::CorruptMessagePayload(ContentType::Handshake));
         }
 
@@ -341,7 +335,7 @@ impl ConnectionCommon {
         self.state = Ok(new);
     }
 
-    async fn process_incoming_opaque(
+    fn process_incoming_opaque(
         &mut self,
         msg: OpaqueMessage,
     ) -> Result<Option<PlainMessage>, Error> {
@@ -357,8 +351,7 @@ impl ConnectionCommon {
                 //  which receives a protected change_cipher_spec record MUST abort the
                 //  handshake with an "unexpected_message" alert."
                 self.common_state
-                    .send_fatal_alert(AlertDescription::UnexpectedMessage)
-                    .await?;
+                    .send_fatal_alert(AlertDescription::UnexpectedMessage)?;
                 return Err(Error::PeerMisbehavedError(
                     "illegal middlebox CCS received".into(),
                 ));
@@ -371,7 +364,7 @@ impl ConnectionCommon {
 
         // Decrypt if demanded by current state.
         if self.common_state.record_layer.is_decrypting() {
-            self.common_state.decrypt_incoming(msg).await?;
+            self.common_state.decrypt_incoming(msg)?;
 
             Ok(None)
         } else {
@@ -379,7 +372,7 @@ impl ConnectionCommon {
         }
     }
 
-    async fn process_incoming_plain(
+    fn process_incoming_plain(
         &mut self,
         msg: PlainMessage,
         state: Box<dyn State<ClientConnectionData>>,
@@ -394,12 +387,11 @@ impl ConnectionCommon {
                 Some(_) => {}
                 None => {
                     self.common_state
-                        .send_fatal_alert(AlertDescription::DecodeError)
-                        .await?;
+                        .send_fatal_alert(AlertDescription::DecodeError)?;
                     return Err(Error::CorruptMessagePayload(ContentType::Handshake));
                 }
             }
-            return self.process_new_handshake_messages(state).await;
+            return self.process_new_handshake_messages(state);
         }
 
         // Now we can fully parse the message payload.
@@ -407,23 +399,18 @@ impl ConnectionCommon {
 
         // For alerts, we have separate logic.
         if let MessagePayload::Alert(alert) = &msg.payload {
-            self.common_state.process_alert(alert).await?;
+            self.common_state.process_alert(alert)?;
             return Ok(state);
         }
 
         self.common_state
             .process_main_protocol(msg, state, &mut self.data)
-            .await
     }
 
     /// Returns a notification future which resolves when the backend has
     /// messages ready to decrypt.
-    pub async fn get_notify(&mut self) -> Result<BackendNotify, Error> {
-        self.common_state
-            .backend
-            .get_notify()
-            .await
-            .map_err(Error::from)
+    pub fn get_notify(&mut self) -> Result<BackendNotify, Error> {
+        self.common_state.backend.get_notify().map_err(Error::from)
     }
 
     /// Processes any new packets read by a previous call to
@@ -444,7 +431,7 @@ impl ConnectionCommon {
     ///
     /// [`read_tls`]: Connection::read_tls
     /// [`process_new_packets`]: Connection::process_new_packets
-    pub async fn process_new_packets(&mut self) -> Result<IoState, Error> {
+    pub fn process_new_packets(&mut self) -> Result<IoState, Error> {
         let mut state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
             Ok(state) => state,
             Err(e) => {
@@ -461,8 +448,8 @@ impl ConnectionCommon {
         while let Some(msg) = self.message_deframer.frames.pop_front() {
             // If we're not decrypting yet, we process it immediately. Otherwise it will be
             // pushed to the backend.
-            if let Some(plain) = self.process_incoming_opaque(msg).await? {
-                match self.process_incoming_plain(plain, state).await {
+            if let Some(plain) = self.process_incoming_opaque(msg)? {
+                match self.process_incoming_plain(plain, state) {
                     Ok(new) => state = new,
                     Err(e) => {
                         self.state = Err(e.clone());
@@ -471,11 +458,11 @@ impl ConnectionCommon {
                 }
             }
         }
-        self.backend.flush().await?;
+        self.backend.flush()?;
 
         // Process pending decrypted messages.
-        while let Some(msg) = self.backend.next_incoming().await? {
-            match self.process_incoming_plain(msg, state).await {
+        while let Some(msg) = self.backend.next_incoming()? {
+            match self.process_incoming_plain(msg, state) {
                 Ok(new) => state = new,
                 Err(e) => {
                     self.state = Err(e.clone());
@@ -484,7 +471,7 @@ impl ConnectionCommon {
             }
         }
 
-        while let Some(msg) = self.backend.next_outgoing().await? {
+        while let Some(msg) = self.backend.next_outgoing()? {
             self.queue_tls_message(msg);
         }
 
@@ -493,7 +480,7 @@ impl ConnectionCommon {
         Ok(self.common_state.current_io_state())
     }
 
-    async fn process_new_handshake_messages(
+    fn process_new_handshake_messages(
         &mut self,
         mut state: Box<dyn State<ClientConnectionData>>,
     ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
@@ -501,29 +488,28 @@ impl ConnectionCommon {
         while let Some(msg) = self.handshake_joiner.frames.pop_front() {
             state = self
                 .common_state
-                .process_main_protocol(msg, state, &mut self.data)
-                .await?;
+                .process_main_protocol(msg, state, &mut self.data)?;
         }
 
         Ok(state)
     }
 
     /// Write buffer into connection.
-    pub async fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
+    pub fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
         if let Ok(st) = &mut self.state {
-            st.perhaps_write_key_update(&mut self.common_state).await;
+            st.perhaps_write_key_update(&mut self.common_state);
         }
-        self.common_state.send_some_plaintext(buf).await
+        self.common_state.send_some_plaintext(buf)
     }
 
     /// Write entire buffer into connection.
-    pub async fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
+    pub fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
         let mut pos = 0;
         while pos < buf.len() {
-            pos += self.write_plaintext(&buf[pos..]).await?;
+            pos += self.write_plaintext(&buf[pos..])?;
         }
-        self.backend.flush().await?;
-        while let Some(msg) = self.backend.next_outgoing().await? {
+        self.backend.flush()?;
+        while let Some(msg) = self.backend.next_outgoing()? {
             self.queue_tls_message(msg);
         }
         Ok(pos)
@@ -546,32 +532,6 @@ impl ConnectionCommon {
     /// [`process_new_packets`]: Connection::process_new_packets
     pub fn read_tls(&mut self, rd: &mut dyn io::Read) -> Result<usize, io::Error> {
         let res = self.message_deframer.read(rd);
-        if let Ok(0) = res {
-            self.common_state.has_seen_eof = true;
-        }
-        res
-    }
-
-    /// Read TLS content from `rd`.  This method does internal
-    /// buffering, so `rd` can supply TLS messages in arbitrary-
-    /// sized chunks (like a socket or pipe might).
-    ///
-    /// You should call [`process_new_packets`] each time a call to
-    /// this function succeeds.
-    ///
-    /// The returned error only relates to IO on `rd`.  TLS-level
-    /// errors are emitted from [`process_new_packets`].
-    ///
-    /// This function returns `Ok(0)` when the underlying `rd` does
-    /// so.  This typically happens when a socket is cleanly closed,
-    /// or a file is at EOF.
-    ///
-    /// [`process_new_packets`]: Connection::process_new_packets
-    pub async fn read_tls_async<T: AsyncRead + Unpin>(
-        &mut self,
-        rd: &mut T,
-    ) -> Result<usize, io::Error> {
-        let res = self.message_deframer.read_async(rd).await;
         if let Ok(0) = res {
             self.common_state.has_seen_eof = true;
         }
@@ -747,7 +707,7 @@ impl CommonState {
         matches!(self.negotiated_version, Some(ProtocolVersion::TLSv1_3))
     }
 
-    async fn process_main_protocol(
+    fn process_main_protocol(
         &mut self,
         msg: Message,
         mut state: Box<dyn State<ClientConnectionData>>,
@@ -760,22 +720,20 @@ impl CommonState {
                 Side::Client => HandshakeType::HelloRequest,
             };
             if msg.is_handshake_type(reject_ty) {
-                self.send_warning_alert(AlertDescription::NoRenegotiation)
-                    .await?;
+                self.send_warning_alert(AlertDescription::NoRenegotiation);
                 return Ok(state);
             }
         }
 
         let mut cx = Context { common: self, data };
-        match state.handle(&mut cx, msg).await {
+        match state.handle(&mut cx, msg) {
             Ok(next) => {
                 state = next;
                 Ok(state)
             }
             Err(e @ Error::InappropriateMessage { .. })
             | Err(e @ Error::InappropriateHandshakeMessage { .. }) => {
-                self.send_fatal_alert(AlertDescription::UnexpectedMessage)
-                    .await?;
+                self.send_fatal_alert(AlertDescription::UnexpectedMessage);
                 Err(e)
             }
             Err(e) => Err(e),
@@ -787,18 +745,17 @@ impl CommonState {
     ///
     /// If internal buffers are too small, this function will not accept
     /// all the data.
-    pub(crate) async fn send_some_plaintext(&mut self, data: &[u8]) -> Result<usize, Error> {
-        self.send_plain(data, Limit::Yes).await
+    pub(crate) fn send_some_plaintext(&mut self, data: &[u8]) -> Result<usize, Error> {
+        self.send_plain(data, Limit::Yes)
     }
 
     // Changing the keys must not span any fragmented handshake
     // messages.  Otherwise the defragmented messages will have
     // been protected with two different record layer protections,
     // which is illegal.  Not mentioned in RFC.
-    pub(crate) async fn check_aligned_handshake(&mut self) -> Result<(), Error> {
+    pub(crate) fn check_aligned_handshake(&mut self) -> Result<(), Error> {
         if !self.aligned_handshake {
-            self.send_fatal_alert(AlertDescription::UnexpectedMessage)
-                .await?;
+            self.send_fatal_alert(AlertDescription::UnexpectedMessage)?;
             Err(Error::PeerMisbehavedError(
                 "key epoch or handshake flight with pending fragment".to_string(),
             ))
@@ -807,34 +764,30 @@ impl CommonState {
         }
     }
 
-    pub(crate) async fn illegal_param(&mut self, why: &str) -> Result<Error, Error> {
-        self.send_fatal_alert(AlertDescription::IllegalParameter)
-            .await?;
+    pub(crate) fn illegal_param(&mut self, why: &str) -> Result<Error, Error> {
+        self.send_fatal_alert(AlertDescription::IllegalParameter);
         Ok(Error::PeerMisbehavedError(why.to_string()))
     }
 
-    pub(crate) async fn decrypt_incoming(&mut self, encr: OpaqueMessage) -> Result<(), Error> {
+    pub(crate) fn decrypt_incoming(&mut self, encr: OpaqueMessage) -> Result<(), Error> {
         if self.record_layer.wants_close_before_decrypt() {
-            self.send_close_notify().await?;
+            self.send_close_notify();
         }
 
         self.record_layer
-            .decrypt_incoming(self.backend.as_mut(), encr)
-            .await?;
+            .decrypt_incoming(self.backend.as_mut(), encr);
 
         Ok(())
     }
 
-    pub(crate) async fn next_decrypted(&mut self) -> Result<Option<PlainMessage>, Error> {
-        match self.backend.next_incoming().await.map_err(Error::from) {
+    pub(crate) fn next_decrypted(&mut self) -> Result<Option<PlainMessage>, Error> {
+        match self.backend.next_incoming().map_err(Error::from) {
             Err(Error::PeerSentOversizedRecord) => {
-                self.send_fatal_alert(AlertDescription::RecordOverflow)
-                    .await?;
+                self.send_fatal_alert(AlertDescription::RecordOverflow);
                 Err(Error::PeerSentOversizedRecord)
             }
             Err(Error::DecryptError) => {
-                self.send_fatal_alert(AlertDescription::BadRecordMac)
-                    .await?;
+                self.send_fatal_alert(AlertDescription::BadRecordMac);
                 Err(Error::DecryptError)
             }
             Err(e) => Err(e),
@@ -844,7 +797,7 @@ impl CommonState {
 
     /// Fragment `m`, encrypt the fragments, and then queue
     /// the encrypted fragments for sending.
-    pub(crate) async fn send_msg_encrypt(&mut self, m: PlainMessage) -> Result<(), Error> {
+    pub(crate) fn send_msg_encrypt(&mut self, m: PlainMessage) -> Result<(), Error> {
         let mut plain_messages = VecDeque::new();
         self.message_fragmenter.fragment(m, &mut plain_messages);
 
@@ -853,17 +806,17 @@ impl CommonState {
         if self.record_layer.wants_close_before_encrypt() {
             debug!("Sending warning alert {:?}", AlertDescription::CloseNotify);
             let m = Message::build_alert(AlertLevel::Warning, AlertDescription::CloseNotify);
-            self.send_single_fragment(m.into()).await?;
+            self.send_single_fragment(m.into())?;
         }
 
         for m in plain_messages {
-            self.send_single_fragment(m).await?;
+            self.send_single_fragment(m)?;
         }
         Ok(())
     }
 
     /// Like send_msg_encrypt, but operate on an appdata directly.
-    async fn send_appdata_encrypt(&mut self, payload: &[u8], limit: Limit) -> Result<usize, Error> {
+    fn send_appdata_encrypt(&mut self, payload: &[u8], limit: Limit) -> Result<usize, Error> {
         // Here, the limit on sendable_tls applies to encrypted data,
         // but we're respecting it for plaintext data -- so we'll
         // be out by whatever the cipher+record overhead is.  That's a
@@ -884,22 +837,20 @@ impl CommonState {
         );
 
         for m in plain_messages {
-            self.send_single_fragment(m).await?;
+            self.send_single_fragment(m);
         }
 
         Ok(len)
     }
 
-    async fn send_single_fragment(&mut self, m: PlainMessage) -> Result<(), Error> {
+    fn send_single_fragment(&mut self, m: PlainMessage) -> Result<(), Error> {
         // Refuse to wrap counter at all costs.  This
         // is basically untestable unfortunately.
         if self.record_layer.encrypt_exhausted() {
             return Err(Error::EncryptError);
         }
 
-        self.record_layer
-            .encrypt_outgoing(self.backend.as_mut(), m)
-            .await?;
+        self.record_layer.encrypt_outgoing(self.backend.as_mut(), m);
 
         Ok(())
     }
@@ -916,27 +867,12 @@ impl CommonState {
         self.sendable_tls.write_to(wr)
     }
 
-    /// Writes TLS messages to `wr`.
-    ///
-    /// On success, this function returns `Ok(n)` where `n` is a number of bytes
-    /// written to `wr` (after encoding and encryption).
-    ///
-    /// After this function returns, the connection buffer may not yet be fully
-    /// flushed. The [`CommonState::wants_write`] function can be used to
-    /// check if the output buffer is empty.
-    pub async fn write_tls_async<T: AsyncWrite + Unpin>(
-        &mut self,
-        wr: &mut T,
-    ) -> Result<usize, io::Error> {
-        self.sendable_tls.write_to_async(wr).await
-    }
-
     /// Encrypt and send some plaintext `data`.  `limit` controls
     /// whether the per-connection buffer limits apply.
     ///
     /// Returns the number of bytes written from `data`: this might
     /// be less than `data.len()` if buffer limits were exceeded.
-    async fn send_plain(&mut self, data: &[u8], limit: Limit) -> Result<usize, Error> {
+    fn send_plain(&mut self, data: &[u8], limit: Limit) -> Result<usize, Error> {
         if !self.may_send_application_data {
             // If we haven't completed handshaking, buffer
             // plaintext to send once we do.
@@ -954,18 +890,18 @@ impl CommonState {
             return Ok(0);
         }
 
-        self.send_appdata_encrypt(data, limit).await
+        self.send_appdata_encrypt(data, limit)
     }
 
-    pub(crate) async fn start_outgoing_traffic(&mut self) -> Result<(), Error> {
+    pub(crate) fn start_outgoing_traffic(&mut self) -> Result<(), Error> {
         self.may_send_application_data = true;
-        self.flush_plaintext().await
+        self.flush_plaintext()
     }
 
-    pub(crate) async fn start_traffic(&mut self) -> Result<(), Error> {
+    pub(crate) fn start_traffic(&mut self) -> Result<(), Error> {
         self.may_receive_application_data = true;
-        self.backend.start_traffic().await?;
-        self.start_outgoing_traffic().await
+        self.backend.start_traffic()?;
+        self.start_outgoing_traffic()
     }
 
     /// Sets a limit on the internal buffers used to buffer
@@ -1014,13 +950,13 @@ impl CommonState {
 
     /// Send any buffered plaintext.  Plaintext is buffered if
     /// written during handshake.
-    async fn flush_plaintext(&mut self) -> Result<(), Error> {
+    fn flush_plaintext(&mut self) -> Result<(), Error> {
         if !self.may_send_application_data {
             return Ok(());
         }
 
         while let Some(buf) = self.sendable_plaintext.pop() {
-            self.send_plain(&buf, Limit::No).await?;
+            self.send_plain(&buf, Limit::No)?;
         }
 
         Ok(())
@@ -1032,7 +968,7 @@ impl CommonState {
     }
 
     /// Send a raw TLS message, fragmenting it if needed.
-    pub(crate) async fn send_msg(&mut self, m: Message, must_encrypt: bool) -> Result<(), Error> {
+    pub(crate) fn send_msg(&mut self, m: Message, must_encrypt: bool) -> Result<(), Error> {
         if !must_encrypt {
             let mut to_send = VecDeque::new();
             self.message_fragmenter.fragment(m.into(), &mut to_send);
@@ -1041,7 +977,7 @@ impl CommonState {
             }
             Ok(())
         } else {
-            self.send_msg_encrypt(m.into()).await
+            self.send_msg_encrypt(m.into())
         }
     }
 
@@ -1049,16 +985,15 @@ impl CommonState {
         self.received_plaintext.append(bytes.0);
     }
 
-    async fn send_warning_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
+    fn send_warning_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
         warn!("Sending warning alert {:?}", desc);
-        self.send_warning_alert_no_log(desc).await
+        self.send_warning_alert_no_log(desc)
     }
 
-    async fn process_alert(&mut self, alert: &AlertMessagePayload) -> Result<(), Error> {
+    fn process_alert(&mut self, alert: &AlertMessagePayload) -> Result<(), Error> {
         // Reject unknown AlertLevels.
         if let AlertLevel::Unknown(_) = alert.level {
-            self.send_fatal_alert(AlertDescription::IllegalParameter)
-                .await?;
+            self.send_fatal_alert(AlertDescription::IllegalParameter);
         }
 
         // If we get a CloseNotify, make a note to declare EOF to our
@@ -1072,7 +1007,7 @@ impl CommonState {
         // (except, for no good reason, user_cancelled).
         if alert.level == AlertLevel::Warning {
             if self.is_tls13() && alert.description != AlertDescription::UserCanceled {
-                self.send_fatal_alert(AlertDescription::DecodeError).await?;
+                self.send_fatal_alert(AlertDescription::DecodeError)?;
             } else {
                 warn!("TLS alert warning received: {:#?}", alert);
                 return Ok(());
@@ -1083,11 +1018,11 @@ impl CommonState {
         Err(Error::AlertReceived(alert.description))
     }
 
-    pub(crate) async fn send_fatal_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
+    pub(crate) fn send_fatal_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
         warn!("Sending fatal alert {:?}", desc);
         debug_assert!(!self.sent_fatal_alert);
         let m = Message::build_alert(AlertLevel::Fatal, desc);
-        self.send_msg(m, self.record_layer.is_encrypting()).await?;
+        self.send_msg(m, self.record_layer.is_encrypting())?;
         self.sent_fatal_alert = true;
         Ok(())
     }
@@ -1095,15 +1030,14 @@ impl CommonState {
     /// Queues a close_notify warning alert to be sent in the next
     /// [`CommonState::write_tls`] call.  This informs the peer that the
     /// connection is being closed.
-    pub async fn send_close_notify(&mut self) -> Result<(), Error> {
+    pub fn send_close_notify(&mut self) -> Result<(), Error> {
         debug!("Sending warning alert {:?}", AlertDescription::CloseNotify);
         self.send_warning_alert_no_log(AlertDescription::CloseNotify)
-            .await
     }
 
-    async fn send_warning_alert_no_log(&mut self, desc: AlertDescription) -> Result<(), Error> {
+    fn send_warning_alert_no_log(&mut self, desc: AlertDescription) -> Result<(), Error> {
         let m = Message::build_alert(AlertLevel::Warning, desc);
-        self.send_msg(m, self.record_layer.is_encrypting()).await
+        self.send_msg(m, self.record_layer.is_encrypting())
     }
 
     pub(crate) fn set_max_fragment_size(&mut self, new: Option<usize>) -> Result<(), Error> {
@@ -1160,16 +1094,15 @@ impl CommonState {
     }
 }
 
-#[async_trait]
 pub(crate) trait State<ClientConnectionData>: Send + Sync {
-    async fn start(
+    fn start(
         self: Box<Self>,
         _cx: &mut Context<'_>,
     ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
         panic!("Start called on unexpected state")
     }
 
-    async fn handle(
+    fn handle(
         self: Box<Self>,
         cx: &mut Context<'_>,
         message: Message,
@@ -1184,7 +1117,7 @@ pub(crate) trait State<ClientConnectionData>: Send + Sync {
         Err(Error::HandshakeNotComplete)
     }
 
-    async fn perhaps_write_key_update(&mut self, _cx: &mut CommonState) {}
+    fn perhaps_write_key_update(&mut self, _cx: &mut CommonState) {}
 }
 
 pub(crate) struct Context<'a> {
