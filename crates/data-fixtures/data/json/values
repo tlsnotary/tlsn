@@ -1,0 +1,51 @@
+{
+  "string_tests": {
+    "empty": "",
+    "basic": "Hello, World!",
+    "escaped": "Quote(\") Tab(\t) Newline(\n) Backslash(\\)",
+    "unicode": "こんにちは 你好 안녕하세요 مرحبا Привет",
+    "emojis": "🌟 🌍 🎉 🚀 💻",
+    "mixed_unicode": "Hello 世界 with emojis 🎮 and symbols ™ ©️ ®️",
+    "control_chars": "\u0001\u0002\u0003",
+    "surrogate_pairs": "\uD834\uDD1E",
+    "special_whitespace": "Space\u2003Em\u2002En\u2000Quarter"
+  },
+  "number_tests": {
+    "integer": 42,
+    "negative": -17,
+    "zero": 0,
+    "large": 9007199254740991,
+    "small": -9007199254740991,
+    "float": 3.14159,
+    "exponential": 1.23e-4,
+    "negative_exponential": -4.56E+3
+  },
+  "boolean_tests": {
+    "true_value": true,
+    "false_value": false
+  },
+  "null_test": null,
+  "array_tests": {
+    "empty": [],
+    "numbers": [1, 2, 3, 4, 5],
+    "mixed": [1, "two", true, null, {"key": "value"}, [1, 2]],
+    "nested": [[1, 2], [3, 4], [["deep", "array"]]]
+  },
+  "object_tests": {
+    "empty": {},
+    "nested": {
+      "level1": {
+        "level2": {
+          "level3": "deep nesting"
+        }
+      }
+    }
+  },
+  "special_cases": {
+    "zero_fraction": 0.0,
+    "one_fraction": 1.0,
+    "long_string": "This is a somewhat longer string that extends beyond typical lengths to test buffer handling.................................",
+    "url_safe": "https://example.com/path?param=value&other=123#fragment",
+    "all_escaped": "\u0022\u005C\u002F\u0008\u000C\u000A\u000D\u0009"
+  }
+}

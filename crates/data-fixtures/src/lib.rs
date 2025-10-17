@@ -1,4 +1,5 @@
 pub mod http;
+pub mod json;
 
 macro_rules! define_fixture {
     ($name:ident, $doc:tt, $path:tt) => {
