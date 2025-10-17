@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["state"],"struct":["ProveConfig","ProveConfigBuilder","ProveConfigBuilderError","Prover","ProverConfig","ProverConfigBuilder","ProverControl","ProverError","ProverFuture","ProverOutput","TlsConfig","TlsConfigBuilder"]};
+window.SIDEBAR_ITEMS = {"mod":["state"],"struct":["ProveConfig","ProveConfigBuilder","ProveConfigBuilderError","ProveRequest","Prover","ProverConfig","ProverConfigBuilder","ProverControl","ProverError","ProverFuture","ProverOutput","TlsConfig","TlsConfigBuilder"]};
