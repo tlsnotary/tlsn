@@ -8,6 +8,7 @@ pub mod config;
 pub(crate) mod context;
 pub(crate) mod ghash;
 pub(crate) mod map;
+pub(crate) mod msg;
 pub(crate) mod mux;
 pub mod prover;
 pub(crate) mod tag;

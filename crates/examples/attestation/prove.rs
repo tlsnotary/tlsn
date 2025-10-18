@@ -22,13 +22,11 @@ use tlsn::{
         signing::Secp256k1Signer,
         Attestation, AttestationConfig, CryptoProvider, Secrets,
     },
-    config::{
-        CertificateDer, PrivateKeyDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore,
-    },
+    config::{CertificateDer, PrivateKeyDer, ProtocolConfig, RootCertStore},
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::{state::Committed, ProveConfig, Prover, ProverConfig, ProverOutput, TlsConfig},
     transcript::{ContentType, TranscriptCommitConfig},
-    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
+    verifier::{Verifier, VerifierConfig, VerifierOutput},
 };
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
@@ -175,7 +173,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     assert!(response.status() == StatusCode::OK);
 
     // The prover task should be done now, so we can await it.
-    let mut prover = prover_task.await??;
+    let prover = prover_task.await??;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -217,7 +215,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let request_config = builder.build()?;
 
-    let (attestation, secrets) = notarize(&mut prover, &request_config, req_tx, resp_rx).await?;
+    let (attestation, secrets) = notarize(prover, &request_config, req_tx, resp_rx).await?;
 
     // Write the attestation to disk.
     let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
@@ -238,7 +236,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 }
 
 async fn notarize(
-    prover: &mut Prover<Committed>,
+    mut prover: Prover<Committed>,
     config: &RequestConfig,
     request_tx: Sender<AttestationRequest>,
     attestation_rx: Receiver<Attestation>,
@@ -257,25 +255,27 @@ async fn notarize(
         ..
     } = prover.prove(&disclosure_config).await?;
 
+    let transcript = prover.transcript().clone();
+    let tls_transcript = prover.tls_transcript().clone();
+    prover.close().await?;
+
     // Build an attestation request.
     let mut builder = AttestationRequest::builder(config);
 
     builder
         .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
         .handshake_data(HandshakeData {
-            certs: prover
-                .tls_transcript()
+            certs: tls_transcript
                 .server_cert_chain()
                 .expect("server cert chain is present")
                 .to_vec(),
-            sig: prover
-                .tls_transcript()
+            sig: tls_transcript
                 .server_signature()
                 .expect("server signature is present")
                 .clone(),
-            binding: prover.tls_transcript().certificate_binding().clone(),
+            binding: tls_transcript.certificate_binding().clone(),
         })
-        .transcript(prover.transcript().clone())
+        .transcript(transcript)
         .transcript_commitments(transcript_secrets, transcript_commitments);
 
     let (request, secrets) = builder.build(&CryptoProvider::default())?;
@@ -301,13 +301,6 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     request_rx: Receiver<AttestationRequest>,
     attestation_tx: Sender<Attestation>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Set up Verifier.
-    let config_validator = ProtocolConfigValidator::builder()
-        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
-        .max_recv_data(tlsn_examples::MAX_RECV_DATA)
-        .build()
-        .unwrap();
-
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -315,20 +308,24 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .root_store(RootCertStore {
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
         })
-        .protocol_config_validator(config_validator)
         .build()
         .unwrap();
 
-    let mut verifier = Verifier::new(verifier_config)
+    let verifier = Verifier::new(verifier_config)
         .setup(socket.compat())
+        .await?
+        .accept()
         .await?
         .run()
         .await?;
 
-    let VerifierOutput {
-        transcript_commitments,
-        ..
-    } = verifier.verify(&VerifyConfig::default()).await?;
+    let (
+        VerifierOutput {
+            transcript_commitments,
+            ..
+        },
+        verifier,
+    ) = verifier.verify().await?.accept().await?;
 
     let tls_transcript = verifier.tls_transcript().clone();
 

@@ -3,6 +3,7 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
+use anyhow::Result;
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
@@ -11,11 +12,11 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, ProtocolConfigValidator, RootCertStore},
+    config::{CertificateDer, ProtocolConfig, RootCertStore},
     connection::ServerName,
     prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
     transcript::PartialTranscript,
-    verifier::{Verifier, VerifierConfig, VerifierOutput, VerifyConfig},
+    verifier::{Verifier, VerifierConfig, VerifierOutput},
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -46,7 +47,7 @@ async fn main() {
     let (prover_socket, verifier_socket) = tokio::io::duplex(1 << 23);
     let prover = prover(prover_socket, &server_addr, &uri);
     let verifier = verifier(verifier_socket);
-    let (_, transcript) = tokio::join!(prover, verifier);
+    let (_, transcript) = tokio::try_join!(prover, verifier).unwrap();
 
     println!("Successfully verified {}", &uri);
     println!(
@@ -64,7 +65,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     verifier_socket: T,
     server_addr: &SocketAddr,
     uri: &str,
-) {
+) -> Result<()> {
     let uri = uri.parse::<Uri>().unwrap();
     assert_eq!(uri.scheme().unwrap().as_str(), "https");
     let server_domain = uri.authority().unwrap().host();
@@ -98,15 +99,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Perform the setup phase with the verifier.
     let prover = Prover::new(prover_config)
         .setup(verifier_socket.compat())
-        .await
-        .unwrap();
+        .await?;
 
     // Connect to TLS Server.
-    let tls_client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
+    let tls_client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
     // Pass server connection into the prover.
-    let (mpc_tls_connection, prover_fut) =
-        prover.connect(tls_client_socket.compat()).await.unwrap();
+    let (mpc_tls_connection, prover_fut) = prover.connect(tls_client_socket.compat()).await?;
 
     // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
     let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
@@ -116,9 +115,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // MPC-TLS Handshake.
     let (mut request_sender, connection) =
-        hyper::client::conn::http1::handshake(mpc_tls_connection)
-            .await
-            .unwrap();
+        hyper::client::conn::http1::handshake(mpc_tls_connection).await?;
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
@@ -130,14 +127,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .header("Connection", "close")
         .header("Secret", SECRET)
         .method("GET")
-        .body(Empty::<Bytes>::new())
-        .unwrap();
-    let response = request_sender.send_request(request).await.unwrap();
+        .body(Empty::<Bytes>::new())?;
+    let response = request_sender.send_request(request).await?;
 
     assert!(response.status() == StatusCode::OK);
 
     // Create proof for the Verifier.
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let mut prover = prover_task.await??;
 
     let mut builder = ProveConfig::builder(prover.transcript());
 
@@ -153,10 +149,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .expect("the secret should be in the sent data");
 
     // Reveal everything except for the secret.
-    builder.reveal_sent(&(0..pos)).unwrap();
-    builder
-        .reveal_sent(&(pos + SECRET.len()..prover.transcript().sent().len()))
-        .unwrap();
+    builder.reveal_sent(&(0..pos))?;
+    builder.reveal_sent(&(pos + SECRET.len()..prover.transcript().sent().len()))?;
 
     // Find the substring "Dick".
     let pos = prover
@@ -167,28 +161,21 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .expect("the substring 'Dick' should be in the received data");
 
     // Reveal everything except for the substring.
-    builder.reveal_recv(&(0..pos)).unwrap();
-    builder
-        .reveal_recv(&(pos + 4..prover.transcript().received().len()))
-        .unwrap();
+    builder.reveal_recv(&(0..pos))?;
+    builder.reveal_recv(&(pos + 4..prover.transcript().received().len()))?;
 
-    let config = builder.build().unwrap();
+    let config = builder.build()?;
 
-    prover.prove(&config).await.unwrap();
-    prover.close().await.unwrap();
+    prover.prove(&config).await?;
+    prover.close().await?;
+
+    Ok(())
 }
 
 #[instrument(skip(socket))]
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
-) -> PartialTranscript {
-    // Set up Verifier.
-    let config_validator = ProtocolConfigValidator::builder()
-        .max_sent_data(MAX_SENT_DATA)
-        .max_recv_data(MAX_RECV_DATA)
-        .build()
-        .unwrap();
-
+) -> Result<PartialTranscript> {
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -196,20 +183,51 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .root_store(RootCertStore {
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
         })
-        .protocol_config_validator(config_validator)
-        .build()
-        .unwrap();
+        .build()?;
     let verifier = Verifier::new(verifier_config);
 
-    // Receive authenticated data.
-    let VerifierOutput {
-        server_name,
-        transcript,
-        ..
-    } = verifier
-        .verify(socket.compat(), &VerifyConfig::default())
-        .await
-        .unwrap();
+    // Validate the proposed configuration and then run the TLS commitment protocol.
+    let verifier = verifier.setup(socket.compat()).await?;
+
+    // This is the opportunity to ensure the prover does not attempt to overload the
+    // verifier.
+    let reject = if verifier.config().max_sent_data() > MAX_SENT_DATA {
+        Some("max_sent_data is too large")
+    } else if verifier.config().max_recv_data() > MAX_RECV_DATA {
+        Some("max_recv_data is too large")
+    } else {
+        None
+    };
+
+    if reject.is_some() {
+        verifier.reject(reject).await?;
+        return Err(anyhow::anyhow!("protocol configuration rejected"));
+    }
+
+    // Runs the TLS commitment protocol to completion.
+    let verifier = verifier.accept().await?.run().await?;
+
+    // Validate the proving request and then verify.
+    let verifier = verifier.verify().await?;
+
+    if verifier.request().handshake.is_none() {
+        let verifier = verifier
+            .reject(Some("expecting to verify the server name"))
+            .await?;
+        verifier.close().await?;
+        return Err(anyhow::anyhow!("prover did not reveal the server name"));
+    }
+
+    let (
+        VerifierOutput {
+            server_name,
+            transcript,
+            ..
+        },
+        verifier,
+    ) = verifier.accept().await?;
+
+    verifier.close().await?;
 
     let server_name = server_name.expect("prover should have revealed server name");
     let transcript = transcript.expect("prover should have revealed transcript data");
@@ -232,7 +250,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let ServerName::Dns(server_name) = server_name;
     assert_eq!(server_name.as_str(), SERVER_DOMAIN);
 
-    transcript
+    Ok(transcript)
 }
 
 /// Render redacted bytes as `🙈`.

@@ -88,12 +88,6 @@ impl From<std::io::Error> for VerifierError {
     }
 }
 
-impl From<crate::config::ProtocolConfigError> for VerifierError {
-    fn from(e: crate::config::ProtocolConfigError) -> Self {
-        Self::new(ErrorKind::Config, e)
-    }
-}
-
 impl From<uid_mux::yamux::ConnectionError> for VerifierError {
     fn from(e: uid_mux::yamux::ConnectionError) -> Self {
         Self::new(ErrorKind::Io, e)

@@ -6,10 +6,7 @@ use enum_try_as_inner::EnumTryAsInner;
 use tls_core::msgs::enums::ContentType;
 use tlsn::{
     connection::{ConnectionInfo, ServerName, TranscriptLength},
-    verifier::{
-        state::{self, Initialized},
-        Verifier, VerifyConfig,
-    },
+    verifier::{state, Verifier},
 };
 use tracing::info;
 use wasm_bindgen::prelude::*;
@@ -21,6 +18,7 @@ type Result<T> = std::result::Result<T, JsError>;
 
 #[wasm_bindgen(js_name = Verifier)]
 pub struct JsVerifier {
+    config: VerifierConfig,
     state: State,
 }
 
@@ -49,8 +47,10 @@ impl State {
 impl JsVerifier {
     #[wasm_bindgen(constructor)]
     pub fn new(config: VerifierConfig) -> JsVerifier {
+        let tlsn_config = tlsn::verifier::VerifierConfig::builder().build().unwrap();
         JsVerifier {
-            state: State::Initialized(Verifier::new(config.into())),
+            state: State::Initialized(Verifier::new(tlsn_config)),
+            config,
         }
     }
 
@@ -73,7 +73,27 @@ impl JsVerifier {
     pub async fn verify(&mut self) -> Result<VerifierOutput> {
         let (verifier, prover_conn) = self.state.take().try_into_connected()?;
 
-        let mut verifier = verifier.setup(prover_conn.into_io()).await?.run().await?;
+        let verifier = verifier.setup(prover_conn.into_io()).await?;
+        let config = verifier.config();
+
+        let reject = if config.max_sent_data() > self.config.max_sent_data {
+            Some("max_sent_data is too large")
+        } else if config.max_recv_data() > self.config.max_recv_data {
+            Some("max_recv_data is too large")
+        } else if config.max_sent_records() > self.config.max_sent_records {
+            Some("max_sent_records is too large")
+        } else if config.max_recv_records_online() > self.config.max_recv_records_online {
+            Some("max_recv_records_online is too large")
+        } else {
+            None
+        };
+
+        if reject.is_some() {
+            verifier.reject(reject).await?;
+            return Err(JsError::new("protocol configuration rejected"));
+        }
+
+        let verifier = verifier.accept().await?.run().await?;
 
         let sent = verifier
             .tls_transcript()
@@ -100,7 +120,7 @@ impl JsVerifier {
             },
         };
 
-        let output = verifier.verify(&VerifyConfig::default()).await?;
+        let (output, verifier) = verifier.verify().await?.accept().await?;
         verifier.close().await?;
 
         self.state = State::Complete;
@@ -113,13 +133,5 @@ impl JsVerifier {
             connection_info: connection_info.into(),
             transcript: output.transcript.map(|t| t.into()),
         })
-    }
-}
-
-impl From<tlsn::verifier::Verifier<Initialized>> for JsVerifier {
-    fn from(value: tlsn::verifier::Verifier<Initialized>) -> Self {
-        Self {
-            state: State::Initialized(value),
-        }
     }
 }
