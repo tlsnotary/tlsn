@@ -262,7 +262,7 @@ impl ConnectionCommon {
     pub async fn complete_io<T>(&mut self, io: &mut T) -> Result<(usize, usize), io::Error>
     where
         Self: Sized,
-        T: AsyncRead + AsyncWrite + Unpin,
+        T: io::Read + io::Write,
     {
         let until_handshaked = self.is_handshaking();
         let mut eof = false;
@@ -271,7 +271,7 @@ impl ConnectionCommon {
 
         loop {
             while self.wants_write() {
-                wrlen += self.write_tls_async(io).await?;
+                wrlen += self.write_tls(io)?;
             }
 
             if !until_handshaked && wrlen > 0 {
@@ -279,7 +279,7 @@ impl ConnectionCommon {
             }
 
             if !eof && self.wants_read() {
-                match self.read_tls_async(io).await? {
+                match self.read_tls(io)? {
                     0 => eof = true,
                     n => rdlen += n,
                 }
@@ -291,7 +291,7 @@ impl ConnectionCommon {
                     // In case we have an alert to send describing this error,
                     // try a last-gasp write -- but don't predate the primary
                     // error.
-                    let _ignored = self.write_tls_async(io).await;
+                    let _ignored = self.write_tls(io);
 
                     return Err(io::Error::new(io::ErrorKind::InvalidData, e));
                 }
@@ -457,6 +457,9 @@ impl ConnectionCommon {
             return Err(Error::CorruptMessage);
         }
 
+        // Process outgoing plaintext buffer and encrypt messages.
+        self.flush_plaintext().await?;
+
         // Process new messages.
         while let Some(msg) = self.message_deframer.frames.pop_front() {
             // If we're not decrypting yet, we process it immediately. Otherwise it will be
@@ -508,25 +511,25 @@ impl ConnectionCommon {
         Ok(state)
     }
 
-    /// Write buffer into connection.
-    pub async fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        if let Ok(st) = &mut self.state {
-            st.perhaps_write_key_update(&mut self.common_state).await;
+    /// Writes plaintext `buf` into an internal buffer. May not fully process the
+    /// whole buffer and returns the processed length.
+    pub fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
+        if buf.is_empty() {
+            // Don't send empty fragments.
+            return Ok(0);
         }
-        self.common_state.send_some_plaintext(buf).await
+
+        let len = self.sendable_plaintext.append_limited_copy(buf);
+        Ok(len)
     }
 
-    /// Write entire buffer into connection.
-    pub async fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
+    /// Writes the entire plaintext `buf` into an internal buffer.
+    pub fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<(), Error> {
         let mut pos = 0;
         while pos < buf.len() {
-            pos += self.write_plaintext(&buf[pos..]).await?;
+            pos += self.write_plaintext(&buf[pos..])?;
         }
-        self.backend.flush().await?;
-        while let Some(msg) = self.backend.next_outgoing().await? {
-            self.queue_tls_message(msg);
-        }
-        Ok(pos)
+        Ok(())
     }
 
     /// Read TLS content from `rd`.  This method does internal
@@ -546,32 +549,6 @@ impl ConnectionCommon {
     /// [`process_new_packets`]: Connection::process_new_packets
     pub fn read_tls(&mut self, rd: &mut dyn io::Read) -> Result<usize, io::Error> {
         let res = self.message_deframer.read(rd);
-        if let Ok(0) = res {
-            self.common_state.has_seen_eof = true;
-        }
-        res
-    }
-
-    /// Read TLS content from `rd`.  This method does internal
-    /// buffering, so `rd` can supply TLS messages in arbitrary-
-    /// sized chunks (like a socket or pipe might).
-    ///
-    /// You should call [`process_new_packets`] each time a call to
-    /// this function succeeds.
-    ///
-    /// The returned error only relates to IO on `rd`.  TLS-level
-    /// errors are emitted from [`process_new_packets`].
-    ///
-    /// This function returns `Ok(0)` when the underlying `rd` does
-    /// so.  This typically happens when a socket is cleanly closed,
-    /// or a file is at EOF.
-    ///
-    /// [`process_new_packets`]: Connection::process_new_packets
-    pub async fn read_tls_async<T: AsyncRead + Unpin>(
-        &mut self,
-        rd: &mut T,
-    ) -> Result<usize, io::Error> {
-        let res = self.message_deframer.read_async(rd).await;
         if let Ok(0) = res {
             self.common_state.has_seen_eof = true;
         }
@@ -782,15 +759,6 @@ impl CommonState {
         }
     }
 
-    /// Send plaintext application data, fragmenting and
-    /// encrypting it as it goes out.
-    ///
-    /// If internal buffers are too small, this function will not accept
-    /// all the data.
-    pub(crate) async fn send_some_plaintext(&mut self, data: &[u8]) -> Result<usize, Error> {
-        self.send_plain(data, Limit::Yes).await
-    }
-
     // Changing the keys must not span any fragmented handshake
     // messages.  Otherwise the defragmented messages will have
     // been protected with two different record layer protections,
@@ -916,47 +884,6 @@ impl CommonState {
         self.sendable_tls.write_to(wr)
     }
 
-    /// Writes TLS messages to `wr`.
-    ///
-    /// On success, this function returns `Ok(n)` where `n` is a number of bytes
-    /// written to `wr` (after encoding and encryption).
-    ///
-    /// After this function returns, the connection buffer may not yet be fully
-    /// flushed. The [`CommonState::wants_write`] function can be used to
-    /// check if the output buffer is empty.
-    pub async fn write_tls_async<T: AsyncWrite + Unpin>(
-        &mut self,
-        wr: &mut T,
-    ) -> Result<usize, io::Error> {
-        self.sendable_tls.write_to_async(wr).await
-    }
-
-    /// Encrypt and send some plaintext `data`.  `limit` controls
-    /// whether the per-connection buffer limits apply.
-    ///
-    /// Returns the number of bytes written from `data`: this might
-    /// be less than `data.len()` if buffer limits were exceeded.
-    async fn send_plain(&mut self, data: &[u8], limit: Limit) -> Result<usize, Error> {
-        if !self.may_send_application_data {
-            // If we haven't completed handshaking, buffer
-            // plaintext to send once we do.
-            let len = match limit {
-                Limit::Yes => self.sendable_plaintext.append_limited_copy(data),
-                Limit::No => self.sendable_plaintext.append(data.to_vec()),
-            };
-            return Ok(len);
-        }
-
-        debug_assert!(self.record_layer.is_encrypting());
-
-        if data.is_empty() {
-            // Don't send empty fragments.
-            return Ok(0);
-        }
-
-        self.send_appdata_encrypt(data, limit).await
-    }
-
     pub(crate) async fn start_outgoing_traffic(&mut self) -> Result<(), Error> {
         self.may_send_application_data = true;
         self.flush_plaintext().await
@@ -1012,15 +939,14 @@ impl CommonState {
         self.sendable_tls.set_limit(limit);
     }
 
-    /// Send any buffered plaintext.  Plaintext is buffered if
-    /// written during handshake.
-    async fn flush_plaintext(&mut self) -> Result<(), Error> {
+    /// Send and encrypt any buffered plaintext. Does nothing during handshake.
+    pub async fn flush_plaintext(&mut self) -> Result<(), Error> {
         if !self.may_send_application_data {
             return Ok(());
         }
 
         while let Some(buf) = self.sendable_plaintext.pop() {
-            self.send_plain(&buf, Limit::No).await?;
+            self.send_appdata_encrypt(&buf, Limit::No).await?;
         }
 
         Ok(())

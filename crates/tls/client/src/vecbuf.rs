@@ -122,25 +122,6 @@ impl ChunkVecBuffer {
         self.consume(used);
         Ok(used)
     }
-
-    /// Read data out of this object, passing it `wr`
-    pub(crate) async fn write_to_async<T: AsyncWrite + Unpin>(
-        &mut self,
-        wr: &mut T,
-    ) -> io::Result<usize> {
-        if self.is_empty() {
-            return Ok(0);
-        }
-
-        let mut bufs = [io::IoSlice::new(&[]); 64];
-        for (iov, chunk) in bufs.iter_mut().zip(self.chunks.iter()) {
-            *iov = io::IoSlice::new(chunk);
-        }
-        let len = cmp::min(bufs.len(), self.chunks.len());
-        let used = wr.write_vectored(&bufs[..len]).await?;
-        self.consume(used);
-        Ok(used)
-    }
 }
 
 #[cfg(test)]

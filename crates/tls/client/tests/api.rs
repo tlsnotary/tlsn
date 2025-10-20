@@ -247,7 +247,8 @@ async fn servered_client_data_sent() {
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
 
-        assert_eq!(5, client.write_plaintext(b"hello").await.unwrap());
+        assert_eq!(5, client.write_plaintext(b"hello").unwrap());
+        client.flush_plaintext().await.unwrap();
 
         do_handshake(&mut client, &mut server).await;
         send(&mut client, &mut server);
@@ -286,7 +287,7 @@ async fn servered_both_data_sent() {
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
 
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.write_plaintext(b"from-client!").await.unwrap());
+        assert_eq!(12, client.write_plaintext(b"from-client!").unwrap());
 
         do_handshake(&mut client, &mut server).await;
 
@@ -432,7 +433,7 @@ async fn server_close_notify() {
 
         // check that alerts don't overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.write_plaintext(b"from-client!").await.unwrap());
+        assert_eq!(12, client.write_plaintext(b"from-client!").unwrap());
         server.send_close_notify();
 
         receive(&mut server, &mut client);
@@ -460,7 +461,8 @@ async fn client_close_notify() {
 
         // check that alerts don't overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.write_plaintext(b"from-client!").await.unwrap());
+        assert_eq!(12, client.write_plaintext(b"from-client!").unwrap());
+        client.flush_plaintext().await.unwrap();
         client.send_close_notify().await.unwrap();
 
         send(&mut client, &mut server);
@@ -487,7 +489,7 @@ async fn server_closes_uncleanly() {
 
         // check that unclean EOF reporting does not overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.write_plaintext(b"from-client!").await.unwrap());
+        assert_eq!(12, client.write_plaintext(b"from-client!").unwrap());
 
         receive(&mut server, &mut client);
         transfer_eof(&mut client);
@@ -518,7 +520,7 @@ async fn client_closes_uncleanly() {
 
         // check that unclean EOF reporting does not overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.write_plaintext(b"from-client!").await.unwrap());
+        assert_eq!(12, client.write_plaintext(b"from-client!").unwrap());
         client.process_new_packets().await.unwrap();
 
         send(&mut client, &mut server);
@@ -900,20 +902,9 @@ async fn client_respects_buffer_limit_pre_handshake() {
 
     client.set_buffer_limit(Some(32));
 
-    assert_eq!(
-        client
-            .write_plaintext(b"01234567890123456789")
-            .await
-            .unwrap(),
-        20
-    );
-    assert_eq!(
-        client
-            .write_plaintext(b"01234567890123456789")
-            .await
-            .unwrap(),
-        12
-    );
+    assert_eq!(client.write_plaintext(b"01234567890123456789").unwrap(), 20);
+    assert_eq!(client.write_plaintext(b"01234567890123456789").unwrap(), 12);
+    client.flush_plaintext().await.unwrap();
 
     do_handshake(&mut client, &mut server).await;
     send(&mut client, &mut server);
@@ -953,20 +944,9 @@ async fn client_respects_buffer_limit_post_handshake() {
     do_handshake(&mut client, &mut server).await;
     client.set_buffer_limit(Some(48));
 
-    assert_eq!(
-        client
-            .write_plaintext(b"01234567890123456789")
-            .await
-            .unwrap(),
-        20
-    );
-    assert_eq!(
-        client
-            .write_plaintext(b"01234567890123456789")
-            .await
-            .unwrap(),
-        6
-    );
+    assert_eq!(client.write_plaintext(b"01234567890123456789").unwrap(), 20);
+    assert_eq!(client.write_plaintext(b"01234567890123456789").unwrap(), 6);
+    client.flush_plaintext().await.unwrap();
 
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
@@ -1186,7 +1166,7 @@ async fn client_complete_io_for_handshake() {
 
     assert!(client.is_handshaking());
     let (rdlen, wrlen) = client
-        .complete_io(&mut BlockingIo(ServerSession::new(&mut server)))
+        .complete_io(&mut ServerSession::new(&mut server))
         .await
         .unwrap();
     assert!(rdlen > 0 && wrlen > 0);
@@ -1196,7 +1176,7 @@ async fn client_complete_io_for_handshake() {
 #[tokio::test]
 async fn client_complete_io_for_handshake_eof() {
     let (mut client, _) = make_pair(KeyType::Rsa).await;
-    let mut input = futures::io::Cursor::new(Vec::new());
+    let mut input = io::Cursor::new(Vec::new());
 
     assert!(client.is_handshaking());
     let err = client.complete_io(&mut input).await.unwrap_err();
@@ -1211,20 +1191,11 @@ async fn client_complete_io_for_write() {
 
         do_handshake(&mut client, &mut server).await;
 
-        client
-            .write_plaintext(b"01234567890123456789")
-            .await
-            .unwrap();
-        client
-            .write_plaintext(b"01234567890123456789")
-            .await
-            .unwrap();
+        client.write_plaintext(b"01234567890123456789").unwrap();
+        client.write_plaintext(b"01234567890123456789").unwrap();
         {
             let mut pipe = ServerSession::new(&mut server);
-            let (rdlen, wrlen) = client
-                .complete_io(&mut BlockingIo(&mut pipe))
-                .await
-                .unwrap();
+            let (rdlen, wrlen) = client.complete_io(&mut pipe).await.unwrap();
             assert!(rdlen == 0 && wrlen > 0);
             println!("{:?}", pipe.writevs);
             assert_eq!(pipe.writevs, vec![vec![42, 42]]);
@@ -1247,10 +1218,7 @@ async fn client_complete_io_for_read() {
         server.writer().write_all(b"01234567890123456789").unwrap();
         {
             let mut pipe = ServerSession::new(&mut server);
-            let (rdlen, wrlen) = client
-                .complete_io(&mut BlockingIo(&mut pipe))
-                .await
-                .unwrap();
+            let (rdlen, wrlen) = client.complete_io(&mut pipe).await.unwrap();
             assert!(rdlen > 0 && wrlen == 0);
             assert_eq!(pipe.reads, 1);
         }
@@ -1350,7 +1318,8 @@ async fn server_stream_read() {
     for kt in ALL_KEY_TYPES.iter() {
         let (mut client, mut server) = make_pair(*kt).await;
 
-        client.write_all_plaintext(b"world").await.unwrap();
+        client.write_all_plaintext(b"world").unwrap();
+        client.process_new_packets().await.unwrap();
 
         {
             let mut pipe = ClientSession::new(&mut client);
@@ -1366,7 +1335,8 @@ async fn server_streamowned_read() {
     for kt in ALL_KEY_TYPES.iter() {
         let (mut client, server) = make_pair(*kt).await;
 
-        client.write_all_plaintext(b"world").await.unwrap();
+        client.write_all_plaintext(b"world").unwrap();
+        client.process_new_packets().await.unwrap();
 
         {
             let pipe = ClientSession::new(&mut client);
@@ -1385,7 +1355,9 @@ async fn server_streamowned_read() {
 //         errkind: io::ErrorKind::ConnectionAborted,
 //         after: 0,
 //     };
-//     client.write_all_plaintext(b"hello").await.unwrap();
+//     client.write_all_plaintext(b"hello").unwrap();
+//     client.process_new_packets().await.unwrap();
+//
 //     let mut client_stream = Stream::new(&mut client, &mut pipe);
 //     let rc = client_stream.write(b"world");
 //     assert!(rc.is_err());
@@ -1402,7 +1374,9 @@ async fn server_streamowned_read() {
 //         errkind: io::ErrorKind::ConnectionAborted,
 //         after: 1,
 //     };
-//     client.write_all_plaintext(b"hello").await.unwrap();
+//     client.write_all_plaintext(b"hello").unwrap();
+//     client.process_new_packets().await.unwrap();
+//
 //     let mut client_stream = Stream::new(&mut client, &mut pipe);
 //     let rc = client_stream.write(b"world");
 //     assert_eq!(format!("{:?}", rc), "Ok(5)");
@@ -1900,14 +1874,9 @@ async fn servered_write_for_client_appdata() {
     let (mut client, mut server) = make_pair(KeyType::Rsa).await;
     do_handshake(&mut client, &mut server).await;
 
-    client
-        .write_all_plaintext(b"01234567890123456789")
-        .await
-        .unwrap();
-    client
-        .write_all_plaintext(b"01234567890123456789")
-        .await
-        .unwrap();
+    client.write_all_plaintext(b"01234567890123456789").unwrap();
+    client.write_all_plaintext(b"01234567890123456789").unwrap();
+    client.process_new_packets().await.unwrap();
     {
         let mut pipe = ServerSession::new(&mut server);
         let wrlen = client.write_tls(&mut pipe).unwrap();
@@ -2019,11 +1988,10 @@ async fn servered_write_for_server_handshake_no_half_rtt_by_default() {
 async fn servered_write_for_client_handshake() {
     let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
-    client
-        .write_all_plaintext(b"01234567890123456789")
-        .await
-        .unwrap();
-    client.write_all_plaintext(b"0123456789").await.unwrap();
+    client.write_all_plaintext(b"01234567890123456789").unwrap();
+    client.write_all_plaintext(b"0123456789").unwrap();
+    client.process_new_packets().await.unwrap();
+
     {
         let mut pipe = ServerSession::new(&mut server);
         let wrlen = client.write_tls(&mut pipe).unwrap();
