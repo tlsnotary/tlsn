@@ -12,7 +12,7 @@ use tlsn_core::{ProveRequest, transcript::TlsTranscript};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use crate::verifier::{Mpc, Zk};
+use crate::mpz::{VerifierMpc, VerifierZk};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -38,7 +38,7 @@ pub struct Setup {
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsFollower,
     pub(crate) keys: SessionKeys,
-    pub(crate) vm: Arc<Mutex<Deap<Mpc, Zk>>>,
+    pub(crate) vm: Arc<Mutex<Deap<VerifierMpc, VerifierZk>>>,
 }
 
 opaque_debug::implement!(Setup);
@@ -48,7 +48,7 @@ pub struct Committed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
-    pub(crate) vm: Zk,
+    pub(crate) vm: VerifierZk,
     pub(crate) keys: SessionKeys,
     pub(crate) tls_transcript: TlsTranscript,
 }
@@ -60,7 +60,7 @@ pub struct Verify {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
-    pub(crate) vm: Zk,
+    pub(crate) vm: VerifierZk,
     pub(crate) keys: SessionKeys,
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) request: ProveRequest,
