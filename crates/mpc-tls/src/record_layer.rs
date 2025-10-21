@@ -478,7 +478,7 @@ impl RecordLayer {
             let tag = tags.as_mut().and_then(Vec::pop);
 
             self.encrypted_buffer.push_back(EncryptedRecord {
-                typ: op.typ,
+                typ: op.typ.into(),
                 version: op.version,
                 explicit_nonce: op.explicit_nonce.clone(),
                 ciphertext: ciphertext.clone(),
@@ -487,7 +487,7 @@ impl RecordLayer {
 
             sent_records.push(Record {
                 seq: op.seq,
-                typ: op.typ,
+                typ: op.typ.into(),
                 plaintext: op.plaintext,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext,
@@ -498,14 +498,14 @@ impl RecordLayer {
         for (op, pending) in decrypt_ops.into_iter().zip(pending_decrypt) {
             let plaintext = pending.output.try_decrypt()?;
             self.decrypted_buffer.push_back(PlainRecord {
-                typ: op.typ,
+                typ: op.typ.into(),
                 version: op.version,
                 plaintext: plaintext.clone(),
             });
 
             recv_records.push(Record {
                 seq: op.seq,
-                typ: op.typ,
+                typ: op.typ.into(),
                 plaintext,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
@@ -571,14 +571,14 @@ impl RecordLayer {
         for (op, pending) in buffered_ops.into_iter().zip(pending_decrypts) {
             let plaintext = pending.output.try_decrypt()?;
             self.decrypted_buffer.push_back(PlainRecord {
-                typ: op.typ,
+                typ: op.typ.into(),
                 version: op.version,
                 plaintext: plaintext.clone(),
             });
 
             recv_records.push(Record {
                 seq: op.seq,
-                typ: op.typ,
+                typ: op.typ.into(),
                 plaintext,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,

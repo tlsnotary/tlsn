@@ -41,6 +41,23 @@ impl From<ContentType> for tls_core::msgs::enums::ContentType {
     }
 }
 
+impl From<tls_core::msgs::enums::ContentType> for ContentType {
+    fn from(content_type: tls_core::msgs::enums::ContentType) -> Self {
+        match content_type {
+            tls_core::msgs::enums::ContentType::ChangeCipherSpec => ContentType::ChangeCipherSpec,
+            tls_core::msgs::enums::ContentType::Alert => ContentType::Alert,
+            tls_core::msgs::enums::ContentType::Handshake => ContentType::Handshake,
+            tls_core::msgs::enums::ContentType::ApplicationData => ContentType::ApplicationData,
+            tls_core::msgs::enums::ContentType::Heartbeat => ContentType::Heartbeat,
+            tls_core::msgs::enums::ContentType::Unknown(_) => {
+                // For unknown content types, default to ApplicationData.
+                // This is a conservative choice that allows the protocol to continue.
+                ContentType::ApplicationData
+            }
+        }
+    }
+}
+
 /// A transcript of TLS records sent and received by the prover.
 #[derive(Debug, Clone)]
 pub struct TlsTranscript {
