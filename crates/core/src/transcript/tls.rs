@@ -50,8 +50,6 @@ impl From<tls_core::msgs::enums::ContentType> for ContentType {
             tls_core::msgs::enums::ContentType::ApplicationData => ContentType::ApplicationData,
             tls_core::msgs::enums::ContentType::Heartbeat => ContentType::Heartbeat,
             tls_core::msgs::enums::ContentType::Unknown(_) => {
-                // For unknown content types, default to ApplicationData.
-                // This is a conservative choice that allows the protocol to continue.
                 ContentType::ApplicationData
             }
         }
