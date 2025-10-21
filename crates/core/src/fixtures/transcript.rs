@@ -15,7 +15,7 @@ use tls_core::msgs::{
 use crate::{
     connection::{TranscriptLength, VerifyData},
     fixtures::ConnectionFixture,
-    transcript::{Record, TlsTranscript, ContentType},
+    transcript::{ContentType, Record, TlsTranscript},
 };
 
 /// The key used for encryption of the sent and received transcript.
