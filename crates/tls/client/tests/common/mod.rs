@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use futures::{AsyncRead, AsyncWrite};
 use rustls::{server::AllowAnyAuthenticatedClient, ServerConfig, ServerConnection};
 use rustls_pki_types::CertificateDer;
 use std::{
@@ -614,4 +615,54 @@ impl io::Read for FailsReads {
 
 pub fn version_compat(v: Option<rustls::ProtocolVersion>) -> Option<tls_client::ProtocolVersion> {
     v.map(|v| tls_client::ProtocolVersion::from(v.get_u16()))
+}
+
+pub struct BlockingIo<T>(pub T);
+
+impl<T> AsyncWrite for BlockingIo<T>
+where
+    T: std::io::Write + Unpin,
+{
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<io::Result<usize>> {
+        std::task::Poll::Ready(self.get_mut().0.write(buf))
+    }
+
+    fn poll_write_vectored(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> std::task::Poll<io::Result<usize>> {
+        std::task::Poll::Ready(self.get_mut().0.write_vectored(bufs))
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        std::task::Poll::Ready(self.get_mut().0.flush())
+    }
+
+    fn poll_close(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+}
+
+impl<T> AsyncRead for BlockingIo<T>
+where
+    T: std::io::Read + Unpin,
+{
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> std::task::Poll<io::Result<usize>> {
+        std::task::Poll::Ready(self.get_mut().0.read(buf))
+    }
 }
