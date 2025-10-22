@@ -203,8 +203,14 @@ impl Prover<state::Setup> {
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;
 
-        let ctrl = MpcControl { mpc_ctrl };
+        let span = self.span.clone();
+        let ctrl = MpcControl {
+            mpc_ctrl: mpc_ctrl.clone(),
+        };
+
         let mpc_tls = MpcTlsClient::new(
+            span,
+            mpc_ctrl,
             client,
             mux_fut,
             Box::new(mpc_fut.map_err(ProverError::from)),

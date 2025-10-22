@@ -20,11 +20,13 @@ pub(crate) type MpcFuture =
     Box<dyn Future<Output = Result<(mpz_common::Context, TlsTranscript), ProverError>>>;
 
 pub(crate) struct MpcTlsClient {
-    tls: ClientState,
+    state: ClientState,
 }
 
 impl MpcTlsClient {
     pub(crate) fn new(
+        span: Span,
+        mpc_ctrl: LeaderCtrl,
         tls: ClientConnection,
         mux: MuxFuture,
         mpc: MpcFuture,
@@ -32,12 +34,15 @@ impl MpcTlsClient {
         vm: Arc<Mutex<Deap<Mpc, Zk>>>,
     ) -> Self {
         Self {
-            tls: ClientState::Idle(InnerClient {
+            state: ClientState::Idle(InnerState {
+                span,
+                mpc_ctrl,
                 tls,
                 mux,
                 mpc: Box::into_pin(mpc),
                 keys,
                 vm,
+                transcript: None,
             }),
         }
     }
@@ -86,11 +91,11 @@ impl TlsClient for MpcTlsClient {
 }
 
 enum ClientState {
-    Idle(InnerClient),
+    Idle(InnerState),
     Processing(
         Pin<
             Box<
-                dyn Future<Output = Result<InnerClient, ProverError>>
+                dyn Future<Output = Result<InnerState, ProverError>>
                     + Send
                     + Sync
                     + Unpin
@@ -98,19 +103,44 @@ enum ClientState {
             >,
         >,
     ),
+    Finished {
+        transcript: TlsTranscript,
+    },
+    Error,
 }
 
-struct InnerClient {
+impl Future for ClientState {
+    type Output = TlsTranscript;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        let current_state = std::mem::replace(this, Self::Error);
+
+        match current_state {
+            ClientState::Idle(inner) => {
+                this = Self::Processing(Box::pin(inner.run()));
+            }
+            ClientState::Processing(inner) => todo!(),
+            ClientState::Finished { transcript } => todo!(),
+            ClientState::Error => todo!(),
+        }
+
+        todo!()
+    }
+}
+
+struct InnerState {
     span: Span,
     mpc_ctrl: LeaderCtrl,
     tls: ClientConnection,
     mux: MuxFuture,
-    keys: SessionKeys,
     mpc: Pin<MpcFuture>,
+    keys: SessionKeys,
     vm: Arc<Mutex<Deap<Mpc, Zk>>>,
+    transcript: Option<TlsTranscript>,
 }
 
-impl InnerClient {
+impl InnerState {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn run(mut self) -> Result<Self, ProverError> {
         let mpc_ctrl = self.mpc_ctrl.clone();
@@ -127,10 +157,8 @@ impl InnerClient {
 
         info!("starting MPC-TLS");
 
-        let (_, (mut ctx, tls_transcript)) = futures::try_join!(
-            conn_fut,
-            self.mpc.in_current_span().map_err(ProverError::from)
-        )?;
+        let mpc = &mut self.mpc;
+        let (_, (mut ctx, tls_transcript)) = futures::try_join!(conn_fut, mpc)?;
 
         info!("finished MPC-TLS");
 
@@ -146,33 +174,27 @@ impl InnerClient {
                 .map_err(ProverError::mpc)?;
 
             debug!("mpc finalized");
+
+            // Pull out ZK VM.
+            let mut zk = vm.zk();
+
+            // Prove tag verification of received records.
+            // The prover drops the proof output.
+            let _ = verify_tags(
+                &mut *zk,
+                (self.keys.server_write_key, self.keys.server_write_iv),
+                self.keys.server_write_mac_key,
+                *tls_transcript.version(),
+                tls_transcript.recv().to_vec(),
+            )
+            .map_err(ProverError::zk)?;
+
+            self.mux
+                .poll_with(zk.execute_all(&mut ctx).map_err(ProverError::zk))
+                .await?;
         }
 
-        // Pull out ZK VM.
-        let (_, mut vm) = Arc::into_inner(self.vm)
-            .expect("vm should have only 1 reference")
-            .into_inner()
-            .into_inner();
-
-        // Prove tag verification of received records.
-        // The prover drops the proof output.
-        let _ = verify_tags(
-            &mut vm,
-            (self.keys.server_write_key, self.keys.server_write_iv),
-            self.keys.server_write_mac_key,
-            *tls_transcript.version(),
-            tls_transcript.recv().to_vec(),
-        )
-        .map_err(ProverError::zk)?;
-
-        self.mux
-            .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
-            .await?;
-
-        let transcript = tls_transcript
-            .to_transcript()
-            .expect("transcript is complete");
-
+        self.transcript = Some(tls_transcript);
         Ok(self)
     }
 }
