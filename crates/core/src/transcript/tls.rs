@@ -39,7 +39,7 @@ impl From<ContentType> for tls_core::msgs::enums::ContentType {
             ContentType::Handshake => tls_core::msgs::enums::ContentType::Handshake,
             ContentType::ApplicationData => tls_core::msgs::enums::ContentType::ApplicationData,
             ContentType::Heartbeat => tls_core::msgs::enums::ContentType::Heartbeat,
-            ContentType::Unknown(id) => tls_core::msgs::enums::ContentType::Unknown(id)
+            ContentType::Unknown(id) => tls_core::msgs::enums::ContentType::Unknown(id),
         }
     }
 }
