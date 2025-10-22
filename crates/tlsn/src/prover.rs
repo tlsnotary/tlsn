@@ -1,14 +1,13 @@
 //! Prover.
 
+mod client;
 mod config;
 mod error;
-mod future;
 mod prove;
 pub mod state;
 
 pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
-pub use future::ProverFuture;
 use rustls_pki_types::CertificateDer;
 pub use tlsn_core::{
     ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProveRequest, ProverOutput,
@@ -17,7 +16,6 @@ pub use tlsn_core::{
 use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
-use mpz_vm_core::prelude::*;
 use mpz_zk::ProverConfig as ZkProverConfig;
 use webpki::anchor_from_trusted_cert;
 
@@ -26,16 +24,15 @@ use crate::{
     context::build_mt_context,
     msg::{Response, SetupRequest},
     mux::attach_mux,
-    tag::verify_tags,
+    prover::client::{MpcControl, MpcTlsClient},
 };
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
+use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::sync::Arc;
+use std::{sync::Arc, task::Poll};
 use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_client_async::{TlsConnection, bind_client};
 use tlsn_core::{
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
@@ -43,7 +40,7 @@ use tlsn_core::{
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use tracing::{Instrument, Span, debug, info, info_span, instrument};
+use tracing::{Span, debug, info_span, instrument};
 
 pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
     mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,
@@ -145,22 +142,16 @@ impl Prover<state::Initialized> {
 }
 
 impl Prover<state::Setup> {
-    /// Connects to the server using the provided socket.
+    /// Connects the prover.
     ///
-    /// Returns a handle to the TLS connection, a future which returns the
-    /// prover once the connection is closed.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - The socket to the server.
+    /// Returns a [`ProverControl`] and the connected prover.
+    ///   - The prover control offers MPC-specific connection handling.
+    ///   - The connected prover can be used to read and write from/to the active TLS connection.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn connect<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-    ) -> Result<(TlsConnection, ProverFuture), ProverError> {
+    pub fn connect(self) -> Result<(MpcControl, Prover<state::Connected>), ProverError> {
         let state::Setup {
             mux_ctrl,
-            mut mux_fut,
+            mux_fut,
             mpc_tls,
             keys,
             vm,
@@ -212,94 +203,76 @@ impl Prover<state::Setup> {
             ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
                 .map_err(ProverError::config)?;
 
-        let (conn, conn_fut) = bind_client(socket, client);
+        let ctrl = MpcControl { mpc_ctrl };
+        let mpc_tls = MpcTlsClient::new(
+            client,
+            mux_fut,
+            Box::new(mpc_fut.map_err(ProverError::from)),
+            keys,
+            vm,
+        );
 
-        let fut = Box::pin({
-            let span = self.span.clone();
-            let mpc_ctrl = mpc_ctrl.clone();
-            async move {
-                let conn_fut = async {
-                    mux_fut
-                        .poll_with(conn_fut.map_err(ProverError::from))
-                        .await?;
-
-                    mpc_ctrl.stop().await?;
-
-                    Ok::<_, ProverError>(())
-                };
-
-                info!("starting MPC-TLS");
-
-                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
-                    conn_fut,
-                    mpc_fut.in_current_span().map_err(ProverError::from)
-                )?;
-
-                info!("finished MPC-TLS");
-
-                {
-                    let mut vm = vm.try_lock().expect("VM should not be locked");
-
-                    debug!("finalizing mpc");
-
-                    // Finalize DEAP.
-                    mux_fut
-                        .poll_with(vm.finalize(&mut ctx))
-                        .await
-                        .map_err(ProverError::mpc)?;
-
-                    debug!("mpc finalized");
-                }
-
-                // Pull out ZK VM.
-                let (_, mut vm) = Arc::into_inner(vm)
-                    .expect("vm should have only 1 reference")
-                    .into_inner()
-                    .into_inner();
-
-                // Prove tag verification of received records.
-                // The prover drops the proof output.
-                let _ = verify_tags(
-                    &mut vm,
-                    (keys.server_write_key, keys.server_write_iv),
-                    keys.server_write_mac_key,
-                    *tls_transcript.version(),
-                    tls_transcript.recv().to_vec(),
-                )
-                .map_err(ProverError::zk)?;
-
-                mux_fut
-                    .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
-                    .await?;
-
-                let transcript = tls_transcript
-                    .to_transcript()
-                    .expect("transcript is complete");
-
-                Ok(Prover {
-                    config: self.config,
-                    span: self.span,
-                    state: state::Committed {
-                        mux_ctrl,
-                        mux_fut,
-                        ctx,
-                        vm,
-                        keys,
-                        tls_transcript,
-                        transcript,
-                    },
-                })
-            }
-            .instrument(span)
-        });
-
-        Ok((
-            conn,
-            ProverFuture {
-                fut,
-                ctrl: ProverControl { mpc_ctrl },
+        let prover = Prover::<state::Connected> {
+            config: self.config,
+            span: self.span,
+            state: state::Connected {
+                mux_ctrl,
+                tls_client: Box::new(mpc_tls),
             },
-        ))
+        };
+        Ok((ctrl, prover))
+    }
+}
+
+impl Prover<state::Connected> {
+    /// Returns `true` if the prover can read TLS data from the server.
+    pub fn can_read_tls(&self) -> bool {
+        self.state.tls_client.can_read_tls()
+    }
+
+    /// Returns `true` if the prover wants to write TLS data to the server.
+    pub fn wants_write_tls(&self) -> bool {
+        self.state.tls_client.wants_write_tls()
+    }
+
+    /// Reads TLS data from the server.
+    pub fn read_tls(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+        self.state.tls_client.read_tls(buf)
+    }
+
+    /// Writes TLS data for the server into the provided buffer.
+    pub fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        self.state.tls_client.write_tls(buf)
+    }
+
+    /// Returns `true` if the prover can read plaintext data.
+    pub fn can_read(&self) -> bool {
+        self.state.tls_client.can_read()
+    }
+
+    /// Returns `true` if the prover wants to write plaintext data.
+    pub fn wants_write(&self) -> bool {
+        self.state.tls_client.wants_write()
+    }
+
+    /// Reads plaintext data from the server into the provided buffer.
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        self.state.tls_client.read(buf)
+    }
+
+    /// Writes plaintext data to be sent to the server.
+    pub fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+        self.state.tls_client.write(buf)
+    }
+
+    /// Closes the server connection.
+    pub fn close(&mut self) -> Result<(), std::io::Error> {
+        self.state.tls_client.close()
+    }
+
+    /// Polls the prover to make progress. Returns a committed prover.
+    fn poll(&mut self, cx: &mut Context) -> Poll<Result<Prover<state::Committed>, ProverError>> {
+        todo!()
     }
 }
 
@@ -432,32 +405,6 @@ fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk
             rcot_recv,
         ),
     )
-}
-
-/// A controller for the prover.
-#[derive(Clone)]
-pub struct ProverControl {
-    mpc_ctrl: LeaderCtrl,
-}
-
-impl ProverControl {
-    /// Defers decryption of data from the server until the server has closed
-    /// the connection.
-    ///
-    /// This is a performance optimization which will significantly reduce the
-    /// amount of upload bandwidth used by the prover.
-    ///
-    /// # Notes
-    ///
-    /// * The prover may need to close the connection to the server in order for
-    ///   it to close the connection on its end. If neither the prover or server
-    ///   close the connection this will cause a deadlock.
-    pub async fn defer_decryption(&self) -> Result<(), ProverError> {
-        self.mpc_ctrl
-            .defer_decryption()
-            .await
-            .map_err(ProverError::from)
-    }
 }
 
 /// Translates VM references to the ZK address space.
