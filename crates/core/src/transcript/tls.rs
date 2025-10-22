@@ -27,6 +27,8 @@ pub enum ContentType {
     ApplicationData,
     /// Heartbeat protocol.
     Heartbeat,
+    /// Unknown protocol.
+    Unknown(u8),
 }
 
 impl From<ContentType> for tls_core::msgs::enums::ContentType {
@@ -37,6 +39,7 @@ impl From<ContentType> for tls_core::msgs::enums::ContentType {
             ContentType::Handshake => tls_core::msgs::enums::ContentType::Handshake,
             ContentType::ApplicationData => tls_core::msgs::enums::ContentType::ApplicationData,
             ContentType::Heartbeat => tls_core::msgs::enums::ContentType::Heartbeat,
+            ContentType::Unknown(id) => tls_core::msgs::enums::ContentType::Unknown(id)
         }
     }
 }
@@ -49,7 +52,7 @@ impl From<tls_core::msgs::enums::ContentType> for ContentType {
             tls_core::msgs::enums::ContentType::Handshake => ContentType::Handshake,
             tls_core::msgs::enums::ContentType::ApplicationData => ContentType::ApplicationData,
             tls_core::msgs::enums::ContentType::Heartbeat => ContentType::Heartbeat,
-            tls_core::msgs::enums::ContentType::Unknown(_) => ContentType::ApplicationData,
+            tls_core::msgs::enums::ContentType::Unknown(id) => ContentType::Unknown(id),
         }
     }
 }
