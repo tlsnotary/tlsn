@@ -15,40 +15,21 @@ use crate::{
     Role,
     config::ProtocolConfig,
     context::build_mt_context,
+    mpz::{VerifierDeps, build_verifier_deps, translate_keys},
     msg::{Response, SetupRequest},
     mux::attach_mux,
     tag::verify_tags,
 };
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{MpcTlsFollower, SessionKeys};
-use mpz_common::Context;
-use mpz_core::Block;
-use mpz_garble_core::Delta;
 use mpz_vm_core::prelude::*;
-use mpz_zk::VerifierConfig as ZkVerifierConfig;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
     ProveRequest,
     connection::{ConnectionInfo, ServerName},
     transcript::TlsTranscript,
 };
-use tlsn_deap::Deap;
-use tokio::sync::Mutex;
 
 use tracing::{Span, debug, info, info_span, instrument};
-
-pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
-    mpz_ot::ferret::Sender<mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>>,
-    mpz_core::Block,
->;
-pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
-    mpz_ot::kos::Receiver<mpz_ot::chou_orlandi::Sender>,
-    bool,
-    mpz_core::Block,
->;
-pub(crate) type Mpc =
-    mpz_garble::protocol::semihonest::Evaluator<mpz_ot::cot::DerandCOTReceiver<RCOTReceiver>>;
-pub(crate) type Zk = mpz_zk::Verifier<RCOTSender>;
 
 /// Information about the TLS session.
 #[derive(Debug)]
@@ -146,12 +127,13 @@ impl Verifier<state::Config> {
 
         mux_fut.poll_with(ctx.io_mut().send(Response::ok())).await?;
 
-        let (vm, mut mpc_tls) = build_mpc_tls(&self.config, &config, ctx);
+        let VerifierDeps { vm, mut mpc_tls } =
+            build_verifier_deps(self.config.build_mpc_tls_config(&config), ctx);
 
         // Allocate resources for MPC-TLS in the VM.
         let mut keys = mpc_tls.alloc()?;
         let vm_lock = vm.try_lock().expect("VM is not locked");
-        translate_keys(&mut keys, &vm_lock)?;
+        translate_keys(&mut keys, &vm_lock);
         drop(vm_lock);
 
         debug!("setting up mpc-tls");
@@ -411,75 +393,4 @@ impl Verifier<state::Verify> {
             },
         })
     }
-}
-
-fn build_mpc_tls(
-    config: &VerifierConfig,
-    protocol_config: &ProtocolConfig,
-    ctx: Context,
-) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsFollower) {
-    let mut rng = rand::rng();
-
-    let delta = Delta::random(&mut rng);
-    let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
-    let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
-    let rcot_send = mpz_ot::kos::Sender::new(
-        mpz_ot::kos::SenderConfig::default(),
-        delta.into_inner(),
-        base_ot_recv,
-    );
-    let rcot_send = mpz_ot::ferret::Sender::new(
-        mpz_ot::ferret::FerretConfig::builder()
-            .lpn_type(mpz_ot::ferret::LpnType::Regular)
-            .build()
-            .expect("ferret config is valid"),
-        Block::random(&mut rng),
-        rcot_send,
-    );
-    let rcot_recv =
-        mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
-
-    let rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
-    let rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
-
-    let mpc = Mpc::new(mpz_ot::cot::DerandCOTReceiver::new(rcot_recv.clone()));
-
-    let zk = Zk::new(ZkVerifierConfig::default(), delta, rcot_send.clone());
-
-    let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
-
-    (
-        vm.clone(),
-        MpcTlsFollower::new(
-            config.build_mpc_tls_config(protocol_config),
-            ctx,
-            vm,
-            rcot_send,
-            (rcot_recv.clone(), rcot_recv.clone(), rcot_recv),
-        ),
-    )
-}
-
-/// Translates VM references to the ZK address space.
-fn translate_keys<Mpc, Zk>(
-    keys: &mut SessionKeys,
-    vm: &Deap<Mpc, Zk>,
-) -> Result<(), VerifierError> {
-    keys.client_write_key = vm
-        .translate(keys.client_write_key)
-        .map_err(VerifierError::mpc)?;
-    keys.client_write_iv = vm
-        .translate(keys.client_write_iv)
-        .map_err(VerifierError::mpc)?;
-    keys.server_write_key = vm
-        .translate(keys.server_write_key)
-        .map_err(VerifierError::mpc)?;
-    keys.server_write_iv = vm
-        .translate(keys.server_write_iv)
-        .map_err(VerifierError::mpc)?;
-    keys.server_write_mac_key = vm
-        .translate(keys.server_write_mac_key)
-        .map_err(VerifierError::mpc)?;
-
-    Ok(())
 }
