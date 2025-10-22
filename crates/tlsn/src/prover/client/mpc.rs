@@ -2,17 +2,19 @@
 
 use crate::{
     mux::MuxFuture,
-    prover::{ProverError, client::TlsClient},
+    prover::{Mpc, ProverError, Zk, client::TlsClient},
+    tag::verify_tags,
 };
-use futures::Future;
+use futures::{Future, TryFutureExt};
 use mpc_tls::{LeaderCtrl, SessionKeys};
 use mpz_memory_core::binary::Binary;
-use mpz_vm_core::Vm;
+use mpz_vm_core::{Execute, Vm};
 use std::{pin::Pin, sync::Arc, task::Poll};
 use tls_client::ClientConnection;
 use tlsn_core::transcript::TlsTranscript;
+use tlsn_deap::Deap;
 use tokio::sync::Mutex;
-use tracing::{debug, info};
+use tracing::{Instrument, Span, debug, info, instrument};
 
 pub(crate) type MpcFuture =
     Box<dyn Future<Output = Result<(mpz_common::Context, TlsTranscript), ProverError>>>;
@@ -27,7 +29,7 @@ impl MpcTlsClient {
         mux: MuxFuture,
         mpc: MpcFuture,
         keys: SessionKeys,
-        vm: Arc<Mutex<dyn Vm<Binary>>>,
+        vm: Arc<Mutex<Deap<Mpc, Zk>>>,
     ) -> Self {
         Self {
             tls: ClientState::Idle(InnerClient {
@@ -85,15 +87,94 @@ impl TlsClient for MpcTlsClient {
 
 enum ClientState {
     Idle(InnerClient),
-    Processing(Pin<Box<dyn Future<Output = InnerClient>>>),
+    Processing(
+        Pin<
+            Box<
+                dyn Future<Output = Result<InnerClient, ProverError>>
+                    + Send
+                    + Sync
+                    + Unpin
+                    + 'static,
+            >,
+        >,
+    ),
 }
 
 struct InnerClient {
+    span: Span,
+    mpc_ctrl: LeaderCtrl,
     tls: ClientConnection,
     mux: MuxFuture,
     keys: SessionKeys,
     mpc: Pin<MpcFuture>,
-    vm: Arc<Mutex<dyn Vm<Binary>>>,
+    vm: Arc<Mutex<Deap<Mpc, Zk>>>,
+}
+
+impl InnerClient {
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
+    async fn run(mut self) -> Result<Self, ProverError> {
+        let mpc_ctrl = self.mpc_ctrl.clone();
+
+        let conn_fut = async {
+            self.mux
+                .poll_with(self.tls.process_new_packets().map_err(ProverError::from))
+                .await?;
+
+            mpc_ctrl.stop().await?;
+
+            Ok::<_, ProverError>(())
+        };
+
+        info!("starting MPC-TLS");
+
+        let (_, (mut ctx, tls_transcript)) = futures::try_join!(
+            conn_fut,
+            self.mpc.in_current_span().map_err(ProverError::from)
+        )?;
+
+        info!("finished MPC-TLS");
+
+        {
+            let mut vm = self.vm.try_lock().expect("VM should not be locked");
+
+            debug!("finalizing mpc");
+
+            // Finalize DEAP.
+            self.mux
+                .poll_with(vm.finalize(&mut ctx))
+                .await
+                .map_err(ProverError::mpc)?;
+
+            debug!("mpc finalized");
+        }
+
+        // Pull out ZK VM.
+        let (_, mut vm) = Arc::into_inner(self.vm)
+            .expect("vm should have only 1 reference")
+            .into_inner()
+            .into_inner();
+
+        // Prove tag verification of received records.
+        // The prover drops the proof output.
+        let _ = verify_tags(
+            &mut vm,
+            (self.keys.server_write_key, self.keys.server_write_iv),
+            self.keys.server_write_mac_key,
+            *tls_transcript.version(),
+            tls_transcript.recv().to_vec(),
+        )
+        .map_err(ProverError::zk)?;
+
+        self.mux
+            .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
+            .await?;
+
+        let transcript = tls_transcript
+            .to_transcript()
+            .expect("transcript is complete");
+
+        Ok(self)
+    }
 }
 
 /// A controller for the prover.
@@ -120,85 +201,4 @@ impl MpcControl {
             .await
             .map_err(ProverError::from)
     }
-}
-
-pub(crate) fn build_mpc_tls_client() {
-    let fut = Box::pin({
-        let span = self.span.clone();
-        let mpc_ctrl = mpc_ctrl.clone();
-        async move {
-            let conn_fut = async {
-                mux_fut
-                    .poll_with(conn_fut.map_err(ProverError::from))
-                    .await?;
-
-                mpc_ctrl.stop().await?;
-
-                Ok::<_, ProverError>(())
-            };
-
-            info!("starting MPC-TLS");
-
-            let (_, (mut ctx, tls_transcript)) = futures::try_join!(
-                conn_fut,
-                mpc_fut.in_current_span().map_err(ProverError::from)
-            )?;
-
-            info!("finished MPC-TLS");
-
-            {
-                let mut vm = vm.try_lock().expect("VM should not be locked");
-
-                debug!("finalizing mpc");
-
-                // Finalize DEAP.
-                mux_fut
-                    .poll_with(vm.finalize(&mut ctx))
-                    .await
-                    .map_err(ProverError::mpc)?;
-
-                debug!("mpc finalized");
-            }
-
-            // Pull out ZK VM.
-            let (_, mut vm) = Arc::into_inner(vm)
-                .expect("vm should have only 1 reference")
-                .into_inner()
-                .into_inner();
-
-            // Prove tag verification of received records.
-            // The prover drops the proof output.
-            let _ = verify_tags(
-                &mut vm,
-                (keys.server_write_key, keys.server_write_iv),
-                keys.server_write_mac_key,
-                *tls_transcript.version(),
-                tls_transcript.recv().to_vec(),
-            )
-            .map_err(ProverError::zk)?;
-
-            mux_fut
-                .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
-                .await?;
-
-            let transcript = tls_transcript
-                .to_transcript()
-                .expect("transcript is complete");
-
-            Ok(Prover {
-                config: self.config,
-                span: self.span,
-                state: state::Committed {
-                    mux_ctrl,
-                    mux_fut,
-                    ctx,
-                    vm,
-                    keys,
-                    tls_transcript,
-                    transcript,
-                },
-            })
-        }
-        .instrument(span)
-    });
 }
