@@ -37,7 +37,10 @@ pub(crate) trait TlsClient {
     fn close(&mut self) -> Result<(), std::io::Error>;
 
     /// Polls the client to make progress.
-    fn poll(&mut self, cx: &mut Context) -> Poll<Result<TlsTranscript, ProverError>> {
+    fn poll(
+        &mut self,
+        cx: &mut Context,
+    ) -> Poll<Result<(mpz_common::Context, TlsTranscript), ProverError>> {
         todo!()
     }
 }

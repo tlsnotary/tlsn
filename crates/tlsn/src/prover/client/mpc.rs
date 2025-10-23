@@ -5,10 +5,10 @@ use crate::{
     prover::{Mpc, ProverError, Zk, client::TlsClient},
     tag::verify_tags,
 };
-use futures::{Future, FutureExt, TryFutureExt};
+use futures::{Future, FutureExt, TryFutureExt, future::FusedFuture};
 use mpc_tls::{LeaderCtrl, SessionKeys};
-use mpz_memory_core::binary::Binary;
-use mpz_vm_core::{Execute, Vm};
+use mpz_common::Context;
+use mpz_vm_core::Execute;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -18,10 +18,10 @@ use tls_client::ClientConnection;
 use tlsn_core::transcript::TlsTranscript;
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
-use tracing::{Instrument, Span, debug, info, instrument};
+use tracing::{Span, debug, error, info, instrument};
 
 pub(crate) type MpcFuture =
-    Box<dyn Future<Output = Result<(mpz_common::Context, TlsTranscript), ProverError>>>;
+    Box<dyn FusedFuture<Output = Result<(mpz_common::Context, TlsTranscript), ProverError>>>;
 
 pub(crate) struct MpcTlsClient {
     state: ClientState,
@@ -48,7 +48,7 @@ impl MpcTlsClient {
                     keys,
                     vm,
                     close_mpc_tls: false,
-                    transcript: None,
+                    finished: None,
                 },
                 waker: None,
             },
@@ -103,7 +103,10 @@ impl TlsClient for MpcTlsClient {
         ))
     }
 
-    fn poll(&mut self, cx: &mut std::task::Context) -> Poll<Result<TlsTranscript, ProverError>> {
+    fn poll(
+        &mut self,
+        cx: &mut std::task::Context,
+    ) -> Poll<Result<(Context, TlsTranscript), ProverError>> {
         self.state.poll_unpin(cx)
     }
 }
@@ -126,7 +129,7 @@ pin_project_lite::pin_project! {
 }
 
 impl Future for ClientState {
-    type Output = Result<TlsTranscript, ProverError>;
+    type Output = Result<(Context, TlsTranscript), ProverError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let mut out: Poll<Self::Output> = Poll::Pending;
@@ -150,9 +153,9 @@ impl Future for ClientState {
         let this = self.as_mut().project_replace(Self::Error);
         match this {
             ClientStateProj::Idle { inner, .. } => {
-                if let Some(transcript) = inner.transcript {
+                if let Some((ctx, transcript)) = inner.finished {
                     new = ClientState::Finished;
-                    out = Poll::Ready(Ok(transcript));
+                    out = Poll::Ready(Ok((ctx, transcript)));
                 } else {
                     new = ClientState::Processing {
                         fut: Box::pin(inner.run()),
@@ -187,39 +190,51 @@ struct InnerState {
     keys: SessionKeys,
     vm: Arc<Mutex<Deap<Mpc, Zk>>>,
     close_mpc_tls: bool,
-    transcript: Option<TlsTranscript>,
+    finished: Option<(Context, TlsTranscript)>,
 }
 
 impl InnerState {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn run(mut self) -> Result<Self, ProverError> {
-        let mpc_ctrl = self.mpc_ctrl.clone();
+        if self.finished.is_none() {
+            let mpc_ctrl = self.mpc_ctrl.clone();
 
-        let conn_fut = async {
-            self.mux
-                .poll_with(self.tls.process_new_packets().map_err(ProverError::from))
-                .await?;
+            let mut tls_fut = Box::pin(async {
+                self.tls
+                    .process_new_packets()
+                    .map_err(ProverError::from)
+                    .await?;
+                Ok::<_, ProverError>(())
+            })
+            .fuse();
 
-            mpc_ctrl.stop().await?;
+            info!("starting MPC-TLS");
 
-            Ok::<_, ProverError>(())
-        };
-
-        info!("starting MPC-TLS");
-
-        let mpc = &mut self.mpc;
-        let (_, (mut ctx, tls_transcript)) = futures::try_join!(conn_fut, mpc)?;
-
-        info!("finished MPC-TLS");
-
-        {
+            futures::select! {
+                tls_finish = tls_fut => {
+                    let _ = tls_finish?;
+                    if self.close_mpc_tls {
+                        mpc_ctrl.stop().await?;
+                    }
+            },
+                mux_finish = &mut self.mux => {
+                    if let Err(e) = mux_finish {
+                        error!("mux error: {:?}", e);
+                    }
+            },
+                mpc_finish = &mut self.mpc => {
+                    self.finished = Some(mpc_finish?);
+                    },
+            };
+        } else if let Some((ctx, transcript)) = &mut self.finished {
+            info!("finished MPC-TLS");
             let mut vm = self.vm.try_lock().expect("VM should not be locked");
 
             debug!("finalizing mpc");
 
             // Finalize DEAP.
             self.mux
-                .poll_with(vm.finalize(&mut ctx))
+                .poll_with(vm.finalize(ctx))
                 .await
                 .map_err(ProverError::mpc)?;
 
@@ -234,17 +249,16 @@ impl InnerState {
                 &mut *zk,
                 (self.keys.server_write_key, self.keys.server_write_iv),
                 self.keys.server_write_mac_key,
-                *tls_transcript.version(),
-                tls_transcript.recv().to_vec(),
+                *transcript.version(),
+                transcript.recv().to_vec(),
             )
             .map_err(ProverError::zk)?;
 
             self.mux
-                .poll_with(zk.execute_all(&mut ctx).map_err(ProverError::zk))
+                .poll_with(zk.execute_all(ctx).map_err(ProverError::zk))
                 .await?;
         }
 
-        self.transcript = Some(tls_transcript);
         Ok(self)
     }
 }

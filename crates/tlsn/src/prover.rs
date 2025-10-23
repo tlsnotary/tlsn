@@ -27,7 +27,7 @@ use crate::{
     prover::client::{MpcControl, MpcTlsClient},
 };
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use futures::{AsyncRead, AsyncWrite, FutureExt, TryFutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use rand::Rng;
 use serio::{SinkExt, stream::IoStreamExt};
@@ -213,7 +213,7 @@ impl Prover<state::Setup> {
             mpc_ctrl,
             client,
             mux_fut,
-            Box::new(mpc_fut.map_err(ProverError::from)),
+            Box::new(mpc_fut.map_err(ProverError::from).fuse()),
             keys,
             vm,
         );

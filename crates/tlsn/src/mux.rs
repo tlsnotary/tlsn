@@ -58,6 +58,12 @@ impl Future for MuxFuture {
     }
 }
 
+impl FusedFuture for MuxFuture {
+    fn is_terminated(&self) -> bool {
+        self.is_complete()
+    }
+}
+
 /// Attaches a multiplexer to the provided socket.
 ///
 /// Returns the multiplexer and a controller for creating streams with a codec
