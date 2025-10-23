@@ -34,16 +34,18 @@ impl MpcTlsClient {
         vm: Arc<Mutex<Deap<Mpc, Zk>>>,
     ) -> Self {
         Self {
-            state: ClientState::Idle(InnerState {
-                span,
-                mpc_ctrl,
-                tls,
-                mux,
-                mpc: Box::into_pin(mpc),
-                keys,
-                vm,
-                transcript: None,
-            }),
+            state: ClientState::Idle {
+                inner: InnerState {
+                    span,
+                    mpc_ctrl,
+                    tls,
+                    mux,
+                    mpc: Box::into_pin(mpc),
+                    keys,
+                    vm,
+                    transcript: None,
+                },
+            },
         }
     }
 }
@@ -90,42 +92,65 @@ impl TlsClient for MpcTlsClient {
     }
 }
 
-enum ClientState {
-    Idle(InnerState),
-    Processing(
-        Pin<
-            Box<
-                dyn Future<Output = Result<InnerState, ProverError>>
-                    + Send
-                    + Sync
-                    + Unpin
-                    + 'static,
-            >,
-        >,
-    ),
-    Finished {
-        transcript: TlsTranscript,
-    },
-    Error,
+pin_project_lite::pin_project! {
+    #[project_replace = ClientStateProj]
+    #[project = ClientStateProjRef]
+    enum ClientState {
+        Idle {
+            inner: InnerState,
+        },
+        Processing {
+            #[pin]
+            fut: Pin<Box<dyn Future<Output = Result<InnerState, ProverError>>>>,
+        },
+        Finished {
+            inner: InnerState,
+            transcript: TlsTranscript,
+        },
+        Error
+    }
 }
 
 impl Future for ClientState {
-    type Output = TlsTranscript;
+    type Output = InnerState;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        let current_state = std::mem::replace(this, Self::Error);
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut out: Poll<Self::Output> = Poll::Pending;
+        let mut new = Self::Error;
 
-        match current_state {
-            ClientState::Idle(inner) => {
-                this = Self::Processing(Box::pin(inner.run()));
-            }
-            ClientState::Processing(inner) => todo!(),
-            ClientState::Finished { transcript } => todo!(),
-            ClientState::Error => todo!(),
+        {
+            let this = self.as_mut().project();
+            match this {
+                ClientStateProjRef::Processing { fut } => match fut.poll(cx) {
+                    Poll::Ready(inner) => {
+                        out = Poll::Pending;
+                        new = Self::Error;
+                    }
+                    Poll::Pending => {
+                        out = Poll::Pending;
+                    }
+                },
+                ClientStateProjRef::Finished { inner, .. } => (),
+                ClientStateProjRef::Error => (),
+                _ => (),
+            };
         }
 
-        todo!()
+        {
+            let this = self.as_mut().project_replace(Self::Error);
+            match this {
+                ClientStateProj::Idle { inner } => {
+                    new = ClientState::Processing {
+                        fut: Box::pin(inner.run()),
+                    };
+                    out = Poll::Pending;
+                }
+                _ => (),
+            };
+            self.project_replace(new);
+        }
+
+        out
     }
 }
 

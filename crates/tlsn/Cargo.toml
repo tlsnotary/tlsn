@@ -45,6 +45,7 @@ aes = { workspace = true }
 ctr = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
+pin-project-lite = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
 rustls-pki-types = { workspace = true }

@@ -7178,6 +7178,7 @@ dependencies = [
  "mpz-zk",
  "once_cell",
  "opaque-debug",
+ "pin-project-lite",
  "rand 0.9.2",
  "rangeset",
  "rstest",
