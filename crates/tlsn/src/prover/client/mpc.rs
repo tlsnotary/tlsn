@@ -5,11 +5,15 @@ use crate::{
     prover::{Mpc, ProverError, Zk, client::TlsClient},
     tag::verify_tags,
 };
-use futures::{Future, TryFutureExt};
+use futures::{Future, FutureExt, TryFutureExt};
 use mpc_tls::{LeaderCtrl, SessionKeys};
 use mpz_memory_core::binary::Binary;
 use mpz_vm_core::{Execute, Vm};
-use std::{pin::Pin, sync::Arc, task::Poll};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Poll, Waker},
+};
 use tls_client::ClientConnection;
 use tlsn_core::transcript::TlsTranscript;
 use tlsn_deap::Deap;
@@ -43,8 +47,10 @@ impl MpcTlsClient {
                     mpc: Box::into_pin(mpc),
                     keys,
                     vm,
+                    close_mpc_tls: false,
                     transcript: None,
                 },
+                waker: None,
             },
         }
     }
@@ -84,11 +90,21 @@ impl TlsClient for MpcTlsClient {
     }
 
     fn close(&mut self) -> Result<(), std::io::Error> {
-        todo!()
+        if let ClientState::Idle {
+            inner: InnerState { close_mpc_tls, .. },
+            ..
+        } = &mut self.state
+        {
+            *close_mpc_tls = true;
+            return Ok(());
+        }
+        Err(std::io::Error::other(
+            "unable to close tls connection, poll again and retry to close",
+        ))
     }
 
     fn poll(&mut self, cx: &mut std::task::Context) -> Poll<Result<TlsTranscript, ProverError>> {
-        todo!()
+        self.state.poll_unpin(cx)
     }
 }
 
@@ -98,6 +114,7 @@ pin_project_lite::pin_project! {
     enum ClientState {
         Idle {
             inner: InnerState,
+            waker: Option<Waker>
         },
         Processing {
             #[pin]
@@ -115,41 +132,48 @@ impl Future for ClientState {
         let mut out: Poll<Self::Output> = Poll::Pending;
         let mut new = Self::Error;
 
-        {
-            let this = self.as_mut().project();
-            match this {
-                ClientStateProjRef::Processing { mut fut } => match fut.as_mut().poll(cx) {
-                    Poll::Ready(inner) => {
-                        new = Self::Idle { inner: inner? };
-                    }
-                    Poll::Pending => (),
-                },
-                ClientStateProjRef::Error => panic!("tls client should not arrive in error state"),
-                _ => (),
-            };
+        let this = self.as_mut().project();
+        match this {
+            ClientStateProjRef::Processing { mut fut } => match fut.as_mut().poll(cx) {
+                Poll::Ready(inner) => {
+                    new = Self::Idle {
+                        inner: inner?,
+                        waker: Some(cx.waker().clone()),
+                    };
+                }
+                Poll::Pending => return Poll::Pending,
+            },
+            ClientStateProjRef::Error => panic!("tls client should not arrive in error state"),
+            _ => (),
+        };
+
+        let this = self.as_mut().project_replace(Self::Error);
+        match this {
+            ClientStateProj::Idle { inner, .. } => {
+                if let Some(transcript) = inner.transcript {
+                    new = ClientState::Finished;
+                    out = Poll::Ready(Ok(transcript));
+                } else {
+                    new = ClientState::Processing {
+                        fut: Box::pin(inner.run()),
+                    };
+                }
+            }
+            ClientStateProj::Finished => {
+                panic!("tls client future polled again after completion")
+            }
+            _ => (),
+        };
+
+        // We do not want to encounter `self` in `Processing` state, so we call poll again in this
+        // case.
+        let is_processing = matches!(new, ClientState::Processing { .. });
+        self.as_mut().project_replace(new);
+
+        if is_processing {
+            return self.poll(cx);
         }
 
-        {
-            let this = self.as_mut().project_replace(Self::Error);
-            match this {
-                ClientStateProj::Idle { inner } => {
-                    if let Some(transcript) = inner.transcript {
-                        new = ClientState::Finished;
-                        out = Poll::Ready(Ok(transcript));
-                    } else {
-                        new = ClientState::Processing {
-                            fut: Box::pin(inner.run()),
-                        };
-                        out = Poll::Pending;
-                    }
-                }
-                ClientStateProj::Finished => {
-                    panic!("tls client future polled again after completion")
-                }
-                _ => (),
-            };
-        }
-        self.project_replace(new);
         out
     }
 }
@@ -162,6 +186,7 @@ struct InnerState {
     mpc: Pin<MpcFuture>,
     keys: SessionKeys,
     vm: Arc<Mutex<Deap<Mpc, Zk>>>,
+    close_mpc_tls: bool,
     transcript: Option<TlsTranscript>,
 }
 
