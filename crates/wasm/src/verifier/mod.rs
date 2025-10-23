@@ -3,9 +3,9 @@ mod config;
 pub use config::VerifierConfig;
 
 use enum_try_as_inner::EnumTryAsInner;
-use tls_core::msgs::enums::ContentType;
 use tlsn::{
     connection::{ConnectionInfo, ServerName, TranscriptLength},
+    transcript::ContentType,
     verifier::{state, Verifier},
 };
 use tracing::info;

@@ -10,9 +10,52 @@ use crate::{
 use tls_core::msgs::{
     alert::AlertMessagePayload,
     codec::{Codec, Reader},
-    enums::{AlertDescription, ContentType, ProtocolVersion},
+    enums::{AlertDescription, ProtocolVersion},
     handshake::{HandshakeMessagePayload, HandshakePayload},
 };
+
+/// TLS record content type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ContentType {
+    /// Change cipher spec protocol.
+    ChangeCipherSpec,
+    /// Alert protocol.
+    Alert,
+    /// Handshake protocol.
+    Handshake,
+    /// Application data protocol.
+    ApplicationData,
+    /// Heartbeat protocol.
+    Heartbeat,
+    /// Unknown protocol.
+    Unknown(u8),
+}
+
+impl From<ContentType> for tls_core::msgs::enums::ContentType {
+    fn from(content_type: ContentType) -> Self {
+        match content_type {
+            ContentType::ChangeCipherSpec => tls_core::msgs::enums::ContentType::ChangeCipherSpec,
+            ContentType::Alert => tls_core::msgs::enums::ContentType::Alert,
+            ContentType::Handshake => tls_core::msgs::enums::ContentType::Handshake,
+            ContentType::ApplicationData => tls_core::msgs::enums::ContentType::ApplicationData,
+            ContentType::Heartbeat => tls_core::msgs::enums::ContentType::Heartbeat,
+            ContentType::Unknown(id) => tls_core::msgs::enums::ContentType::Unknown(id),
+        }
+    }
+}
+
+impl From<tls_core::msgs::enums::ContentType> for ContentType {
+    fn from(content_type: tls_core::msgs::enums::ContentType) -> Self {
+        match content_type {
+            tls_core::msgs::enums::ContentType::ChangeCipherSpec => ContentType::ChangeCipherSpec,
+            tls_core::msgs::enums::ContentType::Alert => ContentType::Alert,
+            tls_core::msgs::enums::ContentType::Handshake => ContentType::Handshake,
+            tls_core::msgs::enums::ContentType::ApplicationData => ContentType::ApplicationData,
+            tls_core::msgs::enums::ContentType::Heartbeat => ContentType::Heartbeat,
+            tls_core::msgs::enums::ContentType::Unknown(id) => ContentType::Unknown(id),
+        }
+    }
+}
 
 /// A transcript of TLS records sent and received by the prover.
 #[derive(Debug, Clone)]
