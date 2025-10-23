@@ -525,10 +525,7 @@ impl ConnectionCommon {
 
     /// Writes the entire plaintext `buf` into an internal buffer.
     pub fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<(), Error> {
-        let mut pos = 0;
-        while pos < buf.len() {
-            pos += self.write_plaintext(&buf[pos..])?;
-        }
+        self.sendable_plaintext.append(buf.to_vec());
         Ok(())
     }
 
