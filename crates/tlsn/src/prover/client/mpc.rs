@@ -256,6 +256,7 @@ impl InnerState {
             tls_finish = &mut self.tls => {
                 let _ = tls_finish?;
                 if self.close {
+                    debug!("closing MPC-TLS connection");
                     mpc_ctrl.stop().await?;
                 }
         },
@@ -275,6 +276,7 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn finalize(mut self) -> Result<Self, ProverError> {
+        info!("finalizing MPC-TLS");
         let (ctx, transcript) = self
             .output
             .as_mut()
@@ -282,8 +284,6 @@ impl InnerState {
 
         {
             let mut vm = self.vm.try_lock().expect("VM should not be locked");
-
-            debug!("finalizing mpc");
 
             // Finalize DEAP.
             self.mux

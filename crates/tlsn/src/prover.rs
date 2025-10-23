@@ -281,7 +281,7 @@ impl Prover<state::Connected> {
         &mut self,
         cx: &mut Context,
     ) -> Poll<Result<Prover<state::Committed>, ProverError>> {
-        let Poll::Ready(_) = self.state.tls_client.poll(cx) else {
+        let Poll::Ready(_) = self.state.tls_client.poll(cx)? else {
             return Poll::Pending;
         };
 
