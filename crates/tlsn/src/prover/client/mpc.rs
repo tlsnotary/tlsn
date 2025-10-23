@@ -103,16 +103,13 @@ pin_project_lite::pin_project! {
             #[pin]
             fut: Pin<Box<dyn Future<Output = Result<InnerState, ProverError>>>>,
         },
-        Finished {
-            inner: InnerState,
-            transcript: TlsTranscript,
-        },
+        Finished,
         Error
     }
 }
 
 impl Future for ClientState {
-    type Output = InnerState;
+    type Output = Result<TlsTranscript, ProverError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let mut out: Poll<Self::Output> = Poll::Pending;
@@ -121,17 +118,13 @@ impl Future for ClientState {
         {
             let this = self.as_mut().project();
             match this {
-                ClientStateProjRef::Processing { fut } => match fut.poll(cx) {
+                ClientStateProjRef::Processing { mut fut } => match fut.as_mut().poll(cx) {
                     Poll::Ready(inner) => {
-                        out = Poll::Pending;
-                        new = Self::Error;
+                        new = Self::Idle { inner: inner? };
                     }
-                    Poll::Pending => {
-                        out = Poll::Pending;
-                    }
+                    Poll::Pending => (),
                 },
-                ClientStateProjRef::Finished { inner, .. } => (),
-                ClientStateProjRef::Error => (),
+                ClientStateProjRef::Error => panic!("tls client should not arrive in error state"),
                 _ => (),
             };
         }
@@ -140,16 +133,23 @@ impl Future for ClientState {
             let this = self.as_mut().project_replace(Self::Error);
             match this {
                 ClientStateProj::Idle { inner } => {
-                    new = ClientState::Processing {
-                        fut: Box::pin(inner.run()),
-                    };
-                    out = Poll::Pending;
+                    if let Some(transcript) = inner.transcript {
+                        new = ClientState::Finished;
+                        out = Poll::Ready(Ok(transcript));
+                    } else {
+                        new = ClientState::Processing {
+                            fut: Box::pin(inner.run()),
+                        };
+                        out = Poll::Pending;
+                    }
+                }
+                ClientStateProj::Finished => {
+                    panic!("tls client future polled again after completion")
                 }
                 _ => (),
             };
-            self.project_replace(new);
         }
-
+        self.project_replace(new);
         out
     }
 }
