@@ -1,8 +1,12 @@
 //! Provides a TLS client.
 
-use crate::prover::ProverError;
+use crate::{
+    mux::MuxFuture,
+    prover::{ProverError, Zk},
+};
+use mpc_tls::SessionKeys;
 use std::task::{Context, Poll};
-use tlsn_core::transcript::TlsTranscript;
+use tlsn_core::transcript::{TlsTranscript, Transcript};
 
 mod mpc;
 
@@ -37,10 +41,17 @@ pub(crate) trait TlsClient {
     fn close(&mut self) -> Result<(), std::io::Error>;
 
     /// Polls the client to make progress.
-    fn poll(
-        &mut self,
-        cx: &mut Context,
-    ) -> Poll<Result<(mpz_common::Context, TlsTranscript), ProverError>> {
-        todo!()
-    }
+    fn poll(&mut self, cx: &mut Context) -> Poll<Result<(), ProverError>>;
+
+    /// Returns the output of the TLSConnection, if available.
+    fn into_output(&mut self) -> Option<TlsOutput>;
+}
+
+pub(crate) struct TlsOutput {
+    pub(crate) mux_fut: MuxFuture,
+    pub(crate) ctx: mpz_common::Context,
+    pub(crate) vm: Zk,
+    pub(crate) keys: SessionKeys,
+    pub(crate) tls_transcript: TlsTranscript,
+    pub(crate) transcript: Transcript,
 }

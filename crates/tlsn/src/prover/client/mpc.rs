@@ -2,7 +2,10 @@
 
 use crate::{
     mux::MuxFuture,
-    prover::{Mpc, ProverError, Zk, client::TlsClient},
+    prover::{
+        Mpc, ProverError, Zk,
+        client::{TlsClient, TlsOutput},
+    },
     tag::verify_tags,
 };
 use futures::{Future, FutureExt, TryFutureExt, future::FusedFuture};
@@ -23,6 +26,8 @@ use tracing::{Span, debug, error, info, instrument};
 pub(crate) type MpcFuture =
     Box<dyn FusedFuture<Output = Result<(mpz_common::Context, TlsTranscript), ProverError>>>;
 
+pub(crate) type TlsFuture = Box<dyn FusedFuture<Output = Result<ClientConnection, ProverError>>>;
+
 pub(crate) struct MpcTlsClient {
     state: ClientState,
 }
@@ -31,12 +36,20 @@ impl MpcTlsClient {
     pub(crate) fn new(
         span: Span,
         mpc_ctrl: LeaderCtrl,
-        tls: ClientConnection,
+        mut tls: ClientConnection,
         mux: MuxFuture,
         mpc: MpcFuture,
         keys: SessionKeys,
         vm: Arc<Mutex<Deap<Mpc, Zk>>>,
     ) -> Self {
+        let tls = Box::pin(
+            async {
+                tls.process_new_packets().map_err(ProverError::from).await?;
+                Ok::<_, ProverError>(tls)
+            }
+            .fuse(),
+        );
+
         Self {
             state: ClientState::Idle {
                 inner: InnerState {
@@ -47,8 +60,9 @@ impl MpcTlsClient {
                     mpc: Box::into_pin(mpc),
                     keys,
                     vm,
-                    close_mpc_tls: false,
-                    finished: None,
+
+                    close: false,
+                    output: None,
                 },
                 waker: None,
             },
@@ -91,11 +105,11 @@ impl TlsClient for MpcTlsClient {
 
     fn close(&mut self) -> Result<(), std::io::Error> {
         if let ClientState::Idle {
-            inner: InnerState { close_mpc_tls, .. },
+            inner: InnerState { close, .. },
             ..
         } = &mut self.state
         {
-            *close_mpc_tls = true;
+            *close = true;
             return Ok(());
         }
         Err(std::io::Error::other(
@@ -103,11 +117,19 @@ impl TlsClient for MpcTlsClient {
         ))
     }
 
-    fn poll(
-        &mut self,
-        cx: &mut std::task::Context,
-    ) -> Poll<Result<(Context, TlsTranscript), ProverError>> {
+    fn poll(&mut self, cx: &mut std::task::Context) -> Poll<Result<(), ProverError>> {
         self.state.poll_unpin(cx)
+    }
+
+    fn into_output(&mut self) -> Option<TlsOutput> {
+        let state = std::mem::replace(&mut self.state, ClientState::Error);
+        match state {
+            ClientState::Finished { output } => Some(output),
+            _ => {
+                self.state = state;
+                None
+            }
+        }
     }
 }
 
@@ -119,17 +141,23 @@ pin_project_lite::pin_project! {
             inner: InnerState,
             waker: Option<Waker>
         },
-        Processing {
+        Running {
             #[pin]
             fut: Pin<Box<dyn Future<Output = Result<InnerState, ProverError>>>>,
         },
-        Finished,
+        Finalizing {
+            #[pin]
+            fut: Pin<Box<dyn Future<Output = Result<InnerState, ProverError>>>>,
+        },
+        Finished {
+            output: TlsOutput
+        },
         Error
     }
 }
 
 impl Future for ClientState {
-    type Output = Result<(Context, TlsTranscript), ProverError>;
+    type Output = Result<(), ProverError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let mut out: Poll<Self::Output> = Poll::Pending;
@@ -137,7 +165,16 @@ impl Future for ClientState {
 
         let this = self.as_mut().project();
         match this {
-            ClientStateProjRef::Processing { mut fut } => match fut.as_mut().poll(cx) {
+            ClientStateProjRef::Running { mut fut } => match fut.as_mut().poll(cx) {
+                Poll::Ready(inner) => {
+                    new = Self::Idle {
+                        inner: inner?,
+                        waker: Some(cx.waker().clone()),
+                    };
+                }
+                Poll::Pending => return Poll::Pending,
+            },
+            ClientStateProjRef::Finalizing { mut fut } => match fut.as_mut().poll(cx) {
                 Poll::Ready(inner) => {
                     new = Self::Idle {
                         inner: inner?,
@@ -152,31 +189,45 @@ impl Future for ClientState {
 
         let this = self.as_mut().project_replace(Self::Error);
         match this {
-            ClientStateProj::Idle { inner, .. } => {
-                if let Some((ctx, transcript)) = inner.finished {
-                    new = ClientState::Finished;
-                    out = Poll::Ready(Ok((ctx, transcript)));
+            ClientStateProj::Idle { mut inner, .. } => {
+                if inner.close {
+                    new = ClientState::Finalizing {
+                        fut: Box::pin(inner.finalize()),
+                    }
+                } else if let Some((ctx, tls_transcript)) = inner.output.take() {
+                    let transcript = tls_transcript
+                        .to_transcript()
+                        .expect("transcript is complete");
+
+                    let (_, vm) = Arc::into_inner(inner.vm)
+                        .expect("vm should have only 1 reference")
+                        .into_inner()
+                        .into_inner();
+
+                    new = ClientState::Finished {
+                        output: TlsOutput {
+                            mux_fut: inner.mux,
+                            ctx,
+                            vm,
+                            keys: inner.keys,
+                            tls_transcript,
+                            transcript,
+                        },
+                    };
+                    out = Poll::Ready(Ok(()));
                 } else {
-                    new = ClientState::Processing {
+                    new = ClientState::Running {
                         fut: Box::pin(inner.run()),
                     };
                 }
             }
-            ClientStateProj::Finished => {
+            ClientStateProj::Finished { .. } => {
                 panic!("tls client future polled again after completion")
             }
             _ => (),
         };
 
-        // We do not want to encounter `self` in `Processing` state, so we call poll again in this
-        // case.
-        let is_processing = matches!(new, ClientState::Processing { .. });
         self.as_mut().project_replace(new);
-
-        if is_processing {
-            return self.poll(cx);
-        }
-
         out
     }
 }
@@ -184,50 +235,52 @@ impl Future for ClientState {
 struct InnerState {
     span: Span,
     mpc_ctrl: LeaderCtrl,
-    tls: ClientConnection,
-    mux: MuxFuture,
+    tls: Pin<TlsFuture>,
     mpc: Pin<MpcFuture>,
+    mux: MuxFuture,
     keys: SessionKeys,
     vm: Arc<Mutex<Deap<Mpc, Zk>>>,
-    close_mpc_tls: bool,
-    finished: Option<(Context, TlsTranscript)>,
+
+    close: bool,
+    output: Option<(Context, TlsTranscript)>,
 }
 
 impl InnerState {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn run(mut self) -> Result<Self, ProverError> {
-        if self.finished.is_none() {
-            let mpc_ctrl = self.mpc_ctrl.clone();
+        let mpc_ctrl = self.mpc_ctrl.clone();
 
-            let mut tls_fut = Box::pin(async {
-                self.tls
-                    .process_new_packets()
-                    .map_err(ProverError::from)
-                    .await?;
-                Ok::<_, ProverError>(())
-            })
-            .fuse();
+        info!("starting MPC-TLS");
 
-            info!("starting MPC-TLS");
+        futures::select! {
+            tls_finish = &mut self.tls => {
+                let _ = tls_finish?;
+                if self.close {
+                    mpc_ctrl.stop().await?;
+                }
+        },
+            mux_finish = &mut self.mux => {
+                if let Err(e) = mux_finish {
+                    error!("mux error: {:?}", e);
+                }
+        },
+            output = &mut self.mpc => {
+                info!("finished MPC-TLS");
+                self.output = Some(output?);
+                },
+        };
 
-            futures::select! {
-                tls_finish = tls_fut => {
-                    let _ = tls_finish?;
-                    if self.close_mpc_tls {
-                        mpc_ctrl.stop().await?;
-                    }
-            },
-                mux_finish = &mut self.mux => {
-                    if let Err(e) = mux_finish {
-                        error!("mux error: {:?}", e);
-                    }
-            },
-                mpc_finish = &mut self.mpc => {
-                    self.finished = Some(mpc_finish?);
-                    },
-            };
-        } else if let Some((ctx, transcript)) = &mut self.finished {
-            info!("finished MPC-TLS");
+        Ok(self)
+    }
+
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
+    async fn finalize(mut self) -> Result<Self, ProverError> {
+        let (ctx, transcript) = self
+            .output
+            .as_mut()
+            .expect("output of MPC-TLS should be available");
+
+        {
             let mut vm = self.vm.try_lock().expect("VM should not be locked");
 
             debug!("finalizing mpc");

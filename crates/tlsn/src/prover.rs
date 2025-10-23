@@ -13,10 +13,10 @@ pub use tlsn_core::{
     ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProveRequest, ProverOutput,
 };
 
-use mpz_common::Context;
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_zk::ProverConfig as ZkProverConfig;
+use std::task::Context;
 use webpki::anchor_from_trusted_cert;
 
 use crate::{
@@ -24,7 +24,7 @@ use crate::{
     context::build_mt_context,
     msg::{Response, SetupRequest},
     mux::attach_mux,
-    prover::client::{MpcControl, MpcTlsClient},
+    prover::client::{MpcControl, MpcTlsClient, TlsOutput},
 };
 
 use futures::{AsyncRead, AsyncWrite, FutureExt, TryFutureExt};
@@ -277,8 +277,42 @@ impl Prover<state::Connected> {
     }
 
     /// Polls the prover to make progress. Returns a committed prover.
-    fn poll(&mut self, cx: &mut Context) -> Poll<Result<Prover<state::Committed>, ProverError>> {
-        todo!()
+    pub fn poll(
+        &mut self,
+        cx: &mut Context,
+    ) -> Poll<Result<Prover<state::Committed>, ProverError>> {
+        let Poll::Ready(_) = self.state.tls_client.poll(cx) else {
+            return Poll::Pending;
+        };
+
+        let TlsOutput {
+            mux_fut,
+            ctx,
+            vm,
+            keys,
+            tls_transcript,
+            transcript,
+        } = self
+            .state
+            .tls_client
+            .into_output()
+            .expect("tls output should be available");
+
+        let prover = Prover::<state::Committed> {
+            config: self.config.clone(),
+            span: self.span.clone(),
+            state: state::Committed {
+                mux_ctrl: self.state.mux_ctrl.clone(),
+                mux_fut,
+                ctx,
+                vm,
+                keys,
+                tls_transcript,
+                transcript,
+            },
+        };
+
+        Poll::Ready(Ok(prover))
     }
 }
 
@@ -366,7 +400,10 @@ impl Prover<state::Committed> {
     }
 }
 
-fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsLeader) {
+fn build_mpc_tls(
+    config: &ProverConfig,
+    ctx: mpz_common::Context,
+) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsLeader) {
     let mut rng = rand::rng();
     let delta = Delta::new(Block::random(&mut rng));
 
