@@ -487,7 +487,7 @@ impl RecordLayer {
 
             sent_records.push(Record {
                 seq: op.seq,
-                typ: op.typ,
+                typ: op.typ.into(),
                 plaintext: op.plaintext,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext,
@@ -505,7 +505,7 @@ impl RecordLayer {
 
             recv_records.push(Record {
                 seq: op.seq,
-                typ: op.typ,
+                typ: op.typ.into(),
                 plaintext,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,
@@ -578,7 +578,7 @@ impl RecordLayer {
 
             recv_records.push(Record {
                 seq: op.seq,
-                typ: op.typ,
+                typ: op.typ.into(),
                 plaintext,
                 explicit_nonce: op.explicit_nonce,
                 ciphertext: op.ciphertext,

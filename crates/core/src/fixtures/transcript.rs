@@ -7,7 +7,7 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 use tls_core::msgs::{
     base::Payload,
     codec::Codec,
-    enums::{ContentType, HandshakeType, ProtocolVersion},
+    enums::{HandshakeType, ProtocolVersion},
     handshake::{HandshakeMessagePayload, HandshakePayload},
     message::{OpaqueMessage, PlainMessage},
 };
@@ -15,7 +15,7 @@ use tls_core::msgs::{
 use crate::{
     connection::{TranscriptLength, VerifyData},
     fixtures::ConnectionFixture,
-    transcript::{Record, TlsTranscript},
+    transcript::{ContentType, Record, TlsTranscript},
 };
 
 /// The key used for encryption of the sent and received transcript.
@@ -103,7 +103,7 @@ impl TranscriptGenerator {
 
         let explicit_nonce: [u8; 8] = seq.to_be_bytes();
         let msg = PlainMessage {
-            typ: ContentType::ApplicationData,
+            typ: ContentType::ApplicationData.into(),
             version: ProtocolVersion::TLSv1_2,
             payload: Payload::new(plaintext),
         };
@@ -138,7 +138,7 @@ impl TranscriptGenerator {
         handshake_message.encode(&mut plaintext);
 
         let msg = PlainMessage {
-            typ: ContentType::Handshake,
+            typ: ContentType::Handshake.into(),
             version: ProtocolVersion::TLSv1_2,
             payload: Payload::new(plaintext.clone()),
         };
