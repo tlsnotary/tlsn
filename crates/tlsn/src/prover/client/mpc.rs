@@ -533,6 +533,10 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn wait_for_client(&mut self) -> Result<ClientConnection, ProverError> {
+        if let Some(client) = self.tls_client.take() {
+            return Ok(client);
+        }
+
         self.rearm_tls_fut();
         loop {
             futures::select! {
