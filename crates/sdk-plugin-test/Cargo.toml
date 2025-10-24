@@ -1,0 +1,21 @@
+[package]
+name = "sdk-plugin-test"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+futures = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+tlsn-plugin-core = { workspace = true }
+tlsn-pdk = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+tokio-util = { workspace = true, features = ["compat"] }
+wit-bindgen = "0.24"
+
+
+[lints]
+workspace = true

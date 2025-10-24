@@ -1,0 +1,20 @@
+[package]
+name = "tlsn-plugin-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tlsn = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-formats = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
+http-body-util = { workspace = true }
+spansy = { workspace = true }
+rangeset = { workspace = true }
+
+[dev-dependencies]
+tlsn-data-fixtures = { workspace = true }
+
+[lints]
+workspace = true

@@ -23,6 +23,10 @@ members = [
     "crates/harness/runner",
     "crates/harness/plot",
     "crates/tlsn",
+    #"crates/sdk-core",
+    "crates/pdk",
+    "crates/sdk-plugin-test",
+    "crates/plugin-core"
 ]
 resolver = "2"
 
@@ -65,6 +69,8 @@ tlsn-harness-executor = { path = "crates/harness/executor" }
 tlsn-harness-runner = { path = "crates/harness/runner" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
+tlsn-pdk = { path = "crates/pdk" }
+tlsn-plugin-core = { path = "crates/plugin-core" }
 
 mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
 mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.4" }
@@ -86,6 +92,7 @@ serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 uid-mux = { version = "0.2" }
 websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }

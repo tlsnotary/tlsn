@@ -1,0 +1,971 @@
+sdk-plugin-test v0.1.0 (/home/default2/Desktop/gh_repos/tlsn/crates/sdk-plugin-test)
+├── futures feature "default"
+│   ├── futures v0.3.31
+│   │   ├── futures-core v0.3.31
+│   │   ├── futures-executor v0.3.31
+│   │   │   ├── futures-core v0.3.31
+│   │   │   ├── futures-task v0.3.31
+│   │   │   └── futures-util v0.3.31
+│   │   │       ├── futures-core v0.3.31
+│   │   │       ├── futures-macro v0.3.31 (proc-macro)
+│   │   │       │   ├── proc-macro2 feature "default"
+│   │   │       │   │   ├── proc-macro2 v1.0.101
+│   │   │       │   │   │   └── unicode-ident feature "default"
+│   │   │       │   │   │       └── unicode-ident v1.0.18
+│   │   │       │   │   └── proc-macro2 feature "proc-macro"
+│   │   │       │   │       └── proc-macro2 v1.0.101 (*)
+│   │   │       │   ├── quote feature "default"
+│   │   │       │   │   ├── quote v1.0.40
+│   │   │       │   │   │   └── proc-macro2 v1.0.101 (*)
+│   │   │       │   │   └── quote feature "proc-macro"
+│   │   │       │   │       ├── quote v1.0.40 (*)
+│   │   │       │   │       └── proc-macro2 feature "proc-macro" (*)
+│   │   │       │   ├── syn feature "default"
+│   │   │       │   │   ├── syn v2.0.106
+│   │   │       │   │   │   ├── proc-macro2 v1.0.101 (*)
+│   │   │       │   │   │   ├── quote v1.0.40 (*)
+│   │   │       │   │   │   └── unicode-ident feature "default" (*)
+│   │   │       │   │   ├── syn feature "clone-impls"
+│   │   │       │   │   │   └── syn v2.0.106 (*)
+│   │   │       │   │   ├── syn feature "derive"
+│   │   │       │   │   │   └── syn v2.0.106 (*)
+│   │   │       │   │   ├── syn feature "parsing"
+│   │   │       │   │   │   └── syn v2.0.106 (*)
+│   │   │       │   │   ├── syn feature "printing"
+│   │   │       │   │   │   └── syn v2.0.106 (*)
+│   │   │       │   │   └── syn feature "proc-macro"
+│   │   │       │   │       ├── syn v2.0.106 (*)
+│   │   │       │   │       ├── proc-macro2 feature "proc-macro" (*)
+│   │   │       │   │       └── quote feature "proc-macro" (*)
+│   │   │       │   └── syn feature "full"
+│   │   │       │       └── syn v2.0.106 (*)
+│   │   │       ├── futures-sink v0.3.31
+│   │   │       ├── futures-task v0.3.31
+│   │   │       ├── futures-channel feature "std"
+│   │   │       │   ├── futures-channel v0.3.31
+│   │   │       │   │   ├── futures-core v0.3.31
+│   │   │       │   │   └── futures-sink v0.3.31
+│   │   │       │   ├── futures-channel feature "alloc"
+│   │   │       │   │   ├── futures-channel v0.3.31 (*)
+│   │   │       │   │   └── futures-core feature "alloc"
+│   │   │       │   │       └── futures-core v0.3.31
+│   │   │       │   └── futures-core feature "std"
+│   │   │       │       ├── futures-core v0.3.31
+│   │   │       │       └── futures-core feature "alloc" (*)
+│   │   │       ├── futures-io feature "std"
+│   │   │       │   └── futures-io v0.3.31
+│   │   │       ├── memchr feature "default"
+│   │   │       │   ├── memchr v2.7.5
+│   │   │       │   └── memchr feature "std"
+│   │   │       │       ├── memchr v2.7.5
+│   │   │       │       └── memchr feature "alloc"
+│   │   │       │           └── memchr v2.7.5
+│   │   │       ├── pin-project-lite feature "default"
+│   │   │       │   └── pin-project-lite v0.2.16
+│   │   │       ├── pin-utils feature "default"
+│   │   │       │   └── pin-utils v0.1.0
+│   │   │       └── slab feature "default"
+│   │   │           ├── slab v0.4.11
+│   │   │           └── slab feature "std"
+│   │   │               └── slab v0.4.11
+│   │   ├── futures-io v0.3.31
+│   │   ├── futures-sink v0.3.31
+│   │   ├── futures-task v0.3.31
+│   │   ├── futures-channel feature "sink"
+│   │   │   ├── futures-channel v0.3.31 (*)
+│   │   │   └── futures-channel feature "futures-sink"
+│   │   │       └── futures-channel v0.3.31 (*)
+│   │   └── futures-util feature "sink"
+│   │       ├── futures-util v0.3.31 (*)
+│   │       └── futures-util feature "futures-sink"
+│   │           └── futures-util v0.3.31 (*)
+│   ├── futures feature "async-await"
+│   │   ├── futures v0.3.31 (*)
+│   │   ├── futures-util feature "async-await"
+│   │   │   └── futures-util v0.3.31 (*)
+│   │   └── futures-util feature "async-await-macro"
+│   │       ├── futures-util v0.3.31 (*)
+│   │       ├── futures-util feature "async-await" (*)
+│   │       └── futures-util feature "futures-macro"
+│   │           └── futures-util v0.3.31 (*)
+│   ├── futures feature "executor"
+│   │   ├── futures v0.3.31 (*)
+│   │   ├── futures feature "futures-executor"
+│   │   │   └── futures v0.3.31 (*)
+│   │   ├── futures feature "std"
+│   │   │   ├── futures v0.3.31 (*)
+│   │   │   ├── futures feature "alloc"
+│   │   │   │   ├── futures v0.3.31 (*)
+│   │   │   │   ├── futures-channel feature "alloc" (*)
+│   │   │   │   ├── futures-core feature "alloc" (*)
+│   │   │   │   ├── futures-sink feature "alloc"
+│   │   │   │   │   └── futures-sink v0.3.31
+│   │   │   │   ├── futures-task feature "alloc"
+│   │   │   │   │   └── futures-task v0.3.31
+│   │   │   │   └── futures-util feature "alloc"
+│   │   │   │       ├── futures-util v0.3.31 (*)
+│   │   │   │       ├── futures-core feature "alloc" (*)
+│   │   │   │       └── futures-task feature "alloc" (*)
+│   │   │   ├── futures-core feature "std" (*)
+│   │   │   ├── futures-sink feature "std"
+│   │   │   │   ├── futures-sink v0.3.31
+│   │   │   │   └── futures-sink feature "alloc" (*)
+│   │   │   ├── futures-task feature "std"
+│   │   │   │   ├── futures-task v0.3.31
+│   │   │   │   └── futures-task feature "alloc" (*)
+│   │   │   ├── futures-util feature "channel"
+│   │   │   │   ├── futures-util v0.3.31 (*)
+│   │   │   │   ├── futures-util feature "futures-channel"
+│   │   │   │   │   └── futures-util v0.3.31 (*)
+│   │   │   │   └── futures-util feature "std"
+│   │   │   │       ├── futures-util v0.3.31 (*)
+│   │   │   │       ├── futures-core feature "std" (*)
+│   │   │   │       ├── futures-task feature "std" (*)
+│   │   │   │       ├── futures-util feature "alloc" (*)
+│   │   │   │       └── futures-util feature "slab"
+│   │   │   │           └── futures-util v0.3.31 (*)
+│   │   │   ├── futures-util feature "io"
+│   │   │   │   ├── futures-util v0.3.31 (*)
+│   │   │   │   ├── futures-util feature "futures-io"
+│   │   │   │   │   └── futures-util v0.3.31 (*)
+│   │   │   │   ├── futures-util feature "memchr"
+│   │   │   │   │   └── futures-util v0.3.31 (*)
+│   │   │   │   └── futures-util feature "std" (*)
+│   │   │   ├── futures-util feature "std" (*)
+│   │   │   └── futures-io feature "std" (*)
+│   │   └── futures-executor feature "std"
+│   │       ├── futures-executor v0.3.31 (*)
+│   │       ├── futures-core feature "std" (*)
+│   │       ├── futures-task feature "std" (*)
+│   │       └── futures-util feature "std" (*)
+│   └── futures feature "std" (*)
+├── hyper feature "client"
+│   └── hyper v1.7.0
+│       ├── futures-channel feature "default"
+│       │   ├── futures-channel v0.3.31 (*)
+│       │   └── futures-channel feature "std" (*)
+│       ├── futures-core feature "default"
+│       │   ├── futures-core v0.3.31
+│       │   └── futures-core feature "std" (*)
+│       ├── pin-project-lite feature "default" (*)
+│       ├── pin-utils feature "default" (*)
+│       ├── atomic-waker feature "default"
+│       │   └── atomic-waker v1.1.2
+│       ├── bytes feature "default"
+│       │   ├── bytes v1.10.1
+│       │   │   └── serde feature "alloc"
+│       │   │       └── serde v1.0.219
+│       │   │           └── serde_derive feature "default"
+│       │   │               └── serde_derive v1.0.219 (proc-macro)
+│       │   │                   ├── proc-macro2 feature "proc-macro" (*)
+│       │   │                   ├── quote feature "proc-macro" (*)
+│       │   │                   ├── syn feature "clone-impls" (*)
+│       │   │                   ├── syn feature "derive" (*)
+│       │   │                   ├── syn feature "parsing" (*)
+│       │   │                   ├── syn feature "printing" (*)
+│       │   │                   └── syn feature "proc-macro" (*)
+│       │   └── bytes feature "std"
+│       │       └── bytes v1.10.1 (*)
+│       ├── http feature "default"
+│       │   ├── http v1.3.1
+│       │   │   ├── bytes feature "default" (*)
+│       │   │   ├── fnv feature "default"
+│       │   │   │   ├── fnv v1.0.7
+│       │   │   │   └── fnv feature "std"
+│       │   │   │       └── fnv v1.0.7
+│       │   │   └── itoa feature "default"
+│       │   │       └── itoa v1.0.15
+│       │   └── http feature "std"
+│       │       └── http v1.3.1 (*)
+│       ├── itoa feature "default" (*)
+│       ├── http-body feature "default"
+│       │   └── http-body v1.0.1
+│       │       ├── bytes feature "default" (*)
+│       │       └── http feature "default" (*)
+│       ├── httparse feature "default"
+│       │   ├── httparse v1.10.1
+│       │   └── httparse feature "std"
+│       │       └── httparse v1.10.1
+│       ├── smallvec feature "const_generics"
+│       │   └── smallvec v1.15.1
+│       ├── smallvec feature "const_new"
+│       │   ├── smallvec v1.15.1
+│       │   └── smallvec feature "const_generics" (*)
+│       ├── smallvec feature "default"
+│       │   └── smallvec v1.15.1
+│       ├── tokio feature "default"
+│       │   └── tokio v1.47.1
+│       │       ├── mio v1.0.4
+│       │       │   └── libc feature "default"
+│       │       │       ├── libc v0.2.175
+│       │       │       └── libc feature "std"
+│       │       │           └── libc v0.2.175
+│       │       ├── pin-project-lite feature "default" (*)
+│       │       ├── libc feature "default" (*)
+│       │       ├── socket2 feature "all"
+│       │       │   └── socket2 v0.6.0
+│       │       │       └── libc feature "default" (*)
+│       │       ├── socket2 feature "default"
+│       │       │   └── socket2 v0.6.0 (*)
+│       │       └── tokio-macros feature "default"
+│       │           └── tokio-macros v2.5.0 (proc-macro)
+│       │               ├── proc-macro2 feature "default" (*)
+│       │               ├── quote feature "default" (*)
+│       │               ├── syn feature "default" (*)
+│       │               └── syn feature "full" (*)
+│       ├── tokio feature "sync"
+│       │   └── tokio v1.47.1 (*)
+│       └── want feature "default"
+│           └── want v0.3.1
+│               └── try-lock feature "default"
+│                   └── try-lock v0.2.5
+├── hyper feature "default"
+│   └── hyper v1.7.0 (*)
+├── hyper feature "http1"
+│   └── hyper v1.7.0 (*)
+├── tokio feature "default" (*)
+├── tokio feature "fs"
+│   └── tokio v1.47.1 (*)
+├── tokio feature "io-std"
+│   └── tokio v1.47.1 (*)
+├── tokio feature "macros"
+│   ├── tokio v1.47.1 (*)
+│   └── tokio feature "tokio-macros"
+│       └── tokio v1.47.1 (*)
+├── tokio feature "net"
+│   ├── tokio v1.47.1 (*)
+│   ├── tokio feature "libc"
+│   │   └── tokio v1.47.1 (*)
+│   ├── tokio feature "mio"
+│   │   └── tokio v1.47.1 (*)
+│   ├── tokio feature "socket2"
+│   │   └── tokio v1.47.1 (*)
+│   ├── mio feature "net"
+│   │   └── mio v1.0.4 (*)
+│   ├── mio feature "os-ext"
+│   │   ├── mio v1.0.4 (*)
+│   │   └── mio feature "os-poll"
+│   │       └── mio v1.0.4 (*)
+│   └── mio feature "os-poll" (*)
+├── tokio feature "rt"
+│   └── tokio v1.47.1 (*)
+├── tokio feature "rt-multi-thread"
+│   ├── tokio v1.47.1 (*)
+│   └── tokio feature "rt" (*)
+├── hyper-util feature "default"
+│   └── hyper-util v0.1.16
+│       ├── tokio v1.47.1 (*)
+│       ├── futures-core feature "default" (*)
+│       ├── pin-project-lite feature "default" (*)
+│       ├── hyper feature "default" (*)
+│       ├── bytes feature "default" (*)
+│       ├── http feature "default" (*)
+│       └── http-body feature "default" (*)
+├── hyper-util feature "tokio"
+│   ├── hyper-util v0.1.16 (*)
+│   ├── tokio feature "rt" (*)
+│   ├── tokio feature "time"
+│   │   └── tokio v1.47.1 (*)
+│   └── hyper-util feature "tokio" (*)
+├── tlsn-core-plugin-logic feature "default"
+│   └── tlsn-core-plugin-logic v0.1.0 (/home/default2/Desktop/gh_repos/tlsn/crates/core-plugin-logic)
+│       ├── hyper feature "client" (*)
+│       ├── hyper feature "default" (*)
+│       ├── hyper feature "http1" (*)
+│       ├── http-body-util feature "default"
+│       │   └── http-body-util v0.1.3
+│       │       ├── futures-core v0.3.31
+│       │       ├── pin-project-lite feature "default" (*)
+│       │       ├── bytes feature "default" (*)
+│       │       ├── http feature "default" (*)
+│       │       └── http-body feature "default" (*)
+│       ├── rangeset feature "default"
+│       │   └── rangeset v0.2.0
+│       │       ├── serde feature "default"
+│       │       │   ├── serde v1.0.219 (*)
+│       │       │   └── serde feature "std"
+│       │       │       └── serde v1.0.219 (*)
+│       │       └── serde feature "derive"
+│       │           ├── serde v1.0.219 (*)
+│       │           └── serde feature "serde_derive"
+│       │               └── serde v1.0.219 (*)
+│       ├── spansy feature "default"
+│       │   └── spansy v0.1.0 (https://github.com/tlsnotary/tlsn-utils?rev=6168663#61686634)
+│       │       ├── bytes feature "default" (*)
+│       │       ├── serde feature "default" (*)
+│       │       ├── serde feature "derive" (*)
+│       │       ├── httparse feature "default" (*)
+│       │       ├── rangeset feature "default" (*)
+│       │       ├── pest feature "default"
+│       │       │   ├── pest v2.8.1
+│       │       │   │   ├── ucd-trie v0.1.7
+│       │       │   │   ├── memchr feature "default" (*)
+│       │       │   │   └── thiserror feature "default"
+│       │       │   │       ├── thiserror v2.0.16
+│       │       │   │       │   └── thiserror-impl feature "default"
+│       │       │   │       │       └── thiserror-impl v2.0.16 (proc-macro)
+│       │       │   │       │           ├── proc-macro2 feature "default" (*)
+│       │       │   │       │           ├── quote feature "default" (*)
+│       │       │   │       │           └── syn feature "default" (*)
+│       │       │   │       └── thiserror feature "std"
+│       │       │   │           └── thiserror v2.0.16 (*)
+│       │       │   ├── pest feature "memchr"
+│       │       │   │   └── pest v2.8.1 (*)
+│       │       │   └── pest feature "std"
+│       │       │       ├── pest v2.8.1 (*)
+│       │       │       └── ucd-trie feature "std"
+│       │       │           └── ucd-trie v0.1.7
+│       │       ├── pest_derive feature "default"
+│       │       │   ├── pest_derive v2.8.1 (proc-macro)
+│       │       │   │   ├── pest v2.8.1 (*)
+│       │       │   │   └── pest_generator v2.8.1
+│       │       │   │       ├── pest v2.8.1 (*)
+│       │       │   │       ├── proc-macro2 feature "default" (*)
+│       │       │   │       ├── quote feature "default" (*)
+│       │       │   │       ├── syn feature "default" (*)
+│       │       │   │       └── pest_meta feature "default"
+│       │       │   │           └── pest_meta v2.8.1
+│       │       │   │               └── pest feature "default" (*)
+│       │       │   │               [build-dependencies]
+│       │       │   │               └── sha2 v0.10.9
+│       │       │   │                   ├── cfg-if feature "default"
+│       │       │   │                   │   └── cfg-if v1.0.3
+│       │       │   │                   ├── cpufeatures feature "default"
+│       │       │   │                   │   └── cpufeatures v0.2.17
+│       │       │   │                   └── digest feature "default"
+│       │       │   │                       ├── digest v0.10.7
+│       │       │   │                       │   ├── block-buffer feature "default"
+│       │       │   │                       │   │   └── block-buffer v0.10.4
+│       │       │   │                       │   │       └── generic-array feature "default"
+│       │       │   │                       │   │           └── generic-array v0.14.7
+│       │       │   │                       │   │               └── typenum feature "default"
+│       │       │   │                       │   │                   └── typenum v1.18.0
+│       │       │   │                       │   │               [build-dependencies]
+│       │       │   │                       │   │               └── version_check feature "default"
+│       │       │   │                       │   │                   └── version_check v0.9.5
+│       │       │   │                       │   └── crypto-common feature "default"
+│       │       │   │                       │       └── crypto-common v0.1.6
+│       │       │   │                       │           ├── generic-array feature "default" (*)
+│       │       │   │                       │           ├── generic-array feature "more_lengths"
+│       │       │   │                       │           │   └── generic-array v0.14.7 (*)
+│       │       │   │                       │           └── typenum feature "default" (*)
+│       │       │   │                       └── digest feature "core-api"
+│       │       │   │                           ├── digest v0.10.7 (*)
+│       │       │   │                           └── digest feature "block-buffer"
+│       │       │   │                               └── digest v0.10.7 (*)
+│       │       │   └── pest_derive feature "std"
+│       │       │       ├── pest_derive v2.8.1 (proc-macro) (*)
+│       │       │       ├── pest feature "std" (*)
+│       │       │       └── pest_generator feature "std"
+│       │       │           ├── pest_generator v2.8.1 (*)
+│       │       │           └── pest feature "std" (*)
+│       │       └── thiserror feature "default"
+│       │           └── thiserror v1.0.69
+│       │               └── thiserror-impl feature "default"
+│       │                   └── thiserror-impl v1.0.69 (proc-macro)
+│       │                       ├── proc-macro2 feature "default" (*)
+│       │                       ├── quote feature "default" (*)
+│       │                       └── syn feature "default" (*)
+│       ├── tlsn-core feature "default"
+│       │   └── tlsn-core v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/core)
+│       │       ├── serde feature "default" (*)
+│       │       ├── rangeset feature "default" (*)
+│       │       ├── rangeset feature "serde"
+│       │       │   └── rangeset v0.2.0 (*)
+│       │       ├── thiserror feature "default" (*)
+│       │       ├── bimap feature "default"
+│       │       │   ├── bimap v0.6.3
+│       │       │   │   └── serde feature "default" (*)
+│       │       │   └── bimap feature "std"
+│       │       │       └── bimap v0.6.3 (*)
+│       │       ├── bimap feature "serde"
+│       │       │   └── bimap v0.6.3 (*)
+│       │       ├── blake3 feature "default"
+│       │       │   ├── blake3 v1.8.2
+│       │       │   │   ├── arrayvec v0.7.6
+│       │       │   │   ├── constant_time_eq v0.3.1
+│       │       │   │   ├── cfg-if feature "default" (*)
+│       │       │   │   └── arrayref feature "default"
+│       │       │   │       └── arrayref v0.3.9
+│       │       │   │   [build-dependencies]
+│       │       │   │   └── cc feature "default"
+│       │       │   │       └── cc v1.2.33
+│       │       │   │           └── shlex feature "default"
+│       │       │   │               ├── shlex v1.3.0
+│       │       │   │               └── shlex feature "std"
+│       │       │   │                   └── shlex v1.3.0
+│       │       │   └── blake3 feature "std"
+│       │       │       └── blake3 v1.8.2 (*)
+│       │       ├── derive_builder feature "default"
+│       │       │   ├── derive_builder v0.12.0
+│       │       │   │   └── derive_builder_macro feature "default"
+│       │       │   │       └── derive_builder_macro v0.12.0 (proc-macro)
+│       │       │   │           ├── derive_builder_core feature "default"
+│       │       │   │           │   └── derive_builder_core v0.12.0
+│       │       │   │           │       ├── proc-macro2 feature "default" (*)
+│       │       │   │           │       ├── quote feature "default" (*)
+│       │       │   │           │       ├── darling feature "default"
+│       │       │   │           │       │   ├── darling v0.14.4
+│       │       │   │           │       │   │   ├── darling_core feature "default"
+│       │       │   │           │       │   │   │   └── darling_core v0.14.4
+│       │       │   │           │       │   │   │       ├── proc-macro2 feature "default" (*)
+│       │       │   │           │       │   │   │       ├── quote feature "default" (*)
+│       │       │   │           │       │   │   │       ├── fnv feature "default" (*)
+│       │       │   │           │       │   │   │       ├── ident_case feature "default"
+│       │       │   │           │       │   │   │       │   └── ident_case v1.0.1
+│       │       │   │           │       │   │   │       ├── strsim feature "default"
+│       │       │   │           │       │   │   │       │   └── strsim v0.10.0
+│       │       │   │           │       │   │   │       ├── syn feature "default"
+│       │       │   │           │       │   │   │       │   ├── syn v1.0.109
+│       │       │   │           │       │   │   │       │   │   ├── proc-macro2 v1.0.101 (*)
+│       │       │   │           │       │   │   │       │   │   ├── quote v1.0.40 (*)
+│       │       │   │           │       │   │   │       │   │   └── unicode-ident feature "default" (*)
+│       │       │   │           │       │   │   │       │   ├── syn feature "clone-impls"
+│       │       │   │           │       │   │   │       │   │   └── syn v1.0.109 (*)
+│       │       │   │           │       │   │   │       │   ├── syn feature "derive"
+│       │       │   │           │       │   │   │       │   │   └── syn v1.0.109 (*)
+│       │       │   │           │       │   │   │       │   ├── syn feature "parsing"
+│       │       │   │           │       │   │   │       │   │   └── syn v1.0.109 (*)
+│       │       │   │           │       │   │   │       │   ├── syn feature "printing"
+│       │       │   │           │       │   │   │       │   │   ├── syn v1.0.109 (*)
+│       │       │   │           │       │   │   │       │   │   └── syn feature "quote"
+│       │       │   │           │       │   │   │       │   │       └── syn v1.0.109 (*)
+│       │       │   │           │       │   │   │       │   └── syn feature "proc-macro"
+│       │       │   │           │       │   │   │       │       ├── syn v1.0.109 (*)
+│       │       │   │           │       │   │   │       │       ├── proc-macro2 feature "proc-macro" (*)
+│       │       │   │           │       │   │   │       │       ├── quote feature "proc-macro" (*)
+│       │       │   │           │       │   │   │       │       └── syn feature "quote" (*)
+│       │       │   │           │       │   │   │       ├── syn feature "extra-traits"
+│       │       │   │           │       │   │   │       │   └── syn v1.0.109 (*)
+│       │       │   │           │       │   │   │       └── syn feature "full"
+│       │       │   │           │       │   │   │           └── syn v1.0.109 (*)
+│       │       │   │           │       │   │   └── darling_macro feature "default"
+│       │       │   │           │       │   │       └── darling_macro v0.14.4 (proc-macro)
+│       │       │   │           │       │   │           ├── quote feature "default" (*)
+│       │       │   │           │       │   │           ├── darling_core feature "default" (*)
+│       │       │   │           │       │   │           └── syn feature "default" (*)
+│       │       │   │           │       │   └── darling feature "suggestions"
+│       │       │   │           │       │       ├── darling v0.14.4 (*)
+│       │       │   │           │       │       └── darling_core feature "suggestions"
+│       │       │   │           │       │           ├── darling_core v0.14.4 (*)
+│       │       │   │           │       │           └── darling_core feature "strsim"
+│       │       │   │           │       │               └── darling_core v0.14.4 (*)
+│       │       │   │           │       ├── syn feature "default" (*)
+│       │       │   │           │       ├── syn feature "extra-traits" (*)
+│       │       │   │           │       └── syn feature "full" (*)
+│       │       │   │           ├── syn feature "default" (*)
+│       │       │   │           ├── syn feature "extra-traits" (*)
+│       │       │   │           └── syn feature "full" (*)
+│       │       │   └── derive_builder feature "std"
+│       │       │       └── derive_builder v0.12.0 (*)
+│       │       ├── itybity feature "default"
+│       │       │   ├── itybity v0.2.1
+│       │       │   └── itybity feature "std"
+│       │       │       ├── itybity v0.2.1
+│       │       │       └── itybity feature "alloc"
+│       │       │           └── itybity v0.2.1
+│       │       ├── opaque-debug feature "default"
+│       │       │   └── opaque-debug v0.3.1
+│       │       ├── rand feature "default"
+│       │       │   ├── rand v0.9.2
+│       │       │   │   ├── rand_chacha v0.9.0
+│       │       │   │   │   ├── ppv-lite86 feature "simd"
+│       │       │   │   │   │   └── ppv-lite86 v0.2.21
+│       │       │   │   │   │       ├── zerocopy feature "default"
+│       │       │   │   │   │       │   └── zerocopy v0.8.26
+│       │       │   │   │   │       └── zerocopy feature "simd"
+│       │       │   │   │   │           └── zerocopy v0.8.26
+│       │       │   │   │   └── rand_core feature "default"
+│       │       │   │   │       └── rand_core v0.9.3
+│       │       │   │   │           └── getrandom feature "default"
+│       │       │   │   │               └── getrandom v0.3.3
+│       │       │   │   │                   ├── libc v0.2.175
+│       │       │   │   │                   └── cfg-if feature "default" (*)
+│       │       │   │   └── rand_core v0.9.3 (*)
+│       │       │   ├── rand feature "os_rng"
+│       │       │   │   ├── rand v0.9.2 (*)
+│       │       │   │   └── rand_core feature "os_rng"
+│       │       │   │       └── rand_core v0.9.3 (*)
+│       │       │   ├── rand feature "small_rng"
+│       │       │   │   └── rand v0.9.2 (*)
+│       │       │   ├── rand feature "std"
+│       │       │   │   ├── rand v0.9.2 (*)
+│       │       │   │   ├── rand feature "alloc"
+│       │       │   │   │   └── rand v0.9.2 (*)
+│       │       │   │   ├── rand_chacha feature "std"
+│       │       │   │   │   ├── rand_chacha v0.9.0 (*)
+│       │       │   │   │   ├── ppv-lite86 feature "std"
+│       │       │   │   │   │   └── ppv-lite86 v0.2.21 (*)
+│       │       │   │   │   └── rand_core feature "std"
+│       │       │   │   │       ├── rand_core v0.9.3 (*)
+│       │       │   │   │       └── getrandom feature "std"
+│       │       │   │   │           └── getrandom v0.3.3 (*)
+│       │       │   │   └── rand_core feature "std" (*)
+│       │       │   ├── rand feature "std_rng"
+│       │       │   │   └── rand v0.9.2 (*)
+│       │       │   └── rand feature "thread_rng"
+│       │       │       ├── rand v0.9.2 (*)
+│       │       │       ├── rand feature "os_rng" (*)
+│       │       │       ├── rand feature "std" (*)
+│       │       │       └── rand feature "std_rng" (*)
+│       │       ├── rand_chacha feature "default"
+│       │       │   ├── rand_chacha v0.9.0 (*)
+│       │       │   └── rand_chacha feature "std" (*)
+│       │       ├── rand_core feature "default" (*)
+│       │       ├── rs_merkle feature "default"
+│       │       │   ├── rs_merkle v1.4.2 (https://github.com/tlsnotary/rs-merkle.git?rev=85f3e82#85f3e827)
+│       │       │   │   ├── sha2 v0.10.9
+│       │       │   │   │   ├── cfg-if feature "default" (*)
+│       │       │   │   │   ├── cpufeatures feature "default" (*)
+│       │       │   │   │   └── digest feature "default"
+│       │       │   │   │       ├── digest v0.10.7
+│       │       │   │   │       │   ├── subtle v2.6.1
+│       │       │   │   │       │   ├── block-buffer feature "default" (*)
+│       │       │   │   │       │   └── crypto-common feature "default"
+│       │       │   │   │       │       └── crypto-common v0.1.6
+│       │       │   │   │       │           ├── generic-array feature "default" (*)
+│       │       │   │   │       │           ├── generic-array feature "more_lengths" (*)
+│       │       │   │   │       │           └── typenum feature "default" (*)
+│       │       │   │   │       └── digest feature "core-api"
+│       │       │   │   │           ├── digest v0.10.7 (*)
+│       │       │   │   │           └── digest feature "block-buffer"
+│       │       │   │   │               └── digest v0.10.7 (*)
+│       │       │   │   ├── serde feature "default" (*)
+│       │       │   │   └── serde feature "derive" (*)
+│       │       │   └── rs_merkle feature "std"
+│       │       │       ├── rs_merkle v1.4.2 (https://github.com/tlsnotary/rs-merkle.git?rev=85f3e82#85f3e827) (*)
+│       │       │       └── sha2 feature "std"
+│       │       │           ├── sha2 v0.10.9 (*)
+│       │       │           └── digest feature "std"
+│       │       │               ├── digest v0.10.7 (*)
+│       │       │               ├── digest feature "alloc"
+│       │       │               │   └── digest v0.10.7 (*)
+│       │       │               └── crypto-common feature "std"
+│       │       │                   └── crypto-common v0.1.6 (*)
+│       │       ├── rs_merkle feature "serde"
+│       │       │   └── rs_merkle v1.4.2 (https://github.com/tlsnotary/rs-merkle.git?rev=85f3e82#85f3e827) (*)
+│       │       ├── sha2 feature "default"
+│       │       │   ├── sha2 v0.10.9 (*)
+│       │       │   └── sha2 feature "std" (*)
+│       │       ├── rustls-pki-types feature "default"
+│       │       │   ├── rustls-pki-types v1.12.0
+│       │       │   │   └── zeroize feature "default"
+│       │       │   │       ├── zeroize v1.8.1
+│       │       │   │       │   └── zeroize_derive feature "default"
+│       │       │   │       │       └── zeroize_derive v1.4.2 (proc-macro)
+│       │       │   │       │           ├── proc-macro2 feature "default" (*)
+│       │       │   │       │           ├── quote feature "default" (*)
+│       │       │   │       │           ├── syn feature "default" (*)
+│       │       │   │       │           ├── syn feature "extra-traits"
+│       │       │   │       │           │   └── syn v2.0.106 (*)
+│       │       │   │       │           ├── syn feature "full" (*)
+│       │       │   │       │           └── syn feature "visit"
+│       │       │   │       │               └── syn v2.0.106 (*)
+│       │       │   │       └── zeroize feature "alloc"
+│       │       │   │           └── zeroize v1.8.1 (*)
+│       │       │   └── rustls-pki-types feature "alloc"
+│       │       │       └── rustls-pki-types v1.12.0 (*)
+│       │       ├── zeroize feature "default" (*)
+│       │       ├── zeroize feature "derive"
+│       │       │   ├── zeroize v1.8.1 (*)
+│       │       │   └── zeroize feature "zeroize_derive"
+│       │       │       └── zeroize v1.8.1 (*)
+│       │       ├── rustls-webpki feature "default"
+│       │       │   ├── rustls-webpki v0.103.4
+│       │       │   │   ├── ring v0.17.14
+│       │       │   │   │   ├── cfg-if v1.0.3
+│       │       │   │   │   ├── getrandom feature "default"
+│       │       │   │   │   │   └── getrandom v0.2.16
+│       │       │   │   │   │       ├── libc v0.2.175
+│       │       │   │   │   │       └── cfg-if feature "default" (*)
+│       │       │   │   │   └── untrusted feature "default"
+│       │       │   │   │       └── untrusted v0.9.0
+│       │       │   │   │   [build-dependencies]
+│       │       │   │   │   └── cc v1.2.33 (*)
+│       │       │   │   ├── rustls-pki-types v1.12.0 (*)
+│       │       │   │   └── untrusted feature "default" (*)
+│       │       │   └── rustls-webpki feature "std"
+│       │       │       ├── rustls-webpki v0.103.4 (*)
+│       │       │       ├── rustls-pki-types feature "std"
+│       │       │       │   ├── rustls-pki-types v1.12.0 (*)
+│       │       │       │   └── rustls-pki-types feature "alloc" (*)
+│       │       │       └── rustls-webpki feature "alloc"
+│       │       │           ├── rustls-webpki v0.103.4 (*)
+│       │       │           ├── rustls-pki-types feature "alloc" (*)
+│       │       │           └── ring feature "alloc"
+│       │       │               └── ring v0.17.14 (*)
+│       │       ├── rustls-webpki feature "ring"
+│       │       │   └── rustls-webpki v0.103.4 (*)
+│       │       ├── semver feature "default"
+│       │       │   ├── semver v1.0.26
+│       │       │   │   └── serde v1.0.219 (*)
+│       │       │   └── semver feature "std"
+│       │       │       └── semver v1.0.26 (*)
+│       │       ├── semver feature "serde"
+│       │       │   └── semver v1.0.26 (*)
+│       │       ├── tiny-keccak feature "default"
+│       │       │   └── tiny-keccak v2.0.2
+│       │       │       └── crunchy feature "default"
+│       │       │           ├── crunchy v0.2.4
+│       │       │           └── crunchy feature "limit_128"
+│       │       │               └── crunchy v0.2.4
+│       │       ├── tiny-keccak feature "keccak"
+│       │       │   └── tiny-keccak v2.0.2 (*)
+│       │       ├── tlsn-tls-core feature "default"
+│       │       │   ├── tlsn-tls-core v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/tls/core)
+│       │       │   │   ├── futures feature "default" (*)
+│       │       │   │   ├── serde feature "default" (*)
+│       │       │   │   ├── serde feature "derive" (*)
+│       │       │   │   ├── thiserror feature "default" (*)
+│       │       │   │   ├── rand feature "default" (*)
+│       │       │   │   ├── sha2 feature "default" (*)
+│       │       │   │   ├── rustls-pki-types feature "default" (*)
+│       │       │   │   ├── rustls-webpki feature "default" (*)
+│       │       │   │   ├── rustls-webpki feature "ring" (*)
+│       │       │   │   ├── ring feature "default"
+│       │       │   │   │   ├── ring v0.17.14 (*)
+│       │       │   │   │   ├── ring feature "alloc" (*)
+│       │       │   │   │   └── ring feature "dev_urandom_fallback"
+│       │       │   │   │       └── ring v0.17.14 (*)
+│       │       │   │   ├── hmac feature "default"
+│       │       │   │   │   └── hmac v0.12.1
+│       │       │   │   │       ├── digest feature "default" (*)
+│       │       │   │   │       └── digest feature "mac"
+│       │       │   │   │           ├── digest v0.10.7 (*)
+│       │       │   │   │           └── digest feature "subtle"
+│       │       │   │   │               └── digest v0.10.7 (*)
+│       │       │   │   ├── rustls-pemfile feature "default"
+│       │       │   │   │   └── rustls-pemfile v1.0.4
+│       │       │   │   │       └── base64 feature "default"
+│       │       │   │   │           ├── base64 v0.21.7
+│       │       │   │   │           └── base64 feature "std"
+│       │       │   │   │               ├── base64 v0.21.7
+│       │       │   │   │               └── base64 feature "alloc"
+│       │       │   │   │                   └── base64 v0.21.7
+│       │       │   │   ├── sct feature "default"
+│       │       │   │   │   └── sct v0.7.1
+│       │       │   │   │       ├── ring feature "default" (*)
+│       │       │   │   │       └── untrusted feature "default" (*)
+│       │       │   │   └── tracing feature "default"
+│       │       │   │       ├── tracing v0.1.41
+│       │       │   │       │   ├── tracing-core v0.1.34
+│       │       │   │       │   │   └── once_cell feature "default"
+│       │       │   │       │   │       ├── once_cell v1.21.3
+│       │       │   │       │   │       └── once_cell feature "std"
+│       │       │   │       │   │           ├── once_cell v1.21.3
+│       │       │   │       │   │           └── once_cell feature "alloc"
+│       │       │   │       │   │               ├── once_cell v1.21.3
+│       │       │   │       │   │               └── once_cell feature "race"
+│       │       │   │       │   │                   └── once_cell v1.21.3
+│       │       │   │       │   ├── pin-project-lite feature "default" (*)
+│       │       │   │       │   └── tracing-attributes feature "default"
+│       │       │   │       │       └── tracing-attributes v0.1.30 (proc-macro)
+│       │       │   │       │           ├── proc-macro2 feature "default" (*)
+│       │       │   │       │           ├── quote feature "default" (*)
+│       │       │   │       │           ├── syn feature "clone-impls" (*)
+│       │       │   │       │           ├── syn feature "extra-traits" (*)
+│       │       │   │       │           ├── syn feature "full" (*)
+│       │       │   │       │           ├── syn feature "parsing" (*)
+│       │       │   │       │           ├── syn feature "printing" (*)
+│       │       │   │       │           ├── syn feature "proc-macro" (*)
+│       │       │   │       │           └── syn feature "visit-mut"
+│       │       │   │       │               └── syn v2.0.106 (*)
+│       │       │   │       ├── tracing feature "attributes"
+│       │       │   │       │   ├── tracing v0.1.41 (*)
+│       │       │   │       │   └── tracing feature "tracing-attributes"
+│       │       │   │       │       └── tracing v0.1.41 (*)
+│       │       │   │       └── tracing feature "std"
+│       │       │   │           ├── tracing v0.1.41 (*)
+│       │       │   │           └── tracing-core feature "std"
+│       │       │   │               ├── tracing-core v0.1.34 (*)
+│       │       │   │               └── tracing-core feature "once_cell"
+│       │       │   │                   └── tracing-core v0.1.34 (*)
+│       │       │   ├── tlsn-tls-core feature "logging"
+│       │       │   │   ├── tlsn-tls-core v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/tls/core) (*)
+│       │       │   │   └── tlsn-tls-core feature "tracing"
+│       │       │   │       └── tlsn-tls-core v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/tls/core) (*)
+│       │       │   ├── tlsn-tls-core feature "prf"
+│       │       │   │   └── tlsn-tls-core v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/tls/core) (*)
+│       │       │   └── tlsn-tls-core feature "tls12"
+│       │       │       └── tlsn-tls-core v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/tls/core) (*)
+│       │       ├── tlsn-tls-core feature "serde"
+│       │       │   └── tlsn-tls-core v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/tls/core) (*)
+│       │       ├── tlsn-utils feature "default"
+│       │       │   └── tlsn-utils v0.1.0 (https://github.com/tlsnotary/tlsn-utils?rev=6168663#61686634)
+│       │       └── webpki-roots feature "default"
+│       │           └── webpki-roots v1.0.2
+│       │               └── rustls-pki-types v1.12.0 (*)
+│       ├── tlsn-formats feature "default"
+│       │   └── tlsn-formats v0.1.0-alpha.13-pre (/home/default2/Desktop/gh_repos/tlsn/crates/formats)
+│       │       ├── bytes feature "default" (*)
+│       │       ├── spansy feature "default" (*)
+│       │       ├── spansy feature "serde"
+│       │       │   ├── spansy v0.1.0 (https://github.com/tlsnotary/tlsn-utils?rev=6168663#61686634) (*)
+│       │       │   ├── bytes feature "serde"
+│       │       │   │   └── bytes v1.10.1 (*)
+│       │       │   └── rangeset feature "serde" (*)
+│       │       ├── thiserror feature "default" (*)
+│       │       └── tlsn-core feature "default" (*)
+│       └── tlsn-server-fixture-certs feature "default"
+│           └── tlsn-server-fixture-certs v0.0.0 (/home/default2/Desktop/gh_repos/tlsn/crates/server-fixture/certs)
+├── tlsn-server-fixture-certs feature "default" (*)
+├── tlsn-pdk feature "default"
+│   └── tlsn-pdk v0.1.0 (/home/default2/Desktop/gh_repos/tlsn/crates/pdk)
+│       ├── futures feature "default" (*)
+│       ├── tlsn-core feature "default" (*)
+│       ├── getrandom feature "default" (*)
+│       ├── getrandom feature "custom"
+│       │   └── getrandom v0.2.16 (*)
+│       ├── getrandom feature "default" (*)
+│       ├── bincode feature "default"
+│       │   └── bincode v1.3.3
+│       │       └── serde feature "default" (*)
+│       └── wit-bindgen feature "default"
+│           ├── wit-bindgen v0.44.0
+│           │   ├── wit-bindgen-rt feature "bitflags"
+│           │   │   └── wit-bindgen-rt v0.44.0
+│           │   │       ├── futures feature "default" (*)
+│           │   │       ├── once_cell feature "default" (*)
+│           │   │       └── bitflags feature "default"
+│           │   │           └── bitflags v2.9.2
+│           │   ├── wit-bindgen-rt feature "default"
+│           │   │   └── wit-bindgen-rt v0.44.0 (*)
+│           │   └── wit-bindgen-rust-macro feature "default"
+│           │       └── wit-bindgen-rust-macro v0.44.0 (proc-macro)
+│           │           ├── proc-macro2 feature "default" (*)
+│           │           ├── quote feature "default" (*)
+│           │           ├── syn feature "default" (*)
+│           │           ├── syn feature "printing" (*)
+│           │           ├── anyhow feature "default"
+│           │           │   ├── anyhow v1.0.99
+│           │           │   └── anyhow feature "std"
+│           │           │       └── anyhow v1.0.99
+│           │           ├── prettyplease feature "default"
+│           │           │   └── prettyplease v0.2.37
+│           │           │       ├── proc-macro2 v1.0.101 (*)
+│           │           │       └── syn feature "full" (*)
+│           │           ├── wit-bindgen-core feature "default"
+│           │           │   └── wit-bindgen-core v0.44.0
+│           │           │       ├── anyhow feature "default" (*)
+│           │           │       ├── heck feature "default"
+│           │           │       │   └── heck v0.5.0
+│           │           │       └── wit-parser feature "default"
+│           │           │           ├── wit-parser v0.236.1
+│           │           │           │   ├── semver v1.0.26
+│           │           │           │   ├── serde_derive feature "default" (*)
+│           │           │           │   ├── anyhow feature "default" (*)
+│           │           │           │   ├── id-arena feature "default"
+│           │           │           │   │   ├── id-arena v2.2.1
+│           │           │           │   │   └── id-arena feature "std"
+│           │           │           │   │       └── id-arena v2.2.1
+│           │           │           │   ├── indexmap feature "std"
+│           │           │           │   │   └── indexmap v2.10.0
+│           │           │           │   │       ├── equivalent v1.0.2
+│           │           │           │   │       ├── hashbrown v0.15.5
+│           │           │           │   │       │   └── foldhash v0.1.5
+│           │           │           │   │       └── serde v1.0.219
+│           │           │           │   ├── serde feature "alloc"
+│           │           │           │   │   └── serde v1.0.219
+│           │           │           │   ├── log feature "default"
+│           │           │           │   │   └── log v0.4.27
+│           │           │           │   ├── serde_json feature "default"
+│           │           │           │   │   ├── serde_json v1.0.143
+│           │           │           │   │   │   ├── memchr v2.7.5
+│           │           │           │   │   │   ├── serde v1.0.219
+│           │           │           │   │   │   ├── itoa feature "default" (*)
+│           │           │           │   │   │   └── ryu feature "default"
+│           │           │           │   │   │       └── ryu v1.0.20
+│           │           │           │   │   └── serde_json feature "std"
+│           │           │           │   │       ├── serde_json v1.0.143 (*)
+│           │           │           │   │       ├── memchr feature "std" (*)
+│           │           │           │   │       └── serde feature "std"
+│           │           │           │   │           └── serde v1.0.219
+│           │           │           │   ├── unicode-xid feature "default"
+│           │           │           │   │   └── unicode-xid v0.2.6
+│           │           │           │   ├── wasmparser feature "component-model"
+│           │           │           │   │   └── wasmparser v0.236.1
+│           │           │           │   │       ├── indexmap v2.10.0 (*)
+│           │           │           │   │       ├── semver v1.0.26
+│           │           │           │   │       ├── bitflags feature "default" (*)
+│           │           │           │   │       └── hashbrown feature "default-hasher"
+│           │           │           │   │           └── hashbrown v0.15.5 (*)
+│           │           │           │   ├── wasmparser feature "features"
+│           │           │           │   │   └── wasmparser v0.236.1 (*)
+│           │           │           │   ├── wasmparser feature "simd"
+│           │           │           │   │   └── wasmparser v0.236.1 (*)
+│           │           │           │   ├── wasmparser feature "std"
+│           │           │           │   │   ├── wasmparser v0.236.1 (*)
+│           │           │           │   │   └── indexmap feature "std" (*)
+│           │           │           │   └── wasmparser feature "validate"
+│           │           │           │       └── wasmparser v0.236.1 (*)
+│           │           │           ├── wit-parser feature "decoding"
+│           │           │           │   └── wit-parser v0.236.1 (*)
+│           │           │           └── wit-parser feature "serde"
+│           │           │               ├── wit-parser v0.236.1 (*)
+│           │           │               ├── wit-parser feature "serde_json"
+│           │           │               │   └── wit-parser v0.236.1 (*)
+│           │           │               └── indexmap feature "serde"
+│           │           │                   └── indexmap v2.10.0 (*)
+│           │           └── wit-bindgen-rust feature "default"
+│           │               └── wit-bindgen-rust v0.44.0
+│           │                   ├── wasm-metadata v0.236.1
+│           │                   │   ├── anyhow feature "default" (*)
+│           │                   │   ├── indexmap feature "serde" (*)
+│           │                   │   ├── wasmparser feature "component-model" (*)
+│           │                   │   ├── wasmparser feature "hash-collections"
+│           │                   │   │   └── wasmparser v0.236.1 (*)
+│           │                   │   ├── wasmparser feature "simd" (*)
+│           │                   │   ├── wasmparser feature "std" (*)
+│           │                   │   ├── wasm-encoder feature "component-model"
+│           │                   │   │   ├── wasm-encoder v0.236.1
+│           │                   │   │   │   ├── leb128fmt v0.1.0
+│           │                   │   │   │   └── wasmparser feature "simd" (*)
+│           │                   │   │   └── wasmparser feature "component-model" (*)
+│           │                   │   └── wasm-encoder feature "std"
+│           │                   │       ├── wasm-encoder v0.236.1 (*)
+│           │                   │       └── wasmparser feature "std" (*)
+│           │                   ├── syn feature "default" (*)
+│           │                   ├── syn feature "printing" (*)
+│           │                   ├── anyhow feature "default" (*)
+│           │                   ├── prettyplease feature "default" (*)
+│           │                   ├── wit-bindgen-core feature "default" (*)
+│           │                   ├── heck feature "default" (*)
+│           │                   ├── indexmap feature "default"
+│           │                   │   ├── indexmap v2.10.0 (*)
+│           │                   │   └── indexmap feature "std" (*)
+│           │                   └── wit-component feature "default"
+│           │                       └── wit-component v0.236.1
+│           │                           ├── indexmap v2.10.0 (*)
+│           │                           ├── wasm-metadata v0.236.1 (*)
+│           │                           ├── serde_derive feature "default" (*)
+│           │                           ├── bitflags feature "default" (*)
+│           │                           ├── anyhow feature "default" (*)
+│           │                           ├── wit-parser feature "decoding" (*)
+│           │                           ├── wit-parser feature "default" (*)
+│           │                           ├── wit-parser feature "serde" (*)
+│           │                           ├── serde feature "alloc" (*)
+│           │                           ├── log feature "default" (*)
+│           │                           ├── serde_json feature "default" (*)
+│           │                           ├── wasmparser feature "component-model" (*)
+│           │                           ├── wasmparser feature "simd" (*)
+│           │                           ├── wasmparser feature "std" (*)
+│           │                           ├── wasm-encoder feature "std" (*)
+│           │                           └── wasm-encoder feature "wasmparser"
+│           │                               └── wasm-encoder v0.236.1 (*)
+│           ├── wit-bindgen feature "async"
+│           │   ├── wit-bindgen v0.44.0 (*)
+│           │   ├── wit-bindgen feature "macros"
+│           │   │   └── wit-bindgen v0.44.0 (*)
+│           │   ├── wit-bindgen feature "wit-bindgen-rust-macro"
+│           │   │   └── wit-bindgen v0.44.0 (*)
+│           │   ├── wit-bindgen-rt feature "async"
+│           │   │   └── wit-bindgen-rt v0.44.0 (*)
+│           │   └── wit-bindgen-rust-macro feature "async"
+│           │       └── wit-bindgen-rust-macro v0.44.0 (proc-macro) (*)
+│           ├── wit-bindgen feature "macros" (*)
+│           └── wit-bindgen feature "realloc"
+│               └── wit-bindgen v0.44.0 (*)
+├── tokio-util feature "default"
+│   └── tokio-util v0.7.16
+│       ├── futures-core feature "default" (*)
+│       ├── futures-sink feature "default"
+│       │   ├── futures-sink v0.3.31
+│       │   └── futures-sink feature "std" (*)
+│       ├── pin-project-lite feature "default" (*)
+│       ├── bytes feature "default" (*)
+│       ├── tokio feature "default" (*)
+│       └── tokio feature "sync" (*)
+└── wit-bindgen feature "default"
+    ├── wit-bindgen v0.24.0
+    │   ├── wit-bindgen-rt feature "bitflags"
+    │   │   └── wit-bindgen-rt v0.24.0
+    │   │       └── bitflags feature "default" (*)
+    │   ├── wit-bindgen-rt feature "default"
+    │   │   └── wit-bindgen-rt v0.24.0 (*)
+    │   └── wit-bindgen-rust-macro feature "default"
+    │       └── wit-bindgen-rust-macro v0.24.0 (proc-macro)
+    │           ├── proc-macro2 feature "default" (*)
+    │           ├── quote feature "default" (*)
+    │           ├── syn feature "default" (*)
+    │           ├── syn feature "printing" (*)
+    │           ├── anyhow feature "default" (*)
+    │           ├── wit-bindgen-core feature "default"
+    │           │   └── wit-bindgen-core v0.24.0
+    │           │       ├── anyhow feature "default" (*)
+    │           │       └── wit-parser feature "default"
+    │           │           ├── wit-parser v0.202.0
+    │           │           │   ├── serde_derive feature "default" (*)
+    │           │           │   ├── anyhow feature "default" (*)
+    │           │           │   ├── id-arena feature "default" (*)
+    │           │           │   ├── indexmap feature "default" (*)
+    │           │           │   ├── serde feature "default"
+    │           │           │   │   ├── serde v1.0.219
+    │           │           │   │   └── serde feature "std" (*)
+    │           │           │   ├── log feature "default" (*)
+    │           │           │   ├── semver feature "default"
+    │           │           │   │   ├── semver v1.0.26
+    │           │           │   │   └── semver feature "std"
+    │           │           │   │       └── semver v1.0.26
+    │           │           │   ├── serde_json feature "default" (*)
+    │           │           │   ├── unicode-xid feature "default" (*)
+    │           │           │   └── wasmparser feature "default"
+    │           │           │       └── wasmparser v0.202.0
+    │           │           │           ├── bitflags feature "default" (*)
+    │           │           │           ├── indexmap feature "default" (*)
+    │           │           │           └── semver feature "default" (*)
+    │           │           ├── wit-parser feature "decoding"
+    │           │           │   └── wit-parser v0.202.0 (*)
+    │           │           └── wit-parser feature "serde"
+    │           │               ├── wit-parser v0.202.0 (*)
+    │           │               ├── indexmap feature "serde" (*)
+    │           │               └── wit-parser feature "serde_json"
+    │           │                   └── wit-parser v0.202.0 (*)
+    │           └── wit-bindgen-rust feature "default"
+    │               └── wit-bindgen-rust v0.24.0
+    │                   ├── anyhow feature "default" (*)
+    │                   ├── indexmap feature "default" (*)
+    │                   ├── wit-bindgen-core feature "default" (*)
+    │                   ├── heck feature "default"
+    │                   │   └── heck v0.4.1
+    │                   │       └── unicode-segmentation feature "default"
+    │                   │           └── unicode-segmentation v1.12.0
+    │                   ├── heck feature "unicode"
+    │                   │   ├── heck v0.4.1 (*)
+    │                   │   └── heck feature "unicode-segmentation"
+    │                   │       └── heck v0.4.1 (*)
+    │                   ├── wasm-metadata feature "default"
+    │                   │   └── wasm-metadata v0.202.0
+    │                   │       ├── serde_derive feature "default" (*)
+    │                   │       ├── anyhow feature "default" (*)
+    │                   │       ├── indexmap feature "default" (*)
+    │                   │       ├── indexmap feature "serde" (*)
+    │                   │       ├── serde feature "default" (*)
+    │                   │       ├── serde_json feature "default" (*)
+    │                   │       ├── wasmparser feature "default" (*)
+    │                   │       ├── spdx feature "default"
+    │                   │       │   └── spdx v0.10.9
+    │                   │       │       └── smallvec feature "default"
+    │                   │       │           └── smallvec v1.15.1
+    │                   │       └── wasm-encoder feature "default"
+    │                   │           └── wasm-encoder v0.202.0
+    │                   │               └── leb128 feature "default"
+    │                   │                   └── leb128 v0.2.5
+    │                   └── wit-component feature "default"
+    │                       └── wit-component v0.202.0
+    │                           ├── serde_derive feature "default" (*)
+    │                           ├── bitflags feature "default" (*)
+    │                           ├── anyhow feature "default" (*)
+    │                           ├── indexmap feature "default" (*)
+    │                           ├── serde feature "default" (*)
+    │                           ├── log feature "default" (*)
+    │                           ├── serde_json feature "default" (*)
+    │                           ├── wit-parser feature "decoding" (*)
+    │                           ├── wit-parser feature "default" (*)
+    │                           ├── wit-parser feature "serde" (*)
+    │                           ├── wasmparser feature "default" (*)
+    │                           ├── wasm-metadata feature "default" (*)
+    │                           └── wasm-encoder feature "default" (*)
+    ├── wit-bindgen feature "macros"
+    │   └── wit-bindgen v0.24.0 (*)
+    └── wit-bindgen feature "realloc"
+        └── wit-bindgen v0.24.0 (*)

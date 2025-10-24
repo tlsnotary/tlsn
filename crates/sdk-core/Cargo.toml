@@ -1,0 +1,19 @@
+[package]
+name = "tlsn-sdk-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tlsn = { workspace = true }
+wasmtime = { version = "34.0", features = ["component-model"] }
+bincode = { workspace = true }
+futures = { workspace = true }
+pin-project-lite = { workspace = true }
+
+[dev-dependencies]
+futures-plex = { workspace = true }
+tlsn-server-fixture = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+
+[lints]
+workspace = true
