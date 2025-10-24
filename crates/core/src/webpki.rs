@@ -53,6 +53,21 @@ impl RootCertStore {
     pub fn empty() -> Self {
         Self { roots: Vec::new() }
     }
+
+    /// Creates a root certificate store with Mozilla root certificates.
+    ///
+    /// These certificates are sourced from [`webpki-root-certs`](https://docs.rs/webpki-root-certs/latest/webpki_root_certs/). It is not recommended to use these unless the
+    /// application binary can be recompiled and deployed on-demand in the case
+    /// that the root certificates need to be updated.
+    #[cfg(feature = "mozilla-certs")]
+    pub fn mozilla() -> Self {
+        Self {
+            roots: webpki_root_certs::TLS_SERVER_ROOT_CERTS
+                .iter()
+                .map(|cert| CertificateDer(cert.to_vec()))
+                .collect(),
+        }
+    }
 }
 
 /// Server certificate verifier.
@@ -82,8 +97,12 @@ impl ServerCertVerifier {
         Ok(Self { roots })
     }
 
-    /// Creates a new server certificate verifier with Mozilla root
-    /// certificates.
+    /// Creates a server certificate verifier with Mozilla root certificates.
+    ///
+    /// These certificates are sourced from [`webpki-root-certs`](https://docs.rs/webpki-root-certs/latest/webpki_root_certs/). It is not recommended to use these unless the
+    /// application binary can be recompiled and deployed on-demand in the case
+    /// that the root certificates need to be updated.
+    #[cfg(feature = "mozilla-certs")]
     pub fn mozilla() -> Self {
         Self {
             roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),

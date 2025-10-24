@@ -12,11 +12,18 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, RootCertStore},
+    config::{
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig, TlsCommitProtocolConfig},
+        verifier::VerifierConfig,
+    },
     connection::ServerName,
-    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
+    prover::Prover,
     transcript::PartialTranscript,
-    verifier::{Verifier, VerifierConfig, VerifierOutput},
+    verifier::{Verifier, VerifierOutput},
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -70,52 +77,52 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     assert_eq!(uri.scheme().unwrap().as_str(), "https");
     let server_domain = uri.authority().unwrap().host();
 
-    // Create a root certificate store with the server-fixture's self-signed
-    // certificate. This is only required for offline testing with the
-    // server-fixture.
-    let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(RootCertStore {
-        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-    });
-    let tls_config = tls_config_builder.build().unwrap();
-
-    // Set up protocol configuration for prover.
-    let mut prover_config_builder = ProverConfig::builder();
-    prover_config_builder
-        .server_name(ServerName::Dns(server_domain.try_into().unwrap()))
-        .tls_config(tls_config)
-        .protocol_config(
-            ProtocolConfig::builder()
-                .max_sent_data(MAX_SENT_DATA)
-                .max_recv_data(MAX_RECV_DATA)
-                .build()
-                .unwrap(),
-        );
-
-    let prover_config = prover_config_builder.build().unwrap();
-
-    // Create prover and connect to verifier.
-    //
-    // Perform the setup phase with the verifier.
-    let prover = Prover::new(prover_config)
-        .setup(verifier_socket.compat())
+    // Create a new prover and perform necessary setup.
+    let prover = Prover::new(ProverConfig::builder().build()?)
+        .commit(
+            TlsCommitConfig::builder()
+                // Select the TLS commitment protocol.
+                .protocol(
+                    MpcTlsConfig::builder()
+                        // We must configure the amount of data we expect to exchange beforehand,
+                        // which will be preprocessed prior to the
+                        // connection. Reducing these limits will improve
+                        // performance.
+                        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
+                        .max_recv_data(tlsn_examples::MAX_RECV_DATA)
+                        .build()?,
+                )
+                .build()?,
+            verifier_socket.compat(),
+        )
         .await?;
 
-    // Connect to TLS Server.
-    let tls_client_socket = tokio::net::TcpStream::connect(server_addr).await?;
+    // Open a TCP connection to the server.
+    let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
-    // Pass server connection into the prover.
-    let (mpc_tls_connection, prover_fut) = prover.connect(tls_client_socket.compat()).await?;
-
-    // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
-    let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
+    // Bind the prover to the server connection.
+    let (tls_connection, prover_fut) = prover
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+                // Create a root certificate store with the server-fixture's self-signed
+                // certificate. This is only required for offline testing with the
+                // server-fixture.
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()?,
+            client_socket.compat(),
+        )
+        .await?;
+    let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the Prover to run in the background.
     let prover_task = tokio::spawn(prover_fut);
 
     // MPC-TLS Handshake.
     let (mut request_sender, connection) =
-        hyper::client::conn::http1::handshake(mpc_tls_connection).await?;
+        hyper::client::conn::http1::handshake(tls_connection).await?;
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
@@ -187,16 +194,21 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let verifier = Verifier::new(verifier_config);
 
     // Validate the proposed configuration and then run the TLS commitment protocol.
-    let verifier = verifier.setup(socket.compat()).await?;
+    let verifier = verifier.commit(socket.compat()).await?;
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
-    let reject = if verifier.config().max_sent_data() > MAX_SENT_DATA {
-        Some("max_sent_data is too large")
-    } else if verifier.config().max_recv_data() > MAX_RECV_DATA {
-        Some("max_recv_data is too large")
+    let reject = if let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = verifier.request().protocol()
+    {
+        if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
+            Some("max_sent_data is too large")
+        } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
+            Some("max_recv_data is too large")
+        } else {
+            None
+        }
     } else {
-        None
+        Some("expecting to use MPC-TLS")
     };
 
     if reject.is_some() {
@@ -210,7 +222,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;
 
-    if verifier.request().handshake.is_none() {
+    if !verifier.request().server_identity() {
         let verifier = verifier
             .reject(Some("expecting to verify the server name"))
             .await?;
