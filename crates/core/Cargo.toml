@@ -13,6 +13,7 @@ workspace = true
 
 [features]
 default = []
+mozilla-certs = ["dep:webpki-root-certs", "dep:webpki-roots"]
 fixtures = [
     "dep:hex",
     "dep:tlsn-data-fixtures",
@@ -44,7 +45,8 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 web-time = { workspace = true }
-webpki-roots = { workspace = true }
+webpki-roots = { workspace = true, optional = true }
+webpki-root-certs = { workspace = true, optional = true }
 rustls-webpki = { workspace = true, features = ["ring"] }
 rustls-pki-types = { workspace = true }
 itybity = { workspace = true }

@@ -1,10 +1,17 @@
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, RootCertStore},
+    config::{
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+        verifier::VerifierConfig,
+    },
     connection::ServerName,
     hash::HashAlgId,
-    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
+    prover::Prover,
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
-    verifier::{Verifier, VerifierConfig, VerifierOutput},
+    verifier::{Verifier, VerifierOutput},
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
@@ -21,35 +28,35 @@ const MAX_RECV_DATA: usize = 1 << 11;
 crate::test!("basic", prover, verifier);
 
 async fn prover(provider: &IoProvider) {
-    let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(RootCertStore {
-        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-    });
-
-    let tls_config = tls_config_builder.build().unwrap();
-
-    let server_name = ServerName::Dns(SERVER_DOMAIN.try_into().unwrap());
-    let prover = Prover::new(
-        ProverConfig::builder()
-            .server_name(server_name)
-            .tls_config(tls_config)
-            .protocol_config(
-                ProtocolConfig::builder()
-                    .max_sent_data(MAX_SENT_DATA)
-                    .max_recv_data(MAX_RECV_DATA)
-                    .defer_decryption_from_start(true)
-                    .build()
-                    .unwrap(),
-            )
-            .build()
-            .unwrap(),
-    )
-    .setup(provider.provide_proto_io().await.unwrap())
-    .await
-    .unwrap();
+    let prover = Prover::new(ProverConfig::builder().build().unwrap())
+        .commit(
+            TlsCommitConfig::builder()
+                .protocol(
+                    MpcTlsConfig::builder()
+                        .max_sent_data(MAX_SENT_DATA)
+                        .max_recv_data(MAX_RECV_DATA)
+                        .defer_decryption_from_start(true)
+                        .build()
+                        .unwrap(),
+                )
+                .build()
+                .unwrap(),
+            provider.provide_proto_io().await.unwrap(),
+        )
+        .await
+        .unwrap();
 
     let (tls_connection, prover_fut) = prover
-        .connect(provider.provide_server_io().await.unwrap())
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()
+                .unwrap(),
+            provider.provide_server_io().await.unwrap(),
+        )
         .await
         .unwrap();
 
@@ -120,7 +127,7 @@ async fn verifier(provider: &IoProvider) {
         .unwrap();
 
     let verifier = Verifier::new(config)
-        .setup(provider.provide_proto_io().await.unwrap())
+        .commit(provider.provide_proto_io().await.unwrap())
         .await
         .unwrap()
         .accept()

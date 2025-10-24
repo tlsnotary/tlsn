@@ -12,8 +12,8 @@ use tlsn::{
         signing::VerifyingKey,
         CryptoProvider,
     },
-    config::{CertificateDer, RootCertStore},
     verifier::ServerCertVerifier,
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_examples::ExampleType;
 use tlsn_server_fixture_certs::CA_CERT_DER;

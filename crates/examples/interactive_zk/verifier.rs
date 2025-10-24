@@ -7,11 +7,12 @@ use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_h
 use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
-    config::{CertificateDer, RootCertStore},
+    config::{tls_commit::TlsCommitProtocolConfig, verifier::VerifierConfig},
     connection::ServerName,
     hash::HashAlgId,
     transcript::{Direction, PartialTranscript},
-    verifier::{Verifier, VerifierConfig, VerifierOutput},
+    verifier::{Verifier, VerifierOutput},
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
@@ -24,28 +25,33 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     socket: T,
     mut extra_socket: T,
 ) -> Result<PartialTranscript> {
-    // Create a root certificate store with the server-fixture's self-signed
-    // certificate. This is only required for offline testing with the
-    // server-fixture.
-    let verifier_config = VerifierConfig::builder()
-        .root_store(RootCertStore {
-            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-        })
-        .build()?;
-
-    let verifier = Verifier::new(verifier_config);
+    let verifier = Verifier::new(
+        VerifierConfig::builder()
+            // Create a root certificate store with the server-fixture's self-signed
+            // certificate. This is only required for offline testing with the
+            // server-fixture.
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .build()?,
+    );
 
     // Validate the proposed configuration and then run the TLS commitment protocol.
-    let verifier = verifier.setup(socket.compat()).await?;
+    let verifier = verifier.commit(socket.compat()).await?;
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
-    let reject = if verifier.config().max_sent_data() > MAX_SENT_DATA {
-        Some("max_sent_data is too large")
-    } else if verifier.config().max_recv_data() > MAX_RECV_DATA {
-        Some("max_recv_data is too large")
+    let reject = if let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = verifier.request().protocol()
+    {
+        if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
+            Some("max_sent_data is too large")
+        } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
+            Some("max_recv_data is too large")
+        } else {
+            None
+        }
     } else {
-        None
+        Some("expecting to use MPC-TLS")
     };
 
     if reject.is_some() {
@@ -60,7 +66,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     let verifier = verifier.verify().await?;
     let request = verifier.request();
 
-    if request.handshake.is_none() || request.transcript.is_none() {
+    if !request.server_identity() || request.reveal().is_none() {
         let verifier = verifier
             .reject(Some(
                 "expecting to verify the server name and transcript data",

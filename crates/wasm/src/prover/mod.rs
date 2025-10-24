@@ -7,7 +7,16 @@ use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tls_client_async::TlsConnection;
-use tlsn::prover::{state, ProveConfig, Prover};
+use tlsn::{
+    config::{
+        prove::ProveConfig,
+        tls::TlsClientConfig,
+        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
+    },
+    connection::ServerName,
+    prover::{state, Prover},
+    webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
+};
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
 use wasm_bindgen_futures::spawn_local;
@@ -19,6 +28,7 @@ type Result<T> = std::result::Result<T, JsError>;
 
 #[wasm_bindgen(js_name = Prover)]
 pub struct JsProver {
+    config: ProverConfig,
     state: State,
 }
 
@@ -43,7 +53,10 @@ impl JsProver {
     #[wasm_bindgen(constructor)]
     pub fn new(config: ProverConfig) -> Result<JsProver> {
         Ok(JsProver {
-            state: State::Initialized(Prover::new(config.try_into()?)),
+            config,
+            state: State::Initialized(Prover::new(
+                tlsn::config::prover::ProverConfig::builder().build()?,
+            )),
         })
     }
 
@@ -54,13 +67,39 @@ impl JsProver {
     pub async fn setup(&mut self, verifier_url: &str) -> Result<()> {
         let prover = self.state.take().try_into_initialized()?;
 
+        let config = TlsCommitConfig::builder()
+            .protocol({
+                let mut builder = MpcTlsConfig::builder()
+                    .max_sent_data(self.config.max_sent_data)
+                    .max_recv_data(self.config.max_recv_data);
+
+                if let Some(value) = self.config.max_recv_data_online {
+                    builder = builder.max_recv_data_online(value);
+                }
+
+                if let Some(value) = self.config.max_sent_records {
+                    builder = builder.max_sent_records(value);
+                }
+
+                if let Some(value) = self.config.max_recv_records_online {
+                    builder = builder.max_recv_records_online(value);
+                }
+
+                if let Some(value) = self.config.defer_decryption_from_start {
+                    builder = builder.defer_decryption_from_start(value);
+                }
+
+                builder.network(self.config.network.into()).build()
+            }?)
+            .build()?;
+
         info!("connecting to verifier");
 
         let (_, verifier_conn) = WsMeta::connect(verifier_url, None).await?;
 
         info!("connected to verifier");
 
-        let prover = prover.setup(verifier_conn.into_io()).await?;
+        let prover = prover.commit(config, verifier_conn.into_io()).await?;
 
         self.state = State::Setup(prover);
 
@@ -75,13 +114,41 @@ impl JsProver {
     ) -> Result<HttpResponse> {
         let prover = self.state.take().try_into_setup()?;
 
+        let mut builder = TlsClientConfig::builder()
+            .server_name(ServerName::Dns(
+                self.config
+                    .server_name
+                    .clone()
+                    .try_into()
+                    .map_err(|_| JsError::new("invalid server name"))?,
+            ))
+            .root_store(RootCertStore::mozilla());
+
+        if let Some((certs, key)) = self.config.client_auth.clone() {
+            let certs = certs
+                .into_iter()
+                .map(|cert| {
+                    // Try to parse as PEM-encoded, otherwise assume DER.
+                    if let Ok(cert) = CertificateDer::from_pem_slice(&cert) {
+                        cert
+                    } else {
+                        CertificateDer(cert)
+                    }
+                })
+                .collect();
+            let key = PrivateKeyDer(key);
+            builder = builder.client_auth((certs, key));
+        }
+
+        let config = builder.build()?;
+
         info!("connecting to server");
 
         let (_, server_conn) = WsMeta::connect(ws_proxy_url, None).await?;
 
         info!("connected to server");
 
-        let (tls_conn, prover_fut) = prover.connect(server_conn.into_io()).await?;
+        let (tls_conn, prover_fut) = prover.connect(config, server_conn.into_io()).await?;
 
         info!("sending request");
 
@@ -134,14 +201,6 @@ impl JsProver {
         self.state = State::Complete;
 
         Ok(())
-    }
-}
-
-impl From<Prover<state::Initialized>> for JsProver {
-    fn from(value: Prover<state::Initialized>) -> Self {
-        JsProver {
-            state: State::Initialized(value),
-        }
     }
 }
 

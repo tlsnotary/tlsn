@@ -181,7 +181,7 @@ pub struct VerifierOutput {
     pub transcript: Option<PartialTranscript>,
 }
 
-#[derive(Debug, Tsify, Deserialize)]
+#[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum NetworkSetting {
     /// Prefers a bandwidth-heavy protocol.
@@ -190,7 +190,7 @@ pub enum NetworkSetting {
     Latency,
 }
 
-impl From<NetworkSetting> for tlsn::config::NetworkSetting {
+impl From<NetworkSetting> for tlsn::config::tls_commit::mpc::NetworkSetting {
     fn from(value: NetworkSetting) -> Self {
         match value {
             NetworkSetting::Bandwidth => Self::Bandwidth,

@@ -4,7 +4,6 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod config;
 pub(crate) mod context;
 pub(crate) mod ghash;
 pub(crate) mod map;
@@ -17,7 +16,16 @@ pub(crate) mod transcript_internal;
 pub mod verifier;
 
 pub use tlsn_attestation as attestation;
-pub use tlsn_core::{connection, hash, transcript};
+pub use tlsn_core::{config, connection, hash, transcript, webpki};
+
+use std::sync::LazyLock;
+
+use semver::Version;
+
+// Package version.
+pub(crate) static VERSION: LazyLock<Version> = LazyLock::new(|| {
+    Version::parse(env!("CARGO_PKG_VERSION")).expect("cargo pkg version should be a valid semver")
+});
 
 /// The party's role in the TLSN protocol.
 ///

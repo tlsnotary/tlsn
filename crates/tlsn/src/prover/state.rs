@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
-use tlsn_core::transcript::{TlsTranscript, Transcript};
+use tlsn_core::{
+    connection::ServerName,
+    transcript::{TlsTranscript, Transcript},
+};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
@@ -18,8 +21,9 @@ pub struct Initialized;
 
 opaque_debug::implement!(Initialized);
 
-/// State after MPC setup has completed.
-pub struct Setup {
+/// State after the verifier has accepted the proposed TLS commitment protocol
+/// configuration and preprocessing has completed.
+pub struct CommitAccepted {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsLeader,
@@ -27,14 +31,15 @@ pub struct Setup {
     pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
 }
 
-opaque_debug::implement!(Setup);
+opaque_debug::implement!(CommitAccepted);
 
-/// State after the TLS connection has been committed and closed.
+/// State after the TLS transcript has been committed.
 pub struct Committed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
     pub(crate) vm: ProverZk,
+    pub(crate) server_name: ServerName,
     pub(crate) keys: SessionKeys,
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) transcript: Transcript,
@@ -46,12 +51,12 @@ opaque_debug::implement!(Committed);
 pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
-impl ProverState for Setup {}
+impl ProverState for CommitAccepted {}
 impl ProverState for Committed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl Sealed for super::Setup {}
+    impl Sealed for super::CommitAccepted {}
     impl Sealed for super::Committed {}
 }

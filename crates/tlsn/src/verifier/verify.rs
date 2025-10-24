@@ -4,7 +4,9 @@ use mpz_memory_core::binary::Binary;
 use mpz_vm_core::Vm;
 use rangeset::{RangeSet, UnionMut};
 use tlsn_core::{
-    ProveRequest, VerifierOutput,
+    VerifierOutput,
+    config::prove::ProveRequest,
+    connection::{HandshakeData, ServerName},
     transcript::{
         ContentType, Direction, PartialTranscript, Record, TlsTranscript, TranscriptCommitment,
     },
@@ -23,6 +25,7 @@ use crate::{
     verifier::VerifierError,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     ctx: &mut Context,
     vm: &mut T,
@@ -30,23 +33,36 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     cert_verifier: &ServerCertVerifier,
     tls_transcript: &TlsTranscript,
     request: ProveRequest,
+    handshake: Option<(ServerName, HandshakeData)>,
+    transcript: Option<PartialTranscript>,
 ) -> Result<VerifierOutput, VerifierError> {
-    let ProveRequest {
-        handshake,
-        transcript,
-        transcript_commit,
-    } = request;
-
     let ciphertext_sent = collect_ciphertext(tls_transcript.sent());
     let ciphertext_recv = collect_ciphertext(tls_transcript.recv());
 
-    let has_reveal = transcript.is_some();
-    let transcript = if let Some(transcript) = transcript {
+    let transcript = if let Some((auth_sent, auth_recv)) = request.reveal() {
+        let Some(transcript) = transcript else {
+            return Err(VerifierError::verify(
+                "prover requested to reveal data but did not send transcript",
+            ));
+        };
+
         if transcript.len_sent() != ciphertext_sent.len()
             || transcript.len_received() != ciphertext_recv.len()
         {
             return Err(VerifierError::verify(
                 "prover sent transcript with incorrect length",
+            ));
+        }
+
+        if transcript.sent_authed() != auth_sent {
+            return Err(VerifierError::verify(
+                "prover sent transcript with incorrect sent authed data",
+            ));
+        }
+
+        if transcript.received_authed() != auth_recv {
+            return Err(VerifierError::verify(
+                "prover sent transcript with incorrect received authed data",
             ));
         }
 
@@ -71,7 +87,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     };
 
     let (mut commit_sent, mut commit_recv) = (RangeSet::default(), RangeSet::default());
-    if let Some(commit_config) = transcript_commit.as_ref() {
+    if let Some(commit_config) = request.transcript_commit() {
         commit_config
             .iter_hash()
             .for_each(|(direction, idx, _)| match direction {
@@ -121,7 +137,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
 
     let mut transcript_commitments = Vec::new();
     let mut hash_commitments = None;
-    if let Some(commit_config) = transcript_commit.as_ref()
+    if let Some(commit_config) = request.transcript_commit()
         && commit_config.has_hash()
     {
         hash_commitments = Some(
@@ -136,7 +152,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     recv_proof.verify().map_err(VerifierError::verify)?;
 
     let mut encoder_secret = None;
-    if let Some(commit_config) = transcript_commit
+    if let Some(commit_config) = request.transcript_commit()
         && let Some((sent, recv)) = commit_config.encoding()
     {
         let sent_map = transcript_refs
@@ -161,7 +177,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
 
     Ok(VerifierOutput {
         server_name,
-        transcript: has_reveal.then_some(transcript),
+        transcript: request.reveal().is_some().then_some(transcript),
         encoder_secret,
         transcript_commitments,
     })

@@ -2,13 +2,14 @@
 
 use std::sync::Arc;
 
-use crate::{
-    config::ProtocolConfig,
-    mux::{MuxControl, MuxFuture},
-};
+use crate::mux::{MuxControl, MuxFuture};
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
-use tlsn_core::{ProveRequest, transcript::TlsTranscript};
+use tlsn_core::{
+    config::{prove::ProveRequest, tls_commit::TlsCommitRequest},
+    connection::{HandshakeData, ServerName},
+    transcript::{PartialTranscript, TlsTranscript},
+};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
@@ -23,17 +24,18 @@ pub struct Initialized;
 opaque_debug::implement!(Initialized);
 
 /// State after receiving protocol configuration from the prover.
-pub struct Config {
+pub struct CommitStart {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
-    pub(crate) config: ProtocolConfig,
+    pub(crate) request: TlsCommitRequest,
 }
 
-opaque_debug::implement!(Config);
+opaque_debug::implement!(CommitStart);
 
-/// State after setup has completed.
-pub struct Setup {
+/// State after accepting the proposed TLS commitment protocol configuration and
+/// performing preprocessing.
+pub struct CommitAccepted {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsFollower,
@@ -41,9 +43,9 @@ pub struct Setup {
     pub(crate) vm: Arc<Mutex<Deap<VerifierMpc, VerifierZk>>>,
 }
 
-opaque_debug::implement!(Setup);
+opaque_debug::implement!(CommitAccepted);
 
-/// State after the TLS connection has been closed.
+/// State after the TLS transcript has been committed.
 pub struct Committed {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
@@ -64,21 +66,23 @@ pub struct Verify {
     pub(crate) keys: SessionKeys,
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) request: ProveRequest,
+    pub(crate) handshake: Option<(ServerName, HandshakeData)>,
+    pub(crate) transcript: Option<PartialTranscript>,
 }
 
 opaque_debug::implement!(Verify);
 
 impl VerifierState for Initialized {}
-impl VerifierState for Config {}
-impl VerifierState for Setup {}
+impl VerifierState for CommitStart {}
+impl VerifierState for CommitAccepted {}
 impl VerifierState for Committed {}
 impl VerifierState for Verify {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl Sealed for super::Config {}
-    impl Sealed for super::Setup {}
+    impl Sealed for super::CommitStart {}
+    impl Sealed for super::CommitAccepted {}
     impl Sealed for super::Committed {}
     impl Sealed for super::Verify {}
 }

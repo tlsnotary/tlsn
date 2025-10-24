@@ -4,7 +4,7 @@ use mpc_tls::MpcTlsError;
 
 use crate::transcript_internal::commit::encoding::EncodingError;
 
-/// Error for [`Prover`](crate::Prover).
+/// Error for [`Prover`](crate::prover::Prover).
 #[derive(Debug, thiserror::Error)]
 pub struct ProverError {
     kind: ErrorKind,

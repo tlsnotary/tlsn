@@ -1,15 +1,22 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 use rangeset::RangeSet;
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, RootCertStore},
+    config::{
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+        verifier::VerifierConfig,
+    },
     connection::ServerName,
     hash::{HashAlgId, HashProvider},
-    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
+    prover::Prover,
     transcript::{
         Direction, Transcript, TranscriptCommitConfig, TranscriptCommitment,
         TranscriptCommitmentKind, TranscriptSecret,
     },
-    verifier::{Verifier, VerifierConfig, VerifierOutput},
+    verifier::{Verifier, VerifierOutput},
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_core::ProverOutput;
 use tlsn_server_fixture::bind;
@@ -113,35 +120,38 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let server_task = tokio::spawn(bind(server_socket.compat()));
 
-    let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(RootCertStore {
-        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-    });
+    let prover = Prover::new(ProverConfig::builder().build().unwrap())
+        .commit(
+            TlsCommitConfig::builder()
+                .protocol(
+                    MpcTlsConfig::builder()
+                        .max_sent_data(MAX_SENT_DATA)
+                        .max_sent_records(MAX_SENT_RECORDS)
+                        .max_recv_data(MAX_RECV_DATA)
+                        .max_recv_records_online(MAX_RECV_RECORDS)
+                        .build()
+                        .unwrap(),
+                )
+                .build()
+                .unwrap(),
+            verifier_socket.compat(),
+        )
+        .await
+        .unwrap();
 
-    let tls_config = tls_config_builder.build().unwrap();
-
-    let server_name = ServerName::Dns(SERVER_DOMAIN.try_into().unwrap());
-    let prover = Prover::new(
-        ProverConfig::builder()
-            .server_name(server_name)
-            .tls_config(tls_config)
-            .protocol_config(
-                ProtocolConfig::builder()
-                    .max_sent_data(MAX_SENT_DATA)
-                    .max_sent_records(MAX_SENT_RECORDS)
-                    .max_recv_data(MAX_RECV_DATA)
-                    .max_recv_records_online(MAX_RECV_RECORDS)
-                    .build()
-                    .unwrap(),
-            )
-            .build()
-            .unwrap(),
-    )
-    .setup(verifier_socket.compat())
-    .await
-    .unwrap();
-
-    let (mut tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+    let (mut tls_connection, prover_fut) = prover
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()
+                .unwrap(),
+            client_socket.compat(),
+        )
+        .await
+        .unwrap();
     let prover_task = tokio::spawn(prover_fut);
 
     tls_connection
@@ -214,7 +224,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     );
 
     let verifier = verifier
-        .setup(socket.compat())
+        .commit(socket.compat())
         .await
         .unwrap()
         .accept()

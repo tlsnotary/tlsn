@@ -4,7 +4,8 @@ use mpz_memory_core::binary::Binary;
 use mpz_vm_core::Vm;
 use rangeset::{RangeSet, UnionMut};
 use tlsn_core::{
-    ProveConfig, ProverOutput,
+    ProverOutput,
+    config::prove::ProveConfig,
     transcript::{
         ContentType, Direction, TlsTranscript, Transcript, TranscriptCommitment, TranscriptSecret,
     },

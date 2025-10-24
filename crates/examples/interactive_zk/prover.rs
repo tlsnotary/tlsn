@@ -22,24 +22,27 @@ use spansy::{
     http::{BodyContent, Requests, Responses},
     Spanned,
 };
-use tls_server_fixture::CA_CERT_DER;
+use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, RootCertStore},
+    config::{
+        prove::{ProveConfig, ProveConfigBuilder},
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
+    },
     connection::ServerName,
     hash::HashAlgId,
-    prover::{ProveConfig, ProveConfigBuilder, Prover, ProverConfig, TlsConfig},
+    prover::Prover,
     transcript::{
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitmentKind,
         TranscriptSecret,
     },
+    webpki::{CertificateDer, RootCertStore},
 };
 
-use tlsn_examples::MAX_RECV_DATA;
-use tokio::io::AsyncWriteExt;
-
-use tlsn_examples::MAX_SENT_DATA;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
@@ -61,51 +64,52 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .ok_or_else(|| anyhow::anyhow!("URI must have authority"))?
         .host();
 
-    // Create a root certificate store with the server-fixture's self-signed
-    // certificate. This is only required for offline testing with the
-    // server-fixture.
-    let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(RootCertStore {
-        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-    });
-    let tls_config = tls_config_builder.build()?;
-
-    // Set up protocol configuration for prover.
-    let mut prover_config_builder = ProverConfig::builder();
-    prover_config_builder
-        .server_name(ServerName::Dns(server_domain.try_into()?))
-        .tls_config(tls_config)
-        .protocol_config(
-            ProtocolConfig::builder()
-                .max_sent_data(MAX_SENT_DATA)
-                .max_recv_data(MAX_RECV_DATA)
+    // Create a new prover and perform necessary setup.
+    let prover = Prover::new(ProverConfig::builder().build()?)
+        .commit(
+            TlsCommitConfig::builder()
+                // Select the TLS commitment protocol.
+                .protocol(
+                    MpcTlsConfig::builder()
+                        // We must configure the amount of data we expect to exchange beforehand,
+                        // which will be preprocessed prior to the
+                        // connection. Reducing these limits will improve
+                        // performance.
+                        .max_sent_data(MAX_SENT_DATA)
+                        .max_recv_data(MAX_RECV_DATA)
+                        .build()?,
+                )
                 .build()?,
-        );
-
-    let prover_config = prover_config_builder.build()?;
-
-    // Create prover and connect to verifier.
-    //
-    // Perform the setup phase with the verifier.
-    let prover = Prover::new(prover_config)
-        .setup(verifier_socket.compat())
+            verifier_socket.compat(),
+        )
         .await?;
 
-    // Connect to TLS Server.
-    let tls_client_socket = tokio::net::TcpStream::connect(server_addr).await?;
+    // Open a TCP connection to the server.
+    let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
-    // Pass server connection into the prover.
-    let (mpc_tls_connection, prover_fut) = prover.connect(tls_client_socket.compat()).await?;
-
-    // Wrap the connection in a TokioIo compatibility layer to use it with hyper.
-    let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
+    // Bind the prover to the server connection.
+    let (tls_connection, prover_fut) = prover
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+                // Create a root certificate store with the server-fixture's self-signed
+                // certificate. This is only required for offline testing with the
+                // server-fixture.
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()?,
+            client_socket.compat(),
+        )
+        .await?;
+    let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the Prover to run in the background.
     let prover_task = tokio::spawn(prover_fut);
 
     // MPC-TLS Handshake.
     let (mut request_sender, connection) =
-        hyper::client::conn::http1::handshake(mpc_tls_connection).await?;
+        hyper::client::conn::http1::handshake(tls_connection).await?;
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);

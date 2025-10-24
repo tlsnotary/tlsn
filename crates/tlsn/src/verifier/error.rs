@@ -4,7 +4,7 @@ use mpc_tls::MpcTlsError;
 
 use crate::transcript_internal::commit::encoding::EncodingError;
 
-/// Error for [`Verifier`](crate::Verifier).
+/// Error for [`Verifier`](crate::verifier::Verifier).
 #[derive(Debug, thiserror::Error)]
 pub struct VerifierError {
     kind: ErrorKind,
