@@ -360,14 +360,20 @@ impl Future for ClientState {
             _ => (),
         };
 
+        let mut repoll = false;
         let this = self.as_mut().project_replace(Self::Error);
+
         if let ClientStateProj::Idle {
             client_close,
             server_close,
             inner,
+            mut waker,
             ..
         } = this
         {
+            repoll = true;
+            let _ = waker.take();
+
             if inner.output.is_some() {
                 info!("ClientState is finalizing...");
                 new = ClientState::Finalizing {
@@ -392,6 +398,10 @@ impl Future for ClientState {
         }
 
         self.as_mut().project_replace(new);
+
+        if repoll {
+            return self.poll(cx);
+        }
         out
     }
 }
@@ -418,6 +428,7 @@ impl InnerState {
         self.rearm_tls_fut();
         futures::select! {
             tls_finish = &mut self.tls_fut.as_mut().unwrap() => {
+                debug!("process packets finished");
                 let tls_client = tls_finish?;
                 self.tls_client = Some(tls_client);
         },
@@ -440,7 +451,7 @@ impl InnerState {
         if self.closed {
             return self.run().await;
         }
-        debug!("client closing connection");
+        debug!("attempting to close connection clientside...");
 
         let mut tls = self.wait_for_client().await?;
 
@@ -449,6 +460,8 @@ impl InnerState {
                 warn!("failed to send close_notify to server: {}", e);
             };
             self.mpc_ctrl.stop().await?;
+
+            debug!("closed connection clientside...");
             self.closed = true;
         }
         self.tls_client = Some(tls);
@@ -460,13 +473,15 @@ impl InnerState {
         if self.closed {
             return self.run().await;
         }
-        debug!("server closed connection");
+        debug!("attempting to close connection serverside...");
 
         let mut tls = self.wait_for_client().await?;
 
         if tls.plaintext_is_empty() && tls.is_empty().await? {
             tls.server_closed().await?;
             self.mpc_ctrl.stop().await?;
+
+            debug!("closed connection serverside...");
             self.closed = true;
         }
         self.tls_client = Some(tls);
@@ -521,7 +536,10 @@ impl InnerState {
         self.rearm_tls_fut();
         loop {
             futures::select! {
-                tls_finish = &mut self.tls_fut.as_mut().unwrap() => break tls_finish,
+                tls_finish = &mut self.tls_fut.as_mut().unwrap() => {
+                    debug!("process packets finished");
+                    break tls_finish
+                },
                 mux_finish = &mut self.mux_fut => {
                     if let Err(e) = mux_finish {
                         error!("mux error: {:?}", e);
