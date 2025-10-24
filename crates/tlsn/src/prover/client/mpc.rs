@@ -66,11 +66,29 @@ impl MpcTlsClient {
 
 impl TlsClient for MpcTlsClient {
     fn can_read_tls(&self) -> bool {
-        todo!()
+        if let ClientState::Idle {
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &self.state
+            && let Some(client) = tls_client
+        {
+            client.wants_read()
+        } else {
+            false
+        }
     }
 
     fn wants_write_tls(&self) -> bool {
-        todo!()
+        if let ClientState::Idle {
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &self.state
+            && let Some(client) = tls_client
+        {
+            client.wants_write()
+        } else {
+            false
+        }
     }
 
     fn read_tls(&mut self, mut buf: &[u8]) -> Result<usize, std::io::Error> {
@@ -116,11 +134,29 @@ impl TlsClient for MpcTlsClient {
     }
 
     fn can_read(&self) -> bool {
-        todo!()
+        if let ClientState::Idle {
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &self.state
+            && let Some(client) = tls_client
+        {
+            !client.sendable_plaintext_is_full()
+        } else {
+            false
+        }
     }
 
     fn wants_write(&self) -> bool {
-        todo!()
+        if let ClientState::Idle {
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &self.state
+            && let Some(client) = tls_client
+        {
+            !client.plaintext_is_empty()
+        } else {
+            false
+        }
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {

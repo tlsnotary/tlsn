@@ -690,6 +690,11 @@ impl CommonState {
         self.received_plaintext.is_empty()
     }
 
+    /// Returns true if the buffer for sendable plaintext is full.
+    pub fn sendable_plaintext_is_full(&self) -> bool {
+        self.sendable_plaintext.is_full()
+    }
+
     /// Returns true if the connection is currently performing the TLS
     /// handshake.
     ///
