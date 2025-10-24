@@ -36,20 +36,12 @@ impl MpcTlsClient {
     pub(crate) fn new(
         span: Span,
         mpc_ctrl: LeaderCtrl,
-        mut tls: ClientConnection,
+        tls: ClientConnection,
         mux: MuxFuture,
         mpc: MpcFuture,
         keys: SessionKeys,
         vm: Arc<Mutex<Deap<Mpc, Zk>>>,
     ) -> Self {
-        let tls = Box::pin(
-            async {
-                tls.process_new_packets().map_err(ProverError::from).await?;
-                Ok::<_, ProverError>(tls)
-            }
-            .fuse(),
-        );
-
         Self {
             state: ClientState::Idle {
                 client_close: false,
@@ -57,9 +49,10 @@ impl MpcTlsClient {
                 inner: InnerState {
                     span,
                     mpc_ctrl,
-                    tls,
-                    mux,
-                    mpc: Box::into_pin(mpc),
+                    tls_client: Some(tls),
+                    tls_fut: None,
+                    mux_fut: mux,
+                    mpc_fut: Box::into_pin(mpc),
                     keys,
                     vm,
                     closed: false,
@@ -246,7 +239,7 @@ impl Future for ClientState {
                     info!("ClientState is finished");
                     new = Self::Finished {
                         output: TlsOutput {
-                            mux_fut: inner.mux,
+                            mux_fut: inner.mux_fut,
                             ctx,
                             vm,
                             keys: inner.keys,
@@ -304,9 +297,10 @@ impl Future for ClientState {
 struct InnerState {
     span: Span,
     mpc_ctrl: LeaderCtrl,
-    tls: Pin<TlsFuture>,
-    mpc: Pin<MpcFuture>,
-    mux: MuxFuture,
+    tls_client: Option<ClientConnection>,
+    tls_fut: Option<Pin<TlsFuture>>,
+    mpc_fut: Pin<MpcFuture>,
+    mux_fut: MuxFuture,
     keys: SessionKeys,
     vm: Arc<Mutex<Deap<Mpc, Zk>>>,
 
@@ -319,25 +313,18 @@ impl InnerState {
     async fn run(mut self) -> Result<Self, ProverError> {
         debug!("running MPC-TLS");
 
+        self.rearm_tls_fut();
         futures::select! {
-            tls_finish = &mut self.tls => {
-                let mut tls = tls_finish?;
-
-                debug!("rearming process_new_packets");
-                self.tls = Box::pin(
-                    async {
-                        tls.process_new_packets().map_err(ProverError::from).await?;
-                        Ok::<_, ProverError>(tls)
-                    }
-                    .fuse(),
-                );
+            tls_finish = &mut self.tls_fut.as_mut().unwrap() => {
+                let tls_client = tls_finish?;
+                self.tls_client = Some(tls_client);
         },
-            mux_finish = &mut self.mux => {
+            mux_finish = &mut self.mux_fut => {
                 if let Err(e) = mux_finish {
                     error!("mux error: {:?}", e);
                 }
         },
-            output = &mut self.mpc => {
+            output = &mut self.mpc_fut => {
                 debug!("MPC complete");
                 self.output = Some(output?);
                 },
@@ -362,13 +349,7 @@ impl InnerState {
             self.mpc_ctrl.stop().await?;
             self.closed = true;
         }
-        self.tls = Box::pin(
-            async {
-                tls.process_new_packets().map_err(ProverError::from).await?;
-                Ok::<_, ProverError>(tls)
-            }
-            .fuse(),
-        );
+        self.tls_client = Some(tls);
         Ok(self)
     }
 
@@ -386,13 +367,7 @@ impl InnerState {
             self.mpc_ctrl.stop().await?;
             self.closed = true;
         }
-        self.tls = Box::pin(
-            async {
-                tls.process_new_packets().map_err(ProverError::from).await?;
-                Ok::<_, ProverError>(tls)
-            }
-            .fuse(),
-        );
+        self.tls_client = Some(tls);
         Ok(self)
     }
 
@@ -408,7 +383,7 @@ impl InnerState {
             let mut vm = self.vm.try_lock().expect("VM should not be locked");
 
             // Finalize DEAP.
-            self.mux
+            self.mux_fut
                 .poll_with(vm.finalize(ctx))
                 .await
                 .map_err(ProverError::mpc)?;
@@ -430,7 +405,7 @@ impl InnerState {
             .map_err(ProverError::zk)?;
             debug!("verified tags from server");
 
-            self.mux
+            self.mux_fut
                 .poll_with(zk.execute_all(ctx).map_err(ProverError::zk))
                 .await?;
         }
@@ -441,20 +416,44 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn wait_for_client(&mut self) -> Result<ClientConnection, ProverError> {
+        self.rearm_tls_fut();
         loop {
             futures::select! {
-                tls_finish = &mut self.tls => break tls_finish,
-                mux_finish = &mut self.mux => {
+                tls_finish = &mut self.tls_fut.as_mut().unwrap() => break tls_finish,
+                mux_finish = &mut self.mux_fut => {
                     if let Err(e) = mux_finish {
                         error!("mux error: {:?}", e);
                     }
             },
-                output = &mut self.mpc => {
+                output = &mut self.mpc_fut => {
                     debug!("MPC completed");
                     self.output = Some(output?);
                     },
             };
         }
+    }
+
+    fn rearm_tls_fut(&mut self) {
+        if let Some(tls_fut) = &self.tls_fut
+            && !tls_fut.is_terminated()
+        {
+            return;
+        }
+
+        let mut client = self
+            .tls_client
+            .take()
+            .expect("tls client should be available");
+        self.tls_fut = Some(Box::pin(
+            async {
+                client
+                    .process_new_packets()
+                    .map_err(ProverError::from)
+                    .await?;
+                Ok::<_, ProverError>(client)
+            }
+            .fuse(),
+        ));
     }
 }
 
