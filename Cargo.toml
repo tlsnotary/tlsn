@@ -9,6 +9,7 @@ members = [
     "crates/data-fixtures",
     "crates/examples",
     "crates/formats",
+    "crates/plugin-core",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",
     "crates/tls/backend",
@@ -53,6 +54,7 @@ tlsn-formats = { path = "crates/formats" }
 tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
+tlsn-plugin-core = { path = "crates/plugin-core" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
@@ -83,9 +85,10 @@ mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-
 
 rangeset = { version = "0.2" }
 serio = { version = "0.2" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "304b910" }
 uid-mux = { version = "0.2" }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "304b910" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "304b910" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }
