@@ -37,8 +37,11 @@ pub(crate) trait TlsClient {
     /// Writes plaintext data to be sent to the server.
     fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error>;
 
-    /// Closes the connection.
-    fn close(&mut self) -> Result<(), std::io::Error>;
+    /// Client closes the connection.
+    fn client_close(&mut self) -> Result<(), std::io::Error>;
+
+    /// Server closes the connection.
+    fn server_close(&mut self) -> Result<(), std::io::Error>;
 
     /// Polls the client to make progress.
     fn poll(&mut self, cx: &mut Context) -> Poll<Result<(), ProverError>>;

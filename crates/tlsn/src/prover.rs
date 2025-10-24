@@ -271,9 +271,14 @@ impl Prover<state::Connected> {
         self.state.tls_client.write(buf)
     }
 
-    /// Closes the server connection.
-    pub fn close(&mut self) -> Result<(), std::io::Error> {
-        self.state.tls_client.close()
+    /// Closes the connection from the client side.
+    pub fn client_close(&mut self) -> Result<(), std::io::Error> {
+        self.state.tls_client.client_close()
+    }
+
+    /// Closes the connection from the server side.
+    pub fn server_close(&mut self) -> Result<(), std::io::Error> {
+        self.state.tls_client.server_close()
     }
 
     /// Polls the prover to make progress. Returns a committed prover.
