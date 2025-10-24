@@ -73,12 +73,46 @@ impl TlsClient for MpcTlsClient {
         todo!()
     }
 
-    fn read_tls(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        todo!()
+    fn read_tls(&mut self, mut buf: &[u8]) -> Result<usize, std::io::Error> {
+        if let ClientState::Idle {
+            client_close,
+            server_close,
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &mut self.state
+            && let Some(client) = tls_client
+        {
+            if !*client_close && !*server_close {
+                client
+                    .read_tls(&mut buf)
+                    .map_err(|err| std::io::Error::other(err))
+            } else {
+                Err(std::io::Error::other("connection has already been closed"))
+            }
+        } else {
+            Ok(0)
+        }
     }
 
-    fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
-        todo!()
+    fn write_tls(&mut self, mut buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        if let ClientState::Idle {
+            client_close,
+            server_close,
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &mut self.state
+            && let Some(client) = tls_client
+        {
+            if !*client_close && !*server_close {
+                client
+                    .write_tls(&mut buf)
+                    .map_err(|err| std::io::Error::other(err))
+            } else {
+                Err(std::io::Error::other("connection has already been closed"))
+            }
+        } else {
+            Ok(0)
+        }
     }
 
     fn can_read(&self) -> bool {
@@ -90,11 +124,43 @@ impl TlsClient for MpcTlsClient {
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
-        todo!()
+        if let ClientState::Idle {
+            client_close,
+            server_close,
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &mut self.state
+            && let Some(client) = tls_client
+        {
+            if !*client_close && !*server_close {
+                client.read_plaintext(buf)
+            } else {
+                Err(std::io::Error::other("connection has already been closed"))
+            }
+        } else {
+            Ok(0)
+        }
     }
 
     fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        todo!()
+        if let ClientState::Idle {
+            client_close,
+            server_close,
+            inner: InnerState { tls_client, .. },
+            ..
+        } = &mut self.state
+            && let Some(client) = tls_client
+        {
+            if !*client_close && !*server_close {
+                client
+                    .write_plaintext(buf)
+                    .map_err(|err| std::io::Error::other(err))
+            } else {
+                Err(std::io::Error::other("connection has already been closed"))
+            }
+        } else {
+            Ok(0)
+        }
     }
 
     fn client_close(&mut self) -> Result<(), std::io::Error> {
