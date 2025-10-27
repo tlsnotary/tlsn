@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mpc_tls::{Config as MpcTlsConfig, MpcTlsFollower, MpcTlsLeader, SessionKeys};
+use mpc_tls::{MpcTlsFollower, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use mpz_core::Block;
 #[cfg(not(tlsn_insecure))]
@@ -20,6 +20,7 @@ use mpz_ot::{
 use mpz_zk::{Prover, Verifier};
 #[cfg(not(tlsn_insecure))]
 use rand::Rng;
+use tlsn_core::config::tls_commit::mpc::{MpcTlsConfig, NetworkSetting};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
@@ -90,7 +91,7 @@ pub(crate) fn build_prover_deps(config: MpcTlsConfig, ctx: Context) -> ProverDep
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
     let mpc_tls = MpcTlsLeader::new(
-        config,
+        build_mpc_tls_config(config),
         ctx,
         vm.clone(),
         (rcot_send.clone(), rcot_send.clone(), rcot_send),
@@ -141,7 +142,7 @@ pub(crate) fn build_verifier_deps(config: MpcTlsConfig, ctx: Context) -> Verifie
 
     let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
     let mpc_tls = MpcTlsFollower::new(
-        config,
+        build_mpc_tls_config(config),
         ctx,
         vm.clone(),
         rcot_send,
@@ -149,6 +150,30 @@ pub(crate) fn build_verifier_deps(config: MpcTlsConfig, ctx: Context) -> Verifie
     );
 
     VerifierDeps { vm, mpc_tls }
+}
+
+fn build_mpc_tls_config(config: MpcTlsConfig) -> mpc_tls::Config {
+    let mut builder = mpc_tls::Config::builder();
+
+    builder
+        .defer_decryption(config.defer_decryption_from_start())
+        .max_sent(config.max_sent_data())
+        .max_recv_online(config.max_recv_data_online())
+        .max_recv(config.max_recv_data());
+
+    if let Some(max_sent_records) = config.max_sent_records() {
+        builder.max_sent_records(max_sent_records);
+    }
+
+    if let Some(max_recv_records_online) = config.max_recv_records_online() {
+        builder.max_recv_records_online(max_recv_records_online);
+    }
+
+    if let NetworkSetting::Latency = config.network() {
+        builder.low_bandwidth();
+    }
+
+    builder.build().unwrap()
 }
 
 pub(crate) fn translate_keys<Mpc, Zk>(keys: &mut SessionKeys, vm: &Deap<Mpc, Zk>) {

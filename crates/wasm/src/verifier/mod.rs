@@ -4,9 +4,11 @@ pub use config::VerifierConfig;
 
 use enum_try_as_inner::EnumTryAsInner;
 use tlsn::{
+    config::tls_commit::TlsCommitProtocolConfig,
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
     verifier::{state, Verifier},
+    webpki::RootCertStore,
 };
 use tracing::info;
 use wasm_bindgen::prelude::*;
@@ -47,7 +49,10 @@ impl State {
 impl JsVerifier {
     #[wasm_bindgen(constructor)]
     pub fn new(config: VerifierConfig) -> JsVerifier {
-        let tlsn_config = tlsn::verifier::VerifierConfig::builder().build().unwrap();
+        let tlsn_config = tlsn::config::verifier::VerifierConfig::builder()
+            .root_store(RootCertStore::mozilla())
+            .build()
+            .unwrap();
         JsVerifier {
             state: State::Initialized(Verifier::new(tlsn_config)),
             config,
@@ -73,16 +78,20 @@ impl JsVerifier {
     pub async fn verify(&mut self) -> Result<VerifierOutput> {
         let (verifier, prover_conn) = self.state.take().try_into_connected()?;
 
-        let verifier = verifier.setup(prover_conn.into_io()).await?;
-        let config = verifier.config();
+        let verifier = verifier.commit(prover_conn.into_io()).await?;
+        let request = verifier.request();
 
-        let reject = if config.max_sent_data() > self.config.max_sent_data {
+        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol() else {
+            unimplemented!("only MPC protocol is supported");
+        };
+
+        let reject = if mpc_tls_config.max_sent_data() > self.config.max_sent_data {
             Some("max_sent_data is too large")
-        } else if config.max_recv_data() > self.config.max_recv_data {
+        } else if mpc_tls_config.max_recv_data() > self.config.max_recv_data {
             Some("max_recv_data is too large")
-        } else if config.max_sent_records() > self.config.max_sent_records {
+        } else if mpc_tls_config.max_sent_records() > self.config.max_sent_records {
             Some("max_sent_records is too large")
-        } else if config.max_recv_records_online() > self.config.max_recv_records_online {
+        } else if mpc_tls_config.max_recv_records_online() > self.config.max_recv_records_online {
             Some("max_recv_records_online is too large")
         } else {
             None

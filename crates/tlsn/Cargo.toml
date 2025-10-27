@@ -12,6 +12,7 @@ workspace = true
 
 [features]
 default = ["rayon"]
+mozilla-certs = ["tlsn-core/mozilla-certs"]
 rayon = ["mpz-zk/rayon", "mpz-garble/rayon"]
 web = ["dep:web-spawn"]
 
@@ -44,7 +45,6 @@ mpz-ideal-vm = { workspace = true }
 
 aes = { workspace = true }
 ctr = { workspace = true }
-derive_builder = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }

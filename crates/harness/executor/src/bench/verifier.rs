@@ -2,8 +2,9 @@ use anyhow::Result;
 
 use harness_core::bench::Bench;
 use tlsn::{
-    config::{CertificateDer, RootCertStore},
-    verifier::{Verifier, VerifierConfig},
+    config::verifier::VerifierConfig,
+    verifier::Verifier,
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::CA_CERT_DER;
 
@@ -19,7 +20,7 @@ pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()
     );
 
     let verifier = verifier
-        .setup(provider.provide_proto_io().await?)
+        .commit(provider.provide_proto_io().await?)
         .await?
         .accept()
         .await?

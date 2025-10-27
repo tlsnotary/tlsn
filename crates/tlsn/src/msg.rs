@@ -1,12 +1,23 @@
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use crate::config::ProtocolConfig;
+use tlsn_core::{
+    config::{prove::ProveRequest, tls_commit::TlsCommitRequest},
+    connection::{HandshakeData, ServerName},
+    transcript::PartialTranscript,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct SetupRequest {
-    pub(crate) config: ProtocolConfig,
+pub(crate) struct TlsCommitRequestMsg {
+    pub(crate) request: TlsCommitRequest,
     pub(crate) version: Version,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct ProveRequestMsg {
+    pub(crate) request: ProveRequest,
+    pub(crate) handshake: Option<(ServerName, HandshakeData)>,
+    pub(crate) transcript: Option<PartialTranscript>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
