@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/core/src/transcript/proof.rs`."><title>proof.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="tlsn_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (6501e64fc 2025-10-23)" data-channel="nightly" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn_core/transcript/</div>proof.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Transcript proofs.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/core/src/transcript/proof.rs`."><title>proof.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="tlsn_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (f37aa9955 2025-10-26)" data-channel="nightly" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn_core/transcript/</div>proof.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Transcript proofs.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>rangeset::{Cover, Difference, Subset, ToRangeSet, UnionMut};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -151,7 +151,7 @@
 <a href=#151 id=151 data-nosnippet>151</a>                hash: hash_plaintext(hasher, <span class="kw-2">&amp;</span>buffer, <span class="kw-2">&amp;</span>blinder),
 <a href=#152 id=152 data-nosnippet>152</a>            };
 <a href=#153 id=153 data-nosnippet>153</a>
-<a href=#154 id=154 data-nosnippet>154</a>            <span class="kw">if </span>!hash_commitments.contains(<span class="kw-2">&amp;</span>expected) {
+<a href=#154 id=154 data-nosnippet>154</a>            <span class="macro">if !</span>hash_commitments.contains(<span class="kw-2">&amp;</span>expected) {
 <a href=#155 id=155 data-nosnippet>155</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(TranscriptProofError::new(
 <a href=#156 id=156 data-nosnippet>156</a>                    ErrorKind::Hash,
 <a href=#157 id=157 data-nosnippet>157</a>                    <span class="string">"hash opening does not match any commitment"</span>,
@@ -162,8 +162,8 @@
 <a href=#162 id=162 data-nosnippet>162</a>        }
 <a href=#163 id=163 data-nosnippet>163</a>
 <a href=#164 id=164 data-nosnippet>164</a>        <span class="comment">// Assert that all the authenticated data are covered by the proof.
-<a href=#165 id=165 data-nosnippet>165</a>        </span><span class="kw">if </span><span class="kw-2">&amp;</span>total_auth_sent != <span class="self">self</span>.transcript.sent_authed()
-<a href=#166 id=166 data-nosnippet>166</a>            || <span class="kw-2">&amp;</span>total_auth_recv != <span class="self">self</span>.transcript.received_authed()
+<a href=#165 id=165 data-nosnippet>165</a>        </span><span class="kw">if </span><span class="kw-2">&amp;</span><span class="macro">total_auth_sent !</span>= <span class="self">self</span>.transcript.sent_authed()
+<a href=#166 id=166 data-nosnippet>166</a>            || <span class="kw-2">&amp;</span><span class="macro">total_auth_recv !</span>= <span class="self">self</span>.transcript.received_authed()
 <a href=#167 id=167 data-nosnippet>167</a>        {
 <a href=#168 id=168 data-nosnippet>168</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(TranscriptProofError::new(
 <a href=#169 id=169 data-nosnippet>169</a>                ErrorKind::Proof,
@@ -318,7 +318,7 @@
 <a href=#318 id=318 data-nosnippet>318</a>    <span class="doccomment">/// Sets the commitment kinds in order of preference for building transcript
 <a href=#319 id=319 data-nosnippet>319</a>    /// proofs, i.e. the first one is the most preferred.
 <a href=#320 id=320 data-nosnippet>320</a>    </span><span class="kw">pub fn </span>commitment_kinds(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kinds: <span class="kw-2">&amp;</span>[TranscriptCommitmentKind]) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">if </span>!kinds.is_empty() {
+<a href=#321 id=321 data-nosnippet>321</a>        <span class="macro">if !</span>kinds.is_empty() {
 <a href=#322 id=322 data-nosnippet>322</a>            <span class="comment">// Removes duplicates from `kinds` while preserving its order.
 <a href=#323 id=323 data-nosnippet>323</a>            </span><span class="kw">let </span><span class="kw-2">mut </span>seen = HashSet::new();
 <a href=#324 id=324 data-nosnippet>324</a>            <span class="self">self</span>.commitment_kinds = kinds
@@ -412,7 +412,7 @@
 <a href=#412 id=412 data-nosnippet>412</a>        <span class="kw">let </span><span class="kw-2">mut </span>commitment_kinds_iter = <span class="self">self</span>.commitment_kinds.iter();
 <a href=#413 id=413 data-nosnippet>413</a>
 <a href=#414 id=414 data-nosnippet>414</a>        <span class="comment">// Tries to cover the query ranges with committed ranges.
-<a href=#415 id=415 data-nosnippet>415</a>        </span><span class="kw">while </span>!uncovered_query_idx.is_empty() {
+<a href=#415 id=415 data-nosnippet>415</a>        </span><span class="macro">while !</span>uncovered_query_idx.is_empty() {
 <a href=#416 id=416 data-nosnippet>416</a>            <span class="comment">// Committed ranges of different kinds are checked in order of preference set in
 <a href=#417 id=417 data-nosnippet>417</a>            // self.commitment_kinds.
 <a href=#418 id=418 data-nosnippet>418</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(kind) = commitment_kinds_iter.next() {
@@ -449,7 +449,7 @@
 <a href=#449 id=449 data-nosnippet>449</a>
 <a href=#450 id=450 data-nosnippet>450</a>                        <span class="comment">// Skip proof generation if there are no committed ranges that can cover the
 <a href=#451 id=451 data-nosnippet>451</a>                        // query ranges.
-<a href=#452 id=452 data-nosnippet>452</a>                        </span><span class="kw">if </span>!dir_idxs.is_empty() {
+<a href=#452 id=452 data-nosnippet>452</a>                        </span><span class="macro">if !</span>dir_idxs.is_empty() {
 <a href=#453 id=453 data-nosnippet>453</a>                            transcript_proof.encoding_proof = <span class="prelude-val">Some</span>(
 <a href=#454 id=454 data-nosnippet>454</a>                                encoding_tree
 <a href=#455 id=455 data-nosnippet>455</a>                                    .proof(dir_idxs.into_iter())
@@ -503,7 +503,7 @@
 <a href=#503 id=503 data-nosnippet>503</a>
 <a href=#504 id=504 data-nosnippet>504</a>        <span class="comment">// If there are still uncovered ranges, it means that query ranges cannot be
 <a href=#505 id=505 data-nosnippet>505</a>        // covered by committed ranges of any kind.
-<a href=#506 id=506 data-nosnippet>506</a>        </span><span class="kw">if </span>!uncovered_query_idx.is_empty() {
+<a href=#506 id=506 data-nosnippet>506</a>        </span><span class="macro">if !</span>uncovered_query_idx.is_empty() {
 <a href=#507 id=507 data-nosnippet>507</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(TranscriptProofBuilderError::cover(
 <a href=#508 id=508 data-nosnippet>508</a>                uncovered_query_idx,
 <a href=#509 id=509 data-nosnippet>509</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.commitment_kinds,
@@ -919,10 +919,10 @@
 <a href=#919 id=919 data-nosnippet>919</a>            <span class="kw">let </span>TranscriptProofBuilderError { kind, .. } = builder.build().unwrap_err();
 <a href=#920 id=920 data-nosnippet>920</a>            <span class="kw">match </span>kind {
 <a href=#921 id=921 data-nosnippet>921</a>                BuilderErrorKind::Cover { uncovered, .. } =&gt; {
-<a href=#922 id=922 data-nosnippet>922</a>                    <span class="kw">if </span>!uncovered_sent_rangeset.is_empty() {
+<a href=#922 id=922 data-nosnippet>922</a>                    <span class="macro">if !</span>uncovered_sent_rangeset.is_empty() {
 <a href=#923 id=923 data-nosnippet>923</a>                        <span class="macro">assert_eq!</span>(uncovered.sent, uncovered_sent_rangeset);
 <a href=#924 id=924 data-nosnippet>924</a>                    }
-<a href=#925 id=925 data-nosnippet>925</a>                    <span class="kw">if </span>!uncovered_recv_rangeset.is_empty() {
+<a href=#925 id=925 data-nosnippet>925</a>                    <span class="macro">if !</span>uncovered_recv_rangeset.is_empty() {
 <a href=#926 id=926 data-nosnippet>926</a>                        <span class="macro">assert_eq!</span>(uncovered.recv, uncovered_recv_rangeset);
 <a href=#927 id=927 data-nosnippet>927</a>                    }
 <a href=#928 id=928 data-nosnippet>928</a>                }
@@ -930,4 +930,5 @@
 <a href=#930 id=930 data-nosnippet>930</a>            }
 <a href=#931 id=931 data-nosnippet>931</a>        }
 <a href=#932 id=932 data-nosnippet>932</a>    }
-<a href=#933 id=933 data-nosnippet>933</a>}</code></pre></div></section></main></body></html>
+<a href=#933 id=933 data-nosnippet>933</a>}
+</code></pre></div></section></main></body></html>

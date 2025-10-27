@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/core/src/webpki.rs`."><title>webpki.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tlsn_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (6501e64fc 2025-10-23)" data-channel="nightly" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn_core/</div>webpki.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Web PKI types.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/core/src/webpki.rs`."><title>webpki.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tlsn_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (f37aa9955 2025-10-26)" data-channel="nightly" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">tlsn_core/</div>webpki.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Web PKI types.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>std::time::Duration;
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -53,116 +53,136 @@
 <a href=#53 id=53 data-nosnippet>53</a>    </span><span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
 <a href=#54 id=54 data-nosnippet>54</a>        <span class="self">Self </span>{ roots: Vec::new() }
 <a href=#55 id=55 data-nosnippet>55</a>    }
-<a href=#56 id=56 data-nosnippet>56</a>}
-<a href=#57 id=57 data-nosnippet>57</a>
-<a href=#58 id=58 data-nosnippet>58</a><span class="doccomment">/// Server certificate verifier.
-<a href=#59 id=59 data-nosnippet>59</a></span><span class="attr">#[derive(Debug)]
-<a href=#60 id=60 data-nosnippet>60</a></span><span class="kw">pub struct </span>ServerCertVerifier {
-<a href=#61 id=61 data-nosnippet>61</a>    roots: Vec&lt;webpki_types::TrustAnchor&lt;<span class="lifetime">'static</span>&gt;&gt;,
-<a href=#62 id=62 data-nosnippet>62</a>}
-<a href=#63 id=63 data-nosnippet>63</a>
-<a href=#64 id=64 data-nosnippet>64</a><span class="kw">impl </span>ServerCertVerifier {
-<a href=#65 id=65 data-nosnippet>65</a>    <span class="doccomment">/// Creates a new server certificate verifier.
-<a href=#66 id=66 data-nosnippet>66</a>    </span><span class="kw">pub fn </span>new(roots: <span class="kw-2">&amp;</span>RootCertStore) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerCertVerifierError&gt; {
-<a href=#67 id=67 data-nosnippet>67</a>        <span class="kw">let </span>roots = roots
-<a href=#68 id=68 data-nosnippet>68</a>            .roots
-<a href=#69 id=69 data-nosnippet>69</a>            .iter()
-<a href=#70 id=70 data-nosnippet>70</a>            .map(|cert| {
-<a href=#71 id=71 data-nosnippet>71</a>                webpki::anchor_from_trusted_cert(<span class="kw-2">&amp;</span>webpki_types::CertificateDer::from(
-<a href=#72 id=72 data-nosnippet>72</a>                    cert.<span class="number">0</span>.as_slice(),
-<a href=#73 id=73 data-nosnippet>73</a>                ))
-<a href=#74 id=74 data-nosnippet>74</a>                .map(|anchor| anchor.to_owned())
-<a href=#75 id=75 data-nosnippet>75</a>                .map_err(|err| ServerCertVerifierError::InvalidRootCertificate {
-<a href=#76 id=76 data-nosnippet>76</a>                    cert: cert.clone(),
-<a href=#77 id=77 data-nosnippet>77</a>                    reason: err.to_string(),
-<a href=#78 id=78 data-nosnippet>78</a>                })
-<a href=#79 id=79 data-nosnippet>79</a>            })
-<a href=#80 id=80 data-nosnippet>80</a>            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
-<a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ roots })
-<a href=#83 id=83 data-nosnippet>83</a>    }
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a>    <span class="doccomment">/// Creates a new server certificate verifier with Mozilla root
-<a href=#86 id=86 data-nosnippet>86</a>    /// certificates.
-<a href=#87 id=87 data-nosnippet>87</a>    </span><span class="kw">pub fn </span>mozilla() -&gt; <span class="self">Self </span>{
-<a href=#88 id=88 data-nosnippet>88</a>        <span class="self">Self </span>{
-<a href=#89 id=89 data-nosnippet>89</a>            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-<a href=#90 id=90 data-nosnippet>90</a>        }
-<a href=#91 id=91 data-nosnippet>91</a>    }
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// Verifies the server certificate was valid at the given time of
-<a href=#94 id=94 data-nosnippet>94</a>    /// presentation.
-<a href=#95 id=95 data-nosnippet>95</a>    ///
-<a href=#96 id=96 data-nosnippet>96</a>    /// # Arguments
-<a href=#97 id=97 data-nosnippet>97</a>    ///
-<a href=#98 id=98 data-nosnippet>98</a>    /// * `end_entity` - End-entity certificate to verify.
-<a href=#99 id=99 data-nosnippet>99</a>    /// * `intermediates` - Intermediate certificates to a trust anchor.
-<a href=#100 id=100 data-nosnippet>100</a>    /// * `server_name` - Server DNS name.
-<a href=#101 id=101 data-nosnippet>101</a>    /// * `time` - Unix time the certificate was presented.
-<a href=#102 id=102 data-nosnippet>102</a>    </span><span class="kw">pub fn </span>verify_server_cert(
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#104 id=104 data-nosnippet>104</a>        end_entity: <span class="kw-2">&amp;</span>CertificateDer,
-<a href=#105 id=105 data-nosnippet>105</a>        intermediates: <span class="kw-2">&amp;</span>[CertificateDer],
-<a href=#106 id=106 data-nosnippet>106</a>        server_name: <span class="kw-2">&amp;</span>ServerName,
-<a href=#107 id=107 data-nosnippet>107</a>        time: u64,
-<a href=#108 id=108 data-nosnippet>108</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ServerCertVerifierError&gt; {
-<a href=#109 id=109 data-nosnippet>109</a>        <span class="kw">let </span>cert = webpki_types::CertificateDer::from(end_entity.<span class="number">0</span>.as_slice());
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">let </span>cert = webpki::EndEntityCert::try_from(<span class="kw-2">&amp;</span>cert).map_err(|e| {
-<a href=#111 id=111 data-nosnippet>111</a>            ServerCertVerifierError::InvalidEndEntityCertificate {
-<a href=#112 id=112 data-nosnippet>112</a>                cert: end_entity.clone(),
-<a href=#113 id=113 data-nosnippet>113</a>                reason: e.to_string(),
-<a href=#114 id=114 data-nosnippet>114</a>            }
-<a href=#115 id=115 data-nosnippet>115</a>        })<span class="question-mark">?</span>;
-<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">let </span>intermediates = intermediates
-<a href=#117 id=117 data-nosnippet>117</a>            .iter()
-<a href=#118 id=118 data-nosnippet>118</a>            .map(|c| webpki_types::CertificateDer::from(c.<span class="number">0</span>.as_slice()))
-<a href=#119 id=119 data-nosnippet>119</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">let </span>server_name = server_name.to_webpki();
-<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">let </span>time = webpki_types::UnixTime::since_unix_epoch(Duration::from_secs(time));
-<a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a>        cert.verify_for_usage(
-<a href=#124 id=124 data-nosnippet>124</a>            webpki::ALL_VERIFICATION_ALGS,
-<a href=#125 id=125 data-nosnippet>125</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.roots,
-<a href=#126 id=126 data-nosnippet>126</a>            <span class="kw-2">&amp;</span>intermediates,
-<a href=#127 id=127 data-nosnippet>127</a>            time,
-<a href=#128 id=128 data-nosnippet>128</a>            webpki::KeyUsage::server_auth(),
-<a href=#129 id=129 data-nosnippet>129</a>            <span class="prelude-val">None</span>,
-<a href=#130 id=130 data-nosnippet>130</a>            <span class="prelude-val">None</span>,
-<a href=#131 id=131 data-nosnippet>131</a>        )
-<a href=#132 id=132 data-nosnippet>132</a>        .map(|<span class="kw">_</span>| ())
-<a href=#133 id=133 data-nosnippet>133</a>        .map_err(|<span class="kw">_</span>| ServerCertVerifierError::InvalidPath)<span class="question-mark">?</span>;
-<a href=#134 id=134 data-nosnippet>134</a>
-<a href=#135 id=135 data-nosnippet>135</a>        cert.verify_is_valid_for_subject_name(<span class="kw-2">&amp;</span>server_name)
-<a href=#136 id=136 data-nosnippet>136</a>            .map_err(|<span class="kw">_</span>| ServerCertVerifierError::InvalidServerName)<span class="question-mark">?</span>;
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a>        <span class="prelude-val">Ok</span>(())
-<a href=#139 id=139 data-nosnippet>139</a>    }
-<a href=#140 id=140 data-nosnippet>140</a>}
+<a href=#56 id=56 data-nosnippet>56</a>
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="doccomment">/// Creates a root certificate store with Mozilla root certificates.
+<a href=#58 id=58 data-nosnippet>58</a>    ///
+<a href=#59 id=59 data-nosnippet>59</a>    /// These certificates are sourced from [`webpki-root-certs`](https://docs.rs/webpki-root-certs/latest/webpki_root_certs/). It is not recommended to use these unless the
+<a href=#60 id=60 data-nosnippet>60</a>    /// application binary can be recompiled and deployed on-demand in the case
+<a href=#61 id=61 data-nosnippet>61</a>    /// that the root certificates need to be updated.
+<a href=#62 id=62 data-nosnippet>62</a>    </span><span class="attr">#[cfg(feature = <span class="string">"mozilla-certs"</span>)]
+<a href=#63 id=63 data-nosnippet>63</a>    </span><span class="kw">pub fn </span>mozilla() -&gt; <span class="self">Self </span>{
+<a href=#64 id=64 data-nosnippet>64</a>        <span class="self">Self </span>{
+<a href=#65 id=65 data-nosnippet>65</a>            roots: webpki_root_certs::TLS_SERVER_ROOT_CERTS
+<a href=#66 id=66 data-nosnippet>66</a>                .iter()
+<a href=#67 id=67 data-nosnippet>67</a>                .map(|cert| CertificateDer(cert.to_vec()))
+<a href=#68 id=68 data-nosnippet>68</a>                .collect(),
+<a href=#69 id=69 data-nosnippet>69</a>        }
+<a href=#70 id=70 data-nosnippet>70</a>    }
+<a href=#71 id=71 data-nosnippet>71</a>}
+<a href=#72 id=72 data-nosnippet>72</a>
+<a href=#73 id=73 data-nosnippet>73</a><span class="doccomment">/// Server certificate verifier.
+<a href=#74 id=74 data-nosnippet>74</a></span><span class="attr">#[derive(Debug)]
+<a href=#75 id=75 data-nosnippet>75</a></span><span class="kw">pub struct </span>ServerCertVerifier {
+<a href=#76 id=76 data-nosnippet>76</a>    roots: Vec&lt;webpki_types::TrustAnchor&lt;<span class="lifetime">'static</span>&gt;&gt;,
+<a href=#77 id=77 data-nosnippet>77</a>}
+<a href=#78 id=78 data-nosnippet>78</a>
+<a href=#79 id=79 data-nosnippet>79</a><span class="kw">impl </span>ServerCertVerifier {
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// Creates a new server certificate verifier.
+<a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">pub fn </span>new(roots: <span class="kw-2">&amp;</span>RootCertStore) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerCertVerifierError&gt; {
+<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">let </span>roots = roots
+<a href=#83 id=83 data-nosnippet>83</a>            .roots
+<a href=#84 id=84 data-nosnippet>84</a>            .iter()
+<a href=#85 id=85 data-nosnippet>85</a>            .map(|cert| {
+<a href=#86 id=86 data-nosnippet>86</a>                webpki::anchor_from_trusted_cert(<span class="kw-2">&amp;</span>webpki_types::CertificateDer::from(
+<a href=#87 id=87 data-nosnippet>87</a>                    cert.<span class="number">0</span>.as_slice(),
+<a href=#88 id=88 data-nosnippet>88</a>                ))
+<a href=#89 id=89 data-nosnippet>89</a>                .map(|anchor| anchor.to_owned())
+<a href=#90 id=90 data-nosnippet>90</a>                .map_err(|err| ServerCertVerifierError::InvalidRootCertificate {
+<a href=#91 id=91 data-nosnippet>91</a>                    cert: cert.clone(),
+<a href=#92 id=92 data-nosnippet>92</a>                    reason: err.to_string(),
+<a href=#93 id=93 data-nosnippet>93</a>                })
+<a href=#94 id=94 data-nosnippet>94</a>            })
+<a href=#95 id=95 data-nosnippet>95</a>            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+<a href=#96 id=96 data-nosnippet>96</a>
+<a href=#97 id=97 data-nosnippet>97</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ roots })
+<a href=#98 id=98 data-nosnippet>98</a>    }
+<a href=#99 id=99 data-nosnippet>99</a>
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="doccomment">/// Creates a server certificate verifier with Mozilla root certificates.
+<a href=#101 id=101 data-nosnippet>101</a>    ///
+<a href=#102 id=102 data-nosnippet>102</a>    /// These certificates are sourced from [`webpki-root-certs`](https://docs.rs/webpki-root-certs/latest/webpki_root_certs/). It is not recommended to use these unless the
+<a href=#103 id=103 data-nosnippet>103</a>    /// application binary can be recompiled and deployed on-demand in the case
+<a href=#104 id=104 data-nosnippet>104</a>    /// that the root certificates need to be updated.
+<a href=#105 id=105 data-nosnippet>105</a>    </span><span class="attr">#[cfg(feature = <span class="string">"mozilla-certs"</span>)]
+<a href=#106 id=106 data-nosnippet>106</a>    </span><span class="kw">pub fn </span>mozilla() -&gt; <span class="self">Self </span>{
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="self">Self </span>{
+<a href=#108 id=108 data-nosnippet>108</a>            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+<a href=#109 id=109 data-nosnippet>109</a>        }
+<a href=#110 id=110 data-nosnippet>110</a>    }
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a>    <span class="doccomment">/// Verifies the server certificate was valid at the given time of
+<a href=#113 id=113 data-nosnippet>113</a>    /// presentation.
+<a href=#114 id=114 data-nosnippet>114</a>    ///
+<a href=#115 id=115 data-nosnippet>115</a>    /// # Arguments
+<a href=#116 id=116 data-nosnippet>116</a>    ///
+<a href=#117 id=117 data-nosnippet>117</a>    /// * `end_entity` - End-entity certificate to verify.
+<a href=#118 id=118 data-nosnippet>118</a>    /// * `intermediates` - Intermediate certificates to a trust anchor.
+<a href=#119 id=119 data-nosnippet>119</a>    /// * `server_name` - Server DNS name.
+<a href=#120 id=120 data-nosnippet>120</a>    /// * `time` - Unix time the certificate was presented.
+<a href=#121 id=121 data-nosnippet>121</a>    </span><span class="kw">pub fn </span>verify_server_cert(
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#123 id=123 data-nosnippet>123</a>        end_entity: <span class="kw-2">&amp;</span>CertificateDer,
+<a href=#124 id=124 data-nosnippet>124</a>        intermediates: <span class="kw-2">&amp;</span>[CertificateDer],
+<a href=#125 id=125 data-nosnippet>125</a>        server_name: <span class="kw-2">&amp;</span>ServerName,
+<a href=#126 id=126 data-nosnippet>126</a>        time: u64,
+<a href=#127 id=127 data-nosnippet>127</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ServerCertVerifierError&gt; {
+<a href=#128 id=128 data-nosnippet>128</a>        <span class="kw">let </span>cert = webpki_types::CertificateDer::from(end_entity.<span class="number">0</span>.as_slice());
+<a href=#129 id=129 data-nosnippet>129</a>        <span class="kw">let </span>cert = webpki::EndEntityCert::try_from(<span class="kw-2">&amp;</span>cert).map_err(|e| {
+<a href=#130 id=130 data-nosnippet>130</a>            ServerCertVerifierError::InvalidEndEntityCertificate {
+<a href=#131 id=131 data-nosnippet>131</a>                cert: end_entity.clone(),
+<a href=#132 id=132 data-nosnippet>132</a>                reason: e.to_string(),
+<a href=#133 id=133 data-nosnippet>133</a>            }
+<a href=#134 id=134 data-nosnippet>134</a>        })<span class="question-mark">?</span>;
+<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">let </span>intermediates = intermediates
+<a href=#136 id=136 data-nosnippet>136</a>            .iter()
+<a href=#137 id=137 data-nosnippet>137</a>            .map(|c| webpki_types::CertificateDer::from(c.<span class="number">0</span>.as_slice()))
+<a href=#138 id=138 data-nosnippet>138</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">let </span>server_name = server_name.to_webpki();
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">let </span>time = webpki_types::UnixTime::since_unix_epoch(Duration::from_secs(time));
 <a href=#141 id=141 data-nosnippet>141</a>
-<a href=#142 id=142 data-nosnippet>142</a><span class="doccomment">/// Error for [`ServerCertVerifier`].
-<a href=#143 id=143 data-nosnippet>143</a></span><span class="attr">#[derive(Debug, thiserror::Error)]
-<a href=#144 id=144 data-nosnippet>144</a>#[error(<span class="string">"server certificate verification failed: {0}"</span>)]
-<a href=#145 id=145 data-nosnippet>145</a></span><span class="kw">pub enum </span>ServerCertVerifierError {
-<a href=#146 id=146 data-nosnippet>146</a>    <span class="doccomment">/// Root certificate store contains invalid certificate.
-<a href=#147 id=147 data-nosnippet>147</a>    </span><span class="attr">#[error(<span class="string">"root certificate store contains invalid certificate: {reason}"</span>)]
-<a href=#148 id=148 data-nosnippet>148</a>    </span>InvalidRootCertificate {
-<a href=#149 id=149 data-nosnippet>149</a>        <span class="doccomment">/// Invalid certificate.
-<a href=#150 id=150 data-nosnippet>150</a>        </span>cert: CertificateDer,
-<a href=#151 id=151 data-nosnippet>151</a>        <span class="doccomment">/// Reason for invalidity.
-<a href=#152 id=152 data-nosnippet>152</a>        </span>reason: String,
-<a href=#153 id=153 data-nosnippet>153</a>    },
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="doccomment">/// End-entity certificate is invalid.
-<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="attr">#[error(<span class="string">"end-entity certificate is invalid: {reason}"</span>)]
-<a href=#156 id=156 data-nosnippet>156</a>    </span>InvalidEndEntityCertificate {
-<a href=#157 id=157 data-nosnippet>157</a>        <span class="doccomment">/// Invalid certificate.
-<a href=#158 id=158 data-nosnippet>158</a>        </span>cert: CertificateDer,
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="doccomment">/// Reason for invalidity.
-<a href=#160 id=160 data-nosnippet>160</a>        </span>reason: String,
-<a href=#161 id=161 data-nosnippet>161</a>    },
-<a href=#162 id=162 data-nosnippet>162</a>    <span class="doccomment">/// Failed to verify certificate path to provided trust anchors.
-<a href=#163 id=163 data-nosnippet>163</a>    </span><span class="attr">#[error(<span class="string">"failed to verify certificate path to provided trust anchors"</span>)]
-<a href=#164 id=164 data-nosnippet>164</a>    </span>InvalidPath,
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// Failed to verify certificate is valid for provided server name.
-<a href=#166 id=166 data-nosnippet>166</a>    </span><span class="attr">#[error(<span class="string">"failed to verify certificate is valid for provided server name"</span>)]
-<a href=#167 id=167 data-nosnippet>167</a>    </span>InvalidServerName,
-<a href=#168 id=168 data-nosnippet>168</a>}</code></pre></div></section></main></body></html>
+<a href=#142 id=142 data-nosnippet>142</a>        cert.verify_for_usage(
+<a href=#143 id=143 data-nosnippet>143</a>            webpki::ALL_VERIFICATION_ALGS,
+<a href=#144 id=144 data-nosnippet>144</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.roots,
+<a href=#145 id=145 data-nosnippet>145</a>            <span class="kw-2">&amp;</span>intermediates,
+<a href=#146 id=146 data-nosnippet>146</a>            time,
+<a href=#147 id=147 data-nosnippet>147</a>            webpki::KeyUsage::server_auth(),
+<a href=#148 id=148 data-nosnippet>148</a>            <span class="prelude-val">None</span>,
+<a href=#149 id=149 data-nosnippet>149</a>            <span class="prelude-val">None</span>,
+<a href=#150 id=150 data-nosnippet>150</a>        )
+<a href=#151 id=151 data-nosnippet>151</a>        .map(|<span class="kw">_</span>| ())
+<a href=#152 id=152 data-nosnippet>152</a>        .map_err(|<span class="kw">_</span>| ServerCertVerifierError::InvalidPath)<span class="question-mark">?</span>;
+<a href=#153 id=153 data-nosnippet>153</a>
+<a href=#154 id=154 data-nosnippet>154</a>        cert.verify_is_valid_for_subject_name(<span class="kw-2">&amp;</span>server_name)
+<a href=#155 id=155 data-nosnippet>155</a>            .map_err(|<span class="kw">_</span>| ServerCertVerifierError::InvalidServerName)<span class="question-mark">?</span>;
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a>        <span class="prelude-val">Ok</span>(())
+<a href=#158 id=158 data-nosnippet>158</a>    }
+<a href=#159 id=159 data-nosnippet>159</a>}
+<a href=#160 id=160 data-nosnippet>160</a>
+<a href=#161 id=161 data-nosnippet>161</a><span class="doccomment">/// Error for [`ServerCertVerifier`].
+<a href=#162 id=162 data-nosnippet>162</a></span><span class="attr">#[derive(Debug, thiserror::Error)]
+<a href=#163 id=163 data-nosnippet>163</a>#[error(<span class="string">"server certificate verification failed: {0}"</span>)]
+<a href=#164 id=164 data-nosnippet>164</a></span><span class="kw">pub enum </span>ServerCertVerifierError {
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// Root certificate store contains invalid certificate.
+<a href=#166 id=166 data-nosnippet>166</a>    </span><span class="attr">#[error(<span class="string">"root certificate store contains invalid certificate: {reason}"</span>)]
+<a href=#167 id=167 data-nosnippet>167</a>    </span>InvalidRootCertificate {
+<a href=#168 id=168 data-nosnippet>168</a>        <span class="doccomment">/// Invalid certificate.
+<a href=#169 id=169 data-nosnippet>169</a>        </span>cert: CertificateDer,
+<a href=#170 id=170 data-nosnippet>170</a>        <span class="doccomment">/// Reason for invalidity.
+<a href=#171 id=171 data-nosnippet>171</a>        </span>reason: String,
+<a href=#172 id=172 data-nosnippet>172</a>    },
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="doccomment">/// End-entity certificate is invalid.
+<a href=#174 id=174 data-nosnippet>174</a>    </span><span class="attr">#[error(<span class="string">"end-entity certificate is invalid: {reason}"</span>)]
+<a href=#175 id=175 data-nosnippet>175</a>    </span>InvalidEndEntityCertificate {
+<a href=#176 id=176 data-nosnippet>176</a>        <span class="doccomment">/// Invalid certificate.
+<a href=#177 id=177 data-nosnippet>177</a>        </span>cert: CertificateDer,
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="doccomment">/// Reason for invalidity.
+<a href=#179 id=179 data-nosnippet>179</a>        </span>reason: String,
+<a href=#180 id=180 data-nosnippet>180</a>    },
+<a href=#181 id=181 data-nosnippet>181</a>    <span class="doccomment">/// Failed to verify certificate path to provided trust anchors.
+<a href=#182 id=182 data-nosnippet>182</a>    </span><span class="attr">#[error(<span class="string">"failed to verify certificate path to provided trust anchors"</span>)]
+<a href=#183 id=183 data-nosnippet>183</a>    </span>InvalidPath,
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="doccomment">/// Failed to verify certificate is valid for provided server name.
+<a href=#185 id=185 data-nosnippet>185</a>    </span><span class="attr">#[error(<span class="string">"failed to verify certificate is valid for provided server name"</span>)]
+<a href=#186 id=186 data-nosnippet>186</a>    </span>InvalidServerName,
+<a href=#187 id=187 data-nosnippet>187</a>}
+</code></pre></div></section></main></body></html>

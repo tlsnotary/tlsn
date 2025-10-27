@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["VerifierConfigBuilderError"],"mod":["state"],"struct":["ServerCertVerifier","SessionInfo","Verifier","VerifierConfig","VerifierConfigBuilder","VerifierError","VerifierOutput"]};
+window.SIDEBAR_ITEMS = {"mod":["state"],"struct":["ServerCertVerifier","SessionInfo","Verifier","VerifierError","VerifierOutput"]};

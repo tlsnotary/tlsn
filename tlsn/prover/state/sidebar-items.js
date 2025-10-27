@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Committed","Initialized","Setup"],"trait":["ProverState"]};
+window.SIDEBAR_ITEMS = {"struct":["CommitAccepted","Committed","Initialized"],"trait":["ProverState"]};

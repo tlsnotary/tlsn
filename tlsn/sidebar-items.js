@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["config","connection","hash","prover","transcript","verifier"]};
+window.SIDEBAR_ITEMS = {"mod":["config","connection","hash","prover","transcript","verifier","webpki"]};
