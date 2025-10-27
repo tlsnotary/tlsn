@@ -36,7 +36,7 @@ pub struct JsProver {
 #[derive_err(Debug)]
 enum State {
     Initialized(Prover<state::Initialized>),
-    Setup(Prover<state::Setup>),
+    CommitAccepted(Prover<state::CommitAccepted>),
     Committed(Prover<state::Committed>),
     Complete,
     Error,
@@ -101,7 +101,7 @@ impl JsProver {
 
         let prover = prover.commit(config, verifier_conn.into_io()).await?;
 
-        self.state = State::Setup(prover);
+        self.state = State::CommitAccepted(prover);
 
         Ok(())
     }
@@ -112,7 +112,7 @@ impl JsProver {
         ws_proxy_url: &str,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
-        let prover = self.state.take().try_into_setup()?;
+        let prover = self.state.take().try_into_commit_accepted()?;
 
         let mut builder = TlsClientConfig::builder()
             .server_name(ServerName::Dns(

@@ -78,7 +78,7 @@ impl JsVerifier {
     pub async fn verify(&mut self) -> Result<VerifierOutput> {
         let (verifier, prover_conn) = self.state.take().try_into_connected()?;
 
-        let verifier = verifier.setup(prover_conn.into_io()).await?;
+        let verifier = verifier.commit(prover_conn.into_io()).await?;
         let request = verifier.request();
 
         let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol() else {
