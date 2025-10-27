@@ -20,7 +20,12 @@ use serde::{Deserialize, Serialize};
 
 use tlsn_core::hash::HashAlgId;
 
-use crate::{Attestation, Extension, connection::ServerCertCommitment, signing::SignatureAlgId};
+use crate::{
+    Attestation, Extension,
+    connection::ServerCertCommitment,
+    serialize::CanonicalSerialize,
+    signing::{SignatureAlgId, SignatureVerifierProvider},
+};
 
 pub use builder::{RequestBuilder, RequestBuilderError};
 pub use config::{RequestConfig, RequestConfigBuilder, RequestConfigBuilderError};
@@ -70,6 +75,22 @@ impl Request {
                 ));
             }
         }
+
+        let provider = SignatureVerifierProvider::default();
+        let verifier = provider.get(&attestation.signature.alg).map_err(|_| {
+            InconsistentAttestation(format!(
+                "provider not configured for signature algorithm id {:?}",
+                attestation.signature.alg,
+            ))
+        })?;
+
+        verifier
+            .verify(
+                &attestation.body.verifying_key.data,
+                &CanonicalSerialize::serialize(&attestation.header),
+                &attestation.signature.data,
+            )
+            .map_err(|_| InconsistentAttestation("failed to verify the signature".into()))?;
 
         Ok(())
     }
@@ -190,5 +211,27 @@ mod test {
 
         let res = request.validate(&attestation);
         assert!(res.is_err())
+    }
+
+    #[test]
+    fn test_wrong_sig() {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+            Vec::new(),
+        );
+
+        let mut attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
+
+        // Corrupt the signature.
+        attestation.signature.data[1] = attestation.signature.data[1].wrapping_add(1);
+
+        assert!(request.validate(&attestation).is_err())
     }
 }
