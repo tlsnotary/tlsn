@@ -19,7 +19,7 @@ use tracing::info;
 use tlsn::{
     attestation::{
         request::{Request as AttestationRequest, RequestConfig},
-        signing::Secp256k1Signer,
+        signing::{Secp256k1Signer, SignatureVerifierProvider},
         Attestation, AttestationConfig, CryptoProvider, Secrets,
     },
     config::{CertificateDer, PrivateKeyDer, ProtocolConfig, RootCertStore},
@@ -290,8 +290,11 @@ async fn notarize(
         .await
         .map_err(|err| format!("notary did not respond with attestation: {err}"))?;
 
+    // Signature verifier for the signature algorithm in the request.
+    let provider = SignatureVerifierProvider::default();
+
     // Check the attestation is consistent with the Prover's view.
-    request.validate(&attestation)?;
+    request.validate(&attestation, &provider)?;
 
     Ok((attestation, secrets))
 }

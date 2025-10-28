@@ -202,6 +202,14 @@ impl SignatureVerifierProvider {
             .map(|s| &**s)
             .ok_or(UnknownSignatureAlgId(*alg))
     }
+
+    /// Returns am empty provider.
+    #[cfg(any(test, feature = "fixtures"))]
+    pub fn empty() -> Self {
+        Self {
+            verifiers: HashMap::default(),
+        }
+    }
 }
 
 /// Signature verifier.
@@ -227,7 +235,7 @@ impl_domain_separator!(VerifyingKey);
 /// Error that can occur while verifying a signature.
 #[derive(Debug, thiserror::Error)]
 #[error("signature verification failed: {0}")]
-pub struct SignatureError(String);
+pub struct SignatureError(pub String);
 
 /// A signature.
 #[derive(Debug, Clone, Deserialize, Serialize)]
