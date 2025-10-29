@@ -5,7 +5,8 @@ use ctr::{
     Ctr32BE,
     cipher::{KeyIvInit, StreamCipher, StreamCipherSeek},
 };
-use mpz_circuits::circuits::{AES128, xor};
+use mpz_circuits::circuits::xor;
+use mpz_circuits_data::AES128;
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
     Array, DecodeFutureTyped, MemoryExt, Vector, ViewExt,

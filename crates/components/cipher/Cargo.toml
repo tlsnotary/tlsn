@@ -16,6 +16,7 @@ name = "cipher"
 
 [dependencies]
 mpz-circuits = { workspace = true }
+mpz-circuits-data = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-memory-core = { workspace = true }
 
@@ -26,7 +27,7 @@ aes = { workspace = true }
 [dev-dependencies]
 mpz-garble = { workspace = true }
 mpz-common = { workspace = true }
-mpz-ot = { workspace = true }
+mpz-ot = { workspace = true, features = ["ideal"] }
 
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 rand = { workspace = true }
