@@ -4,7 +4,7 @@
 //! protocol has semi-honest security.
 //!
 //! The protocol is described in
-//! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>
+//! <https://tlsnotary.org/docs/mpc/key_exchange>
 
 use crate::{KeyExchangeError, Role};
 use mpz_common::{Context, Flush};
