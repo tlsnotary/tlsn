@@ -202,6 +202,14 @@ impl SignatureVerifierProvider {
             .map(|s| &**s)
             .ok_or(UnknownSignatureAlgId(*alg))
     }
+
+    /// Returns am empty provider.
+    #[cfg(any(test, feature = "fixtures"))]
+    pub fn empty() -> Self {
+        Self {
+            verifiers: HashMap::default(),
+        }
+    }
 }
 
 /// Signature verifier.
@@ -228,6 +236,14 @@ impl_domain_separator!(VerifyingKey);
 #[derive(Debug, thiserror::Error)]
 #[error("signature verification failed: {0}")]
 pub struct SignatureError(String);
+
+impl SignatureError {
+    /// Creates a new error with the given message.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(msg: &str) -> Self {
+        Self(msg.to_string())
+    }
+}
 
 /// A signature.
 #[derive(Debug, Clone, Deserialize, Serialize)]

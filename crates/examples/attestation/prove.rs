@@ -297,8 +297,11 @@ async fn notarize(
         .await
         .map_err(|err| anyhow!("notary did not respond with attestation: {err}"))?;
 
+    // Signature verifier for the signature algorithm in the request.
+    let provider = CryptoProvider::default();
+
     // Check the attestation is consistent with the Prover's view.
-    request.validate(&attestation)?;
+    request.validate(&attestation, &provider)?;
 
     Ok((attestation, secrets))
 }
