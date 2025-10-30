@@ -9,7 +9,7 @@ fixtures = ["tlsn-core/fixtures", "dep:tlsn-data-fixtures"]
 
 [dependencies]
 tlsn-tls-core = { workspace = true }
-tlsn-core = { workspace = true }
+tlsn-core = { workspace = true, features = ["mozilla-certs"] }
 tlsn-data-fixtures = { workspace = true, optional = true }
 
 bcs = { workspace = true }

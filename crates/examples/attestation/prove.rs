@@ -4,6 +4,7 @@
 
 use std::env;
 
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
@@ -22,11 +23,18 @@ use tlsn::{
         signing::Secp256k1Signer,
         Attestation, AttestationConfig, CryptoProvider, Secrets,
     },
-    config::{CertificateDer, PrivateKeyDer, ProtocolConfig, RootCertStore},
+    config::{
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
+        verifier::VerifierConfig,
+    },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
-    prover::{state::Committed, ProveConfig, Prover, ProverConfig, ProverOutput, TlsConfig},
+    prover::{state::Committed, Prover, ProverOutput},
     transcript::{ContentType, TranscriptCommitConfig},
-    verifier::{Verifier, VerifierConfig, VerifierOutput},
+    verifier::{Verifier, VerifierOutput},
+    webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
 };
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
@@ -45,7 +53,7 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let args = Args::parse();
@@ -85,64 +93,63 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     uri: &str,
     extra_headers: Vec<(&str, &str)>,
     example_type: &ExampleType,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let server_host: String = env::var("SERVER_HOST").unwrap_or("127.0.0.1".into());
     let server_port: u16 = env::var("SERVER_PORT")
         .map(|port| port.parse().expect("port should be valid integer"))
         .unwrap_or(DEFAULT_FIXTURE_PORT);
 
-    // Create a root certificate store with the server-fixture's self-signed
-    // certificate. This is only required for offline testing with the
-    // server-fixture.
-    let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder
-        .root_store(RootCertStore {
-            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-        })
-        // (Optional) Set up TLS client authentication if required by the server.
-        .client_auth((
-            vec![CertificateDer(CLIENT_CERT_DER.to_vec())],
-            PrivateKeyDer(CLIENT_KEY_DER.to_vec()),
-        ));
-
-    let tls_config = tls_config_builder.build().unwrap();
-
-    // Set up protocol configuration for prover.
-    let mut prover_config_builder = ProverConfig::builder();
-    prover_config_builder
-        .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-        .tls_config(tls_config)
-        .protocol_config(
-            ProtocolConfig::builder()
-                // We must configure the amount of data we expect to exchange beforehand, which will
-                // be preprocessed prior to the connection. Reducing these limits will improve
-                // performance.
-                .max_sent_data(tlsn_examples::MAX_SENT_DATA)
-                .max_recv_data(tlsn_examples::MAX_RECV_DATA)
-                .build()?,
-        );
-
-    let prover_config = prover_config_builder.build()?;
-
     // Create a new prover and perform necessary setup.
-    let prover = Prover::new(prover_config).setup(socket.compat()).await?;
+    let prover = Prover::new(ProverConfig::builder().build()?)
+        .commit(
+            TlsCommitConfig::builder()
+                // Select the TLS commitment protocol.
+                .protocol(
+                    MpcTlsConfig::builder()
+                        // We must configure the amount of data we expect to exchange beforehand,
+                        // which will be preprocessed prior to the
+                        // connection. Reducing these limits will improve
+                        // performance.
+                        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
+                        .max_recv_data(tlsn_examples::MAX_RECV_DATA)
+                        .build()?,
+                )
+                .build()?,
+            socket.compat(),
+        )
+        .await?;
 
     // Open a TCP connection to the server.
     let client_socket = tokio::net::TcpStream::connect((server_host, server_port)).await?;
 
     // Bind the prover to the server connection.
-    // The returned `mpc_tls_connection` is an MPC TLS connection to the server: all
-    // data written to/read from it will be encrypted/decrypted using MPC with
-    // the notary.
-    let (mpc_tls_connection, prover_fut) = prover.connect(client_socket.compat()).await?;
-    let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
+    let (tls_connection, prover_fut) = prover
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+                // Create a root certificate store with the server-fixture's self-signed
+                // certificate. This is only required for offline testing with the
+                // server-fixture.
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                // (Optional) Set up TLS client authentication if required by the server.
+                .client_auth((
+                    vec![CertificateDer(CLIENT_CERT_DER.to_vec())],
+                    PrivateKeyDer(CLIENT_KEY_DER.to_vec()),
+                ))
+                .build()?,
+            client_socket.compat(),
+        )
+        .await?;
+    let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the prover task to be run concurrently in the background.
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the connection.
     let (mut request_sender, connection) =
-        hyper::client::conn::http1::handshake(mpc_tls_connection).await?;
+        hyper::client::conn::http1::handshake(tls_connection).await?;
 
     // Spawn the HTTP task to be run concurrently in the background.
     tokio::spawn(connection);
@@ -163,7 +170,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     }
     let request = request_builder.body(Empty::<Bytes>::new())?;
 
-    info!("Starting an MPC TLS connection with the server");
+    info!("Starting connection with the server");
 
     // Send the request to the server and wait for the response.
     let response = request_sender.send_request(request).await?;
@@ -240,7 +247,7 @@ async fn notarize(
     config: &RequestConfig,
     request_tx: Sender<AttestationRequest>,
     attestation_rx: Receiver<Attestation>,
-) -> Result<(Attestation, Secrets), Box<dyn std::error::Error>> {
+) -> Result<(Attestation, Secrets)> {
     let mut builder = ProveConfig::builder(prover.transcript());
 
     if let Some(config) = config.transcript_commit() {
@@ -283,12 +290,12 @@ async fn notarize(
     // Send attestation request to notary.
     request_tx
         .send(request.clone())
-        .map_err(|_| "notary is not receiving attestation request".to_string())?;
+        .map_err(|_| anyhow!("notary is not receiving attestation request"))?;
 
     // Receive attestation from notary.
     let attestation = attestation_rx
         .await
-        .map_err(|err| format!("notary did not respond with attestation: {err}"))?;
+        .map_err(|err| anyhow!("notary did not respond with attestation: {err}"))?;
 
     // Signature verifier for the signature algorithm in the request.
     let provider = CryptoProvider::default();
@@ -303,7 +310,7 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: S,
     request_rx: Receiver<AttestationRequest>,
     attestation_tx: Sender<Attestation>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -315,7 +322,7 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .unwrap();
 
     let verifier = Verifier::new(verifier_config)
-        .setup(socket.compat())
+        .commit(socket.compat())
         .await?
         .accept()
         .await?
@@ -325,6 +332,7 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let (
         VerifierOutput {
             transcript_commitments,
+            encoder_secret,
             ..
         },
         verifier,
@@ -385,12 +393,16 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .server_ephemeral_key(tls_transcript.server_ephemeral_key().clone())
         .transcript_commitments(transcript_commitments);
 
+    if let Some(encoder_secret) = encoder_secret {
+        builder.encoder_secret(encoder_secret);
+    }
+
     let attestation = builder.build(&provider)?;
 
     // Send attestation to prover.
     attestation_tx
         .send(attestation)
-        .map_err(|_| "prover is not receiving attestation".to_string())?;
+        .map_err(|_| anyhow!("prover is not receiving attestation"))?;
 
     Ok(())
 }

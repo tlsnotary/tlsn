@@ -1,62 +1,44 @@
 //! Prover.
 
-mod config;
 mod error;
 mod future;
 mod prove;
 pub mod state;
 
-pub use config::{ProverConfig, ProverConfigBuilder, TlsConfig, TlsConfigBuilder};
 pub use error::ProverError;
 pub use future::ProverFuture;
-use rustls_pki_types::CertificateDer;
-pub use tlsn_core::{
-    ProveConfig, ProveConfigBuilder, ProveConfigBuilderError, ProveRequest, ProverOutput,
-};
-
-use mpz_common::Context;
-use mpz_core::Block;
-use mpz_garble_core::Delta;
-use mpz_vm_core::prelude::*;
-use mpz_zk::ProverConfig as ZkProverConfig;
-use webpki::anchor_from_trusted_cert;
+pub use tlsn_core::ProverOutput;
 
 use crate::{
     Role,
     context::build_mt_context,
-    msg::{Response, SetupRequest},
+    mpz::{ProverDeps, build_prover_deps, translate_keys},
+    msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     mux::attach_mux,
     tag::verify_tags,
 };
 
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
-use rand::Rng;
+use mpc_tls::LeaderCtrl;
+use mpz_vm_core::prelude::*;
+use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{TlsConnection, bind_client};
 use tlsn_core::{
+    config::{
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{TlsCommitConfig, TlsCommitProtocolConfig},
+    },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
 };
-use tlsn_deap::Deap;
-use tokio::sync::Mutex;
+use webpki::anchor_from_trusted_cert;
 
 use tracing::{Instrument, Span, debug, info, info_span, instrument};
-
-pub(crate) type RCOTSender = mpz_ot::rcot::shared::SharedRCOTSender<
-    mpz_ot::kos::Sender<mpz_ot::chou_orlandi::Receiver>,
-    mpz_core::Block,
->;
-pub(crate) type RCOTReceiver = mpz_ot::rcot::shared::SharedRCOTReceiver<
-    mpz_ot::ferret::Receiver<mpz_ot::kos::Receiver<mpz_ot::chou_orlandi::Sender>>,
-    bool,
-    mpz_core::Block,
->;
-pub(crate) type Mpc =
-    mpz_garble::protocol::semihonest::Garbler<mpz_ot::cot::DerandCOTSender<RCOTSender>>;
-pub(crate) type Zk = mpz_zk::Prover<RCOTReceiver>;
 
 /// A prover instance.
 #[derive(Debug)]
@@ -81,19 +63,21 @@ impl Prover<state::Initialized> {
         }
     }
 
-    /// Sets up the prover.
+    /// Starts the TLS commitment protocol.
     ///
-    /// This performs all MPC setup prior to establishing the connection to the
-    /// application server.
+    /// This initiates the TLS commitment protocol, including performing any
+    /// necessary preprocessing operations.
     ///
     /// # Arguments
     ///
+    /// * `config` - The TLS commitment configuration.
     /// * `socket` - The socket to the TLS verifier.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn setup<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
+        config: TlsCommitConfig,
         socket: S,
-    ) -> Result<Prover<state::Setup>, ProverError> {
+    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
         let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
         let mut mt = build_mt_context(mux_ctrl.clone());
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
@@ -102,9 +86,9 @@ impl Prover<state::Initialized> {
         mux_fut
             .poll_with(async {
                 ctx.io_mut()
-                    .send(SetupRequest {
-                        config: self.config.protocol_config().clone(),
-                        version: crate::config::VERSION.clone(),
+                    .send(TlsCommitRequestMsg {
+                        request: config.to_request(),
+                        version: crate::VERSION.clone(),
                     })
                     .await?;
 
@@ -116,12 +100,16 @@ impl Prover<state::Initialized> {
             })
             .await?;
 
-        let (vm, mut mpc_tls) = build_mpc_tls(&self.config, ctx);
+        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = config.protocol().clone() else {
+            unreachable!("only MPC TLS is supported");
+        };
+
+        let ProverDeps { vm, mut mpc_tls } = build_prover_deps(mpc_tls_config, ctx);
 
         // Allocate resources for MPC-TLS in the VM.
         let mut keys = mpc_tls.alloc()?;
         let vm_lock = vm.try_lock().expect("VM is not locked");
-        translate_keys(&mut keys, &vm_lock)?;
+        translate_keys(&mut keys, &vm_lock);
         drop(vm_lock);
 
         debug!("setting up mpc-tls");
@@ -133,7 +121,7 @@ impl Prover<state::Initialized> {
         Ok(Prover {
             config: self.config,
             span: self.span,
-            state: state::Setup {
+            state: state::CommitAccepted {
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
@@ -144,21 +132,24 @@ impl Prover<state::Initialized> {
     }
 }
 
-impl Prover<state::Setup> {
+impl Prover<state::CommitAccepted> {
     /// Connects to the server using the provided socket.
     ///
     /// Returns a handle to the TLS connection, a future which returns the
-    /// prover once the connection is closed.
+    /// prover once the connection is closed and the TLS transcript is
+    /// committed.
     ///
     /// # Arguments
     ///
+    /// * `config` - The TLS client configuration.
     /// * `socket` - The socket to the server.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn connect<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
+        config: TlsClientConfig,
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture), ProverError> {
-        let state::Setup {
+        let state::CommitAccepted {
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
@@ -169,12 +160,13 @@ impl Prover<state::Setup> {
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
-        let ServerName::Dns(server_name) = self.config.server_name();
+        let ServerName::Dns(server_name) = config.server_name();
         let server_name =
             TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
 
-        let root_store = if let Some(root_store) = self.config.tls_config().root_store() {
-            let roots = root_store
+        let root_store = tls_client::RootCertStore {
+            roots: config
+                .root_store()
                 .roots
                 .iter()
                 .map(|cert| {
@@ -183,20 +175,15 @@ impl Prover<state::Setup> {
                         .map(|anchor| anchor.to_owned())
                         .map_err(ProverError::config)
                 })
-                .collect::<Result<Vec<_>, _>>()?;
-            tls_client::RootCertStore { roots }
-        } else {
-            tls_client::RootCertStore {
-                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-            }
+                .collect::<Result<Vec<_>, _>>()?,
         };
 
-        let config = tls_client::ClientConfig::builder()
+        let rustls_config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(root_store);
 
-        let config = if let Some((cert, key)) = self.config.tls_config().client_auth() {
-            config
+        let rustls_config = if let Some((cert, key)) = config.client_auth() {
+            rustls_config
                 .with_single_cert(
                     cert.iter()
                         .map(|cert| tls_client::Certificate(cert.0.clone()))
@@ -205,12 +192,15 @@ impl Prover<state::Setup> {
                 )
                 .map_err(ProverError::config)?
         } else {
-            config.with_no_client_auth()
+            rustls_config.with_no_client_auth()
         };
 
-        let client =
-            ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
-                .map_err(ProverError::config)?;
+        let client = ClientConnection::new(
+            Arc::new(rustls_config),
+            Box::new(mpc_ctrl.clone()),
+            server_name,
+        )
+        .map_err(ProverError::config)?;
 
         let (conn, conn_fut) = bind_client(socket, client);
 
@@ -284,6 +274,7 @@ impl Prover<state::Setup> {
                         mux_fut,
                         ctx,
                         vm,
+                        server_name: config.server_name().clone(),
                         keys,
                         tls_transcript,
                         transcript,
@@ -326,40 +317,42 @@ impl Prover<state::Committed> {
             ctx,
             vm,
             keys,
+            server_name,
             tls_transcript,
             transcript,
             ..
         } = &mut self.state;
 
-        let request = ProveRequest {
-            handshake: config.server_identity().then(|| {
-                (
-                    self.config.server_name().clone(),
-                    HandshakeData {
-                        certs: tls_transcript
-                            .server_cert_chain()
-                            .expect("server cert chain is present")
-                            .to_vec(),
-                        sig: tls_transcript
-                            .server_signature()
-                            .expect("server signature is present")
-                            .clone(),
-                        binding: tls_transcript.certificate_binding().clone(),
-                    },
-                )
-            }),
-            transcript: config
-                .reveal()
-                .map(|(sent, recv)| transcript.to_partial(sent.clone(), recv.clone())),
-            transcript_commit: config.transcript_commit().map(|config| config.to_request()),
+        let handshake = config.server_identity().then(|| {
+            (
+                server_name.clone(),
+                HandshakeData {
+                    certs: tls_transcript
+                        .server_cert_chain()
+                        .expect("server cert chain is present")
+                        .to_vec(),
+                    sig: tls_transcript
+                        .server_signature()
+                        .expect("server signature is present")
+                        .clone(),
+                    binding: tls_transcript.certificate_binding().clone(),
+                },
+            )
+        });
+
+        let partial_transcript = config
+            .reveal()
+            .map(|(sent, recv)| transcript.to_partial(sent.clone(), recv.clone()));
+
+        let msg = ProveRequestMsg {
+            request: config.to_request(),
+            handshake,
+            transcript: partial_transcript,
         };
 
         let output = mux_fut
             .poll_with(async {
-                ctx.io_mut()
-                    .send(request)
-                    .await
-                    .map_err(ProverError::from)?;
+                ctx.io_mut().send(msg).await.map_err(ProverError::from)?;
 
                 ctx.io_mut().expect_next::<Response>().await?.result?;
 
@@ -387,53 +380,6 @@ impl Prover<state::Committed> {
     }
 }
 
-fn build_mpc_tls(config: &ProverConfig, ctx: Context) -> (Arc<Mutex<Deap<Mpc, Zk>>>, MpcTlsLeader) {
-    let mut rng = rand::rng();
-    let delta = Delta::new(Block::random(&mut rng));
-
-    let base_ot_send = mpz_ot::chou_orlandi::Sender::default();
-    let base_ot_recv = mpz_ot::chou_orlandi::Receiver::default();
-    let rcot_send = mpz_ot::kos::Sender::new(
-        mpz_ot::kos::SenderConfig::default(),
-        delta.into_inner(),
-        base_ot_recv,
-    );
-    let rcot_recv =
-        mpz_ot::kos::Receiver::new(mpz_ot::kos::ReceiverConfig::default(), base_ot_send);
-    let rcot_recv = mpz_ot::ferret::Receiver::new(
-        mpz_ot::ferret::FerretConfig::builder()
-            .lpn_type(mpz_ot::ferret::LpnType::Regular)
-            .build()
-            .expect("ferret config is valid"),
-        Block::random(&mut rng),
-        rcot_recv,
-    );
-
-    let rcot_send = mpz_ot::rcot::shared::SharedRCOTSender::new(rcot_send);
-    let rcot_recv = mpz_ot::rcot::shared::SharedRCOTReceiver::new(rcot_recv);
-
-    let mpc = Mpc::new(
-        mpz_ot::cot::DerandCOTSender::new(rcot_send.clone()),
-        rng.random(),
-        delta,
-    );
-
-    let zk = Zk::new(ZkProverConfig::default(), rcot_recv.clone());
-
-    let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
-
-    (
-        vm.clone(),
-        MpcTlsLeader::new(
-            config.build_mpc_tls_config(),
-            ctx,
-            vm,
-            (rcot_send.clone(), rcot_send.clone(), rcot_send),
-            rcot_recv,
-        ),
-    )
-}
-
 /// A controller for the prover.
 #[derive(Clone)]
 pub struct ProverControl {
@@ -458,25 +404,4 @@ impl ProverControl {
             .await
             .map_err(ProverError::from)
     }
-}
-
-/// Translates VM references to the ZK address space.
-fn translate_keys<Mpc, Zk>(keys: &mut SessionKeys, vm: &Deap<Mpc, Zk>) -> Result<(), ProverError> {
-    keys.client_write_key = vm
-        .translate(keys.client_write_key)
-        .map_err(ProverError::mpc)?;
-    keys.client_write_iv = vm
-        .translate(keys.client_write_iv)
-        .map_err(ProverError::mpc)?;
-    keys.server_write_key = vm
-        .translate(keys.server_write_key)
-        .map_err(ProverError::mpc)?;
-    keys.server_write_iv = vm
-        .translate(keys.server_write_iv)
-        .map_err(ProverError::mpc)?;
-    keys.server_write_mac_key = vm
-        .translate(keys.server_write_mac_key)
-        .map_err(ProverError::mpc)?;
-
-    Ok(())
 }

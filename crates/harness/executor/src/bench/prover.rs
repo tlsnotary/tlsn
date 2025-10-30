@@ -5,9 +5,15 @@ use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
 
 use harness_core::bench::{Bench, ProverMetrics};
 use tlsn::{
-    config::{CertificateDer, ProtocolConfig, RootCertStore},
+    config::{
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+    },
     connection::ServerName,
-    prover::{ProveConfig, Prover, ProverConfig, TlsConfig},
+    prover::Prover,
+    webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
@@ -22,41 +28,47 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let sent = verifier_io.sent();
     let recv = verifier_io.recv();
 
-    let mut builder = ProtocolConfig::builder();
-    builder.max_sent_data(config.upload_size);
-
-    builder.defer_decryption_from_start(config.defer_decryption);
-    if !config.defer_decryption {
-        builder.max_recv_data_online(config.download_size + RECV_PADDING);
-    }
-    builder.max_recv_data(config.download_size + RECV_PADDING);
-
-    let protocol_config = builder.build()?;
-
-    let mut tls_config_builder = TlsConfig::builder();
-    tls_config_builder.root_store(RootCertStore {
-        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-    });
-    let tls_config = tls_config_builder.build()?;
-
-    let prover = Prover::new(
-        ProverConfig::builder()
-            .tls_config(tls_config)
-            .protocol_config(protocol_config)
-            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-            .build()?,
-    );
+    let prover = Prover::new(ProverConfig::builder().build()?);
 
     let time_start = web_time::Instant::now();
 
-    let prover = prover.setup(verifier_io).await?;
+    let prover = prover
+        .commit(
+            TlsCommitConfig::builder()
+                .protocol({
+                    let mut builder = MpcTlsConfig::builder()
+                        .max_sent_data(config.upload_size)
+                        .defer_decryption_from_start(config.defer_decryption);
+
+                    if !config.defer_decryption {
+                        builder = builder.max_recv_data_online(config.download_size + RECV_PADDING);
+                    }
+
+                    builder
+                        .max_recv_data(config.download_size + RECV_PADDING)
+                        .build()
+                }?)
+                .build()?,
+            verifier_io,
+        )
+        .await?;
 
     let time_preprocess = time_start.elapsed().as_millis();
     let time_start_online = web_time::Instant::now();
     let uploaded_preprocess = sent.load(Ordering::Relaxed);
     let downloaded_preprocess = recv.load(Ordering::Relaxed);
 
-    let (mut conn, prover_fut) = prover.connect(provider.provide_server_io().await?).await?;
+    let (mut conn, prover_fut) = prover
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()?,
+            provider.provide_server_io().await?,
+        )
+        .await?;
 
     let (_, mut prover) = futures::try_join!(
         async {

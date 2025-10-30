@@ -112,7 +112,7 @@ impl TagProof {
                 .map_err(TagProofError::vm)?
                 .ok_or_else(|| ErrorRepr::NotDecoded)?;
 
-            let aad = make_tls12_aad(rec.seq, rec.typ, vers, rec.ciphertext.len());
+            let aad = make_tls12_aad(rec.seq, rec.typ.into(), vers, rec.ciphertext.len());
 
             let ghash_tag = ghash(aad.as_ref(), &rec.ciphertext, &mac_key);
 

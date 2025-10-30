@@ -177,24 +177,8 @@ pub(crate) trait KeyStore {
     fn get_keys(&self, data: Vector<U8>) -> Option<&[Key]>;
 }
 
-impl KeyStore for crate::verifier::Zk {
-    fn delta(&self) -> &Delta {
-        crate::verifier::Zk::delta(self)
-    }
-
-    fn get_keys(&self, data: Vector<U8>) -> Option<&[Key]> {
-        self.get_keys(data).ok()
-    }
-}
-
 pub(crate) trait MacStore {
     fn get_macs(&self, data: Vector<U8>) -> Option<&[Mac]>;
-}
-
-impl MacStore for crate::prover::Zk {
-    fn get_macs(&self, data: Vector<U8>) -> Option<&[Mac]> {
-        self.get_macs(data).ok()
-    }
 }
 
 #[derive(Debug)]
