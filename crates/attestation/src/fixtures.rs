@@ -171,8 +171,8 @@ pub fn custom_provider_fixture() -> CryptoProvider {
             if msg == sig {
                 Ok(())
             } else {
-                Err(crate::signing::SignatureError(
-                    "invalid signature".to_string(),
+                Err(crate::signing::SignatureError::from_str(
+                    "invalid signature",
                 ))
             }
         }

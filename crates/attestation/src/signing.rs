@@ -235,7 +235,15 @@ impl_domain_separator!(VerifyingKey);
 /// Error that can occur while verifying a signature.
 #[derive(Debug, thiserror::Error)]
 #[error("signature verification failed: {0}")]
-pub struct SignatureError(pub String);
+pub struct SignatureError(String);
+
+impl SignatureError {
+    /// Creates a new error with the given message.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(msg: &str) -> Self {
+        Self(msg.to_string())
+    }
+}
 
 /// A signature.
 #[derive(Debug, Clone, Deserialize, Serialize)]
