@@ -21,10 +21,8 @@ use serde::{Deserialize, Serialize};
 use tlsn_core::hash::HashAlgId;
 
 use crate::{
-    Attestation, Extension,
-    connection::ServerCertCommitment,
-    serialize::CanonicalSerialize,
-    signing::{SignatureAlgId, SignatureVerifierProvider},
+    Attestation, CryptoProvider, Extension, connection::ServerCertCommitment,
+    serialize::CanonicalSerialize, signing::SignatureAlgId,
 };
 
 pub use builder::{RequestBuilder, RequestBuilderError};
@@ -49,7 +47,7 @@ impl Request {
     pub fn validate(
         &self,
         attestation: &Attestation,
-        provider: &SignatureVerifierProvider,
+        provider: &CryptoProvider,
     ) -> Result<(), AttestationValidationError> {
         if attestation.signature.alg != self.signature_alg {
             return Err(AttestationValidationError::inconsistent(format!(
@@ -80,12 +78,15 @@ impl Request {
             }
         }
 
-        let verifier = provider.get(&attestation.signature.alg).map_err(|_| {
-            AttestationValidationError::provider(format!(
-                "provider not configured for signature algorithm id {:?}",
-                attestation.signature.alg,
-            ))
-        })?;
+        let verifier = provider
+            .signature
+            .get(&attestation.signature.alg)
+            .map_err(|_| {
+                AttestationValidationError::provider(format!(
+                    "provider not configured for signature algorithm id {:?}",
+                    attestation.signature.alg,
+                ))
+            })?;
 
         verifier
             .verify(
@@ -155,7 +156,7 @@ mod test {
         connection::ServerCertOpening,
         fixtures::{RequestFixture, attestation_fixture, custom_provider_fixture, request_fixture},
         request::{AttestationValidationError, ErrorKind},
-        signing::{SignatureAlgId, SignatureVerifierProvider},
+        signing::SignatureAlgId,
     };
 
     #[test]
@@ -174,7 +175,7 @@ mod test {
         let attestation =
             attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
 
-        let provider = SignatureVerifierProvider::default();
+        let provider = CryptoProvider::default();
 
         assert!(request.validate(&attestation, &provider).is_ok())
     }
@@ -197,7 +198,7 @@ mod test {
 
         request.signature_alg = SignatureAlgId::SECP256R1;
 
-        let provider = SignatureVerifierProvider::default();
+        let provider = CryptoProvider::default();
 
         let res = request.validate(&attestation, &provider);
         assert!(res.is_err());
@@ -221,7 +222,7 @@ mod test {
 
         request.hash_alg = HashAlgId::SHA256;
 
-        let provider = SignatureVerifierProvider::default();
+        let provider = CryptoProvider::default();
 
         let res = request.validate(&attestation, &provider);
         assert!(res.is_err())
@@ -251,11 +252,9 @@ mod test {
         });
         let opening = ServerCertOpening::new(server_cert_data);
 
-        let crypto_provider = CryptoProvider::default();
+        let provider = CryptoProvider::default();
         request.server_cert_commitment =
-            opening.commit(crypto_provider.hash.get(&HashAlgId::BLAKE3).unwrap());
-
-        let provider = SignatureVerifierProvider::default();
+            opening.commit(provider.hash.get(&HashAlgId::BLAKE3).unwrap());
 
         let res = request.validate(&attestation, &provider);
         assert!(res.is_err())
@@ -280,7 +279,7 @@ mod test {
         // Corrupt the signature.
         attestation.signature.data[1] = attestation.signature.data[1].wrapping_add(1);
 
-        let provider = SignatureVerifierProvider::default();
+        let provider = CryptoProvider::default();
 
         assert!(request.validate(&attestation, &provider).is_err())
     }
@@ -304,7 +303,7 @@ mod test {
         let provider = custom_provider_fixture();
 
         assert!(matches!(
-            request.validate(&attestation, &provider.signature),
+            request.validate(&attestation, &provider),
             Err(AttestationValidationError {
                 kind: ErrorKind::Provider,
                 ..
