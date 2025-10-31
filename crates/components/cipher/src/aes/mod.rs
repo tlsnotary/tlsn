@@ -203,15 +203,12 @@ mod tests {
     use super::*;
     use crate::Cipher;
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
+    use mpz_ideal_vm::IdealVm;
     use mpz_memory_core::{
         binary::{Binary, U8},
-        correlated::Delta,
         Array, MemoryExt, Vector, ViewExt,
     };
-    use mpz_ot::ideal::cot::ideal_cot;
     use mpz_vm_core::{Execute, Vm};
-    use rand::{rngs::StdRng, SeedableRng};
 
     #[tokio::test]
     async fn test_aes_ctr() {
@@ -221,7 +218,8 @@ mod tests {
         let start_counter = 3u32;
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut gen, mut ev) = mock_vm();
+        let mut gen = IdealVm::new();
+        let mut ev = IdealVm::new();
 
         let mut aes_gen = setup_ctr(key, iv, &mut gen);
         let mut aes_ev = setup_ctr(key, iv, &mut ev);
@@ -283,7 +281,8 @@ mod tests {
         let input = [5_u8; 16];
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut gen, mut ev) = mock_vm();
+        let mut gen = IdealVm::new();
+        let mut ev = IdealVm::new();
 
         let mut aes_gen = setup_block(key, &mut gen);
         let mut aes_ev = setup_block(key, &mut ev);
@@ -323,18 +322,6 @@ mod tests {
 
         let expected = aes128(key, input);
         assert_eq!(ciphertext_gen, expected);
-    }
-
-    fn mock_vm() -> (impl Vm<Binary>, impl Vm<Binary>) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
-
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
-
-        let gen = Garbler::new(cot_send, [0u8; 16], delta);
-        let ev = Evaluator::new(cot_recv);
-
-        (gen, ev)
     }
 
     fn setup_ctr(key: [u8; 16], iv: [u8; 4], vm: &mut dyn Vm<Binary>) -> Aes128 {

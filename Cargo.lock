@@ -7250,11 +7250,9 @@ dependencies = [
  "mpz-circuits",
  "mpz-circuits-data",
  "mpz-common",
- "mpz-garble",
+ "mpz-ideal-vm",
  "mpz-memory-core",
- "mpz-ot",
  "mpz-vm-core",
- "rand 0.9.2",
  "thiserror 1.0.69",
  "tokio",
 ]
