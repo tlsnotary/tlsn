@@ -8,7 +8,7 @@
 //! with the server alone and forward all messages from and to the follower.
 //!
 //! A detailed description of this protocol can be found in our documentation
-//! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>.
+//! <https://tlsnotary.org/docs/mpc/key_exchange>.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
