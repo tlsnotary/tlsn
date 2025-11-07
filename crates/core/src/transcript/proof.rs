@@ -25,6 +25,9 @@ const DEFAULT_COMMITMENT_KINDS: &[TranscriptCommitmentKind] = &[
     TranscriptCommitmentKind::Hash {
         alg: HashAlgId::BLAKE3,
     },
+    TranscriptCommitmentKind::Hash {
+        alg: HashAlgId::KECCAK256,
+    },
     TranscriptCommitmentKind::Encoding,
 ];
 
@@ -656,6 +659,7 @@ mod tests {
     #[rstest]
     #[case::sha256(HashAlgId::SHA256)]
     #[case::blake3(HashAlgId::BLAKE3)]
+    #[case::keccak256(HashAlgId::KECCAK256)]
     fn test_reveal_with_hash_commitment(#[case] alg: HashAlgId) {
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let provider = HashProvider::default();
@@ -704,6 +708,7 @@ mod tests {
     #[rstest]
     #[case::sha256(HashAlgId::SHA256)]
     #[case::blake3(HashAlgId::BLAKE3)]
+    #[case::keccak256(HashAlgId::KECCAK256)]
     fn test_reveal_with_inconsistent_hash_commitment(#[case] alg: HashAlgId) {
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let provider = HashProvider::default();

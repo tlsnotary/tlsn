@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use mpz_core::bitvec::BitVec;
-use mpz_hash::{blake3::Blake3, sha256::Sha256};
+use mpz_hash::{blake3::Blake3, keccak256::Keccak256, sha256::Sha256};
 use mpz_memory_core::{
     DecodeFutureTyped, MemoryExt, Vector,
     binary::{Binary, U8},
@@ -111,6 +111,7 @@ pub(crate) fn verify_hash(
 enum Hasher {
     Sha256(Sha256),
     Blake3(Blake3),
+    Keccak256(Keccak256),
 }
 
 /// Commit plaintext hashes of the transcript.
@@ -180,6 +181,32 @@ fn hash_commit_inner(
                         .update(vm, &refs.get(range).expect("plaintext refs are valid"))
                         .map_err(HashCommitError::hasher)?;
                 }
+                hasher
+                    .update(vm, &blinder)
+                    .map_err(HashCommitError::hasher)?;
+                hasher.finalize(vm).map_err(HashCommitError::hasher)?
+            }
+            HashAlgId::KECCAK256 => {
+                let mut hasher = if let Some(Hasher::Keccak256(hasher)) = hashers.get(&alg).cloned()
+                {
+                    hasher
+                } else {
+                    let hasher = Keccak256::new_with_init(vm).map_err(HashCommitError::hasher)?;
+                    hashers.insert(alg, Hasher::Keccak256(hasher.clone()));
+                    hasher
+                };
+
+                let refs = match direction {
+                    Direction::Sent => &refs.sent,
+                    Direction::Received => &refs.recv,
+                };
+
+                for range in idx.iter_ranges() {
+                    hasher
+                        .update(vm, &refs.get(range).expect("plaintext refs are valid"))
+                        .map_err(HashCommitError::hasher)?;
+                }
+
                 hasher
                     .update(vm, &blinder)
                     .map_err(HashCommitError::hasher)?;
