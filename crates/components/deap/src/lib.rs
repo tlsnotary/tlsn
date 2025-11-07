@@ -382,7 +382,7 @@ enum ErrorRepr {
 
 #[cfg(test)]
 mod tests {
-    use mpz_circuits_data::AES128;
+    use mpz_circuits::AES128;
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
     use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
