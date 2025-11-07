@@ -1,5 +1,4 @@
 //! Attestation fixtures.
-
 use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2},
     fixtures::ConnectionFixture,
@@ -13,7 +12,10 @@ use tlsn_core::{
 use crate::{
     Attestation, AttestationConfig, CryptoProvider, Extension,
     request::{Request, RequestConfig},
-    signing::SignatureAlgId,
+    signing::{
+        KeyAlgId, SignatureAlgId, SignatureVerifier, SignatureVerifierProvider, Signer,
+        SignerProvider,
+    },
 };
 
 /// A Request fixture used for testing.
@@ -102,7 +104,8 @@ pub fn attestation_fixture(
     let mut provider = CryptoProvider::default();
     match signature_alg {
         SignatureAlgId::SECP256K1 => provider.signer.set_secp256k1(&[42u8; 32]).unwrap(),
-        SignatureAlgId::SECP256R1 => provider.signer.set_secp256r1(&[42u8; 32]).unwrap(),
+        SignatureAlgId::SECP256K1ETH => provider.signer.set_secp256k1eth(&[43u8; 32]).unwrap(),
+        SignatureAlgId::SECP256R1 => provider.signer.set_secp256r1(&[44u8; 32]).unwrap(),
         _ => unimplemented!(),
     };
 
@@ -121,4 +124,69 @@ pub fn attestation_fixture(
         .transcript_commitments(transcript_commitments.to_vec());
 
     attestation_builder.build(&provider).unwrap()
+}
+
+/// Returns a crypto provider which supports only a custom signature alg.
+pub fn custom_provider_fixture() -> CryptoProvider {
+    const CUSTOM_SIG_ALG_ID: SignatureAlgId = SignatureAlgId::new(128);
+
+    // A dummy signer.
+    struct DummySigner {}
+    impl Signer for DummySigner {
+        fn alg_id(&self) -> SignatureAlgId {
+            CUSTOM_SIG_ALG_ID
+        }
+
+        fn sign(
+            &self,
+            msg: &[u8],
+        ) -> Result<crate::signing::Signature, crate::signing::SignatureError> {
+            Ok(crate::signing::Signature {
+                alg: CUSTOM_SIG_ALG_ID,
+                data: msg.to_vec(),
+            })
+        }
+
+        fn verifying_key(&self) -> crate::signing::VerifyingKey {
+            crate::signing::VerifyingKey {
+                alg: KeyAlgId::new(128),
+                data: vec![1, 2, 3, 4],
+            }
+        }
+    }
+
+    // A dummy verifier.
+    struct DummyVerifier {}
+    impl SignatureVerifier for DummyVerifier {
+        fn alg_id(&self) -> SignatureAlgId {
+            CUSTOM_SIG_ALG_ID
+        }
+
+        fn verify(
+            &self,
+            _key: &crate::signing::VerifyingKey,
+            msg: &[u8],
+            sig: &[u8],
+        ) -> Result<(), crate::signing::SignatureError> {
+            if msg == sig {
+                Ok(())
+            } else {
+                Err(crate::signing::SignatureError::from_str(
+                    "invalid signature",
+                ))
+            }
+        }
+    }
+
+    let mut provider = CryptoProvider::default();
+
+    let mut signer_provider = SignerProvider::default();
+    signer_provider.set_signer(Box::new(DummySigner {}));
+    provider.signer = signer_provider;
+
+    let mut verifier_provider = SignatureVerifierProvider::empty();
+    verifier_provider.set_verifier(Box::new(DummyVerifier {}));
+    provider.signature = verifier_provider;
+
+    provider
 }

@@ -101,7 +101,7 @@ fn test_api() {
     let attestation = attestation_builder.build(&provider).unwrap();
 
     // Prover validates the attestation is consistent with its request.
-    request.validate(&attestation).unwrap();
+    request.validate(&attestation, &provider).unwrap();
 
     let mut transcript_proof_builder = secrets.transcript_proof_builder();
 

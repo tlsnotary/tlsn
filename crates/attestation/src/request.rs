@@ -20,7 +20,10 @@ use serde::{Deserialize, Serialize};
 
 use tlsn_core::hash::HashAlgId;
 
-use crate::{Attestation, Extension, connection::ServerCertCommitment, signing::SignatureAlgId};
+use crate::{
+    Attestation, CryptoProvider, Extension, connection::ServerCertCommitment,
+    serialize::CanonicalSerialize, signing::SignatureAlgId,
+};
 
 pub use builder::{RequestBuilder, RequestBuilderError};
 pub use config::{RequestConfig, RequestConfigBuilder, RequestConfigBuilderError};
@@ -41,35 +44,59 @@ impl Request {
     }
 
     /// Validates the content of the attestation against this request.
-    pub fn validate(&self, attestation: &Attestation) -> Result<(), InconsistentAttestation> {
+    pub fn validate(
+        &self,
+        attestation: &Attestation,
+        provider: &CryptoProvider,
+    ) -> Result<(), AttestationValidationError> {
         if attestation.signature.alg != self.signature_alg {
-            return Err(InconsistentAttestation(format!(
+            return Err(AttestationValidationError::inconsistent(format!(
                 "signature algorithm: expected {:?}, got {:?}",
                 self.signature_alg, attestation.signature.alg
             )));
         }
 
         if attestation.header.root.alg != self.hash_alg {
-            return Err(InconsistentAttestation(format!(
+            return Err(AttestationValidationError::inconsistent(format!(
                 "hash algorithm: expected {:?}, got {:?}",
                 self.hash_alg, attestation.header.root.alg
             )));
         }
 
         if attestation.body.cert_commitment() != &self.server_cert_commitment {
-            return Err(InconsistentAttestation(
-                "server certificate commitment does not match".to_string(),
+            return Err(AttestationValidationError::inconsistent(
+                "server certificate commitment does not match",
             ));
         }
 
         // TODO: improve the O(M*N) complexity of this check.
         for extension in &self.extensions {
             if !attestation.body.extensions().any(|e| e == extension) {
-                return Err(InconsistentAttestation(
-                    "extension is missing from the attestation".to_string(),
+                return Err(AttestationValidationError::inconsistent(
+                    "extension is missing from the attestation",
                 ));
             }
         }
+
+        let verifier = provider
+            .signature
+            .get(&attestation.signature.alg)
+            .map_err(|_| {
+                AttestationValidationError::provider(format!(
+                    "provider not configured for signature algorithm id {:?}",
+                    attestation.signature.alg,
+                ))
+            })?;
+
+        verifier
+            .verify(
+                &attestation.body.verifying_key.data,
+                &CanonicalSerialize::serialize(&attestation.header),
+                &attestation.signature.data,
+            )
+            .map_err(|_| {
+                AttestationValidationError::inconsistent("failed to verify the signature")
+            })?;
 
         Ok(())
     }
@@ -77,8 +104,42 @@ impl Request {
 
 /// Error for [`Request::validate`].
 #[derive(Debug, thiserror::Error)]
-#[error("inconsistent attestation: {0}")]
-pub struct InconsistentAttestation(String);
+#[error("attestation validation error: {kind}: {message}")]
+pub struct AttestationValidationError {
+    kind: ErrorKind,
+    message: String,
+}
+
+impl AttestationValidationError {
+    fn inconsistent(msg: impl Into<String>) -> Self {
+        Self {
+            kind: ErrorKind::Inconsistent,
+            message: msg.into(),
+        }
+    }
+
+    fn provider(msg: impl Into<String>) -> Self {
+        Self {
+            kind: ErrorKind::Provider,
+            message: msg.into(),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum ErrorKind {
+    Inconsistent,
+    Provider,
+}
+
+impl std::fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorKind::Inconsistent => write!(f, "inconsistent"),
+            ErrorKind::Provider => write!(f, "provider"),
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -93,7 +154,8 @@ mod test {
     use crate::{
         CryptoProvider,
         connection::ServerCertOpening,
-        fixtures::{RequestFixture, attestation_fixture, request_fixture},
+        fixtures::{RequestFixture, attestation_fixture, custom_provider_fixture, request_fixture},
+        request::{AttestationValidationError, ErrorKind},
         signing::SignatureAlgId,
     };
 
@@ -113,7 +175,9 @@ mod test {
         let attestation =
             attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
 
-        assert!(request.validate(&attestation).is_ok())
+        let provider = CryptoProvider::default();
+
+        assert!(request.validate(&attestation, &provider).is_ok())
     }
 
     #[test]
@@ -134,7 +198,9 @@ mod test {
 
         request.signature_alg = SignatureAlgId::SECP256R1;
 
-        let res = request.validate(&attestation);
+        let provider = CryptoProvider::default();
+
+        let res = request.validate(&attestation, &provider);
         assert!(res.is_err());
     }
 
@@ -156,7 +222,9 @@ mod test {
 
         request.hash_alg = HashAlgId::SHA256;
 
-        let res = request.validate(&attestation);
+        let provider = CryptoProvider::default();
+
+        let res = request.validate(&attestation, &provider);
         assert!(res.is_err())
     }
 
@@ -184,11 +252,62 @@ mod test {
         });
         let opening = ServerCertOpening::new(server_cert_data);
 
-        let crypto_provider = CryptoProvider::default();
+        let provider = CryptoProvider::default();
         request.server_cert_commitment =
-            opening.commit(crypto_provider.hash.get(&HashAlgId::BLAKE3).unwrap());
+            opening.commit(provider.hash.get(&HashAlgId::BLAKE3).unwrap());
 
-        let res = request.validate(&attestation);
+        let res = request.validate(&attestation, &provider);
         assert!(res.is_err())
+    }
+
+    #[test]
+    fn test_wrong_sig() {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+            Vec::new(),
+        );
+
+        let mut attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
+
+        // Corrupt the signature.
+        attestation.signature.data[1] = attestation.signature.data[1].wrapping_add(1);
+
+        let provider = CryptoProvider::default();
+
+        assert!(request.validate(&attestation, &provider).is_err())
+    }
+
+    #[test]
+    fn test_wrong_provider() {
+        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+        let connection = ConnectionFixture::tlsnotary(transcript.length());
+
+        let RequestFixture { request, .. } = request_fixture(
+            transcript,
+            encoding_provider(GET_WITH_HEADER, OK_JSON),
+            connection.clone(),
+            Blake3::default(),
+            Vec::new(),
+        );
+
+        let attestation =
+            attestation_fixture(request.clone(), connection, SignatureAlgId::SECP256K1, &[]);
+
+        let provider = custom_provider_fixture();
+
+        assert!(matches!(
+            request.validate(&attestation, &provider),
+            Err(AttestationValidationError {
+                kind: ErrorKind::Provider,
+                ..
+            })
+        ))
     }
 }
