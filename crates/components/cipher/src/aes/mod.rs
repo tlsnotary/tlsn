@@ -2,7 +2,7 @@
 
 use crate::{Cipher, CtrBlock, Keystream};
 use async_trait::async_trait;
-use mpz_circuits_data::{AES128_KS, AES128_POST_KS};
+use mpz_circuits::{AES128_KS, AES128_POST_KS};
 use mpz_memory_core::binary::{Binary, U8};
 use mpz_vm_core::{prelude::*, Call, Vm};
 use std::fmt::Debug;

@@ -15,8 +15,7 @@ workspace = true
 name = "cipher"
 
 [dependencies]
-mpz-circuits = { workspace = true }
-mpz-circuits-data = { workspace = true }
+mpz-circuits = { workspace = true, features = ["aes"] }
 mpz-vm-core = { workspace = true }
 mpz-memory-core = { workspace = true }
 
