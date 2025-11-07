@@ -4,14 +4,12 @@ use criterion::{criterion_group, criterion_main, Criterion};
 
 use hmac_sha256::{Mode, MpcPrf};
 use mpz_common::context::test_mt_context;
-use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-use mpz_ot::ideal::cot::ideal_cot;
+use mpz_ideal_vm::IdealVm;
 use mpz_vm_core::{
-    memory::{binary::U8, correlated::Delta, Array},
+    memory::{binary::U8, Array},
     prelude::*,
     Execute,
 };
-use rand::{rngs::StdRng, SeedableRng};
 
 #[allow(clippy::unit_arg)]
 fn criterion_benchmark(c: &mut Criterion) {
@@ -29,8 +27,6 @@ criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
 
 async fn prf(mode: Mode) {
-    let mut rng = StdRng::seed_from_u64(0);
-
     let pms = [42u8; 32];
     let client_random = [69u8; 32];
     let server_random: [u8; 32] = [96u8; 32];
@@ -39,11 +35,8 @@ async fn prf(mode: Mode) {
     let mut leader_ctx = leader_exec.new_context().await.unwrap();
     let mut follower_ctx = follower_exec.new_context().await.unwrap();
 
-    let delta = Delta::random(&mut rng);
-    let (ot_send, ot_recv) = ideal_cot(delta.into_inner());
-
-    let mut leader_vm = Garbler::new(ot_send, [0u8; 16], delta);
-    let mut follower_vm = Evaluator::new(ot_recv);
+    let mut leader_vm = IdealVm::new();
+    let mut follower_vm = IdealVm::new();
 
     let leader_pms: Array<U8, 32> = leader_vm.alloc().unwrap();
     leader_vm.mark_public(leader_pms).unwrap();

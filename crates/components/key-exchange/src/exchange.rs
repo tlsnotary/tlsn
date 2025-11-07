@@ -459,9 +459,7 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
     use mpz_fields::UniformRand;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-    use mpz_memory_core::correlated::Delta;
-    use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
+    use mpz_ideal_vm::IdealVm;
     use mpz_share_conversion::ideal::{
         ideal_share_convert, IdealShareConvertReceiver, IdealShareConvertSender,
     };
@@ -484,7 +482,8 @@ mod tests {
     async fn test_key_exchange() {
         let mut rng = StdRng::seed_from_u64(0).compat();
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut gen, mut ev) = mock_vm();
+        let mut gen = IdealVm::new();
+        let mut ev = IdealVm::new();
 
         let leader_private_key = SecretKey::random(&mut rng);
         let follower_private_key = SecretKey::random(&mut rng);
@@ -625,7 +624,8 @@ mod tests {
     async fn test_malicious_key_exchange(#[case] malicious: Malicious) {
         let mut rng = StdRng::seed_from_u64(0);
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut gen, mut ev) = mock_vm();
+        let mut gen = IdealVm::new();
+        let mut ev = IdealVm::new();
 
         let leader_private_key = SecretKey::random(&mut rng.compat_by_ref());
         let follower_private_key = SecretKey::random(&mut rng.compat_by_ref());
@@ -704,7 +704,8 @@ mod tests {
     #[tokio::test]
     async fn test_circuit() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (gen, ev) = mock_vm();
+        let gen = IdealVm::new();
+        let ev = IdealVm::new();
 
         let share_a0_bytes = [5_u8; 32];
         let share_a1_bytes = [2_u8; 32];
@@ -833,17 +834,5 @@ mod tests {
             MpcKeyExchange::new(Role::Follower, follower_converter_0, follower_converter_1);
 
         (leader, follower)
-    }
-
-    fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
-
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
-
-        let gen = Garbler::new(cot_send, [0u8; 16], delta);
-        let ev = Evaluator::new(cot_recv);
-
-        (gen, ev)
     }
 }

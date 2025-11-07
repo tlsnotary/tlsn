@@ -4,14 +4,13 @@ use futures::{AsyncReadExt, AsyncWriteExt};
 use mpc_tls::{Config, MpcTlsFollower, MpcTlsLeader};
 use mpz_common::context::test_mt_context;
 use mpz_core::Block;
-use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
+use mpz_ideal_vm::IdealVm;
 use mpz_memory_core::correlated::Delta;
 use mpz_ot::{
-    cot::{DerandCOTReceiver, DerandCOTSender},
     ideal::rcot::ideal_rcot,
     rcot::shared::{SharedRCOTReceiver, SharedRCOTSender},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, SeedableRng};
 use rustls_pki_types::CertificateDer;
 use tls_client::RootCertStore;
 use tls_client_async::bind_client;
@@ -23,7 +22,6 @@ use webpki::anchor_from_trusted_cert;
 const CA_CERT: CertificateDer = CertificateDer::from_slice(CA_CERT_DER);
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore = "expensive"]
 async fn mpc_tls_test() {
     tracing_subscriber::fmt::init();
 
@@ -139,14 +137,8 @@ fn build_pair(config: Config) -> (MpcTlsLeader, MpcTlsFollower) {
     let rcot_recv_a = SharedRCOTReceiver::new(rcot_recv_a);
     let rcot_recv_b = SharedRCOTReceiver::new(rcot_recv_b);
 
-    let mpc_a = Arc::new(Mutex::new(Garbler::new(
-        DerandCOTSender::new(rcot_send_a.clone()),
-        rand::rng().random(),
-        delta_a,
-    )));
-    let mpc_b = Arc::new(Mutex::new(Evaluator::new(DerandCOTReceiver::new(
-        rcot_recv_b.clone(),
-    ))));
+    let mpc_a = Arc::new(Mutex::new(IdealVm::new()));
+    let mpc_b = Arc::new(Mutex::new(IdealVm::new()));
 
     let leader = MpcTlsLeader::new(
         config.clone(),

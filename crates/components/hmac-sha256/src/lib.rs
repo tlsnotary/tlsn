@@ -72,10 +72,11 @@ fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use crate::{
-        test_utils::{mock_vm, prf_cf_vd, prf_keys, prf_ms, prf_sf_vd},
+        test_utils::{prf_cf_vd, prf_keys, prf_ms, prf_sf_vd},
         Mode, MpcPrf, SessionKeys,
     };
     use mpz_common::context::test_st_context;
+    use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
         memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
@@ -123,7 +124,8 @@ mod tests {
 
         // Set up vm and prf
         let (mut ctx_a, mut ctx_b) = test_st_context(128);
-        let (mut leader, mut follower) = mock_vm();
+        let mut leader = IdealVm::new();
+        let mut follower = IdealVm::new();
 
         let leader_pms: Array<U8, 32> = leader.alloc().unwrap();
         leader.mark_public(leader_pms).unwrap();

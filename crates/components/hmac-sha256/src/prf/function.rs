@@ -137,10 +137,11 @@ impl Prf {
 mod tests {
     use crate::{
         prf::{compute_partial, function::Prf},
-        test_utils::{mock_vm, phash},
+        test_utils::phash,
         Mode,
     };
     use mpz_common::context::test_st_context;
+    use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
         memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
@@ -166,7 +167,8 @@ mod tests {
         let mut rng = ThreadRng::default();
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut leader, mut follower) = mock_vm();
+        let mut leader = IdealVm::new();
+        let mut follower = IdealVm::new();
 
         let key: [u8; 32] = rng.random();
         let start_seed: Vec<u8> = vec![42; 64];

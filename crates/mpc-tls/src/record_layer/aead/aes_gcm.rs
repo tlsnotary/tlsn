@@ -456,9 +456,8 @@ mod tests {
     };
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-    use mpz_memory_core::{binary::U8, correlated::Delta};
-    use mpz_ot::ideal::cot::ideal_cot;
+    use mpz_ideal_vm::IdealVm;
+    use mpz_memory_core::binary::U8;
     use mpz_share_conversion::ideal::ideal_share_convert;
     use rand::{rngs::StdRng, SeedableRng};
     use rstest::*;
@@ -574,13 +573,8 @@ mod tests {
     }
 
     fn create_vm(key: [u8; 16], iv: [u8; 4]) -> ((impl Vm<Binary>, Vars), (impl Vm<Binary>, Vars)) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let block = Block::random(&mut rng);
-        let (sender, receiver) = ideal_cot(block);
-
-        let delta = Delta::new(block);
-        let mut vm_0 = Garbler::new(sender, [0u8; 16], delta);
-        let mut vm_1 = Evaluator::new(receiver);
+        let mut vm_0 = IdealVm::new();
+        let mut vm_1 = IdealVm::new();
 
         let key_ref_0 = vm_0.alloc::<Array<U8, 16>>().unwrap();
         vm_0.mark_public(key_ref_0).unwrap();

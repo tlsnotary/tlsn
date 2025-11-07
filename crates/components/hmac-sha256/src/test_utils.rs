@@ -1,24 +1,9 @@
 use crate::{sha256, state_to_bytes};
-use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-use mpz_ot::ideal::cot::{ideal_cot, IdealCOTReceiver, IdealCOTSender};
-use mpz_vm_core::memory::correlated::Delta;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 pub(crate) const SHA256_IV: [u32; 8] = [
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
 ];
-
-pub(crate) fn mock_vm() -> (Garbler<IdealCOTSender>, Evaluator<IdealCOTReceiver>) {
-    let mut rng = StdRng::seed_from_u64(0);
-    let delta = Delta::random(&mut rng);
-
-    let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
-
-    let gen = Garbler::new(cot_send, [0u8; 16], delta);
-    let ev = Evaluator::new(cot_recv);
-
-    (gen, ev)
-}
 
 pub(crate) fn prf_ms(pms: [u8; 32], client_random: [u8; 32], server_random: [u8; 32]) -> [u8; 48] {
     let mut label_start_seed = b"master secret".to_vec();
