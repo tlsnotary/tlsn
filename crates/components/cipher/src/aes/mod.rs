@@ -13,13 +13,13 @@ pub use error::AesError;
 use error::ErrorKind;
 
 /// AES key schedule: 11 round keys, 16 bytes each.
-type KeyShedule = Array<U8, 176>;
+type KeySchedule = Array<U8, 176>;
 
 /// Computes AES-128.
 #[derive(Default, Debug)]
 pub struct Aes128 {
     key: Option<Array<U8, 16>>,
-    key_schedule: Option<KeyShedule>,
+    key_schedule: Option<KeySchedule>,
     iv: Option<Array<U8, 4>>,
 }
 
@@ -27,8 +27,8 @@ impl Aes128 {
     // Allocates key schedule.
     //
     // Expects the key to be already set.
-    fn alloc_key_schedule(&self, vm: &mut dyn Vm<Binary>) -> Result<KeyShedule, AesError> {
-        let ks: KeyShedule = vm
+    fn alloc_key_schedule(&self, vm: &mut dyn Vm<Binary>) -> Result<KeySchedule, AesError> {
+        let ks: KeySchedule = vm
             .call(
                 Call::builder(AES128_KS.clone())
                     .arg(self.key.expect("key is set"))
