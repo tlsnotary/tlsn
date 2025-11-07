@@ -2,7 +2,7 @@
 
 use crate::{Cipher, CtrBlock, Keystream};
 use async_trait::async_trait;
-use mpz_circuits::circuits::AES128;
+use mpz_circuits::{AES128_KS, AES128_POST_KS};
 use mpz_memory_core::binary::{Binary, U8};
 use mpz_vm_core::{prelude::*, Call, Vm};
 use std::fmt::Debug;
@@ -12,11 +12,33 @@ mod error;
 pub use error::AesError;
 use error::ErrorKind;
 
+/// AES key schedule: 11 round keys, 16 bytes each.
+type KeySchedule = Array<U8, 176>;
+
 /// Computes AES-128.
 #[derive(Default, Debug)]
 pub struct Aes128 {
     key: Option<Array<U8, 16>>,
+    key_schedule: Option<KeySchedule>,
     iv: Option<Array<U8, 4>>,
+}
+
+impl Aes128 {
+    // Allocates key schedule.
+    //
+    // Expects the key to be already set.
+    fn alloc_key_schedule(&self, vm: &mut dyn Vm<Binary>) -> Result<KeySchedule, AesError> {
+        let ks: KeySchedule = vm
+            .call(
+                Call::builder(AES128_KS.clone())
+                    .arg(self.key.expect("key is set"))
+                    .build()
+                    .expect("call should be valid"),
+            )
+            .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
+
+        Ok(ks)
+    }
 }
 
 #[async_trait]
@@ -45,18 +67,22 @@ impl Cipher for Aes128 {
     }
 
     fn alloc_block(
-        &self,
+        &mut self,
         vm: &mut dyn Vm<Binary>,
         input: Array<U8, 16>,
     ) -> Result<Self::Block, Self::Error> {
-        let key = self
-            .key
+        self.key
             .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))?;
+
+        if self.key_schedule.is_none() {
+            self.key_schedule = Some(self.alloc_key_schedule(vm)?);
+        }
+        let ks = *self.key_schedule.as_ref().expect("key schedule was set");
 
         let output = vm
             .call(
-                Call::builder(AES128.clone())
-                    .arg(key)
+                Call::builder(AES128_POST_KS.clone())
+                    .arg(ks)
                     .arg(input)
                     .build()
                     .expect("call should be valid"),
@@ -67,11 +93,10 @@ impl Cipher for Aes128 {
     }
 
     fn alloc_ctr_block(
-        &self,
+        &mut self,
         vm: &mut dyn Vm<Binary>,
     ) -> Result<CtrBlock<Self::Nonce, Self::Counter, Self::Block>, Self::Error> {
-        let key = self
-            .key
+        self.key
             .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))?;
         let iv = self
             .iv
@@ -89,10 +114,15 @@ impl Cipher for Aes128 {
         vm.mark_public(counter)
             .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
+        if self.key_schedule.is_none() {
+            self.key_schedule = Some(self.alloc_key_schedule(vm)?);
+        }
+        let ks = *self.key_schedule.as_ref().expect("key schedule was set");
+
         let output = vm
             .call(
-                Call::builder(AES128.clone())
-                    .arg(key)
+                Call::builder(AES128_POST_KS.clone())
+                    .arg(ks)
                     .arg(iv)
                     .arg(explicit_nonce)
                     .arg(counter)
@@ -109,12 +139,11 @@ impl Cipher for Aes128 {
     }
 
     fn alloc_keystream(
-        &self,
+        &mut self,
         vm: &mut dyn Vm<Binary>,
         len: usize,
     ) -> Result<Keystream<Self::Nonce, Self::Counter, Self::Block>, Self::Error> {
-        let key = self
-            .key
+        self.key
             .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))?;
         let iv = self
             .iv
@@ -143,10 +172,15 @@ impl Cipher for Aes128 {
         let blocks = inputs
             .into_iter()
             .map(|(explicit_nonce, counter)| {
+                if self.key_schedule.is_none() {
+                    self.key_schedule = Some(self.alloc_key_schedule(vm)?);
+                }
+                let ks = *self.key_schedule.as_ref().expect("key schedule was set");
+
                 let output = vm
                     .call(
-                        Call::builder(AES128.clone())
-                            .arg(key)
+                        Call::builder(AES128_POST_KS.clone())
+                            .arg(ks)
                             .arg(iv)
                             .arg(explicit_nonce)
                             .arg(counter)
@@ -172,15 +206,12 @@ mod tests {
     use super::*;
     use crate::Cipher;
     use mpz_common::context::test_st_context;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
+    use mpz_ideal_vm::IdealVm;
     use mpz_memory_core::{
         binary::{Binary, U8},
-        correlated::Delta,
         Array, MemoryExt, Vector, ViewExt,
     };
-    use mpz_ot::ideal::cot::ideal_cot;
     use mpz_vm_core::{Execute, Vm};
-    use rand::{rngs::StdRng, SeedableRng};
 
     #[tokio::test]
     async fn test_aes_ctr() {
@@ -190,10 +221,11 @@ mod tests {
         let start_counter = 3u32;
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut gen, mut ev) = mock_vm();
+        let mut gen = IdealVm::new();
+        let mut ev = IdealVm::new();
 
-        let aes_gen = setup_ctr(key, iv, &mut gen);
-        let aes_ev = setup_ctr(key, iv, &mut ev);
+        let mut aes_gen = setup_ctr(key, iv, &mut gen);
+        let mut aes_ev = setup_ctr(key, iv, &mut ev);
 
         let msg = vec![42u8; 128];
 
@@ -252,10 +284,11 @@ mod tests {
         let input = [5_u8; 16];
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut gen, mut ev) = mock_vm();
+        let mut gen = IdealVm::new();
+        let mut ev = IdealVm::new();
 
-        let aes_gen = setup_block(key, &mut gen);
-        let aes_ev = setup_block(key, &mut ev);
+        let mut aes_gen = setup_block(key, &mut gen);
+        let mut aes_ev = setup_block(key, &mut ev);
 
         let block_ref_gen: Array<U8, 16> = gen.alloc().unwrap();
         gen.mark_public(block_ref_gen).unwrap();
@@ -292,18 +325,6 @@ mod tests {
 
         let expected = aes128(key, input);
         assert_eq!(ciphertext_gen, expected);
-    }
-
-    fn mock_vm() -> (impl Vm<Binary>, impl Vm<Binary>) {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta = Delta::random(&mut rng);
-
-        let (cot_send, cot_recv) = ideal_cot(delta.into_inner());
-
-        let gen = Garbler::new(cot_send, [0u8; 16], delta);
-        let ev = Evaluator::new(cot_recv);
-
-        (gen, ev)
     }
 
     fn setup_ctr(key: [u8; 16], iv: [u8; 4], vm: &mut dyn Vm<Binary>) -> Aes128 {
