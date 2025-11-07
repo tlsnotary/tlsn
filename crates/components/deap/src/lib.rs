@@ -384,35 +384,25 @@ enum ErrorRepr {
 mod tests {
     use mpz_circuits::AES128;
     use mpz_common::context::test_st_context;
-    use mpz_core::Block;
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-    use mpz_ot::ideal::{cot::ideal_cot, rcot::ideal_rcot};
+    use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{binary::U8, correlated::Delta, Array},
+        memory::{binary::U8, Array},
         prelude::*,
     };
-    use mpz_zk::{Prover, ProverConfig, Verifier, VerifierConfig};
-    use rand::{rngs::StdRng, SeedableRng};
 
     use super::*;
 
     #[tokio::test]
     async fn test_deap() {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta_mpc = Delta::random(&mut rng);
-        let delta_zk = Delta::random(&mut rng);
-
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
-        let (cot_send, cot_recv) = ideal_cot(delta_mpc.into_inner());
 
-        let gb = Garbler::new(cot_send, [0u8; 16], delta_mpc);
-        let ev = Evaluator::new(cot_recv);
-        let prover = Prover::new(ProverConfig::default(), rcot_recv);
-        let verifier = Verifier::new(VerifierConfig::default(), delta_zk, rcot_send);
+        let leader_mpc = IdealVm::new();
+        let leader_zk = IdealVm::new();
+        let follower_mpc = IdealVm::new();
+        let follower_zk = IdealVm::new();
 
-        let mut leader = Deap::new(Role::Leader, gb, prover);
-        let mut follower = Deap::new(Role::Follower, ev, verifier);
+        let mut leader = Deap::new(Role::Leader, leader_mpc, leader_zk);
+        let mut follower = Deap::new(Role::Follower, follower_mpc, follower_zk);
 
         let (ct_leader, ct_follower) = futures::join!(
             async {
@@ -478,21 +468,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_deap_desync_memory() {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta_mpc = Delta::random(&mut rng);
-        let delta_zk = Delta::random(&mut rng);
-
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
-        let (cot_send, cot_recv) = ideal_cot(delta_mpc.into_inner());
 
-        let gb = Garbler::new(cot_send, [0u8; 16], delta_mpc);
-        let ev = Evaluator::new(cot_recv);
-        let prover = Prover::new(ProverConfig::default(), rcot_recv);
-        let verifier = Verifier::new(VerifierConfig::default(), delta_zk, rcot_send);
+        let leader_mpc = IdealVm::new();
+        let leader_zk = IdealVm::new();
+        let follower_mpc = IdealVm::new();
+        let follower_zk = IdealVm::new();
 
-        let mut leader = Deap::new(Role::Leader, gb, prover);
-        let mut follower = Deap::new(Role::Follower, ev, verifier);
+        let mut leader = Deap::new(Role::Leader, leader_mpc, leader_zk);
+        let mut follower = Deap::new(Role::Follower, follower_mpc, follower_zk);
 
         // Desynchronize the memories.
         let _ = leader.zk().alloc_raw(1).unwrap();
@@ -564,21 +548,15 @@ mod tests {
     // detection by the follower.
     #[tokio::test]
     async fn test_malicious() {
-        let mut rng = StdRng::seed_from_u64(0);
-        let delta_mpc = Delta::random(&mut rng);
-        let delta_zk = Delta::random(&mut rng);
-
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (rcot_send, rcot_recv) = ideal_rcot(Block::ZERO, delta_zk.into_inner());
-        let (cot_send, cot_recv) = ideal_cot(delta_mpc.into_inner());
 
-        let gb = Garbler::new(cot_send, [1u8; 16], delta_mpc);
-        let ev = Evaluator::new(cot_recv);
-        let prover = Prover::new(ProverConfig::default(), rcot_recv);
-        let verifier = Verifier::new(VerifierConfig::default(), delta_zk, rcot_send);
+        let leader_mpc = IdealVm::new();
+        let leader_zk = IdealVm::new();
+        let follower_mpc = IdealVm::new();
+        let follower_zk = IdealVm::new();
 
-        let mut leader = Deap::new(Role::Leader, gb, prover);
-        let mut follower = Deap::new(Role::Follower, ev, verifier);
+        let mut leader = Deap::new(Role::Leader, leader_mpc, leader_zk);
+        let mut follower = Deap::new(Role::Follower, follower_mpc, follower_zk);
 
         let (_, follower_res) = futures::join!(
             async {

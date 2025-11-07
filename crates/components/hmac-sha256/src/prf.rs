@@ -339,8 +339,9 @@ fn gen_merge_circ(size: usize) -> Arc<Circuit> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{prf::merge_outputs, test_utils::mock_vm};
+    use crate::prf::merge_outputs;
     use mpz_common::context::test_st_context;
+    use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
         memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
@@ -349,7 +350,8 @@ mod tests {
     #[tokio::test]
     async fn test_merge_outputs() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut leader, mut follower) = mock_vm();
+        let mut leader = IdealVm::new();
+        let mut follower = IdealVm::new();
 
         let input1: [u8; 32] = std::array::from_fn(|i| i as u8);
         let input2: [u8; 32] = std::array::from_fn(|i| i as u8 + 32);

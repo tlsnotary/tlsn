@@ -54,10 +54,11 @@ mod tests {
     use crate::{
         hmac::hmac_sha256,
         sha256, state_to_bytes,
-        test_utils::{compute_inner_local, compute_outer_partial, mock_vm},
+        test_utils::{compute_inner_local, compute_outer_partial},
     };
     use mpz_common::context::test_st_context;
     use mpz_hash::sha256::Sha256;
+    use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
         memory::{
             binary::{U32, U8},
@@ -83,7 +84,8 @@ mod tests {
     #[tokio::test]
     async fn test_hmac_circuit() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let (mut leader, mut follower) = mock_vm();
+        let mut leader = IdealVm::new();
+        let mut follower = IdealVm::new();
 
         let (inputs, references) = test_fixtures();
         for (input, &reference) in inputs.iter().zip(references.iter()) {

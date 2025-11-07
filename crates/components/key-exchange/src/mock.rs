@@ -26,8 +26,7 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchange, MockKeyExchange) {
 
 #[cfg(test)]
 mod tests {
-    use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
-    use mpz_ot::ideal::cot::{IdealCOTReceiver, IdealCOTSender};
+    use mpz_ideal_vm::IdealVm;
 
     use super::*;
     use crate::KeyExchange;
@@ -40,12 +39,12 @@ mod tests {
 
         is_key_exchange::<
             MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>,
-            Garbler<IdealCOTSender>,
+            IdealVm,
         >(leader);
 
         is_key_exchange::<
             MpcKeyExchange<IdealShareConvertSender<P256>, IdealShareConvertReceiver<P256>>,
-            Evaluator<IdealCOTReceiver>,
+            IdealVm,
         >(follower);
     }
 }

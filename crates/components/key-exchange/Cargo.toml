@@ -40,6 +40,7 @@ tokio = { workspace = true, features = ["sync"] }
 [dev-dependencies]
 mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-garble = { workspace = true }
+mpz-ideal-vm = { workspace = true }
 
 rand_core = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }

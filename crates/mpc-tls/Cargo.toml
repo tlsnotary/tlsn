@@ -56,9 +56,9 @@ pin-project-lite = { workspace = true }
 web-time = { workspace = true }
 
 [dev-dependencies]
-mpz-ole = { workspace = true, features = ["test-utils"] }
-mpz-ot = { workspace = true }
-mpz-garble = { workspace = true }
+mpz-common = { workspace = true, features = ["test-utils"] }
+mpz-ot = { workspace = true, features = ["ideal"] }
+mpz-ideal-vm = { workspace = true }
 
 cipher-crate = { package = "cipher", version = "0.4" }
 generic-array = { workspace = true }
