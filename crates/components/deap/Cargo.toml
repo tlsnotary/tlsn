@@ -19,7 +19,7 @@ futures = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
-mpz-circuits-data = { workspace = true }
+mpz-circuits = { workspace = true, features = ["aes"] }
 mpz-garble = { workspace = true }
 mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-zk = { workspace = true }
