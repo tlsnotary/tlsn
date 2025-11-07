@@ -74,9 +74,10 @@ impl Cipher for Aes128 {
         self.key
             .ok_or_else(|| AesError::new(ErrorKind::Key, "key not set"))?;
 
-        let ks = *self
-            .key_schedule
-            .get_or_insert(self.alloc_key_schedule(vm)?);
+        if self.key_schedule.is_none() {
+            self.key_schedule = Some(self.alloc_key_schedule(vm)?);
+        }
+        let ks = *self.key_schedule.as_ref().expect("key schedule was set");
 
         let output = vm
             .call(
@@ -113,9 +114,10 @@ impl Cipher for Aes128 {
         vm.mark_public(counter)
             .map_err(|err| AesError::new(ErrorKind::Vm, err))?;
 
-        let ks = *self
-            .key_schedule
-            .get_or_insert(self.alloc_key_schedule(vm)?);
+        if self.key_schedule.is_none() {
+            self.key_schedule = Some(self.alloc_key_schedule(vm)?);
+        }
+        let ks = *self.key_schedule.as_ref().expect("key schedule was set");
 
         let output = vm
             .call(
@@ -170,9 +172,10 @@ impl Cipher for Aes128 {
         let blocks = inputs
             .into_iter()
             .map(|(explicit_nonce, counter)| {
-                let ks = *self
-                    .key_schedule
-                    .get_or_insert(self.alloc_key_schedule(vm)?);
+                if self.key_schedule.is_none() {
+                    self.key_schedule = Some(self.alloc_key_schedule(vm)?);
+                }
+                let ks = *self.key_schedule.as_ref().expect("key schedule was set");
 
                 let output = vm
                     .call(
