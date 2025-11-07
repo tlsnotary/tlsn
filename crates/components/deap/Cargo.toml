@@ -19,9 +19,9 @@ futures = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
-mpz-circuits = { workspace = true }
+mpz-circuits-data = { workspace = true }
 mpz-garble = { workspace = true }
-mpz-ot = { workspace = true }
+mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-zk = { workspace = true }
 
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }

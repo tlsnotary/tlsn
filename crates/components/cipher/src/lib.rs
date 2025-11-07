@@ -55,7 +55,7 @@ pub trait Cipher {
 
     /// Allocates a single block in ECB mode.
     fn alloc_block(
-        &self,
+        &mut self,
         vm: &mut dyn Vm<Binary>,
         input: Self::Block,
     ) -> Result<Self::Block, Self::Error>;
@@ -63,7 +63,7 @@ pub trait Cipher {
     /// Allocates a single block in counter mode.
     #[allow(clippy::type_complexity)]
     fn alloc_ctr_block(
-        &self,
+        &mut self,
         vm: &mut dyn Vm<Binary>,
     ) -> Result<CtrBlock<Self::Nonce, Self::Counter, Self::Block>, Self::Error>;
 
@@ -75,7 +75,7 @@ pub trait Cipher {
     /// * `len` - Length of the stream in bytes.
     #[allow(clippy::type_complexity)]
     fn alloc_keystream(
-        &self,
+        &mut self,
         vm: &mut dyn Vm<Binary>,
         len: usize,
     ) -> Result<Keystream<Self::Nonce, Self::Counter, Self::Block>, Self::Error>;

@@ -33,6 +33,7 @@ web-spawn = { workspace = true, optional = true }
 mpz-common = { workspace = true }
 mpz-core = { workspace = true }
 mpz-circuits = { workspace = true }
+mpz-circuits-data = { workspace = true }
 mpz-garble = { workspace = true }
 mpz-garble-core = { workspace = true }
 mpz-hash = { workspace = true }
