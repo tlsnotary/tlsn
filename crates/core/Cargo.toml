@@ -27,6 +27,12 @@ tlsn-data-fixtures = { workspace = true, optional = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils = { workspace = true }
 rangeset = { workspace = true, features = ["serde"] }
+mpz-circuits = { workspace = true }
+pest = "*"
+pest_derive = "*"
+pest_meta = "*"
+
+
 
 aead = { workspace = true, features = ["alloc"], optional = true }
 aes-gcm = { workspace = true, optional = true }

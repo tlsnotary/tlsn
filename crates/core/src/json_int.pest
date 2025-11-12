@@ -1,0 +1,3 @@
+// Copied from pest.json
+
+int    = @{ "0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }

@@ -14,6 +14,9 @@ pub mod webpki;
 pub use rangeset;
 pub mod config;
 pub(crate) mod display;
+//pub mod grammar;
+pub mod json;
+pub mod predicates;
 
 use serde::{Deserialize, Serialize};
 

@@ -1,0 +1,6 @@
+// Copied from pest.json
+// Replaced "string" with "X" to avoid recursion. 
+
+string   = @{ (!("\"" | "\\") ~ ANY)* ~ (escape ~ "X")? }
+escape  = @{ "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | unicode) }
+unicode = @{ "u" ~ ASCII_HEX_DIGIT{4} }
