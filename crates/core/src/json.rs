@@ -615,7 +615,7 @@ mod test {
     #[test]
     fn test_json_str() {
         use rand::{distr::Alphanumeric, rng, Rng};
-        const LENGTH: usize = 16; // Adjustable constant
+        const LENGTH: usize = 10; // Adjustable constant
 
         let grammar = include_str!("json_str.pest");
 
@@ -634,13 +634,19 @@ mod test {
 
         let exp = build_rules(&rules_ast);
 
-        let pred = expr_to_pred(&exp, 0, LENGTH, true);
-        assert!(pred.len() == 1);
-        let pred = &pred[0].0;
+        for len in LENGTH..LENGTH + 7 {
+            let pred = expr_to_pred(&exp, 0, len, true);
+            assert!(pred.len() == 1);
+            let pred = &pred[0].0;
 
-        let circ = Compiler::new().compile(pred);
+            let circ = Compiler::new().compile(pred);
 
-        println!("and gate count {:?}", circ.and_count());
+            println!(
+                "JSON string length: {:?}; circuit AND gate count {:?}",
+                len,
+                circ.and_count()
+            );
+        }
     }
 
     #[test]
