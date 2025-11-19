@@ -7,6 +7,7 @@ use crate::{
     transcript::{Direction, Transcript},
     webpki::CertificateDer,
 };
+use serde::{Deserialize, Serialize};
 use tls_core::msgs::{
     alert::AlertMessagePayload,
     codec::{Codec, Reader},
@@ -58,7 +59,7 @@ impl From<tls_core::msgs::enums::ContentType> for ContentType {
 }
 
 /// A transcript of TLS records sent and received by the prover.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TlsTranscript {
     time: u64,
     version: TlsVersion,
@@ -334,7 +335,7 @@ impl TlsTranscript {
 }
 
 /// A TLS record.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Record {
     /// Sequence number.
     pub seq: u64,
