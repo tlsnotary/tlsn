@@ -88,7 +88,7 @@ async fn leader_task(mut leader: MpcTlsLeader) {
     let mut buf = vec![0u8; 48];
     conn.read_exact(&mut buf).await.unwrap();
 
-    leader_ctrl.defer_decryption().await.unwrap();
+    leader_ctrl.enable_decryption(false).await.unwrap();
 
     let msg = concat!(
         "POST /echo HTTP/1.1\r\n",
