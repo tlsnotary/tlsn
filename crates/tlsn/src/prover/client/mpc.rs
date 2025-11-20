@@ -48,7 +48,7 @@ enum State {
     },
     Closing {
         ctx: Context,
-        transcript: TlsTranscript,
+        transcript: Box<TlsTranscript>,
         fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>>>>,
     },
     Finalizing {
@@ -280,7 +280,7 @@ impl TlsClient for MpcTlsClient {
                     (Poll::Pending, Poll::Ready((ctx, transcript))) => {
                         self.state = State::Closing {
                             ctx,
-                            transcript,
+                            transcript: Box::new(transcript),
                             fut,
                         };
                     }
@@ -305,7 +305,7 @@ impl TlsClient for MpcTlsClient {
                     (Poll::Pending, Poll::Ready((ctx, transcript))) => {
                         self.state = State::Closing {
                             ctx,
-                            transcript,
+                            transcript: Box::new(transcript),
                             fut,
                         };
                     }
@@ -320,7 +320,7 @@ impl TlsClient for MpcTlsClient {
             } => {
                 if let Poll::Ready(inner) = fut.poll_unpin(cx)? {
                     self.state = State::Finalizing {
-                        fut: Box::pin(inner.finalize(ctx, transcript)),
+                        fut: Box::pin(inner.finalize(ctx, *transcript)),
                     };
                 } else {
                     self.state = State::Closing {
