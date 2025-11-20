@@ -126,9 +126,7 @@ impl TlsClient for MpcTlsClient {
         if let Some(client) = self.inner_client_mut()
             && client.wants_read()
         {
-            let res = client.read_tls(&mut buf).map_err(ProverError::from);
-
-            res
+            client.read_tls(&mut buf).map_err(ProverError::from)
         } else {
             Ok(0)
         }
@@ -138,9 +136,7 @@ impl TlsClient for MpcTlsClient {
         if let Some(client) = self.inner_client_mut()
             && client.wants_write()
         {
-            let res = client.write_tls(&mut buf).map_err(ProverError::from);
-
-            res
+            client.write_tls(&mut buf).map_err(ProverError::from)
         } else {
             Ok(0)
         }
@@ -166,9 +162,7 @@ impl TlsClient for MpcTlsClient {
         if let Some(client) = self.inner_client_mut()
             && !client.sendable_plaintext_is_full()
         {
-            let res = client.read_plaintext(buf).map_err(ProverError::from);
-
-            res
+            client.read_plaintext(buf).map_err(ProverError::from)
         } else {
             Ok(0)
         }
@@ -178,9 +172,7 @@ impl TlsClient for MpcTlsClient {
         if let Some(client) = self.inner_client_mut()
             && !client.plaintext_is_empty()
         {
-            let res = client.write_plaintext(buf).map_err(ProverError::from);
-
-            res
+            client.write_plaintext(buf).map_err(ProverError::from)
         } else {
             Ok(0)
         }
@@ -225,6 +217,7 @@ impl TlsClient for MpcTlsClient {
     fn enable_decryption(&mut self, enable: bool) -> Result<(), Self::Error> {
         match std::mem::replace(&mut self.state, State::Error) {
             State::Active { inner, mpc } => {
+                self.decrypt = enable;
                 self.state = State::Busy {
                     mpc,
                     fut: Box::pin(inner.set_decrypt(enable)),
@@ -262,9 +255,8 @@ impl TlsClient for MpcTlsClient {
                 // yet.
                 let _ = mpc.as_mut().poll(cx)?;
 
-                match fut.as_mut().poll(cx) {
-                    Poll::Ready(res) => {
-                        let inner = res?;
+                match fut.as_mut().poll(cx)? {
+                    Poll::Ready(inner) => {
                         self.state = State::Active { mpc, inner };
                     }
                     Poll::Pending => self.state = State::Busy { mpc, fut },
@@ -339,7 +331,7 @@ impl TlsClient for MpcTlsClient {
                 }
                 self.poll(cx)
             }
-            State::Finalizing { mut fut } => match fut.as_mut().poll(cx) {
+            State::Finalizing { mut fut } => match fut.poll_unpin(cx) {
                 Poll::Ready(output) => {
                     let (inner, ctx, tls_transcript) = output?;
                     let InnerState { vm, keys, .. } = inner;
@@ -366,7 +358,7 @@ impl TlsClient for MpcTlsClient {
                 }
                 Poll::Pending => {
                     self.state = State::Finalizing { fut };
-                    Poll::Pending
+                    self.poll(cx)
                 }
             },
             State::Finished => Poll::Ready(Err(ProverError::state(

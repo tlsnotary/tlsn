@@ -13,7 +13,7 @@ pub(crate) use mpc::MpcTlsClient;
 pub(crate) trait TlsClient {
     type Error: std::error::Error + Send + Sync + Unpin + 'static;
 
-    /// Returns `true` if the client can read TLS data from the server.
+    /// Returns `true` if the client wants to read TLS data from the server.
     fn wants_read_tls(&self) -> bool;
 
     /// Returns `true` if the client wants to write TLS data to the server.
@@ -25,7 +25,7 @@ pub(crate) trait TlsClient {
     /// Writes TLS data for the server into the provided buffer.
     fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
 
-    /// Returns `true` if the client can read plaintext data.
+    /// Returns `true` if the client wants to read plaintext data.
     fn wants_read(&self) -> bool;
 
     /// Returns `true` if the client wants to write plaintext data.
@@ -46,7 +46,7 @@ pub(crate) trait TlsClient {
     /// Enables or disables decryption of TLS traffic sent by the server.
     fn enable_decryption(&mut self, enable: bool) -> Result<(), Self::Error>;
 
-    /// Returns if decryption of TLS traffic from the server is active.
+    /// Returns `true` if decryption of TLS traffic from the server is active.
     fn is_decrypting(&self) -> bool;
 
     /// Polls the client to make progress.

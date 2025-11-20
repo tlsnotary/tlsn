@@ -226,7 +226,7 @@ impl Prover<state::CommitAccepted> {
 }
 
 impl Prover<state::Connected> {
-    /// Returns `true` if the prover can read TLS data from the server.
+    /// Returns `true` if the prover wants to read TLS data from the server.
     pub fn wants_read_tls(&self) -> bool {
         self.state.tls_client.wants_read_tls()
     }
@@ -242,10 +242,7 @@ impl Prover<state::Connected> {
     ///
     /// * `buf` - The buffer to read the TLS data from.
     pub fn read_tls(&mut self, buf: &[u8]) -> Result<usize, ProverError> {
-        self.state
-            .tls_client
-            .read_tls(buf)
-            .map_err(ProverError::from)
+        self.state.tls_client.read_tls(buf)
     }
 
     /// Writes TLS data for the server into the provided buffer.
@@ -254,10 +251,7 @@ impl Prover<state::Connected> {
     ///
     /// * `buf` - The buffer to write the TLS data to.
     pub fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, ProverError> {
-        self.state
-            .tls_client
-            .write_tls(buf)
-            .map_err(ProverError::from)
+        self.state.tls_client.write_tls(buf)
     }
 
     /// Returns `true` if the prover wants to read plaintext data.
@@ -276,7 +270,7 @@ impl Prover<state::Connected> {
     ///
     /// * `buf` - The buffer where the plaintext data gets written to.
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, ProverError> {
-        self.state.tls_client.read(buf).map_err(ProverError::from)
+        self.state.tls_client.read(buf)
     }
 
     /// Writes plaintext data to be sent to the server.
@@ -285,23 +279,17 @@ impl Prover<state::Connected> {
     ///
     /// * `buf` - The buffer to read the plaintext data from.
     pub fn write(&mut self, buf: &[u8]) -> Result<usize, ProverError> {
-        self.state.tls_client.write(buf).map_err(ProverError::from)
+        self.state.tls_client.write(buf)
     }
 
     /// Closes the connection from the client side.
     pub fn client_close(&mut self) -> Result<(), ProverError> {
-        self.state
-            .tls_client
-            .client_close()
-            .map_err(ProverError::from)
+        self.state.tls_client.client_close()
     }
 
     /// Closes the connection from the server side.
     pub fn server_close(&mut self) -> Result<(), ProverError> {
-        self.state
-            .tls_client
-            .server_close()
-            .map_err(ProverError::from)
+        self.state.tls_client.server_close()
     }
 
     /// Enables or disables the decryption of data from the server until the
@@ -311,10 +299,7 @@ impl Prover<state::Connected> {
     ///
     /// * `enable` - Whether to enable or disable decryption.
     pub fn enable_decryption(&mut self, enable: bool) -> Result<(), ProverError> {
-        self.state
-            .tls_client
-            .enable_decryption(enable)
-            .map_err(ProverError::from)
+        self.state.tls_client.enable_decryption(enable)
     }
 
     /// Returns `true` if decryption of TLS traffic from the server is active.
@@ -330,9 +315,9 @@ impl Prover<state::Connected> {
     pub fn poll(&mut self, cx: &mut Context) -> Poll<Result<(), ProverError>> {
         let _ = self.state.mux_fut.poll_unpin(cx)?;
 
-        match self.state.tls_client.poll(cx) {
+        match self.state.tls_client.poll(cx)? {
             Poll::Ready(output) => {
-                self.state.output = Some(output?);
+                self.state.output = Some(output);
                 Poll::Ready(Ok(()))
             }
             Poll::Pending => Poll::Pending,
