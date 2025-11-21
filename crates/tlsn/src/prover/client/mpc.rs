@@ -30,6 +30,10 @@ pub(crate) struct MpcTlsClient {
 }
 
 enum State {
+    Start {
+        mpc: Pin<MpcFuture>,
+        inner: Box<InnerState>,
+    },
     Active {
         mpc: Pin<MpcFuture>,
         inner: Box<InnerState>,
@@ -79,7 +83,7 @@ impl MpcTlsClient {
 
         Self {
             decrypt,
-            state: State::Active {
+            state: State::Start {
                 mpc: Box::into_pin(mpc),
                 inner: Box::new(inner),
             },
@@ -239,6 +243,13 @@ impl TlsClient for MpcTlsClient {
 
     fn poll(&mut self, cx: &mut std::task::Context) -> Poll<Result<TlsOutput, Self::Error>> {
         match std::mem::replace(&mut self.state, State::Error) {
+            State::Start { mpc, inner } => {
+                self.state = State::Busy {
+                    mpc,
+                    fut: Box::pin(inner.start()),
+                };
+                self.poll(cx)
+            }
             State::Active { mpc, inner } => {
                 trace!("inner client is active");
 
@@ -382,6 +393,18 @@ struct InnerState {
 
 impl InnerState {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
+    async fn start(mut self: Box<Self>) -> Result<Box<Self>, ProverError> {
+        self.tls.start().await?;
+        Ok(self)
+    }
+
+    #[instrument(parent = &self.span, level = "trace", skip_all, err)]
+    async fn run(mut self: Box<Self>) -> Result<Box<Self>, ProverError> {
+        self.tls.process_new_packets().await?;
+        Ok(self)
+    }
+
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn set_decrypt(self: Box<Self>, enable: bool) -> Result<Box<Self>, ProverError> {
         self.mpc_ctrl.enable_decryption(enable).await?;
         self.run().await
@@ -411,12 +434,6 @@ impl InnerState {
             debug!("closed connection");
         }
         self.run().await
-    }
-
-    #[instrument(parent = &self.span, level = "trace", skip_all, err)]
-    async fn run(mut self: Box<Self>) -> Result<Box<Self>, ProverError> {
-        self.tls.process_new_packets().await?;
-        Ok(self)
     }
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
