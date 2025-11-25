@@ -262,9 +262,12 @@ impl TlsClient for MpcTlsClient {
             State::Busy { mut mpc, mut fut } => {
                 trace!("inner client is busy");
 
-                // mpc future cannot be ready at this point becaus we have not called `stop`
-                // yet.
-                let _ = mpc.as_mut().poll(cx)?;
+                let mpc_poll = mpc.as_mut().poll(cx)?;
+
+                assert!(
+                    matches!(mpc_poll, Poll::Pending),
+                    "mpc future should not be finished here"
+                );
 
                 match fut.as_mut().poll(cx)? {
                     Poll::Ready(inner) => {
