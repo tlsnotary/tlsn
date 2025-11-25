@@ -14,6 +14,10 @@ use tokio::sync::Mutex;
 use crate::{
     mpz::{ProverMpc, ProverZk},
     mux::{MuxControl, MuxFuture},
+    prover::{
+        ProverError,
+        client::{TlsClient, TlsOutput},
+    },
 };
 
 /// Entry state
@@ -32,6 +36,17 @@ pub struct CommitAccepted {
 }
 
 opaque_debug::implement!(CommitAccepted);
+
+/// State during the MPC-TLS connection.
+pub struct Connected {
+    pub(crate) mux_ctrl: MuxControl,
+    pub(crate) mux_fut: MuxFuture,
+    pub(crate) server_name: ServerName,
+    pub(crate) tls_client: Box<dyn TlsClient<Error = ProverError>>,
+    pub(crate) output: Option<TlsOutput>,
+}
+
+opaque_debug::implement!(Connected);
 
 /// State after the TLS transcript has been committed.
 pub struct Committed {
@@ -52,11 +67,13 @@ pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
 impl ProverState for CommitAccepted {}
+impl ProverState for Connected {}
 impl ProverState for Committed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl Sealed for super::CommitAccepted {}
+    impl Sealed for super::Connected {}
     impl Sealed for super::Committed {}
 }

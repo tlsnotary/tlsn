@@ -197,8 +197,8 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
 
                         sent.extend(&data);
                         client
-                            .write_all_plaintext(&data)
-                            .await?;
+                            .write_all_plaintext(&data)?;
+                        client.process_new_packets().await?;
 
                         tx_recv_fut = tx_receiver.next().fuse();
                     } else {
