@@ -1,0 +1,63 @@
+//! Provides a TLS client.
+
+use crate::mpz::ProverZk;
+use mpc_tls::SessionKeys;
+use std::task::{Context, Poll};
+use tlsn_core::transcript::{TlsTranscript, Transcript};
+
+mod mpc;
+
+pub(crate) use mpc::MpcTlsClient;
+
+/// TLS client for MPC and proxy-based TLS implementations.
+pub(crate) trait TlsClient {
+    type Error: std::error::Error + Send + Sync + Unpin + 'static;
+
+    /// Returns `true` if the client wants to read TLS data from the server.
+    fn wants_read_tls(&self) -> bool;
+
+    /// Returns `true` if the client wants to write TLS data to the server.
+    fn wants_write_tls(&self) -> bool;
+
+    /// Reads TLS data from the server.
+    fn read_tls(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
+
+    /// Writes TLS data for the server into the provided buffer.
+    fn write_tls(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
+
+    /// Returns `true` if the client wants to read plaintext data.
+    fn wants_read(&self) -> bool;
+
+    /// Returns `true` if the client wants to write plaintext data.
+    fn wants_write(&self) -> bool;
+
+    /// Reads plaintext data from the server into the provided buffer.
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
+
+    /// Writes plaintext data to be sent to the server.
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
+
+    /// Client closes the connection.
+    fn client_close(&mut self) -> Result<(), Self::Error>;
+
+    /// Server closes the connection.
+    fn server_close(&mut self) -> Result<(), Self::Error>;
+
+    /// Enables or disables decryption of TLS traffic sent by the server.
+    fn enable_decryption(&mut self, enable: bool) -> Result<(), Self::Error>;
+
+    /// Returns `true` if decryption of TLS traffic from the server is active.
+    fn is_decrypting(&self) -> bool;
+
+    /// Polls the client to make progress.
+    fn poll(&mut self, cx: &mut Context) -> Poll<Result<TlsOutput, Self::Error>>;
+}
+
+/// Output of a TLS session.
+pub(crate) struct TlsOutput {
+    pub(crate) ctx: mpz_common::Context,
+    pub(crate) vm: ProverZk,
+    pub(crate) keys: SessionKeys,
+    pub(crate) tls_transcript: TlsTranscript,
+    pub(crate) transcript: Transcript,
+}

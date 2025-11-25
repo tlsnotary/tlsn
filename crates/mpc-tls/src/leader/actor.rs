@@ -32,10 +32,14 @@ impl MpcTlsLeaderCtrl {
         Self { address }
     }
 
-    /// Defers decryption of any incoming messages.
-    pub async fn defer_decryption(&self) -> Result<(), MpcTlsError> {
+    /// Enables or disables the decryption of any incoming messages.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` - Whether to enable or disable decryption.
+    pub async fn enable_decryption(&self, enable: bool) -> Result<(), MpcTlsError> {
         self.address
-            .send(DeferDecryption)
+            .send(EnableDecryption { enable })
             .await
             .map_err(MpcTlsError::actor)?
     }
@@ -981,7 +985,7 @@ impl Handler<BackendMsgServerClosed> for MpcTlsLeader {
     }
 }
 
-impl Dispatch<MpcTlsLeader> for DeferDecryption {
+impl Dispatch<MpcTlsLeader> for EnableDecryption {
     fn dispatch<R: FnOnce(Self::Return) + Send>(
         self,
         actor: &mut MpcTlsLeader,
@@ -992,13 +996,13 @@ impl Dispatch<MpcTlsLeader> for DeferDecryption {
     }
 }
 
-impl Handler<DeferDecryption> for MpcTlsLeader {
+impl Handler<EnableDecryption> for MpcTlsLeader {
     async fn handle(
         &mut self,
-        _msg: DeferDecryption,
+        msg: EnableDecryption,
         _ctx: &mut LudiCtx<Self>,
-    ) -> <DeferDecryption as Message>::Return {
-        self.defer_decryption().await
+    ) -> <EnableDecryption as Message>::Return {
+        self.enable_decryption(msg.enable)
     }
 }
 
@@ -1048,7 +1052,7 @@ pub enum MpcTlsLeaderMsg {
     BackendMsgGetNotify(BackendMsgGetNotify),
     BackendMsgIsEmpty(BackendMsgIsEmpty),
     BackendMsgServerClosed(BackendMsgServerClosed),
-    DeferDecryption(DeferDecryption),
+    DeferDecryption(EnableDecryption),
     Stop(Stop),
 }
 
@@ -1083,7 +1087,7 @@ pub enum MpcTlsLeaderMsgReturn {
     BackendMsgGetNotify(<BackendMsgGetNotify as Message>::Return),
     BackendMsgIsEmpty(<BackendMsgIsEmpty as Message>::Return),
     BackendMsgServerClosed(<BackendMsgServerClosed as Message>::Return),
-    DeferDecryption(<DeferDecryption as Message>::Return),
+    DeferDecryption(<EnableDecryption as Message>::Return),
     Stop(<Stop as Message>::Return),
 }
 
@@ -1732,23 +1736,25 @@ impl Wrap<BackendMsgServerClosed> for MpcTlsLeaderMsg {
     }
 }
 
-/// Message to start deferring the decryption.
+/// Message to enable or disable the decryption of messages.
 #[allow(missing_docs)]
 #[derive(Debug)]
-pub struct DeferDecryption;
+pub struct EnableDecryption {
+    pub enable: bool,
+}
 
-impl Message for DeferDecryption {
+impl Message for EnableDecryption {
     type Return = Result<(), MpcTlsError>;
 }
 
-impl From<DeferDecryption> for MpcTlsLeaderMsg {
-    fn from(value: DeferDecryption) -> Self {
+impl From<EnableDecryption> for MpcTlsLeaderMsg {
+    fn from(value: EnableDecryption) -> Self {
         MpcTlsLeaderMsg::DeferDecryption(value)
     }
 }
 
-impl Wrap<DeferDecryption> for MpcTlsLeaderMsg {
-    fn unwrap_return(ret: Self::Return) -> Result<<DeferDecryption as Message>::Return, Error> {
+impl Wrap<EnableDecryption> for MpcTlsLeaderMsg {
+    fn unwrap_return(ret: Self::Return) -> Result<<EnableDecryption as Message>::Return, Error> {
         match ret {
             Self::Return::DeferDecryption(value) => Ok(value),
             _ => Err(Error::Wrapper),
