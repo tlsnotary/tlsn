@@ -148,6 +148,7 @@ sct = { version = "0.7" }
 semver = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
+sharded-slab = { version = "0.1" }
 sha2 = { version = "0.10" }
 signature = { version = "2.2" }
 thiserror = { version = "1.0" }
@@ -162,9 +163,14 @@ tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
-web-spawn = { version = "0.2" }
+web-spawn = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f674edd" }
 web-time = { version = "0.2" }
 webpki-roots = { version = "1.0" }
 webpki-root-certs = { version = "1.0" }
 ws_stream_wasm = { version = "0.7.5" }
 zeroize = { version = "1.8" }
+
+[patch.crates-io]
+# Replace sharded-slab with a wasm-friendly fork that provides explicit
+# thread-id cleanup (wasm-bindgen does not run Rust TLS destructors).
+sharded-slab = { git = "https://github.com/tlsnotary/sharded-slab" }
