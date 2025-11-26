@@ -186,20 +186,17 @@ impl MpcTlsConfigBuilder {
 /// Provides optimization options to adapt the protocol to different network
 /// situations.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum NetworkSetting {
     /// Reduces network round-trips at the expense of consuming more network
     /// bandwidth.
     Bandwidth,
     /// Reduces network bandwidth utilization at the expense of more network
     /// round-trips.
+    #[default]
     Latency,
 }
 
-impl Default for NetworkSetting {
-    fn default() -> Self {
-        Self::Latency
-    }
-}
 
 /// Error for [`MpcTlsConfig`].
 #[derive(Debug, thiserror::Error)]
