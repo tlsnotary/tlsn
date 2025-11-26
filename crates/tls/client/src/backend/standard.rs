@@ -1,5 +1,6 @@
 use super::{Backend, BackendError};
 use crate::{DecryptMode, EncryptMode, Error};
+#[allow(deprecated)]
 use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, NewAead, Payload},
     Aes128Gcm,
@@ -507,6 +508,7 @@ impl Encrypter {
         let mut nonce = [0u8; 12];
         nonce[..4].copy_from_slice(&self.write_iv);
         nonce[4..].copy_from_slice(explicit_nonce);
+        #[allow(deprecated)]
         let nonce = GenericArray::from_slice(&nonce);
         let cipher = Aes128Gcm::new_from_slice(&self.write_key).unwrap();
         // ciphertext will have the MAC appended
@@ -568,6 +570,7 @@ impl Decrypter {
         let mut nonce = [0u8; 12];
         nonce[..4].copy_from_slice(&self.write_iv);
         nonce[4..].copy_from_slice(&m.payload.0[0..8]);
+        #[allow(deprecated)]
         let nonce = GenericArray::from_slice(&nonce);
         let plaintext = cipher
             .decrypt(nonce, aes_payload)
