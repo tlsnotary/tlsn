@@ -185,8 +185,7 @@ impl MpcTlsConfigBuilder {
 ///
 /// Provides optimization options to adapt the protocol to different network
 /// situations.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum NetworkSetting {
     /// Reduces network round-trips at the expense of consuming more network
     /// bandwidth.
@@ -196,7 +195,6 @@ pub enum NetworkSetting {
     #[default]
     Latency,
 }
-
 
 /// Error for [`MpcTlsConfig`].
 #[derive(Debug, thiserror::Error)]
