@@ -32,16 +32,11 @@ use crate::debug_prelude::*;
 
 use crate::{cli::Route, network::Network, wasm_server::WasmServer, ws_proxy::WsProxy};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default)]
 pub enum Target {
+    #[default]
     Native,
     Browser,
-}
-
-impl Default for Target {
-    fn default() -> Self {
-        Self::Native
-    }
 }
 
 struct Runner {
