@@ -296,14 +296,14 @@ mod sha2 {
         fn hash(&self, data: &[u8]) -> super::Hash {
             let mut hasher = ::sha2::Sha256::default();
             hasher.update(data);
-            super::Hash::new(hasher.finalize().as_slice())
+            super::Hash::new(hasher.finalize().as_ref())
         }
 
         fn hash_prefixed(&self, prefix: &[u8], data: &[u8]) -> super::Hash {
             let mut hasher = ::sha2::Sha256::default();
             hasher.update(prefix);
             hasher.update(data);
-            super::Hash::new(hasher.finalize().as_slice())
+            super::Hash::new(hasher.finalize().as_ref())
         }
     }
 }

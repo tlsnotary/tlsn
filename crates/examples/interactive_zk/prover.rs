@@ -324,7 +324,7 @@ fn prepare_zk_proof_input(
     hasher.update(&blinder);
     let computed_hash = hasher.finalize();
 
-    if committed_hash != computed_hash.as_slice() {
+    if committed_hash != computed_hash.as_ref() as &[u8] {
         return Err(anyhow::anyhow!(
             "Computed hash does not match committed hash"
         ));

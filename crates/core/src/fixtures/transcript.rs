@@ -2,6 +2,7 @@
 
 use aead::Payload as AeadPayload;
 use aes_gcm::{aead::Aead, Aes128Gcm, NewAead};
+#[allow(deprecated)]
 use generic_array::GenericArray;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tls_core::msgs::{
@@ -180,6 +181,7 @@ fn aes_gcm_encrypt(
     let mut nonce = [0u8; 12];
     nonce[..4].copy_from_slice(&iv);
     nonce[4..].copy_from_slice(&explicit_nonce);
+    #[allow(deprecated)]
     let nonce = GenericArray::from_slice(&nonce);
     let cipher = Aes128Gcm::new_from_slice(&key).unwrap();
 
