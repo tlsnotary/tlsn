@@ -59,7 +59,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let downloaded_preprocess = recv.load(Ordering::Relaxed);
 
     let (mut conn, prover_fut) = prover
-        .connect(
+        .connect_with(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
                 .root_store(RootCertStore {

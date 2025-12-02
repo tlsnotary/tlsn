@@ -42,7 +42,7 @@ pub struct Connected {
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) server_name: ServerName,
-    pub(crate) tls_client: Box<dyn TlsClient<Error = ProverError>>,
+    pub(crate) tls_client: Box<dyn TlsClient<Error = ProverError> + Send>,
     pub(crate) output: Option<TlsOutput>,
 }
 

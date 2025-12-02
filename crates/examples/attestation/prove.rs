@@ -124,7 +124,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     // Bind the prover to the server connection.
     let (tls_connection, prover_fut) = prover
-        .connect(
+        .connect_with(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
                 // Create a root certificate store with the server-fixture's self-signed

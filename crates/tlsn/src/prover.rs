@@ -1,10 +1,14 @@
 //! Prover.
 
 mod client;
+mod conn;
+mod control;
 mod error;
 mod prove;
 pub mod state;
 
+pub use conn::{ConnectionFuture, TlsConnection};
+pub use control::ProverControl;
 pub use error::ProverError;
 pub use tlsn_core::ProverOutput;
 
@@ -21,7 +25,7 @@ use futures::{AsyncRead, AsyncWrite, FutureExt, TryFutureExt};
 use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
 use std::{
-    sync::Arc,
+    sync::{Arc, Mutex},
     task::{Context, Poll},
 };
 use tls_client::{ClientConnection, ServerName as TlsServerName};
@@ -223,6 +227,42 @@ impl Prover<state::CommitAccepted> {
         };
         Ok(prover)
     }
+
+    /// Connects the prover and attaches a socket.
+    ///
+    /// This is a convenience function which returns
+    ///   - [`TlsConnection`] for reading and writing traffic.
+    ///   - [`ConnectionFuture`] which has to be polled for driving the
+    ///     connection forward.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The TLS client configuration.
+    /// * `socket` - The socket for IO.
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
+    pub async fn connect_with<S>(
+        self,
+        config: TlsClientConfig,
+        socket: S,
+    ) -> Result<(TlsConnection, ConnectionFuture<S>), ProverError>
+    where
+        S: AsyncRead + AsyncWrite + Send,
+    {
+        let prover = self.connect(config).await?;
+
+        let prover = Arc::new(Mutex::new(prover));
+        let conn_waker = Arc::new(Mutex::new(None));
+        let fut_waker = Arc::new(Mutex::new(None));
+
+        let conn = TlsConnection::new(
+            Arc::downgrade(&prover),
+            conn_waker.clone(),
+            fut_waker.clone(),
+        );
+        let fut = ConnectionFuture::new(socket, prover, conn_waker, fut_waker);
+
+        Ok((conn, fut))
+    }
 }
 
 impl Prover<state::Connected> {
@@ -317,6 +357,7 @@ impl Prover<state::Connected> {
 
         match self.state.tls_client.poll(cx)? {
             Poll::Ready(output) => {
+                let _ = self.state.mux_fut.poll_unpin(cx)?;
                 self.state.output = Some(output);
                 Poll::Ready(Ok(()))
             }

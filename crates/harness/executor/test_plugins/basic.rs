@@ -47,7 +47,7 @@ async fn prover(provider: &IoProvider) {
         .unwrap();
 
     let (tls_connection, prover_fut) = prover
-        .connect(
+        .connect_with(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
                 .root_store(RootCertStore {
