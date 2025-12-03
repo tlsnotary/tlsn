@@ -13,7 +13,6 @@ members = [
     "crates/server-fixture/server",
     "crates/tls/backend",
     "crates/tls/client",
-    "crates/tls/client-async",
     "crates/tls/core",
     "crates/mpc-tls",
     "crates/tls/server-fixture",
@@ -57,7 +56,6 @@ tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
 tlsn-tls-client = { path = "crates/tls/client" }
-tlsn-tls-client-async = { path = "crates/tls/client-async" }
 tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 tlsn-harness-core = { path = "crates/harness/core" }

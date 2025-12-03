@@ -7214,7 +7214,6 @@ dependencies = [
  "tlsn-server-fixture",
  "tlsn-server-fixture-certs",
  "tlsn-tls-client",
- "tlsn-tls-client-async",
  "tlsn-tls-core",
  "tokio",
  "tokio-util",
@@ -7530,7 +7529,6 @@ dependencies = [
  "tlsn-key-exchange",
  "tlsn-tls-backend",
  "tlsn-tls-client",
- "tlsn-tls-client-async",
  "tlsn-tls-core",
  "tokio",
  "tokio-util",
@@ -7606,26 +7604,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tlsn-tls-client-async"
-version = "0.1.0-alpha.14-pre"
-dependencies = [
- "bytes",
- "futures",
- "http-body-util",
- "hyper",
- "hyper-util",
- "rstest",
- "rustls-pki-types",
- "rustls-webpki 0.103.7",
- "thiserror 1.0.69",
- "tls-server-fixture",
- "tlsn-tls-client",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
 name = "tlsn-tls-core"
 version = "0.1.0-alpha.14-pre"
 dependencies = [
@@ -7671,7 +7649,6 @@ dependencies = [
  "tlsn",
  "tlsn-core",
  "tlsn-server-fixture-certs",
- "tlsn-tls-client-async",
  "tlsn-tls-core",
  "tracing",
  "tracing-subscriber",
