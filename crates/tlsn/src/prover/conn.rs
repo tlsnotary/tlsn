@@ -95,15 +95,14 @@ impl AsyncRead for TlsConnection {
             let read = prover.read(buf)?;
 
             if read != 0 {
+                if let Some(waker) = self.fut_waker().as_ref() {
+                    waker.wake_by_ref();
+                }
                 Poll::Ready(Ok(read))
             } else if self.closed {
                 Poll::Ready(Ok(0))
             } else {
                 *self.conn_waker() = Some(cx.waker().clone());
-
-                if let Some(waker) = self.fut_waker().as_ref() {
-                    waker.wake_by_ref();
-                }
                 Poll::Pending
             }
         } else {
@@ -129,12 +128,12 @@ impl AsyncWrite for TlsConnection {
 
             let write = prover.write(buf)?;
             if write != 0 {
-                Poll::Ready(Ok(write))
-            } else {
-                *self.conn_waker() = Some(cx.waker().clone());
                 if let Some(waker) = self.fut_waker().as_ref() {
                     waker.wake_by_ref();
                 }
+                Poll::Ready(Ok(write))
+            } else {
+                *self.conn_waker() = Some(cx.waker().clone());
                 Poll::Pending
             }
         } else {
