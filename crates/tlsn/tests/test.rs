@@ -38,14 +38,7 @@ const MAX_RECV_RECORDS: usize = 6;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
 async fn test() {
-    tracing_subscriber::fmt()
-        .with_test_writer()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("debug")),
-        )
-        .try_init()
-        .unwrap();
+    tracing_subscriber::fmt::init();
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
 
