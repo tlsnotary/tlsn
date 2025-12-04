@@ -1,4 +1,4 @@
-use rangeset::RangeSet;
+use rangeset::set::RangeSet;
 
 pub(crate) struct FmtRangeSet<'a>(pub &'a RangeSet<usize>);
 

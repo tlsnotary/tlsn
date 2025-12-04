@@ -1,6 +1,10 @@
 //! Transcript proofs.
 
-use rangeset::{Cover, Difference, Subset, ToRangeSet, UnionMut};
+use rangeset::{
+    iter::RangeIterator,
+    ops::{Cover, Difference, Subset, UnionMut},
+    set::ToRangeSet,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt};
 
@@ -366,7 +370,7 @@ impl<'a> TranscriptProofBuilder<'a> {
         if idx.is_subset(committed) {
             self.query_idx.union(&direction, &idx);
         } else {
-            let missing = idx.difference(committed);
+            let missing = idx.difference(committed).into_set();
             return Err(TranscriptProofBuilderError::new(
                 BuilderErrorKind::MissingCommitment,
                 format!(
@@ -582,7 +586,7 @@ impl fmt::Display for TranscriptProofBuilderError {
 #[cfg(test)]
 mod tests {
     use rand::{Rng, SeedableRng};
-    use rangeset::RangeSet;
+    use rangeset::prelude::*;
     use rstest::rstest;
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 

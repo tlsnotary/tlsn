@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt};
 
-use rangeset::{RangeSet, UnionMut};
+use rangeset::{ops::UnionMut, set::RangeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{

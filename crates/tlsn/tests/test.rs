@@ -1,5 +1,5 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
-use rangeset::RangeSet;
+use rangeset::set::RangeSet;
 use tlsn::{
     config::{
         prove::ProveConfig,

@@ -82,11 +82,11 @@ mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "9c343f8" }
 mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "9c343f8" }
 mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "9c343f8" }
 
-rangeset = { version = "0.2" }
+rangeset = { version = "0.3" }
 serio = { version = "0.2" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "566c621" }
 uid-mux = { version = "0.2" }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "566c621" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }

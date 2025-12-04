@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bimap::BiMap;
-use rangeset::{RangeSet, UnionMut};
+use rangeset::{ops::UnionMut, set::RangeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{

@@ -15,7 +15,10 @@ use mpz_vm_core::{
     memory::{binary::Binary, DecodeFuture, Memory, Repr, Slice, View},
     Call, Callable, Execute, Vm, VmError,
 };
-use rangeset::{Difference, RangeSet, UnionMut};
+use rangeset::{
+    ops::{Difference, UnionMut},
+    set::RangeSet,
+};
 use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
 
 type Error = DeapError;
@@ -210,10 +213,12 @@ where
     }
 
     fn commit_raw(&mut self, slice: Slice) -> Result<(), VmError> {
+        let slice_range = slice.to_range();
+
         // Follower's private inputs are not committed in the ZK VM until finalization.
-        let input_minus_follower = slice.to_range().difference(&self.follower_input_ranges);
+        let input_minus_follower = slice_range.difference(&self.follower_input_ranges);
         let mut zk = self.zk.try_lock().unwrap();
-        for input in input_minus_follower.iter_ranges() {
+        for input in input_minus_follower {
             zk.commit_raw(
                 self.memory_map
                     .try_get(Slice::from_range_unchecked(input))?,

@@ -12,7 +12,11 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Call, CallableExt, Vm};
-use rangeset::{Difference, RangeSet, Union};
+use rangeset::{
+    iter::RangeIterator,
+    ops::{Difference, Union},
+    set::RangeSet,
+};
 use tlsn_core::transcript::Record;
 
 use crate::transcript_internal::ReferenceMap;
@@ -32,7 +36,7 @@ pub(crate) fn prove_plaintext<'a>(
         commit.clone()
     } else {
         // The plaintext is only partially revealed, so we need to authenticate in ZK.
-        commit.union(reveal)
+        commit.union(reveal).into_set()
     };
 
     let plaintext_refs = alloc_plaintext(vm, &alloc_ranges)?;
@@ -49,7 +53,7 @@ pub(crate) fn prove_plaintext<'a>(
             vm.commit(*slice).map_err(PlaintextAuthError::vm)?;
         }
     } else {
-        let private = commit.difference(reveal);
+        let private = commit.difference(reveal).into_set();
         for (_, slice) in plaintext_refs
             .index(&private)
             .expect("all ranges are allocated")
@@ -98,7 +102,7 @@ pub(crate) fn verify_plaintext<'a>(
         commit.clone()
     } else {
         // The plaintext is only partially revealed, so we need to authenticate in ZK.
-        commit.union(reveal)
+        commit.union(reveal).into_set()
     };
 
     let plaintext_refs = alloc_plaintext(vm, &alloc_ranges)?;
@@ -123,7 +127,7 @@ pub(crate) fn verify_plaintext<'a>(
             ciphertext,
         })
     } else {
-        let private = commit.difference(reveal);
+        let private = commit.difference(reveal).into_set();
         for (_, slice) in plaintext_refs
             .index(&private)
             .expect("all ranges are allocated")

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use mpz_memory_core::{Vector, binary::U8};
-use rangeset::RangeSet;
+use rangeset::set::RangeSet;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RangeMap<T> {

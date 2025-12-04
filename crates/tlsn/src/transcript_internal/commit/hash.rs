@@ -9,7 +9,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, VmError, prelude::*};
-use rangeset::RangeSet;
+use rangeset::set::RangeSet;
 use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
