@@ -18,10 +18,13 @@ use crate::{
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     mux::attach_mux,
-    prover::client::{MpcTlsClient, TlsOutput},
+    prover::{
+        client::{MpcTlsClient, TlsOutput},
+        conn::mpc::MpcConnection,
+    },
 };
 
-use futures::{AsyncRead, AsyncWrite, FutureExt, TryFutureExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, FutureExt, TryFutureExt};
 use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
 use std::{
@@ -76,33 +79,53 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit(self, config: TlsCommitConfig) -> Result<MpcSetup, ProverError> {
+    pub fn commit(self, config: TlsCommitConfig) -> Result<MpcSetup, ProverError> {
         let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);
 
-        let setup = self.commit_inner(config, duplex_b);
-        let mpc_conn = MpcSetup::new(duplex_a, Box::new(setup));
+        let setup = self.commit_inner(config, duplex_a);
+        let mpc_conn = MpcSetup::new(duplex_b, Box::new(setup));
 
         Ok(mpc_conn)
     }
 
     /// Starts the TLS commitment protocol and attaches a socket.
     ///
-    /// This is a convenience function...
+    /// This is a convenience method for [`Self::commit`];
     ///
     /// # Arguments
     ///
     /// * `config` - The TLS commitment configuration.
-    /// * `socket` - The socket to the TLS verifier.
+    /// * `socket` - The socket.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn commit_with<S: AsyncWrite + AsyncRead + Send>(
         self,
         config: TlsCommitConfig,
         socket: S,
-    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
-        self.commit_inner(config, socket).await
+    ) -> Result<(MpcConnection, Prover<state::CommitAccepted>), ProverError> {
+        let (duplex_a, mut duplex_b) = futures_plex::duplex(BUF_CAP);
+        let mut setup = Box::pin(self.commit_inner(config, duplex_a).fuse());
+
+        let prover = {
+            let (mut duplex_read, mut duplex_write) = (&mut duplex_b).split();
+            let (mut socket_read, mut socket_write) = socket.split();
+
+            let mut read = futures::io::copy(&mut socket_read, &mut duplex_write).fuse();
+            let mut write = futures::io::copy(&mut duplex_read, &mut socket_write).fuse();
+
+            loop {
+                futures::select! {
+                    _ = read => (),
+                    _ = write => (),
+                    prover = setup =>  break prover?
+                }
+            }
+        };
+
+        let mpc_conn = MpcConnection::new(duplex_b);
+        Ok((mpc_conn, prover))
     }
 
-    async fn commit_inner<S: AsyncWrite + AsyncRead + Send>(
+    async fn commit_inner<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         config: TlsCommitConfig,
         transport: S,
