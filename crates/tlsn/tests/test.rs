@@ -121,7 +121,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let server_task = tokio::spawn(bind(server_socket.compat()));
 
     let prover = Prover::new(ProverConfig::builder().build().unwrap())
-        .commit(
+        .commit_with(
             TlsCommitConfig::builder()
                 .protocol(
                     MpcTlsConfig::builder()

@@ -25,6 +25,7 @@ tlsn-tls-core = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
 tlsn-cipher = { workspace = true }
 
+futures-plex = { workspace = true }
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
 web-spawn = { workspace = true, optional = true }

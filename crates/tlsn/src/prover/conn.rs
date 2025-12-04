@@ -1,5 +1,5 @@
 use crate::prover::{
-    Prover, ProverError, conn::buffer::SimpleBuffer, control::ProverControl, state,
+    BUF_CAP, Prover, ProverError, conn::buffer::SimpleBuffer, control::ProverControl, state,
 };
 use futures::{AsyncRead, AsyncWrite};
 use std::{
@@ -9,8 +9,7 @@ use std::{
 };
 
 mod buffer;
-
-const BUF_CAP: usize = 8 * 1024;
+pub(crate) mod mpc;
 
 /// A TLS connection to a server.
 ///

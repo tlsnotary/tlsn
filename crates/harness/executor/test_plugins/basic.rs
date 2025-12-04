@@ -29,7 +29,7 @@ crate::test!("basic", prover, verifier);
 
 async fn prover(provider: &IoProvider) {
     let prover = Prover::new(ProverConfig::builder().build().unwrap())
-        .commit(
+        .commit_with(
             TlsCommitConfig::builder()
                 .protocol(
                     MpcTlsConfig::builder()

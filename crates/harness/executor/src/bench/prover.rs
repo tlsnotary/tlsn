@@ -33,7 +33,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let time_start = web_time::Instant::now();
 
     let prover = prover
-        .commit(
+        .commit_with(
             TlsCommitConfig::builder()
                 .protocol({
                     let mut builder = MpcTlsConfig::builder()

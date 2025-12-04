@@ -101,7 +101,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     // Create a new prover and perform necessary setup.
     let prover = Prover::new(ProverConfig::builder().build()?)
-        .commit(
+        .commit_with(
             TlsCommitConfig::builder()
                 // Select the TLS commitment protocol.
                 .protocol(
