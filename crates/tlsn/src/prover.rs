@@ -7,7 +7,7 @@ mod error;
 mod prove;
 pub mod state;
 
-pub use conn::{ConnectionFuture, TlsConnection, mpc::MpcConnection};
+pub use conn::{ConnectionFuture, TlsConnection, mpc::MpcSetup};
 pub use control::ProverControl;
 pub use error::ProverError;
 pub use tlsn_core::ProverOutput;
@@ -76,14 +76,40 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit(
-        self,
-        config: TlsCommitConfig,
-    ) -> Result<(MpcConnection, Prover<state::CommitAccepted>), ProverError> {
+    pub async fn commit(self, config: TlsCommitConfig) -> Result<MpcSetup, ProverError> {
         let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);
 
-        let (mut mux_fut, mux_ctrl) = attach_mux(duplex_a, Role::Prover);
+        let setup = self.commit_inner(config, duplex_b);
+        let mpc_conn = MpcSetup::new(duplex_a, Box::new(setup));
+
+        Ok(mpc_conn)
+    }
+
+    /// Starts the TLS commitment protocol and attaches a socket.
+    ///
+    /// This is a convenience function...
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The TLS commitment configuration.
+    /// * `socket` - The socket to the TLS verifier.
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
+    pub async fn commit_with<S: AsyncWrite + AsyncRead + Send>(
+        self,
+        config: TlsCommitConfig,
+        socket: S,
+    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
+        self.commit_inner(config, socket).await
+    }
+
+    async fn commit_inner<S: AsyncWrite + AsyncRead + Send>(
+        self,
+        config: TlsCommitConfig,
+        transport: S,
+    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
+        let (mut mux_fut, mux_ctrl) = attach_mux(transport, Role::Prover);
         let mut mt = build_mt_context(mux_ctrl.clone());
+
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Sends protocol configuration to verifier for compatibility check.
@@ -122,7 +148,6 @@ impl Prover<state::Initialized> {
 
         debug!("mpc-tls setup complete");
 
-        let mpc_conn = MpcConnection::new(duplex_b);
         let prover = Prover {
             config: self.config,
             span: self.span,
@@ -135,24 +160,7 @@ impl Prover<state::Initialized> {
             },
         };
 
-        Ok((mpc_conn, prover))
-    }
-
-    /// Starts the TLS commitment protocol and attaches a socket.
-    ///
-    /// This is a convenience function...
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - The TLS commitment configuration.
-    /// * `socket` - The socket to the TLS verifier.
-    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit_with<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        config: TlsCommitConfig,
-        socket: S,
-    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
-        todo!()
+        Ok(prover)
     }
 }
 
