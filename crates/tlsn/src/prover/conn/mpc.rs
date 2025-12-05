@@ -140,41 +140,54 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
-        // read from socket into client
-        let mut tmp_read_buf = [0_u8; BUF_CAP];
+        loop {
+            let mut is_pending = true;
 
-        if let Poll::Ready(read) = this.socket.as_mut().poll_read(cx, &mut tmp_read_buf)? {
-            if read > 0 {
-                this.read_buf.extend(&tmp_read_buf[..read]);
-            } else {
-                return this.duplex.as_mut().poll_close(cx);
+            // read from socket into client
+            let mut tmp_read_buf = [0_u8; BUF_CAP];
+
+            if let Poll::Ready(read) = this.socket.as_mut().poll_read(cx, &mut tmp_read_buf)? {
+                is_pending = false;
+                if read > 0 {
+                    this.read_buf.extend(&tmp_read_buf[..read]);
+                } else {
+                    return this.duplex.as_mut().poll_close(cx);
+                }
+            }
+
+            if this.read_buf.len() > 0
+                && let Poll::Ready(write) =
+                    this.duplex.as_mut().poll_write(cx, this.read_buf.inner())?
+            {
+                is_pending = false;
+                this.read_buf.consume(write);
+            }
+
+            // read from client into socket
+            let mut tmp_write_buf = [0_u8; BUF_CAP];
+
+            if let Poll::Ready(read) = this.duplex.as_mut().poll_read(cx, &mut tmp_write_buf)? {
+                is_pending = false;
+                if read > 0 {
+                    this.write_buf.extend(&tmp_write_buf[..read]);
+                } else {
+                    return this.duplex.as_mut().poll_close(cx);
+                }
+            }
+
+            if this.write_buf.len() > 0
+                && let Poll::Ready(write) = this
+                    .socket
+                    .as_mut()
+                    .poll_write(cx, this.write_buf.inner())?
+            {
+                is_pending = false;
+                this.write_buf.consume(write);
+            }
+
+            if is_pending {
+                return Poll::Pending;
             }
         }
-
-        if this.read_buf.len() > 0
-            && let Poll::Ready(write) =
-                this.duplex.as_mut().poll_write(cx, this.read_buf.inner())?
-        {
-            this.read_buf.consume(write);
-        }
-
-        // read from client into socket
-        let mut tmp_write_buf = [0_u8; BUF_CAP];
-
-        if let Poll::Ready(read) = this.duplex.as_mut().poll_read(cx, &mut tmp_write_buf)? {
-            if read > 0 {
-                this.write_buf.extend(&tmp_write_buf[..read]);
-            } else {
-                return this.duplex.as_mut().poll_close(cx);
-            }
-        }
-
-        if this.write_buf.len() > 0
-            && let Poll::Ready(write) = this.socket.poll_write(cx, this.write_buf.inner())?
-        {
-            this.write_buf.consume(write);
-        }
-
-        Poll::Pending
     }
 }
