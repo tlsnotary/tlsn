@@ -7,7 +7,11 @@ mod error;
 mod prove;
 pub mod state;
 
-pub use conn::{ConnectionFuture, TlsConnection, mpc::MpcSetup};
+pub use conn::{
+    ConnectionFuture,
+    mpc::{MpcConnection, MpcSetup},
+    tls::TlsConnection,
+};
 pub use control::ProverControl;
 pub use error::ProverError;
 pub use tlsn_core::ProverOutput;
@@ -18,10 +22,7 @@ use crate::{
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     mux::attach_mux,
-    prover::{
-        client::{MpcTlsClient, TlsOutput},
-        conn::mpc::MpcConnection,
-    },
+    prover::client::{MpcTlsClient, TlsOutput},
 };
 
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, FutureExt, TryFutureExt};

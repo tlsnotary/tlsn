@@ -16,7 +16,6 @@ pub(crate) type MpcSetupFuture =
 pub struct MpcSetup {
     pub(crate) duplex: Option<DuplexStream>,
     pub(crate) setup: Pin<MpcSetupFuture>,
-    pub(crate) prover: Option<Prover<state::CommitAccepted>>,
 }
 
 impl MpcSetup {
@@ -24,7 +23,6 @@ impl MpcSetup {
         Self {
             duplex: Some(duplex),
             setup: Box::into_pin(setup),
-            prover: None,
         }
     }
 
@@ -34,7 +32,7 @@ impl MpcSetup {
     ///
     /// * `buf` - The buffer.
     pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let duplex = self.duplex.as_mut().expect("duplex should be available");
+        let duplex = self.duplex.as_mut().unwrap();
         Read::read(duplex, buf)
     }
 
@@ -44,36 +42,32 @@ impl MpcSetup {
     ///
     /// * `buf` - The buffer.
     pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let duplex = self.duplex.as_mut().expect("duplex should be available");
+        let duplex = self.duplex.as_mut().unwrap();
         Write::write(duplex, buf)
     }
 
-    /// Drives the setup process. Must be polled to make progress.
+    /// Drives the setup process. Must be polled to make progress. Returns
     ///
     /// # Arguments
     ///
     /// * `cx` - The context.
-    pub fn poll(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), ProverError>> {
+    ///
+    /// # Returns
+    ///
+    /// * [`MpcConnection`] for communicating with the verifier.
+    /// * [`Prover`] to connect with the server.
+    pub fn poll(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(MpcConnection, Prover<state::CommitAccepted>), ProverError>> {
         if let Poll::Ready(prover) = self.setup.as_mut().poll(cx)? {
-            self.prover = Some(prover);
-            return Poll::Ready(Ok(()));
+            let mpc_conn = MpcConnection {
+                duplex: self.duplex.take().expect("duplex should be available"),
+            };
+            let output = (mpc_conn, prover);
+            return Poll::Ready(Ok(output));
         }
         Poll::Pending
-    }
-
-    /// Finishes the setup and returns
-    ///     - [`MpcConnection`] for communicating with the verifier.
-    ///     - [`Prover`] to connect with the server.
-    pub fn finish(&mut self) -> Option<(MpcConnection, Prover<state::CommitAccepted>)> {
-        match self.prover.take() {
-            Some(prover) => Some((
-                MpcConnection {
-                    duplex: self.duplex.take().expect("duplex should be available"),
-                },
-                prover,
-            )),
-            None => None,
-        }
     }
 }
 
