@@ -4407,7 +4407,7 @@ dependencies = [
  "mpz-vm-core",
  "opaque-debug",
  "rand 0.9.2",
- "rangeset 0.2.0",
+ "rangeset",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -4438,7 +4438,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "rangeset 0.2.0",
+ "rangeset",
  "rayon",
  "serde",
  "serde_arrays",
@@ -4470,7 +4470,7 @@ dependencies = [
  "mpz-core",
  "mpz-memory-core",
  "mpz-vm-core",
- "rangeset 0.2.0",
+ "rangeset",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -4486,7 +4486,7 @@ dependencies = [
  "itybity 0.3.1",
  "mpz-core",
  "rand 0.9.2",
- "rangeset 0.2.0",
+ "rangeset",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -4652,7 +4652,7 @@ dependencies = [
  "mpz-core",
  "mpz-memory-core",
  "mpz-vm-core",
- "rangeset 0.2.0",
+ "rangeset",
  "rayon",
  "serde",
  "thiserror 1.0.69",
@@ -5755,15 +5755,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rangeset"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64b8fabf401336b2b589357541d5d8422c90c689bbd0a30e78c929799111f657"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "rayon"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6815,13 +6806,13 @@ dependencies = [
 [[package]]
 name = "spansy"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=1e5595eb#1e5595eb9fada7e29eab82735ad60c5ff57f2ba5"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6168663#6168663495281f2c1b2c1734dc276cecc4d36ef1"
 dependencies = [
  "bytes",
  "httparse",
  "pest",
  "pest_derive",
- "rangeset 0.3.0",
+ "rangeset",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -7218,7 +7209,7 @@ dependencies = [
  "opaque-debug",
  "pin-project-lite",
  "rand 0.9.2",
- "rangeset 0.2.0",
+ "rangeset",
  "rstest",
  "rustls-pki-types",
  "rustls-webpki 0.103.7",
@@ -7300,7 +7291,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "rangeset 0.2.0",
+ "rangeset",
  "rs_merkle",
  "rstest",
  "rustls-pki-types",
@@ -7333,7 +7324,7 @@ dependencies = [
  "mpz-core",
  "mpz-ideal-vm",
  "mpz-vm-core",
- "rangeset 0.2.0",
+ "rangeset",
  "serde",
  "serio",
  "thiserror 1.0.69",

@@ -1,3 +1,4 @@
+use futures::TryFutureExt;
 use tlsn::{
     config::{
         prove::ProveConfig,
@@ -10,7 +11,7 @@ use tlsn::{
     hash::HashAlgId,
     prover::Prover,
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
-    verifier::{Verifier, VerifierOutput},
+    verifier::{Verifier, VerifierError, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -130,27 +131,27 @@ async fn verifier(provider: &IoProvider) {
         .build()
         .unwrap();
 
-    let verifier = Verifier::new(config)
-        .commit(provider.provide_proto_io().await.unwrap())
-        .await
-        .unwrap()
-        .accept()
-        .await
-        .unwrap()
-        .run()
-        .await
-        .unwrap();
+    let mut prover_io = provider.provide_proto_io().await.unwrap();
+    let verifier = Verifier::new(config);
+
+    let (mpc_conn, verifier) = verifier.commit_with(&mut prover_io).await.unwrap();
+    let mpc_fut = mpc_conn.into_future(prover_io).map_err(VerifierError::from);
+
+    let verifier = async {
+        let verifier = verifier.accept().await?.run().await?;
+        let (output, verifier) = verifier.verify().await?.accept().await?;
+        verifier.close().await?;
+        Ok(output)
+    };
 
     let (
+        _,
         VerifierOutput {
             server_name,
             transcript_commitments,
             ..
         },
-        verifier,
-    ) = verifier.verify().await.unwrap().accept().await.unwrap();
-
-    verifier.close().await.unwrap();
+    ) = futures::try_join!(mpc_fut, verifier).unwrap();
 
     let ServerName::Dns(server_name) = server_name.unwrap();
 

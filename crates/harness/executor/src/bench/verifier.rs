@@ -30,6 +30,6 @@ pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()
         verifier.close().await
     };
 
-    futures::try_join!(mpc_fut, verifier);
+    futures::try_join!(mpc_fut, verifier).unwrap();
     Ok(())
 }
