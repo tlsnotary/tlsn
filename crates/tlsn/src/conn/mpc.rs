@@ -1,8 +1,4 @@
-use crate::{
-    BUF_CAP,
-    conn::buffer::SimpleBuffer,
-    prover::{Prover, ProverError, state},
-};
+use crate::{BUF_CAP, conn::buffer::SimpleBuffer};
 use futures::{AsyncRead, AsyncWrite};
 use futures_plex::DuplexStream;
 use std::{
@@ -11,19 +7,21 @@ use std::{
     task::Poll,
 };
 
-pub(crate) type MpcSetupFuture =
-    Box<dyn Future<Output = Result<Prover<state::CommitAccepted>, ProverError>> + Send>;
+pub(crate) type MpcSetupFuture<T, U> = Box<dyn Future<Output = Result<T, U>> + Send>;
 
 /// MPC setup for preparing a connection to the verifier.
 ///
 /// Implements [`Read`] and [`Write`] for doing IO with the verifier.
-pub struct MpcSetup {
+pub struct MpcSetup<T, U> {
     pub(crate) duplex: Option<DuplexStream>,
-    pub(crate) setup: Pin<MpcSetupFuture>,
+    pub(crate) setup: Pin<MpcSetupFuture<T, U>>,
 }
 
-impl MpcSetup {
-    pub(crate) fn new(duplex: DuplexStream, setup: MpcSetupFuture) -> Self {
+impl<T, U> MpcSetup<T, U>
+where
+    U: std::error::Error,
+{
+    pub(crate) fn new(duplex: DuplexStream, setup: MpcSetupFuture<T, U>) -> Self {
         Self {
             duplex: Some(duplex),
             setup: Box::into_pin(setup),
@@ -60,10 +58,7 @@ impl MpcSetup {
     ///
     /// * [`MpcConnection`] for communicating with the verifier.
     /// * [`Prover`] to connect with the server.
-    pub fn poll(
-        &mut self,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(MpcConnection, Prover<state::CommitAccepted>), ProverError>> {
+    pub fn poll(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(MpcConnection, T), U>> {
         if let Poll::Ready(prover) = self.setup.as_mut().poll(cx)? {
             let mpc_conn = MpcConnection {
                 duplex: self.duplex.take().expect("duplex should be available"),

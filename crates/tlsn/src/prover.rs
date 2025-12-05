@@ -77,7 +77,10 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub fn commit(self, config: TlsCommitConfig) -> Result<MpcSetup, ProverError> {
+    pub fn commit(
+        self,
+        config: TlsCommitConfig,
+    ) -> Result<MpcSetup<Prover<state::CommitAccepted>, ProverError>, ProverError> {
         let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);
 
         let setup = self.commit_inner(config, duplex_a);

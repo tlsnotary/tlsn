@@ -10,14 +10,14 @@ pub use error::VerifierError;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Role,
+    BUF_CAP, MpcConnection, MpcSetup, Role,
     context::build_mt_context,
     mpz::{VerifierDeps, build_verifier_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     mux::attach_mux,
     tag::verify_tags,
 };
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, FutureExt, TryFutureExt};
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
@@ -68,11 +68,57 @@ impl Verifier<state::Initialized> {
     ///
     /// * `socket` - The socket to the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    pub async fn commit(
+        self,
+    ) -> Result<MpcSetup<Verifier<state::CommitStart>, VerifierError>, VerifierError> {
+        let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);
+
+        let setup = self.commit_inner(duplex_a);
+        let mpc_conn = MpcSetup::new(duplex_b, Box::new(setup));
+
+        Ok(mpc_conn)
+    }
+
+    /// Starts the TLS commitment protocol and attaches a socket.
+    ///
+    /// This is a convenience method for [`Self::commit`];
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to the prover.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn commit_with<S: AsyncWrite + AsyncRead + Send>(
         self,
         socket: S,
+    ) -> Result<(MpcConnection, Verifier<state::CommitStart>), VerifierError> {
+        let (duplex_a, mut duplex_b) = futures_plex::duplex(BUF_CAP);
+        let mut setup = Box::pin(self.commit_inner(duplex_a).fuse());
+
+        let verifier = {
+            let (mut duplex_read, mut duplex_write) = (&mut duplex_b).split();
+            let (mut socket_read, mut socket_write) = socket.split();
+
+            let mut read = futures::io::copy(&mut socket_read, &mut duplex_write).fuse();
+            let mut write = futures::io::copy(&mut duplex_read, &mut socket_write).fuse();
+
+            loop {
+                futures::select! {
+                    _ = read => (),
+                    _ = write => (),
+                    verifier = setup =>  break verifier?
+                }
+            }
+        };
+
+        let mpc_conn = MpcConnection::new(duplex_b);
+        Ok((mpc_conn, verifier))
+    }
+
+    async fn commit_inner<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+        self,
+        transport: S,
     ) -> Result<Verifier<state::CommitStart>, VerifierError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
+        let (mut mux_fut, mux_ctrl) = attach_mux(transport, Role::Verifier);
         let mut mt = build_mt_context(mux_ctrl.clone());
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
