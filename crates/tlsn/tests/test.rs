@@ -1,4 +1,4 @@
-use futures::{AsyncReadExt, AsyncWriteExt};
+use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
 use rangeset::RangeSet;
 use tlsn::{
     config::{
@@ -15,7 +15,7 @@ use tlsn::{
         Direction, Transcript, TranscriptCommitConfig, TranscriptCommitment,
         TranscriptCommitmentKind, TranscriptSecret,
     },
-    verifier::{Verifier, VerifierOutput},
+    verifier::{Verifier, VerifierError, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_core::ProverOutput;
@@ -215,7 +215,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
 #[instrument(skip(socket))]
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
-    socket: T,
+    mut socket: T,
 ) -> VerifierOutput {
     let verifier = Verifier::new(
         VerifierConfig::builder()
@@ -226,19 +226,19 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
             .unwrap(),
     );
 
-    let verifier = verifier
-        .commit(socket.compat())
-        .await
-        .unwrap()
-        .accept()
-        .await
-        .unwrap()
-        .run()
-        .await
-        .unwrap();
+    let (mpc_conn, verifier) = verifier.commit_with((&mut socket).compat()).await.unwrap();
 
-    let (output, verifier) = verifier.verify().await.unwrap().accept().await.unwrap();
-    verifier.close().await.unwrap();
+    let mpc_fut = mpc_conn
+        .into_future(socket.compat())
+        .map_err(VerifierError::from);
 
+    let verifier = async {
+        let verifier = verifier.accept().await?.run().await?;
+        let (output, verifier) = verifier.verify().await?.accept().await?;
+        verifier.close().await?;
+        Ok(output)
+    };
+
+    let (_, output) = futures::try_join!(mpc_fut, verifier).unwrap();
     output
 }

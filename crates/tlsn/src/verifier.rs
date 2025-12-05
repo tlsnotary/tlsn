@@ -68,7 +68,7 @@ impl Verifier<state::Initialized> {
     ///
     /// * `socket` - The socket to the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn commit(
+    pub fn commit(
         self,
     ) -> Result<MpcSetup<Verifier<state::CommitStart>, VerifierError>, VerifierError> {
         let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);

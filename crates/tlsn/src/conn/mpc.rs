@@ -170,7 +170,7 @@ where
                 if read > 0 {
                     this.write_buf.extend(&tmp_write_buf[..read]);
                 } else {
-                    return this.duplex.as_mut().poll_close(cx);
+                    return this.socket.as_mut().poll_close(cx);
                 }
             }
 
