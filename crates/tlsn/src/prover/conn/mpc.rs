@@ -1,5 +1,5 @@
-use crate::prover::{Prover, ProverError, state};
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite};
+use crate::prover::{BUF_CAP, Prover, ProverError, conn::buffer::SimpleBuffer, state};
+use futures::{AsyncRead, AsyncWrite};
 use futures_plex::DuplexStream;
 use std::{
     io::{Read, Write},
@@ -98,43 +98,83 @@ impl MpcConnection {
     ///
     /// * `buf` - The buffer.
     pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.duplex.write(buf)
+        Write::write(&mut self.duplex, buf)
     }
 
-    /// Attaches a socket to the connection and returns a future that must be polled to make
-    /// progress.
+    /// Attaches a socket to the connection and returns a future that must be
+    /// polled to make progress.
     ///
     /// # Arguments
     ///
     /// * `socket` - The socket for the prover <-> verifier connection.
-    pub fn into_future<'a, S>(self, socket: S) -> MpcFuture<'a>
+    pub fn into_future<S>(self, socket: S) -> MpcFuture<S>
     where
-        S: AsyncRead + AsyncWrite + Send + 'a,
+        S: AsyncRead + AsyncWrite + Send,
     {
-        let fut = async move {
-            let (duplex_read, mut duplex_write) = self.duplex.split();
-            let (socket_read, mut socket_write) = socket.split();
-
-            let read = futures::io::copy(socket_read, &mut duplex_write);
-            let write = futures::io::copy(duplex_read, &mut socket_write);
-
-            futures::future::try_join(read, write).await
-        };
-
-        MpcFuture { fut: Box::pin(fut) }
+        MpcFuture {
+            duplex: self.duplex,
+            socket,
+            read_buf: SimpleBuffer::default(),
+            write_buf: SimpleBuffer::default(),
+        }
     }
 }
 
-pub(crate) type CopyFuture<'a> = Pin<Box<dyn Future<Output = std::io::Result<(u64, u64)>> + 'a>>;
-
-pub struct MpcFuture<'a> {
-    fut: CopyFuture<'a>,
+pin_project_lite::pin_project! {
+    pub struct MpcFuture<S> {
+        #[pin]
+        duplex: DuplexStream,
+        #[pin]
+        socket: S,
+        read_buf: SimpleBuffer,
+        write_buf: SimpleBuffer,
+    }
 }
 
-impl<'a> Future for MpcFuture<'a> {
-    type Output = Result<(u64, u64), std::io::Error>;
+impl<S> Future for MpcFuture<S>
+where
+    S: AsyncRead + AsyncWrite + Send,
+{
+    type Output = Result<(), std::io::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        self.fut.as_mut().poll(cx)
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+
+        // read from socket into client
+        let mut tmp_read_buf = [0_u8; BUF_CAP];
+
+        if let Poll::Ready(read) = this.socket.as_mut().poll_read(cx, &mut tmp_read_buf)? {
+            if read > 0 {
+                this.read_buf.extend(&tmp_read_buf[..read]);
+            } else {
+                return this.duplex.as_mut().poll_close(cx);
+            }
+        }
+
+        if this.read_buf.len() > 0
+            && let Poll::Ready(write) =
+                this.duplex.as_mut().poll_write(cx, this.read_buf.inner())?
+        {
+            this.read_buf.consume(write);
+        }
+
+        // read from client into socket
+        let mut tmp_write_buf = [0_u8; BUF_CAP];
+
+        if let Poll::Ready(read) = this.duplex.as_mut().poll_read(cx, &mut tmp_write_buf)? {
+            if read > 0 {
+                this.write_buf.extend(&tmp_write_buf[..read]);
+            } else {
+                return this.duplex.as_mut().poll_close(cx);
+            }
+        }
+
+        if this.write_buf.len() > 0
+            && let Poll::Ready(write) = this.socket.poll_write(cx, this.write_buf.inner())?
+        {
+            this.write_buf.consume(write);
+        }
+
+        Poll::Pending
     }
 }

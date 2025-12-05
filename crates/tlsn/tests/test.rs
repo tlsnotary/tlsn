@@ -114,13 +114,13 @@ async fn test() {
 
 #[instrument(skip(verifier_socket))]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-    verifier_socket: T,
+    mut verifier_socket: T,
 ) -> (Transcript, ProverOutput) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
     let server_task = tokio::spawn(bind(server_socket.compat()));
 
-    let prover = Prover::new(ProverConfig::builder().build().unwrap())
+    let (mpc_conn, prover) = Prover::new(ProverConfig::builder().build().unwrap())
         .commit_with(
             TlsCommitConfig::builder()
                 .protocol(
@@ -134,7 +134,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                 )
                 .build()
                 .unwrap(),
-            verifier_socket.compat(),
+            (&mut verifier_socket).compat(),
         )
         .await
         .unwrap();
@@ -153,6 +153,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .await
         .unwrap();
     let prover_task = tokio::spawn(prover_fut);
+    let mpc_task = tokio::spawn(mpc_conn.into_future(verifier_socket.compat()));
 
     tls_connection
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
@@ -205,7 +206,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let config = builder.build().unwrap();
     let transcript = prover.transcript().clone();
     let output = prover.prove(&config).await.unwrap();
+
     prover.close().await.unwrap();
+    mpc_task.await.unwrap().unwrap();
 
     (transcript, output)
 }

@@ -23,7 +23,7 @@ use crate::{
 };
 
 pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<ProverMetrics> {
-    let verifier_io = Meter::new(provider.provide_proto_io().await?);
+    let mut verifier_io = Meter::new(provider.provide_proto_io().await?);
 
     let sent = verifier_io.sent();
     let recv = verifier_io.recv();
@@ -32,7 +32,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let time_start = web_time::Instant::now();
 
-    let prover = prover
+    let (mpc_conn, prover) = prover
         .commit_with(
             TlsCommitConfig::builder()
                 .protocol({
@@ -49,7 +49,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
                         .build()
                 }?)
                 .build()?,
-            verifier_io,
+            &mut verifier_io,
         )
         .await?;
 
@@ -70,7 +70,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
         )
         .await?;
 
-    let (_, mut prover) = futures::try_join!(
+    let (_, mut prover, _) = futures::future::try_join3(
         async {
             let request = format!(
                 "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
@@ -87,8 +87,12 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
             Ok(())
         },
-        prover_fut.map_err(anyhow::Error::from)
-    )?;
+        prover_fut.map_err(anyhow::Error::from),
+        mpc_conn
+            .into_future(verifier_io)
+            .map_err(anyhow::Error::from),
+    )
+    .await?;
 
     let time_online = time_start_online.elapsed().as_millis();
     let uploaded_online = sent.load(Ordering::Relaxed) - uploaded_preprocess;

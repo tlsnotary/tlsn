@@ -28,7 +28,9 @@ const MAX_RECV_DATA: usize = 1 << 11;
 crate::test!("basic", prover, verifier);
 
 async fn prover(provider: &IoProvider) {
-    let prover = Prover::new(ProverConfig::builder().build().unwrap())
+    let mut verifier_io = provider.provide_proto_io().await.unwrap();
+
+    let (mpc_conn, prover) = Prover::new(ProverConfig::builder().build().unwrap())
         .commit_with(
             TlsCommitConfig::builder()
                 .protocol(
@@ -41,7 +43,7 @@ async fn prover(provider: &IoProvider) {
                 )
                 .build()
                 .unwrap(),
-            provider.provide_proto_io().await.unwrap(),
+            &mut verifier_io,
         )
         .await
         .unwrap();
@@ -61,6 +63,7 @@ async fn prover(provider: &IoProvider) {
         .unwrap();
 
     let prover_task = spawn(prover_fut);
+    let mpc_task = spawn(mpc_conn.into_future(verifier_io));
 
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
@@ -116,6 +119,7 @@ async fn prover(provider: &IoProvider) {
 
     prover.prove(&config).await.unwrap();
     prover.close().await.unwrap();
+    mpc_task.await.unwrap().unwrap();
 }
 
 async fn verifier(provider: &IoProvider) {
