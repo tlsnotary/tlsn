@@ -1,23 +1,22 @@
 //! Prover.
 
 mod client;
-mod conn;
 mod control;
 mod error;
 mod prove;
 pub mod state;
 
-pub use conn::{
-    ConnectionFuture,
-    mpc::{MpcConnection, MpcSetup},
-    tls::TlsConnection,
-};
 pub use control::ProverControl;
 pub use error::ProverError;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Role,
+    BUF_CAP, Role,
+    conn::{
+        ConnectionFuture,
+        mpc::{MpcConnection, MpcSetup},
+        tls::TlsConnection,
+    },
     context::build_mt_context,
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
@@ -45,8 +44,6 @@ use tlsn_core::{
 };
 use tracing::{Span, debug, info_span, instrument};
 use webpki::anchor_from_trusted_cert;
-
-const BUF_CAP: usize = 8 * 1024;
 
 /// A prover instance.
 #[derive(Debug)]

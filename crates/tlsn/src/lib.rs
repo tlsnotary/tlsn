@@ -4,6 +4,7 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod conn;
 pub(crate) mod context;
 pub(crate) mod ghash;
 pub(crate) mod map;
@@ -15,12 +16,20 @@ pub(crate) mod tag;
 pub(crate) mod transcript_internal;
 pub mod verifier;
 
+pub use conn::{
+    ConnectionFuture,
+    mpc::{MpcConnection, MpcSetup},
+    tls::TlsConnection,
+};
 pub use tlsn_attestation as attestation;
 pub use tlsn_core::{config, connection, hash, transcript, webpki};
 
 use std::sync::LazyLock;
 
 use semver::Version;
+
+// Size for internal buffers.
+const BUF_CAP: usize = 8 * 1024;
 
 // Package version.
 pub(crate) static VERSION: LazyLock<Version> = LazyLock::new(|| {

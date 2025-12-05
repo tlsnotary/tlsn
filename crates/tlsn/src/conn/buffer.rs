@@ -1,6 +1,6 @@
 //! Simple buffer implementation.
 
-use crate::prover::conn::BUF_CAP;
+use crate::BUF_CAP;
 use bytes::{Buf, BufMut, BytesMut};
 
 pub(crate) struct SimpleBuffer {

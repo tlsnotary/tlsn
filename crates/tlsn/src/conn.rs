@@ -1,5 +1,6 @@
-use crate::prover::{
-    BUF_CAP, Prover, ProverError, conn::buffer::SimpleBuffer, control::ProverControl, state,
+use crate::{
+    BUF_CAP,
+    prover::{Prover, ProverControl, ProverError, state},
 };
 use futures::{AsyncRead, AsyncWrite};
 use std::{
@@ -11,6 +12,8 @@ use std::{
 mod buffer;
 pub(crate) mod mpc;
 pub(crate) mod tls;
+
+use buffer::SimpleBuffer;
 
 pin_project_lite::pin_project! {
     /// A future to drive the connection. Must be polled to make progress.

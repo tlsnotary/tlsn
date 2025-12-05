@@ -1,4 +1,8 @@
-use crate::prover::{BUF_CAP, Prover, ProverError, conn::buffer::SimpleBuffer, state};
+use crate::{
+    BUF_CAP,
+    conn::buffer::SimpleBuffer,
+    prover::{Prover, ProverError, state},
+};
 use futures::{AsyncRead, AsyncWrite};
 use futures_plex::DuplexStream;
 use std::{
