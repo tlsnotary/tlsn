@@ -1,5 +1,3 @@
-mod actor;
-
 use crate::{
     error::MpcTlsError,
     msg::{
@@ -14,7 +12,6 @@ use async_trait::async_trait;
 use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
-use ludi::Context as LudiContext;
 use mpz_common::{Context, Flush};
 use mpz_core::{bitvec::BitVec, Block};
 use mpz_memory_core::DecodeFutureTyped;
@@ -50,13 +47,9 @@ use tlsn_core::{
 };
 use tracing::{debug, instrument, trace, warn};
 
-/// Controller for MPC-TLS leader.
-pub type LeaderCtrl = actor::MpcTlsLeaderCtrl;
-
 /// MPC-TLS leader.
 #[derive(Debug)]
 pub struct MpcTlsLeader {
-    self_handle: Option<LeaderCtrl>,
     config: Config,
     state: State,
 
@@ -114,7 +107,6 @@ impl MpcTlsLeader {
 
         let is_decrypting = !config.defer_decryption;
         Self {
-            self_handle: None,
             config,
             state: State::Init {
                 ctx,
@@ -401,9 +393,19 @@ impl MpcTlsLeader {
         self.is_decrypting
     }
 
-    /// Stops the actor.
-    pub fn stop(&mut self, ctx: &mut LudiContext<Self>) {
-        ctx.stop();
+    /// Returns the context and transcript.
+    ///
+    /// Should be called after a successful call to [`Backend::server_closed`].
+    pub fn finish(&mut self) -> Option<(Context, TlsTranscript)> {
+        match self.state.take() {
+            State::Closed {
+                ctx, transcript, ..
+            } => Some((ctx, transcript)),
+            state => {
+                self.state = state;
+                None
+            }
+        }
     }
 }
 

@@ -160,7 +160,6 @@ impl Prover<state::CommitAccepted> {
         } = self.state;
 
         let decrypt = mpc_tls.is_decrypting();
-        let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =
@@ -197,24 +196,12 @@ impl Prover<state::CommitAccepted> {
             rustls_config.with_no_client_auth()
         };
 
-        let client = ClientConnection::new(
-            Arc::new(rustls_config),
-            Box::new(mpc_ctrl.clone()),
-            server_name,
-        )
-        .map_err(ProverError::config)?;
+        let client = ClientConnection::new(Arc::new(rustls_config), Box::new(mpc_tls), server_name)
+            .map_err(ProverError::config)?;
 
         let span = self.span.clone();
 
-        let mpc_tls = MpcTlsClient::new(
-            Box::new(mpc_fut.map_err(ProverError::from)),
-            keys,
-            vm,
-            span,
-            mpc_ctrl,
-            client,
-            decrypt,
-        );
+        let mpc_tls = MpcTlsClient::new(keys, vm, span, client, decrypt);
 
         let prover = Prover {
             config: self.config,

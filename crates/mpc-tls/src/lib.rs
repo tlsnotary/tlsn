@@ -16,7 +16,7 @@ pub(crate) mod utils;
 pub use config::{Config, ConfigBuilder, ConfigBuilderError};
 pub use error::MpcTlsError;
 pub use follower::MpcTlsFollower;
-pub use leader::{LeaderCtrl, MpcTlsLeader};
+pub use leader::MpcTlsLeader;
 
 use std::{future::Future, pin::Pin, sync::Arc};
 

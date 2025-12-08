@@ -34,7 +34,6 @@ mpz-share-conversion = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-memory-core = { workspace = true }
 
-ludi = { git = "https://github.com/sinui0/ludi", rev = "e511c3b", default-features = false }
 serio = { workspace = true }
 
 async-trait = { workspace = true }
