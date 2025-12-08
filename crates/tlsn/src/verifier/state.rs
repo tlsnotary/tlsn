@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::mux::{MuxControl, MuxFuture};
+use futures_plex::DuplexStream;
 use mpc_tls::{MpcTlsFollower, SessionKeys};
 use mpz_common::Context;
 use tlsn_core::{
@@ -25,6 +26,7 @@ opaque_debug::implement!(Initialized);
 
 /// State after receiving protocol configuration from the prover.
 pub struct CommitStart {
+    pub(crate) mpc_duplex: DuplexStream,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
@@ -36,6 +38,7 @@ opaque_debug::implement!(CommitStart);
 /// State after accepting the proposed TLS commitment protocol configuration and
 /// performing preprocessing.
 pub struct CommitAccepted {
+    pub(crate) mpc_duplex: DuplexStream,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsFollower,
@@ -47,6 +50,7 @@ opaque_debug::implement!(CommitAccepted);
 
 /// State after the TLS transcript has been committed.
 pub struct Committed {
+    pub(crate) mpc_duplex: DuplexStream,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,
@@ -59,6 +63,7 @@ opaque_debug::implement!(Committed);
 
 /// State after receiving a proving request.
 pub struct Verify {
+    pub(crate) mpc_duplex: DuplexStream,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,

@@ -22,6 +22,9 @@ use std::sync::LazyLock;
 
 use semver::Version;
 
+// Size for internal buffers.
+const BUF_CAP: usize = 8 * 1024;
+
 // Package version.
 pub(crate) static VERSION: LazyLock<Version> = LazyLock::new(|| {
     Version::parse(env!("CARGO_PKG_VERSION")).expect("cargo pkg version should be a valid semver")

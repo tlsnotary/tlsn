@@ -12,21 +12,30 @@ use futures::{Future, FutureExt};
 use mpc_tls::{LeaderCtrl, SessionKeys};
 use mpz_common::Context;
 use mpz_vm_core::Execute;
-use std::{pin::Pin, sync::Arc, task::Poll};
+use std::{collections::VecDeque, pin::Pin, sync::Arc, task::Poll};
 use tls_client::ClientConnection;
 use tlsn_core::transcript::TlsTranscript;
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::{Span, debug, instrument, trace, warn};
 
-pub(crate) type MpcFuture = Box<dyn Future<Output = Result<(Context, TlsTranscript), ProverError>>>;
+pub(crate) type MpcFuture =
+    Box<dyn Future<Output = Result<(Context, TlsTranscript), ProverError>> + Send>;
 
 type FinalizeFuture =
-    Box<dyn Future<Output = Result<(InnerState, Context, TlsTranscript), ProverError>>>;
+    Box<dyn Future<Output = Result<(InnerState, Context, TlsTranscript), ProverError>> + Send>;
 
 pub(crate) struct MpcTlsClient {
     state: State,
     decrypt: bool,
+    cmds: VecDeque<Command>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Command {
+    ClientClose,
+    ServerClose,
+    Decrypt(bool),
 }
 
 enum State {
@@ -40,20 +49,20 @@ enum State {
     },
     Busy {
         mpc: Pin<MpcFuture>,
-        fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>>>>,
+        fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>> + Send>>,
     },
-    ClientClose {
+    MpcStop {
         mpc: Pin<MpcFuture>,
-        fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>>>>,
+        inner: Box<InnerState>,
     },
-    ServerClose {
+    CloseBusy {
         mpc: Pin<MpcFuture>,
-        fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>>>>,
+        fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>> + Send>>,
     },
-    Closing {
+    Finishing {
         ctx: Context,
         transcript: Box<TlsTranscript>,
-        fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>>>>,
+        fut: Pin<Box<dyn Future<Output = Result<Box<InnerState>, ProverError>> + Send>>,
     },
     Finalizing {
         fut: Pin<FinalizeFuture>,
@@ -78,7 +87,7 @@ impl MpcTlsClient {
             vm,
             keys,
             mpc_ctrl,
-            closed: false,
+            mpc_stopped: false,
         };
 
         Self {
@@ -87,11 +96,12 @@ impl MpcTlsClient {
                 mpc: Box::into_pin(mpc),
                 inner: Box::new(inner),
             },
+            cmds: VecDeque::default(),
         }
     }
 
     fn inner_client_mut(&mut self) -> Option<&mut ClientConnection> {
-        if let State::Active { inner, .. } = &mut self.state {
+        if let State::Active { inner, .. } | State::MpcStop { inner, .. } = &mut self.state {
             Some(&mut inner.tls)
         } else {
             None
@@ -99,7 +109,7 @@ impl MpcTlsClient {
     }
 
     fn inner_client(&self) -> Option<&ClientConnection> {
-        if let State::Active { inner, .. } = &self.state {
+        if let State::Active { inner, .. } | State::MpcStop { inner, .. } = &self.state {
             Some(&inner.tls)
         } else {
             None
@@ -148,7 +158,7 @@ impl TlsClient for MpcTlsClient {
 
     fn wants_read(&self) -> bool {
         if let Some(client) = self.inner_client() {
-            !client.sendable_plaintext_is_full()
+            !client.plaintext_is_empty()
         } else {
             false
         }
@@ -156,7 +166,7 @@ impl TlsClient for MpcTlsClient {
 
     fn wants_write(&self) -> bool {
         if let Some(client) = self.inner_client() {
-            !client.plaintext_is_empty()
+            !client.sendable_plaintext_is_full()
         } else {
             false
         }
@@ -164,7 +174,7 @@ impl TlsClient for MpcTlsClient {
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         if let Some(client) = self.inner_client_mut()
-            && !client.sendable_plaintext_is_full()
+            && !client.plaintext_is_empty()
         {
             client.read_plaintext(buf).map_err(ProverError::from)
         } else {
@@ -174,7 +184,7 @@ impl TlsClient for MpcTlsClient {
 
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         if let Some(client) = self.inner_client_mut()
-            && !client.plaintext_is_empty()
+            && !client.sendable_plaintext_is_full()
         {
             client.write_plaintext(buf).map_err(ProverError::from)
         } else {
@@ -183,58 +193,18 @@ impl TlsClient for MpcTlsClient {
     }
 
     fn client_close(&mut self) -> Result<(), Self::Error> {
-        match std::mem::replace(&mut self.state, State::Error) {
-            State::Active { inner, mpc } => {
-                self.state = State::ClientClose {
-                    mpc,
-                    fut: Box::pin(inner.client_close()),
-                };
-                Ok(())
-            }
-            other => {
-                self.state = other;
-                Err(ProverError::state(
-                    "unable to close connection, client is not in active state",
-                ))
-            }
-        }
+        self.cmds.push_back(Command::ClientClose);
+        Ok(())
     }
 
     fn server_close(&mut self) -> Result<(), Self::Error> {
-        match std::mem::replace(&mut self.state, State::Error) {
-            State::Active { inner, mpc } => {
-                self.state = State::ServerClose {
-                    mpc,
-                    fut: Box::pin(inner.server_close()),
-                };
-                Ok(())
-            }
-            other => {
-                self.state = other;
-                Err(ProverError::state(
-                    "unable to close connection, client is not in active state",
-                ))
-            }
-        }
+        self.cmds.push_back(Command::ServerClose);
+        Ok(())
     }
 
     fn enable_decryption(&mut self, enable: bool) -> Result<(), Self::Error> {
-        match std::mem::replace(&mut self.state, State::Error) {
-            State::Active { inner, mpc } => {
-                self.decrypt = enable;
-                self.state = State::Busy {
-                    mpc,
-                    fut: Box::pin(inner.set_decrypt(enable)),
-                };
-                Ok(())
-            }
-            other => {
-                self.state = other;
-                Err(ProverError::state(
-                    "unable to enable decryption, client is not in active state",
-                ))
-            }
-        }
+        self.cmds.push_back(Command::Decrypt(enable));
+        Ok(())
     }
 
     fn is_decrypting(&self) -> bool {
@@ -244,6 +214,7 @@ impl TlsClient for MpcTlsClient {
     fn poll(&mut self, cx: &mut std::task::Context) -> Poll<Result<TlsOutput, Self::Error>> {
         match std::mem::replace(&mut self.state, State::Error) {
             State::Start { mpc, inner } => {
+                trace!("inner client is starting");
                 self.state = State::Busy {
                     mpc,
                     fut: Box::pin(inner.start()),
@@ -253,10 +224,36 @@ impl TlsClient for MpcTlsClient {
             State::Active { mpc, inner } => {
                 trace!("inner client is active");
 
-                self.state = State::Busy {
-                    mpc,
-                    fut: Box::pin(inner.run()),
-                };
+                if !inner.tls.is_handshaking()
+                    && let Some(cmd) = self.cmds.pop_front()
+                {
+                    match cmd {
+                        Command::ClientClose => {
+                            self.state = State::Busy {
+                                mpc,
+                                fut: Box::pin(inner.client_close()),
+                            };
+                        }
+                        Command::ServerClose => {
+                            self.state = State::CloseBusy {
+                                mpc,
+                                fut: Box::pin(inner.server_close()),
+                            };
+                        }
+                        Command::Decrypt(enable) => {
+                            self.decrypt = enable;
+                            self.state = State::Busy {
+                                mpc,
+                                fut: Box::pin(inner.set_decrypt(enable)),
+                            };
+                        }
+                    }
+                } else {
+                    self.state = State::Busy {
+                        mpc,
+                        fut: Box::pin(inner.run()),
+                    };
+                }
                 self.poll(cx)
             }
             State::Busy { mut mpc, mut fut } => {
@@ -277,73 +274,60 @@ impl TlsClient for MpcTlsClient {
                 }
                 Poll::Pending
             }
-            State::ClientClose { mut mpc, mut fut } => {
-                debug!("attempting to close connection clientside");
+            State::MpcStop { mpc, inner } => {
+                trace!("inner client is stopping mpc");
+                self.state = State::CloseBusy {
+                    mpc,
+                    fut: Box::pin(inner.stop()),
+                };
+                self.poll(cx)
+            }
+            State::CloseBusy { mut mpc, mut fut } => {
+                trace!("inner client is busy closing");
                 match (fut.poll_unpin(cx)?, mpc.poll_unpin(cx)?) {
                     (Poll::Ready(inner), Poll::Ready((ctx, transcript))) => {
                         self.state = State::Finalizing {
                             fut: Box::pin(inner.finalize(ctx, transcript)),
                         };
+                        self.poll(cx)
                     }
                     (Poll::Ready(inner), Poll::Pending) => {
-                        self.state = State::ClientClose {
-                            mpc,
-                            fut: Box::pin(inner.client_close()),
-                        };
+                        self.state = State::MpcStop { mpc, inner };
+                        Poll::Pending
                     }
                     (Poll::Pending, Poll::Ready((ctx, transcript))) => {
-                        self.state = State::Closing {
+                        self.state = State::Finishing {
                             ctx,
                             transcript: Box::new(transcript),
                             fut,
                         };
+                        Poll::Pending
                     }
-                    (Poll::Pending, Poll::Pending) => self.state = State::ClientClose { mpc, fut },
+                    (Poll::Pending, Poll::Pending) => {
+                        self.state = State::CloseBusy { mpc, fut };
+                        Poll::Pending
+                    }
                 }
-                self.poll(cx)
             }
-            State::ServerClose { mut mpc, mut fut } => {
-                debug!("attempting to close connection serverside");
-                match (fut.poll_unpin(cx)?, mpc.poll_unpin(cx)?) {
-                    (Poll::Ready(inner), Poll::Ready((ctx, transcript))) => {
-                        self.state = State::Finalizing {
-                            fut: Box::pin(inner.finalize(ctx, transcript)),
-                        };
-                    }
-                    (Poll::Ready(inner), Poll::Pending) => {
-                        self.state = State::ServerClose {
-                            mpc,
-                            fut: Box::pin(inner.server_close()),
-                        };
-                    }
-                    (Poll::Pending, Poll::Ready((ctx, transcript))) => {
-                        self.state = State::Closing {
-                            ctx,
-                            transcript: Box::new(transcript),
-                            fut,
-                        };
-                    }
-                    (Poll::Pending, Poll::Pending) => self.state = State::ServerClose { mpc, fut },
-                }
-                self.poll(cx)
-            }
-            State::Closing {
+            State::Finishing {
                 ctx,
                 transcript,
                 mut fut,
             } => {
+                trace!("inner client is finishing");
                 if let Poll::Ready(inner) = fut.poll_unpin(cx)? {
                     self.state = State::Finalizing {
                         fut: Box::pin(inner.finalize(ctx, *transcript)),
                     };
+                    self.poll(cx)
                 } else {
-                    self.state = State::Closing {
+                    self.state = State::Finishing {
                         ctx,
                         transcript,
                         fut,
                     };
+                    Poll::Pending
                 }
-                self.poll(cx)
             }
             State::Finalizing { mut fut } => match fut.poll_unpin(cx) {
                 Poll::Ready(output) => {
@@ -372,7 +356,7 @@ impl TlsClient for MpcTlsClient {
                 }
                 Poll::Pending => {
                     self.state = State::Finalizing { fut };
-                    self.poll(cx)
+                    Poll::Pending
                 }
             },
             State::Finished => Poll::Ready(Err(ProverError::state(
@@ -391,7 +375,7 @@ struct InnerState {
     vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
     keys: SessionKeys,
     mpc_ctrl: LeaderCtrl,
-    closed: bool,
+    mpc_stopped: bool,
 }
 
 impl InnerState {
@@ -415,28 +399,32 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn client_close(mut self: Box<Self>) -> Result<Box<Self>, ProverError> {
-        if self.tls.plaintext_is_empty() && self.tls.is_empty().await? && !self.closed {
-            if let Err(e) = self.tls.send_close_notify().await {
-                warn!("failed to send close_notify to server: {}", e);
-            };
-
-            self.mpc_ctrl.stop().await?;
-            self.closed = true;
-            debug!("closed connection");
+        debug!("sending close notify");
+        if let Err(e) = self.tls.send_close_notify().await {
+            warn!("failed to send close_notify to server: {}", e);
         }
-        self.run().await
+        Ok(self)
     }
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn server_close(mut self: Box<Self>) -> Result<Box<Self>, ProverError> {
-        if self.tls.plaintext_is_empty() && self.tls.is_empty().await? && !self.closed {
-            self.tls.server_closed().await?;
+        self.tls.process_new_packets().await?;
+        self.tls.server_closed().await?;
+        debug!("closed connection serverside");
 
+        Ok(self)
+    }
+
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
+    async fn stop(mut self: Box<Self>) -> Result<Box<Self>, ProverError> {
+        self.tls.process_new_packets().await?;
+        if !self.mpc_stopped && self.tls.plaintext_is_empty() && self.tls.is_empty().await? {
             self.mpc_ctrl.stop().await?;
-            self.closed = true;
-            debug!("closed connection");
+            self.mpc_stopped = true;
+            debug!("stopped mpc");
         }
-        self.run().await
+
+        Ok(self)
     }
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]

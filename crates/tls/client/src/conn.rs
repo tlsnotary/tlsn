@@ -227,6 +227,7 @@ impl ConnectionCommon {
 
     /// Signals that the server has closed the connection.
     pub async fn server_closed(&mut self) -> Result<(), Error> {
+        self.common_state.has_seen_eof = true;
         self.common_state.backend.server_closed().await?;
         Ok(())
     }

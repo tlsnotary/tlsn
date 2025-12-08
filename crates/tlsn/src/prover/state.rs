@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use futures_plex::DuplexStream;
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use tlsn_core::{
@@ -28,6 +29,7 @@ opaque_debug::implement!(Initialized);
 /// State after the verifier has accepted the proposed TLS commitment protocol
 /// configuration and preprocessing has completed.
 pub struct CommitAccepted {
+    pub(crate) mpc_duplex: DuplexStream,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsLeader,
@@ -39,10 +41,11 @@ opaque_debug::implement!(CommitAccepted);
 
 /// State during the MPC-TLS connection.
 pub struct Connected {
+    pub(crate) mpc_duplex: DuplexStream,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) server_name: ServerName,
-    pub(crate) tls_client: Box<dyn TlsClient<Error = ProverError>>,
+    pub(crate) tls_client: Box<dyn TlsClient<Error = ProverError> + Send>,
     pub(crate) output: Option<TlsOutput>,
 }
 
@@ -50,6 +53,7 @@ opaque_debug::implement!(Connected);
 
 /// State after the TLS transcript has been committed.
 pub struct Committed {
+    pub(crate) mpc_duplex: DuplexStream,
     pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
     pub(crate) ctx: Context,

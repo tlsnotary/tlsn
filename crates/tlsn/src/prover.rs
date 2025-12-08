@@ -9,7 +9,7 @@ pub use error::ProverError;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Role,
+    BUF_CAP, Role,
     context::build_mt_context,
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
@@ -17,10 +17,11 @@ use crate::{
     prover::client::{MpcTlsClient, TlsOutput},
 };
 
-use futures::{AsyncRead, AsyncWrite, FutureExt, TryFutureExt};
+use futures::{FutureExt, TryFutureExt};
 use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
 use std::{
+    io::{Read, Write},
     sync::Arc,
     task::{Context, Poll},
 };
@@ -69,15 +70,16 @@ impl Prover<state::Initialized> {
     /// # Arguments
     ///
     /// * `config` - The TLS commitment configuration.
-    /// * `socket` - The socket to the TLS verifier.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    pub async fn commit(
         self,
         config: TlsCommitConfig,
-        socket: S,
     ) -> Result<Prover<state::CommitAccepted>, ProverError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
+        let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);
+
+        let (mut mux_fut, mux_ctrl) = attach_mux(duplex_b, Role::Prover);
         let mut mt = build_mt_context(mux_ctrl.clone());
+
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Sends protocol configuration to verifier for compatibility check.
@@ -116,17 +118,20 @@ impl Prover<state::Initialized> {
 
         debug!("mpc-tls setup complete");
 
-        Ok(Prover {
+        let prover = Prover {
             config: self.config,
             span: self.span,
             state: state::CommitAccepted {
+                mpc_duplex: duplex_a,
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 keys,
                 vm,
             },
-        })
+        };
+
+        Ok(prover)
     }
 }
 
@@ -145,6 +150,7 @@ impl Prover<state::CommitAccepted> {
         config: TlsClientConfig,
     ) -> Result<Prover<state::Connected>, ProverError> {
         let state::CommitAccepted {
+            mpc_duplex,
             mux_ctrl,
             mux_fut,
             mpc_tls,
@@ -214,6 +220,7 @@ impl Prover<state::CommitAccepted> {
             config: self.config,
             span: self.span,
             state: state::Connected {
+                mpc_duplex,
                 mux_ctrl,
                 mux_fut,
                 server_name: config.server_name().clone(),
@@ -222,6 +229,24 @@ impl Prover<state::CommitAccepted> {
             },
         };
         Ok(prover)
+    }
+
+    /// Writes bytes for the verifier into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
+    }
+
+    /// Reads bytes for the prover from a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.write(buf)
     }
 }
 
@@ -282,6 +307,24 @@ impl Prover<state::Connected> {
         self.state.tls_client.write(buf)
     }
 
+    /// Writes bytes for the verifier into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
+    }
+
+    /// Reads bytes for the prover from a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.write(buf)
+    }
+
     /// Closes the connection from the client side.
     pub fn client_close(&mut self) -> Result<(), ProverError> {
         self.state.tls_client.client_close()
@@ -317,6 +360,7 @@ impl Prover<state::Connected> {
 
         match self.state.tls_client.poll(cx)? {
             Poll::Ready(output) => {
+                let _ = self.state.mux_fut.poll_unpin(cx)?;
                 self.state.output = Some(output);
                 Poll::Ready(Ok(()))
             }
@@ -340,6 +384,7 @@ impl Prover<state::Connected> {
             config: self.config,
             span: self.span,
             state: state::Committed {
+                mpc_duplex: self.state.mpc_duplex,
                 mux_ctrl: self.state.mux_ctrl,
                 mux_fut: self.state.mux_fut,
                 ctx,
@@ -364,6 +409,24 @@ impl Prover<state::Committed> {
     /// Returns the transcript.
     pub fn transcript(&self) -> &Transcript {
         &self.state.transcript
+    }
+
+    /// Writes bytes for the verifier into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
+    }
+
+    /// Reads bytes for the prover from a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.write(buf)
     }
 
     /// Proves information to the verifier.
@@ -428,13 +491,17 @@ impl Prover<state::Committed> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<(), ProverError> {
         let state::Committed {
-            mux_ctrl, mux_fut, ..
+            mut mpc_duplex,
+            mux_ctrl,
+            mux_fut,
+            ..
         } = self.state;
 
         // Wait for the verifier to correctly close the connection.
         if !mux_fut.is_complete() {
             mux_ctrl.close();
             mux_fut.await?;
+            futures::AsyncWriteExt::close(&mut mpc_duplex).await?;
         }
 
         Ok(())

@@ -10,16 +10,17 @@ pub use error::VerifierError;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Role,
+    BUF_CAP, Role,
     context::build_mt_context,
     mpz::{VerifierDeps, build_verifier_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     mux::attach_mux,
     tag::verify_tags,
 };
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use futures::TryFutureExt;
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
+use std::io::{Read, Write};
 use tlsn_core::{
     config::{
         prove::ProveRequest,
@@ -68,11 +69,10 @@ impl Verifier<state::Initialized> {
     ///
     /// * `socket` - The socket to the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-    ) -> Result<Verifier<state::CommitStart>, VerifierError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
+    pub async fn commit(self) -> Result<Verifier<state::CommitStart>, VerifierError> {
+        let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);
+
+        let (mut mux_fut, mux_ctrl) = attach_mux(duplex_b, Role::Verifier);
         let mut mt = build_mt_context(mux_ctrl.clone());
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
@@ -102,6 +102,7 @@ impl Verifier<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::CommitStart {
+                mpc_duplex: duplex_a,
                 mux_ctrl,
                 mux_fut,
                 ctx,
@@ -121,6 +122,7 @@ impl Verifier<state::CommitStart> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn accept(self) -> Result<Verifier<state::CommitAccepted>, VerifierError> {
         let state::CommitStart {
+            mpc_duplex,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
@@ -151,6 +153,7 @@ impl Verifier<state::CommitStart> {
             config: self.config,
             span: self.span,
             state: state::CommitAccepted {
+                mpc_duplex,
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
@@ -182,6 +185,24 @@ impl Verifier<state::CommitStart> {
 
         Ok(())
     }
+
+    /// Writes bytes for the prover into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
+    }
+
+    /// Reads bytes for the verifier from a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.write(buf)
+    }
 }
 
 impl Verifier<state::CommitAccepted> {
@@ -189,6 +210,7 @@ impl Verifier<state::CommitAccepted> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Committed>, VerifierError> {
         let state::CommitAccepted {
+            mpc_duplex,
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
@@ -245,6 +267,7 @@ impl Verifier<state::CommitAccepted> {
             config: self.config,
             span: self.span,
             state: state::Committed {
+                mpc_duplex,
                 mux_ctrl,
                 mux_fut,
                 ctx,
@@ -253,6 +276,24 @@ impl Verifier<state::CommitAccepted> {
                 tls_transcript,
             },
         })
+    }
+
+    /// Writes bytes for the prover into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
+    }
+
+    /// Reads bytes for the verifier from a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.write(buf)
     }
 }
 
@@ -266,6 +307,7 @@ impl Verifier<state::Committed> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn verify(self) -> Result<Verifier<state::Verify>, VerifierError> {
         let state::Committed {
+            mpc_duplex,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
@@ -286,6 +328,7 @@ impl Verifier<state::Committed> {
             config: self.config,
             span: self.span,
             state: state::Verify {
+                mpc_duplex,
                 mux_ctrl,
                 mux_fut,
                 ctx,
@@ -299,17 +342,39 @@ impl Verifier<state::Committed> {
         })
     }
 
+    /// Writes bytes for the prover into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
+    }
+
+    /// Reads bytes for the verifier from a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.write(buf)
+    }
+
     /// Closes the connection with the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<(), VerifierError> {
         let state::Committed {
-            mux_ctrl, mux_fut, ..
+            mut mpc_duplex,
+            mux_ctrl,
+            mux_fut,
+            ..
         } = self.state;
 
         // Wait for the prover to correctly close the connection.
         if !mux_fut.is_complete() {
             mux_ctrl.close();
             mux_fut.await?;
+            futures::AsyncWriteExt::close(&mut mpc_duplex).await?;
         }
 
         Ok(())
@@ -327,6 +392,7 @@ impl Verifier<state::Verify> {
         self,
     ) -> Result<(VerifierOutput, Verifier<state::Committed>), VerifierError> {
         let state::Verify {
+            mpc_duplex,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
@@ -362,6 +428,7 @@ impl Verifier<state::Verify> {
                 config: self.config,
                 span: self.span,
                 state: state::Committed {
+                    mpc_duplex,
                     mux_ctrl,
                     mux_fut,
                     ctx,
@@ -379,6 +446,7 @@ impl Verifier<state::Verify> {
         msg: Option<&str>,
     ) -> Result<Verifier<state::Committed>, VerifierError> {
         let state::Verify {
+            mpc_duplex,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
@@ -396,6 +464,7 @@ impl Verifier<state::Verify> {
             config: self.config,
             span: self.span,
             state: state::Committed {
+                mpc_duplex,
                 mux_ctrl,
                 mux_fut,
                 ctx,
@@ -404,5 +473,23 @@ impl Verifier<state::Verify> {
                 tls_transcript,
             },
         })
+    }
+
+    /// Writes bytes for the prover into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
+    }
+
+    /// Reads bytes for the verifier from a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.write(buf)
     }
 }

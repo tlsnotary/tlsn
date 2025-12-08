@@ -124,3 +124,9 @@ impl From<EncodingError> for ProverError {
         Self::new(ErrorKind::Commit, e)
     }
 }
+
+impl From<ProverError> for std::io::Error {
+    fn from(value: ProverError) -> Self {
+        Self::other(value)
+    }
+}
