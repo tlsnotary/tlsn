@@ -231,13 +231,14 @@ impl Prover<state::CommitAccepted> {
         Ok(prover)
     }
 
-    /// Writes bytes for the verifier into a buffer.
-    ///
-    /// # Arguments
-    ///
-    /// * `buf` - The buffer.
-    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.state.mpc_duplex.read(buf)
+    /// Returns `true` if the prover wants to read data from the verifier.
+    pub fn wants_read_verifier(&self) -> bool {
+        self.state.mpc_duplex.remaining_mut() > 0
+    }
+
+    /// Returns `true` if the prover wants to write data to the verifier.
+    pub fn wants_write_verifier(&self) -> bool {
+        self.state.mpc_duplex.remaining() > 0
     }
 
     /// Reads bytes for the prover from a buffer.
@@ -245,8 +246,17 @@ impl Prover<state::CommitAccepted> {
     /// # Arguments
     ///
     /// * `buf` - The buffer.
-    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    pub fn read_verifier(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.state.mpc_duplex.write(buf)
+    }
+
+    /// Writes bytes for the verifier into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_verifier(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
     }
 }
 
@@ -307,13 +317,14 @@ impl Prover<state::Connected> {
         self.state.tls_client.write(buf)
     }
 
-    /// Writes bytes for the verifier into a buffer.
-    ///
-    /// # Arguments
-    ///
-    /// * `buf` - The buffer.
-    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.state.mpc_duplex.read(buf)
+    /// Returns `true` if the prover wants to read data from the verifier.
+    pub fn wants_read_verifier(&self) -> bool {
+        self.state.mpc_duplex.remaining_mut() > 0
+    }
+
+    /// Returns `true` if the prover wants to write data to the verifier.
+    pub fn wants_write_verifier(&self) -> bool {
+        self.state.mpc_duplex.remaining() > 0
     }
 
     /// Reads bytes for the prover from a buffer.
@@ -321,8 +332,17 @@ impl Prover<state::Connected> {
     /// # Arguments
     ///
     /// * `buf` - The buffer.
-    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    pub fn read_verifier(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.state.mpc_duplex.write(buf)
+    }
+
+    /// Writes bytes for the verifier into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_verifier(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
     }
 
     /// Closes the connection from the client side.
@@ -411,13 +431,14 @@ impl Prover<state::Committed> {
         &self.state.transcript
     }
 
-    /// Writes bytes for the verifier into a buffer.
-    ///
-    /// # Arguments
-    ///
-    /// * `buf` - The buffer.
-    pub fn write_mpc(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.state.mpc_duplex.read(buf)
+    /// Returns `true` if the prover wants to read data from the verifier.
+    pub fn wants_read_verifier(&self) -> bool {
+        self.state.mpc_duplex.remaining_mut() > 0
+    }
+
+    /// Returns `true` if the prover wants to write data to the verifier.
+    pub fn wants_write_verifier(&self) -> bool {
+        self.state.mpc_duplex.remaining() > 0
     }
 
     /// Reads bytes for the prover from a buffer.
@@ -425,8 +446,17 @@ impl Prover<state::Committed> {
     /// # Arguments
     ///
     /// * `buf` - The buffer.
-    pub fn read_mpc(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    pub fn read_verifier(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.state.mpc_duplex.write(buf)
+    }
+
+    /// Writes bytes for the verifier into a buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The buffer.
+    pub fn write_verifier(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.state.mpc_duplex.read(buf)
     }
 
     /// Proves information to the verifier.

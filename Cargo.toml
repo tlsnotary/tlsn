@@ -80,7 +80,7 @@ mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "bd80826" }
 mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "bd80826" }
 mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "bd80826" }
 
-futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "0b46dc0" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "a35cd02" }
 rangeset = { version = "0.2" }
 serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
