@@ -5770,9 +5770,9 @@ dependencies = [
 
 [[package]]
 name = "rangeset"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64b8fabf401336b2b589357541d5d8422c90c689bbd0a30e78c929799111f657"
+checksum = "c9eb3f4f9d5c7dc4c0460fc098e6f97d0f28d46da60e163cfbc058a08467d5fd"
 dependencies = [
  "serde",
 ]
@@ -6829,13 +6829,13 @@ dependencies = [
 [[package]]
 name = "spansy"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=566c621#566c621ffadac44328051f1fe40e1a9420a643a8"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6f1a934#6f1a934bc4ce358c268b26abf4fd086267b91c70"
 dependencies = [
  "bytes",
  "httparse",
  "pest",
  "pest_derive",
- "rangeset 0.3.0",
+ "rangeset 0.4.0",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -7229,7 +7229,7 @@ dependencies = [
  "once_cell",
  "opaque-debug",
  "rand 0.9.2",
- "rangeset 0.3.0",
+ "rangeset 0.4.0",
  "rstest",
  "rustls-pki-types",
  "rustls-webpki 0.103.8",
@@ -7312,7 +7312,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "rangeset 0.3.0",
+ "rangeset 0.4.0",
  "rs_merkle",
  "rstest",
  "rustls-pki-types",
@@ -7347,7 +7347,7 @@ dependencies = [
  "mpz-core",
  "mpz-ideal-vm",
  "mpz-vm-core",
- "rangeset 0.3.0",
+ "rangeset 0.4.0",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -8515,7 +8515,7 @@ dependencies = [
 [[package]]
 name = "websocket-relay"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=566c621#566c621ffadac44328051f1fe40e1a9420a643a8"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6f1a934#6f1a934bc4ce358c268b26abf4fd086267b91c70"
 dependencies = [
  "anyhow",
  "form_urlencoded",

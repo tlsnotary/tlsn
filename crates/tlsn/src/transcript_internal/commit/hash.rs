@@ -155,7 +155,7 @@ fn hash_commit_inner(
                     Direction::Received => &refs.recv,
                 };
 
-                for range in idx.iter_ranges() {
+                for range in idx.iter() {
                     hasher.update(&refs.get(range).expect("plaintext refs are valid"));
                 }
 
@@ -176,7 +176,7 @@ fn hash_commit_inner(
                     Direction::Received => &refs.recv,
                 };
 
-                for range in idx.iter_ranges() {
+                for range in idx.iter() {
                     hasher
                         .update(vm, &refs.get(range).expect("plaintext refs are valid"))
                         .map_err(HashCommitError::hasher)?;
@@ -201,7 +201,7 @@ fn hash_commit_inner(
                     Direction::Received => &refs.recv,
                 };
 
-                for range in idx.iter_ranges() {
+                for range in idx.iter() {
                     hasher
                         .update(vm, &refs.get(range).expect("plaintext refs are valid"))
                         .map_err(HashCommitError::hasher)?;

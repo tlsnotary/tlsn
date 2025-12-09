@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bimap::BiMap;
-use rangeset::{ops::UnionMut, set::RangeSet};
+use rangeset::set::RangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -99,7 +99,7 @@ impl EncodingTree {
             let blinder: Blinder = rand::random();
 
             encoding.clear();
-            for range in idx.iter_ranges() {
+            for range in idx.iter() {
                 provider
                     .provide_encoding(direction, range, &mut encoding)
                     .map_err(|_| EncodingTreeError::MissingEncoding { index: idx.clone() })?;

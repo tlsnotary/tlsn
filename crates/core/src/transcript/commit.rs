@@ -2,7 +2,7 @@
 
 use std::{collections::HashSet, fmt};
 
-use rangeset::{ops::UnionMut, set::ToRangeSet};
+use rangeset::set::ToRangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{

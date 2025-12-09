@@ -51,19 +51,11 @@ async fn test() {
     assert_eq!(server_name.as_str(), SERVER_DOMAIN);
     assert!(!partial_transcript.is_complete());
     assert_eq!(
-        partial_transcript
-            .sent_authed()
-            .iter_ranges()
-            .next()
-            .unwrap(),
+        partial_transcript.sent_authed().iter().next().unwrap(),
         0..10
     );
     assert_eq!(
-        partial_transcript
-            .received_authed()
-            .iter_ranges()
-            .next()
-            .unwrap(),
+        partial_transcript.received_authed().iter().next().unwrap(),
         0..10
     );
 

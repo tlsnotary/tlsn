@@ -2,7 +2,7 @@
 
 use rangeset::{
     iter::RangeIterator,
-    ops::{Cover, Difference, Subset, UnionMut},
+    ops::{Cover, Set},
     set::ToRangeSet,
 };
 use serde::{Deserialize, Serialize};
@@ -148,7 +148,7 @@ impl TranscriptProof {
             }
 
             buffer.clear();
-            for range in idx.iter_ranges() {
+            for range in idx.iter() {
                 buffer.extend_from_slice(&plaintext[range]);
             }
 

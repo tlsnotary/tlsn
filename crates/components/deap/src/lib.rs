@@ -15,10 +15,7 @@ use mpz_vm_core::{
     memory::{binary::Binary, DecodeFuture, Memory, Repr, Slice, View},
     Call, Callable, Execute, Vm, VmError,
 };
-use rangeset::{
-    ops::{Difference, UnionMut},
-    set::RangeSet,
-};
+use rangeset::{ops::Set, set::RangeSet};
 use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
 
 type Error = DeapError;
@@ -271,7 +268,7 @@ where
                 mpc.mark_private_raw(slice)?;
                 // Follower's private inputs will become public during finalization.
                 zk.mark_public_raw(self.memory_map.try_get(slice)?)?;
-                self.follower_input_ranges.union_mut(&slice.to_range());
+                self.follower_input_ranges.union_mut(slice.to_range());
                 self.follower_inputs.push(slice);
             }
         }
@@ -287,7 +284,7 @@ where
                 mpc.mark_blind_raw(slice)?;
                 // Follower's private inputs will become public during finalization.
                 zk.mark_public_raw(self.memory_map.try_get(slice)?)?;
-                self.follower_input_ranges.union_mut(&slice.to_range());
+                self.follower_input_ranges.union_mut(slice.to_range());
                 self.follower_inputs.push(slice);
             }
             Role::Follower => {
