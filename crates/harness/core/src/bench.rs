@@ -9,6 +9,7 @@ pub const DEFAULT_UPLOAD_SIZE: usize = 1024;
 pub const DEFAULT_DOWNLOAD_SIZE: usize = 4096;
 pub const DEFAULT_DEFER_DECRYPTION: bool = true;
 pub const DEFAULT_MEMORY_PROFILE: bool = false;
+pub const DEFAULT_REVEAL_ALL: bool = false;
 
 pub const WARM_UP_BENCH: Bench = Bench {
     group: None,
@@ -20,6 +21,7 @@ pub const WARM_UP_BENCH: Bench = Bench {
     download_size: 4096,
     defer_decryption: true,
     memory_profile: false,
+    reveal_all: true,
 };
 
 #[derive(Deserialize)]
@@ -79,6 +81,8 @@ pub struct BenchGroupItem {
     pub defer_decryption: Option<bool>,
     #[serde(rename = "memory-profile")]
     pub memory_profile: Option<bool>,
+    #[serde(rename = "reveal-all")]
+    pub reveal_all: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +101,8 @@ pub struct BenchItem {
     pub defer_decryption: Option<bool>,
     #[serde(rename = "memory-profile")]
     pub memory_profile: Option<bool>,
+    #[serde(rename = "reveal-all")]
+    pub reveal_all: Option<bool>,
 }
 
 impl BenchItem {
@@ -132,6 +138,10 @@ impl BenchItem {
         if self.memory_profile.is_none() {
             self.memory_profile = group.memory_profile;
         }
+
+        if self.reveal_all.is_none() {
+            self.reveal_all = group.reveal_all;
+        }
     }
 
     pub fn into_bench(&self) -> Bench {
@@ -145,6 +155,7 @@ impl BenchItem {
             download_size: self.download_size.unwrap_or(DEFAULT_DOWNLOAD_SIZE),
             defer_decryption: self.defer_decryption.unwrap_or(DEFAULT_DEFER_DECRYPTION),
             memory_profile: self.memory_profile.unwrap_or(DEFAULT_MEMORY_PROFILE),
+            reveal_all: self.reveal_all.unwrap_or(DEFAULT_REVEAL_ALL),
         }
     }
 }
@@ -164,6 +175,8 @@ pub struct Bench {
     pub defer_decryption: bool,
     #[serde(rename = "memory-profile")]
     pub memory_profile: bool,
+    #[serde(rename = "reveal-all")]
+    pub reveal_all: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
