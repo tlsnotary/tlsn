@@ -110,8 +110,14 @@ impl Transcript {
         }
 
         Some(
-            Subsequence::new(idx.clone(), data.index(idx).flatten().copied().collect())
-                .expect("data is same length as index"),
+            Subsequence::new(
+                idx.clone(),
+                data.index(idx).fold(Vec::new(), |mut acc, s| {
+                    acc.extend_from_slice(s);
+                    acc
+                }),
+            )
+            .expect("data is same length as index"),
         )
     }
 
@@ -190,18 +196,20 @@ pub struct CompressedPartialTranscript {
 impl From<PartialTranscript> for CompressedPartialTranscript {
     fn from(uncompressed: PartialTranscript) -> Self {
         Self {
-            sent_authed: uncompressed
-                .sent
-                .index(&uncompressed.sent_authed_idx)
-                .flatten()
-                .copied()
-                .collect(),
+            sent_authed: uncompressed.sent.index(&uncompressed.sent_authed_idx).fold(
+                Vec::new(),
+                |mut acc, s| {
+                    acc.extend_from_slice(s);
+                    acc
+                },
+            ),
             received_authed: uncompressed
                 .received
                 .index(&uncompressed.received_authed_idx)
-                .flatten()
-                .copied()
-                .collect(),
+                .fold(Vec::new(), |mut acc, s| {
+                    acc.extend_from_slice(s);
+                    acc
+                }),
             sent_idx: uncompressed.sent_authed_idx,
             recv_idx: uncompressed.received_authed_idx,
             sent_total: uncompressed.sent.len(),
