@@ -9,7 +9,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, VmError, prelude::*};
-use rangeset::RangeSet;
+use rangeset::set::RangeSet;
 use tlsn_core::{
     hash::{Blinder, Hash, HashAlgId, TypedHash},
     transcript::{
@@ -155,7 +155,7 @@ fn hash_commit_inner(
                     Direction::Received => &refs.recv,
                 };
 
-                for range in idx.iter_ranges() {
+                for range in idx.iter() {
                     hasher.update(&refs.get(range).expect("plaintext refs are valid"));
                 }
 
@@ -176,7 +176,7 @@ fn hash_commit_inner(
                     Direction::Received => &refs.recv,
                 };
 
-                for range in idx.iter_ranges() {
+                for range in idx.iter() {
                     hasher
                         .update(vm, &refs.get(range).expect("plaintext refs are valid"))
                         .map_err(HashCommitError::hasher)?;
@@ -201,7 +201,7 @@ fn hash_commit_inner(
                     Direction::Received => &refs.recv,
                 };
 
-                for range in idx.iter_ranges() {
+                for range in idx.iter() {
                     hasher
                         .update(vm, &refs.get(range).expect("plaintext refs are valid"))
                         .map_err(HashCommitError::hasher)?;

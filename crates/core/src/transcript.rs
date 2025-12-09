@@ -26,7 +26,11 @@ mod tls;
 
 use std::{fmt, ops::Range};
 
-use rangeset::{Difference, IndexRanges, RangeSet, Union};
+use rangeset::{
+    iter::RangeIterator,
+    ops::{Index, Set},
+    set::RangeSet,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::connection::TranscriptLength;
@@ -106,7 +110,7 @@ impl Transcript {
         }
 
         Some(
-            Subsequence::new(idx.clone(), data.index_ranges(idx))
+            Subsequence::new(idx.clone(), data.index(idx).flatten().copied().collect())
                 .expect("data is same length as index"),
         )
     }
@@ -129,11 +133,11 @@ impl Transcript {
         let mut sent = vec![0; self.sent.len()];
         let mut received = vec![0; self.received.len()];
 
-        for range in sent_idx.iter_ranges() {
+        for range in sent_idx.iter() {
             sent[range.clone()].copy_from_slice(&self.sent[range]);
         }
 
-        for range in recv_idx.iter_ranges() {
+        for range in recv_idx.iter() {
             received[range.clone()].copy_from_slice(&self.received[range]);
         }
 
@@ -188,10 +192,16 @@ impl From<PartialTranscript> for CompressedPartialTranscript {
         Self {
             sent_authed: uncompressed
                 .sent
-                .index_ranges(&uncompressed.sent_authed_idx),
+                .index(&uncompressed.sent_authed_idx)
+                .flatten()
+                .copied()
+                .collect(),
             received_authed: uncompressed
                 .received
-                .index_ranges(&uncompressed.received_authed_idx),
+                .index(&uncompressed.received_authed_idx)
+                .flatten()
+                .copied()
+                .collect(),
             sent_idx: uncompressed.sent_authed_idx,
             recv_idx: uncompressed.received_authed_idx,
             sent_total: uncompressed.sent.len(),
@@ -207,7 +217,7 @@ impl From<CompressedPartialTranscript> for PartialTranscript {
 
         let mut offset = 0;
 
-        for range in compressed.sent_idx.iter_ranges() {
+        for range in compressed.sent_idx.iter() {
             sent[range.clone()]
                 .copy_from_slice(&compressed.sent_authed[offset..offset + range.len()]);
             offset += range.len();
@@ -215,7 +225,7 @@ impl From<CompressedPartialTranscript> for PartialTranscript {
 
         let mut offset = 0;
 
-        for range in compressed.recv_idx.iter_ranges() {
+        for range in compressed.recv_idx.iter() {
             received[range.clone()]
                 .copy_from_slice(&compressed.received_authed[offset..offset + range.len()]);
             offset += range.len();
@@ -304,12 +314,16 @@ impl PartialTranscript {
 
     /// Returns the index of sent data which haven't been authenticated.
     pub fn sent_unauthed(&self) -> RangeSet<usize> {
-        (0..self.sent.len()).difference(&self.sent_authed_idx)
+        (0..self.sent.len())
+            .difference(&self.sent_authed_idx)
+            .into_set()
     }
 
     /// Returns the index of received data which haven't been authenticated.
     pub fn received_unauthed(&self) -> RangeSet<usize> {
-        (0..self.received.len()).difference(&self.received_authed_idx)
+        (0..self.received.len())
+            .difference(&self.received_authed_idx)
+            .into_set()
     }
 
     /// Returns an iterator over the authenticated data in the transcript.
@@ -319,7 +333,7 @@ impl PartialTranscript {
             Direction::Received => (&self.received, &self.received_authed_idx),
         };
 
-        authed.iter().map(|i| data[i])
+        authed.iter_values().map(move |i| data[i])
     }
 
     /// Unions the authenticated data of this transcript with another.
@@ -339,24 +353,20 @@ impl PartialTranscript {
             "received data are not the same length"
         );
 
-        for range in other
-            .sent_authed_idx
-            .difference(&self.sent_authed_idx)
-            .iter_ranges()
-        {
+        for range in other.sent_authed_idx.difference(&self.sent_authed_idx) {
             self.sent[range.clone()].copy_from_slice(&other.sent[range]);
         }
 
         for range in other
             .received_authed_idx
             .difference(&self.received_authed_idx)
-            .iter_ranges()
         {
             self.received[range.clone()].copy_from_slice(&other.received[range]);
         }
 
-        self.sent_authed_idx = self.sent_authed_idx.union(&other.sent_authed_idx);
-        self.received_authed_idx = self.received_authed_idx.union(&other.received_authed_idx);
+        self.sent_authed_idx.union_mut(&other.sent_authed_idx);
+        self.received_authed_idx
+            .union_mut(&other.received_authed_idx);
     }
 
     /// Unions an authenticated subsequence into this transcript.
@@ -368,11 +378,11 @@ impl PartialTranscript {
         match direction {
             Direction::Sent => {
                 seq.copy_to(&mut self.sent);
-                self.sent_authed_idx = self.sent_authed_idx.union(&seq.idx);
+                self.sent_authed_idx.union_mut(&seq.idx);
             }
             Direction::Received => {
                 seq.copy_to(&mut self.received);
-                self.received_authed_idx = self.received_authed_idx.union(&seq.idx);
+                self.received_authed_idx.union_mut(&seq.idx);
             }
         }
     }
@@ -383,10 +393,10 @@ impl PartialTranscript {
     ///
     /// * `value` - The value to set the unauthenticated bytes to
     pub fn set_unauthed(&mut self, value: u8) {
-        for range in self.sent_unauthed().iter_ranges() {
+        for range in self.sent_unauthed().iter() {
             self.sent[range].fill(value);
         }
-        for range in self.received_unauthed().iter_ranges() {
+        for range in self.received_unauthed().iter() {
             self.received[range].fill(value);
         }
     }
@@ -401,13 +411,13 @@ impl PartialTranscript {
     pub fn set_unauthed_range(&mut self, value: u8, direction: Direction, range: Range<usize>) {
         match direction {
             Direction::Sent => {
-                for range in range.difference(&self.sent_authed_idx).iter_ranges() {
-                    self.sent[range].fill(value);
+                for r in range.difference(&self.sent_authed_idx) {
+                    self.sent[r].fill(value);
                 }
             }
             Direction::Received => {
-                for range in range.difference(&self.received_authed_idx).iter_ranges() {
-                    self.received[range].fill(value);
+                for r in range.difference(&self.received_authed_idx) {
+                    self.received[r].fill(value);
                 }
             }
         }
@@ -485,7 +495,7 @@ impl Subsequence {
     /// Panics if the subsequence ranges are out of bounds.
     pub(crate) fn copy_to(&self, dest: &mut [u8]) {
         let mut offset = 0;
-        for range in self.idx.iter_ranges() {
+        for range in self.idx.iter() {
             dest[range.clone()].copy_from_slice(&self.data[offset..offset + range.len()]);
             offset += range.len();
         }
@@ -610,12 +620,7 @@ mod validation {
             mut partial_transcript: CompressedPartialTranscriptUnchecked,
         ) {
             // Change the total to be less than the last range's end bound.
-            let end = partial_transcript
-                .sent_idx
-                .iter_ranges()
-                .next_back()
-                .unwrap()
-                .end;
+            let end = partial_transcript.sent_idx.iter().next_back().unwrap().end;
 
             partial_transcript.sent_total = end - 1;
 

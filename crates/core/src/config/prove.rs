@@ -1,6 +1,6 @@
 //! Proving configuration.
 
-use rangeset::{RangeSet, ToRangeSet, UnionMut};
+use rangeset::set::{RangeSet, ToRangeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitRequest};

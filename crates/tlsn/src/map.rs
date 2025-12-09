@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use mpz_memory_core::{Vector, binary::U8};
-use rangeset::RangeSet;
+use rangeset::set::RangeSet;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RangeMap<T> {
@@ -77,7 +77,7 @@ where
 
     pub(crate) fn index(&self, idx: &RangeSet<usize>) -> Option<Self> {
         let mut map = Vec::new();
-        for idx in idx.iter_ranges() {
+        for idx in idx.iter() {
             let pos = match self.map.binary_search_by(|(base, _)| base.cmp(&idx.start)) {
                 Ok(i) => i,
                 Err(0) => return None,

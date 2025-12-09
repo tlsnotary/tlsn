@@ -2,7 +2,7 @@ use mpc_tls::SessionKeys;
 use mpz_common::Context;
 use mpz_memory_core::binary::Binary;
 use mpz_vm_core::Vm;
-use rangeset::{RangeSet, UnionMut};
+use rangeset::set::RangeSet;
 use tlsn_core::{
     ProverOutput,
     config::prove::ProveConfig,

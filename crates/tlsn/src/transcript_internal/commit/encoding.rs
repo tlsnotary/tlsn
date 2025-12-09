@@ -9,7 +9,7 @@ use mpz_memory_core::{
     correlated::{Delta, Key, Mac},
 };
 use rand::Rng;
-use rangeset::RangeSet;
+use rangeset::set::RangeSet;
 use serde::{Deserialize, Serialize};
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use mpz_vm_core::{memory::Slice, VmError};
-use rangeset::Subset;
+use rangeset::ops::Set;
 
 /// A mapping between the memories of the MPC and ZK VMs.
 #[derive(Debug, Default)]

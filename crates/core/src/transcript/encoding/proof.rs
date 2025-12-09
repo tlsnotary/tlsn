@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt};
 
-use rangeset::{RangeSet, UnionMut};
+use rangeset::set::RangeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -103,7 +103,7 @@ impl EncodingProof {
             }
 
             expected_leaf.clear();
-            for range in idx.iter_ranges() {
+            for range in idx.iter() {
                 encoder.encode_data(*direction, range.clone(), &data[range], &mut expected_leaf);
             }
             expected_leaf.extend_from_slice(blinder.as_bytes());

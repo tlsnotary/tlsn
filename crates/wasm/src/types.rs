@@ -151,9 +151,9 @@ impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
     fn from(value: tlsn::transcript::PartialTranscript) -> Self {
         Self {
             sent: value.sent_unsafe().to_vec(),
-            sent_authed: value.sent_authed().iter_ranges().collect(),
+            sent_authed: value.sent_authed().iter().collect(),
             recv: value.received_unsafe().to_vec(),
-            recv_authed: value.received_authed().iter_ranges().collect(),
+            recv_authed: value.received_authed().iter().collect(),
         }
     }
 }

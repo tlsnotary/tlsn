@@ -12,7 +12,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Call, CallableExt, Vm};
-use rangeset::{Difference, RangeSet, Union};
+use rangeset::{iter::RangeIterator, ops::Set, set::RangeSet};
 use tlsn_core::transcript::Record;
 
 use crate::transcript_internal::ReferenceMap;
@@ -32,7 +32,7 @@ pub(crate) fn prove_plaintext<'a>(
         commit.clone()
     } else {
         // The plaintext is only partially revealed, so we need to authenticate in ZK.
-        commit.union(reveal)
+        commit.union(reveal).into_set()
     };
 
     let plaintext_refs = alloc_plaintext(vm, &alloc_ranges)?;
@@ -49,7 +49,7 @@ pub(crate) fn prove_plaintext<'a>(
             vm.commit(*slice).map_err(PlaintextAuthError::vm)?;
         }
     } else {
-        let private = commit.difference(reveal);
+        let private = commit.difference(reveal).into_set();
         for (_, slice) in plaintext_refs
             .index(&private)
             .expect("all ranges are allocated")
@@ -98,7 +98,7 @@ pub(crate) fn verify_plaintext<'a>(
         commit.clone()
     } else {
         // The plaintext is only partially revealed, so we need to authenticate in ZK.
-        commit.union(reveal)
+        commit.union(reveal).into_set()
     };
 
     let plaintext_refs = alloc_plaintext(vm, &alloc_ranges)?;
@@ -123,7 +123,7 @@ pub(crate) fn verify_plaintext<'a>(
             ciphertext,
         })
     } else {
-        let private = commit.difference(reveal);
+        let private = commit.difference(reveal).into_set();
         for (_, slice) in plaintext_refs
             .index(&private)
             .expect("all ranges are allocated")
@@ -175,15 +175,13 @@ fn alloc_plaintext(
     let plaintext = vm.alloc_vec::<U8>(len).map_err(PlaintextAuthError::vm)?;
 
     let mut pos = 0;
-    Ok(ReferenceMap::from_iter(ranges.iter_ranges().map(
-        move |range| {
-            let chunk = plaintext
-                .get(pos..pos + range.len())
-                .expect("length was checked");
-            pos += range.len();
-            (range.start, chunk)
-        },
-    )))
+    Ok(ReferenceMap::from_iter(ranges.iter().map(move |range| {
+        let chunk = plaintext
+            .get(pos..pos + range.len())
+            .expect("length was checked");
+        pos += range.len();
+        (range.start, chunk)
+    })))
 }
 
 fn alloc_ciphertext<'a>(
@@ -212,15 +210,13 @@ fn alloc_ciphertext<'a>(
     let ciphertext: Vector<U8> = vm.call(call).map_err(PlaintextAuthError::vm)?;
 
     let mut pos = 0;
-    Ok(ReferenceMap::from_iter(ranges.iter_ranges().map(
-        move |range| {
-            let chunk = ciphertext
-                .get(pos..pos + range.len())
-                .expect("length was checked");
-            pos += range.len();
-            (range.start, chunk)
-        },
-    )))
+    Ok(ReferenceMap::from_iter(ranges.iter().map(move |range| {
+        let chunk = ciphertext
+            .get(pos..pos + range.len())
+            .expect("length was checked");
+        pos += range.len();
+        (range.start, chunk)
+    })))
 }
 
 fn alloc_keystream<'a>(
@@ -233,7 +229,7 @@ fn alloc_keystream<'a>(
     let mut keystream = Vec::new();
 
     let mut pos = 0;
-    let mut range_iter = ranges.iter_ranges();
+    let mut range_iter = ranges.iter();
     let mut current_range = range_iter.next();
     for record in records {
         let mut explicit_nonce = None;
@@ -508,7 +504,7 @@ mod tests {
         for record in records {
             let mut record_keystream = vec![0u8; record.len];
             aes_ctr_apply_keystream(&key, &iv, &record.explicit_nonce, &mut record_keystream);
-            for mut range in ranges.iter_ranges() {
+            for mut range in ranges.iter() {
                 range.start = range.start.max(pos);
                 range.end = range.end.min(pos + record.len);
                 if range.start < range.end {

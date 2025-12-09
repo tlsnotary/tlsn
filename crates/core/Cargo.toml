@@ -59,5 +59,7 @@ generic-array = { workspace = true }
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
+tlsn-core = { workspace = true, features = ["fixtures"] }
+tlsn-attestation = { workspace = true, features = ["fixtures"] }
 tlsn-data-fixtures = { workspace = true }
 webpki-root-certs = { workspace = true }
