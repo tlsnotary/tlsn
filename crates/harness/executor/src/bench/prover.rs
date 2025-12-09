@@ -98,14 +98,27 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let mut builder = ProveConfig::builder(prover.transcript());
 
+    // When reveal_all is false (the default), we exclude 1 byte to avoid the
+    // reveal-all optimization and benchmark the realistic ZK authentication path.
+    let reveal_sent_range = if config.reveal_all {
+        0..sent_len
+    } else {
+        0..sent_len.saturating_sub(1)
+    };
+    let reveal_recv_range = if config.reveal_all {
+        0..recv_len
+    } else {
+        0..recv_len.saturating_sub(1)
+    };
+
     builder
         .server_identity()
-        .reveal_sent(&(0..sent_len))?
-        .reveal_recv(&(0..recv_len))?;
+        .reveal_sent(&reveal_sent_range)?
+        .reveal_recv(&reveal_recv_range)?;
 
-    let config = builder.build()?;
+    let prove_config = builder.build()?;
 
-    prover.prove(&config).await?;
+    prover.prove(&prove_config).await?;
     prover.close().await?;
 
     let time_total = time_start.elapsed().as_millis();
