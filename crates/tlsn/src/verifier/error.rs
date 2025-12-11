@@ -49,6 +49,13 @@ impl VerifierError {
     {
         Self::new(ErrorKind::Verify, source)
     }
+
+    pub(crate) fn predicate<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::Predicate, source)
+    }
 }
 
 #[derive(Debug)]
@@ -59,6 +66,7 @@ enum ErrorKind {
     Zk,
     Commit,
     Verify,
+    Predicate,
 }
 
 impl fmt::Display for VerifierError {
@@ -72,6 +80,7 @@ impl fmt::Display for VerifierError {
             ErrorKind::Zk => f.write_str("zk error")?,
             ErrorKind::Commit => f.write_str("commit error")?,
             ErrorKind::Verify => f.write_str("verification error")?,
+            ErrorKind::Predicate => f.write_str("predicate error")?,
         }
 
         if let Some(source) = &self.source {

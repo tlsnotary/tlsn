@@ -25,14 +25,15 @@ pub(crate) fn prove_plaintext<'a>(
     records: impl IntoIterator<Item = &'a Record>,
     reveal: &RangeSet<usize>,
     commit: &RangeSet<usize>,
+    predicate: &RangeSet<usize>,
 ) -> Result<ReferenceMap, PlaintextAuthError> {
-    let is_reveal_all = reveal == (0..plaintext.len());
+    let is_reveal_all = reveal == (0..plaintext.len()) && predicate.is_empty();
 
     let alloc_ranges = if is_reveal_all {
         commit.clone()
     } else {
         // The plaintext is only partially revealed, so we need to authenticate in ZK.
-        commit.union(reveal).into_set()
+        commit.union(reveal).union(predicate).into_set()
     };
 
     let plaintext_refs = alloc_plaintext(vm, &alloc_ranges)?;
@@ -49,7 +50,8 @@ pub(crate) fn prove_plaintext<'a>(
             vm.commit(*slice).map_err(PlaintextAuthError::vm)?;
         }
     } else {
-        let private = commit.difference(reveal).into_set();
+        // Private ranges: committed but not revealed, plus predicate ranges
+        let private = commit.difference(reveal).union(predicate).into_set();
         for (_, slice) in plaintext_refs
             .index(&private)
             .expect("all ranges are allocated")
@@ -91,14 +93,15 @@ pub(crate) fn verify_plaintext<'a>(
     records: impl IntoIterator<Item = &'a Record>,
     reveal: &RangeSet<usize>,
     commit: &RangeSet<usize>,
+    predicate: &RangeSet<usize>,
 ) -> Result<(ReferenceMap, PlaintextProof<'a>), PlaintextAuthError> {
-    let is_reveal_all = reveal == (0..plaintext.len());
+    let is_reveal_all = reveal == (0..plaintext.len()) && predicate.is_empty();
 
     let alloc_ranges = if is_reveal_all {
         commit.clone()
     } else {
         // The plaintext is only partially revealed, so we need to authenticate in ZK.
-        commit.union(reveal).into_set()
+        commit.union(reveal).union(predicate).into_set()
     };
 
     let plaintext_refs = alloc_plaintext(vm, &alloc_ranges)?;
@@ -123,9 +126,10 @@ pub(crate) fn verify_plaintext<'a>(
             ciphertext,
         })
     } else {
-        let private = commit.difference(reveal).into_set();
+        // Blind ranges: committed but not revealed, plus predicate ranges
+        let blind = commit.difference(reveal).union(predicate).into_set();
         for (_, slice) in plaintext_refs
-            .index(&private)
+            .index(&blind)
             .expect("all ranges are allocated")
             .iter()
         {

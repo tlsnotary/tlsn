@@ -1,5 +1,6 @@
 pub(crate) mod auth;
 pub(crate) mod commit;
+pub(crate) mod predicate;
 
 use mpz_memory_core::{Vector, binary::U8};
 
