@@ -1,4 +1,5 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
+use mpz_predicate::{Pred, eq};
 use rangeset::set::RangeSet;
 use tlsn::{
     config::{
@@ -230,4 +231,185 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     verifier.close().await.unwrap();
 
     output
+}
+
+// Predicate name for testing
+const TEST_PREDICATE: &str = "test_first_byte";
+
+/// Test that a correct predicate passes verification.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore]
+async fn test_predicate_passes() {
+    let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
+
+    // Request is "GET / HTTP/1.1\r\n..." - index 10 is '/' (in "HTTP/1.1")
+    // Using index 10 to avoid overlap with revealed range (0..10)
+    // Verifier uses the same predicate - should pass
+    let prover_predicate = eq(10, b'/');
+
+    let (prover_result, verifier_result) = tokio::join!(
+        prover_with_predicate(socket_0, prover_predicate),
+        verifier_with_predicate(socket_1, || eq(10, b'/'))
+    );
+
+    prover_result.expect("prover should succeed");
+    verifier_result.expect("verifier should succeed with correct predicate");
+}
+
+/// Test that a wrong predicate is rejected by the verifier.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore]
+async fn test_wrong_predicate_rejected() {
+    let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
+
+    // Request is "GET / HTTP/1.1\r\n..." - index 10 is '/'
+    // Verifier uses a DIFFERENT predicate that checks for 'X' - should fail
+    let prover_predicate = eq(10, b'/');
+
+    let (prover_result, verifier_result) = tokio::join!(
+        prover_with_predicate(socket_0, prover_predicate),
+        verifier_with_predicate(socket_1, || eq(10, b'X'))
+    );
+
+    // Prover may succeed or fail depending on when verifier rejects
+    let _ = prover_result;
+
+    // Verifier should fail because predicate evaluates to false
+    assert!(
+        verifier_result.is_err(),
+        "verifier should reject wrong predicate"
+    );
+}
+
+/// Test that prover can't prove a predicate their data doesn't satisfy.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore]
+async fn test_unsatisfied_predicate_rejected() {
+    let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
+
+    // Request is "GET / HTTP/1.1\r\n..." - index 10 is '/'
+    // Both parties use eq(10, b'X') but prover's data has '/' at index 10
+    // This tests that a prover can't cheat - the predicate must actually be satisfied
+    let prover_predicate = eq(10, b'X');
+
+    let (prover_result, verifier_result) = tokio::join!(
+        prover_with_predicate(socket_0, prover_predicate),
+        verifier_with_predicate(socket_1, || eq(10, b'X'))
+    );
+
+    // Prover may succeed or fail depending on when verifier rejects
+    let _ = prover_result;
+
+    // Verifier should fail because prover's data doesn't satisfy the predicate
+    assert!(
+        verifier_result.is_err(),
+        "verifier should reject unsatisfied predicate"
+    );
+}
+
+#[instrument(skip(verifier_socket, predicate))]
+async fn prover_with_predicate<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    verifier_socket: T,
+    predicate: Pred,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+
+    let server_task = tokio::spawn(bind(server_socket.compat()));
+
+    let prover = Prover::new(ProverConfig::builder().build()?)
+        .commit(
+            TlsCommitConfig::builder()
+                .protocol(
+                    MpcTlsConfig::builder()
+                        .max_sent_data(MAX_SENT_DATA)
+                        .max_sent_records(MAX_SENT_RECORDS)
+                        .max_recv_data(MAX_RECV_DATA)
+                        .max_recv_records_online(MAX_RECV_RECORDS)
+                        .build()?,
+                )
+                .build()?,
+            verifier_socket.compat(),
+        )
+        .await?;
+
+    let (mut tls_connection, prover_fut) = prover
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()?,
+            client_socket.compat(),
+        )
+        .await?;
+    let prover_task = tokio::spawn(prover_fut);
+
+    tls_connection
+        .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
+        .await?;
+    tls_connection.close().await?;
+
+    let mut response = vec![0u8; 1024];
+    tls_connection.read_to_end(&mut response).await?;
+
+    let _ = server_task.await?;
+
+    let mut prover = prover_task.await??;
+
+    let mut builder = ProveConfig::builder(prover.transcript());
+    builder.server_identity();
+    builder.reveal_sent(&(0..10))?;
+    builder.reveal_recv(&(0..10))?;
+    builder.predicate(TEST_PREDICATE, Direction::Sent, predicate)?;
+
+    let config = builder.build()?;
+    prover.prove(&config).await?;
+    prover.close().await?;
+
+    Ok(())
+}
+
+async fn verifier_with_predicate<T, F>(
+    socket: T,
+    make_predicate: F,
+) -> Result<VerifierOutput, Box<dyn std::error::Error + Send + Sync>>
+where
+    T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static,
+    F: Fn() -> Pred + Send + Sync + 'static,
+{
+    let verifier = Verifier::new(
+        VerifierConfig::builder()
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .build()?,
+    );
+
+    let verifier = verifier
+        .commit(socket.compat())
+        .await?
+        .accept()
+        .await?
+        .run()
+        .await?;
+
+    let verifier = verifier.verify().await?;
+
+    // Resolver that builds the predicate fresh (Pred uses Rc, so can't be shared)
+    let predicate_resolver = move |name: &str, _indices: &RangeSet<usize>| -> Option<Pred> {
+        if name == TEST_PREDICATE {
+            Some(make_predicate())
+        } else {
+            None
+        }
+    };
+
+    let (output, verifier) = verifier
+        .accept_with_predicates(Some(&predicate_resolver))
+        .await?;
+
+    verifier.close().await?;
+
+    Ok(output)
 }

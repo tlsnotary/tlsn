@@ -66,21 +66,21 @@ tlsn-harness-runner = { path = "crates/harness/runner" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-common = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-predicate = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
-mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/predicate_on_dev" }
+mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-common = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-predicate = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
+mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/mpz-bool-type" }
 
 rangeset = { version = "0.4" }
 serio = { version = "0.2" }

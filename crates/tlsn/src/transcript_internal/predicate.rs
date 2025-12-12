@@ -3,9 +3,10 @@
 use std::sync::Arc;
 
 use mpz_circuits::Circuit;
+use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
-    MemoryExt, Vector, ViewExt,
-    binary::{Binary, U8},
+    DecodeFutureTyped, MemoryExt,
+    binary::{Binary, Bool},
 };
 use mpz_predicate::{Pred, compiler::Compiler};
 use mpz_vm_core::{Call, CallableExt, Vm};
@@ -26,6 +27,15 @@ pub(crate) enum PredicateError {
     /// Circuit call error.
     #[error("circuit call error: {0}")]
     Call(#[from] mpz_vm_core::CallError),
+    /// Decode error.
+    #[error("decode error: {0}")]
+    Decode(#[from] mpz_memory_core::DecodeError),
+    /// Missing decoding.
+    #[error("missing decoding")]
+    MissingDecoding,
+    /// Predicate not satisfied.
+    #[error("predicate evaluated to false")]
+    PredicateNotSatisfied,
 }
 
 /// Converts a slice of indices to a RangeSet (each index becomes a single-byte
@@ -58,16 +68,47 @@ pub(crate) fn prove_predicates<T: Vm<Binary>>(
         // Get indices from the predicate and convert to RangeSet
         let indices = indices_to_rangeset(&predicate.indices());
 
-        execute_predicate(vm, refs, &indices, &circuit)?;
+        // Prover doesn't need to verify output - they know their data satisfies the predicate
+        let _ = execute_predicate(vm, refs, &indices, &circuit)?;
     }
 
     Ok(())
+}
+
+/// Proof that predicates were satisfied.
+///
+/// Must be verified after `vm.execute_all()` completes.
+#[must_use]
+pub(crate) struct PredicateProof {
+    /// Decode futures for each predicate output.
+    outputs: Vec<DecodeFutureTyped<BitVec, bool>>,
+}
+
+impl PredicateProof {
+    /// Verifies that all predicates evaluated to true.
+    ///
+    /// Must be called after `vm.execute_all()` completes.
+    pub(crate) fn verify(self) -> Result<(), PredicateError> {
+        for mut output in self.outputs {
+            let result = output
+                .try_recv()
+                .map_err(PredicateError::Decode)?
+                .ok_or(PredicateError::MissingDecoding)?;
+
+            if !result {
+                return Err(PredicateError::PredicateNotSatisfied);
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Verifies predicates over transcript data (verifier side).
 ///
 /// The verifier must provide the same predicates that the prover used,
 /// looked up by predicate name from out-of-band agreement.
+///
+/// Returns a [`PredicateProof`] that must be verified after `vm.execute_all()`.
 ///
 /// # Arguments
 ///
@@ -78,8 +119,9 @@ pub(crate) fn verify_predicates<T: Vm<Binary>>(
     vm: &mut T,
     transcript_refs: &TranscriptRefs,
     predicates: impl IntoIterator<Item = (Direction, RangeSet<usize>, Pred)>,
-) -> Result<(), PredicateError> {
+) -> Result<PredicateProof, PredicateError> {
     let mut compiler = Compiler::new();
+    let mut outputs = Vec::new();
 
     for (direction, indices, predicate) in predicates {
         let refs = match direction {
@@ -90,19 +132,22 @@ pub(crate) fn verify_predicates<T: Vm<Binary>>(
         // Compile predicate to circuit
         let circuit = compiler.compile(&predicate);
 
-        execute_predicate(vm, refs, &indices, &circuit)?;
+        let output_fut = execute_predicate(vm, refs, &indices, &circuit)?;
+        outputs.push(output_fut);
     }
 
-    Ok(())
+    Ok(PredicateProof { outputs })
 }
 
 /// Executes a predicate circuit with transcript bytes as input.
+///
+/// Returns a decode future for the circuit output.
 fn execute_predicate<T: Vm<Binary>>(
     vm: &mut T,
     refs: &ReferenceMap,
     indices: &RangeSet<usize>,
     circuit: &Circuit,
-) -> Result<(), PredicateError> {
+) -> Result<DecodeFutureTyped<BitVec, bool>, PredicateError> {
     // Get the transcript bytes for the predicate indices
     let indexed_refs = refs
         .index(indices)
@@ -121,23 +166,10 @@ fn execute_predicate<T: Vm<Binary>>(
 
     let call = call_builder.build()?;
 
-    // Execute the circuit - output is a single bit (bool)
-    let output: Vector<U8> = vm.call(call)?;
+    // Execute the circuit - output is a single bit (true/false)
+    // Both parties must call decode() on the output to reveal it
+    let output: Bool = vm.call(call)?;
 
-    // The output should be a single bit indicating predicate satisfaction.
-    // We mark it public so both parties can see the result.
-    vm.mark_public(output)?;
-    vm.commit(output)?;
-
-    // Decode the result to verify it's true
-    let result_fut = vm.decode(output)?;
-
-    // Note: The actual verification that the output is true happens during
-    // execution. If the predicate is false, the ZK proof will fail.
-
-    // Drop the future - we don't need to wait for it here since execute_all
-    // will handle this
-    drop(result_fut);
-
-    Ok(())
+    // Return decode future - caller must verify output == true after execute_all
+    Ok(vm.decode(output)?)
 }

@@ -174,7 +174,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     }
 
     // Verify predicates if any were requested
-    if !request.predicates().is_empty() {
+    let predicate_proof = if !request.predicates().is_empty() {
         let resolver = predicate_resolver.ok_or_else(|| {
             VerifierError::predicate("predicates requested but no resolver provided")
         })?;
@@ -190,13 +190,20 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
             })
             .collect::<Result<Vec<_>, VerifierError>>()?;
 
-        verify_predicates(vm, &transcript_refs, predicates).map_err(VerifierError::predicate)?;
-    }
+        Some(verify_predicates(vm, &transcript_refs, predicates).map_err(VerifierError::predicate)?)
+    } else {
+        None
+    };
 
     vm.execute_all(ctx).await.map_err(VerifierError::zk)?;
 
     sent_proof.verify().map_err(VerifierError::verify)?;
     recv_proof.verify().map_err(VerifierError::verify)?;
+
+    // Verify predicate outputs after ZK execution
+    if let Some(proof) = predicate_proof {
+        proof.verify().map_err(VerifierError::predicate)?;
+    }
 
     let mut encoder_secret = None;
     if let Some(commit_config) = request.transcript_commit()
