@@ -26,6 +26,7 @@ tiny-keccak = { workspace = true, features = ["keccak"] }
 alloy-primitives = { version = "1.3.1", default-features = false }
 alloy-signer = { version = "1.0", default-features = false }
 alloy-signer-local = { version = "1.0", default-features = false }
+bincode = { workspace = true }
 rand06-compat = { workspace = true }
 rstest = { workspace = true }
 tlsn-core = { workspace = true, features = ["fixtures"] }
@@ -36,4 +37,12 @@ workspace = true
 
 [[test]]
 name = "api"
+required-features = ["fixtures"]
+
+[[example]]
+name = "prover_tcp"
+required-features = ["fixtures"]
+
+[[example]]
+name = "verifier_tcp"
 required-features = ["fixtures"]
