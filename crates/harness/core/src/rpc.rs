@@ -22,7 +22,10 @@ pub enum CmdOutput {
     GetTests(Vec<String>),
     Test(TestOutput),
     Bench(BenchOutput),
-    Fail { reason: Option<String> },
+    #[cfg(target_arch = "wasm32")]
+    Fail {
+        reason: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

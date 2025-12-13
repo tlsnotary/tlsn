@@ -24,7 +24,7 @@ use std::{
 };
 
 #[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, error, trace, warn, Instrument};
+use tracing::{debug, debug_span, trace, warn, Instrument};
 
 use tls_client::ClientConnection;
 

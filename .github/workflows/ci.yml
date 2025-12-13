@@ -21,7 +21,7 @@ env:
   #   - https://github.com/privacy-ethereum/mpz/issues/178
   # 32 seems to be big enough for the foreseeable future
   RAYON_NUM_THREADS: 32
-  RUST_VERSION: 1.91.1
+  RUST_VERSION: 1.92.0
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
