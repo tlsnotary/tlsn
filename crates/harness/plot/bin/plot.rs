@@ -3,7 +3,10 @@ use std::f32;
 use charming::{
     Chart, HtmlRenderer, ImageRenderer,
     component::{Axis, Legend, Title},
-    element::{AreaStyle, LineStyle, NameLocation, Orient, TextStyle, Tooltip, Trigger},
+    element::{
+        AreaStyle, ItemStyle, LineStyle, LineStyleType, NameLocation, Orient, TextStyle, Tooltip,
+        Trigger,
+    },
     series::Line,
     theme::Theme,
 };
@@ -19,39 +22,60 @@ struct Cli {
     /// Path to the Bench.toml file with benchmark spec
     toml: String,
 
-    /// Path to the CSV file with benchmark results
-    csv: String,
+    /// Paths to CSV files with benchmark results (one or more)
+    csv: Vec<String>,
 
-    /// Prover kind: native or browser
-    #[arg(short, long, value_enum, default_value = "native")]
-    prover_kind: ProverKind,
+    /// Labels for each dataset (optional, defaults to "Dataset 1", "Dataset 2", etc.)
+    #[arg(short, long, num_args = 0..)]
+    labels: Vec<String>,
 
     /// Add min/max bands to plots
     #[arg(long, default_value_t = false)]
     min_max_band: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-enum ProverKind {
-    Native,
-    Browser,
-}
-
-impl std::fmt::Display for ProverKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProverKind::Native => write!(f, "Native"),
-            ProverKind::Browser => write!(f, "Browser"),
-        }
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let df = CsvReadOptions::default()
-        .try_into_reader_with_file_path(Some(cli.csv.clone().into()))?
-        .finish()?;
+    if cli.csv.is_empty() {
+        return Err("At least one CSV file must be provided".into());
+    }
+
+    // Generate labels if not provided
+    let labels: Vec<String> = if cli.labels.is_empty() {
+        cli.csv
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("Dataset {}", i + 1))
+            .collect()
+    } else if cli.labels.len() != cli.csv.len() {
+        return Err(format!(
+            "Number of labels ({}) must match number of CSV files ({})",
+            cli.labels.len(),
+            cli.csv.len()
+        )
+        .into());
+    } else {
+        cli.labels.clone()
+    };
+
+    // Load all CSVs and add dataset label
+    let mut dfs = Vec::new();
+    for (csv_path, label) in cli.csv.iter().zip(labels.iter()) {
+        let mut df = CsvReadOptions::default()
+            .try_into_reader_with_file_path(Some(csv_path.clone().into()))?
+            .finish()?;
+
+        let label_series = Series::new("dataset_label".into(), vec![label.as_str(); df.height()]);
+        df.with_column(label_series)?;
+        dfs.push(df);
+    }
+
+    // Combine all dataframes
+    let df = dfs
+        .into_iter()
+        .reduce(|acc, df| acc.vstack(&df).unwrap())
+        .unwrap();
 
     let items: BenchItems = toml::from_str(&std::fs::read_to_string(&cli.toml)?)?;
     let groups = items.group;
@@ -61,12 +85,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let latency = group.protocol_latency.unwrap();
             plot_runtime_vs(
                 &df,
+                &labels,
                 cli.min_max_band,
                 &group.name,
                 "bandwidth",
                 1.0 / 1000.0, // Kbps to Mbps
                 "Runtime vs Bandwidth",
-                format!("{} ms Latency, {} mode", latency, cli.prover_kind),
+                format!("{} ms Latency", latency),
                 "runtime_vs_bandwidth",
                 "Bandwidth (Mbps)",
             )?;
@@ -76,12 +101,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let bandwidth = group.bandwidth.unwrap();
             plot_runtime_vs(
                 &df,
+                &labels,
                 cli.min_max_band,
                 &group.name,
                 "latency",
                 1.0,
                 "Runtime vs Latency",
-                format!("{} bps bandwidth, {} mode", bandwidth, cli.prover_kind),
+                format!("{} bps bandwidth", bandwidth),
                 "runtime_vs_latency",
                 "Latency (ms)",
             )?;
@@ -94,6 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[allow(clippy::too_many_arguments)]
 fn plot_runtime_vs(
     df: &DataFrame,
+    labels: &[String],
     show_min_max: bool,
     group: &str,
     x_col: &str,
@@ -113,7 +140,7 @@ fn plot_runtime_vs(
             (col("time_online").cast(DataType::Float32) / lit(1000.0)).alias("online"),
             (col("time_total").cast(DataType::Float32) / lit(1000.0)).alias("total"),
         ])
-        .group_by([col("x")])
+        .group_by([col("x"), col("dataset_label")])
         .agg([
             col("preprocess").min().alias("preprocess_min"),
             col("preprocess").mean().alias("preprocess_mean"),
@@ -125,8 +152,15 @@ fn plot_runtime_vs(
             col("total").mean().alias("total_mean"),
             col("total").max().alias("total_max"),
         ])
-        .sort(["x"], Default::default())
+        .sort(["dataset_label", "x"], Default::default())
         .collect()?;
+
+    // Build legend entries
+    let mut legend_data = Vec::new();
+    for label in labels {
+        legend_data.push(format!("Total Mean ({})", label));
+        legend_data.push(format!("Online Mean ({})", label));
+    }
 
     let mut chart = Chart::new()
         .title(
@@ -139,7 +173,7 @@ fn plot_runtime_vs(
         .tooltip(Tooltip::new().trigger(Trigger::Axis))
         .legend(
             Legend::new()
-                .data(vec!["Preprocess Mean", "Online Mean", "Total Mean"])
+                .data(legend_data)
                 .top("80")
                 .right("110")
                 .orient(Orient::Vertical)
@@ -163,20 +197,47 @@ fn plot_runtime_vs(
                 .name_text_style(TextStyle::new().font_size(21)),
         );
 
-    chart = add_mean_series(&chart, &stats_df, "Preprocess Mean", "preprocess_mean")?;
-    chart = add_mean_series(&chart, &stats_df, "Online Mean", "online_mean")?;
-    chart = add_mean_series(&chart, &stats_df, "Total Mean", "total_mean")?;
+    // Add series for each dataset
+    // Define colors for each dataset
+    let colors = vec![
+        "#5470c6", "#91cc75", "#fac858", "#ee6666", "#73c0de", "#3ba272", "#fc8452", "#9a60b4",
+    ];
 
-    if show_min_max {
-        chart = add_min_max_band(
+    for (idx, label) in labels.iter().enumerate() {
+        let color = colors.get(idx % colors.len()).unwrap();
+
+        // Total time - solid line
+        chart = add_dataset_series(
             &chart,
             &stats_df,
-            "Preprocess Min/Max",
-            "preprocess",
-            "#ccc",
+            label,
+            &format!("Total Mean ({})", label),
+            "total_mean",
+            false,
+            color,
         )?;
-        chart = add_min_max_band(&chart, &stats_df, "Online Min/Max", "online", "#ccc")?;
-        chart = add_min_max_band(&chart, &stats_df, "Total Min/Max", "total", "#ccc")?;
+
+        // Online time - dashed line (same color as total)
+        chart = add_dataset_series(
+            &chart,
+            &stats_df,
+            label,
+            &format!("Online Mean ({})", label),
+            "online_mean",
+            true,
+            color,
+        )?;
+
+        if show_min_max {
+            chart = add_dataset_min_max_band(
+                &chart,
+                &stats_df,
+                label,
+                &format!("Total Min/Max ({})", label),
+                "total",
+                color,
+            )?;
+        }
     }
     // Save the chart as HTML file.
     HtmlRenderer::new(title, 1000, 800)
@@ -192,14 +253,21 @@ fn plot_runtime_vs(
     Ok(chart)
 }
 
-fn add_mean_series(
+fn add_dataset_series(
     chart: &Chart,
     df: &DataFrame,
-    name: &str,
+    dataset_label: &str,
+    series_name: &str,
     col_name: &str,
+    dashed: bool,
+    color: &str,
 ) -> Result<Chart, Box<dyn std::error::Error>> {
-    let x = df.column("x")?.f32()?;
-    let y = df.column(col_name)?.f32()?;
+    // Filter for specific dataset
+    let mask = df.column("dataset_label")?.str()?.equal(dataset_label);
+    let filtered = df.filter(&mask)?;
+
+    let x = filtered.column("x")?.f32()?;
+    let y = filtered.column(col_name)?.f32()?;
 
     let data: Vec<Vec<f32>> = x
         .into_iter()
@@ -207,21 +275,36 @@ fn add_mean_series(
         .filter_map(|(x, y)| Some(vec![x?, y?]))
         .collect();
 
-    Ok(chart
-        .clone()
-        .series(Line::new().name(name).data(data).symbol_size(6)))
+    let mut line = Line::new()
+        .name(series_name)
+        .data(data)
+        .symbol_size(6)
+        .item_style(ItemStyle::new().color(color));
+
+    let mut line_style = LineStyle::new();
+    if dashed {
+        line_style = line_style.type_(LineStyleType::Dashed);
+    }
+    line = line.line_style(line_style.color(color));
+
+    Ok(chart.clone().series(line))
 }
 
-fn add_min_max_band(
+fn add_dataset_min_max_band(
     chart: &Chart,
     df: &DataFrame,
+    dataset_label: &str,
     name: &str,
     col_prefix: &str,
     color: &str,
 ) -> Result<Chart, Box<dyn std::error::Error>> {
-    let x = df.column("x")?.f32()?;
-    let min_col = df.column(&format!("{}_min", col_prefix))?.f32()?;
-    let max_col = df.column(&format!("{}_max", col_prefix))?.f32()?;
+    // Filter for specific dataset
+    let mask = df.column("dataset_label")?.str()?.equal(dataset_label);
+    let filtered = df.filter(&mask)?;
+
+    let x = filtered.column("x")?.f32()?;
+    let min_col = filtered.column(&format!("{}_min", col_prefix))?.f32()?;
+    let max_col = filtered.column(&format!("{}_max", col_prefix))?.f32()?;
 
     let max_data: Vec<Vec<f32>> = x
         .into_iter()
