@@ -78,12 +78,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let items: BenchItems = toml::from_str(&std::fs::read_to_string(&cli.toml)?)?;
     let groups = items.group;
 
-    let items: BenchItems = toml::from_str(&std::fs::read_to_string(&cli.toml)?)?;
-    let groups = items.group;
-
     for group in groups {
-        if group.protocol_latency.is_some() {
-            let latency = group.protocol_latency.unwrap();
+        // Determine which field varies in benches for this group
+        let benches_in_group: Vec<_> = items
+            .bench
+            .iter()
+            .filter(|b| b.group.as_deref() == Some(&group.name))
+            .collect();
+
+        if benches_in_group.is_empty() {
+            continue;
+        }
+
+        // Check which field has varying values
+        let bandwidth_varies = benches_in_group
+            .windows(2)
+            .any(|w| w[0].bandwidth != w[1].bandwidth);
+        let latency_varies = benches_in_group
+            .windows(2)
+            .any(|w| w[0].protocol_latency != w[1].protocol_latency);
+        let download_size_varies = benches_in_group
+            .windows(2)
+            .any(|w| w[0].download_size != w[1].download_size);
+
+        if download_size_varies {
+            let upload_size = group.upload_size.unwrap_or(1024);
+            plot_runtime_vs(
+                &df,
+                &labels,
+                cli.min_max_band,
+                &group.name,
+                "download_size",
+                1.0 / 1024.0, // bytes to KB
+                "Runtime vs Response Size",
+                format!("{} bytes upload size", upload_size),
+                "runtime_vs_download_size",
+                "Response Size (KB)",
+                true, // legend on left
+            )?;
+        } else if bandwidth_varies {
+            let latency = group.protocol_latency.unwrap_or(50);
             plot_runtime_vs(
                 &df,
                 &labels,
@@ -95,11 +129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("{} ms Latency", latency),
                 "runtime_vs_bandwidth",
                 "Bandwidth (Mbps)",
+                false, // legend on right
             )?;
-        }
-
-        if group.bandwidth.is_some() {
-            let bandwidth = group.bandwidth.unwrap();
+        } else if latency_varies {
+            let bandwidth = group.bandwidth.unwrap_or(1000);
             plot_runtime_vs(
                 &df,
                 &labels,
@@ -111,6 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("{} bps bandwidth", bandwidth),
                 "runtime_vs_latency",
                 "Latency (ms)",
+                true, // legend on left
             )?;
         }
     }
@@ -130,6 +164,7 @@ fn plot_runtime_vs(
     subtitle: String,
     output_file: &str,
     x_axis_label: &str,
+    legend_left: bool,
 ) -> Result<Chart, Box<dyn std::error::Error>> {
     let stats_df = df
         .clone()
@@ -172,14 +207,6 @@ fn plot_runtime_vs(
                 .subtext_style(TextStyle::new().font_size(16)),
         )
         .tooltip(Tooltip::new().trigger(Trigger::Axis))
-        .legend(
-            Legend::new()
-                .data(legend_data)
-                .top("80")
-                .right("110")
-                .orient(Orient::Vertical)
-                .item_gap(10),
-        )
         .x_axis(
             Axis::new()
                 .name(x_axis_label)
@@ -198,7 +225,21 @@ fn plot_runtime_vs(
                 .name_text_style(TextStyle::new().font_size(21)),
         );
 
-    // Add series for each dataset
+    // Add legend with conditional positioning
+    let legend = Legend::new()
+        .data(legend_data)
+        .top("80")
+        .orient(Orient::Vertical)
+        .item_gap(10);
+
+    let legend = if legend_left {
+        legend.left("110")
+    } else {
+        legend.right("110")
+    };
+
+    chart = chart.legend(legend);
+
     // Define colors for each dataset
     let colors = vec![
         "#5470c6", "#91cc75", "#fac858", "#ee6666", "#73c0de", "#3ba272", "#fc8452", "#9a60b4",
