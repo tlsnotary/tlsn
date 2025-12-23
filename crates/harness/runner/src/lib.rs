@@ -74,8 +74,14 @@ fn print_bench_summary(stats: &[BenchStats]) {
 
     for stat in stats {
         let group_name = stat.group.as_deref().unwrap_or("unnamed");
-        println!("{} ({} Mbps, {}ms latency, {}KB↑ {}KB↓):",
-            group_name, stat.bandwidth, stat.latency, stat.upload_size / 1024, stat.download_size / 1024);
+        println!(
+            "{} ({} Mbps, {}ms latency, {}KB↑ {}KB↓):",
+            group_name,
+            stat.bandwidth,
+            stat.latency,
+            stat.upload_size / 1024,
+            stat.download_size / 1024
+        );
         println!("  Median:  {:.2}s", stat.median() / 1000.0);
         println!();
     }
@@ -281,7 +287,7 @@ pub async fn main() -> Result<()> {
                 ProgressStyle::default_bar()
                     .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}")
                     .expect("valid template")
-                    .progress_chars("█▓▒░ ")
+                    .progress_chars("█▓▒░ "),
             );
 
             // Collect measurements for stats
@@ -298,7 +304,10 @@ pub async fn main() -> Result<()> {
                     config.group.as_deref().unwrap_or("unnamed").to_string()
                 };
 
-                pb.set_message(format!("{} ({} Mbps, {}ms)", group_name, config.bandwidth, config.protocol_latency));
+                pb.set_message(format!(
+                    "{} ({} Mbps, {}ms)",
+                    group_name, config.bandwidth, config.protocol_latency
+                ));
 
                 runner
                     .network
@@ -330,9 +339,14 @@ pub async fn main() -> Result<()> {
 
                 // Collect metrics for stats (skip warmup benches)
                 if !is_warmup {
-                    let config_key = format!("{:?}|{}|{}|{}|{}",
-                        config.group, config.bandwidth, config.protocol_latency,
-                        config.upload_size, config.download_size);
+                    let config_key = format!(
+                        "{:?}|{}|{}|{}|{}",
+                        config.group,
+                        config.bandwidth,
+                        config.protocol_latency,
+                        config.upload_size,
+                        config.download_size
+                    );
                     measurements_by_config
                         .entry(config_key)
                         .or_default()
@@ -358,7 +372,12 @@ pub async fn main() -> Result<()> {
                     let group = if parts[0] == "None" {
                         None
                     } else {
-                        Some(parts[0].trim_start_matches("Some(\"").trim_end_matches("\")").to_string())
+                        Some(
+                            parts[0]
+                                .trim_start_matches("Some(\"")
+                                .trim_end_matches("\")")
+                                .to_string(),
+                        )
                     };
                     let bandwidth: usize = parts[1].parse().unwrap_or(0);
                     let latency: usize = parts[2].parse().unwrap_or(0);
@@ -378,7 +397,8 @@ pub async fn main() -> Result<()> {
 
             // Sort stats by group name for consistent output
             all_stats.sort_by(|a, b| {
-                a.group.cmp(&b.group)
+                a.group
+                    .cmp(&b.group)
                     .then(a.latency.cmp(&b.latency))
                     .then(a.bandwidth.cmp(&b.bandwidth))
             });
