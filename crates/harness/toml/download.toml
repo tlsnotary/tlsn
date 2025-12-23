@@ -1,0 +1,37 @@
+[[group]]
+name = "download_size"
+protocol_latency = 10
+bandwidth = 200
+upload-size = 2048
+
+[[bench]]
+group = "download_size"
+download-size = 1024
+
+[[bench]]
+group = "download_size"
+download-size = 2048
+
+[[bench]]
+group = "download_size"
+download-size = 4096
+
+[[bench]]
+group = "download_size"
+download-size = 8192
+
+[[bench]]
+group = "download_size"
+download-size = 16384
+
+[[bench]]
+group = "download_size"
+download-size = 32768
+
+[[bench]]
+group = "download_size"
+download-size = 65536
+
+[[bench]]
+group = "download_size"
+download-size = 131072

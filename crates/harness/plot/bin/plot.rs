@@ -1,15 +1,15 @@
 use std::f32;
 
 use charming::{
-    Chart, HtmlRenderer,
+    Chart, HtmlRenderer, ImageRenderer,
     component::{Axis, Legend, Title},
     element::{AreaStyle, LineStyle, NameLocation, Orient, TextStyle, Tooltip, Trigger},
     series::Line,
     theme::Theme,
 };
 use clap::Parser;
-use harness_core::bench::{BenchItems, Measurement};
-use itertools::Itertools;
+use harness_core::bench::BenchItems;
+use polars::prelude::*;
 
 const THEME: Theme = Theme::Default;
 
@@ -49,27 +49,25 @@ impl std::fmt::Display for ProverKind {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let mut rdr = csv::Reader::from_path(&cli.csv)?;
+    let df = CsvReadOptions::default()
+        .try_into_reader_with_file_path(Some(cli.csv.clone().into()))?
+        .finish()?;
 
     let items: BenchItems = toml::from_str(&std::fs::read_to_string(&cli.toml)?)?;
     let groups = items.group;
-
-    // Prepare data for plotting.
-    let all_data: Vec<Measurement> = rdr
-        .deserialize::<Measurement>()
-        .collect::<Result<Vec<_>, _>>()?;
 
     for group in groups {
         if group.protocol_latency.is_some() {
             let latency = group.protocol_latency.unwrap();
             plot_runtime_vs(
-                &all_data,
+                &df,
                 cli.min_max_band,
                 &group.name,
-                |r| r.bandwidth as f32 / 1000.0, // Kbps to Mbps
+                "bandwidth",
+                1.0 / 1000.0, // Kbps to Mbps
                 "Runtime vs Bandwidth",
                 format!("{} ms Latency, {} mode", latency, cli.prover_kind),
-                "runtime_vs_bandwidth.html",
+                "runtime_vs_bandwidth",
                 "Bandwidth (Mbps)",
             )?;
         }
@@ -77,13 +75,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if group.bandwidth.is_some() {
             let bandwidth = group.bandwidth.unwrap();
             plot_runtime_vs(
-                &all_data,
+                &df,
                 cli.min_max_band,
                 &group.name,
-                |r| r.latency as f32,
+                "latency",
+                1.0,
                 "Runtime vs Latency",
                 format!("{} bps bandwidth, {} mode", bandwidth, cli.prover_kind),
-                "runtime_vs_latency.html",
+                "runtime_vs_latency",
                 "Latency (ms)",
             )?;
         }
@@ -92,83 +91,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-struct DataPoint {
-    min: f32,
-    mean: f32,
-    max: f32,
-}
-
-struct Points {
-    preprocess: DataPoint,
-    online: DataPoint,
-    total: DataPoint,
-}
-
 #[allow(clippy::too_many_arguments)]
-fn plot_runtime_vs<Fx>(
-    all_data: &[Measurement],
+fn plot_runtime_vs(
+    df: &DataFrame,
     show_min_max: bool,
     group: &str,
-    x_value: Fx,
+    x_col: &str,
+    x_scale: f32,
     title: &str,
     subtitle: String,
     output_file: &str,
     x_axis_label: &str,
-) -> Result<Chart, Box<dyn std::error::Error>>
-where
-    Fx: Fn(&Measurement) -> f32,
-{
-    fn data_point(values: &[f32]) -> DataPoint {
-        let mean = values.iter().copied().sum::<f32>() / values.len() as f32;
-        let max = values.iter().copied().reduce(f32::max).unwrap_or_default();
-        let min = values.iter().copied().reduce(f32::min).unwrap_or_default();
-        DataPoint { min, mean, max }
-    }
-
-    let stats: Vec<(f32, Points)> = all_data
-        .iter()
-        .filter(|r| r.group.as_deref() == Some(group))
-        .map(|r| {
-            (
-                x_value(r),
-                r.time_preprocess as f32 / 1000.0, // ms to s
-                r.time_online as f32 / 1000.0,
-                r.time_total as f32 / 1000.0,
-            )
-        })
-        .sorted_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
-        .chunk_by(|entry| entry.0)
-        .into_iter()
-        .map(|(x, group)| {
-            let group_vec: Vec<_> = group.collect();
-            let preprocess = data_point(
-                &group_vec
-                    .iter()
-                    .map(|(_, t, _, _)| *t)
-                    .collect::<Vec<f32>>(),
-            );
-            let online = data_point(
-                &group_vec
-                    .iter()
-                    .map(|(_, _, t, _)| *t)
-                    .collect::<Vec<f32>>(),
-            );
-            let total = data_point(
-                &group_vec
-                    .iter()
-                    .map(|(_, _, _, t)| *t)
-                    .collect::<Vec<f32>>(),
-            );
-            (
-                x,
-                Points {
-                    preprocess,
-                    online,
-                    total,
-                },
-            )
-        })
-        .collect();
+) -> Result<Chart, Box<dyn std::error::Error>> {
+    let stats_df = df
+        .clone()
+        .lazy()
+        .filter(col("group").eq(lit(group)))
+        .with_column((col(x_col).cast(DataType::Float32) * lit(x_scale)).alias("x"))
+        .with_columns([
+            (col("time_preprocess").cast(DataType::Float32) / lit(1000.0)).alias("preprocess"),
+            (col("time_online").cast(DataType::Float32) / lit(1000.0)).alias("online"),
+            (col("time_total").cast(DataType::Float32) / lit(1000.0)).alias("total"),
+        ])
+        .group_by([col("x")])
+        .agg([
+            col("preprocess").min().alias("preprocess_min"),
+            col("preprocess").mean().alias("preprocess_mean"),
+            col("preprocess").max().alias("preprocess_max"),
+            col("online").min().alias("online_min"),
+            col("online").mean().alias("online_mean"),
+            col("online").max().alias("online_max"),
+            col("total").min().alias("total_min"),
+            col("total").mean().alias("total_mean"),
+            col("total").max().alias("total_max"),
+        ])
+        .sort(["x"], Default::default())
+        .collect()?;
 
     let mut chart = Chart::new()
         .title(
@@ -205,73 +163,87 @@ where
                 .name_text_style(TextStyle::new().font_size(21)),
         );
 
-    chart = add_mean_series(chart, &stats, "Preprocess Mean", |p| p.preprocess.mean);
-    chart = add_mean_series(chart, &stats, "Online Mean", |p| p.online.mean);
-    chart = add_mean_series(chart, &stats, "Total Mean", |p| p.total.mean);
+    chart = add_mean_series(&chart, &stats_df, "Preprocess Mean", "preprocess_mean")?;
+    chart = add_mean_series(&chart, &stats_df, "Online Mean", "online_mean")?;
+    chart = add_mean_series(&chart, &stats_df, "Total Mean", "total_mean")?;
 
     if show_min_max {
         chart = add_min_max_band(
-            chart,
-            &stats,
+            &chart,
+            &stats_df,
             "Preprocess Min/Max",
-            |p| &p.preprocess,
+            "preprocess",
             "#ccc",
-        );
-        chart = add_min_max_band(chart, &stats, "Online Min/Max", |p| &p.online, "#ccc");
-        chart = add_min_max_band(chart, &stats, "Total Min/Max", |p| &p.total, "#ccc");
+        )?;
+        chart = add_min_max_band(&chart, &stats_df, "Online Min/Max", "online", "#ccc")?;
+        chart = add_min_max_band(&chart, &stats_df, "Total Min/Max", "total", "#ccc")?;
     }
     // Save the chart as HTML file.
     HtmlRenderer::new(title, 1000, 800)
         .theme(THEME)
-        .save(&chart, output_file)
+        .save(&chart, &format!("{}.html", output_file))
+        .unwrap();
+
+    ImageRenderer::new(1000, 800)
+        .theme(THEME)
+        .save(&chart, &format!("{}.svg", output_file))
         .unwrap();
 
     Ok(chart)
 }
 
 fn add_mean_series(
-    chart: Chart,
-    stats: &[(f32, Points)],
+    chart: &Chart,
+    df: &DataFrame,
     name: &str,
-    extract: impl Fn(&Points) -> f32,
-) -> Chart {
-    chart.series(
-        Line::new()
-            .name(name)
-            .data(
-                stats
-                    .iter()
-                    .map(|(x, points)| vec![*x, extract(points)])
-                    .collect(),
-            )
-            .symbol_size(6),
-    )
+    col_name: &str,
+) -> Result<Chart, Box<dyn std::error::Error>> {
+    let x = df.column("x")?.f32()?;
+    let y = df.column(col_name)?.f32()?;
+
+    let data: Vec<Vec<f32>> = x
+        .into_iter()
+        .zip(y.into_iter())
+        .filter_map(|(x, y)| Some(vec![x?, y?]))
+        .collect();
+
+    Ok(chart
+        .clone()
+        .series(Line::new().name(name).data(data).symbol_size(6)))
 }
 
 fn add_min_max_band(
-    chart: Chart,
-    stats: &[(f32, Points)],
+    chart: &Chart,
+    df: &DataFrame,
     name: &str,
-    extract: impl Fn(&Points) -> &DataPoint,
+    col_prefix: &str,
     color: &str,
-) -> Chart {
-    chart.series(
+) -> Result<Chart, Box<dyn std::error::Error>> {
+    let x = df.column("x")?.f32()?;
+    let min_col = df.column(&format!("{}_min", col_prefix))?.f32()?;
+    let max_col = df.column(&format!("{}_max", col_prefix))?.f32()?;
+
+    let max_data: Vec<Vec<f32>> = x
+        .into_iter()
+        .zip(max_col.into_iter())
+        .filter_map(|(x, y)| Some(vec![x?, y?]))
+        .collect();
+
+    let min_data: Vec<Vec<f32>> = x
+        .into_iter()
+        .zip(min_col.into_iter())
+        .filter_map(|(x, y)| Some(vec![x?, y?]))
+        .rev()
+        .collect();
+
+    let data: Vec<Vec<f32>> = max_data.into_iter().chain(min_data).collect();
+
+    Ok(chart.clone().series(
         Line::new()
             .name(name)
-            .data(
-                stats
-                    .iter()
-                    .map(|(x, points)| vec![*x, extract(points).max])
-                    .chain(
-                        stats
-                            .iter()
-                            .rev()
-                            .map(|(x, points)| vec![*x, extract(points).min]),
-                    )
-                    .collect(),
-            )
+            .data(data)
             .show_symbol(false)
             .line_style(LineStyle::new().opacity(0.0))
             .area_style(AreaStyle::new().opacity(0.3).color(color)),
-    )
+    ))
 }

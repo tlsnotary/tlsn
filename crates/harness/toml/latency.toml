@@ -1,0 +1,25 @@
+#### Latency ####
+
+[[group]]
+name = "latency"
+bandwidth = 1000
+
+[[bench]]
+group = "latency"
+protocol_latency = 10
+
+[[bench]]
+group = "latency"
+protocol_latency = 25
+
+[[bench]]
+group = "latency"
+protocol_latency = 50
+
+[[bench]]
+group = "latency"
+protocol_latency = 100
+
+[[bench]]
+group = "latency"
+protocol_latency = 200
