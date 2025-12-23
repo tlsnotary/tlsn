@@ -14,8 +14,6 @@ use clap::Parser;
 use harness_core::bench::BenchItems;
 use polars::prelude::*;
 
-const THEME: Theme = Theme::Default;
-
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Cli {
@@ -76,6 +74,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into_iter()
         .reduce(|acc, df| acc.vstack(&df).unwrap())
         .unwrap();
+
+    let items: BenchItems = toml::from_str(&std::fs::read_to_string(&cli.toml)?)?;
+    let groups = items.group;
 
     let items: BenchItems = toml::from_str(&std::fs::read_to_string(&cli.toml)?)?;
     let groups = items.group;
@@ -239,15 +240,21 @@ fn plot_runtime_vs(
             )?;
         }
     }
-    // Save the chart as HTML file.
+    // Save the chart as HTML file (no theme)
     HtmlRenderer::new(title, 1000, 800)
-        .theme(THEME)
         .save(&chart, &format!("{}.html", output_file))
         .unwrap();
 
+    // Save SVG with default theme
     ImageRenderer::new(1000, 800)
-        .theme(THEME)
+        .theme(Theme::Default)
         .save(&chart, &format!("{}.svg", output_file))
+        .unwrap();
+
+    // Save SVG with dark theme
+    ImageRenderer::new(1000, 800)
+        .theme(Theme::Dark)
+        .save(&chart, &format!("{}_dark.svg", output_file))
         .unwrap();
 
     Ok(chart)
