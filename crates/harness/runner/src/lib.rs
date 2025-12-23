@@ -9,7 +9,7 @@ mod ws_proxy;
 #[cfg(feature = "debug")]
 mod debug_prelude;
 
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -22,6 +22,7 @@ use harness_core::{
     rpc::{BenchCmd, TestCmd},
     test::TestStatus,
 };
+use indicatif::{ProgressBar, ProgressStyle};
 
 use cli::{Cli, Command};
 use executor::Executor;
@@ -31,6 +32,54 @@ use server_fixture::ServerFixture;
 use crate::debug_prelude::*;
 
 use crate::{cli::Route, network::Network, wasm_server::WasmServer, ws_proxy::WsProxy};
+
+/// Statistics for a benchmark configuration
+#[derive(Debug, Clone)]
+struct BenchStats {
+    group: Option<String>,
+    bandwidth: usize,
+    latency: usize,
+    upload_size: usize,
+    download_size: usize,
+    times: Vec<u64>,
+}
+
+impl BenchStats {
+    fn median(&self) -> f64 {
+        let mut sorted = self.times.clone();
+        sorted.sort();
+        let len = sorted.len();
+        if len == 0 {
+            return 0.0;
+        }
+        if len.is_multiple_of(2) {
+            (sorted[len / 2 - 1] + sorted[len / 2]) as f64 / 2.0
+        } else {
+            sorted[len / 2] as f64
+        }
+    }
+}
+
+/// Print summary table of benchmark results
+fn print_bench_summary(stats: &[BenchStats]) {
+    if stats.is_empty() {
+        println!("\nNo benchmark results to display (only warmup was run).");
+        return;
+    }
+
+    println!("\n{}", "=".repeat(80));
+    println!("TLSNotary Benchmark Results");
+    println!("{}", "=".repeat(80));
+    println!();
+
+    for stat in stats {
+        let group_name = stat.group.as_deref().unwrap_or("unnamed");
+        println!("{} ({} Mbps, {}ms latency, {}KB↑ {}KB↓):",
+            group_name, stat.bandwidth, stat.latency, stat.upload_size / 1024, stat.download_size / 1024);
+        println!("  Median:  {:.2}s", stat.median() / 1000.0);
+        println!();
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default)]
 pub enum Target {
@@ -206,6 +255,12 @@ pub async fn main() -> Result<()> {
             samples_override,
             skip_warmup,
         } => {
+            // Print configuration info
+            println!("TLSNotary Benchmark Harness");
+            println!("Running benchmarks from: {}", config.display());
+            println!("Output will be written to: {}", output.display());
+            println!();
+
             let items: BenchItems = toml::from_str(&std::fs::read_to_string(config)?)?;
             let output_file = std::fs::File::create(output)?;
             let mut writer = WriterBuilder::new().from_writer(output_file);
@@ -220,7 +275,31 @@ pub async fn main() -> Result<()> {
             runner.exec_p.start().await?;
             runner.exec_v.start().await?;
 
-            for config in benches {
+            // Create progress bar
+            let pb = ProgressBar::new(benches.len() as u64);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}")
+                    .expect("valid template")
+                    .progress_chars("█▓▒░ ")
+            );
+
+            // Collect measurements for stats
+            let mut measurements_by_config: HashMap<String, Vec<u64>> = HashMap::new();
+
+            let warmup_count = if skip_warmup { 0 } else { 3 };
+
+            for (idx, config) in benches.iter().enumerate() {
+                let is_warmup = idx < warmup_count;
+
+                let group_name = if is_warmup {
+                    format!("Warmup {}/{}", idx + 1, warmup_count)
+                } else {
+                    config.group.as_deref().unwrap_or("unnamed").to_string()
+                };
+
+                pb.set_message(format!("{} ({} Mbps, {}ms)", group_name, config.bandwidth, config.protocol_latency));
+
                 runner
                     .network
                     .set_proto_config(config.bandwidth, config.protocol_latency.div_ceil(2))?;
@@ -249,11 +328,62 @@ pub async fn main() -> Result<()> {
                     panic!("expected prover output");
                 };
 
-                let measurement = Measurement::new(config, metrics);
+                // Collect metrics for stats (skip warmup benches)
+                if !is_warmup {
+                    let config_key = format!("{:?}|{}|{}|{}|{}",
+                        config.group, config.bandwidth, config.protocol_latency,
+                        config.upload_size, config.download_size);
+                    measurements_by_config
+                        .entry(config_key)
+                        .or_default()
+                        .push(metrics.time_total);
+                }
+
+                let measurement = Measurement::new(config.clone(), metrics);
 
                 writer.serialize(measurement)?;
                 writer.flush()?;
+
+                pb.inc(1);
             }
+
+            pb.finish_with_message("Benchmarks complete");
+
+            // Compute and print statistics
+            let mut all_stats: Vec<BenchStats> = Vec::new();
+            for (key, times) in measurements_by_config {
+                // Parse back the config from the key
+                let parts: Vec<&str> = key.split('|').collect();
+                if parts.len() >= 5 {
+                    let group = if parts[0] == "None" {
+                        None
+                    } else {
+                        Some(parts[0].trim_start_matches("Some(\"").trim_end_matches("\")").to_string())
+                    };
+                    let bandwidth: usize = parts[1].parse().unwrap_or(0);
+                    let latency: usize = parts[2].parse().unwrap_or(0);
+                    let upload_size: usize = parts[3].parse().unwrap_or(0);
+                    let download_size: usize = parts[4].parse().unwrap_or(0);
+
+                    all_stats.push(BenchStats {
+                        group,
+                        bandwidth,
+                        latency,
+                        upload_size,
+                        download_size,
+                        times,
+                    });
+                }
+            }
+
+            // Sort stats by group name for consistent output
+            all_stats.sort_by(|a, b| {
+                a.group.cmp(&b.group)
+                    .then(a.latency.cmp(&b.latency))
+                    .then(a.bandwidth.cmp(&b.bandwidth))
+            });
+
+            print_bench_summary(&all_stats);
         }
         Command::Serve {} => {
             runner.start_services().await?;

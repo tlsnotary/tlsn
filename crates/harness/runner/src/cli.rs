@@ -31,10 +31,12 @@ pub enum Command {
     },
     /// runs benchmarks.
     Bench {
-        /// Configuration path.
+        /// Configuration path. Defaults to bench.toml which contains
+        /// representative scenarios (cable, 5G, fiber) for quick performance checks.
+        /// Use bench_*_sweep.toml files for parametric analysis.
         #[arg(short, long, default_value = "bench.toml")]
         config: PathBuf,
-        /// Output file path.
+        /// Output CSV file path for detailed metrics and post-processing.
         #[arg(short, long, default_value = "metrics.csv")]
         output: PathBuf,
         /// Number of samples to measure per benchmark. This is overridden by

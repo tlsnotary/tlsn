@@ -1,0 +1,61 @@
+#### Download Size Sweep Benchmark ####
+#
+# Measures how download payload size affects TLSNotary runtime.
+# Keeps network conditions fixed while varying the response size.
+#
+# Fixed parameters:
+#   - Bandwidth: 100 Mbps (typical good connection)
+#   - Latency: 25ms (typical internet latency)
+#   - Upload: 1KB (typical request size)
+#
+# Variable: Download size from 1KB to 100KB
+#
+# Use this to plot "Download Size vs Runtime" and understand how much data
+# TLSNotary can efficiently notarize. Useful for determining optimal
+# chunking strategies for large responses.
+
+[[group]]
+name = "download_sweep"
+bandwidth = 100
+protocol_latency = 25
+upload-size = 1024
+
+[[bench]]
+group = "download_sweep"
+download-size = 1024
+
+[[bench]]
+group = "download_sweep"
+download-size = 2048
+
+[[bench]]
+group = "download_sweep"
+download-size = 5120
+
+[[bench]]
+group = "download_sweep"
+download-size = 10240
+
+[[bench]]
+group = "download_sweep"
+download-size = 20480
+
+[[bench]]
+group = "download_sweep"
+download-size = 30720
+
+[[bench]]
+group = "download_sweep"
+download-size = 40960
+
+[[bench]]
+group = "download_sweep"
+download-size = 51200
+
+[[bench]]
+group = "download_sweep"
+download-size = 76800
+
+[[bench]]
+group = "download_sweep"
+download-size = 102400

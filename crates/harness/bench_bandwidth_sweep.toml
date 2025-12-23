@@ -1,0 +1,52 @@
+#### Bandwidth Sweep Benchmark ####
+#
+# Measures how network bandwidth affects TLSNotary runtime.
+# Keeps latency and payload sizes fixed while varying upload bandwidth.
+#
+# Fixed parameters:
+#   - Latency: 25ms (typical internet latency)
+#   - Upload: 1KB (typical request)
+#   - Download: 2KB (typical response)
+#
+# Variable: Bandwidth from 5 Mbps to 1000 Mbps
+#
+# Use this to plot "Bandwidth vs Runtime" and understand bandwidth sensitivity.
+# Focus on upload bandwidth as TLSNotary is primarily upload-bottlenecked
+
+[[group]]
+name = "bandwidth_sweep"
+protocol_latency = 25
+upload-size = 1024
+download-size = 2048
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 5
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 10
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 20
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 50
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 100
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 250
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 500
+
+[[bench]]
+group = "bandwidth_sweep"
+bandwidth = 1000

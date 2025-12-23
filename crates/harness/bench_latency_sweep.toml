@@ -1,0 +1,47 @@
+#### Latency Sweep Benchmark ####
+#
+# Measures how network latency affects TLSNotary runtime.
+# Keeps bandwidth and payload sizes fixed while varying protocol latency.
+#
+# Fixed parameters:
+#   - Bandwidth: 100 Mbps (typical good connection)
+#   - Upload: 1KB (typical request)
+#   - Download: 2KB (typical response)
+#
+# Variable: Protocol latency from 10ms to 200ms
+#
+# Use this to plot "Latency vs Runtime" and understand latency sensitivity.
+
+[[group]]
+name = "latency_sweep"
+bandwidth = 100
+upload-size = 1024
+download-size = 2048
+
+[[bench]]
+group = "latency_sweep"
+protocol_latency = 10
+
+[[bench]]
+group = "latency_sweep"
+protocol_latency = 25
+
+[[bench]]
+group = "latency_sweep"
+protocol_latency = 50
+
+[[bench]]
+group = "latency_sweep"
+protocol_latency = 75
+
+[[bench]]
+group = "latency_sweep"
+protocol_latency = 100
+
+[[bench]]
+group = "latency_sweep"
+protocol_latency = 150
+
+[[bench]]
+group = "latency_sweep"
+protocol_latency = 200
