@@ -1,51 +1,59 @@
-#### Latency ####
+#### Default Representative Benchmarks ####
+#
+# This benchmark measures TLSNotary performance on three representative network scenarios.
+# Each scenario is run multiple times to produce statistical metrics (median, std dev, etc.)
+# rather than plots. Use this for quick performance checks and CI regression testing.
+#
+# Payload sizes:
+#   - upload-size: 1KB (typical HTTP request)
+#   - download-size: 2KB (typical HTTP response/API data)
+#
+# Network scenarios are chosen to represent real-world user conditions where
+# TLSNotary is primarily bottlenecked by upload bandwidth.
+
+#### Cable/DSL Home Internet ####
+# Most common residential internet connection
+# - Asymmetric: high download, limited upload (typical bottleneck)
+# - Upload bandwidth: 20 Mbps (realistic cable/DSL upload speed)
+# - Latency: 20ms (typical ISP latency)
 
 [[group]]
-name = "latency"
-bandwidth = 1000
+name = "cable"
+bandwidth = 20
+protocol_latency = 20
+upload-size = 1024
+download-size = 2048
 
 [[bench]]
-group = "latency"
-protocol_latency = 10
+group = "cable"
 
-[[bench]]
-group = "latency"
-protocol_latency = 25
-
-[[bench]]
-group = "latency"
-protocol_latency = 50
-
-[[bench]]
-group = "latency"
-protocol_latency = 100
-
-[[bench]]
-group = "latency"
-protocol_latency = 200
-
-#### Bandwidth ####
+#### Mobile 5G ####
+# Modern mobile connection with good coverage
+# - Upload bandwidth: 30 Mbps (typical 5G upload in good conditions)
+# - Latency: 30ms (higher than wired due to mobile tower hops)
 
 [[group]]
-name = "bandwidth"
-protocol_latency = 25
+name = "mobile_5g"
+bandwidth = 30
+protocol_latency = 30
+upload-size = 1024
+download-size = 2048
 
 [[bench]]
-group = "bandwidth"
-bandwidth = 10
+group = "mobile_5g"
 
-[[bench]]
-group = "bandwidth"
-bandwidth = 50
+#### Fiber Home Internet ####
+# High-end residential connection (best case scenario)
+# - Symmetric: equal upload/download bandwidth
+# - Upload bandwidth: 100 Mbps (typical fiber upload)
+# - Latency: 15ms (lower latency than cable)
 
-[[bench]]
-group = "bandwidth"
+[[group]]
+name = "fiber"
 bandwidth = 100
+protocol_latency = 15
+upload-size = 1024
+download-size = 2048
 
 [[bench]]
-group = "bandwidth"
-bandwidth = 250
-
-[[bench]]
-group = "bandwidth"
-bandwidth = 1000
+group = "fiber"
