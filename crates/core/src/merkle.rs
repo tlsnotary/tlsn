@@ -63,11 +63,6 @@ impl MerkleProof {
 
         Ok(())
     }
-
-    /// Returns the leaf count of the Merkle tree associated with the proof.
-    pub(crate) fn leaf_count(&self) -> usize {
-        self.leaf_count
-    }
 }
 
 #[derive(Clone)]

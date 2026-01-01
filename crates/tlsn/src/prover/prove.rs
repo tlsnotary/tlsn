@@ -13,17 +13,10 @@ use tlsn_core::{
 
 use crate::{
     prover::ProverError,
-    transcript_internal::{
-        TranscriptRefs,
-        auth::prove_plaintext,
-        commit::{
-            encoding::{self, MacStore},
-            hash::prove_hash,
-        },
-    },
+    transcript_internal::{TranscriptRefs, auth::prove_plaintext, commit::hash::prove_hash},
 };
 
-pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
+pub(crate) async fn prove<T: Vm<Binary> + Send + Sync>(
     ctx: &mut Context,
     vm: &mut T,
     keys: &SessionKeys,
@@ -42,13 +35,6 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
         commit_config
             .iter_hash()
             .for_each(|((direction, idx), _)| match direction {
-                Direction::Sent => commit_sent.union_mut(idx),
-                Direction::Received => commit_recv.union_mut(idx),
-            });
-
-        commit_config
-            .iter_encoding()
-            .for_each(|(direction, idx)| match direction {
                 Direction::Sent => commit_sent.union_mut(idx),
                 Direction::Received => commit_recv.union_mut(idx),
             });
@@ -101,45 +87,6 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
     };
 
     vm.execute_all(ctx).await.map_err(ProverError::zk)?;
-
-    if let Some(commit_config) = config.transcript_commit()
-        && commit_config.has_encoding()
-    {
-        let mut sent_ranges = RangeSet::default();
-        let mut recv_ranges = RangeSet::default();
-        for (dir, idx) in commit_config.iter_encoding() {
-            match dir {
-                Direction::Sent => sent_ranges.union_mut(idx),
-                Direction::Received => recv_ranges.union_mut(idx),
-            }
-        }
-
-        let sent_map = transcript_refs
-            .sent
-            .index(&sent_ranges)
-            .expect("indices are valid");
-        let recv_map = transcript_refs
-            .recv
-            .index(&recv_ranges)
-            .expect("indices are valid");
-
-        let (commitment, tree) = encoding::receive(
-            ctx,
-            vm,
-            *commit_config.encoding_hash_alg(),
-            &sent_map,
-            &recv_map,
-            commit_config.iter_encoding(),
-        )
-        .await?;
-
-        output
-            .transcript_commitments
-            .push(TranscriptCommitment::Encoding(commitment));
-        output
-            .transcript_secrets
-            .push(TranscriptSecret::Encoding(tree));
-    }
 
     if let Some((hash_fut, hash_secrets)) = hash_commitments {
         let hash_commitments = hash_fut.try_recv().map_err(ProverError::commit)?;

@@ -332,7 +332,6 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let (
         VerifierOutput {
             transcript_commitments,
-            encoder_secret,
             ..
         },
         verifier,
@@ -392,10 +391,6 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         })
         .server_ephemeral_key(tls_transcript.server_ephemeral_key().clone())
         .transcript_commitments(transcript_commitments);
-
-    if let Some(encoder_secret) = encoder_secret {
-        builder.encoder_secret(encoder_secret);
-    }
 
     let attestation = builder.build(&provider)?;
 

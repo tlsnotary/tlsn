@@ -21,20 +21,6 @@ impl<T> RangeMap<T>
 where
     T: Item,
 {
-    pub(crate) fn new(map: Vec<(usize, T)>) -> Self {
-        let mut pos = 0;
-        for (idx, item) in &map {
-            assert!(
-                *idx >= pos,
-                "items must be sorted by index and non-overlapping"
-            );
-
-            pos = *idx + item.length();
-        }
-
-        Self { map }
-    }
-
     /// Returns `true` if the map is empty.
     pub(crate) fn is_empty(&self) -> bool {
         self.map.is_empty()
@@ -45,11 +31,6 @@ where
         self.map
             .iter()
             .map(|(idx, item)| *idx..*idx + item.length())
-    }
-
-    /// Returns the length of the map.
-    pub(crate) fn len(&self) -> usize {
-        self.map.iter().map(|(_, item)| item.length()).sum()
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Range<usize>, &T)> {

@@ -2,8 +2,6 @@ use std::{error::Error, fmt};
 
 use mpc_tls::MpcTlsError;
 
-use crate::transcript_internal::commit::encoding::EncodingError;
-
 /// Error for [`Verifier`](crate::verifier::Verifier).
 #[derive(Debug, thiserror::Error)]
 pub struct VerifierError {
@@ -57,7 +55,6 @@ enum ErrorKind {
     Config,
     Mpc,
     Zk,
-    Commit,
     Verify,
 }
 
@@ -70,7 +67,6 @@ impl fmt::Display for VerifierError {
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Mpc => f.write_str("mpc error")?,
             ErrorKind::Zk => f.write_str("zk error")?,
-            ErrorKind::Commit => f.write_str("commit error")?,
             ErrorKind::Verify => f.write_str("verification error")?,
         }
 
@@ -103,11 +99,5 @@ impl From<mpz_common::ContextError> for VerifierError {
 impl From<MpcTlsError> for VerifierError {
     fn from(e: MpcTlsError) -> Self {
         Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<EncodingError> for VerifierError {
-    fn from(e: EncodingError) -> Self {
-        Self::new(ErrorKind::Commit, e)
     }
 }

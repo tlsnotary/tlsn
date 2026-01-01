@@ -145,7 +145,7 @@ impl std::fmt::Display for ErrorKind {
 mod test {
     use tlsn_core::{
         connection::TranscriptLength,
-        fixtures::{ConnectionFixture, encoding_provider},
+        fixtures::ConnectionFixture,
         hash::{Blake3, HashAlgId},
         transcript::Transcript,
     };
@@ -166,7 +166,6 @@ mod test {
 
         let RequestFixture { request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),
@@ -187,7 +186,6 @@ mod test {
 
         let RequestFixture { mut request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),
@@ -211,7 +209,6 @@ mod test {
 
         let RequestFixture { mut request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),
@@ -235,7 +232,6 @@ mod test {
 
         let RequestFixture { mut request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),
@@ -267,7 +263,6 @@ mod test {
 
         let RequestFixture { request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),
@@ -291,7 +286,6 @@ mod test {
 
         let RequestFixture { request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),

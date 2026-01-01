@@ -5,7 +5,7 @@ use rand::{Rng, rng};
 use tlsn_core::{
     connection::{ConnectionInfo, ServerEphemKey},
     hash::HashAlgId,
-    transcript::{TranscriptCommitment, encoding::EncoderSecret},
+    transcript::TranscriptCommitment,
 };
 
 use crate::{
@@ -25,7 +25,6 @@ pub struct Sign {
     connection_info: Option<ConnectionInfo>,
     server_ephemeral_key: Option<ServerEphemKey>,
     cert_commitment: ServerCertCommitment,
-    encoder_secret: Option<EncoderSecret>,
     extensions: Vec<Extension>,
     transcript_commitments: Vec<TranscriptCommitment>,
 }
@@ -87,7 +86,6 @@ impl<'a> AttestationBuilder<'a, Accept> {
                 connection_info: None,
                 server_ephemeral_key: None,
                 cert_commitment,
-                encoder_secret: None,
                 transcript_commitments: Vec::new(),
                 extensions,
             },
@@ -105,12 +103,6 @@ impl AttestationBuilder<'_, Sign> {
     /// Sets the server ephemeral key.
     pub fn server_ephemeral_key(&mut self, key: ServerEphemKey) -> &mut Self {
         self.state.server_ephemeral_key = Some(key);
-        self
-    }
-
-    /// Sets the secret for encoding commitments.
-    pub fn encoder_secret(&mut self, secret: EncoderSecret) -> &mut Self {
-        self.state.encoder_secret = Some(secret);
         self
     }
 
@@ -137,7 +129,6 @@ impl AttestationBuilder<'_, Sign> {
             connection_info,
             server_ephemeral_key,
             cert_commitment,
-            encoder_secret,
             extensions,
             transcript_commitments,
         } = self.state;
@@ -168,7 +159,6 @@ impl AttestationBuilder<'_, Sign> {
                 AttestationBuilderError::new(ErrorKind::Field, "handshake data was not set")
             })?),
             cert_commitment: field_id.next(cert_commitment),
-            encoder_secret: encoder_secret.map(|secret| field_id.next(secret)),
             extensions: extensions
                 .into_iter()
                 .map(|extension| field_id.next(extension))
@@ -253,7 +243,7 @@ mod test {
     use rstest::{fixture, rstest};
     use tlsn_core::{
         connection::{CertBinding, CertBindingV1_2},
-        fixtures::{ConnectionFixture, encoding_provider},
+        fixtures::ConnectionFixture,
         hash::Blake3,
         transcript::Transcript,
     };
@@ -285,13 +275,8 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection,
-            Blake3::default(),
-            Vec::new(),
-        );
+        let RequestFixture { request, .. } =
+            request_fixture(transcript, connection, Blake3::default(), Vec::new());
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256R1])
@@ -310,13 +295,8 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection,
-            Blake3::default(),
-            Vec::new(),
-        );
+        let RequestFixture { request, .. } =
+            request_fixture(transcript, connection, Blake3::default(), Vec::new());
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -336,13 +316,8 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
-            connection,
-            Blake3::default(),
-            Vec::new(),
-        );
+        let RequestFixture { request, .. } =
+            request_fixture(transcript, connection, Blake3::default(), Vec::new());
 
         let attestation_builder = Attestation::builder(attestation_config)
             .accept_request(request)
@@ -365,7 +340,6 @@ mod test {
 
         let RequestFixture { request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),
@@ -395,7 +369,6 @@ mod test {
 
         let RequestFixture { request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             Vec::new(),
@@ -432,7 +405,6 @@ mod test {
 
         let RequestFixture { request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             vec![Extension {
@@ -461,7 +433,6 @@ mod test {
 
         let RequestFixture { request, .. } = request_fixture(
             transcript,
-            encoding_provider(GET_WITH_HEADER, OK_JSON),
             connection.clone(),
             Blake3::default(),
             vec![Extension {

@@ -2,8 +2,6 @@ use std::{error::Error, fmt};
 
 use mpc_tls::MpcTlsError;
 
-use crate::transcript_internal::commit::encoding::EncodingError;
-
 /// Error for [`Prover`](crate::prover::Prover).
 #[derive(Debug, thiserror::Error)]
 pub struct ProverError {
@@ -107,11 +105,5 @@ impl From<mpz_common::ContextError> for ProverError {
 impl From<MpcTlsError> for ProverError {
     fn from(e: MpcTlsError) -> Self {
         Self::new(ErrorKind::Mpc, e)
-    }
-}
-
-impl From<EncodingError> for ProverError {
-    fn from(e: EncodingError) -> Self {
-        Self::new(ErrorKind::Commit, e)
     }
 }

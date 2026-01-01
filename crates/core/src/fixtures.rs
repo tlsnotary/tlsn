@@ -1,9 +1,6 @@
 //! Fixtures for testing
 
-mod provider;
 pub mod transcript;
-
-pub use provider::FixtureEncodingProvider;
 
 use hex::FromHex;
 
@@ -12,10 +9,6 @@ use crate::{
         CertBinding, CertBindingV1_2, ConnectionInfo, DnsName, HandshakeData, KeyType,
         ServerEphemKey, ServerName, ServerSignature, SignatureAlgorithm, TlsVersion,
         TranscriptLength,
-    },
-    transcript::{
-        encoding::{EncoderSecret, EncodingProvider},
-        Transcript,
     },
     webpki::CertificateDer,
 };
@@ -128,28 +121,4 @@ impl ConnectionFixture {
         }) = &self.server_cert_data.binding;
         server_ephemeral_key
     }
-}
-
-/// Returns an encoding provider fixture.
-pub fn encoding_provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
-    let secret = encoder_secret();
-    FixtureEncodingProvider::new(&secret, Transcript::new(tx, rx))
-}
-
-/// Seed fixture.
-const SEED: [u8; 32] = [0; 32];
-
-/// Delta fixture.
-const DELTA: [u8; 16] = [1; 16];
-
-/// Returns an encoder secret fixture.
-pub fn encoder_secret() -> EncoderSecret {
-    EncoderSecret::new(SEED, DELTA)
-}
-
-/// Returns a tampered encoder secret fixture.
-pub fn encoder_secret_tampered_seed() -> EncoderSecret {
-    let mut seed = SEED;
-    seed[0] += 1;
-    EncoderSecret::new(seed, DELTA)
 }

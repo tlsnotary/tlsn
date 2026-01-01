@@ -3,10 +3,7 @@ use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2},
     fixtures::ConnectionFixture,
     hash::HashAlgorithm,
-    transcript::{
-        Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment,
-        encoding::{EncodingProvider, EncodingTree},
-    },
+    transcript::{Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment},
 };
 
 use crate::{
@@ -21,16 +18,14 @@ use crate::{
 /// A Request fixture used for testing.
 #[allow(missing_docs)]
 pub struct RequestFixture {
-    pub encoding_tree: EncodingTree,
     pub request: Request,
 }
 
 /// Returns a request fixture for testing.
 pub fn request_fixture(
     transcript: Transcript,
-    encodings_provider: impl EncodingProvider,
     connection: ConnectionFixture,
-    encoding_hasher: impl HashAlgorithm,
+    _hasher: impl HashAlgorithm,
     extensions: Vec<Extension>,
 ) -> RequestFixture {
     let provider = CryptoProvider::default();
@@ -50,15 +45,9 @@ pub fn request_fixture(
         .unwrap();
     let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
 
-    // Prover constructs encoding tree.
-    let encoding_tree = EncodingTree::new(
-        &encoding_hasher,
-        transcripts_commitment_config.iter_encoding(),
-        &encodings_provider,
-    )
-    .unwrap();
-
     let mut builder = RequestConfig::builder();
+
+    builder.transcript_commit(transcripts_commitment_config);
 
     for extension in extensions {
         builder.extension(extension);
@@ -74,10 +63,7 @@ pub fn request_fixture(
 
     let (request, _) = request_builder.build(&provider).unwrap();
 
-    RequestFixture {
-        encoding_tree,
-        request,
-    }
+    RequestFixture { request }
 }
 
 /// Returns an attestation fixture for testing.

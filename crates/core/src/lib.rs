@@ -19,9 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::ServerName,
-    transcript::{
-        encoding::EncoderSecret, PartialTranscript, TranscriptCommitment, TranscriptSecret,
-    },
+    transcript::{PartialTranscript, TranscriptCommitment, TranscriptSecret},
 };
 
 /// Prover output.
@@ -42,8 +40,6 @@ pub struct VerifierOutput {
     pub server_name: Option<ServerName>,
     /// Transcript data.
     pub transcript: Option<PartialTranscript>,
-    /// Encoding commitment secret.
-    pub encoder_secret: Option<EncoderSecret>,
     /// Transcript commitments.
     pub transcript_commitments: Vec<TranscriptCommitment>,
 }
