@@ -16,6 +16,10 @@ pub struct Cli {
     /// Subnet to assign harness network interfaces.
     #[arg(long, default_value = "10.250.0.0/24", env = "SUBNET")]
     pub subnet: Ipv4Net,
+    /// Run browser in headed mode (visible window) for debugging.
+    /// Works with both X11 and Wayland.
+    #[arg(long)]
+    pub headed: bool,
 }
 
 #[derive(Subcommand)]

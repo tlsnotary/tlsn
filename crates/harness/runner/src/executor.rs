@@ -28,6 +28,9 @@ pub struct Executor {
     ns: Namespace,
     config: ExecutorConfig,
     target: Target,
+    /// Display environment variables for headed mode (X11/Wayland).
+    /// Empty means headless mode.
+    display_env: Vec<String>,
     state: State,
 }
 
@@ -49,11 +52,17 @@ impl State {
 }
 
 impl Executor {
-    pub fn new(ns: Namespace, config: ExecutorConfig, target: Target) -> Self {
+    pub fn new(
+        ns: Namespace,
+        config: ExecutorConfig,
+        target: Target,
+        display_env: Vec<String>,
+    ) -> Self {
         Self {
             ns,
             config,
             target,
+            display_env,
             state: State::Init,
         }
     }
@@ -120,23 +129,49 @@ impl Executor {
                 let tmp = duct::cmd!("mktemp", "-d").read()?;
                 let tmp = tmp.trim();
 
-                let process = duct::cmd!(
-                    "sudo",
-                    "ip",
-                    "netns",
-                    "exec",
-                    self.ns.name(),
-                    chrome_path,
-                    format!("--remote-debugging-port={PORT_BROWSER}"),
-                    "--headless",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-cache",
-                    "--disable-application-cache",
-                    "--no-sandbox",
+                let headed = !self.display_env.is_empty();
+
+                // Build command args based on headed/headless mode
+                let mut args: Vec<String> = vec![
+                    "ip".into(),
+                    "netns".into(),
+                    "exec".into(),
+                    self.ns.name().into(),
+                ];
+
+                if headed {
+                    // For headed mode: drop back to the current user and pass display env vars
+                    // This allows the browser to connect to X11/Wayland while in the namespace
+                    let user =
+                        std::env::var("USER").context("USER environment variable not set")?;
+                    args.extend(["sudo".into(), "-E".into(), "-u".into(), user, "env".into()]);
+                    args.extend(self.display_env.clone());
+                }
+
+                args.push(chrome_path.to_string_lossy().into());
+                args.push(format!("--remote-debugging-port={PORT_BROWSER}"));
+
+                if headed {
+                    // Headed mode: no headless, add flags to suppress first-run dialogs
+                    args.extend(["--no-first-run".into(), "--no-default-browser-check".into()]);
+                } else {
+                    // Headless mode: original flags
+                    args.extend([
+                        "--headless".into(),
+                        "--disable-dev-shm-usage".into(),
+                        "--disable-gpu".into(),
+                        "--disable-cache".into(),
+                        "--disable-application-cache".into(),
+                    ]);
+                }
+
+                args.extend([
+                    "--no-sandbox".into(),
                     format!("--user-data-dir={tmp}"),
-                    format!("--allowed-ips=10.250.0.1"),
-                );
+                    "--allowed-ips=10.250.0.1".into(),
+                ]);
+
+                let process = duct::cmd("sudo", &args);
 
                 let process = if !cfg!(feature = "debug") {
                     process.stderr_capture().stdout_capture().start()?
