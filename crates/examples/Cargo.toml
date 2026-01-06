@@ -10,10 +10,13 @@ workspace = true
 [dependencies]
 tlsn = { workspace = true }
 tlsn-formats = { workspace = true }
+tlsn-core = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-server-fixture = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 spansy = { workspace = true }
+mpz-predicate = { workspace = true }
+rangeset = { workspace = true }
 
 anyhow = { workspace = true }
 bincode = { workspace = true }
@@ -61,3 +64,7 @@ path = "attestation/present.rs"
 [[example]]
 name = "attestation_verify"
 path = "attestation/verify.rs"
+
+[[example]]
+name = "interactive_predicate"
+path = "interactive_predicate/interactive_predicate.rs"

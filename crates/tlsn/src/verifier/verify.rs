@@ -1,6 +1,7 @@
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
 use mpz_memory_core::binary::Binary;
+use mpz_predicate::Pred;
 use mpz_vm_core::Vm;
 use rangeset::set::RangeSet;
 use tlsn_core::{
@@ -21,9 +22,23 @@ use crate::{
             encoding::{self, KeyStore},
             hash::verify_hash,
         },
+        predicate::verify_predicates,
     },
     verifier::VerifierError,
 };
+
+/// A function that resolves predicate names to predicates.
+///
+/// The verifier must provide this to look up predicates by name,
+/// based on out-of-band agreement with the prover.
+///
+/// The function receives:
+/// - The predicate name
+/// - The byte indices the predicate operates on (from the prover's request)
+///
+/// The verifier should validate that the indices make sense for the predicate
+/// and return the appropriate predicate built with those indices.
+pub type PredicateResolver = dyn Fn(&str, &RangeSet<usize>) -> Option<Pred> + Send + Sync;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
@@ -35,6 +50,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     request: ProveRequest,
     handshake: Option<(ServerName, HandshakeData)>,
     transcript: Option<PartialTranscript>,
+    predicate_resolver: Option<&PredicateResolver>,
 ) -> Result<VerifierOutput, VerifierError> {
     let ciphertext_sent = collect_ciphertext(tls_transcript.sent());
     let ciphertext_recv = collect_ciphertext(tls_transcript.recv());
@@ -101,6 +117,15 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
         }
     }
 
+    // Build predicate ranges from request
+    let (mut predicate_sent, mut predicate_recv) = (RangeSet::default(), RangeSet::default());
+    for predicate_req in request.predicates() {
+        match predicate_req.direction() {
+            Direction::Sent => predicate_sent.union_mut(predicate_req.indices()),
+            Direction::Received => predicate_recv.union_mut(predicate_req.indices()),
+        }
+    }
+
     let (sent_refs, sent_proof) = verify_plaintext(
         vm,
         keys.client_write_key,
@@ -113,6 +138,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
             .filter(|record| record.typ == ContentType::ApplicationData),
         transcript.sent_authed(),
         &commit_sent,
+        &predicate_sent,
     )
     .map_err(VerifierError::zk)?;
     let (recv_refs, recv_proof) = verify_plaintext(
@@ -127,6 +153,7 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
             .filter(|record| record.typ == ContentType::ApplicationData),
         transcript.received_authed(),
         &commit_recv,
+        &predicate_recv,
     )
     .map_err(VerifierError::zk)?;
 
@@ -146,10 +173,37 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
         );
     }
 
+    // Verify predicates if any were requested
+    let predicate_proof = if !request.predicates().is_empty() {
+        let resolver = predicate_resolver.ok_or_else(|| {
+            VerifierError::predicate("predicates requested but no resolver provided")
+        })?;
+
+        let predicates = request
+            .predicates()
+            .iter()
+            .map(|req| {
+                let predicate = resolver(req.name(), req.indices()).ok_or_else(|| {
+                    VerifierError::predicate(format!("unknown predicate: {}", req.name()))
+                })?;
+                Ok((req.direction(), req.indices().clone(), predicate))
+            })
+            .collect::<Result<Vec<_>, VerifierError>>()?;
+
+        Some(verify_predicates(vm, &transcript_refs, predicates).map_err(VerifierError::predicate)?)
+    } else {
+        None
+    };
+
     vm.execute_all(ctx).await.map_err(VerifierError::zk)?;
 
     sent_proof.verify().map_err(VerifierError::verify)?;
     recv_proof.verify().map_err(VerifierError::verify)?;
+
+    // Verify predicate outputs after ZK execution
+    if let Some(proof) = predicate_proof {
+        proof.verify().map_err(VerifierError::predicate)?;
+    }
 
     let mut encoder_secret = None;
     if let Some(commit_config) = request.transcript_commit()

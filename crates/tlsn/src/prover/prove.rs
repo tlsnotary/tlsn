@@ -20,6 +20,7 @@ use crate::{
             encoding::{self, MacStore},
             hash::prove_hash,
         },
+        predicate::prove_predicates,
     },
 };
 
@@ -54,6 +55,20 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
             });
     }
 
+    // Build predicate ranges from config
+    let (mut predicate_sent, mut predicate_recv) = (RangeSet::default(), RangeSet::default());
+    for predicate in config.predicates() {
+        let indices: RangeSet<usize> = predicate
+            .indices()
+            .into_iter()
+            .map(|idx| idx..idx + 1)
+            .collect();
+        match predicate.direction() {
+            Direction::Sent => predicate_sent.union_mut(&indices),
+            Direction::Received => predicate_recv.union_mut(&indices),
+        }
+    }
+
     let transcript_refs = TranscriptRefs {
         sent: prove_plaintext(
             vm,
@@ -66,6 +81,7 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
                 .filter(|record| record.typ == ContentType::ApplicationData),
             &reveal_sent,
             &commit_sent,
+            &predicate_sent,
         )
         .map_err(ProverError::commit)?,
         recv: prove_plaintext(
@@ -79,6 +95,7 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
                 .filter(|record| record.typ == ContentType::ApplicationData),
             &reveal_recv,
             &commit_recv,
+            &predicate_recv,
         )
         .map_err(ProverError::commit)?,
     };
@@ -99,6 +116,12 @@ pub(crate) async fn prove<T: Vm<Binary> + MacStore + Send + Sync>(
     } else {
         None
     };
+
+    // Prove predicates over transcript data
+    if !config.predicates().is_empty() {
+        prove_predicates(vm, &transcript_refs, config.predicates())
+            .map_err(ProverError::predicate)?;
+    }
 
     vm.execute_all(ctx).await.map_err(ProverError::zk)?;
 

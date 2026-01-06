@@ -174,9 +174,9 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy-consensus"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b6440213a22df93a87ed512d2f668e7dc1d62a05642d107f82d61edc9e12370"
+checksum = "2e318e25fb719e747a7e8db1654170fc185024f3ed5b10f86c08d448a912f6e2"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -201,9 +201,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus-any"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15d0bea09287942405c4f9d2a4f22d1e07611c2dbd9d5bf94b75366340f9e6e0"
+checksum = "364380a845193a317bcb7a5398fc86cdb66c47ebe010771dde05f6869bf9e64a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -253,9 +253,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bd2c7ae05abcab4483ce821f12f285e01c0b33804e6883dd9ca1569a87ee2be"
+checksum = "a4c4d7c5839d9f3a467900c625416b24328450c65702eb3d8caff8813e4d1d33"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -288,9 +288,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "003f46c54f22854a32b9cc7972660a476968008ad505427eabab49225309ec40"
+checksum = "f72cf87cda808e593381fb9f005ffa4d2475552b7a6c5ac33d087bf77d82abd0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -303,9 +303,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f4029954d9406a40979f3a3b46950928a0fdcfe3ea8a9b0c17490d57e8aa0e3"
+checksum = "12aeb37b6f2e61b93b1c3d34d01ee720207c76fe447e2a2c217e433ac75b17f5"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -329,9 +329,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7805124ad69e57bbae7731c9c344571700b2a18d351bda9e0eba521c991d1bcb"
+checksum = "abd29ace62872083e30929cd9b282d82723196d196db589f3ceda67edcc05552"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -391,9 +391,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-any"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b43c1622aac2508d528743fd4cfdac1dea92d5a8fa894038488ff7edd0af0b32"
+checksum = "6a63fb40ed24e4c92505f488f9dd256e2afaed17faa1b7a221086ebba74f4122"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
@@ -402,9 +402,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed5fafb741c19b3cca4cdd04fa215c89413491f9695a3e928dee2ae5657f607e"
+checksum = "9eae0c7c40da20684548cbc8577b6b7447f7bf4ddbac363df95e3da220e41e72"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -423,9 +423,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6f180c399ca7c1e2fe17ea58343910cad0090878a696ff5a50241aee12fc529"
+checksum = "c0df1987ed0ff2d0159d76b52e7ddfc4e4fbddacc54d2fbee765e0d14d7c01b5"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -434,9 +434,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecc39ad2c0a3d2da8891f4081565780703a593f090f768f884049aa3aa929cbc"
+checksum = "6ff69deedee7232d7ce5330259025b868c5e6a52fa8dffda2c861fb3a5889b24"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -449,9 +449,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "930e17cb1e46446a193a593a3bfff8d0ecee4e510b802575ebe300ae2e43ef75"
+checksum = "72cfe0be3ec5a8c1a46b2e5a7047ed41121d360d97f4405bb7c1c784880c86cb"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -551,9 +551,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-tx-macros"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae109e33814b49fc0a62f2528993aa8a2dd346c26959b151f05441dc0b9da292"
+checksum = "333544408503f42d7d3792bfc0f7218b643d968a03d2c0ed383ae558fb4a76d0"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -1783,9 +1783,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.2.48"
+version = "1.2.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c481bdbf0ed3b892f6f806287d72acd515b352a4ec27a208489b8c1bc839633a"
+checksum = "90583009037521a116abf44494efecd645ba48b6622457080f080b85544e2215"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -2026,7 +2026,7 @@ checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 [[package]]
 name = "clmul"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -3766,9 +3766,9 @@ checksum = "7aedcccd01fc5fe81e6b489c15b247b8b0690feb23304303a9e560f37efc560a"
 
 [[package]]
 name = "icu_properties"
-version = "2.1.1"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e93fcd3157766c0c8da2f8cff6ce651a31f0810eaa1c51ec363ef790bbb5fb99"
+checksum = "020bfc02fe870ec3a66d93e677ccca0562506e5872c650f893269e08615d74ec"
 dependencies = [
  "icu_collections",
  "icu_locale_core",
@@ -3780,9 +3780,9 @@ dependencies = [
 
 [[package]]
 name = "icu_properties_data"
-version = "2.1.1"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02845b3647bb045f1100ecd6480ff52f34c35f82d9880e029d329c21d1054899"
+checksum = "616c294cf8d725c6afcd8f55abc17c56464ef6211f9ed59cccffe534129c77af"
 
 [[package]]
 name = "icu_provider"
@@ -4257,7 +4257,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matrix-transpose"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "thiserror 1.0.69",
 ]
@@ -4302,9 +4302,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69d83b0086dc8ecf3ce9ae2874b2d1290252e2a30720bea58a5c6639b0092873"
+checksum = "a69bcab0ad47271a0234d9422b131806bf3968021e5dc9328caf2d4cd58557fc"
 dependencies = [
  "libc",
  "wasi",
@@ -4314,7 +4314,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "mpz-circuits-core",
  "mpz-circuits-data",
@@ -4323,7 +4323,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "bincode 1.3.3",
  "itybity 0.3.1",
@@ -4338,7 +4338,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits-data"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "bincode 1.3.3",
  "mpz-circuits-core",
@@ -4348,7 +4348,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "futures",
  "mpz-cointoss-core",
@@ -4361,7 +4361,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "mpz-core",
  "opaque-debug",
@@ -4372,7 +4372,7 @@ dependencies = [
 [[package]]
 name = "mpz-common"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4392,7 +4392,7 @@ dependencies = [
 [[package]]
 name = "mpz-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "aes 0.9.0-rc.2",
  "bcs",
@@ -4418,7 +4418,7 @@ dependencies = [
 [[package]]
 name = "mpz-fields"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-secp256r1",
@@ -4438,7 +4438,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "derive_builder 0.11.2",
@@ -4453,7 +4453,7 @@ dependencies = [
  "mpz-vm-core",
  "opaque-debug",
  "rand 0.9.2",
- "rangeset 0.2.0",
+ "rangeset",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -4464,7 +4464,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "aes 0.9.0-rc.2",
  "bitvec",
@@ -4484,7 +4484,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "rangeset 0.2.0",
+ "rangeset",
  "rayon",
  "serde",
  "serde_arrays",
@@ -4495,7 +4495,7 @@ dependencies = [
 [[package]]
 name = "mpz-hash"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "blake3",
  "itybity 0.3.1",
@@ -4508,7 +4508,7 @@ dependencies = [
 [[package]]
 name = "mpz-ideal-vm"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "futures",
@@ -4516,7 +4516,7 @@ dependencies = [
  "mpz-core",
  "mpz-memory-core",
  "mpz-vm-core",
- "rangeset 0.2.0",
+ "rangeset",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -4525,14 +4525,14 @@ dependencies = [
 [[package]]
 name = "mpz-memory-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "blake3",
  "futures",
  "itybity 0.3.1",
  "mpz-core",
  "rand 0.9.2",
- "rangeset 0.2.0",
+ "rangeset",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -4540,7 +4540,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "futures",
@@ -4558,7 +4558,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "hybrid-array",
  "itybity 0.3.1",
@@ -4574,7 +4574,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -4597,7 +4597,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "aes 0.9.0-rc.2",
  "blake3",
@@ -4626,9 +4626,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mpz-predicate"
+version = "0.1.0-alpha.14-pre"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
+dependencies = [
+ "bytes",
+ "mpz-circuits",
+ "rand 0.9.2",
+ "rand_chacha 0.9.0",
+ "rand_core 0.9.3",
+ "rangeset",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "mpz-share-conversion"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "mpz-common",
@@ -4644,7 +4660,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "mpz-common",
  "mpz-core",
@@ -4658,7 +4674,7 @@ dependencies = [
 [[package]]
 name = "mpz-vm-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "futures",
@@ -4671,7 +4687,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4689,7 +4705,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk-core"
 version = "0.1.0-alpha.4"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=9c343f8#9c343f86d386bc1360d6ac0a37eb1af65f48216a"
+source = "git+https://github.com/privacy-ethereum/mpz?branch=feat%2Fmpz-bool-type#9405caab5d65be1c7e7dd39c6026a9efb57a598d"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -4698,7 +4714,7 @@ dependencies = [
  "mpz-core",
  "mpz-memory-core",
  "mpz-vm-core",
- "rangeset 0.2.0",
+ "rangeset",
  "rayon",
  "serde",
  "thiserror 1.0.69",
@@ -5486,7 +5502,7 @@ version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "219cb19e96be00ab2e37d6e299658a0cfa83e52429179969b0f0121b4ac46983"
 dependencies = [
- "toml_edit 0.23.7",
+ "toml_edit 0.23.9",
 ]
 
 [[package]]
@@ -5805,15 +5821,6 @@ checksum = "acbbbbea733ec66275512d0b9694f34102e7d5406fdbe2ad8d21b28dce92887c"
 
 [[package]]
 name = "rangeset"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fc7af00a06ad692080d87495a904677592c662610edb82b4fc8782f4ed2f01f"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "rangeset"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9eb3f4f9d5c7dc4c0460fc098e6f97d0f28d46da60e163cfbc058a08467d5fd"
@@ -5901,9 +5908,9 @@ checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
 name = "reqwest"
-version = "0.12.24"
+version = "0.12.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
+checksum = "b6eff9328d40131d43bd911d42d79eb6a47312002a4daefc9e37f17e74a7701a"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -5930,7 +5937,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower",
- "tower-http 0.6.7",
+ "tower-http 0.6.8",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -6788,9 +6795,9 @@ dependencies = [
 
 [[package]]
 name = "simd-adler32"
-version = "0.3.7"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
+checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
 name = "sized-chunks"
@@ -6854,9 +6861,9 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 
 [[package]]
 name = "sourcemap"
-version = "9.2.2"
+version = "9.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e22afbcb92ce02d23815b9795523c005cb9d3c214f8b7a66318541c240ea7935"
+checksum = "37ccaaa78a0ca68b20f8f711eaa2522a00131c48a3de5b892ca5c36cec1ce9bb"
 dependencies = [
  "base64-simd",
  "bitvec",
@@ -6879,7 +6886,7 @@ dependencies = [
  "httparse",
  "pest",
  "pest_derive",
- "rangeset 0.4.0",
+ "rangeset",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -7032,9 +7039,9 @@ dependencies = [
 
 [[package]]
 name = "sys_traits"
-version = "0.1.19"
+version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1495a604cd38eeb30c408724966cd31ca1b68b5a97e3afc474c0d719bfeec5a"
+checksum = "6b61f4a25d0baba25511bed00c39c199d9a19cfd8107f4472724b72a84f530b1"
 dependencies = [
  "sys_traits_macros",
 ]
@@ -7268,12 +7275,13 @@ dependencies = [
  "mpz-memory-core",
  "mpz-ole",
  "mpz-ot",
+ "mpz-predicate",
  "mpz-vm-core",
  "mpz-zk",
  "once_cell",
  "opaque-debug",
  "rand 0.9.2",
- "rangeset 0.4.0",
+ "rangeset",
  "rstest",
  "rustls-pki-types",
  "rustls-webpki 0.103.8",
@@ -7352,11 +7360,12 @@ dependencies = [
  "generic-array",
  "hex",
  "itybity 0.2.1",
+ "mpz-predicate",
  "opaque-debug",
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "rangeset 0.4.0",
+ "rangeset",
  "rs_merkle",
  "rstest",
  "rustls-pki-types",
@@ -7391,7 +7400,7 @@ dependencies = [
  "mpz-core",
  "mpz-ideal-vm",
  "mpz-vm-core",
- "rangeset 0.4.0",
+ "rangeset",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -7412,12 +7421,15 @@ dependencies = [
  "hyper",
  "hyper-util",
  "k256",
+ "mpz-predicate",
  "noir",
+ "rangeset",
  "serde",
  "serde_json",
  "spansy",
  "tls-server-fixture",
  "tlsn",
+ "tlsn-core",
  "tlsn-formats",
  "tlsn-server-fixture",
  "tlsn-server-fixture-certs",
@@ -7635,7 +7647,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tower",
- "tower-http 0.6.7",
+ "tower-http 0.6.8",
  "tower-service",
  "tracing",
  "tracing-subscriber",
@@ -7896,9 +7908,9 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.23.7"
+version = "0.23.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6485ef6d0d9b5d0ec17244ff7eb05310113c3f316f2d14200d4de56b3cb98f8d"
+checksum = "5d7cbc3b4b49633d57a0509303158ca50de80ae32c265093b24c414705807832"
 dependencies = [
  "indexmap 2.12.1",
  "toml_datetime 0.7.3",
@@ -7964,9 +7976,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf146f99d442e8e68e585f5d798ccd3cad9a7835b917e09728880a862706456"
+checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
  "bitflags",
  "bytes",

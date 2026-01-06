@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 pub use error::VerifierError;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
+pub use verify::PredicateResolver;
 
 use crate::{
     Role,
@@ -323,8 +324,24 @@ impl Verifier<state::Verify> {
     }
 
     /// Accepts the proving request.
+    ///
+    /// Note: If the prover requests predicate verification, use
+    /// [`accept_with_predicates`](Self::accept_with_predicates) instead.
     pub async fn accept(
         self,
+    ) -> Result<(VerifierOutput, Verifier<state::Committed>), VerifierError> {
+        self.accept_with_predicates(None).await
+    }
+
+    /// Accepts the proving request with predicate verification support.
+    ///
+    /// # Arguments
+    ///
+    /// * `predicate_resolver` - A function that resolves predicate names to
+    ///   circuits. Required if the prover requests any predicates.
+    pub async fn accept_with_predicates(
+        self,
+        predicate_resolver: Option<&verify::PredicateResolver>,
     ) -> Result<(VerifierOutput, Verifier<state::Committed>), VerifierError> {
         let state::Verify {
             mux_ctrl,
@@ -353,6 +370,7 @@ impl Verifier<state::Verify> {
                 request,
                 handshake,
                 transcript,
+                predicate_resolver,
             ))
             .await?;
 

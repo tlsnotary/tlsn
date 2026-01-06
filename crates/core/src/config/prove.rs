@@ -1,16 +1,119 @@
 //! Proving configuration.
 
+use mpz_predicate::Pred;
 use rangeset::set::{RangeSet, ToRangeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitRequest};
 
-/// Configuration to prove information to the verifier.
+/// Configuration for a predicate to prove over transcript data.
+///
+/// A predicate is a boolean constraint that operates on transcript bytes.
+/// The prover proves in ZK that the predicate evaluates to true.
+///
+/// The predicate itself encodes which byte indices it operates on via its
+/// atomic comparisons (e.g., `gte(42, threshold)` operates on byte index 42).
+#[derive(Debug, Clone)]
+pub struct PredicateConfig {
+    /// Human-readable name for the predicate (sent to verifier as sanity
+    /// check).
+    name: String,
+    /// Direction of transcript data the predicate operates on.
+    direction: Direction,
+    /// The predicate to prove.
+    predicate: Pred,
+}
+
+impl PredicateConfig {
+    /// Creates a new predicate configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Human-readable name for the predicate.
+    /// * `direction` - Whether the predicate operates on sent or received data.
+    /// * `predicate` - The predicate to prove.
+    pub fn new(name: impl Into<String>, direction: Direction, predicate: Pred) -> Self {
+        Self {
+            name: name.into(),
+            direction,
+            predicate,
+        }
+    }
+
+    /// Returns the predicate name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the direction of transcript data.
+    pub fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// Returns the predicate.
+    pub fn predicate(&self) -> &Pred {
+        &self.predicate
+    }
+
+    /// Returns the transcript byte indices this predicate operates on.
+    pub fn indices(&self) -> Vec<usize> {
+        self.predicate.indices()
+    }
+
+    /// Converts to a request (wire format).
+    pub fn to_request(&self) -> PredicateRequest {
+        let indices: RangeSet<usize> = self
+            .predicate
+            .indices()
+            .into_iter()
+            .map(|idx| idx..idx + 1)
+            .collect();
+        PredicateRequest {
+            name: self.name.clone(),
+            direction: self.direction,
+            indices,
+        }
+    }
+}
+
+/// Wire format for predicate proving request.
+///
+/// Contains only the predicate name and indices - the verifier is expected
+/// to know which predicate corresponds to the name from out-of-band agreement.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PredicateRequest {
+    /// Human-readable name for the predicate.
+    name: String,
+    /// Direction of transcript data the predicate operates on.
+    direction: Direction,
+    /// Transcript byte indices the predicate operates on.
+    indices: RangeSet<usize>,
+}
+
+impl PredicateRequest {
+    /// Returns the predicate name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the direction of transcript data.
+    pub fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// Returns the transcript byte indices as a RangeSet.
+    pub fn indices(&self) -> &RangeSet<usize> {
+        &self.indices
+    }
+}
+
+/// Configuration to prove information to the verifier.
+#[derive(Debug, Clone)]
 pub struct ProveConfig {
     server_identity: bool,
     reveal: Option<(RangeSet<usize>, RangeSet<usize>)>,
     transcript_commit: Option<TranscriptCommitConfig>,
+    predicates: Vec<PredicateConfig>,
 }
 
 impl ProveConfig {
@@ -35,6 +138,11 @@ impl ProveConfig {
         self.transcript_commit.as_ref()
     }
 
+    /// Returns the predicate configurations.
+    pub fn predicates(&self) -> &[PredicateConfig] {
+        &self.predicates
+    }
+
     /// Returns a request.
     pub fn to_request(&self) -> ProveRequest {
         ProveRequest {
@@ -44,6 +152,7 @@ impl ProveConfig {
                 .transcript_commit
                 .clone()
                 .map(|config| config.to_request()),
+            predicates: self.predicates.iter().map(|p| p.to_request()).collect(),
         }
     }
 }
@@ -55,6 +164,7 @@ pub struct ProveConfigBuilder<'a> {
     server_identity: bool,
     reveal: Option<(RangeSet<usize>, RangeSet<usize>)>,
     transcript_commit: Option<TranscriptCommitConfig>,
+    predicates: Vec<PredicateConfig>,
 }
 
 impl<'a> ProveConfigBuilder<'a> {
@@ -65,6 +175,7 @@ impl<'a> ProveConfigBuilder<'a> {
             server_identity: false,
             reveal: None,
             transcript_commit: None,
+            predicates: Vec::new(),
         }
     }
 
@@ -137,12 +248,52 @@ impl<'a> ProveConfigBuilder<'a> {
         Ok(self)
     }
 
+    /// Adds a predicate to prove over transcript data.
+    ///
+    /// The predicate encodes which byte indices it operates on via its atomic
+    /// comparisons (e.g., `gte(42, threshold)` operates on byte index 42).
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Human-readable name for the predicate (sent to verifier as
+    ///   sanity check).
+    /// * `direction` - Whether the predicate operates on sent or received data.
+    /// * `predicate` - The predicate to prove.
+    pub fn predicate(
+        &mut self,
+        name: impl Into<String>,
+        direction: Direction,
+        predicate: Pred,
+    ) -> Result<&mut Self, ProveConfigError> {
+        let indices = predicate.indices();
+
+        // Predicate must reference at least one transcript byte.
+        let last_idx = *indices
+            .last()
+            .ok_or(ProveConfigError(ErrorRepr::EmptyPredicate))?;
+
+        // Since indices are sorted, only check the last one for bounds.
+        let transcript_len = self.transcript.len_of_direction(direction);
+        if last_idx >= transcript_len {
+            return Err(ProveConfigError(ErrorRepr::IndexOutOfBounds {
+                direction,
+                actual: last_idx,
+                len: transcript_len,
+            }));
+        }
+
+        self.predicates
+            .push(PredicateConfig::new(name, direction, predicate));
+        Ok(self)
+    }
+
     /// Builds the configuration.
     pub fn build(self) -> Result<ProveConfig, ProveConfigError> {
         Ok(ProveConfig {
             server_identity: self.server_identity,
             reveal: self.reveal,
             transcript_commit: self.transcript_commit,
+            predicates: self.predicates,
         })
     }
 }
@@ -153,6 +304,7 @@ pub struct ProveRequest {
     server_identity: bool,
     reveal: Option<(RangeSet<usize>, RangeSet<usize>)>,
     transcript_commit: Option<TranscriptCommitRequest>,
+    predicates: Vec<PredicateRequest>,
 }
 
 impl ProveRequest {
@@ -171,6 +323,11 @@ impl ProveRequest {
     pub fn transcript_commit(&self) -> Option<&TranscriptCommitRequest> {
         self.transcript_commit.as_ref()
     }
+
+    /// Returns the predicate requests.
+    pub fn predicates(&self) -> &[PredicateRequest] {
+        &self.predicates
+    }
 }
 
 /// Error for [`ProveConfig`].
@@ -180,10 +337,12 @@ pub struct ProveConfigError(#[from] ErrorRepr);
 
 #[derive(Debug, thiserror::Error)]
 enum ErrorRepr {
-    #[error("range is out of bounds of the transcript ({direction}): {actual} > {len}")]
+    #[error("index out of bounds for {direction} transcript: {actual} >= {len}")]
     IndexOutOfBounds {
         direction: Direction,
         actual: usize,
         len: usize,
     },
+    #[error("predicate must reference at least one transcript byte")]
+    EmptyPredicate,
 }
