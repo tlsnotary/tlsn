@@ -2,11 +2,11 @@ mod config;
 
 pub use config::ProverConfig;
 
+use async_io_stream::IoStream;
 use enum_try_as_inner::EnumTryAsInner;
 use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
-use tls_client_async::TlsConnection;
 use tlsn::{
     config::{
         prove::ProveConfig,
@@ -14,13 +14,13 @@ use tlsn::{
         tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
     },
     connection::ServerName,
-    prover::{state, Prover},
+    prover::{state, Prover, TlsConnection},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
 };
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
 use wasm_bindgen_futures::spawn_local;
-use ws_stream_wasm::WsMeta;
+use ws_stream_wasm::{WsMeta, WsStreamIo};
 
 use crate::{io::FuturesIo, types::*};
 
@@ -36,8 +36,14 @@ pub struct JsProver {
 #[derive_err(Debug)]
 enum State {
     Initialized(Prover<state::Initialized>),
-    CommitAccepted(Prover<state::CommitAccepted>),
-    Committed(Prover<state::Committed>),
+    CommitAccepted {
+        prover: Prover<state::CommitAccepted>,
+        verifier_conn: IoStream<WsStreamIo, Vec<u8>>,
+    },
+    Committed {
+        prover: Prover<state::Committed>,
+        verifier_conn: IoStream<WsStreamIo, Vec<u8>>,
+    },
     Complete,
     Error,
 }
@@ -96,12 +102,16 @@ impl JsProver {
         info!("connecting to verifier");
 
         let (_, verifier_conn) = WsMeta::connect(verifier_url, None).await?;
+        let mut verifier_conn = verifier_conn.into_io();
 
         info!("connected to verifier");
 
-        let prover = prover.commit(config, verifier_conn.into_io()).await?;
+        let prover = prover.commit(config, &mut verifier_conn).await?;
 
-        self.state = State::CommitAccepted(prover);
+        self.state = State::CommitAccepted {
+            prover,
+            verifier_conn,
+        };
 
         Ok(())
     }
@@ -112,7 +122,7 @@ impl JsProver {
         ws_proxy_url: &str,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
-        let prover = self.state.take().try_into_commit_accepted()?;
+        let (prover, mut verifier_conn) = self.state.take().try_into_commit_accepted()?;
 
         let mut builder = TlsClientConfig::builder()
             .server_name(ServerName::Dns(
@@ -145,35 +155,41 @@ impl JsProver {
         info!("connecting to server");
 
         let (_, server_conn) = WsMeta::connect(ws_proxy_url, None).await?;
+        let mut server_conn = server_conn.into_io();
 
         info!("connected to server");
 
-        let (tls_conn, prover_fut) = prover.connect(config, server_conn.into_io()).await?;
+        let (tls_conn, prover) = prover.setup(config)?;
+        let mut prover = prover.connect(&mut server_conn, &mut verifier_conn);
 
         info!("sending request");
 
-        let (response, prover) = futures::try_join!(
+        let (response, _) = futures::try_join!(
             send_request(tls_conn, request),
-            prover_fut.map_err(Into::into)
+            (&mut prover).map_err(Into::into)
         )?;
+        let prover = prover.finish()?;
 
         info!("response received");
 
-        self.state = State::Committed(prover);
+        self.state = State::Committed {
+            prover,
+            verifier_conn,
+        };
 
         Ok(response)
     }
 
     /// Returns the transcript.
     pub fn transcript(&self) -> Result<Transcript> {
-        let prover = self.state.try_as_committed()?;
+        let (prover, _) = self.state.try_as_committed()?;
 
         Ok(Transcript::from(prover.transcript()))
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
     pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
-        let mut prover = self.state.take().try_into_committed()?;
+        let (mut prover, mut verifier_conn) = self.state.take().try_into_committed()?;
 
         info!("revealing data");
 
@@ -193,8 +209,8 @@ impl JsProver {
 
         let config = builder.build()?;
 
-        prover.prove(&config).await?;
-        prover.close().await?;
+        prover.prove(&config, &mut verifier_conn).await?;
+        prover.close(&mut verifier_conn).await?;
 
         info!("Finalized");
 

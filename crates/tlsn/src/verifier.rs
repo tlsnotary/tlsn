@@ -10,14 +10,14 @@ pub use error::VerifierError;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Role,
-    context::build_mt_context,
+    BUF_CAP, Role,
     mpz::{VerifierDeps, build_verifier_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     mux::attach_mux,
     tag::verify_tags,
+    utils::{CopyIo, await_with_copy_io, build_mt_context},
 };
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
+use futures::{AsyncRead, AsyncWrite, AsyncWriteExt, FutureExt, TryFutureExt};
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
@@ -66,48 +66,73 @@ impl Verifier<state::Initialized> {
     ///
     /// # Arguments
     ///
-    /// * `socket` - The socket to the prover.
+    /// * `prover_io` - The IO to the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin>(
         self,
-        socket: S,
+        mut prover_io: S,
     ) -> Result<Verifier<state::CommitStart>, VerifierError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
-        let mut mt = build_mt_context(mux_ctrl.clone());
-        let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
+        let (duplex_a, mut duplex_b) = futures_plex::duplex(BUF_CAP);
 
-        // Receives protocol configuration from prover to perform compatibility check.
-        let TlsCommitRequestMsg { request, version } =
-            mux_fut.poll_with(ctx.io_mut().expect_next()).await?;
+        let (mut mux_fut, mux_ctrl) = attach_mux(duplex_a, Role::Verifier);
+        let mut mt = build_mt_context(mux_ctrl.clone());
+
+        let fut = Box::pin(
+            async {
+                let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
+
+                // Receives protocol configuration from prover to perform compatibility check.
+                let TlsCommitRequestMsg { request, version } =
+                    mux_fut.poll_with(ctx.io_mut().expect_next()).await?;
+
+                Ok::<_, VerifierError>((request, version, ctx))
+            }
+            .fuse(),
+        );
+
+        let (request, version, mut ctx) =
+            await_with_copy_io(fut, &mut prover_io, &mut duplex_b).await?;
 
         if version != *crate::VERSION {
             let msg = format!(
                 "prover version does not match with verifier: {version} != {}",
                 *crate::VERSION
             );
-            mux_fut
-                .poll_with(ctx.io_mut().send(Response::err(Some(msg.clone()))))
-                .await?;
 
-            // Wait for the prover to correctly close the connection.
-            if !mux_fut.is_complete() {
-                mux_ctrl.close();
-                mux_fut.await?;
-            }
+            let fut = Box::pin(
+                async {
+                    mux_fut
+                        .poll_with(ctx.io_mut().send(Response::err(Some(msg.clone()))))
+                        .await?;
 
-            return Err(VerifierError::config(msg));
+                    // Wait for the prover to correctly close the connection.
+                    if !mux_fut.is_complete() {
+                        mux_ctrl.close();
+                        mux_fut.await?;
+                    }
+
+                    Err(VerifierError::config(msg))
+                }
+                .fuse(),
+            );
+            let copy = CopyIo::new(prover_io, &mut duplex_b).map_err(VerifierError::from);
+            let (config_err, _) = futures::try_join!(fut, copy)?;
+
+            return Err(config_err);
         }
 
-        Ok(Verifier {
+        let verifier = Verifier {
             config: self.config,
             span: self.span,
             state: state::CommitStart {
+                prover_io: Some(duplex_b),
                 mux_ctrl,
                 mux_fut,
                 ctx,
                 request,
             },
-        })
+        };
+        Ok(verifier)
     }
 }
 
@@ -118,13 +143,36 @@ impl Verifier<state::CommitStart> {
     }
 
     /// Accepts the proposed protocol configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `prover_io` - The IO to the prover.
+    pub async fn accept<S: AsyncWrite + AsyncRead + Send + Unpin>(
+        mut self,
+        prover_io: S,
+    ) -> Result<Verifier<state::CommitAccepted>, VerifierError> {
+        let mut duplex = self
+            .state
+            .prover_io
+            .take()
+            .expect("duplex should be available");
+
+        let fut = Box::pin(self.accept_inner().fuse());
+        let mut verifier = await_with_copy_io(fut, prover_io, &mut duplex).await?;
+
+        verifier.state.prover_io = Some(duplex);
+        Ok(verifier)
+    }
+
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept(self) -> Result<Verifier<state::CommitAccepted>, VerifierError> {
+    async fn accept_inner(self) -> Result<Verifier<state::CommitAccepted>, VerifierError> {
         let state::CommitStart {
+            prover_io,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
             request,
+            ..
         } = self.state;
 
         mux_fut.poll_with(ctx.io_mut().send(Response::ok())).await?;
@@ -151,6 +199,7 @@ impl Verifier<state::CommitStart> {
             config: self.config,
             span: self.span,
             state: state::CommitAccepted {
+                prover_io,
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
@@ -161,8 +210,31 @@ impl Verifier<state::CommitStart> {
     }
 
     /// Rejects the proposed protocol configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `prover_io` - The IO to the prover.
+    /// * `msg` - The optional rejection message.
+    pub async fn reject<S: AsyncWrite + AsyncRead + Send + Unpin>(
+        mut self,
+        prover_io: S,
+        msg: Option<&str>,
+    ) -> Result<(), VerifierError> {
+        let mut duplex = self
+            .state
+            .prover_io
+            .take()
+            .expect("duplex should be available");
+
+        let fut = self.reject_inner(msg);
+        let copy = CopyIo::new(prover_io, &mut duplex).map_err(VerifierError::from);
+
+        futures::try_join!(fut, copy)?;
+        Ok(())
+    }
+
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn reject(self, msg: Option<&str>) -> Result<(), VerifierError> {
+    async fn reject_inner(self, msg: Option<&str>) -> Result<(), VerifierError> {
         let state::CommitStart {
             mux_ctrl,
             mut mux_fut,
@@ -186,9 +258,31 @@ impl Verifier<state::CommitStart> {
 
 impl Verifier<state::CommitAccepted> {
     /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// # Arguments
+    ///
+    /// * `prover_io` - The IO to the prover.
+    pub async fn run<S: AsyncWrite + AsyncRead + Send + Unpin>(
+        mut self,
+        prover_io: S,
+    ) -> Result<Verifier<state::Committed>, VerifierError> {
+        let mut duplex = self
+            .state
+            .prover_io
+            .take()
+            .expect("duplex should be available");
+
+        let fut = Box::pin(self.run_inner().fuse());
+        let mut verifier = await_with_copy_io(fut, prover_io, &mut duplex).await?;
+
+        verifier.state.prover_io = Some(duplex);
+        Ok(verifier)
+    }
+
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run(self) -> Result<Verifier<state::Committed>, VerifierError> {
+    async fn run_inner(self) -> Result<Verifier<state::Committed>, VerifierError> {
         let state::CommitAccepted {
+            prover_io,
             mux_ctrl,
             mut mux_fut,
             mpc_tls,
@@ -232,6 +326,7 @@ impl Verifier<state::CommitAccepted> {
         )
         .map_err(VerifierError::zk)?;
 
+        debug!("verifying tags");
         mux_fut
             .poll_with(vm.execute_all(&mut ctx).map_err(VerifierError::zk))
             .await?;
@@ -241,10 +336,12 @@ impl Verifier<state::CommitAccepted> {
         // authenticated from the verifier's perspective.
         tag_proof.verify().map_err(VerifierError::zk)?;
 
+        debug!("MPC-TLS done");
         Ok(Verifier {
             config: self.config,
             span: self.span,
             state: state::Committed {
+                prover_io,
                 mux_ctrl,
                 mux_fut,
                 ctx,
@@ -263,9 +360,31 @@ impl Verifier<state::Committed> {
     }
 
     /// Begins verification of statements from the prover.
+    ///
+    /// # Arguments
+    ///
+    /// * `prover_io` - The IO to the prover.
+    pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin>(
+        mut self,
+        prover_io: S,
+    ) -> Result<Verifier<state::Verify>, VerifierError> {
+        let mut duplex = self
+            .state
+            .prover_io
+            .take()
+            .expect("duplex should be available");
+
+        let fut = Box::pin(self.verify_inner().fuse());
+        let mut verifier = await_with_copy_io(fut, prover_io, &mut duplex).await?;
+
+        verifier.state.prover_io = Some(duplex);
+        Ok(verifier)
+    }
+
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn verify(self) -> Result<Verifier<state::Verify>, VerifierError> {
+    async fn verify_inner(self) -> Result<Verifier<state::Verify>, VerifierError> {
         let state::Committed {
+            prover_io,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
@@ -286,6 +405,7 @@ impl Verifier<state::Committed> {
             config: self.config,
             span: self.span,
             state: state::Verify {
+                prover_io,
                 mux_ctrl,
                 mux_fut,
                 ctx,
@@ -300,18 +420,36 @@ impl Verifier<state::Committed> {
     }
 
     /// Closes the connection with the prover.
+    ///
+    /// # Arguments
+    ///
+    /// * `prover_io` - The IO to the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn close(self) -> Result<(), VerifierError> {
-        let state::Committed {
-            mux_ctrl, mux_fut, ..
-        } = self.state;
+    pub async fn close<S: AsyncWrite + AsyncRead + Send + Unpin>(
+        mut self,
+        mut prover_io: S,
+    ) -> Result<(), VerifierError> {
+        let state::Committed { mux_fut, .. } = self.state;
 
-        // Wait for the prover to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
+        let mut duplex = self
+            .state
+            .prover_io
+            .take()
+            .expect("duplex should be available");
 
+        duplex.close().await?;
+
+        let fut: Box<dyn Future<Output = Result<(), VerifierError>> + Send + Unpin> =
+            if mux_fut.is_complete() {
+                Box::new(futures::future::ready(Ok::<_, VerifierError>(())))
+            } else {
+                Box::new(mux_fut.map_err(VerifierError::from))
+            };
+
+        let copy = CopyIo::new(&mut prover_io, &mut duplex).map_err(VerifierError::from);
+        futures::try_join!(fut, copy)?;
+
+        prover_io.write_all(b"close").await?;
         Ok(())
     }
 }
@@ -323,10 +461,32 @@ impl Verifier<state::Verify> {
     }
 
     /// Accepts the proving request.
-    pub async fn accept(
+    ///
+    /// # Arguments
+    ///
+    /// * `prover_io` - The IO to the prover.
+    pub async fn accept<S: AsyncWrite + AsyncRead + Send + Unpin>(
+        mut self,
+        prover_io: S,
+    ) -> Result<(VerifierOutput, Verifier<state::Committed>), VerifierError> {
+        let mut duplex = self
+            .state
+            .prover_io
+            .take()
+            .expect("duplex should be available");
+
+        let fut = Box::pin(self.accept_inner().fuse());
+        let (output, mut verifier) = await_with_copy_io(fut, prover_io, &mut duplex).await?;
+
+        verifier.state.prover_io = Some(duplex);
+        Ok((output, verifier))
+    }
+
+    async fn accept_inner(
         self,
     ) -> Result<(VerifierOutput, Verifier<state::Committed>), VerifierError> {
         let state::Verify {
+            prover_io,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
@@ -362,6 +522,7 @@ impl Verifier<state::Verify> {
                 config: self.config,
                 span: self.span,
                 state: state::Committed {
+                    prover_io,
                     mux_ctrl,
                     mux_fut,
                     ctx,
@@ -374,11 +535,35 @@ impl Verifier<state::Verify> {
     }
 
     /// Rejects the proving request.
-    pub async fn reject(
+    ///
+    /// # Arguments
+    ///
+    /// * `prover_io` - The IO to the prover.
+    /// * `msg` - The optional rejection message.
+    pub async fn reject<S: AsyncWrite + AsyncRead + Send + Unpin>(
+        mut self,
+        prover_io: S,
+        msg: Option<&str>,
+    ) -> Result<Verifier<state::Committed>, VerifierError> {
+        let mut duplex = self
+            .state
+            .prover_io
+            .take()
+            .expect("duplex should be available");
+
+        let fut = Box::pin(self.reject_inner(msg).fuse());
+        let mut verifier = await_with_copy_io(fut, prover_io, &mut duplex).await?;
+
+        verifier.state.prover_io = Some(duplex);
+        Ok(verifier)
+    }
+
+    async fn reject_inner(
         self,
         msg: Option<&str>,
     ) -> Result<Verifier<state::Committed>, VerifierError> {
         let state::Verify {
+            prover_io,
             mux_ctrl,
             mut mux_fut,
             mut ctx,
@@ -396,6 +581,7 @@ impl Verifier<state::Verify> {
             config: self.config,
             span: self.span,
             state: state::Committed {
+                prover_io,
                 mux_ctrl,
                 mux_fut,
                 ctx,

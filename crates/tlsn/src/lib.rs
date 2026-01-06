@@ -4,7 +4,6 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub(crate) mod context;
 pub(crate) mod ghash;
 pub(crate) mod map;
 pub(crate) mod mpz;
@@ -13,6 +12,7 @@ pub(crate) mod mux;
 pub mod prover;
 pub(crate) mod tag;
 pub(crate) mod transcript_internal;
+pub(crate) mod utils;
 pub mod verifier;
 
 pub use tlsn_attestation as attestation;
@@ -26,6 +26,8 @@ use semver::Version;
 pub(crate) static VERSION: LazyLock<Version> = LazyLock::new(|| {
     Version::parse(env!("CARGO_PKG_VERSION")).expect("cargo pkg version should be a valid semver")
 });
+
+const BUF_CAP: usize = 16 * 1024;
 
 /// The party's role in the TLSN protocol.
 ///

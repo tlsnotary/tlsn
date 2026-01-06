@@ -73,6 +73,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     server_addr: &SocketAddr,
     uri: &str,
 ) -> Result<()> {
+    let mut verifier_socket = verifier_socket.compat();
+
     let uri = uri.parse::<Uri>().unwrap();
     assert_eq!(uri.scheme().unwrap().as_str(), "https");
     let server_domain = uri.authority().unwrap().host();
@@ -93,32 +95,30 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                         .build()?,
                 )
                 .build()?,
-            verifier_socket.compat(),
+            &mut verifier_socket,
         )
         .await?;
 
     // Open a TCP connection to the server.
-    let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
+    let client_socket = tokio::net::TcpStream::connect(server_addr).await?.compat();
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                // Create a root certificate store with the server-fixture's self-signed
-                // certificate. This is only required for offline testing with the
-                // server-fixture.
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()?,
-            client_socket.compat(),
-        )
-        .await?;
+    let (tls_connection, prover) = prover.setup(
+        TlsClientConfig::builder()
+            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+            // Create a root certificate store with the server-fixture's self-signed
+            // certificate. This is only required for offline testing with the
+            // server-fixture.
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .build()?,
+    )?;
+
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the Prover to run in the background.
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(prover.run(client_socket, verifier_socket));
 
     // MPC-TLS Handshake.
     let (mut request_sender, connection) =
@@ -140,7 +140,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     assert!(response.status() == StatusCode::OK);
 
     // Create proof for the Verifier.
-    let mut prover = prover_task.await??;
+    let (mut prover, _, mut verifier_socket) = prover_task.await??;
 
     let mut builder = ProveConfig::builder(prover.transcript());
 
@@ -173,8 +173,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let config = builder.build()?;
 
-    prover.prove(&config).await?;
-    prover.close().await?;
+    prover.prove(&config, &mut verifier_socket).await?;
+    prover.close(&mut verifier_socket).await?;
 
     Ok(())
 }
@@ -183,6 +183,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
 ) -> Result<PartialTranscript> {
+    let mut socket = socket.compat();
+
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -194,7 +196,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let verifier = Verifier::new(verifier_config);
 
     // Validate the proposed configuration and then run the TLS commitment protocol.
-    let verifier = verifier.commit(socket.compat()).await?;
+    let verifier = verifier.commit(&mut socket).await?;
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
@@ -212,21 +214,21 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     };
 
     if reject.is_some() {
-        verifier.reject(reject).await?;
+        verifier.reject(&mut socket, reject).await?;
         return Err(anyhow::anyhow!("protocol configuration rejected"));
     }
 
     // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept().await?.run().await?;
+    let verifier = verifier.accept(&mut socket).await?.run(&mut socket).await?;
 
     // Validate the proving request and then verify.
-    let verifier = verifier.verify().await?;
+    let verifier = verifier.verify(&mut socket).await?;
 
     if !verifier.request().server_identity() {
         let verifier = verifier
-            .reject(Some("expecting to verify the server name"))
+            .reject(&mut socket, Some("expecting to verify the server name"))
             .await?;
-        verifier.close().await?;
+        verifier.close(&mut socket).await?;
         return Err(anyhow::anyhow!("prover did not reveal the server name"));
     }
 
@@ -237,9 +239,9 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
             ..
         },
         verifier,
-    ) = verifier.accept().await?;
+    ) = verifier.accept(&mut socket).await?;
 
-    verifier.close().await?;
+    verifier.close(&mut socket).await?;
 
     let server_name = server_name.expect("prover should have revealed server name");
     let transcript = transcript.expect("prover should have revealed transcript data");

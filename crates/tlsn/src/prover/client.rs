@@ -1,8 +1,11 @@
 //! Provides a TLS client.
 
-use crate::mpz::ProverZk;
+use crate::{mpz::ProverZk, prover::control::ControlError};
 use mpc_tls::SessionKeys;
-use std::task::{Context, Poll};
+use std::{
+    sync::mpsc::{Sender, SyncSender, sync_channel},
+    task::{Context, Poll},
+};
 use tlsn_core::transcript::{TlsTranscript, Transcript};
 
 mod mpc;
@@ -43,14 +46,41 @@ pub(crate) trait TlsClient {
     /// Server closes the connection.
     fn server_close(&mut self) -> Result<(), Self::Error>;
 
-    /// Enables or disables decryption of TLS traffic sent by the server.
-    fn enable_decryption(&mut self, enable: bool) -> Result<(), Self::Error>;
-
-    /// Returns `true` if decryption of TLS traffic from the server is active.
-    fn is_decrypting(&self) -> bool;
+    /// Returns a handle to control the client.
+    fn handle(&self) -> ClientHandle;
 
     /// Polls the client to make progress.
     fn poll(&mut self, cx: &mut Context) -> Poll<Result<TlsOutput, Self::Error>>;
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ClientHandle {
+    sender: Sender<Command>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum Command {
+    IsDecrypting(SyncSender<bool>),
+    SetDecrypt(bool),
+    ClientClose,
+    ServerClose,
+}
+
+impl ClientHandle {
+    pub(crate) fn enable_decryption(&self, enable: bool) -> Result<(), ControlError> {
+        self.sender
+            .send(Command::SetDecrypt(enable))
+            .map_err(|_| ControlError)
+    }
+
+    pub(crate) fn is_decrypting(&self) -> bool {
+        let (sender, receiver) = sync_channel(1);
+        let Ok(_) = self.sender.send(Command::IsDecrypting(sender)) else {
+            return false;
+        };
+
+        receiver.recv().unwrap_or(false)
+    }
 }
 
 /// Output of a TLS session.
