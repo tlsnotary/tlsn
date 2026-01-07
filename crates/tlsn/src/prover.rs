@@ -1,31 +1,38 @@
 //! Prover.
 
+mod client;
+mod conn;
+mod control;
 mod error;
-mod future;
 mod prove;
 pub mod state;
 
+pub use conn::TlsConnection;
+pub use control::ProverControl;
 pub use error::ProverError;
-pub use future::ProverFuture;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Role,
-    context::build_mt_context,
+    BUF_CAP, Role,
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     mux::attach_mux,
-    tag::verify_tags,
+    prover::{
+        client::{MpcTlsClient, TlsOutput},
+        state::ConnectedProj,
+    },
+    utils::{CopyIo, await_with_copy_io, build_mt_context},
 };
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
-use mpc_tls::LeaderCtrl;
-use mpz_vm_core::prelude::*;
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, FutureExt, TryFutureExt, ready};
 use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::sync::Arc;
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 use tls_client::{ClientConnection, ServerName as TlsServerName};
-use tls_client_async::{TlsConnection, bind_client};
 use tlsn_core::{
     config::{
         prove::ProveConfig,
@@ -36,9 +43,8 @@ use tlsn_core::{
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
 };
+use tracing::{Span, debug, info_span, instrument};
 use webpki::anchor_from_trusted_cert;
-
-use tracing::{Instrument, Span, debug, info, info_span, instrument};
 
 /// A prover instance.
 #[derive(Debug)]
@@ -71,14 +77,27 @@ impl Prover<state::Initialized> {
     /// # Arguments
     ///
     /// * `config` - The TLS commitment configuration.
-    /// * `socket` - The socket to the TLS verifier.
-    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    /// * `verifier_io` - The IO to the TLS verifier.
+    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin>(
         self,
         config: TlsCommitConfig,
-        socket: S,
+        verifier_io: S,
     ) -> Result<Prover<state::CommitAccepted>, ProverError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
+        let (duplex_a, mut duplex_b) = futures_plex::duplex(BUF_CAP);
+        let fut = Box::pin(self.commit_inner(config, duplex_a).fuse());
+        let mut prover = await_with_copy_io(fut, verifier_io, &mut duplex_b).await?;
+
+        prover.state.verifier_io = Some(duplex_b);
+        Ok(prover)
+    }
+
+    #[instrument(parent = &self.span, level = "debug", skip_all, err)]
+    async fn commit_inner<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+        self,
+        config: TlsCommitConfig,
+        verifier_io: S,
+    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
+        let (mut mux_fut, mux_ctrl) = attach_mux(verifier_io, Role::Prover);
         let mut mt = build_mt_context(mux_ctrl.clone());
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
@@ -122,6 +141,7 @@ impl Prover<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::CommitAccepted {
+                verifier_io: None,
                 mux_ctrl,
                 mux_fut,
                 mpc_tls,
@@ -133,31 +153,29 @@ impl Prover<state::Initialized> {
 }
 
 impl Prover<state::CommitAccepted> {
-    /// Connects to the server using the provided socket.
+    /// Sets up the prover with the client configuration.
     ///
-    /// Returns a handle to the TLS connection, a future which returns the
-    /// prover once the connection is closed and the TLS transcript is
-    /// committed.
+    /// Returns a set up prover, and a [`TlsConnection`] which can be used to
+    /// read and write bytes from/to the server.
     ///
     /// # Arguments
     ///
     /// * `config` - The TLS client configuration.
-    /// * `socket` - The socket to the server.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn connect<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    pub fn setup(
         self,
         config: TlsClientConfig,
-        socket: S,
-    ) -> Result<(TlsConnection, ProverFuture), ProverError> {
+    ) -> Result<(TlsConnection, Prover<state::Setup>), ProverError> {
         let state::CommitAccepted {
+            verifier_io,
             mux_ctrl,
-            mut mux_fut,
+            mux_fut,
             mpc_tls,
             keys,
             vm,
-            ..
         } = self.state;
 
+        let decrypt = mpc_tls.is_decrypting();
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
         let ServerName::Dns(server_name) = config.server_name();
@@ -202,95 +220,296 @@ impl Prover<state::CommitAccepted> {
         )
         .map_err(ProverError::config)?;
 
-        let (conn, conn_fut) = bind_client(socket, client);
+        let span = self.span.clone();
 
-        let fut = Box::pin({
-            let span = self.span.clone();
-            let mpc_ctrl = mpc_ctrl.clone();
-            async move {
-                let conn_fut = async {
-                    mux_fut
-                        .poll_with(conn_fut.map_err(ProverError::from))
-                        .await?;
+        let mpc_tls = MpcTlsClient::new(
+            Box::new(mpc_fut.map_err(ProverError::from)),
+            keys,
+            vm,
+            span,
+            mpc_ctrl,
+            client,
+            decrypt,
+        );
 
-                    mpc_ctrl.stop().await?;
-
-                    Ok::<_, ProverError>(())
-                };
-
-                info!("starting MPC-TLS");
-
-                let (_, (mut ctx, tls_transcript)) = futures::try_join!(
-                    conn_fut,
-                    mpc_fut.in_current_span().map_err(ProverError::from)
-                )?;
-
-                info!("finished MPC-TLS");
-
-                {
-                    let mut vm = vm.try_lock().expect("VM should not be locked");
-
-                    debug!("finalizing mpc");
-
-                    // Finalize DEAP.
-                    mux_fut
-                        .poll_with(vm.finalize(&mut ctx))
-                        .await
-                        .map_err(ProverError::mpc)?;
-
-                    debug!("mpc finalized");
-                }
-
-                // Pull out ZK VM.
-                let (_, mut vm) = Arc::into_inner(vm)
-                    .expect("vm should have only 1 reference")
-                    .into_inner()
-                    .into_inner();
-
-                // Prove tag verification of received records.
-                // The prover drops the proof output.
-                let _ = verify_tags(
-                    &mut vm,
-                    (keys.server_write_key, keys.server_write_iv),
-                    keys.server_write_mac_key,
-                    *tls_transcript.version(),
-                    tls_transcript.recv().to_vec(),
-                )
-                .map_err(ProverError::zk)?;
-
-                mux_fut
-                    .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
-                    .await?;
-
-                let transcript = tls_transcript
-                    .to_transcript()
-                    .expect("transcript is complete");
-
-                Ok(Prover {
-                    config: self.config,
-                    span: self.span,
-                    state: state::Committed {
-                        mux_ctrl,
-                        mux_fut,
-                        ctx,
-                        vm,
-                        server_name: config.server_name().clone(),
-                        keys,
-                        tls_transcript,
-                        transcript,
-                    },
-                })
-            }
-            .instrument(span)
-        });
-
-        Ok((
-            conn,
-            ProverFuture {
-                fut,
-                ctrl: ProverControl { mpc_ctrl },
+        let (duplex_a, duplex_b) = futures_plex::duplex(BUF_CAP);
+        let prover = Prover {
+            config: self.config,
+            span: self.span,
+            state: state::Setup {
+                mux_ctrl,
+                mux_fut,
+                server_name: config.server_name().clone(),
+                tls_client: Box::new(mpc_tls),
+                client_io: duplex_a,
+                verifier_io,
             },
-        ))
+        };
+
+        let conn = TlsConnection::new(duplex_b);
+        Ok((conn, prover))
+    }
+}
+
+impl Prover<state::Setup> {
+    /// Returns a handle to control the prover.
+    pub fn handle(&self) -> ProverControl {
+        let handle = self.state.tls_client.handle();
+        ProverControl { handle }
+    }
+
+    /// Attaches IO to the prover.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_io` - The IO to the server.
+    /// * `verifier_io` - The IO to the TLS verifier.
+    pub fn connect<S, T>(self, server_io: S, verifier_io: T) -> Prover<state::Connected<S, T>>
+    where
+        S: AsyncRead + AsyncWrite + Send + Unpin,
+        T: AsyncRead + AsyncWrite + Send + Unpin,
+    {
+        let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
+
+        Prover {
+            config: self.config,
+            span: self.span,
+            state: state::Connected {
+                verifier_io: self.state.verifier_io,
+                mux_ctrl: self.state.mux_ctrl,
+                mux_fut: self.state.mux_fut,
+                server_name: self.state.server_name,
+                tls_client: self.state.tls_client,
+                client_io: self.state.client_io,
+                output: None,
+                server_socket: server_io,
+                verifier_socket: verifier_io,
+                tls_client_to_server_buf: client_to_server,
+                server_to_tls_client_buf: server_to_client,
+                client_closed: false,
+                server_closed: false,
+            },
+        }
+    }
+
+    /// This is a convenience method which attaches IO, runs the prover and
+    /// returns a committed prover together with the IO.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_io` - The IO to the server.
+    /// * `verifier_io` - The IO to the TLS verifier.
+    pub async fn run<S, T>(
+        self,
+        mut server_io: S,
+        mut verifier_io: T,
+    ) -> Result<(Prover<state::Committed>, S, T), ProverError>
+    where
+        S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    {
+        let mut prover = self.connect(&mut server_io, &mut verifier_io);
+        (&mut prover).await?;
+
+        let prover = prover.finish()?;
+        Ok((prover, server_io, verifier_io))
+    }
+}
+
+impl<S, T> Future for Prover<state::Connected<S, T>>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+    T: AsyncRead + AsyncWrite + Send + Unpin,
+{
+    type Output = Result<(), ProverError>;
+
+    fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut state = Pin::new(&mut self.state).project();
+
+        loop {
+            let mut progress = false;
+
+            if state.output.is_none()
+                && let Poll::Ready(output) = state.tls_client.poll(cx)?
+            {
+                *state.output = Some(output);
+            }
+
+            progress |= Self::io_client_conn(&mut state, cx)?;
+            progress |= Self::io_client_server(&mut state, cx)?;
+            progress |= Self::io_client_verifier(&mut state, cx)?;
+
+            _ = state.mux_fut.poll_unpin(cx)?;
+
+            if *state.server_closed && state.output.is_some() {
+                ready!(state.client_io.poll_close(cx))?;
+                ready!(state.server_socket.poll_close(cx))?;
+
+                return Poll::Ready(Ok(()));
+            } else if !progress {
+                return Poll::Pending;
+            }
+        }
+    }
+}
+
+impl<S, T> Prover<state::Connected<S, T>>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+    T: AsyncRead + AsyncWrite + Send + Unpin,
+{
+    fn io_client_conn(
+        state: &mut ConnectedProj<S, T>,
+        cx: &mut Context,
+    ) -> Result<bool, ProverError> {
+        let mut progress = false;
+
+        // tls_conn -> tls_client
+        if state.tls_client.wants_write()
+            && let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_read(cx)
+            && let Poll::Ready(buf) = simplex.poll_get(cx)?
+        {
+            if !buf.is_empty() {
+                let write = state.tls_client.write(buf)?;
+                if write > 0 {
+                    progress = true;
+                    simplex.advance(write);
+                }
+            } else if !*state.client_closed && !*state.server_closed {
+                progress = true;
+                *state.client_closed = true;
+                state.tls_client.client_close()?;
+            }
+        }
+
+        // tls_client -> tls_conn
+        if state.tls_client.wants_read()
+            && let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx)
+            && let Poll::Ready(buf) = simplex.poll_mut(cx)?
+            && let read = state.tls_client.read(buf)?
+            && read > 0
+        {
+            progress = true;
+            simplex.advance_mut(read);
+        }
+        Ok(progress)
+    }
+
+    fn io_client_server(
+        state: &mut ConnectedProj<S, T>,
+        cx: &mut Context,
+    ) -> Result<bool, ProverError> {
+        let mut progress = false;
+
+        // server_socket -> buf
+        if let Poll::Ready(write) = state
+            .server_to_tls_client_buf
+            .poll_write_from(cx, state.server_socket.as_mut())?
+        {
+            if write > 0 {
+                progress = true;
+            } else if !*state.server_closed {
+                progress = true;
+                *state.server_closed = true;
+                state.tls_client.server_close()?;
+            }
+        }
+
+        // buf -> tls_client
+        if state.tls_client.wants_read_tls()
+            && let Poll::Ready(mut simplex) =
+                state.tls_client_to_server_buf.as_mut().poll_lock_read(cx)
+            && let Poll::Ready(buf) = simplex.poll_get(cx)?
+            && let read = state.tls_client.read_tls(buf)?
+            && read > 0
+        {
+            progress = true;
+            simplex.advance(read);
+        }
+
+        // tls_client -> buf
+        if state.tls_client.wants_write_tls()
+            && let Poll::Ready(mut simplex) =
+                state.tls_client_to_server_buf.as_mut().poll_lock_write(cx)
+            && let Poll::Ready(buf) = simplex.poll_mut(cx)?
+            && let write = state.tls_client.write_tls(buf)?
+            && write > 0
+        {
+            progress = true;
+            simplex.advance_mut(write);
+        }
+
+        // buf -> server_socket
+        if let Poll::Ready(read) = state
+            .server_to_tls_client_buf
+            .poll_read_to(cx, state.server_socket.as_mut())?
+            && read > 0
+        {
+            progress = true;
+        }
+
+        Ok(progress)
+    }
+
+    fn io_client_verifier(
+        state: &mut ConnectedProj<S, T>,
+        cx: &mut Context,
+    ) -> Result<bool, ProverError> {
+        let mut progress = false;
+
+        let verifier_io = Pin::new(
+            (*state.verifier_io)
+                .as_mut()
+                .expect("verifier io should be available"),
+        );
+
+        // mux -> verifier_socket
+        if let Poll::Ready(read) = verifier_io.poll_read_to(cx, state.verifier_socket.as_mut())?
+            && read > 0
+        {
+            progress = true;
+        }
+
+        // verifier_socket -> mux
+        if let Poll::Ready(write) =
+            verifier_io.poll_write_from(cx, state.verifier_socket.as_mut())?
+            && write > 0
+        {
+            progress = true;
+        }
+
+        Ok(progress)
+    }
+
+    /// Returns a committed prover after the TLS session has completed.
+    pub fn finish(self) -> Result<Prover<state::Committed>, ProverError> {
+        let TlsOutput {
+            ctx,
+            vm,
+            keys,
+            tls_transcript,
+            transcript,
+        } = self.state.output.ok_or(ProverError::state(
+            "prover has not yet closed the connection",
+        ))?;
+
+        let prover = Prover {
+            config: self.config,
+            span: self.span,
+            state: state::Committed {
+                verifier_io: self.state.verifier_io,
+                mux_ctrl: self.state.mux_ctrl,
+                mux_fut: self.state.mux_fut,
+                ctx,
+                vm,
+                server_name: self.state.server_name,
+                keys,
+                tls_transcript,
+                transcript,
+            },
+        };
+
+        Ok(prover)
     }
 }
 
@@ -310,8 +529,30 @@ impl Prover<state::Committed> {
     /// # Arguments
     ///
     /// * `config` - The disclosure configuration.
+    /// * `verifier_io` - The IO to the TLS verifier.
+    pub async fn prove<S>(
+        &mut self,
+        config: &ProveConfig,
+        verifier_io: S,
+    ) -> Result<ProverOutput, ProverError>
+    where
+        S: AsyncRead + AsyncWrite + Send + Unpin,
+    {
+        let mut duplex = self
+            .state
+            .verifier_io
+            .take()
+            .expect("duplex should be available");
+
+        let fut = Box::pin(self.prove_inner(config).fuse());
+        let output = await_with_copy_io(fut, verifier_io, &mut duplex).await?;
+
+        self.state.verifier_io = Some(duplex);
+        Ok(output)
+    }
+
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn prove(&mut self, config: &ProveConfig) -> Result<ProverOutput, ProverError> {
+    async fn prove_inner(&mut self, config: &ProveConfig) -> Result<ProverOutput, ProverError> {
         let state::Committed {
             mux_fut,
             ctx,
@@ -364,44 +605,31 @@ impl Prover<state::Committed> {
     }
 
     /// Closes the connection with the verifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `verifier_io` - The IO to the TLS verifier.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn close(self) -> Result<(), ProverError> {
+    pub async fn close<S>(mut self, mut verifier_io: S) -> Result<(), ProverError>
+    where
+        S: AsyncRead + AsyncWrite + Send + Unpin,
+    {
         let state::Committed {
             mux_ctrl, mux_fut, ..
         } = self.state;
 
-        // Wait for the verifier to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
+        let mut duplex = self
+            .state
+            .verifier_io
+            .take()
+            .expect("duplex should be available");
 
+        mux_ctrl.close();
+        let copy = CopyIo::new(&mut verifier_io, &mut duplex).map_err(ProverError::from);
+        futures::try_join!(mux_fut.map_err(ProverError::from), copy)?;
+
+        // Wait for the verifier to finish closing.
+        verifier_io.read_exact(&mut [0_u8; 5]).await?;
         Ok(())
-    }
-}
-
-/// A controller for the prover.
-#[derive(Clone)]
-pub struct ProverControl {
-    mpc_ctrl: LeaderCtrl,
-}
-
-impl ProverControl {
-    /// Defers decryption of data from the server until the server has closed
-    /// the connection.
-    ///
-    /// This is a performance optimization which will significantly reduce the
-    /// amount of upload bandwidth used by the prover.
-    ///
-    /// # Notes
-    ///
-    /// * The prover may need to close the connection to the server in order for
-    ///   it to close the connection on its end. If neither the prover or server
-    ///   close the connection this will cause a deadlock.
-    pub async fn defer_decryption(&self) -> Result<(), ProverError> {
-        self.mpc_ctrl
-            .defer_decryption()
-            .await
-            .map_err(ProverError::from)
     }
 }

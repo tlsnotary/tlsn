@@ -66,7 +66,6 @@ rand_chacha = { workspace = true }
 rstest = { workspace = true }
 tls-server-fixture = { workspace = true }
 tlsn-tls-client = { workspace = true }
-tlsn-tls-client-async = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing-subscriber = { workspace = true }

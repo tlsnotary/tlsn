@@ -46,15 +46,15 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
-#[instrument(skip(verifier_socket, verifier_extra_socket))]
+#[instrument(skip(verifier_socket))]
 pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     verifier_socket: T,
-    mut verifier_extra_socket: T,
     server_addr: &SocketAddr,
     uri: &str,
 ) -> Result<()> {
-    let uri = uri.parse::<Uri>()?;
+    let mut verifier_socket = verifier_socket.compat();
 
+    let uri = uri.parse::<Uri>()?;
     if uri.scheme().map(|s| s.as_str()) != Some("https") {
         return Err(anyhow::anyhow!("URI must use HTTPS scheme"));
     }
@@ -80,32 +80,29 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                         .build()?,
                 )
                 .build()?,
-            verifier_socket.compat(),
+            &mut verifier_socket,
         )
         .await?;
 
     // Open a TCP connection to the server.
-    let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
+    let client_socket = tokio::net::TcpStream::connect(server_addr).await?.compat();
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                // Create a root certificate store with the server-fixture's self-signed
-                // certificate. This is only required for offline testing with the
-                // server-fixture.
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()?,
-            client_socket.compat(),
-        )
-        .await?;
+    let (tls_connection, prover) = prover.setup(
+        TlsClientConfig::builder()
+            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+            // Create a root certificate store with the server-fixture's self-signed
+            // certificate. This is only required for offline testing with the
+            // server-fixture.
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .build()?,
+    )?;
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the Prover to run in the background.
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(prover.run(client_socket, verifier_socket));
 
     // MPC-TLS Handshake.
     let (mut request_sender, connection) =
@@ -133,7 +130,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     }
 
     // Create proof for the Verifier.
-    let mut prover = prover_task.await??;
+    let (mut prover, _, mut verifier_socket) = prover_task.await??;
 
     let transcript = prover.transcript().clone();
     let mut prove_config_builder = ProveConfig::builder(&transcript);
@@ -167,8 +164,8 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prove_config = prove_config_builder.build()?;
 
     // MPC-TLS prove
-    let prover_output = prover.prove(&prove_config).await?;
-    prover.close().await?;
+    let prover_output = prover.prove(&prove_config, &mut verifier_socket).await?;
+    prover.close(&mut verifier_socket).await?;
 
     // Prove birthdate is more than 18 years ago.
     let received_commitments = received_commitments(&prover_output.transcript_commitments);
@@ -184,8 +181,10 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Sent zk proof bundle to verifier
     let serialized_proof = bincode::serialize(&proof_bundle)?;
-    verifier_extra_socket.write_all(&serialized_proof).await?;
-    verifier_extra_socket.shutdown().await?;
+
+    let mut verifier_socket = verifier_socket.into_inner();
+    verifier_socket.write_all(&serialized_proof).await?;
+    verifier_socket.shutdown().await?;
 
     Ok(())
 }

@@ -28,6 +28,8 @@ const MAX_RECV_DATA: usize = 1 << 11;
 crate::test!("basic", prover, verifier);
 
 async fn prover(provider: &IoProvider) {
+    let mut verifier_io = provider.provide_proto_io().await.unwrap();
+
     let prover = Prover::new(ProverConfig::builder().build().unwrap())
         .commit(
             TlsCommitConfig::builder()
@@ -41,13 +43,15 @@ async fn prover(provider: &IoProvider) {
                 )
                 .build()
                 .unwrap(),
-            provider.provide_proto_io().await.unwrap(),
+            &mut verifier_io,
         )
         .await
         .unwrap();
 
-    let (tls_connection, prover_fut) = prover
-        .connect(
+    let server_io = provider.provide_server_io().await.unwrap();
+
+    let (tls_connection, prover) = prover
+        .setup(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
                 .root_store(RootCertStore {
@@ -55,12 +59,10 @@ async fn prover(provider: &IoProvider) {
                 })
                 .build()
                 .unwrap(),
-            provider.provide_server_io().await.unwrap(),
         )
-        .await
         .unwrap();
 
-    let prover_task = spawn(prover_fut);
+    let prover_task = spawn(prover.run(server_io, verifier_io));
 
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
@@ -87,7 +89,7 @@ async fn prover(provider: &IoProvider) {
 
     let _ = response.into_body().collect().await.unwrap().to_bytes();
 
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let (mut prover, _, mut verifier_io) = prover_task.await.unwrap().unwrap();
 
     let (sent_len, recv_len) = prover.transcript().len();
 
@@ -114,11 +116,13 @@ async fn prover(provider: &IoProvider) {
 
     let config = builder.build().unwrap();
 
-    prover.prove(&config).await.unwrap();
-    prover.close().await.unwrap();
+    prover.prove(&config, &mut verifier_io).await.unwrap();
+    prover.close(&mut verifier_io).await.unwrap();
 }
 
 async fn verifier(provider: &IoProvider) {
+    let mut prover_io = provider.provide_proto_io().await.unwrap();
+
     let config = VerifierConfig::builder()
         .root_store(RootCertStore {
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
@@ -127,13 +131,13 @@ async fn verifier(provider: &IoProvider) {
         .unwrap();
 
     let verifier = Verifier::new(config)
-        .commit(provider.provide_proto_io().await.unwrap())
+        .commit(&mut prover_io)
         .await
         .unwrap()
-        .accept()
+        .accept(&mut prover_io)
         .await
         .unwrap()
-        .run()
+        .run(&mut prover_io)
         .await
         .unwrap();
 
@@ -144,9 +148,15 @@ async fn verifier(provider: &IoProvider) {
             ..
         },
         verifier,
-    ) = verifier.verify().await.unwrap().accept().await.unwrap();
+    ) = verifier
+        .verify(&mut prover_io)
+        .await
+        .unwrap()
+        .accept(&mut prover_io)
+        .await
+        .unwrap();
 
-    verifier.close().await.unwrap();
+    verifier.close(&mut prover_io).await.unwrap();
 
     let ServerName::Dns(server_name) = server_name.unwrap();
 

@@ -20,11 +20,12 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
 
-#[instrument(skip(socket, extra_socket))]
+#[instrument(skip(prover_socket))]
 pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
-    socket: T,
-    mut extra_socket: T,
+    prover_socket: T,
 ) -> Result<PartialTranscript> {
+    let mut prover_socket = prover_socket.compat();
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
             // Create a root certificate store with the server-fixture's self-signed
@@ -37,7 +38,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     );
 
     // Validate the proposed configuration and then run the TLS commitment protocol.
-    let verifier = verifier.commit(socket.compat()).await?;
+    let verifier = verifier.commit(&mut prover_socket).await?;
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
@@ -55,24 +56,29 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     };
 
     if reject.is_some() {
-        verifier.reject(reject).await?;
+        verifier.reject(&mut prover_socket, reject).await?;
         return Err(anyhow::anyhow!("protocol configuration rejected"));
     }
 
     // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept().await?.run().await?;
+    let verifier = verifier
+        .accept(&mut prover_socket)
+        .await?
+        .run(&mut prover_socket)
+        .await?;
 
     // Validate the proving request and then verify.
-    let verifier = verifier.verify().await?;
+    let verifier = verifier.verify(&mut prover_socket).await?;
     let request = verifier.request();
 
     if !request.server_identity() || request.reveal().is_none() {
         let verifier = verifier
-            .reject(Some(
-                "expecting to verify the server name and transcript data",
-            ))
+            .reject(
+                &mut prover_socket,
+                Some("expecting to verify the server name and transcript data"),
+            )
             .await?;
-        verifier.close().await?;
+        verifier.close(&mut prover_socket).await?;
         return Err(anyhow::anyhow!(
             "prover did not reveal the server name and transcript data"
         ));
@@ -86,10 +92,9 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
             ..
         },
         verifier,
-    ) = verifier.accept().await?;
+    ) = verifier.accept(&mut prover_socket).await?;
 
-    verifier.close().await?;
-
+    verifier.close(&mut prover_socket).await?;
     let server_name = server_name.expect("server name should be present");
     let transcript = transcript.expect("transcript should be present");
 
@@ -126,7 +131,9 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     // Receive ZKProof information from prover
     let mut buf = Vec::new();
-    extra_socket.read_to_end(&mut buf).await?;
+
+    let mut prover_socket = prover_socket.into_inner();
+    prover_socket.read_to_end(&mut buf).await?;
 
     if buf.is_empty() {
         return Err(anyhow::anyhow!("No ZK proof data received from prover"));

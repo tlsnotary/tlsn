@@ -2,6 +2,7 @@ mod config;
 
 pub use config::VerifierConfig;
 
+use async_io_stream::IoStream;
 use enum_try_as_inner::EnumTryAsInner;
 use tlsn::{
     config::tls_commit::TlsCommitProtocolConfig,
@@ -12,7 +13,7 @@ use tlsn::{
 };
 use tracing::info;
 use wasm_bindgen::prelude::*;
-use ws_stream_wasm::{WsMeta, WsStream};
+use ws_stream_wasm::{WsMeta, WsStreamIo};
 
 use crate::types::VerifierOutput;
 
@@ -26,9 +27,13 @@ pub struct JsVerifier {
 
 #[derive(EnumTryAsInner)]
 #[derive_err(Debug)]
+#[allow(unused_assignments)]
 enum State {
     Initialized(Verifier<state::Initialized>),
-    Connected((Verifier<state::Initialized>, WsStream)),
+    Connected {
+        verifier: Verifier<state::Initialized>,
+        prover_conn: IoStream<WsStreamIo, Vec<u8>>,
+    },
     Complete,
     Error,
 }
@@ -66,19 +71,23 @@ impl JsVerifier {
         info!("Connecting to prover");
 
         let (_, prover_conn) = WsMeta::connect(prover_url, None).await?;
+        let prover_conn = prover_conn.into_io();
 
         info!("Connected to prover");
 
-        self.state = State::Connected((verifier, prover_conn));
+        self.state = State::Connected {
+            verifier,
+            prover_conn,
+        };
 
         Ok(())
     }
 
     /// Verifies the connection and finalizes the protocol.
     pub async fn verify(&mut self) -> Result<VerifierOutput> {
-        let (verifier, prover_conn) = self.state.take().try_into_connected()?;
+        let (verifier, mut prover_conn) = self.state.take().try_into_connected()?;
 
-        let verifier = verifier.commit(prover_conn.into_io()).await?;
+        let verifier = verifier.commit(&mut prover_conn).await?;
         let request = verifier.request();
 
         let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol() else {
@@ -98,11 +107,15 @@ impl JsVerifier {
         };
 
         if reject.is_some() {
-            verifier.reject(reject).await?;
+            verifier.reject(&mut prover_conn, reject).await?;
             return Err(JsError::new("protocol configuration rejected"));
         }
 
-        let verifier = verifier.accept().await?.run().await?;
+        let verifier = verifier
+            .accept(&mut prover_conn)
+            .await?
+            .run(&mut prover_conn)
+            .await?;
 
         let sent = verifier
             .tls_transcript()
@@ -129,8 +142,12 @@ impl JsVerifier {
             },
         };
 
-        let (output, verifier) = verifier.verify().await?.accept().await?;
-        verifier.close().await?;
+        let (output, verifier) = verifier
+            .verify(&mut prover_conn)
+            .await?
+            .accept(&mut prover_conn)
+            .await?;
+        verifier.close(&mut prover_conn).await?;
 
         self.state = State::Complete;
 

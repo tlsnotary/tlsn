@@ -87,13 +87,15 @@ async fn main() -> Result<()> {
 }
 
 async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
-    socket: S,
+    verifier_socket: S,
     req_tx: Sender<AttestationRequest>,
     resp_rx: Receiver<Attestation>,
     uri: &str,
     extra_headers: Vec<(&str, &str)>,
     example_type: &ExampleType,
 ) -> Result<()> {
+    let mut verifier_socket = verifier_socket.compat();
+
     let server_host: String = env::var("SERVER_HOST").unwrap_or("127.0.0.1".into());
     let server_port: u16 = env::var("SERVER_PORT")
         .map(|port| port.parse().expect("port should be valid integer"))
@@ -115,37 +117,36 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
                         .build()?,
                 )
                 .build()?,
-            socket.compat(),
+            &mut verifier_socket,
         )
         .await?;
 
     // Open a TCP connection to the server.
-    let client_socket = tokio::net::TcpStream::connect((server_host, server_port)).await?;
+    let client_socket = tokio::net::TcpStream::connect((server_host, server_port))
+        .await?
+        .compat();
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                // Create a root certificate store with the server-fixture's self-signed
-                // certificate. This is only required for offline testing with the
-                // server-fixture.
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                // (Optional) Set up TLS client authentication if required by the server.
-                .client_auth((
-                    vec![CertificateDer(CLIENT_CERT_DER.to_vec())],
-                    PrivateKeyDer(CLIENT_KEY_DER.to_vec()),
-                ))
-                .build()?,
-            client_socket.compat(),
-        )
-        .await?;
+    let (tls_connection, prover) = prover.setup(
+        TlsClientConfig::builder()
+            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+            // Create a root certificate store with the server-fixture's self-signed
+            // certificate. This is only required for offline testing with the
+            // server-fixture.
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            // (Optional) Set up TLS client authentication if required by the server.
+            .client_auth((
+                vec![CertificateDer(CLIENT_CERT_DER.to_vec())],
+                PrivateKeyDer(CLIENT_KEY_DER.to_vec()),
+            ))
+            .build()?,
+    )?;
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the prover task to be run concurrently in the background.
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(prover.run(client_socket, verifier_socket));
 
     // Attach the hyper HTTP client to the connection.
     let (mut request_sender, connection) =
@@ -180,7 +181,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     assert!(response.status() == StatusCode::OK);
 
     // The prover task should be done now, so we can await it.
-    let prover = prover_task.await??;
+    let (prover, _, verifier_socket) = prover_task.await??;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -222,7 +223,8 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let request_config = builder.build()?;
 
-    let (attestation, secrets) = notarize(prover, &request_config, req_tx, resp_rx).await?;
+    let (attestation, secrets) =
+        notarize(prover, &request_config, verifier_socket, req_tx, resp_rx).await?;
 
     // Write the attestation to disk.
     let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
@@ -242,9 +244,10 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     Ok(())
 }
 
-async fn notarize(
+async fn notarize<S: futures::AsyncRead + futures::AsyncWrite + Send + Unpin>(
     mut prover: Prover<Committed>,
     config: &RequestConfig,
+    mut verifier_socket: S,
     request_tx: Sender<AttestationRequest>,
     attestation_rx: Receiver<Attestation>,
 ) -> Result<(Attestation, Secrets)> {
@@ -260,11 +263,13 @@ async fn notarize(
         transcript_commitments,
         transcript_secrets,
         ..
-    } = prover.prove(&disclosure_config).await?;
+    } = prover
+        .prove(&disclosure_config, &mut verifier_socket)
+        .await?;
 
     let transcript = prover.transcript().clone();
     let tls_transcript = prover.tls_transcript().clone();
-    prover.close().await?;
+    prover.close(&mut verifier_socket).await?;
 
     // Build an attestation request.
     let mut builder = AttestationRequest::builder(config);
@@ -307,10 +312,12 @@ async fn notarize(
 }
 
 async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
-    socket: S,
+    prover_socket: S,
     request_rx: Receiver<AttestationRequest>,
     attestation_tx: Sender<Attestation>,
 ) -> Result<()> {
+    let mut prover_socket = prover_socket.compat();
+
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -322,11 +329,11 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .unwrap();
 
     let verifier = Verifier::new(verifier_config)
-        .commit(socket.compat())
+        .commit(&mut prover_socket)
         .await?
-        .accept()
+        .accept(&mut prover_socket)
         .await?
-        .run()
+        .run(&mut prover_socket)
         .await?;
 
     let (
@@ -336,11 +343,15 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
             ..
         },
         verifier,
-    ) = verifier.verify().await?.accept().await?;
+    ) = verifier
+        .verify(&mut prover_socket)
+        .await?
+        .accept(&mut prover_socket)
+        .await?;
 
     let tls_transcript = verifier.tls_transcript().clone();
 
-    verifier.close().await?;
+    verifier.close(&mut prover_socket).await?;
 
     let sent_len = tls_transcript
         .sent()

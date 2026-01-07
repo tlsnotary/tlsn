@@ -49,6 +49,13 @@ impl ProverError {
     {
         Self::new(ErrorKind::Commit, source)
     }
+
+    pub(crate) fn state<E>(source: E) -> Self
+    where
+        E: Into<Box<dyn Error + Send + Sync + 'static>>,
+    {
+        Self::new(ErrorKind::State, source)
+    }
 }
 
 #[derive(Debug)]
@@ -58,6 +65,7 @@ enum ErrorKind {
     Zk,
     Config,
     Commit,
+    State,
 }
 
 impl fmt::Display for ProverError {
@@ -70,6 +78,7 @@ impl fmt::Display for ProverError {
             ErrorKind::Zk => f.write_str("zk error")?,
             ErrorKind::Config => f.write_str("config error")?,
             ErrorKind::Commit => f.write_str("commit error")?,
+            ErrorKind::State => f.write_str("state error")?,
         }
 
         if let Some(source) = &self.source {
@@ -86,8 +95,8 @@ impl From<std::io::Error> for ProverError {
     }
 }
 
-impl From<tls_client_async::ConnectionError> for ProverError {
-    fn from(e: tls_client_async::ConnectionError) -> Self {
+impl From<tls_client::Error> for ProverError {
+    fn from(e: tls_client::Error) -> Self {
         Self::new(ErrorKind::Io, e)
     }
 }
