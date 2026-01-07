@@ -21,11 +21,11 @@ tlsn-attestation = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
 tlsn-tls-client = { workspace = true }
-tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
 tlsn-cipher = { workspace = true }
 
+futures-plex = { workspace = true }
 serio = { workspace = true, features = ["compat"] }
 uid-mux = { workspace = true, features = ["serio"] }
 web-spawn = { workspace = true, optional = true }
@@ -57,6 +57,7 @@ serde = { workspace = true, features = ["derive"] }
 ghash = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
 once_cell = { workspace = true }
+pin-project-lite = { workspace = true }
 rangeset = { workspace = true }
 webpki-roots = { workspace = true }
 

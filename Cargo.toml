@@ -13,7 +13,6 @@ members = [
     "crates/server-fixture/server",
     "crates/tls/backend",
     "crates/tls/client",
-    "crates/tls/client-async",
     "crates/tls/core",
     "crates/mpc-tls",
     "crates/tls/server-fixture",
@@ -57,7 +56,6 @@ tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-backend = { path = "crates/tls/backend" }
 tlsn-tls-client = { path = "crates/tls/client" }
-tlsn-tls-client-async = { path = "crates/tls/client-async" }
 tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6168663" }
 tlsn-harness-core = { path = "crates/harness/core" }
@@ -82,6 +80,7 @@ mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "9c343f8" }
 mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "9c343f8" }
 mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "9c343f8" }
 
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "c210f2f" }
 rangeset = { version = "0.4" }
 serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6f1a934" }

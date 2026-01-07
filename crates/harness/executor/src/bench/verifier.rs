@@ -11,6 +11,8 @@ use tlsn_server_fixture_certs::CA_CERT_DER;
 use crate::IoProvider;
 
 pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()> {
+    let mut prover_io = provider.provide_proto_io().await?;
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
             .root_store(RootCertStore {
@@ -22,12 +24,16 @@ pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()
     let verifier = verifier
         .commit(provider.provide_proto_io().await?)
         .await?
-        .accept()
+        .accept(&mut prover_io)
         .await?
-        .run()
+        .run(&mut prover_io)
         .await?;
-    let (_, verifier) = verifier.verify().await?.accept().await?;
-    verifier.close().await?;
+    let (_, verifier) = verifier
+        .verify(&mut prover_io)
+        .await?
+        .accept(&mut prover_io)
+        .await?;
+    verifier.close(&mut prover_io).await?;
 
     Ok(())
 }

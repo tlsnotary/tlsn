@@ -110,7 +110,11 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 ) -> (Transcript, ProverOutput) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
-    let server_task = tokio::spawn(bind(server_socket.compat()));
+    let client_socket = client_socket.compat();
+    let server_socket = server_socket.compat();
+    let mut verifier_socket = verifier_socket.compat();
+
+    let server_task = tokio::spawn(bind(server_socket));
 
     let prover = Prover::new(ProverConfig::builder().build().unwrap())
         .commit(
@@ -126,13 +130,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                 )
                 .build()
                 .unwrap(),
-            verifier_socket.compat(),
+            &mut verifier_socket,
         )
         .await
         .unwrap();
 
-    let (mut tls_connection, prover_fut) = prover
-        .connect(
+    let (mut tls_connection, prover) = prover
+        .setup(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
                 .root_store(RootCertStore {
@@ -140,24 +144,23 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                 })
                 .build()
                 .unwrap(),
-            client_socket.compat(),
         )
-        .await
         .unwrap();
-    let prover_task = tokio::spawn(prover_fut);
+
+    let prover_task = tokio::spawn(prover.run(client_socket, verifier_socket));
 
     tls_connection
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
         .await
         .unwrap();
-    tls_connection.close().await.unwrap();
 
     let mut response = vec![0u8; 1024];
     tls_connection.read_to_end(&mut response).await.unwrap();
 
+    tls_connection.close().await.unwrap();
     let _ = server_task.await.unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let (mut prover, _, mut verifier_socket) = prover_task.await.unwrap().unwrap();
     let sent_tx_len = prover.transcript().sent().len();
     let recv_tx_len = prover.transcript().received().len();
 
@@ -196,8 +199,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let config = builder.build().unwrap();
     let transcript = prover.transcript().clone();
-    let output = prover.prove(&config).await.unwrap();
-    prover.close().await.unwrap();
+    let output = prover.prove(&config, &mut verifier_socket).await.unwrap();
+    prover.close(&mut verifier_socket).await.unwrap();
 
     (transcript, output)
 }
@@ -206,6 +209,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
 ) -> VerifierOutput {
+    let mut socket = socket.compat();
+
     let verifier = Verifier::new(
         VerifierConfig::builder()
             .root_store(RootCertStore {
@@ -216,18 +221,24 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     );
 
     let verifier = verifier
-        .commit(socket.compat())
+        .commit(&mut socket)
         .await
         .unwrap()
-        .accept()
+        .accept(&mut socket)
         .await
         .unwrap()
-        .run()
+        .run(&mut socket)
         .await
         .unwrap();
 
-    let (output, verifier) = verifier.verify().await.unwrap().accept().await.unwrap();
-    verifier.close().await.unwrap();
+    let (output, verifier) = verifier
+        .verify(&mut socket)
+        .await
+        .unwrap()
+        .accept(&mut socket)
+        .await
+        .unwrap();
+    verifier.close(&mut socket).await.unwrap();
 
     output
 }

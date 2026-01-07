@@ -23,7 +23,8 @@ use crate::{
 };
 
 pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<ProverMetrics> {
-    let verifier_io = Meter::new(provider.provide_proto_io().await?);
+    let mut verifier_io = Meter::new(provider.provide_proto_io().await?);
+    let mut server_io = provider.provide_server_io().await?;
 
     let sent = verifier_io.sent();
     let recv = verifier_io.recv();
@@ -49,7 +50,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
                         .build()
                 }?)
                 .build()?,
-            verifier_io,
+            &mut verifier_io,
         )
         .await?;
 
@@ -58,19 +59,18 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let uploaded_preprocess = sent.load(Ordering::Relaxed);
     let downloaded_preprocess = recv.load(Ordering::Relaxed);
 
-    let (mut conn, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()?,
-            provider.provide_server_io().await?,
-        )
-        .await?;
+    let (mut conn, prover) = prover.setup(
+        TlsClientConfig::builder()
+            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .build()?,
+    )?;
 
-    let (_, mut prover) = futures::try_join!(
+    let mut prover = prover.connect(&mut server_io, &mut verifier_io);
+
+    futures::try_join!(
         async {
             let request = format!(
                 "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
@@ -87,8 +87,9 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
             Ok(())
         },
-        prover_fut.map_err(anyhow::Error::from)
+        (&mut prover).map_err(anyhow::Error::from)
     )?;
+    let mut prover = prover.finish()?;
 
     let time_online = time_start_online.elapsed().as_millis();
     let uploaded_online = sent.load(Ordering::Relaxed) - uploaded_preprocess;
@@ -118,8 +119,8 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let prove_config = builder.build()?;
 
-    prover.prove(&prove_config).await?;
-    prover.close().await?;
+    prover.prove(&prove_config, &mut verifier_io).await?;
+    prover.close(&mut verifier_io).await?;
 
     let time_total = time_start.elapsed().as_millis();
 

@@ -23,9 +23,9 @@ no-bundler = ["web-spawn/no-bundler"]
 tlsn-core = { workspace = true }
 tlsn = { workspace = true, features = ["web", "mozilla-certs"] }
 tlsn-server-fixture-certs = { workspace = true }
-tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
 
+async_io_stream = { version = "0.3" }
 bincode = { workspace = true }
 console_error_panic_hook = { version = "0.1" }
 enum-try-as-inner = { workspace = true }
