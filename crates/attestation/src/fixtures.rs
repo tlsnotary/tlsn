@@ -2,7 +2,6 @@
 use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2},
     fixtures::ConnectionFixture,
-    hash::HashAlgorithm,
     transcript::{Transcript, TranscriptCommitConfigBuilder, TranscriptCommitment},
 };
 
@@ -25,7 +24,6 @@ pub struct RequestFixture {
 pub fn request_fixture(
     transcript: Transcript,
     connection: ConnectionFixture,
-    _hasher: impl HashAlgorithm,
     extensions: Vec<Extension>,
 ) -> RequestFixture {
     let provider = CryptoProvider::default();

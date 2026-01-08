@@ -244,7 +244,6 @@ mod test {
     use tlsn_core::{
         connection::{CertBinding, CertBindingV1_2},
         fixtures::ConnectionFixture,
-        hash::Blake3,
         transcript::Transcript,
     };
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
@@ -275,8 +274,7 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } =
-            request_fixture(transcript, connection, Blake3::default(), Vec::new());
+        let RequestFixture { request, .. } = request_fixture(transcript, connection, Vec::new());
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256R1])
@@ -295,8 +293,7 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } =
-            request_fixture(transcript, connection, Blake3::default(), Vec::new());
+        let RequestFixture { request, .. } = request_fixture(transcript, connection, Vec::new());
 
         let attestation_config = AttestationConfig::builder()
             .supported_signature_algs([SignatureAlgId::SECP256K1])
@@ -316,8 +313,7 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } =
-            request_fixture(transcript, connection, Blake3::default(), Vec::new());
+        let RequestFixture { request, .. } = request_fixture(transcript, connection, Vec::new());
 
         let attestation_builder = Attestation::builder(attestation_config)
             .accept_request(request)
@@ -338,12 +334,8 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            connection.clone(),
-            Blake3::default(),
-            Vec::new(),
-        );
+        let RequestFixture { request, .. } =
+            request_fixture(transcript, connection.clone(), Vec::new());
 
         let mut attestation_builder = Attestation::builder(attestation_config)
             .accept_request(request)
@@ -367,12 +359,8 @@ mod test {
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
         let connection = ConnectionFixture::tlsnotary(transcript.length());
 
-        let RequestFixture { request, .. } = request_fixture(
-            transcript,
-            connection.clone(),
-            Blake3::default(),
-            Vec::new(),
-        );
+        let RequestFixture { request, .. } =
+            request_fixture(transcript, connection.clone(), Vec::new());
 
         let mut attestation_builder = Attestation::builder(attestation_config)
             .accept_request(request)
@@ -406,7 +394,6 @@ mod test {
         let RequestFixture { request, .. } = request_fixture(
             transcript,
             connection.clone(),
-            Blake3::default(),
             vec![Extension {
                 id: b"foo".to_vec(),
                 value: b"bar".to_vec(),
@@ -434,7 +421,6 @@ mod test {
         let RequestFixture { request, .. } = request_fixture(
             transcript,
             connection.clone(),
-            Blake3::default(),
             vec![Extension {
                 id: b"foo".to_vec(),
                 value: b"bar".to_vec(),
