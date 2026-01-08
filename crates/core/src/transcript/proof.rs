@@ -14,7 +14,6 @@ use crate::{
     hash::{HashAlgId, HashProvider},
     transcript::{
         commit::{TranscriptCommitment, TranscriptCommitmentKind},
-        encoding::{EncoderSecret, EncodingProof, EncodingProofError, EncodingTree},
         hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
         Direction, PartialTranscript, RangeSet, Transcript, TranscriptSecret,
     },
@@ -32,14 +31,12 @@ const DEFAULT_COMMITMENT_KINDS: &[TranscriptCommitmentKind] = &[
     TranscriptCommitmentKind::Hash {
         alg: HashAlgId::KECCAK256,
     },
-    TranscriptCommitmentKind::Encoding,
 ];
 
 /// Proof of the contents of a transcript.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TranscriptProof {
     transcript: PartialTranscript,
-    encoding_proof: Option<EncodingProof>,
     hash_secrets: Vec<PlaintextHashSecret>,
 }
 
@@ -53,27 +50,18 @@ impl TranscriptProof {
     /// # Arguments
     ///
     /// * `provider` - The hash provider to use for verification.
-    /// * `attestation_body` - The attestation body to verify against.
+    /// * `length` - The transcript length.
+    /// * `commitments` - The commitments to verify against.
     pub fn verify_with_provider<'a>(
         self,
         provider: &HashProvider,
         length: &TranscriptLength,
-        encoder_secret: Option<&EncoderSecret>,
         commitments: impl IntoIterator<Item = &'a TranscriptCommitment>,
     ) -> Result<PartialTranscript, TranscriptProofError> {
-        let mut encoding_commitment = None;
         let mut hash_commitments = HashSet::new();
         // Index commitments.
         for commitment in commitments {
             match commitment {
-                TranscriptCommitment::Encoding(commitment) => {
-                    if encoding_commitment.replace(commitment).is_some() {
-                        return Err(TranscriptProofError::new(
-                            ErrorKind::Encoding,
-                            "multiple encoding commitments are present.",
-                        ));
-                    }
-                }
                 TranscriptCommitment::Hash(plaintext_hash) => {
                     hash_commitments.insert(plaintext_hash);
                 }
@@ -91,34 +79,6 @@ impl TranscriptProof {
 
         let mut total_auth_sent = RangeSet::default();
         let mut total_auth_recv = RangeSet::default();
-
-        // Verify encoding proof.
-        if let Some(proof) = self.encoding_proof {
-            let secret = encoder_secret.ok_or_else(|| {
-                TranscriptProofError::new(
-                    ErrorKind::Encoding,
-                    "contains an encoding proof but missing encoder secret",
-                )
-            })?;
-
-            let commitment = encoding_commitment.ok_or_else(|| {
-                TranscriptProofError::new(
-                    ErrorKind::Encoding,
-                    "contains an encoding proof but missing encoding commitment",
-                )
-            })?;
-
-            let (auth_sent, auth_recv) = proof.verify_with_provider(
-                provider,
-                secret,
-                commitment,
-                self.transcript.sent_unsafe(),
-                self.transcript.received_unsafe(),
-            )?;
-
-            total_auth_sent.union_mut(&auth_sent);
-            total_auth_recv.union_mut(&auth_recv);
-        }
 
         let mut buffer = Vec::new();
         for PlaintextHashSecret {
@@ -203,7 +163,6 @@ impl TranscriptProofError {
 
 #[derive(Debug)]
 enum ErrorKind {
-    Encoding,
     Hash,
     Proof,
 }
@@ -213,7 +172,6 @@ impl fmt::Display for TranscriptProofError {
         f.write_str("transcript proof error: ")?;
 
         match self.kind {
-            ErrorKind::Encoding => f.write_str("encoding error")?,
             ErrorKind::Hash => f.write_str("hash error")?,
             ErrorKind::Proof => f.write_str("proof error")?,
         }
@@ -223,12 +181,6 @@ impl fmt::Display for TranscriptProofError {
         }
 
         Ok(())
-    }
-}
-
-impl From<EncodingProofError> for TranscriptProofError {
-    fn from(e: EncodingProofError) -> Self {
-        TranscriptProofError::new(ErrorKind::Encoding, e)
     }
 }
 
@@ -276,7 +228,6 @@ pub struct TranscriptProofBuilder<'a> {
     /// Commitment kinds in order of preference for building transcript proofs.
     commitment_kinds: Vec<TranscriptCommitmentKind>,
     transcript: &'a Transcript,
-    encoding_tree: Option<&'a EncodingTree>,
     hash_secrets: Vec<&'a PlaintextHashSecret>,
     committed_sent: RangeSet<usize>,
     committed_recv: RangeSet<usize>,
@@ -292,15 +243,9 @@ impl<'a> TranscriptProofBuilder<'a> {
         let mut committed_sent = RangeSet::default();
         let mut committed_recv = RangeSet::default();
 
-        let mut encoding_tree = None;
         let mut hash_secrets = Vec::new();
         for secret in secrets {
             match secret {
-                TranscriptSecret::Encoding(tree) => {
-                    committed_sent.union_mut(tree.idx(Direction::Sent));
-                    committed_recv.union_mut(tree.idx(Direction::Received));
-                    encoding_tree = Some(tree);
-                }
                 TranscriptSecret::Hash(hash) => {
                     match hash.direction {
                         Direction::Sent => committed_sent.union_mut(&hash.idx),
@@ -314,7 +259,6 @@ impl<'a> TranscriptProofBuilder<'a> {
         Self {
             commitment_kinds: DEFAULT_COMMITMENT_KINDS.to_vec(),
             transcript,
-            encoding_tree,
             hash_secrets,
             committed_sent,
             committed_recv,
@@ -412,7 +356,6 @@ impl<'a> TranscriptProofBuilder<'a> {
             transcript: self
                 .transcript
                 .to_partial(self.query_idx.sent.clone(), self.query_idx.recv.clone()),
-            encoding_proof: None,
             hash_secrets: Vec::new(),
         };
         let mut uncovered_query_idx = self.query_idx.clone();
@@ -424,46 +367,6 @@ impl<'a> TranscriptProofBuilder<'a> {
             // self.commitment_kinds.
             if let Some(kind) = commitment_kinds_iter.next() {
                 match kind {
-                    TranscriptCommitmentKind::Encoding => {
-                        let Some(encoding_tree) = self.encoding_tree else {
-                            // Proceeds to the next preferred commitment kind if encoding tree is
-                            // not available.
-                            continue;
-                        };
-
-                        let (sent_dir_idxs, sent_uncovered) = uncovered_query_idx.sent.cover_by(
-                            encoding_tree
-                                .transcript_indices()
-                                .filter(|(dir, _)| *dir == Direction::Sent),
-                            |(_, idx)| idx,
-                        );
-                        // Uncovered ranges will be checked with ranges of the next
-                        // preferred commitment kind.
-                        uncovered_query_idx.sent = sent_uncovered;
-
-                        let (recv_dir_idxs, recv_uncovered) = uncovered_query_idx.recv.cover_by(
-                            encoding_tree
-                                .transcript_indices()
-                                .filter(|(dir, _)| *dir == Direction::Received),
-                            |(_, idx)| idx,
-                        );
-                        uncovered_query_idx.recv = recv_uncovered;
-
-                        let dir_idxs = sent_dir_idxs
-                            .into_iter()
-                            .chain(recv_dir_idxs)
-                            .collect::<Vec<_>>();
-
-                        // Skip proof generation if there are no committed ranges that can cover the
-                        // query ranges.
-                        if !dir_idxs.is_empty() {
-                            transcript_proof.encoding_proof = Some(
-                                encoding_tree
-                                    .proof(dir_idxs.into_iter())
-                                    .expect("subsequences were checked to be in tree"),
-                            );
-                        }
-                    }
                     TranscriptCommitmentKind::Hash { alg } => {
                         let (sent_hashes, sent_uncovered) = uncovered_query_idx.sent.cover_by(
                             self.hash_secrets.iter().filter(|hash| {
@@ -590,45 +493,9 @@ mod tests {
     use rstest::rstest;
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
-    use crate::{
-        fixtures::{encoder_secret, encoding_provider},
-        hash::{Blake3, Blinder, HashAlgId},
-        transcript::TranscriptCommitConfigBuilder,
-    };
+    use crate::hash::{Blinder, HashAlgId};
 
     use super::*;
-
-    #[rstest]
-    fn test_verify_missing_encoding_commitment_root() {
-        let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
-        let idxs = vec![(Direction::Received, RangeSet::from(0..transcript.len().1))];
-        let encoding_tree = EncodingTree::new(
-            &Blake3::default(),
-            &idxs,
-            &encoding_provider(transcript.sent(), transcript.received()),
-        )
-        .unwrap();
-
-        let secrets = vec![TranscriptSecret::Encoding(encoding_tree)];
-        let mut builder = TranscriptProofBuilder::new(&transcript, &secrets);
-
-        builder.reveal_recv(&(0..transcript.len().1)).unwrap();
-
-        let transcript_proof = builder.build().unwrap();
-
-        let provider = HashProvider::default();
-        let err = transcript_proof
-            .verify_with_provider(
-                &provider,
-                &transcript.length(),
-                Some(&encoder_secret()),
-                &[],
-            )
-            .err()
-            .unwrap();
-
-        assert!(matches!(err.kind, ErrorKind::Encoding));
-    }
 
     #[rstest]
     fn test_reveal_range_out_of_bounds() {
@@ -649,7 +516,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_reveal_missing_encoding_tree() {
+    fn test_reveal_missing_commitment() {
         let transcript = Transcript::new(
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -698,7 +565,6 @@ mod tests {
             .verify_with_provider(
                 &provider,
                 &transcript.length(),
-                None,
                 &[TranscriptCommitment::Hash(commitment)],
             )
             .unwrap();
@@ -748,7 +614,6 @@ mod tests {
             .verify_with_provider(
                 &provider,
                 &transcript.length(),
-                None,
                 &[TranscriptCommitment::Hash(commitment)],
             )
             .unwrap_err();
@@ -764,24 +629,19 @@ mod tests {
             TranscriptCommitmentKind::Hash {
                 alg: HashAlgId::SHA256,
             },
-            TranscriptCommitmentKind::Encoding,
             TranscriptCommitmentKind::Hash {
                 alg: HashAlgId::SHA256,
             },
             TranscriptCommitmentKind::Hash {
                 alg: HashAlgId::SHA256,
             },
-            TranscriptCommitmentKind::Encoding,
         ]);
 
         assert_eq!(
             builder.commitment_kinds,
-            vec![
-                TranscriptCommitmentKind::Hash {
-                    alg: HashAlgId::SHA256
-                },
-                TranscriptCommitmentKind::Encoding
-            ]
+            vec![TranscriptCommitmentKind::Hash {
+                alg: HashAlgId::SHA256
+            },]
         );
     }
 
@@ -791,7 +651,7 @@ mod tests {
         RangeSet::from([0..10, 12..30]),
         true,
     )]
-    #[case::reveal_all_rangesets_with_superset_ranges(
+    #[case::reveal_all_rangesets_with_single_superset_range(
         vec![RangeSet::from([0..1]), RangeSet::from([1..2, 8..9]), RangeSet::from([2..4, 6..8]), RangeSet::from([2..3, 6..7]), RangeSet::from([9..12])],
         RangeSet::from([0..4, 6..9]),
         true,
@@ -822,29 +682,30 @@ mod tests {
         false,
     )]
     #[allow(clippy::single_range_in_vec_init)]
-    fn test_reveal_mutliple_rangesets_with_one_rangeset(
+    fn test_reveal_multiple_rangesets_with_one_rangeset(
         #[case] commit_recv_rangesets: Vec<RangeSet<usize>>,
         #[case] reveal_recv_rangeset: RangeSet<usize>,
         #[case] success: bool,
     ) {
+        use rand::{Rng, SeedableRng};
+
+        let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
 
-        // Encoding commitment kind
-        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
+        // Create hash commitments for each rangeset
+        let mut secrets = Vec::new();
         for rangeset in commit_recv_rangesets.iter() {
-            transcript_commitment_builder.commit_recv(rangeset).unwrap();
+            let blinder: crate::hash::Blinder = rng.random();
+
+            let secret = PlaintextHashSecret {
+                direction: Direction::Received,
+                idx: rangeset.clone(),
+                alg: HashAlgId::BLAKE3,
+                blinder,
+            };
+            secrets.push(TranscriptSecret::Hash(secret));
         }
 
-        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        let encoding_tree = EncodingTree::new(
-            &Blake3::default(),
-            transcripts_commitment_config.iter_encoding(),
-            &encoding_provider(GET_WITH_HEADER, OK_JSON),
-        )
-        .unwrap();
-
-        let secrets = vec![TranscriptSecret::Encoding(encoding_tree)];
         let mut builder = TranscriptProofBuilder::new(&transcript, &secrets);
 
         if success {
@@ -897,27 +758,34 @@ mod tests {
         #[case] uncovered_sent_rangeset: RangeSet<usize>,
         #[case] uncovered_recv_rangeset: RangeSet<usize>,
     ) {
+        use rand::{Rng, SeedableRng};
+
+        let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
 
-        // Encoding commitment kind
-        let mut transcript_commitment_builder = TranscriptCommitConfigBuilder::new(&transcript);
+        // Create hash commitments for each rangeset
+        let mut secrets = Vec::new();
         for rangeset in commit_sent_rangesets.iter() {
-            transcript_commitment_builder.commit_sent(rangeset).unwrap();
+            let blinder: crate::hash::Blinder = rng.random();
+            let secret = PlaintextHashSecret {
+                direction: Direction::Sent,
+                idx: rangeset.clone(),
+                alg: HashAlgId::BLAKE3,
+                blinder,
+            };
+            secrets.push(TranscriptSecret::Hash(secret));
         }
         for rangeset in commit_recv_rangesets.iter() {
-            transcript_commitment_builder.commit_recv(rangeset).unwrap();
+            let blinder: crate::hash::Blinder = rng.random();
+            let secret = PlaintextHashSecret {
+                direction: Direction::Received,
+                idx: rangeset.clone(),
+                alg: HashAlgId::BLAKE3,
+                blinder,
+            };
+            secrets.push(TranscriptSecret::Hash(secret));
         }
 
-        let transcripts_commitment_config = transcript_commitment_builder.build().unwrap();
-
-        let encoding_tree = EncodingTree::new(
-            &Blake3::default(),
-            transcripts_commitment_config.iter_encoding(),
-            &encoding_provider(GET_WITH_HEADER, OK_JSON),
-        )
-        .unwrap();
-
-        let secrets = vec![TranscriptSecret::Encoding(encoding_tree)];
         let mut builder = TranscriptProofBuilder::new(&transcript, &secrets);
         builder.reveal_sent(&reveal_sent_rangeset).unwrap();
         builder.reveal_recv(&reveal_recv_rangeset).unwrap();

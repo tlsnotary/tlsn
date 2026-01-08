@@ -19,7 +19,6 @@
 //! withheld.
 
 mod commit;
-pub mod encoding;
 pub mod hash;
 mod proof;
 mod tls;

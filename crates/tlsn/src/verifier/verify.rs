@@ -14,19 +14,12 @@ use tlsn_core::{
 };
 
 use crate::{
-    transcript_internal::{
-        TranscriptRefs,
-        auth::verify_plaintext,
-        commit::{
-            encoding::{self, KeyStore},
-            hash::verify_hash,
-        },
-    },
+    transcript_internal::{TranscriptRefs, auth::verify_plaintext, commit::hash::verify_hash},
     verifier::VerifierError,
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
+pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
     ctx: &mut Context,
     vm: &mut T,
     keys: &SessionKeys,
@@ -94,11 +87,6 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
                 Direction::Sent => commit_sent.union_mut(idx),
                 Direction::Received => commit_recv.union_mut(idx),
             });
-
-        if let Some((sent, recv)) = commit_config.encoding() {
-            commit_sent.union_mut(sent);
-            commit_recv.union_mut(recv);
-        }
     }
 
     let (sent_refs, sent_proof) = verify_plaintext(
@@ -151,24 +139,6 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     sent_proof.verify().map_err(VerifierError::verify)?;
     recv_proof.verify().map_err(VerifierError::verify)?;
 
-    let mut encoder_secret = None;
-    if let Some(commit_config) = request.transcript_commit()
-        && let Some((sent, recv)) = commit_config.encoding()
-    {
-        let sent_map = transcript_refs
-            .sent
-            .index(sent)
-            .expect("ranges were authenticated");
-        let recv_map = transcript_refs
-            .recv
-            .index(recv)
-            .expect("ranges were authenticated");
-
-        let (secret, commitment) = encoding::transfer(ctx, vm, &sent_map, &recv_map).await?;
-        encoder_secret = Some(secret);
-        transcript_commitments.push(TranscriptCommitment::Encoding(commitment));
-    }
-
     if let Some(hash_commitments) = hash_commitments {
         for commitment in hash_commitments.try_recv().map_err(VerifierError::verify)? {
             transcript_commitments.push(TranscriptCommitment::Hash(commitment));
@@ -178,7 +148,6 @@ pub(crate) async fn verify<T: Vm<Binary> + KeyStore + Send + Sync>(
     Ok(VerifierOutput {
         server_name,
         transcript: request.reveal().is_some().then_some(transcript),
-        encoder_secret,
         transcript_commitments,
     })
 }

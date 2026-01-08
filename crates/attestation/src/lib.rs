@@ -79,8 +79,6 @@
 //!
 //! // Specify all the transcript commitments we want to make.
 //! builder
-//!     // Use BLAKE3 for encoding commitments.
-//!     .encoding_hash_alg(HashAlgId::BLAKE3)
 //!     // Commit to all sent data.
 //!     .commit_sent(&(0..sent_len))?
 //!     // Commit to the first 10 bytes of sent data.
@@ -129,7 +127,7 @@
 //!
 //! ```no_run
 //! # use tlsn_attestation::{Attestation, CryptoProvider, Secrets, presentation::Presentation};
-//! # use tlsn_core::transcript::{TranscriptCommitmentKind, Direction};
+//! # use tlsn_core::transcript::Direction;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let attestation: Attestation = unimplemented!();
 //! # let secrets: Secrets = unimplemented!();
@@ -140,8 +138,6 @@
 //! let mut builder = secrets.transcript_proof_builder();
 //!
 //! builder
-//!     // Use transcript encoding commitments.
-//!     .commitment_kinds(&[TranscriptCommitmentKind::Encoding])
 //!     // Disclose the first 10 bytes of the sent data.
 //!     .reveal(&(0..10), Direction::Sent)?
 //!     // Disclose all of the received data.
@@ -219,7 +215,7 @@ use tlsn_core::{
     connection::{ConnectionInfo, ServerEphemKey},
     hash::{Hash, HashAlgorithm, TypedHash},
     merkle::MerkleTree,
-    transcript::{TranscriptCommitment, encoding::EncoderSecret},
+    transcript::TranscriptCommitment,
 };
 
 use crate::{
@@ -301,8 +297,6 @@ pub enum FieldKind {
     ServerEphemKey = 0x02,
     /// Server identity commitment.
     ServerIdentityCommitment = 0x03,
-    /// Encoding commitment.
-    EncodingCommitment = 0x04,
     /// Plaintext hash commitment.
     PlaintextHash = 0x05,
 }
@@ -327,7 +321,6 @@ pub struct Body {
     connection_info: Field<ConnectionInfo>,
     server_ephemeral_key: Field<ServerEphemKey>,
     cert_commitment: Field<ServerCertCommitment>,
-    encoder_secret: Option<Field<EncoderSecret>>,
     extensions: Vec<Field<Extension>>,
     transcript_commitments: Vec<Field<TranscriptCommitment>>,
 }
@@ -373,7 +366,6 @@ impl Body {
             connection_info: conn_info,
             server_ephemeral_key,
             cert_commitment,
-            encoder_secret,
             extensions,
             transcript_commitments,
         } = self;
@@ -390,13 +382,6 @@ impl Body {
                 hasher.hash_separated(&cert_commitment.data),
             ),
         ];
-
-        if let Some(encoder_secret) = encoder_secret {
-            fields.push((
-                encoder_secret.id,
-                hasher.hash_separated(&encoder_secret.data),
-            ));
-        }
 
         for field in extensions.iter() {
             fields.push((field.id, hasher.hash_separated(&field.data)));

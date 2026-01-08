@@ -6,11 +6,6 @@ use mpz_core::Block;
 #[cfg(not(tlsn_insecure))]
 use mpz_garble::protocol::semihonest::{Evaluator, Garbler};
 use mpz_garble_core::Delta;
-use mpz_memory_core::{
-    Vector,
-    binary::U8,
-    correlated::{Key, Mac},
-};
 #[cfg(not(tlsn_insecure))]
 use mpz_ot::cot::{DerandCOTReceiver, DerandCOTSender};
 use mpz_ot::{
@@ -23,8 +18,6 @@ use rand::Rng;
 use tlsn_core::config::tls_commit::mpc::{MpcTlsConfig, NetworkSetting};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
-
-use crate::transcript_internal::commit::encoding::{KeyStore, MacStore};
 
 #[cfg(not(tlsn_insecure))]
 pub(crate) type ProverMpc =
@@ -192,42 +185,4 @@ pub(crate) fn translate_keys<Mpc, Zk>(keys: &mut SessionKeys, vm: &Deap<Mpc, Zk>
     keys.server_write_mac_key = vm
         .translate(keys.server_write_mac_key)
         .expect("VM memory should be consistent");
-}
-
-impl<T> KeyStore for Verifier<T> {
-    fn delta(&self) -> &Delta {
-        self.delta()
-    }
-
-    fn get_keys(&self, data: Vector<U8>) -> Option<&[Key]> {
-        self.get_keys(data).ok()
-    }
-}
-
-impl<T> MacStore for Prover<T> {
-    fn get_macs(&self, data: Vector<U8>) -> Option<&[Mac]> {
-        self.get_macs(data).ok()
-    }
-}
-
-#[cfg(tlsn_insecure)]
-mod insecure {
-    use super::*;
-    use mpz_ideal_vm::IdealVm;
-
-    impl KeyStore for IdealVm {
-        fn delta(&self) -> &Delta {
-            unimplemented!("encodings not supported in insecure mode")
-        }
-
-        fn get_keys(&self, _data: Vector<U8>) -> Option<&[Key]> {
-            unimplemented!("encodings not supported in insecure mode")
-        }
-    }
-
-    impl MacStore for IdealVm {
-        fn get_macs(&self, _data: Vector<U8>) -> Option<&[Mac]> {
-            unimplemented!("encodings not supported in insecure mode")
-        }
-    }
 }

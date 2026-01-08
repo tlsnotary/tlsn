@@ -1,5 +1,4 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
-use rangeset::set::RangeSet;
 use tlsn::{
     config::{
         prove::ProveConfig,
@@ -9,12 +8,9 @@ use tlsn::{
         verifier::VerifierConfig,
     },
     connection::ServerName,
-    hash::{HashAlgId, HashProvider},
+    hash::HashAlgId,
     prover::Prover,
-    transcript::{
-        Direction, Transcript, TranscriptCommitConfig, TranscriptCommitment,
-        TranscriptCommitmentKind, TranscriptSecret,
-    },
+    transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitmentKind},
     verifier::{Verifier, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
@@ -42,7 +38,7 @@ async fn test() {
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
 
-    let ((full_transcript, prover_output), verifier_output) =
+    let ((_full_transcript, _prover_output), verifier_output) =
         tokio::join!(prover(socket_0), verifier(socket_1));
 
     let partial_transcript = verifier_output.transcript.unwrap();
@@ -58,50 +54,6 @@ async fn test() {
         partial_transcript.received_authed().iter().next().unwrap(),
         0..10
     );
-
-    let encoding_tree = prover_output
-        .transcript_secrets
-        .iter()
-        .find_map(|secret| {
-            if let TranscriptSecret::Encoding(tree) = secret {
-                Some(tree)
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    let encoding_commitment = prover_output
-        .transcript_commitments
-        .iter()
-        .find_map(|commitment| {
-            if let TranscriptCommitment::Encoding(commitment) = commitment {
-                Some(commitment)
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    let prove_sent = RangeSet::from(1..full_transcript.sent().len() - 1);
-    let prove_recv = RangeSet::from(1..full_transcript.received().len() - 1);
-    let idxs = [
-        (Direction::Sent, prove_sent.clone()),
-        (Direction::Received, prove_recv.clone()),
-    ];
-    let proof = encoding_tree.proof(idxs.iter()).unwrap();
-    let (auth_sent, auth_recv) = proof
-        .verify_with_provider(
-            &HashProvider::default(),
-            &verifier_output.encoder_secret.unwrap(),
-            encoding_commitment,
-            full_transcript.sent(),
-            full_transcript.received(),
-        )
-        .unwrap();
-
-    assert_eq!(auth_sent, prove_sent);
-    assert_eq!(auth_recv, prove_recv);
 }
 
 #[instrument(skip(verifier_socket))]
@@ -163,25 +115,21 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
 
-    for kind in [
-        TranscriptCommitmentKind::Encoding,
-        TranscriptCommitmentKind::Hash {
-            alg: HashAlgId::SHA256,
-        },
-    ] {
-        builder
-            .commit_with_kind(&(0..sent_tx_len), Direction::Sent, kind)
-            .unwrap();
-        builder
-            .commit_with_kind(&(0..recv_tx_len), Direction::Received, kind)
-            .unwrap();
-        builder
-            .commit_with_kind(&(1..sent_tx_len - 1), Direction::Sent, kind)
-            .unwrap();
-        builder
-            .commit_with_kind(&(1..recv_tx_len - 1), Direction::Received, kind)
-            .unwrap();
-    }
+    let kind = TranscriptCommitmentKind::Hash {
+        alg: HashAlgId::SHA256,
+    };
+    builder
+        .commit_with_kind(&(0..sent_tx_len), Direction::Sent, kind)
+        .unwrap();
+    builder
+        .commit_with_kind(&(0..recv_tx_len), Direction::Received, kind)
+        .unwrap();
+    builder
+        .commit_with_kind(&(1..sent_tx_len - 1), Direction::Sent, kind)
+        .unwrap();
+    builder
+        .commit_with_kind(&(1..recv_tx_len - 1), Direction::Received, kind)
+        .unwrap();
 
     let transcript_commit = builder.build().unwrap();
 
