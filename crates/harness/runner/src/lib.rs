@@ -105,13 +105,45 @@ struct Runner {
     started: bool,
 }
 
+/// Collects display-related environment variables for headed browser mode.
+/// Works with both X11 and Wayland by collecting whichever vars are present.
+fn collect_display_env_vars() -> Vec<String> {
+    const DISPLAY_VARS: &[&str] = &[
+        "DISPLAY",         // X11
+        "XAUTHORITY",      // X11 auth
+        "WAYLAND_DISPLAY", // Wayland
+        "XDG_RUNTIME_DIR", // Wayland runtime dir
+    ];
+
+    DISPLAY_VARS
+        .iter()
+        .filter_map(|&var| {
+            std::env::var(var)
+                .ok()
+                .map(|val| format!("{}={}", var, val))
+        })
+        .collect()
+}
+
 impl Runner {
     fn new(cli: &Cli) -> Result<Self> {
-        let Cli { target, subnet, .. } = cli;
+        let Cli {
+            target,
+            subnet,
+            headed,
+            ..
+        } = cli;
         let current_path = std::env::current_exe().unwrap();
         let fixture_path = current_path.parent().unwrap().join("server-fixture");
         let network_config = NetworkConfig::new(*subnet);
         let network = Network::new(network_config.clone())?;
+
+        // Collect display env vars once if headed mode is enabled
+        let display_env = if *headed {
+            collect_display_env_vars()
+        } else {
+            Vec::new()
+        };
 
         let server_fixture =
             ServerFixture::new(fixture_path, network.ns_app().clone(), network_config.app);
@@ -130,6 +162,7 @@ impl Runner {
                 .network_config(network_config.clone())
                 .build(),
             *target,
+            display_env.clone(),
         );
         let exec_v = Executor::new(
             network.ns_1().clone(),
@@ -139,6 +172,7 @@ impl Runner {
                 .network_config(network_config.clone())
                 .build(),
             Target::Native,
+            Vec::new(), // Verifier doesn't need display env
         );
 
         Ok(Self {
@@ -173,6 +207,12 @@ pub async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
+
+    // Validate --headed requires --target browser
+    if cli.headed && cli.target != Target::Browser {
+        anyhow::bail!("--headed can only be used with --target browser");
+    }
+
     let mut runner = Runner::new(&cli)?;
 
     let mut exit_code = 0;

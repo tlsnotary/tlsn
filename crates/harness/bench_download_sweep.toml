@@ -51,11 +51,3 @@ download-size = 40960
 [[bench]]
 group = "download_sweep"
 download-size = 51200
-
-[[bench]]
-group = "download_sweep"
-download-size = 76800
-
-[[bench]]
-group = "download_sweep"
-download-size = 102400
