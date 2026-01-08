@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["encoder_secret","encoder_secret_tampered_seed","encoding_provider"],"mod":["transcript"],"struct":["ConnectionFixture","FixtureEncodingProvider"]};
+window.SIDEBAR_ITEMS = {"mod":["transcript"],"struct":["ConnectionFixture"]};
