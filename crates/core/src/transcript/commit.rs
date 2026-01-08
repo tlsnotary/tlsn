@@ -69,8 +69,8 @@ impl TranscriptCommitConfig {
 
     /// Returns an iterator over the hash commitment indices.
     pub fn iter_hash(&self) -> impl Iterator<Item = (&(Direction, RangeSet<usize>), &HashAlgId)> {
-        self.commits.iter().filter_map(|(idx, kind)| match kind {
-            TranscriptCommitmentKind::Hash { alg } => Some((idx, alg)),
+        self.commits.iter().map(|(idx, kind)| match kind {
+            TranscriptCommitmentKind::Hash { alg } => (idx, alg),
         })
     }
 
