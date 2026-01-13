@@ -84,8 +84,8 @@ impl From<std::io::Error> for VerifierError {
     }
 }
 
-impl From<uid_mux::yamux::ConnectionError> for VerifierError {
-    fn from(e: uid_mux::yamux::ConnectionError) -> Self {
+impl From<tlsn_mux::ConnectionError> for VerifierError {
+    fn from(e: tlsn_mux::ConnectionError) -> Self {
         Self::new(ErrorKind::Io, e)
     }
 }

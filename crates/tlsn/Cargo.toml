@@ -20,6 +20,7 @@ web = ["dep:web-spawn"]
 tlsn-attestation = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
+tlsn-mux = { workspace = true }
 tlsn-tls-client = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
@@ -27,7 +28,6 @@ tlsn-mpc-tls = { workspace = true }
 tlsn-cipher = { workspace = true }
 
 serio = { workspace = true, features = ["compat"] }
-uid-mux = { workspace = true, features = ["serio"] }
 web-spawn = { workspace = true, optional = true }
 
 mpz-circuits = { workspace = true, features = ["aes"] }

@@ -10,11 +10,10 @@ pub use future::ProverFuture;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Role,
     context::build_mt_context,
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
-    mux::attach_mux,
+    mux::MuxFuture,
     tag::verify_tags,
 };
 
@@ -77,9 +76,11 @@ impl Prover<state::Initialized> {
         self,
         config: TlsCommitConfig,
         socket: S,
-    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
-        let mut mt = build_mt_context(mux_ctrl.clone());
+    ) -> Result<Prover<state::CommitAccepted<S>>, ProverError> {
+        let mut mux_fut = MuxFuture::new(socket);
+        let mux_ctrl = mux_fut.handle()?;
+
+        let mut mt = build_mt_context(mux_ctrl);
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Sends protocol configuration to verifier for compatibility check.
@@ -122,7 +123,6 @@ impl Prover<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::CommitAccepted {
-                mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 keys,
@@ -132,7 +132,10 @@ impl Prover<state::Initialized> {
     }
 }
 
-impl Prover<state::CommitAccepted> {
+impl<Io> Prover<state::CommitAccepted<Io>>
+where
+    Io: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     /// Connects to the server using the provided socket.
     ///
     /// Returns a handle to the TLS connection, a future which returns the
@@ -148,9 +151,8 @@ impl Prover<state::CommitAccepted> {
         self,
         config: TlsClientConfig,
         socket: S,
-    ) -> Result<(TlsConnection, ProverFuture), ProverError> {
+    ) -> Result<(TlsConnection, ProverFuture<Io>), ProverError> {
         let state::CommitAccepted {
-            mux_ctrl,
             mut mux_fut,
             mpc_tls,
             keys,
@@ -270,7 +272,6 @@ impl Prover<state::CommitAccepted> {
                     config: self.config,
                     span: self.span,
                     state: state::Committed {
-                        mux_ctrl,
                         mux_fut,
                         ctx,
                         vm,
@@ -294,7 +295,10 @@ impl Prover<state::CommitAccepted> {
     }
 }
 
-impl Prover<state::Committed> {
+impl<Io> Prover<state::Committed<Io>>
+where
+    Io: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     /// Returns the TLS transcript.
     pub fn tls_transcript(&self) -> &TlsTranscript {
         &self.state.tls_transcript
@@ -365,18 +369,12 @@ impl Prover<state::Committed> {
 
     /// Closes the connection with the verifier.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn close(self) -> Result<(), ProverError> {
-        let state::Committed {
-            mux_ctrl, mux_fut, ..
-        } = self.state;
+    pub async fn close(mut self) -> Result<Io, ProverError> {
+        let mux_fut = &mut self.state.mux_fut;
+        mux_fut.close();
+        mux_fut.await?;
 
-        // Wait for the verifier to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
-
-        Ok(())
+        self.state.mux_fut.into_io().map_err(ProverError::from)
     }
 }
 

@@ -5,23 +5,25 @@ use futures::Future;
 use std::pin::Pin;
 
 /// Prover future which must be polled for the TLS connection to make progress.
-pub struct ProverFuture {
+pub struct ProverFuture<Io> {
     #[allow(clippy::type_complexity)]
     pub(crate) fut: Pin<
-        Box<dyn Future<Output = Result<Prover<state::Committed>, ProverError>> + Send + 'static>,
+        Box<
+            dyn Future<Output = Result<Prover<state::Committed<Io>>, ProverError>> + Send + 'static,
+        >,
     >,
     pub(crate) ctrl: ProverControl,
 }
 
-impl ProverFuture {
+impl<Io> ProverFuture<Io> {
     /// Returns a controller for the prover for advanced functionality.
     pub fn control(&self) -> ProverControl {
         self.ctrl.clone()
     }
 }
 
-impl Future for ProverFuture {
-    type Output = Result<Prover<state::Committed>, ProverError>;
+impl<Io> Future for ProverFuture<Io> {
+    type Output = Result<Prover<state::Committed<Io>>, ProverError>;
 
     fn poll(
         mut self: Pin<&mut Self>,

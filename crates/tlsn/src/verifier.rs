@@ -10,11 +10,10 @@ pub use error::VerifierError;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Role,
     context::build_mt_context,
     mpz::{VerifierDeps, build_verifier_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
-    mux::attach_mux,
+    mux::MuxFuture,
     tag::verify_tags,
 };
 use futures::{AsyncRead, AsyncWrite, TryFutureExt};
@@ -71,9 +70,11 @@ impl Verifier<state::Initialized> {
     pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<Verifier<state::CommitStart>, VerifierError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
-        let mut mt = build_mt_context(mux_ctrl.clone());
+    ) -> Result<Verifier<state::CommitStart<S>>, VerifierError> {
+        let mut mux_fut = MuxFuture::new(socket);
+        let mux_ctrl = mux_fut.handle()?;
+
+        let mut mt = build_mt_context(mux_ctrl);
         let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
 
         // Receives protocol configuration from prover to perform compatibility check.
@@ -89,11 +90,8 @@ impl Verifier<state::Initialized> {
                 .poll_with(ctx.io_mut().send(Response::err(Some(msg.clone()))))
                 .await?;
 
-            // Wait for the prover to correctly close the connection.
-            if !mux_fut.is_complete() {
-                mux_ctrl.close();
-                mux_fut.await?;
-            }
+            mux_fut.close();
+            mux_fut.await?;
 
             return Err(VerifierError::config(msg));
         }
@@ -102,7 +100,6 @@ impl Verifier<state::Initialized> {
             config: self.config,
             span: self.span,
             state: state::CommitStart {
-                mux_ctrl,
                 mux_fut,
                 ctx,
                 request,
@@ -111,7 +108,10 @@ impl Verifier<state::Initialized> {
     }
 }
 
-impl Verifier<state::CommitStart> {
+impl<Io> Verifier<state::CommitStart<Io>>
+where
+    Io: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     /// Returns the TLS commitment request.
     pub fn request(&self) -> &TlsCommitRequest {
         &self.state.request
@@ -119,9 +119,8 @@ impl Verifier<state::CommitStart> {
 
     /// Accepts the proposed protocol configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept(self) -> Result<Verifier<state::CommitAccepted>, VerifierError> {
+    pub async fn accept(self) -> Result<Verifier<state::CommitAccepted<Io>>, VerifierError> {
         let state::CommitStart {
-            mux_ctrl,
             mut mux_fut,
             mut ctx,
             request,
@@ -151,7 +150,6 @@ impl Verifier<state::CommitStart> {
             config: self.config,
             span: self.span,
             state: state::CommitAccepted {
-                mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 keys,
@@ -164,7 +162,6 @@ impl Verifier<state::CommitStart> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn reject(self, msg: Option<&str>) -> Result<(), VerifierError> {
         let state::CommitStart {
-            mux_ctrl,
             mut mux_fut,
             mut ctx,
             ..
@@ -174,22 +171,21 @@ impl Verifier<state::CommitStart> {
             .poll_with(ctx.io_mut().send(Response::err(msg)))
             .await?;
 
-        // Wait for the prover to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
+        mux_fut.close();
+        mux_fut.await?;
 
         Ok(())
     }
 }
 
-impl Verifier<state::CommitAccepted> {
+impl<Io> Verifier<state::CommitAccepted<Io>>
+where
+    Io: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     /// Runs the verifier until the TLS connection is closed.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run(self) -> Result<Verifier<state::Committed>, VerifierError> {
+    pub async fn run(self) -> Result<Verifier<state::Committed<Io>>, VerifierError> {
         let state::CommitAccepted {
-            mux_ctrl,
             mut mux_fut,
             mpc_tls,
             vm,
@@ -245,7 +241,6 @@ impl Verifier<state::CommitAccepted> {
             config: self.config,
             span: self.span,
             state: state::Committed {
-                mux_ctrl,
                 mux_fut,
                 ctx,
                 vm,
@@ -256,7 +251,10 @@ impl Verifier<state::CommitAccepted> {
     }
 }
 
-impl Verifier<state::Committed> {
+impl<Io> Verifier<state::Committed<Io>>
+where
+    Io: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     /// Returns the TLS transcript.
     pub fn tls_transcript(&self) -> &TlsTranscript {
         &self.state.tls_transcript
@@ -264,9 +262,8 @@ impl Verifier<state::Committed> {
 
     /// Begins verification of statements from the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn verify(self) -> Result<Verifier<state::Verify>, VerifierError> {
+    pub async fn verify(self) -> Result<Verifier<state::Verify<Io>>, VerifierError> {
         let state::Committed {
-            mux_ctrl,
             mut mux_fut,
             mut ctx,
             vm,
@@ -286,7 +283,6 @@ impl Verifier<state::Committed> {
             config: self.config,
             span: self.span,
             state: state::Verify {
-                mux_ctrl,
                 mux_fut,
                 ctx,
                 vm,
@@ -301,22 +297,19 @@ impl Verifier<state::Committed> {
 
     /// Closes the connection with the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn close(self) -> Result<(), VerifierError> {
-        let state::Committed {
-            mux_ctrl, mux_fut, ..
-        } = self.state;
+    pub async fn close(mut self) -> Result<Io, VerifierError> {
+        let mux_fut = &mut self.state.mux_fut;
+        mux_fut.close();
+        mux_fut.await?;
 
-        // Wait for the prover to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
-
-        Ok(())
+        self.state.mux_fut.into_io().map_err(VerifierError::from)
     }
 }
 
-impl Verifier<state::Verify> {
+impl<Io> Verifier<state::Verify<Io>>
+where
+    Io: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     /// Returns the proving request.
     pub fn request(&self) -> &ProveRequest {
         &self.state.request
@@ -325,9 +318,8 @@ impl Verifier<state::Verify> {
     /// Accepts the proving request.
     pub async fn accept(
         self,
-    ) -> Result<(VerifierOutput, Verifier<state::Committed>), VerifierError> {
+    ) -> Result<(VerifierOutput, Verifier<state::Committed<Io>>), VerifierError> {
         let state::Verify {
-            mux_ctrl,
             mut mux_fut,
             mut ctx,
             mut vm,
@@ -362,7 +354,6 @@ impl Verifier<state::Verify> {
                 config: self.config,
                 span: self.span,
                 state: state::Committed {
-                    mux_ctrl,
                     mux_fut,
                     ctx,
                     vm,
@@ -377,9 +368,8 @@ impl Verifier<state::Verify> {
     pub async fn reject(
         self,
         msg: Option<&str>,
-    ) -> Result<Verifier<state::Committed>, VerifierError> {
+    ) -> Result<Verifier<state::Committed<Io>>, VerifierError> {
         let state::Verify {
-            mux_ctrl,
             mut mux_fut,
             mut ctx,
             vm,
@@ -396,7 +386,6 @@ impl Verifier<state::Verify> {
             config: self.config,
             span: self.span,
             state: state::Committed {
-                mux_ctrl,
                 mux_fut,
                 ctx,
                 vm,

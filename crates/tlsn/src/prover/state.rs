@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     mpz::{ProverMpc, ProverZk},
-    mux::{MuxControl, MuxFuture},
+    mux::MuxFuture,
 };
 
 /// Entry state
@@ -23,20 +23,18 @@ opaque_debug::implement!(Initialized);
 
 /// State after the verifier has accepted the proposed TLS commitment protocol
 /// configuration and preprocessing has completed.
-pub struct CommitAccepted {
-    pub(crate) mux_ctrl: MuxControl,
-    pub(crate) mux_fut: MuxFuture,
+pub struct CommitAccepted<Io> {
+    pub(crate) mux_fut: MuxFuture<Io>,
     pub(crate) mpc_tls: MpcTlsLeader,
     pub(crate) keys: SessionKeys,
     pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
 }
 
-opaque_debug::implement!(CommitAccepted);
+opaque_debug::implement!(CommitAccepted<Io>);
 
 /// State after the TLS transcript has been committed.
-pub struct Committed {
-    pub(crate) mux_ctrl: MuxControl,
-    pub(crate) mux_fut: MuxFuture,
+pub struct Committed<Io> {
+    pub(crate) mux_fut: MuxFuture<Io>,
     pub(crate) ctx: Context,
     pub(crate) vm: ProverZk,
     pub(crate) server_name: ServerName,
@@ -45,18 +43,18 @@ pub struct Committed {
     pub(crate) transcript: Transcript,
 }
 
-opaque_debug::implement!(Committed);
+opaque_debug::implement!(Committed<Io>);
 
 #[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
-impl ProverState for CommitAccepted {}
-impl ProverState for Committed {}
+impl<Io> ProverState for CommitAccepted<Io> {}
+impl<Io> ProverState for Committed<Io> {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl Sealed for super::CommitAccepted {}
-    impl Sealed for super::Committed {}
+    impl<Io> Sealed for super::CommitAccepted<Io> {}
+    impl<Io> Sealed for super::Committed<Io> {}
 }

@@ -90,8 +90,8 @@ impl From<tls_client_async::ConnectionError> for ProverError {
     }
 }
 
-impl From<uid_mux::yamux::ConnectionError> for ProverError {
-    fn from(e: uid_mux::yamux::ConnectionError) -> Self {
+impl From<tlsn_mux::ConnectionError> for ProverError {
+    fn from(e: tlsn_mux::ConnectionError) -> Self {
         Self::new(ErrorKind::Io, e)
     }
 }

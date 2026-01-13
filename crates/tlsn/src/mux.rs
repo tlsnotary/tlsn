@@ -1,45 +1,93 @@
 //! Multiplexer used in the TLSNotary protocol.
 
-use std::future::IntoFuture;
-
 use futures::{
     AsyncRead, AsyncWrite, Future,
     future::{FusedFuture, FutureExt},
 };
+use mpz_common::{ThreadId, io::Io, mux::Mux};
+use tlsn_mux::{Connection, Handle};
 use tracing::error;
-use uid_mux::yamux;
 
-use crate::Role;
-
-/// Multiplexer supporting unique deterministic stream IDs.
-pub(crate) type Mux<Io> = yamux::Yamux<Io>;
 /// Multiplexer controller providing streams.
-pub(crate) type MuxControl = yamux::YamuxCtrl;
+pub(crate) struct MuxControl {
+    handle: Handle,
+}
+
+impl Mux for MuxControl {
+    fn open(&self, id: ThreadId) -> Result<Io, std::io::Error> {
+        let stream = self
+            .handle
+            .new_stream(id.as_ref())
+            .map_err(std::io::Error::other)?;
+        let io = Io::from_io(stream);
+
+        Ok(io)
+    }
+}
+
+impl From<MuxControl> for Box<dyn Mux + Send> {
+    fn from(val: MuxControl) -> Self {
+        Box::new(val)
+    }
+}
 
 /// Multiplexer future which must be polled for the muxer to make progress.
-pub(crate) struct MuxFuture(
-    Box<dyn FusedFuture<Output = Result<(), yamux::ConnectionError>> + Send + Unpin>,
-);
+#[derive(Debug)]
+pub(crate) struct MuxFuture<T> {
+    conn: Connection<T>,
+}
 
-impl MuxFuture {
-    /// Returns true if the muxer is complete.
-    pub(crate) fn is_complete(&self) -> bool {
-        self.0.is_terminated()
+impl<T: AsyncRead + AsyncWrite + Unpin> MuxFuture<T> {
+    pub(crate) fn new(socket: T) -> Self {
+        let mut mux_config = tlsn_mux::Config::default();
+
+        mux_config.set_max_num_streams(36);
+        mux_config.set_keep_alive(true);
+        mux_config.set_close_sync(true);
+
+        let conn = tlsn_mux::Connection::new(socket, mux_config);
+
+        Self { conn }
     }
 
+    pub(crate) fn handle(&self) -> Result<MuxControl, std::io::Error> {
+        let handle = self.conn.handle().map_err(std::io::Error::other)?;
+
+        Ok(MuxControl { handle })
+    }
+
+    pub(crate) fn close(&mut self) {
+        self.conn.close();
+    }
+
+    pub(crate) fn into_io(self) -> Result<T, std::io::Error> {
+        self.conn
+            .try_into_io()
+            .map_err(|_| std::io::Error::other("unable to return IO, connection is not closed"))
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + Unpin> FusedFuture for MuxFuture<T> {
+    fn is_terminated(&self) -> bool {
+        self.conn.is_complete()
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + Unpin> MuxFuture<T> {
     /// Awaits a future, polling the muxer future concurrently.
     pub(crate) async fn poll_with<F, R>(&mut self, fut: F) -> R
     where
         F: Future<Output = R>,
     {
         let mut fut = Box::pin(fut.fuse());
+        let mut mux = self;
         // Poll the future concurrently with the muxer future.
         // If the muxer returns an error, continue polling the future
         // until it completes.
         loop {
             futures::select! {
                 res = fut => return res,
-                res = &mut self.0 => if let Err(e) = res {
+                res = mux => if let Err(e) = res {
                     error!("mux error: {:?}", e);
                 },
             }
@@ -47,44 +95,13 @@ impl MuxFuture {
     }
 }
 
-impl Future for MuxFuture {
-    type Output = Result<(), yamux::ConnectionError>;
+impl<T: AsyncRead + AsyncWrite + Unpin> Future for MuxFuture<T> {
+    type Output = Result<(), tlsn_mux::ConnectionError>;
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        self.0.as_mut().poll_unpin(cx)
+        self.conn.poll(cx)
     }
-}
-
-/// Attaches a multiplexer to the provided socket.
-///
-/// Returns the multiplexer and a controller for creating streams with a codec
-/// attached.
-///
-/// # Arguments
-///
-/// * `socket` - The socket to attach the multiplexer to.
-/// * `role` - The role of the party using the multiplexer.
-pub(crate) fn attach_mux<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-    socket: T,
-    role: Role,
-) -> (MuxFuture, MuxControl) {
-    let mut mux_config = yamux::Config::default();
-    mux_config.set_max_num_streams(36);
-
-    let mux_role = match role {
-        Role::Prover => yamux::Mode::Client,
-        Role::Verifier => yamux::Mode::Server,
-    };
-
-    let mux = Mux::new(socket, mux_config, mux_role);
-    let ctrl = mux.control();
-
-    if let Role::Prover = role {
-        ctrl.alloc(32);
-    }
-
-    (MuxFuture(Box::new(mux.into_future().fuse())), ctrl)
 }
