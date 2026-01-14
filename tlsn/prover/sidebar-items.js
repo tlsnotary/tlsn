@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["state"],"struct":["Prover","ProverControl","ProverError","ProverFuture","ProverOutput"]};
+window.SIDEBAR_ITEMS = {"mod":["state"],"struct":["Prover","ProverControl","ProverFuture","ProverOutput"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["state"],"struct":["ServerCertVerifier","SessionInfo","Verifier","VerifierError","VerifierOutput"]};
+window.SIDEBAR_ITEMS = {"mod":["state"],"struct":["ServerCertVerifier","SessionInfo","Verifier","VerifierOutput"]};
