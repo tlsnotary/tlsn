@@ -1,5 +1,6 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tlsn::{
+    Session,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
@@ -18,9 +19,7 @@ use tlsn_core::ProverOutput;
 use tlsn_server_fixture::bind;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
-use tracing::instrument;
 
 // Maximum number of bytes that can be sent from prover to server
 const MAX_SENT_DATA: usize = 1 << 12;
@@ -37,9 +36,34 @@ async fn test() {
     tracing_subscriber::fmt::init();
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
+    let mut session_p = Session::new(socket_0.compat());
+    let mut session_v = Session::new(socket_1.compat());
+
+    let prover = session_p
+        .new_prover(ProverConfig::builder().build().unwrap())
+        .unwrap();
+    let verifier = session_v
+        .new_verifier(
+            VerifierConfig::builder()
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()
+                .unwrap(),
+        )
+        .unwrap();
+
+    let (session_p_driver, session_p_handle) = session_p.split();
+    let (session_v_driver, session_v_handle) = session_v.split();
+
+    tokio::spawn(session_p_driver);
+    tokio::spawn(session_v_driver);
 
     let ((_full_transcript, _prover_output), verifier_output) =
-        tokio::join!(prover(socket_0), verifier(socket_1));
+        tokio::join!(run_prover(prover), run_verifier(verifier));
+
+    session_p_handle.close();
+    session_v_handle.close();
 
     let partial_transcript = verifier_output.transcript.unwrap();
     let ServerName::Dns(server_name) = verifier_output.server_name.unwrap();
@@ -56,15 +80,12 @@ async fn test() {
     );
 }
 
-#[instrument(skip(verifier_socket))]
-async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-    verifier_socket: T,
-) -> (Transcript, ProverOutput) {
+async fn run_prover(prover: Prover) -> (Transcript, ProverOutput) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
     let server_task = tokio::spawn(bind(server_socket.compat()));
 
-    let prover = Prover::new(ProverConfig::builder().build().unwrap())
+    let prover = prover
         .commit(
             TlsCommitConfig::builder()
                 .protocol(
@@ -78,7 +99,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                 )
                 .build()
                 .unwrap(),
-            verifier_socket.compat(),
         )
         .await
         .unwrap();
@@ -150,21 +170,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     (transcript, output)
 }
 
-#[instrument(skip(socket))]
-async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
-    socket: T,
-) -> VerifierOutput {
-    let verifier = Verifier::new(
-        VerifierConfig::builder()
-            .root_store(RootCertStore {
-                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-            })
-            .build()
-            .unwrap(),
-    );
-
+async fn run_verifier(verifier: Verifier) -> VerifierOutput {
     let verifier = verifier
-        .commit(socket.compat())
+        .commit()
         .await
         .unwrap()
         .accept()

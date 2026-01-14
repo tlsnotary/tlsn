@@ -16,6 +16,7 @@ use tlsn::{
     connection::ServerName,
     prover::{state, Prover},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
+    Session, SessionHandle,
 };
 use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
@@ -32,14 +33,32 @@ pub struct JsProver {
     state: State,
 }
 
-#[derive(Debug, EnumTryAsInner)]
+#[derive(EnumTryAsInner)]
 #[derive_err(Debug)]
 enum State {
-    Initialized(Prover<state::Initialized>),
-    CommitAccepted(Prover<state::CommitAccepted>),
-    Committed(Prover<state::Committed>),
+    Initialized,
+    CommitAccepted {
+        prover: Prover<state::CommitAccepted>,
+        handle: SessionHandle,
+    },
+    Committed {
+        prover: Prover<state::Committed>,
+        handle: SessionHandle,
+    },
     Complete,
     Error,
+}
+
+impl std::fmt::Debug for State {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            State::Initialized => write!(f, "Initialized"),
+            State::CommitAccepted { .. } => write!(f, "CommitAccepted"),
+            State::Committed { .. } => write!(f, "Committed"),
+            State::Complete => write!(f, "Complete"),
+            State::Error => write!(f, "Error"),
+        }
+    }
 }
 
 impl State {
@@ -54,9 +73,7 @@ impl JsProver {
     pub fn new(config: ProverConfig) -> Result<JsProver> {
         Ok(JsProver {
             config,
-            state: State::Initialized(Prover::new(
-                tlsn::config::prover::ProverConfig::builder().build()?,
-            )),
+            state: State::Initialized,
         })
     }
 
@@ -65,9 +82,11 @@ impl JsProver {
     /// This performs all MPC setup prior to establishing the connection to the
     /// application server.
     pub async fn setup(&mut self, verifier_url: &str) -> Result<()> {
-        let prover = self.state.take().try_into_initialized()?;
+        let State::Initialized = self.state.take() else {
+            return Err(JsError::new("prover is not in initialized state"));
+        };
 
-        let config = TlsCommitConfig::builder()
+        let tls_commit_config = TlsCommitConfig::builder()
             .protocol({
                 let mut builder = MpcTlsConfig::builder()
                     .max_sent_data(self.config.max_sent_data)
@@ -99,9 +118,23 @@ impl JsProver {
 
         info!("connected to verifier");
 
-        let prover = prover.commit(config, verifier_conn.into_io()).await?;
+        let session = Session::new(verifier_conn.into_io());
+        let (driver, mut handle) = session.split();
+        spawn_local(async move {
+            if let Err(e) = driver.await {
+                tracing::error!("session driver error: {e}");
+            }
+        });
 
-        self.state = State::CommitAccepted(prover);
+        let prover_config = tlsn::config::prover::ProverConfig::builder().build()?;
+        let prover = handle.new_prover(prover_config)?;
+
+        let prover = prover
+            .commit(tls_commit_config)
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        self.state = State::CommitAccepted { prover, handle };
 
         Ok(())
     }
@@ -112,7 +145,9 @@ impl JsProver {
         ws_proxy_url: &str,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
-        let prover = self.state.take().try_into_commit_accepted()?;
+        let State::CommitAccepted { prover, handle } = self.state.take() else {
+            return Err(JsError::new("prover is not in commit accepted state"));
+        };
 
         let mut builder = TlsClientConfig::builder()
             .server_name(ServerName::Dns(
@@ -140,7 +175,7 @@ impl JsProver {
             builder = builder.client_auth((certs, key));
         }
 
-        let config = builder.build()?;
+        let tls_config = builder.build()?;
 
         info!("connecting to server");
 
@@ -148,32 +183,39 @@ impl JsProver {
 
         info!("connected to server");
 
-        let (tls_conn, prover_fut) = prover.connect(config, server_conn.into_io()).await?;
+        let (tls_conn, prover_fut) = prover
+            .connect(tls_config, server_conn.into_io())
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
         info!("sending request");
 
         let (response, prover) = futures::try_join!(
             send_request(tls_conn, request),
-            prover_fut.map_err(Into::into)
+            prover_fut.map_err(|e| JsError::new(&e.to_string()))
         )?;
 
         info!("response received");
 
-        self.state = State::Committed(prover);
+        self.state = State::Committed { prover, handle };
 
         Ok(response)
     }
 
     /// Returns the transcript.
     pub fn transcript(&self) -> Result<Transcript> {
-        let prover = self.state.try_as_committed()?;
+        let State::Committed { prover, .. } = &self.state else {
+            return Err(JsError::new("prover is not in committed state"));
+        };
 
         Ok(Transcript::from(prover.transcript()))
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
     pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
-        let mut prover = self.state.take().try_into_committed()?;
+        let State::Committed { mut prover, handle } = self.state.take() else {
+            return Err(JsError::new("prover is not in committed state"));
+        };
 
         info!("revealing data");
 
@@ -193,8 +235,16 @@ impl JsProver {
 
         let config = builder.build()?;
 
-        prover.prove(&config).await?;
-        prover.close().await?;
+        prover
+            .prove(&config)
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        prover
+            .close()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        handle.close();
 
         info!("Finalized");
 

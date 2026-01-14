@@ -123,8 +123,8 @@ fn build_pair(config: Config) -> (MpcTlsLeader, MpcTlsFollower) {
 
     let (mut mt_a, mut mt_b) = test_mt_context(8);
 
-    let ctx_a = futures::executor::block_on(mt_a.new_context()).unwrap();
-    let ctx_b = futures::executor::block_on(mt_b.new_context()).unwrap();
+    let ctx_a = mt_a.new_context().unwrap();
+    let ctx_b = mt_b.new_context().unwrap();
 
     let delta_a = Delta::new(Block::random(&mut rng));
     let delta_b = Delta::new(Block::random(&mut rng));

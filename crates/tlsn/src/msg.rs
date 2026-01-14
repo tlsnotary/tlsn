@@ -1,3 +1,5 @@
+use std::fmt;
+
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
@@ -40,12 +42,14 @@ impl Response {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct RejectionReason(Option<String>);
 
-impl From<RejectionReason> for crate::prover::ProverError {
-    fn from(value: RejectionReason) -> Self {
-        if let Some(msg) = value.0 {
-            crate::prover::ProverError::config(format!("verifier rejected with reason: {msg}"))
+impl fmt::Display for RejectionReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(msg) = &self.0 {
+            write!(f, "{msg}")
         } else {
-            crate::prover::ProverError::config("verifier rejected without providing a reason")
+            write!(f, "no reason provided")
         }
     }
 }
+
+impl std::error::Error for RejectionReason {}

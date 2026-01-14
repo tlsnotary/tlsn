@@ -5,6 +5,7 @@ use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
 
 use harness_core::bench::{Bench, ProverMetrics};
 use tlsn::{
+    Session,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
@@ -12,7 +13,6 @@ use tlsn::{
         tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
     },
     connection::ServerName,
-    prover::Prover,
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -20,6 +20,7 @@ use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use crate::{
     IoProvider,
     bench::{Meter, RECV_PADDING},
+    spawn,
 };
 
 pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<ProverMetrics> {
@@ -28,7 +29,12 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let sent = verifier_io.sent();
     let recv = verifier_io.recv();
 
-    let prover = Prover::new(ProverConfig::builder().build()?);
+    let mut session = Session::new(verifier_io);
+
+    let prover = session.new_prover(ProverConfig::builder().build()?)?;
+    let (session, handle) = session.split();
+
+    _ = spawn(session);
 
     let time_start = web_time::Instant::now();
 
@@ -49,7 +55,6 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
                         .build()
                 }?)
                 .build()?,
-            verifier_io,
         )
         .await?;
 
@@ -120,6 +125,7 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     prover.prove(&prove_config).await?;
     prover.close().await?;
+    handle.close();
 
     let time_total = time_start.elapsed().as_millis();
 

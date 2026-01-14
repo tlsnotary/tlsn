@@ -26,6 +26,7 @@ tlsn-server-fixture-certs = { workspace = true }
 tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
 
+async_io_stream = { workspace = true }
 bincode = { workspace = true }
 console_error_panic_hook = { version = "0.1" }
 enum-try-as-inner = { workspace = true }

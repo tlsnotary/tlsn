@@ -4,19 +4,24 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub(crate) mod context;
+mod error;
 pub(crate) mod ghash;
 pub(crate) mod map;
 pub(crate) mod mpz;
 pub(crate) mod msg;
-pub(crate) mod mux;
 pub mod prover;
+mod session;
 pub(crate) mod tag;
 pub(crate) mod transcript_internal;
 pub mod verifier;
 
+pub use error::Error;
+pub use session::{Session, SessionDriver, SessionHandle};
 pub use tlsn_attestation as attestation;
 pub use tlsn_core::{config, connection, hash, transcript, webpki};
+
+/// Result type.
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 use std::sync::LazyLock;
 

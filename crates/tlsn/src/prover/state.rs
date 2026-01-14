@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use mpc_tls::{MpcTlsLeader, SessionKeys};
-use mpz_common::Context;
 use tlsn_core::{
     connection::ServerName,
     transcript::{TlsTranscript, Transcript},
@@ -11,10 +10,7 @@ use tlsn_core::{
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 
-use crate::{
-    mpz::{ProverMpc, ProverZk},
-    mux::{MuxControl, MuxFuture},
-};
+use crate::mpz::{ProverMpc, ProverZk};
 
 /// Entry state
 pub struct Initialized;
@@ -24,8 +20,6 @@ opaque_debug::implement!(Initialized);
 /// State after the verifier has accepted the proposed TLS commitment protocol
 /// configuration and preprocessing has completed.
 pub struct CommitAccepted {
-    pub(crate) mux_ctrl: MuxControl,
-    pub(crate) mux_fut: MuxFuture,
     pub(crate) mpc_tls: MpcTlsLeader,
     pub(crate) keys: SessionKeys,
     pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
@@ -35,9 +29,6 @@ opaque_debug::implement!(CommitAccepted);
 
 /// State after the TLS transcript has been committed.
 pub struct Committed {
-    pub(crate) mux_ctrl: MuxControl,
-    pub(crate) mux_fut: MuxFuture,
-    pub(crate) ctx: Context,
     pub(crate) vm: ProverZk,
     pub(crate) server_name: ServerName,
     pub(crate) keys: SessionKeys,
