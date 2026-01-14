@@ -3,6 +3,7 @@ use crate::types::received_commitments;
 use super::types::ZKProofBundle;
 use anyhow::Result;
 use chrono::{Local, NaiveDate};
+use futures::io::AsyncReadExt as _;
 use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_honk};
 use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
@@ -17,7 +18,6 @@ use tlsn::{
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
-use futures::io::AsyncReadExt as _;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;

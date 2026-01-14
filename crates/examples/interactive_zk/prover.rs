@@ -41,8 +41,8 @@ use tlsn::{
     Session,
 };
 
-use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use futures::io::AsyncWriteExt as _;
+use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
