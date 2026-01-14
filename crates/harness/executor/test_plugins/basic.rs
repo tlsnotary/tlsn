@@ -1,4 +1,5 @@
 use tlsn::{
+    Session,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
@@ -8,9 +9,8 @@ use tlsn::{
     },
     connection::ServerName,
     hash::HashAlgId,
-    prover::Prover,
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
-    verifier::{Verifier, VerifierOutput},
+    verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -28,7 +28,17 @@ const MAX_RECV_DATA: usize = 1 << 11;
 crate::test!("basic", prover, verifier);
 
 async fn prover(provider: &IoProvider) {
-    let prover = Prover::new(ProverConfig::builder().build().unwrap())
+    let io = provider.provide_proto_io().await.unwrap();
+    let mut session = Session::new(io);
+    let prover = session
+        .new_prover(ProverConfig::builder().build().unwrap())
+        .unwrap();
+
+    let (session, handle) = session.split();
+
+    _ = spawn(session);
+
+    let prover = prover
         .commit(
             TlsCommitConfig::builder()
                 .protocol(
@@ -41,7 +51,6 @@ async fn prover(provider: &IoProvider) {
                 )
                 .build()
                 .unwrap(),
-            provider.provide_proto_io().await.unwrap(),
         )
         .await
         .unwrap();
@@ -116,18 +125,27 @@ async fn prover(provider: &IoProvider) {
 
     prover.prove(&config).await.unwrap();
     prover.close().await.unwrap();
+    handle.close();
 }
 
 async fn verifier(provider: &IoProvider) {
+    let io = provider.provide_proto_io().await.unwrap();
+    let mut session = Session::new(io);
+
     let config = VerifierConfig::builder()
         .root_store(RootCertStore {
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
         })
         .build()
         .unwrap();
+    let verifier = session.new_verifier(config).unwrap();
 
-    let verifier = Verifier::new(config)
-        .commit(provider.provide_proto_io().await.unwrap())
+    let (session, handle) = session.split();
+
+    _ = spawn(session);
+
+    let verifier = verifier
+        .commit()
         .await
         .unwrap()
         .accept()
@@ -147,6 +165,7 @@ async fn verifier(provider: &IoProvider) {
     ) = verifier.verify().await.unwrap().accept().await.unwrap();
 
     verifier.close().await.unwrap();
+    handle.close();
 
     let ServerName::Dns(server_name) = server_name.unwrap();
 

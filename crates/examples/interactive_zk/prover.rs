@@ -32,13 +32,13 @@ use tlsn::{
     },
     connection::ServerName,
     hash::HashAlgId,
-    prover::Prover,
     transcript::{
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitmentKind,
         TranscriptSecret,
     },
     webpki::{CertificateDer, RootCertStore},
+    Session,
 };
 
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
@@ -64,8 +64,16 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .ok_or_else(|| anyhow::anyhow!("URI must have authority"))?
         .host();
 
+    // Create a session with the verifier.
+    let session = Session::new(verifier_socket.compat());
+    let (driver, mut handle) = session.split();
+
+    // Spawn the session driver to run in the background.
+    let driver_task = tokio::spawn(driver);
+
     // Create a new prover and perform necessary setup.
-    let prover = Prover::new(ProverConfig::builder().build()?)
+    let prover = handle
+        .new_prover(ProverConfig::builder().build()?)?
         .commit(
             TlsCommitConfig::builder()
                 // Select the TLS commitment protocol.
@@ -80,7 +88,6 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                         .build()?,
                 )
                 .build()?,
-            verifier_socket.compat(),
         )
         .await?;
 
@@ -169,6 +176,10 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // MPC-TLS prove
     let prover_output = prover.prove(&prove_config).await?;
     prover.close().await?;
+
+    // Close the session and wait for the driver to complete.
+    handle.close();
+    driver_task.await??;
 
     // Prove birthdate is more than 18 years ago.
     let received_commitments = received_commitments(&prover_output.transcript_commitments);

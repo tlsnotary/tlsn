@@ -60,6 +60,8 @@ mpz-common = { workspace = true, features = ["test-utils"] }
 mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-ideal-vm = { workspace = true }
 
+tlsn-mux = { workspace = true }
+
 cipher-crate = { package = "cipher", version = "0.4" }
 generic-array = { workspace = true }
 rand_chacha = { workspace = true }
@@ -70,6 +72,5 @@ tlsn-tls-client-async = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing-subscriber = { workspace = true }
-uid-mux = { workspace = true, features = ["serio", "test-utils"] }
 rustls-pki-types = { workspace = true }
 rustls-webpki = { workspace = true }

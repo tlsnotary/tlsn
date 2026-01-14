@@ -33,8 +33,9 @@ use tlsn::{
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::{state::Committed, Prover, ProverOutput},
     transcript::{ContentType, TranscriptCommitConfig},
-    verifier::{Verifier, VerifierOutput},
+    verifier::VerifierOutput,
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
+    Session,
 };
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
@@ -99,8 +100,16 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .map(|port| port.parse().expect("port should be valid integer"))
         .unwrap_or(DEFAULT_FIXTURE_PORT);
 
+    // Create a session with the notary.
+    let session = Session::new(socket.compat());
+    let (driver, mut handle) = session.split();
+
+    // Spawn the session driver to run in the background.
+    let driver_task = tokio::spawn(driver);
+
     // Create a new prover and perform necessary setup.
-    let prover = Prover::new(ProverConfig::builder().build()?)
+    let prover = handle
+        .new_prover(ProverConfig::builder().build()?)?
         .commit(
             TlsCommitConfig::builder()
                 // Select the TLS commitment protocol.
@@ -115,7 +124,6 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
                         .build()?,
                 )
                 .build()?,
-            socket.compat(),
         )
         .await?;
 
@@ -224,6 +232,10 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let (attestation, secrets) = notarize(prover, &request_config, req_tx, resp_rx).await?;
 
+    // Close the session and wait for the driver to complete.
+    handle.close();
+    driver_task.await??;
+
     // Write the attestation to disk.
     let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
     let secrets_path = tlsn_examples::get_file_path(example_type, "secrets");
@@ -311,6 +323,13 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     request_rx: Receiver<AttestationRequest>,
     attestation_tx: Sender<Attestation>,
 ) -> Result<()> {
+    // Create a session with the prover.
+    let session = Session::new(socket.compat());
+    let (driver, mut handle) = session.split();
+
+    // Spawn the session driver to run in the background.
+    let driver_task = tokio::spawn(driver);
+
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -321,8 +340,9 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()
         .unwrap();
 
-    let verifier = Verifier::new(verifier_config)
-        .commit(socket.compat())
+    let verifier = handle
+        .new_verifier(verifier_config)?
+        .commit()
         .await?
         .accept()
         .await?
@@ -398,6 +418,10 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     attestation_tx
         .send(attestation)
         .map_err(|_| anyhow!("prover is not receiving attestation"))?;
+
+    // Close the session and wait for the driver to complete.
+    handle.close();
+    driver_task.await??;
 
     Ok(())
 }

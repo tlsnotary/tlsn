@@ -12,7 +12,7 @@ use tlsn_core::{
 };
 
 use crate::{
-    prover::ProverError,
+    Error, Result,
     transcript_internal::{TranscriptRefs, auth::prove_plaintext, commit::hash::prove_hash},
 };
 
@@ -23,7 +23,7 @@ pub(crate) async fn prove<T: Vm<Binary> + Send + Sync>(
     transcript: &Transcript,
     tls_transcript: &TlsTranscript,
     config: &ProveConfig,
-) -> Result<ProverOutput, ProverError> {
+) -> Result<ProverOutput> {
     let mut output = ProverOutput {
         transcript_commitments: Vec::default(),
         transcript_secrets: Vec::default(),
@@ -53,7 +53,11 @@ pub(crate) async fn prove<T: Vm<Binary> + Send + Sync>(
             &reveal_sent,
             &commit_sent,
         )
-        .map_err(ProverError::commit)?,
+        .map_err(|e| {
+            Error::internal()
+                .with_msg("proving failed during sent plaintext commitment")
+                .with_source(e)
+        })?,
         recv: prove_plaintext(
             vm,
             keys.server_write_key,
@@ -66,7 +70,11 @@ pub(crate) async fn prove<T: Vm<Binary> + Send + Sync>(
             &reveal_recv,
             &commit_recv,
         )
-        .map_err(ProverError::commit)?,
+        .map_err(|e| {
+            Error::internal()
+                .with_msg("proving failed during received plaintext commitment")
+                .with_source(e)
+        })?,
     };
 
     let hash_commitments = if let Some(commit_config) = config.transcript_commit()
@@ -80,16 +88,28 @@ pub(crate) async fn prove<T: Vm<Binary> + Send + Sync>(
                     .iter_hash()
                     .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg)),
             )
-            .map_err(ProverError::commit)?,
+            .map_err(|e| {
+                Error::internal()
+                    .with_msg("proving failed during hash commitment setup")
+                    .with_source(e)
+            })?,
         )
     } else {
         None
     };
 
-    vm.execute_all(ctx).await.map_err(ProverError::zk)?;
+    vm.execute_all(ctx).await.map_err(|e| {
+        Error::internal()
+            .with_msg("proving failed during zk execution")
+            .with_source(e)
+    })?;
 
     if let Some((hash_fut, hash_secrets)) = hash_commitments {
-        let hash_commitments = hash_fut.try_recv().map_err(ProverError::commit)?;
+        let hash_commitments = hash_fut.try_recv().map_err(|e| {
+            Error::internal()
+                .with_msg("proving failed during hash commitment finalization")
+                .with_source(e)
+        })?;
         for (commitment, secret) in hash_commitments.into_iter().zip(hash_secrets) {
             output
                 .transcript_commitments

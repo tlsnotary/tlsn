@@ -14,8 +14,8 @@ use tlsn_core::{
 };
 
 use crate::{
+    Error, Result,
     transcript_internal::{TranscriptRefs, auth::verify_plaintext, commit::hash::verify_hash},
-    verifier::VerifierError,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -28,35 +28,33 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
     request: ProveRequest,
     handshake: Option<(ServerName, HandshakeData)>,
     transcript: Option<PartialTranscript>,
-) -> Result<VerifierOutput, VerifierError> {
+) -> Result<VerifierOutput> {
     let ciphertext_sent = collect_ciphertext(tls_transcript.sent());
     let ciphertext_recv = collect_ciphertext(tls_transcript.recv());
 
     let transcript = if let Some((auth_sent, auth_recv)) = request.reveal() {
         let Some(transcript) = transcript else {
-            return Err(VerifierError::verify(
-                "prover requested to reveal data but did not send transcript",
+            return Err(Error::internal().with_msg(
+                "verification failed: prover requested to reveal data but did not send transcript",
             ));
         };
 
         if transcript.len_sent() != ciphertext_sent.len()
             || transcript.len_received() != ciphertext_recv.len()
         {
-            return Err(VerifierError::verify(
-                "prover sent transcript with incorrect length",
-            ));
+            return Err(
+                Error::internal().with_msg("verification failed: transcript length mismatch")
+            );
         }
 
         if transcript.sent_authed() != auth_sent {
-            return Err(VerifierError::verify(
-                "prover sent transcript with incorrect sent authed data",
-            ));
+            return Err(Error::internal().with_msg("verification failed: sent auth data mismatch"));
         }
 
         if transcript.received_authed() != auth_recv {
-            return Err(VerifierError::verify(
-                "prover sent transcript with incorrect received authed data",
-            ));
+            return Err(
+                Error::internal().with_msg("verification failed: received auth data mismatch")
+            );
         }
 
         transcript
@@ -72,7 +70,11 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
                 tls_transcript.server_ephemeral_key(),
                 &name,
             )
-            .map_err(VerifierError::verify)?;
+            .map_err(|e| {
+                Error::internal()
+                    .with_msg("verification failed: certificate verification failed")
+                    .with_source(e)
+            })?;
 
         Some(name)
     } else {
@@ -102,7 +104,11 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
         transcript.sent_authed(),
         &commit_sent,
     )
-    .map_err(VerifierError::zk)?;
+    .map_err(|e| {
+        Error::internal()
+            .with_msg("verification failed during sent plaintext verification")
+            .with_source(e)
+    })?;
     let (recv_refs, recv_proof) = verify_plaintext(
         vm,
         keys.server_write_key,
@@ -116,7 +122,11 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
         transcript.received_authed(),
         &commit_recv,
     )
-    .map_err(VerifierError::zk)?;
+    .map_err(|e| {
+        Error::internal()
+            .with_msg("verification failed during received plaintext verification")
+            .with_source(e)
+    })?;
 
     let transcript_refs = TranscriptRefs {
         sent: sent_refs,
@@ -129,18 +139,37 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
         && commit_config.has_hash()
     {
         hash_commitments = Some(
-            verify_hash(vm, &transcript_refs, commit_config.iter_hash().cloned())
-                .map_err(VerifierError::verify)?,
+            verify_hash(vm, &transcript_refs, commit_config.iter_hash().cloned()).map_err(|e| {
+                Error::internal()
+                    .with_msg("verification failed during hash commitment setup")
+                    .with_source(e)
+            })?,
         );
     }
 
-    vm.execute_all(ctx).await.map_err(VerifierError::zk)?;
+    vm.execute_all(ctx).await.map_err(|e| {
+        Error::internal()
+            .with_msg("verification failed during zk execution")
+            .with_source(e)
+    })?;
 
-    sent_proof.verify().map_err(VerifierError::verify)?;
-    recv_proof.verify().map_err(VerifierError::verify)?;
+    sent_proof.verify().map_err(|e| {
+        Error::internal()
+            .with_msg("verification failed: sent plaintext proof invalid")
+            .with_source(e)
+    })?;
+    recv_proof.verify().map_err(|e| {
+        Error::internal()
+            .with_msg("verification failed: received plaintext proof invalid")
+            .with_source(e)
+    })?;
 
     if let Some(hash_commitments) = hash_commitments {
-        for commitment in hash_commitments.try_recv().map_err(VerifierError::verify)? {
+        for commitment in hash_commitments.try_recv().map_err(|e| {
+            Error::internal()
+                .with_msg("verification failed during hash commitment finalization")
+                .with_source(e)
+        })? {
             transcript_commitments.push(TranscriptCommitment::Hash(commitment));
         }
     }

@@ -11,8 +11,9 @@ use tlsn::{
     connection::ServerName,
     hash::HashAlgId,
     transcript::{Direction, PartialTranscript},
-    verifier::{Verifier, VerifierOutput},
+    verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
+    Session,
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
@@ -25,19 +26,25 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     socket: T,
     mut extra_socket: T,
 ) -> Result<PartialTranscript> {
-    let verifier = Verifier::new(
-        VerifierConfig::builder()
-            // Create a root certificate store with the server-fixture's self-signed
-            // certificate. This is only required for offline testing with the
-            // server-fixture.
-            .root_store(RootCertStore {
-                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-            })
-            .build()?,
-    );
+    // Create a session with the prover.
+    let session = Session::new(socket.compat());
+    let (driver, mut handle) = session.split();
+
+    // Spawn the session driver to run in the background.
+    let driver_task = tokio::spawn(driver);
+
+    // Create a root certificate store with the server-fixture's self-signed
+    // certificate. This is only required for offline testing with the
+    // server-fixture.
+    let verifier_config = VerifierConfig::builder()
+        .root_store(RootCertStore {
+            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+        })
+        .build()?;
+    let verifier = handle.new_verifier(verifier_config)?;
 
     // Validate the proposed configuration and then run the TLS commitment protocol.
-    let verifier = verifier.commit(socket.compat()).await?;
+    let verifier = verifier.commit().await?;
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
@@ -89,6 +96,10 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     ) = verifier.accept().await?;
 
     verifier.close().await?;
+
+    // Close the session and wait for the driver to complete.
+    handle.close();
+    driver_task.await??;
 
     let server_name = server_name.expect("server name should be present");
     let transcript = transcript.expect("transcript should be present");

@@ -20,10 +20,10 @@ use tlsn::{
         verifier::VerifierConfig,
     },
     connection::ServerName,
-    prover::Prover,
     transcript::PartialTranscript,
-    verifier::{Verifier, VerifierOutput},
+    verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
+    Session,
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -77,8 +77,16 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     assert_eq!(uri.scheme().unwrap().as_str(), "https");
     let server_domain = uri.authority().unwrap().host();
 
+    // Create a session with the verifier.
+    let session = Session::new(verifier_socket.compat());
+    let (driver, mut handle) = session.split();
+
+    // Spawn the session driver to run in the background.
+    let driver_task = tokio::spawn(driver);
+
     // Create a new prover and perform necessary setup.
-    let prover = Prover::new(ProverConfig::builder().build()?)
+    let prover = handle
+        .new_prover(ProverConfig::builder().build()?)?
         .commit(
             TlsCommitConfig::builder()
                 // Select the TLS commitment protocol.
@@ -93,7 +101,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                         .build()?,
                 )
                 .build()?,
-            verifier_socket.compat(),
         )
         .await?;
 
@@ -176,6 +183,10 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     prover.prove(&config).await?;
     prover.close().await?;
 
+    // Close the session and wait for the driver to complete.
+    handle.close();
+    driver_task.await??;
+
     Ok(())
 }
 
@@ -183,6 +194,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
 ) -> Result<PartialTranscript> {
+    // Create a session with the prover.
+    let session = Session::new(socket.compat());
+    let (driver, mut handle) = session.split();
+
+    // Spawn the session driver to run in the background.
+    let driver_task = tokio::spawn(driver);
+
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
@@ -191,10 +209,10 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
         })
         .build()?;
-    let verifier = Verifier::new(verifier_config);
+    let verifier = handle.new_verifier(verifier_config)?;
 
     // Validate the proposed configuration and then run the TLS commitment protocol.
-    let verifier = verifier.commit(socket.compat()).await?;
+    let verifier = verifier.commit().await?;
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
@@ -240,6 +258,10 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     ) = verifier.accept().await?;
 
     verifier.close().await?;
+
+    // Close the session and wait for the driver to complete.
+    handle.close();
+    driver_task.await??;
 
     let server_name = server_name.expect("prover should have revealed server name");
     let transcript = transcript.expect("prover should have revealed transcript data");

@@ -1,15 +1,17 @@
 //! This module collects futures which are used by the [Prover].
 
-use super::{Prover, ProverControl, ProverError, state};
-use futures::Future;
 use std::pin::Pin;
+
+use futures::Future;
+
+use super::{Prover, ProverControl, state};
+use crate::Result;
 
 /// Prover future which must be polled for the TLS connection to make progress.
 pub struct ProverFuture {
     #[allow(clippy::type_complexity)]
-    pub(crate) fut: Pin<
-        Box<dyn Future<Output = Result<Prover<state::Committed>, ProverError>> + Send + 'static>,
-    >,
+    pub(crate) fut:
+        Pin<Box<dyn Future<Output = Result<Prover<state::Committed>>> + Send + 'static>>,
     pub(crate) ctrl: ProverControl,
 }
 
@@ -21,7 +23,7 @@ impl ProverFuture {
 }
 
 impl Future for ProverFuture {
-    type Output = Result<Prover<state::Committed>, ProverError>;
+    type Output = Result<Prover<state::Committed>>;
 
     fn poll(
         mut self: Pin<&mut Self>,

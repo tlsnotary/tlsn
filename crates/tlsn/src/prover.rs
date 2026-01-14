@@ -1,20 +1,17 @@
 //! Prover.
 
-mod error;
 mod future;
 mod prove;
 pub mod state;
 
-pub use error::ProverError;
 pub use future::ProverFuture;
+use mpz_common::Context;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Role,
-    context::build_mt_context,
+    Error, Result,
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
-    mux::attach_mux,
     tag::verify_tags,
 };
 
@@ -45,6 +42,7 @@ use tracing::{Instrument, Span, debug, info, info_span, instrument};
 pub struct Prover<T: state::ProverState = state::Initialized> {
     config: ProverConfig,
     span: Span,
+    ctx: Option<Context>,
     state: T,
 }
 
@@ -53,12 +51,14 @@ impl Prover<state::Initialized> {
     ///
     /// # Arguments
     ///
+    /// * `ctx` - A thread context.
     /// * `config` - The configuration for the prover.
-    pub fn new(config: ProverConfig) -> Self {
+    pub(crate) fn new(ctx: Context, config: ProverConfig) -> Self {
         let span = info_span!("prover");
         Self {
             config,
             span,
+            ctx: Some(ctx),
             state: state::Initialized,
         }
     }
@@ -71,34 +71,43 @@ impl Prover<state::Initialized> {
     /// # Arguments
     ///
     /// * `config` - The TLS commitment configuration.
-    /// * `socket` - The socket to the TLS verifier.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
+    pub async fn commit(
+        mut self,
         config: TlsCommitConfig,
-        socket: S,
-    ) -> Result<Prover<state::CommitAccepted>, ProverError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Prover);
-        let mut mt = build_mt_context(mux_ctrl.clone());
-        let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
+    ) -> Result<Prover<state::CommitAccepted>> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
 
         // Sends protocol configuration to verifier for compatibility check.
-        mux_fut
-            .poll_with(async {
-                ctx.io_mut()
-                    .send(TlsCommitRequestMsg {
-                        request: config.to_request(),
-                        version: crate::VERSION.clone(),
-                    })
-                    .await?;
-
-                ctx.io_mut()
-                    .expect_next::<Response>()
-                    .await?
-                    .result
-                    .map_err(ProverError::from)
+        ctx.io_mut()
+            .send(TlsCommitRequestMsg {
+                request: config.to_request(),
+                version: crate::VERSION.clone(),
             })
-            .await?;
+            .await
+            .map_err(|e| {
+                Error::io()
+                    .with_msg("commitment protocol failed to send request")
+                    .with_source(e)
+            })?;
+
+        ctx.io_mut()
+            .expect_next::<Response>()
+            .await
+            .map_err(|e| {
+                Error::io()
+                    .with_msg("commitment protocol failed to receive response")
+                    .with_source(e)
+            })?
+            .result
+            .map_err(|e| {
+                Error::user()
+                    .with_msg("commitment protocol rejected by verifier")
+                    .with_source(e)
+            })?;
 
         let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = config.protocol().clone() else {
             unreachable!("only MPC TLS is supported");
@@ -107,27 +116,30 @@ impl Prover<state::Initialized> {
         let ProverDeps { vm, mut mpc_tls } = build_prover_deps(mpc_tls_config, ctx);
 
         // Allocate resources for MPC-TLS in the VM.
-        let mut keys = mpc_tls.alloc()?;
+        let mut keys = mpc_tls.alloc().map_err(|e| {
+            Error::internal()
+                .with_msg("commitment protocol failed to allocate mpc-tls resources")
+                .with_source(e)
+        })?;
         let vm_lock = vm.try_lock().expect("VM is not locked");
         translate_keys(&mut keys, &vm_lock);
         drop(vm_lock);
 
         debug!("setting up mpc-tls");
 
-        mux_fut.poll_with(mpc_tls.preprocess()).await?;
+        mpc_tls.preprocess().await.map_err(|e| {
+            Error::internal()
+                .with_msg("commitment protocol failed during mpc-tls preprocessing")
+                .with_source(e)
+        })?;
 
         debug!("mpc-tls setup complete");
 
         Ok(Prover {
             config: self.config,
             span: self.span,
-            state: state::CommitAccepted {
-                mux_ctrl,
-                mux_fut,
-                mpc_tls,
-                keys,
-                vm,
-            },
+            ctx: None,
+            state: state::CommitAccepted { mpc_tls, keys, vm },
         })
     }
 }
@@ -148,14 +160,9 @@ impl Prover<state::CommitAccepted> {
         self,
         config: TlsClientConfig,
         socket: S,
-    ) -> Result<(TlsConnection, ProverFuture), ProverError> {
+    ) -> Result<(TlsConnection, ProverFuture)> {
         let state::CommitAccepted {
-            mux_ctrl,
-            mut mux_fut,
-            mpc_tls,
-            keys,
-            vm,
-            ..
+            mpc_tls, keys, vm, ..
         } = self.state;
 
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
@@ -173,7 +180,11 @@ impl Prover<state::CommitAccepted> {
                     let der = CertificateDer::from_slice(&cert.0);
                     anchor_from_trusted_cert(&der)
                         .map(|anchor| anchor.to_owned())
-                        .map_err(ProverError::config)
+                        .map_err(|e| {
+                            Error::config()
+                                .with_msg("failed to parse root certificate")
+                                .with_source(e)
+                        })
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         };
@@ -190,7 +201,11 @@ impl Prover<state::CommitAccepted> {
                         .collect(),
                     tls_client::PrivateKey(key.0.clone()),
                 )
-                .map_err(ProverError::config)?
+                .map_err(|e| {
+                    Error::config()
+                        .with_msg("failed to configure client authentication")
+                        .with_source(e)
+                })?
         } else {
             rustls_config.with_no_client_auth()
         };
@@ -200,7 +215,11 @@ impl Prover<state::CommitAccepted> {
             Box::new(mpc_ctrl.clone()),
             server_name,
         )
-        .map_err(ProverError::config)?;
+        .map_err(|e| {
+            Error::config()
+                .with_msg("failed to create tls client connection")
+                .with_source(e)
+        })?;
 
         let (conn, conn_fut) = bind_client(socket, client);
 
@@ -209,20 +228,27 @@ impl Prover<state::CommitAccepted> {
             let mpc_ctrl = mpc_ctrl.clone();
             async move {
                 let conn_fut = async {
-                    mux_fut
-                        .poll_with(conn_fut.map_err(ProverError::from))
-                        .await?;
+                    conn_fut.await.map_err(|e| {
+                        Error::io().with_msg("tls connection failed").with_source(e)
+                    })?;
+                    mpc_ctrl.stop().await.map_err(|e| {
+                        Error::internal()
+                            .with_msg("mpc-tls failed to stop")
+                            .with_source(e)
+                    })?;
 
-                    mpc_ctrl.stop().await?;
-
-                    Ok::<_, ProverError>(())
+                    Ok::<_, crate::Error>(())
                 };
 
                 info!("starting MPC-TLS");
 
                 let (_, (mut ctx, tls_transcript)) = futures::try_join!(
                     conn_fut,
-                    mpc_fut.in_current_span().map_err(ProverError::from)
+                    mpc_fut.in_current_span().map_err(|e| {
+                        Error::internal()
+                            .with_msg("mpc-tls execution failed")
+                            .with_source(e)
+                    })
                 )?;
 
                 info!("finished MPC-TLS");
@@ -233,10 +259,11 @@ impl Prover<state::CommitAccepted> {
                     debug!("finalizing mpc");
 
                     // Finalize DEAP.
-                    mux_fut
-                        .poll_with(vm.finalize(&mut ctx))
-                        .await
-                        .map_err(ProverError::mpc)?;
+                    vm.finalize(&mut ctx).await.map_err(|e| {
+                        Error::internal()
+                            .with_msg("mpc finalization failed")
+                            .with_source(e)
+                    })?;
 
                     debug!("mpc finalized");
                 }
@@ -256,11 +283,17 @@ impl Prover<state::CommitAccepted> {
                     *tls_transcript.version(),
                     tls_transcript.recv().to_vec(),
                 )
-                .map_err(ProverError::zk)?;
+                .map_err(|e| {
+                    Error::internal()
+                        .with_msg("tag verification setup failed")
+                        .with_source(e)
+                })?;
 
-                mux_fut
-                    .poll_with(vm.execute_all(&mut ctx).map_err(ProverError::zk))
-                    .await?;
+                vm.execute_all(&mut ctx).await.map_err(|e| {
+                    Error::internal()
+                        .with_msg("executing the zkVM failed during tag verification")
+                        .with_source(e)
+                })?;
 
                 let transcript = tls_transcript
                     .to_transcript()
@@ -269,10 +302,8 @@ impl Prover<state::CommitAccepted> {
                 Ok(Prover {
                     config: self.config,
                     span: self.span,
+                    ctx: Some(ctx),
                     state: state::Committed {
-                        mux_ctrl,
-                        mux_fut,
-                        ctx,
                         vm,
                         server_name: config.server_name().clone(),
                         keys,
@@ -311,10 +342,12 @@ impl Prover<state::Committed> {
     ///
     /// * `config` - The disclosure configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn prove(&mut self, config: &ProveConfig) -> Result<ProverOutput, ProverError> {
+    pub async fn prove(&mut self, config: &ProveConfig) -> Result<ProverOutput> {
+        let ctx = self
+            .ctx
+            .as_mut()
+            .ok_or_else(|| Error::internal().with_msg("proving context was dropped"))?;
         let state::Committed {
-            mux_fut,
-            ctx,
             vm,
             keys,
             server_name,
@@ -350,32 +383,34 @@ impl Prover<state::Committed> {
             transcript: partial_transcript,
         };
 
-        let output = mux_fut
-            .poll_with(async {
-                ctx.io_mut().send(msg).await.map_err(ProverError::from)?;
+        ctx.io_mut().send(msg).await.map_err(|e| {
+            Error::io()
+                .with_msg("failed to send prove configuration")
+                .with_source(e)
+        })?;
+        ctx.io_mut()
+            .expect_next::<Response>()
+            .await
+            .map_err(|e| {
+                Error::io()
+                    .with_msg("failed to receive prove response from verifier")
+                    .with_source(e)
+            })?
+            .result
+            .map_err(|e| {
+                Error::user()
+                    .with_msg("proving rejected by verifier")
+                    .with_source(e)
+            })?;
 
-                ctx.io_mut().expect_next::<Response>().await?.result?;
-
-                prove::prove(ctx, vm, keys, transcript, tls_transcript, config).await
-            })
-            .await?;
+        let output = prove::prove(ctx, vm, keys, transcript, tls_transcript, config).await?;
 
         Ok(output)
     }
 
     /// Closes the connection with the verifier.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn close(self) -> Result<(), ProverError> {
-        let state::Committed {
-            mux_ctrl, mux_fut, ..
-        } = self.state;
-
-        // Wait for the verifier to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
-
+    pub async fn close(self) -> Result<()> {
         Ok(())
     }
 }
@@ -398,10 +433,11 @@ impl ProverControl {
     /// * The prover may need to close the connection to the server in order for
     ///   it to close the connection on its end. If neither the prover or server
     ///   close the connection this will cause a deadlock.
-    pub async fn defer_decryption(&self) -> Result<(), ProverError> {
-        self.mpc_ctrl
-            .defer_decryption()
-            .await
-            .map_err(ProverError::from)
+    pub async fn defer_decryption(&self) -> Result<()> {
+        self.mpc_ctrl.defer_decryption().await.map_err(|e| {
+            Error::internal()
+                .with_msg("failed to defer decryption")
+                .with_source(e)
+        })
     }
 }

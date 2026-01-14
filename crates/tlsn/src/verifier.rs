@@ -1,23 +1,19 @@
 //! Verifier.
 
-mod error;
 pub mod state;
 mod verify;
 
 use std::sync::Arc;
 
-pub use error::VerifierError;
+use mpz_common::Context;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Role,
-    context::build_mt_context,
+    Error, Result,
     mpz::{VerifierDeps, build_verifier_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
-    mux::attach_mux,
     tag::verify_tags,
 };
-use futures::{AsyncRead, AsyncWrite, TryFutureExt};
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
@@ -45,16 +41,18 @@ pub struct SessionInfo {
 pub struct Verifier<T: state::VerifierState = state::Initialized> {
     config: VerifierConfig,
     span: Span,
+    ctx: Option<Context>,
     state: T,
 }
 
 impl Verifier<state::Initialized> {
     /// Creates a new verifier.
-    pub fn new(config: VerifierConfig) -> Self {
+    pub(crate) fn new(ctx: Context, config: VerifierConfig) -> Self {
         let span = info_span!("verifier");
         Self {
             config,
             span,
+            ctx: Some(ctx),
             state: state::Initialized,
         }
     }
@@ -63,50 +61,43 @@ impl Verifier<state::Initialized> {
     ///
     /// This initiates the TLS commitment protocol, receiving the prover's
     /// configuration and providing the opportunity to accept or reject it.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - The socket to the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn commit<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-        self,
-        socket: S,
-    ) -> Result<Verifier<state::CommitStart>, VerifierError> {
-        let (mut mux_fut, mux_ctrl) = attach_mux(socket, Role::Verifier);
-        let mut mt = build_mt_context(mux_ctrl.clone());
-        let mut ctx = mux_fut.poll_with(mt.new_context()).await?;
+    pub async fn commit(mut self) -> Result<Verifier<state::CommitStart>> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
 
         // Receives protocol configuration from prover to perform compatibility check.
         let TlsCommitRequestMsg { request, version } =
-            mux_fut.poll_with(ctx.io_mut().expect_next()).await?;
+            ctx.io_mut().expect_next().await.map_err(|e| {
+                Error::io()
+                    .with_msg("commitment protocol failed to receive request")
+                    .with_source(e)
+            })?;
 
         if version != *crate::VERSION {
             let msg = format!(
                 "prover version does not match with verifier: {version} != {}",
                 *crate::VERSION
             );
-            mux_fut
-                .poll_with(ctx.io_mut().send(Response::err(Some(msg.clone()))))
-                .await?;
+            ctx.io_mut()
+                .send(Response::err(Some(msg.clone())))
+                .await
+                .map_err(|e| {
+                    Error::io()
+                        .with_msg("commitment protocol failed to send version mismatch response")
+                        .with_source(e)
+                })?;
 
-            // Wait for the prover to correctly close the connection.
-            if !mux_fut.is_complete() {
-                mux_ctrl.close();
-                mux_fut.await?;
-            }
-
-            return Err(VerifierError::config(msg));
+            return Err(Error::config().with_msg(msg));
         }
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::CommitStart {
-                mux_ctrl,
-                mux_fut,
-                ctx,
-                request,
-            },
+            ctx: Some(ctx),
+            state: state::CommitStart { request },
         })
     }
 }
@@ -119,15 +110,18 @@ impl Verifier<state::CommitStart> {
 
     /// Accepts the proposed protocol configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept(self) -> Result<Verifier<state::CommitAccepted>, VerifierError> {
-        let state::CommitStart {
-            mux_ctrl,
-            mut mux_fut,
-            mut ctx,
-            request,
-        } = self.state;
+    pub async fn accept(mut self) -> Result<Verifier<state::CommitAccepted>> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
+        let state::CommitStart { request } = self.state;
 
-        mux_fut.poll_with(ctx.io_mut().send(Response::ok())).await?;
+        ctx.io_mut().send(Response::ok()).await.map_err(|e| {
+            Error::io()
+                .with_msg("commitment protocol failed to send acceptance")
+                .with_source(e)
+        })?;
 
         let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol().clone() else {
             unreachable!("only MPC TLS is supported");
@@ -136,49 +130,46 @@ impl Verifier<state::CommitStart> {
         let VerifierDeps { vm, mut mpc_tls } = build_verifier_deps(mpc_tls_config, ctx);
 
         // Allocate resources for MPC-TLS in the VM.
-        let mut keys = mpc_tls.alloc()?;
+        let mut keys = mpc_tls.alloc().map_err(|e| {
+            Error::internal()
+                .with_msg("commitment protocol failed to allocate mpc-tls resources")
+                .with_source(e)
+        })?;
         let vm_lock = vm.try_lock().expect("VM is not locked");
         translate_keys(&mut keys, &vm_lock);
         drop(vm_lock);
 
         debug!("setting up mpc-tls");
 
-        mux_fut.poll_with(mpc_tls.preprocess()).await?;
+        mpc_tls.preprocess().await.map_err(|e| {
+            Error::internal()
+                .with_msg("commitment protocol failed during mpc-tls preprocessing")
+                .with_source(e)
+        })?;
 
         debug!("mpc-tls setup complete");
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
-            state: state::CommitAccepted {
-                mux_ctrl,
-                mux_fut,
-                mpc_tls,
-                keys,
-                vm,
-            },
+            ctx: None,
+            state: state::CommitAccepted { mpc_tls, keys, vm },
         })
     }
 
     /// Rejects the proposed protocol configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn reject(self, msg: Option<&str>) -> Result<(), VerifierError> {
-        let state::CommitStart {
-            mux_ctrl,
-            mut mux_fut,
-            mut ctx,
-            ..
-        } = self.state;
+    pub async fn reject(mut self, msg: Option<&str>) -> Result<()> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
 
-        mux_fut
-            .poll_with(ctx.io_mut().send(Response::err(msg)))
-            .await?;
-
-        // Wait for the prover to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
+        ctx.io_mut().send(Response::err(msg)).await.map_err(|e| {
+            Error::io()
+                .with_msg("commitment protocol failed to send rejection")
+                .with_source(e)
+        })?;
 
         Ok(())
     }
@@ -187,18 +178,16 @@ impl Verifier<state::CommitStart> {
 impl Verifier<state::CommitAccepted> {
     /// Runs the verifier until the TLS connection is closed.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run(self) -> Result<Verifier<state::Committed>, VerifierError> {
-        let state::CommitAccepted {
-            mux_ctrl,
-            mut mux_fut,
-            mpc_tls,
-            vm,
-            keys,
-        } = self.state;
+    pub async fn run(self) -> Result<Verifier<state::Committed>> {
+        let state::CommitAccepted { mpc_tls, vm, keys } = self.state;
 
         info!("starting MPC-TLS");
 
-        let (mut ctx, tls_transcript) = mux_fut.poll_with(mpc_tls.run()).await?;
+        let (mut ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
+            Error::internal()
+                .with_msg("mpc-tls execution failed")
+                .with_source(e)
+        })?;
 
         info!("finished MPC-TLS");
 
@@ -207,10 +196,11 @@ impl Verifier<state::CommitAccepted> {
 
             debug!("finalizing mpc");
 
-            mux_fut
-                .poll_with(vm.finalize(&mut ctx))
-                .await
-                .map_err(VerifierError::mpc)?;
+            vm.finalize(&mut ctx).await.map_err(|e| {
+                Error::internal()
+                    .with_msg("mpc finalization failed")
+                    .with_source(e)
+            })?;
 
             debug!("mpc finalized");
         }
@@ -230,24 +220,32 @@ impl Verifier<state::CommitAccepted> {
             *tls_transcript.version(),
             tls_transcript.recv().to_vec(),
         )
-        .map_err(VerifierError::zk)?;
+        .map_err(|e| {
+            Error::internal()
+                .with_msg("tag verification setup failed")
+                .with_source(e)
+        })?;
 
-        mux_fut
-            .poll_with(vm.execute_all(&mut ctx).map_err(VerifierError::zk))
-            .await?;
+        vm.execute_all(&mut ctx).await.map_err(|e| {
+            Error::internal()
+                .with_msg("tag verification zk execution failed")
+                .with_source(e)
+        })?;
 
         // Verify the tags.
         // After the verification, the entire TLS trancript becomes
         // authenticated from the verifier's perspective.
-        tag_proof.verify().map_err(VerifierError::zk)?;
+        tag_proof.verify().map_err(|e| {
+            Error::internal()
+                .with_msg("tag verification failed")
+                .with_source(e)
+        })?;
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
+            ctx: Some(ctx),
             state: state::Committed {
-                mux_ctrl,
-                mux_fut,
-                ctx,
                 vm,
                 keys,
                 tls_transcript,
@@ -264,11 +262,12 @@ impl Verifier<state::Committed> {
 
     /// Begins verification of statements from the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn verify(self) -> Result<Verifier<state::Verify>, VerifierError> {
+    pub async fn verify(mut self) -> Result<Verifier<state::Verify>> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("verification context was dropped"))?;
         let state::Committed {
-            mux_ctrl,
-            mut mux_fut,
-            mut ctx,
             vm,
             keys,
             tls_transcript,
@@ -278,17 +277,17 @@ impl Verifier<state::Committed> {
             request,
             handshake,
             transcript,
-        } = mux_fut
-            .poll_with(ctx.io_mut().expect_next().map_err(VerifierError::from))
-            .await?;
+        } = ctx.io_mut().expect_next().await.map_err(|e| {
+            Error::io()
+                .with_msg("verification failed to receive prove request")
+                .with_source(e)
+        })?;
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
+            ctx: Some(ctx),
             state: state::Verify {
-                mux_ctrl,
-                mux_fut,
-                ctx,
                 vm,
                 keys,
                 tls_transcript,
@@ -301,17 +300,7 @@ impl Verifier<state::Committed> {
 
     /// Closes the connection with the prover.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn close(self) -> Result<(), VerifierError> {
-        let state::Committed {
-            mux_ctrl, mux_fut, ..
-        } = self.state;
-
-        // Wait for the prover to correctly close the connection.
-        if !mux_fut.is_complete() {
-            mux_ctrl.close();
-            mux_fut.await?;
-        }
-
+    pub async fn close(self) -> Result<()> {
         Ok(())
     }
 }
@@ -323,13 +312,12 @@ impl Verifier<state::Verify> {
     }
 
     /// Accepts the proving request.
-    pub async fn accept(
-        self,
-    ) -> Result<(VerifierOutput, Verifier<state::Committed>), VerifierError> {
+    pub async fn accept(mut self) -> Result<(VerifierOutput, Verifier<state::Committed>)> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("verification context was dropped"))?;
         let state::Verify {
-            mux_ctrl,
-            mut mux_fut,
-            mut ctx,
             mut vm,
             keys,
             tls_transcript,
@@ -338,33 +326,37 @@ impl Verifier<state::Verify> {
             transcript,
         } = self.state;
 
-        mux_fut.poll_with(ctx.io_mut().send(Response::ok())).await?;
+        ctx.io_mut().send(Response::ok()).await.map_err(|e| {
+            Error::io()
+                .with_msg("verification failed to send acceptance")
+                .with_source(e)
+        })?;
 
-        let cert_verifier =
-            ServerCertVerifier::new(self.config.root_store()).map_err(VerifierError::config)?;
+        let cert_verifier = ServerCertVerifier::new(self.config.root_store()).map_err(|e| {
+            Error::config()
+                .with_msg("failed to create certificate verifier")
+                .with_source(e)
+        })?;
 
-        let output = mux_fut
-            .poll_with(verify::verify(
-                &mut ctx,
-                &mut vm,
-                &keys,
-                &cert_verifier,
-                &tls_transcript,
-                request,
-                handshake,
-                transcript,
-            ))
-            .await?;
+        let output = verify::verify(
+            &mut ctx,
+            &mut vm,
+            &keys,
+            &cert_verifier,
+            &tls_transcript,
+            request,
+            handshake,
+            transcript,
+        )
+        .await?;
 
         Ok((
             output,
             Verifier {
                 config: self.config,
                 span: self.span,
+                ctx: Some(ctx),
                 state: state::Committed {
-                    mux_ctrl,
-                    mux_fut,
-                    ctx,
                     vm,
                     keys,
                     tls_transcript,
@@ -374,31 +366,29 @@ impl Verifier<state::Verify> {
     }
 
     /// Rejects the proving request.
-    pub async fn reject(
-        self,
-        msg: Option<&str>,
-    ) -> Result<Verifier<state::Committed>, VerifierError> {
+    pub async fn reject(mut self, msg: Option<&str>) -> Result<Verifier<state::Committed>> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("verification context was dropped"))?;
         let state::Verify {
-            mux_ctrl,
-            mut mux_fut,
-            mut ctx,
             vm,
             keys,
             tls_transcript,
             ..
         } = self.state;
 
-        mux_fut
-            .poll_with(ctx.io_mut().send(Response::err(msg)))
-            .await?;
+        ctx.io_mut().send(Response::err(msg)).await.map_err(|e| {
+            Error::io()
+                .with_msg("verification failed to send rejection")
+                .with_source(e)
+        })?;
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
+            ctx: Some(ctx),
             state: state::Committed {
-                mux_ctrl,
-                mux_fut,
-                ctx,
                 vm,
                 keys,
                 tls_transcript,
