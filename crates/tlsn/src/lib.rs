@@ -1,4 +1,42 @@
-//! TLSNotary library.
+//! TLSNotary protocol implementation.
+//!
+//! This crate provides the core protocol for generating and verifying proofs
+//! of TLS sessions. A prover can demonstrate to a verifier that specific data
+//! was exchanged with a TLS server, without revealing the full transcript.
+//!
+//! # Overview
+//!
+//! The protocol involves two parties:
+//!
+//! - **Prover** ([`Prover`](prover::Prover)): connects to a TLS server and
+//!   generates proofs about the session.
+//! - **Verifier** ([`Verifier`](verifier::Verifier)): collaborates with the
+//!   prover during the TLS session and verifies the resulting proofs.
+//!
+//! Both parties communicate through an established [`Session`].
+//!
+//! # Workflow
+//!
+//! The protocol has two main phases:
+//!
+//! **Commitment**: The prover and verifier collaborate to construct a TLS
+//! transcript commitment from the prover's communication with a TLS server.
+//! This authenticates the transcript for the verifier, without the verifier
+//! learning the contents.
+//!
+//! **Selective Disclosure**: The prover selectively reveals portions of the
+//! committed transcript to the verifier, proving statements about the data
+//! exchanged with the server.
+//!
+//! ## Steps
+//!
+//! 1. Establish a communication channel between prover and verifier.
+//! 2. Create a [`Session`] on each side from the channel.
+//! 3. Create a [`Prover`](prover::Prover) or [`Verifier`](verifier::Verifier).
+//! 4. Run the commitment phase: the prover connects to the TLS server and
+//!    exchanges data to obtain a commitment to the TLS transcript.
+//! 5. (Optional) Perform selective disclosure: the prover provably reveals
+//!    selected data to the verifier.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]

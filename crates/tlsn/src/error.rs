@@ -1,6 +1,18 @@
 use std::fmt::Display;
 
-/// Crate-level error.
+/// TLSNotary error.
+///
+/// Errors are categorized by kind:
+///
+/// - **User** ([`is_user`](Self::is_user)): e.g. rejected by the remote party.
+/// - **IO** ([`is_io`](Self::is_io)): network or communication failure.
+/// - **Internal** ([`is_internal`](Self::is_internal)): an unknown internal
+///   error in the library.
+/// - **Config** ([`is_config`](Self::is_config)): invalid configuration
+///   provided by the user.
+///
+/// The [`msg`](Self::msg) method returns additional context if available, such
+/// as a rejection message provided by a verifier.
 #[derive(Debug, thiserror::Error)]
 pub struct Error {
     kind: ErrorKind,
@@ -67,6 +79,11 @@ impl Error {
     /// Returns `true` if the error originated from an internal bug.
     pub fn is_internal(&self) -> bool {
         self.kind.is_internal()
+    }
+
+    /// Returns `true` if the error originated from invalid configuration.
+    pub fn is_config(&self) -> bool {
+        self.kind.is_config()
     }
 
     /// Returns the error message if available.
@@ -145,5 +162,9 @@ impl ErrorKind {
 
     fn is_internal(&self) -> bool {
         matches!(self, ErrorKind::Internal)
+    }
+
+    fn is_config(&self) -> bool {
+        matches!(self, ErrorKind::Config)
     }
 }

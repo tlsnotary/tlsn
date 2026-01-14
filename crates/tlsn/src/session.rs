@@ -22,7 +22,21 @@ use crate::{
 /// Maximum concurrency for multi-threaded context.
 const MAX_CONCURRENCY: usize = 8;
 
-/// Session state.
+/// A TLSNotary session over a communication channel.
+///
+/// Wraps an async IO stream and provides multiplexing for the protocol. Use
+/// [`new_prover`](Self::new_prover) or [`new_verifier`](Self::new_verifier) to
+/// create protocol participants.
+///
+/// The session must be polled continuously (either directly or via
+/// [`split`](Self::split)) to drive the underlying connection. After the
+/// session closes, the underlying IO can be reclaimed with
+/// [`try_take`](Self::try_take).
+///
+/// **Important**: The order in which provers and verifiers are created must
+/// match on both sides. For example, if the prover side calls `new_prover`
+/// then `new_verifier`, the verifier side must call `new_verifier` then
+/// `new_prover`.
 #[must_use = "session must be polled continuously to make progress, including during closing."]
 pub struct Session<Io> {
     conn: Option<Connection<Io>>,
