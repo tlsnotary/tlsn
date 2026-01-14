@@ -204,16 +204,16 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     let expected_hash = committed_hash.value.as_bytes().to_vec();
     if committed_hash_in_proof != expected_hash {
         tracing::error!(
-            "❌ The hash in the proof does not match the committed hash in MPC-TLS: {} != {}",
+            "❌ The hash in the proof does not match the committed hash: {} != {}",
             hex::encode(&committed_hash_in_proof),
             hex::encode(&expected_hash)
         );
         return Err(anyhow::anyhow!(
-            "Hash in proof does not match committed hash in MPC-TLS"
+            "Hash in proof does not match committed hash"
         ));
     }
     tracing::info!(
-        "✅ The hash in the proof matches the committed hash in MPC-TLS ({})",
+        "✅ The hash in the proof matches the committed hash ({})",
         hex::encode(&expected_hash)
     );
 

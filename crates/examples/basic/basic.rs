@@ -127,14 +127,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Spawn the Prover to run in the background.
     let prover_task = tokio::spawn(prover_fut);
 
-    // MPC-TLS Handshake.
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(tls_connection).await?;
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
 
-    // MPC-TLS: Send Request and wait for Response.
+    // Send Request and wait for Response.
     let request = Request::builder()
         .uri(uri.clone())
         .header("Host", server_domain)

@@ -2,9 +2,9 @@
 
 This folder contains examples demonstrating how to use the TLSNotary protocol.
 
-* [Interactive](./interactive/README.md): Interactive Prover and Verifier session without a trusted notary.
-* [Attestation](./attestation/README.md): Performing a simple notarization with a trusted notary.
-* [Interactive_zk](./interactive_zk/README.md): Interactive Prover and Verifier session demonstrating zero-knowledge age verification using Noir.
+* [Basic](./basic/README.md): Basic Prover and Verifier session.
+* [Attestation](./attestation/README.md): Issuing an attestation where a Verifier acts as a Notary.
+* [Basic_zk](./basic_zk/README.md): Basic Prover and Verifier session demonstrating zero-knowledge age verification using Noir.
 
 
 Refer to <https://tlsnotary.org/docs/quick_start> for a quick start guide to using TLSNotary with these examples.

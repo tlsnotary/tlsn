@@ -114,14 +114,13 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Spawn the Prover to run in the background.
     let prover_task = tokio::spawn(prover_fut);
 
-    // MPC-TLS Handshake.
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(tls_connection).await?;
 
     // Spawn the connection to run in the background.
     tokio::spawn(connection);
 
-    // MPC-TLS: Send Request and wait for Response.
+    // Send Request and wait for Response.
     let request = Request::builder()
         .uri(uri.clone())
         .header("Host", server_domain)
@@ -134,7 +133,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     if response.status() != StatusCode::OK {
         return Err(anyhow::anyhow!(
-            "MPC-TLS request failed with status {}",
+            "request failed with status {}",
             response.status()
         ));
     }
@@ -173,7 +172,6 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let prove_config = prove_config_builder.build()?;
 
-    // MPC-TLS prove
     let prover_output = prover.prove(&prove_config).await?;
     prover.close().await?;
 
