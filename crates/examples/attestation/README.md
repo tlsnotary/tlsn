@@ -1,21 +1,20 @@
 # Attestation Example
 
-
-This example demonstrates a **TLSNotary attestation workflow**: notarizing data from a server with a trusted third party (Notary), then creating verifiable presentations with selective disclosure of sensitive information to a Verifier.
+This example demonstrates an **attestation workflow**: notarizing data from a server with a trusted third party (Notary), then creating verifiable presentations with selective disclosure of sensitive information to a Verifier.
 
 ## 🔍 How It Works
 
 ```mermaid
 sequenceDiagram
     participant P as Prover
-    participant N as MPC-TLS<br/>Verifier
+    participant N as TLS<br/>Verifier
     participant S as Server<br/>Fixture
     participant V as Attestation<br/>Verifier
 
     Note over P,S: 1. Notarization Phase
-    P->>N: Establish MPC-TLS connection
-    P->>S: Request (MPC-TLS)
-    S->>P: Response (MPC-TLS)
+    P->>N: Establish TLS connection
+    P->>S: Request (TLS)
+    S->>P: Response (TLS)
     N->>P: Issue signed attestation
 
     Note over P: 2. Presentation Phase

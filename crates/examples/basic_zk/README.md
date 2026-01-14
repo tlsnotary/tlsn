@@ -1,4 +1,4 @@
-# Interactive Zero-Knowledge Age Verification with TLSNotary
+# Basic Zero-Knowledge Age Verification with TLSNotary
 
 This example demonstrates **privacy-preserving age verification** using TLSNotary and zero-knowledge proofs. It allows a prover to demonstrate they are 18+ years old without revealing their actual birth date or any other personal information.
 
@@ -10,8 +10,8 @@ sequenceDiagram
     participant P as Prover
     participant V as Verifier
 
-    P->>S: Request tax data (with auth token) (MPC-TLS)
-    S->>P: Tax data including `date_of_birth` (MPC-TLS)
+    P->>S: Request tax data (with auth token) (TLS)
+    S->>P: Tax data including `date_of_birth` (TLS)
     P->>V: Share transcript with redactions
     P->>V: Commit to blinded hash of birth date
     P->>P: Generate ZK proof of age ≥ 18
@@ -22,7 +22,7 @@ sequenceDiagram
 
 ### The Process
 
-1. **MPC-TLS Session**: The Prover fetches tax information containing their birth date, while the Verifier jointly verifies the TLS session to ensure the data comes from the authentic server.
+1. **TLS Commitment**: The Prover fetches tax information containing their birth date, while the Verifier jointly verifies the TLS session to ensure the data comes from the authentic server.
 2. **Selective Disclosure**:
    * The authorization token is **redacted**: the Verifier sees the plaintext request but not the token.
    * The birth date is **committed** as a blinded hash: the Verifier cannot see the date, but the Prover is cryptographically bound to it.  
@@ -61,7 +61,7 @@ The ZK circuit proves: **"I know a birth date that hashes to the committed value
 
 **What the Verifier Learns:**
 - ✅ The prover is 18+ years old
-- ✅ The birth date is authentic (from the MPC-TLS session)
+- ✅ The birth date is authentic (from the TLS session)
 
 Everything else remains private.
 
@@ -74,12 +74,12 @@ Everything else remains private.
 
 2. **Run the age verification** (in a new terminal):
    ```bash
-   SERVER_PORT=4000 cargo run --release --example interactive_zk
+   SERVER_PORT=4000 cargo run --release --example basic_zk
    ```
 
 3. **For detailed logs**:
    ```bash
-   RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release --example interactive_zk
+   RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release --example basic_zk
    ```
 
 ### Expected Output
@@ -106,11 +106,11 @@ Verified received data:
 ### Project Structure
 
 ```
-interactive_zk/
+basic_zk/
 ├── prover.rs                   # Prover implementation
-├── verifier.rs                 # Verifier implementation  
+├── verifier.rs                 # Verifier implementation
 ├── types.rs                    # Shared types
-└── interactive_zk.rs           # Main example runner
+└── basic_zk.rs                 # Main example runner
 ├── noir/                       # Zero-knowledge circuit
 │   ├── src/main.n              # Noir circuit code
 │   ├── target/                 # Compiled circuit artifacts

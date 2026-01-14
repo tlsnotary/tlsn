@@ -43,12 +43,12 @@ noir = { git = "https://github.com/zkmopro/noir-rs", tag = "v1.0.0-beta.8", feat
 ] }
 
 [[example]]
-name = "interactive"
-path = "interactive/interactive.rs"
+name = "basic"
+path = "basic/basic.rs"
 
 [[example]]
-name = "interactive_zk"
-path = "interactive_zk/interactive_zk.rs"
+name = "basic_zk"
+path = "basic_zk/basic_zk.rs"
 
 [[example]]
 name = "attestation_prove"
