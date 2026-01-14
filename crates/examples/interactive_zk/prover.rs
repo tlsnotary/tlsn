@@ -42,14 +42,14 @@ use tlsn::{
 };
 
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use futures::io::AsyncWriteExt as _;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
-#[instrument(skip(verifier_socket, verifier_extra_socket))]
+#[instrument(skip(verifier_socket))]
 pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     verifier_socket: T,
-    mut verifier_extra_socket: T,
     server_addr: &SocketAddr,
     uri: &str,
 ) -> Result<()> {
@@ -177,9 +177,9 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prover_output = prover.prove(&prove_config).await?;
     prover.close().await?;
 
-    // Close the session and wait for the driver to complete.
+    // Close the session and wait for the driver to complete, reclaiming the socket.
     handle.close();
-    driver_task.await??;
+    let mut socket = driver_task.await??;
 
     // Prove birthdate is more than 18 years ago.
     let received_commitments = received_commitments(&prover_output.transcript_commitments);
@@ -195,8 +195,8 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Sent zk proof bundle to verifier
     let serialized_proof = bincode::serialize(&proof_bundle)?;
-    verifier_extra_socket.write_all(&serialized_proof).await?;
-    verifier_extra_socket.shutdown().await?;
+    socket.write_all(&serialized_proof).await?;
+    socket.close().await?;
 
     Ok(())
 }

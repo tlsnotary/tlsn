@@ -17,14 +17,14 @@ use tlsn::{
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use futures::io::AsyncReadExt as _;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
 
-#[instrument(skip(socket, extra_socket))]
+#[instrument(skip(socket))]
 pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
-    mut extra_socket: T,
 ) -> Result<PartialTranscript> {
     // Create a session with the prover.
     let session = Session::new(socket.compat());
@@ -97,9 +97,9 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     verifier.close().await?;
 
-    // Close the session and wait for the driver to complete.
+    // Close the session and wait for the driver to complete, reclaiming the socket.
     handle.close();
-    driver_task.await??;
+    let mut socket = driver_task.await??;
 
     let server_name = server_name.expect("server name should be present");
     let transcript = transcript.expect("transcript should be present");
@@ -137,7 +137,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     // Receive ZKProof information from prover
     let mut buf = Vec::new();
-    extra_socket.read_to_end(&mut buf).await?;
+    socket.read_to_end(&mut buf).await?;
 
     if buf.is_empty() {
         return Err(anyhow::anyhow!("No ZK proof data received from prover"));

@@ -58,7 +58,7 @@ where
     ) -> Result<Prover<prover_state::Initialized>> {
         let ctx = self.mt.new_context().map_err(|e| {
             Error::internal()
-                .with_msg("failed to created new prover")
+                .with_msg("failed to create new prover")
                 .with_source(e)
         })?;
 
@@ -72,7 +72,7 @@ where
     ) -> Result<Verifier<verifier_state::Initialized>> {
         let ctx = self.mt.new_context().map_err(|e| {
             Error::internal()
-                .with_msg("failed to created new verifier")
+                .with_msg("failed to create new verifier")
                 .with_source(e)
         })?;
 
