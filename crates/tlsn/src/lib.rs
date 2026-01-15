@@ -54,6 +54,7 @@ pub(crate) mod transcript_internal;
 pub mod verifier;
 
 pub use error::Error;
+pub use rangeset;
 pub use session::{Session, SessionDriver, SessionHandle};
 pub use tlsn_attestation as attestation;
 pub use tlsn_core::{config, connection, hash, transcript, webpki};

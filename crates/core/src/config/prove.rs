@@ -1,6 +1,9 @@
 //! Proving configuration.
 
-use rangeset::set::{RangeSet, ToRangeSet};
+use rangeset::{
+    iter::{FromRangeIterator, IntoRangeIterator},
+    set::RangeSet,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitRequest};
@@ -84,10 +87,16 @@ impl<'a> ProveConfigBuilder<'a> {
     pub fn reveal(
         &mut self,
         direction: Direction,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
     ) -> Result<&mut Self, ProveConfigError> {
-        let idx = ranges.to_range_set();
+        self.reveal_inner(direction, RangeSet::from_range_iter(ranges))
+    }
 
+    fn reveal_inner(
+        &mut self,
+        direction: Direction,
+        idx: RangeSet<usize>,
+    ) -> Result<&mut Self, ProveConfigError> {
         if idx.end().unwrap_or(0) > self.transcript.len_of_direction(direction) {
             return Err(ProveConfigError(ErrorRepr::IndexOutOfBounds {
                 direction,
@@ -108,25 +117,25 @@ impl<'a> ProveConfigBuilder<'a> {
     /// Reveals the given ranges of the sent data transcript.
     pub fn reveal_sent(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
     ) -> Result<&mut Self, ProveConfigError> {
-        self.reveal(Direction::Sent, ranges)
+        self.reveal_inner(Direction::Sent, RangeSet::from_range_iter(ranges))
     }
 
     /// Reveals all of the sent data transcript.
     pub fn reveal_sent_all(&mut self) -> Result<&mut Self, ProveConfigError> {
         let len = self.transcript.len_of_direction(Direction::Sent);
         let (sent, _) = self.reveal.get_or_insert_default();
-        sent.union_mut(&(0..len));
+        sent.union_mut(0..len);
         Ok(self)
     }
 
     /// Reveals the given ranges of the received data transcript.
     pub fn reveal_recv(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
     ) -> Result<&mut Self, ProveConfigError> {
-        self.reveal(Direction::Received, ranges)
+        self.reveal_inner(Direction::Received, RangeSet::from_range_iter(ranges))
     }
 
     /// Reveals all of the received data transcript.

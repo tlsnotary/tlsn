@@ -1,9 +1,8 @@
 //! Transcript proofs.
 
 use rangeset::{
-    iter::RangeIterator,
+    iter::{FromRangeIterator, IntoRangeIterator, RangeIterator},
     ops::{Cover, Set},
-    set::ToRangeSet,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt};
@@ -289,11 +288,17 @@ impl<'a> TranscriptProofBuilder<'a> {
     /// * `direction` - The direction of the transcript.
     pub fn reveal(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
         direction: Direction,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
-        let idx = ranges.to_range_set();
+        self.reveal_inner(RangeSet::from_range_iter(ranges), direction)
+    }
 
+    fn reveal_inner(
+        &mut self,
+        idx: RangeSet<usize>,
+        direction: Direction,
+    ) -> Result<&mut Self, TranscriptProofBuilderError> {
         if idx.end().unwrap_or(0) > self.transcript.len_of_direction(direction) {
             return Err(TranscriptProofBuilderError::new(
                 BuilderErrorKind::Index,
@@ -333,9 +338,9 @@ impl<'a> TranscriptProofBuilder<'a> {
     /// * `ranges` - The ranges to reveal.
     pub fn reveal_sent(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
-        self.reveal(ranges, Direction::Sent)
+        self.reveal_inner(RangeSet::from_range_iter(ranges), Direction::Sent)
     }
 
     /// Reveals the given ranges in the received transcript.
@@ -345,9 +350,9 @@ impl<'a> TranscriptProofBuilder<'a> {
     /// * `ranges` - The ranges to reveal.
     pub fn reveal_recv(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
     ) -> Result<&mut Self, TranscriptProofBuilderError> {
-        self.reveal(ranges, Direction::Received)
+        self.reveal_inner(RangeSet::from_range_iter(ranges), Direction::Received)
     }
 
     /// Builds the transcript proof.

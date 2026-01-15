@@ -6908,14 +6908,13 @@ dependencies = [
 [[package]]
 name = "spansy"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6f1a934#6f1a934bc4ce358c268b26abf4fd086267b91c70"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=adfc5ba#adfc5ba549e73d5f7d216b0251a906d7065d7f7e"
 dependencies = [
  "bytes",
  "httparse",
  "pest",
  "pest_derive",
  "rangeset",
- "serde",
  "thiserror 1.0.69",
 ]
 

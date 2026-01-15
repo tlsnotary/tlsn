@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use spansy::{json::KeyValue, Spanned};
+use spansy::json::KeyValue;
 use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
@@ -91,7 +91,7 @@ pub trait JsonCommit {
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
         builder
-            .commit(&object.without_pairs(), direction)
+            .commit(object.without_pairs(), direction)
             .map_err(|e| JsonCommitError::new_with_source("failed to commit object", e))?;
 
         for kv in &object.elems {
@@ -117,14 +117,12 @@ pub trait JsonCommit {
         kv: &KeyValue,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
-        builder
-            .commit(&kv.without_value(), direction)
-            .map_err(|e| {
-                JsonCommitError::new_with_source(
-                    "failed to commit key-value pair excluding the value",
-                    e,
-                )
-            })?;
+        builder.commit(kv.without_value(), direction).map_err(|e| {
+            JsonCommitError::new_with_source(
+                "failed to commit key-value pair excluding the value",
+                e,
+            )
+        })?;
 
         self.commit_value(builder, &kv.value, direction)
     }
@@ -151,7 +149,7 @@ pub trait JsonCommit {
 
         if !array.elems.is_empty() {
             builder
-                .commit(&array.without_values(), direction)
+                .commit(array.without_values(), direction)
                 .map_err(|e| {
                     JsonCommitError::new_with_source("failed to commit array excluding values", e)
                 })?;
@@ -177,7 +175,7 @@ pub trait JsonCommit {
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
         // Skip empty strings.
-        if string.span().is_empty() {
+        if string.view().is_empty() {
             return Ok(());
         }
 

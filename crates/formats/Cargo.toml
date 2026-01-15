@@ -10,7 +10,7 @@ workspace = true
 tlsn-core = { workspace = true }
 
 bytes = { workspace = true }
-spansy = { workspace = true, features = ["serde"] }
+spansy = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
