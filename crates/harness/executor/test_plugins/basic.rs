@@ -55,7 +55,7 @@ async fn prover(provider: &IoProvider) {
         .await
         .unwrap();
 
-    let (tls_connection, prover_fut) = prover
+    let (tls_connection, mut prover) = prover
         .connect(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
@@ -69,7 +69,10 @@ async fn prover(provider: &IoProvider) {
         .await
         .unwrap();
 
-    let prover_task = spawn(prover_fut);
+    let prover = spawn(async {
+        (&mut prover).await.unwrap();
+        prover.finish()
+    });
 
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
@@ -96,7 +99,7 @@ async fn prover(provider: &IoProvider) {
 
     let _ = response.into_body().collect().await.unwrap().to_bytes();
 
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let mut prover = prover.await.unwrap().unwrap();
 
     let (sent_len, recv_len) = prover.transcript().len();
 
