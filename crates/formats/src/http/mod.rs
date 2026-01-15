@@ -34,10 +34,10 @@ pub struct HttpTranscript {
 impl HttpTranscript {
     /// Parses the HTTP transcript from the provided transcripts.
     pub fn parse(transcript: &Transcript) -> Result<Self, spansy::ParseError> {
-        let requests = Requests::new_from_slice(transcript.sent())
-            .collect::<Result<Vec<_>, _>>()?;
-        let responses = Responses::new_from_slice(transcript.received())
-            .collect::<Result<Vec<_>, _>>()?;
+        let requests =
+            Requests::new_from_slice(transcript.sent()).collect::<Result<Vec<_>, _>>()?;
+        let responses =
+            Responses::new_from_slice(transcript.received()).collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             requests,

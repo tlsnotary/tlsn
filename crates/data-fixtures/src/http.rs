@@ -50,4 +50,24 @@ pub mod response {
         "An OK response with a JSON body.",
         "../data/http/response_json"
     );
+    define_fixture!(
+        OK_CHUNKED_TEXT,
+        "An OK response with chunked transfer encoding and text body.",
+        "../data/http/response_chunked_text"
+    );
+    define_fixture!(
+        OK_CHUNKED_JSON,
+        "An OK response with chunked transfer encoding and JSON body.",
+        "../data/http/response_chunked_json"
+    );
+    define_fixture!(
+        OK_CHUNKED_TEXT_MULTI,
+        "An OK response with chunked transfer encoding and text body split across multiple chunks.",
+        "../data/http/response_chunked_text_multi"
+    );
+    define_fixture!(
+        OK_CHUNKED_JSON_MULTI,
+        "An OK response with chunked transfer encoding and JSON body split across multiple chunks.",
+        "../data/http/response_chunked_json_multi"
+    );
 }

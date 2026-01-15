@@ -445,6 +445,10 @@ mod tests {
     #[case::empty_header(fixtures::response::OK_EMPTY_HEADER)]
     #[case::json(fixtures::response::OK_JSON)]
     #[case::text(fixtures::response::OK_TEXT)]
+    #[case::chunked_text(fixtures::response::OK_CHUNKED_TEXT)]
+    #[case::chunked_json(fixtures::response::OK_CHUNKED_JSON)]
+    #[case::chunked_text_multi(fixtures::response::OK_CHUNKED_TEXT_MULTI)]
+    #[case::chunked_json_multi(fixtures::response::OK_CHUNKED_JSON_MULTI)]
     fn test_http_default_commit_response(#[case] src: &'static [u8]) {
         let transcript = Transcript::new([], src);
         let response = parse_response(Bytes::from_static(src)).unwrap();

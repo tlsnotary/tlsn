@@ -117,14 +117,12 @@ pub trait JsonCommit {
         kv: &KeyValue,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
-        builder
-            .commit(kv.without_value(), direction)
-            .map_err(|e| {
-                JsonCommitError::new_with_source(
-                    "failed to commit key-value pair excluding the value",
-                    e,
-                )
-            })?;
+        builder.commit(kv.without_value(), direction).map_err(|e| {
+            JsonCommitError::new_with_source(
+                "failed to commit key-value pair excluding the value",
+                e,
+            )
+        })?;
 
         self.commit_value(builder, &kv.value, direction)
     }
