@@ -125,10 +125,10 @@ async fn run_prover(prover: Prover) -> (Transcript, ProverOutput) {
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
         .await
         .unwrap();
-    tls_connection.close().await.unwrap();
 
     let mut response = vec![0u8; 1024];
     tls_connection.read_to_end(&mut response).await.unwrap();
+    tls_connection.close().await.unwrap();
 
     let _ = server_task.await.unwrap();
 

@@ -318,18 +318,18 @@ impl TlsClient for MpcTlsClient {
             }
             State::CloseBusy { mut mpc, mut fut } => {
                 trace!("inner client is busy closing");
-                match (fut.poll_unpin(cx)?, mpc.poll_unpin(cx)?) {
-                    (Poll::Ready(inner), Poll::Ready((ctx, transcript))) => {
+                match (mpc.poll_unpin(cx)?, fut.poll_unpin(cx)?) {
+                    (Poll::Ready((ctx, transcript)), Poll::Ready(inner)) => {
                         self.state = State::Finalizing {
                             fut: Box::pin(inner.finalize(ctx, transcript)),
                         };
                         self.poll(cx)
                     }
-                    (Poll::Ready(inner), Poll::Pending) => {
+                    (Poll::Pending, Poll::Ready(inner)) => {
                         self.state = State::MpcStop { mpc, inner };
                         Poll::Pending
                     }
-                    (Poll::Pending, Poll::Ready((ctx, transcript))) => {
+                    (Poll::Ready((ctx, transcript)), Poll::Pending) => {
                         self.state = State::Finishing {
                             ctx,
                             transcript: Box::new(transcript),
@@ -470,21 +470,23 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn stop(mut self: Box<Self>) -> Result<Box<Self>, TlsnError> {
-        self.tls
-            .process_new_packets()
-            .await
-            .map_err(|err| TlsnError::internal().with_source(err))?;
-        if !self.mpc_stopped
-            && self.tls.plaintext_is_empty()
-            && self
-                .tls
-                .is_empty()
+        if !self.mpc_stopped {
+            self.tls
+                .process_new_packets()
                 .await
-                .map_err(|err| TlsnError::internal().with_source(err))?
-        {
-            self.mpc_ctrl.stop().await?;
-            self.mpc_stopped = true;
-            debug!("stopped mpc");
+                .map_err(|err| TlsnError::internal().with_source(err))?;
+
+            if self.tls.plaintext_is_empty()
+                && self
+                    .tls
+                    .is_empty()
+                    .await
+                    .map_err(|err| TlsnError::internal().with_source(err))?
+            {
+                self.mpc_ctrl.stop().await?;
+                self.mpc_stopped = true;
+                debug!("stopped mpc");
+            }
         }
 
         Ok(self)

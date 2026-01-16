@@ -240,6 +240,7 @@ impl Verifier<state::CommitAccepted> {
                 .with_msg("tag verification failed")
                 .with_source(e)
         })?;
+        debug!("MPC-TLS done");
 
         Ok(Verifier {
             config: self.config,
