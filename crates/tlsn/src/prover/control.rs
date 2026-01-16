@@ -19,11 +19,11 @@ impl ProverControl {
     /// # Arguments
     ///
     /// * `enable` - If decryption should be enabled or disabled.
-    pub fn enable_decryption(&self, enable: bool) -> Result<(), ControlError> {
+    pub fn enable_decryption(&self, enable: bool) -> Result<(), ProverControlError> {
         self.handle.enable_decryption(enable)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error("Unable to send control command to prover.")]
-pub struct ControlError;
+pub struct ProverControlError;

@@ -51,8 +51,7 @@ impl AsyncWrite for TlsConnection {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
-        let duplex = Pin::new(&mut self.duplex);
-        duplex.poll_write(cx, buf)
+        Pin::new(&mut self.duplex).poll_write(cx, buf)
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
@@ -60,7 +59,6 @@ impl AsyncWrite for TlsConnection {
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        let duplex = Pin::new(&mut self.duplex);
-        duplex.poll_close(cx)
+        Pin::new(&mut self.duplex).poll_close(cx)
     }
 }

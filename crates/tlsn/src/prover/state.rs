@@ -70,13 +70,13 @@ pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
 impl ProverState for CommitAccepted {}
-impl ProverState for Committed {}
 impl<S> ProverState for Connected<S> {}
+impl ProverState for Committed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl Sealed for super::CommitAccepted {}
-    impl Sealed for super::Committed {}
     impl<S> Sealed for super::Connected<S> {}
+    impl Sealed for super::Committed {}
 }

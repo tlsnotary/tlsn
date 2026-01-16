@@ -1,6 +1,6 @@
 //! Provides a TLS client.
 
-use crate::{mpz::ProverZk, prover::control::ControlError};
+use crate::{mpz::ProverZk, prover::control::ProverControlError};
 use mpc_tls::SessionKeys;
 use std::{
     sync::mpsc::{Sender, SyncSender, sync_channel},
@@ -67,10 +67,10 @@ pub(crate) enum Command {
 }
 
 impl ClientHandle {
-    pub(crate) fn enable_decryption(&self, enable: bool) -> Result<(), ControlError> {
+    pub(crate) fn enable_decryption(&self, enable: bool) -> Result<(), ProverControlError> {
         self.sender
             .send(Command::SetDecrypt(enable))
-            .map_err(|_| ControlError)
+            .map_err(|_| ProverControlError)
     }
 
     pub(crate) fn is_decrypting(&self) -> bool {

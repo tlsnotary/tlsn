@@ -18,13 +18,13 @@ web = ["dep:web-spawn"]
 
 [dependencies]
 tlsn-attestation = { workspace = true }
+tlsn-cipher = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
-tlsn-tls-client = { workspace = true }
-tlsn-tls-core = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
 tlsn-mux = { workspace = true }
-tlsn-cipher = { workspace = true }
+tlsn-tls-client = { workspace = true }
+tlsn-tls-core = { workspace = true }
 
 futures-plex = { workspace = true }
 serio = { workspace = true, features = ["compat"] }

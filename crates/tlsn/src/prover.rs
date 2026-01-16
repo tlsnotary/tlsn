@@ -308,6 +308,35 @@ where
         ProverControl { handle }
     }
 
+    /// Returns a committed prover after the TLS session has completed.
+    pub fn finish(self) -> Result<Prover<state::Committed>, Error> {
+        let TlsOutput {
+            ctx,
+            vm,
+            keys,
+            tls_transcript,
+            transcript,
+        } = self
+            .state
+            .output
+            .ok_or(Error::user().with_msg("prover has not yet closed the connection"))?;
+
+        let prover = Prover {
+            config: self.config,
+            span: self.span,
+            ctx: Some(ctx),
+            state: state::Committed {
+                vm,
+                server_name: self.state.server_name,
+                keys,
+                tls_transcript,
+                transcript,
+            },
+        };
+
+        Ok(prover)
+    }
+
     fn io_client_conn(
         state: &mut ConnectedProj<S>,
         cx: &mut std::task::Context<'_>,
@@ -397,35 +426,6 @@ where
         }
 
         Ok(progress)
-    }
-
-    /// Returns a committed prover after the TLS session has completed.
-    pub fn finish(self) -> Result<Prover<state::Committed>, Error> {
-        let TlsOutput {
-            ctx,
-            vm,
-            keys,
-            tls_transcript,
-            transcript,
-        } = self
-            .state
-            .output
-            .ok_or(Error::user().with_msg("prover has not yet closed the connection"))?;
-
-        let prover = Prover {
-            config: self.config,
-            span: self.span,
-            ctx: Some(ctx),
-            state: state::Committed {
-                vm,
-                server_name: self.state.server_name,
-                keys,
-                tls_transcript,
-                transcript,
-            },
-        };
-
-        Ok(prover)
     }
 }
 

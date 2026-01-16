@@ -88,7 +88,6 @@ impl MpcTlsClient {
             vm,
             keys,
             mpc_ctrl,
-            client_closed: false,
             mpc_stopped: false,
         };
         let (sender, receiver) = channel();
@@ -105,7 +104,9 @@ impl MpcTlsClient {
     }
 
     fn inner_client_mut(&mut self) -> Option<&mut ClientConnection> {
-        if let State::Active { inner, .. } | State::MpcStop { inner, .. } = &mut self.state {
+        if let State::Active { inner, .. } | State::MpcStop { inner, .. } = &mut self.state
+            && !inner.mpc_stopped
+        {
             Some(&mut inner.tls)
         } else {
             None
@@ -113,7 +114,9 @@ impl MpcTlsClient {
     }
 
     fn inner_client(&self) -> Option<&ClientConnection> {
-        if let State::Active { inner, .. } | State::MpcStop { inner, .. } = &self.state {
+        if let State::Active { inner, .. } | State::MpcStop { inner, .. } = &self.state
+            && !inner.mpc_stopped
+        {
             Some(&inner.tls)
         } else {
             None
@@ -409,7 +412,6 @@ struct InnerState {
     vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
     keys: SessionKeys,
     mpc_ctrl: LeaderCtrl,
-    client_closed: bool,
     mpc_stopped: bool,
 }
 
@@ -443,12 +445,9 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn client_close(mut self: Box<Self>) -> Result<Box<Self>, TlsnError> {
-        if !self.client_closed {
-            debug!("sending close notify");
-            if let Err(e) = self.tls.send_close_notify().await {
-                warn!("failed to send close_notify to server: {}", e);
-            }
-            self.client_closed = true;
+        debug!("sending close notify");
+        if let Err(e) = self.tls.send_close_notify().await {
+            warn!("failed to send close_notify to server: {}", e);
         }
         self.run().await
     }
