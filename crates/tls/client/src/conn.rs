@@ -457,6 +457,9 @@ impl ConnectionCommon {
             return Err(Error::CorruptMessage);
         }
 
+        // Process outgoing plaintext buffer and encrypt messages.
+        self.flush_plaintext().await?;
+
         // Process new messages.
         while let Some(msg) = self.message_deframer.frames.pop_front() {
             // If we're not decrypting yet, we process it immediately. Otherwise it will be
@@ -508,25 +511,22 @@ impl ConnectionCommon {
         Ok(state)
     }
 
-    /// Write buffer into connection.
-    pub async fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        if let Ok(st) = &mut self.state {
-            st.perhaps_write_key_update(&mut self.common_state).await;
+    /// Writes plaintext `buf` into an internal buffer. May not fully process the
+    /// whole buffer and returns the processed length.
+    pub fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
+        if buf.is_empty() {
+            // Don't send empty fragments.
+            return Ok(0);
         }
-        self.common_state.send_some_plaintext(buf).await
+
+        let len = self.sendable_plaintext.append_limited_copy(buf);
+        Ok(len)
     }
 
-    /// Write entire buffer into connection.
-    pub async fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        let mut pos = 0;
-        while pos < buf.len() {
-            pos += self.write_plaintext(&buf[pos..]).await?;
-        }
-        self.backend.flush().await?;
-        while let Some(msg) = self.backend.next_outgoing().await? {
-            self.queue_tls_message(msg);
-        }
-        Ok(pos)
+    /// Writes the entire plaintext `buf` into an internal buffer.
+    pub fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<(), Error> {
+        self.sendable_plaintext.append(buf.to_vec());
+        Ok(())
     }
 
     /// Read TLS content from `rd`.  This method does internal
@@ -690,6 +690,11 @@ impl CommonState {
         self.received_plaintext.is_empty()
     }
 
+    /// Returns true if the buffer for sendable plaintext is full.
+    pub fn sendable_plaintext_is_full(&self) -> bool {
+        self.sendable_plaintext.is_full()
+    }
+
     /// Returns true if the connection is currently performing the TLS
     /// handshake.
     ///
@@ -780,15 +785,6 @@ impl CommonState {
             }
             Err(e) => Err(e),
         }
-    }
-
-    /// Send plaintext application data, fragmenting and
-    /// encrypting it as it goes out.
-    ///
-    /// If internal buffers are too small, this function will not accept
-    /// all the data.
-    pub(crate) async fn send_some_plaintext(&mut self, data: &[u8]) -> Result<usize, Error> {
-        self.send_plain(data, Limit::Yes).await
     }
 
     // Changing the keys must not span any fragmented handshake
@@ -931,32 +927,6 @@ impl CommonState {
         self.sendable_tls.write_to_async(wr).await
     }
 
-    /// Encrypt and send some plaintext `data`.  `limit` controls
-    /// whether the per-connection buffer limits apply.
-    ///
-    /// Returns the number of bytes written from `data`: this might
-    /// be less than `data.len()` if buffer limits were exceeded.
-    async fn send_plain(&mut self, data: &[u8], limit: Limit) -> Result<usize, Error> {
-        if !self.may_send_application_data {
-            // If we haven't completed handshaking, buffer
-            // plaintext to send once we do.
-            let len = match limit {
-                Limit::Yes => self.sendable_plaintext.append_limited_copy(data),
-                Limit::No => self.sendable_plaintext.append(data.to_vec()),
-            };
-            return Ok(len);
-        }
-
-        debug_assert!(self.record_layer.is_encrypting());
-
-        if data.is_empty() {
-            // Don't send empty fragments.
-            return Ok(0);
-        }
-
-        self.send_appdata_encrypt(data, limit).await
-    }
-
     pub(crate) async fn start_outgoing_traffic(&mut self) -> Result<(), Error> {
         self.may_send_application_data = true;
         self.flush_plaintext().await
@@ -1012,15 +982,14 @@ impl CommonState {
         self.sendable_tls.set_limit(limit);
     }
 
-    /// Send any buffered plaintext.  Plaintext is buffered if
-    /// written during handshake.
-    async fn flush_plaintext(&mut self) -> Result<(), Error> {
+    /// Send and encrypt any buffered plaintext. Does nothing during handshake.
+    pub async fn flush_plaintext(&mut self) -> Result<(), Error> {
         if !self.may_send_application_data {
             return Ok(());
         }
 
         while let Some(buf) = self.sendable_plaintext.pop() {
-            self.send_plain(&buf, Limit::No).await?;
+            self.send_appdata_encrypt(&buf, Limit::No).await?;
         }
 
         Ok(())

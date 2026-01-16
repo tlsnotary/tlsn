@@ -95,7 +95,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover
+    let (tls_connection, mut prover) = prover
         .connect(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
@@ -112,7 +112,10 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the Prover to run in the background.
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(async {
+        (&mut prover).await?;
+        prover.finish()
+    });
 
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(tls_connection).await?;

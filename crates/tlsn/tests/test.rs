@@ -103,7 +103,7 @@ async fn run_prover(prover: Prover) -> (Transcript, ProverOutput) {
         .await
         .unwrap();
 
-    let (mut tls_connection, prover_fut) = prover
+    let (mut tls_connection, mut prover) = prover
         .connect(
             TlsClientConfig::builder()
                 .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
@@ -116,16 +116,19 @@ async fn run_prover(prover: Prover) -> (Transcript, ProverOutput) {
         )
         .await
         .unwrap();
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(async {
+        (&mut prover).await.unwrap();
+        prover.finish()
+    });
 
     tls_connection
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
         .await
         .unwrap();
-    tls_connection.close().await.unwrap();
 
     let mut response = vec![0u8; 1024];
     tls_connection.read_to_end(&mut response).await.unwrap();
+    tls_connection.close().await.unwrap();
 
     let _ = server_task.await.unwrap();
 

@@ -6,7 +6,6 @@ use enum_try_as_inner::EnumTryAsInner;
 use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
-use tls_client_async::TlsConnection;
 use tlsn::{
     config::{
         prove::ProveConfig,
@@ -14,7 +13,7 @@ use tlsn::{
         tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
     },
     connection::ServerName,
-    prover::{state, Prover},
+    prover::{state, Prover, TlsConnection},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
     Session, SessionHandle,
 };
@@ -183,17 +182,19 @@ impl JsProver {
 
         info!("connected to server");
 
-        let (tls_conn, prover_fut) = prover
+        let (tls_conn, mut prover) = prover
             .connect(tls_config, server_conn.into_io())
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         info!("sending request");
 
-        let (response, prover) = futures::try_join!(
-            send_request(tls_conn, request),
-            prover_fut.map_err(|e| JsError::new(&e.to_string()))
-        )?;
+        let (response, prover) = futures::try_join!(send_request(tls_conn, request), async {
+            (&mut prover)
+                .map_err(|e| JsError::new(&e.to_string()))
+                .await?;
+            prover.finish().map_err(|e| JsError::new(&e.to_string()))
+        })?;
 
         info!("response received");
 
