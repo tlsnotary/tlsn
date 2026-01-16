@@ -5,8 +5,7 @@ edition = "2024"
 publish = false
 
 [features]
-# Disable tracing events as a workaround for issue 959. 
-default = ["tracing/release_max_level_off"]
+default = []
 # Used to debug the executor itself.
 debug = []
 

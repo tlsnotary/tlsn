@@ -12,6 +12,7 @@ use harness_core::{
 
 use crate::Executor;
 
+#[allow(unused_imports)]
 pub use tlsn_wasm::*;
 
 unsafe extern "C" {
