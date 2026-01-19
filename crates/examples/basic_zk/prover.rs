@@ -20,7 +20,7 @@ use noir::{
 use serde_json::Value;
 use spansy::{
     http::{BodyContent, Requests, Responses},
-    Spanned,
+    json::JsonValue,
 };
 use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn::{
@@ -32,6 +32,7 @@ use tlsn::{
     },
     connection::ServerName,
     hash::HashAlgId,
+    rangeset::iter::{IntoRangeIterator, RangeIterator},
     transcript::{
         hash::{PlaintextHash, PlaintextHashSecret},
         Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitmentKind,
@@ -219,18 +220,11 @@ fn reveal_request(request: &[u8], builder: &mut ProveConfigBuilder<'_>) -> Resul
         .next()
         .ok_or_else(|| anyhow::anyhow!("Authorization header not found"))?;
 
-    let start_pos = authorization_header
-        .span()
-        .indices()
-        .min()
-        .ok_or_else(|| anyhow::anyhow!("Could not find authorization header start position"))?
-        + header::AUTHORIZATION.as_str().len()
-        + 2;
-    let end_pos =
-        start_pos + authorization_header.span().len() - header::AUTHORIZATION.as_str().len() - 2;
-
-    builder.reveal_sent(&(0..start_pos))?;
-    builder.reveal_sent(&(end_pos..request.len()))?;
+    builder.reveal_sent(
+        // Subtract the header value ranges from the request.
+        req.into_range_iter()
+            .difference(&authorization_header.value),
+    )?;
 
     Ok(())
 }
@@ -250,34 +244,25 @@ fn reveal_received(
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Response body not found"))?;
 
-    let BodyContent::Json(json) = &body.content else {
+    let BodyContent::Json(JsonValue::Object(json)) = &body.content else {
         return Err(anyhow::anyhow!("Expected JSON body content"));
     };
 
     // reveal tax year
     let tax_year = json
-        .get("tax_year")
+        .elems
+        .iter()
+        .find(|kv| kv.key == "tax_year")
         .ok_or_else(|| anyhow::anyhow!("tax_year field not found in JSON"))?;
-    let start_pos = tax_year
-        .span()
-        .indices()
-        .min()
-        .ok_or_else(|| anyhow::anyhow!("Could not find tax_year start position"))?
-        - 11;
-    let end_pos = tax_year
-        .span()
-        .indices()
-        .max()
-        .ok_or_else(|| anyhow::anyhow!("Could not find tax_year end position"))?
-        + 1;
-    builder.reveal_recv(&(start_pos..end_pos))?;
+
+    builder.reveal_recv(tax_year)?;
 
     // commit to hash of date of birth
     let dob = json
         .get("taxpayer.date_of_birth")
         .ok_or_else(|| anyhow::anyhow!("taxpayer.date_of_birth field not found in JSON"))?;
 
-    transcript_commitment_builder.commit_recv(dob.span())?;
+    transcript_commitment_builder.commit_recv(dob)?;
 
     Ok(())
 }

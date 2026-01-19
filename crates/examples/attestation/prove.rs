@@ -9,7 +9,6 @@ use clap::Parser;
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
-use spansy::Spanned;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::oneshot::{self, Receiver, Sender},
@@ -193,18 +192,17 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
 
-    let body_content = &transcript.responses[0].body.as_ref().unwrap().content;
-    let body = String::from_utf8_lossy(body_content.span().as_bytes());
-
-    match body_content {
+    let response_body = transcript.responses[0].body.as_ref().unwrap();
+    let body_bytes = response_body.content_data();
+    let body_str = String::from_utf8_lossy(&body_bytes);
+    match &response_body.content {
         tlsn_formats::http::BodyContent::Json(_json) => {
-            let parsed = serde_json::from_str::<serde_json::Value>(&body)?;
+            let parsed = serde_json::from_str::<serde_json::Value>(&body_str)?;
             info!("{}", serde_json::to_string_pretty(&parsed)?);
         }
-        tlsn_formats::http::BodyContent::Unknown(_span) => {
-            info!("{}", &body);
+        _ => {
+            info!("{}", &body_str);
         }
-        _ => {}
     }
 
     // Commit to the transcript.

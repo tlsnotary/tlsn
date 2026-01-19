@@ -44,7 +44,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     // previously.
     let request = &transcript.requests[0];
     // Reveal the structure of the request without the headers or body.
-    builder.reveal_sent(&request.without_data())?;
+    builder.reveal_sent(request.without_data())?;
     // Reveal the request target.
     builder.reveal_sent(&request.request.target)?;
     // Reveal all request headers except the values of User-Agent and Authorization.
@@ -60,21 +60,21 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
         {
             builder.reveal_sent(header)?;
         } else {
-            builder.reveal_sent(&header.without_value())?;
+            builder.reveal_sent(header.without_value())?;
         }
     }
 
     // Reveal only parts of the response.
     let response = &transcript.responses[0];
     // Reveal the structure of the response without the headers or body.
-    builder.reveal_recv(&response.without_data())?;
+    builder.reveal_recv(response.without_data())?;
     // Reveal all response headers.
     for header in &response.headers {
         builder.reveal_recv(header)?;
     }
 
-    let content = &response.body.as_ref().unwrap().content;
-    match content {
+    let body = response.body.as_ref().unwrap();
+    match &body.content {
         tlsn_formats::http::BodyContent::Json(json) => {
             // For experimentation, reveal the entire response or just a selection.
             let reveal_all = false;
@@ -86,10 +86,9 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
                 builder.reveal_recv(json.get("meta.version").unwrap())?;
             }
         }
-        tlsn_formats::http::BodyContent::Unknown(span) => {
-            builder.reveal_recv(span)?;
+        _ => {
+            builder.reveal_recv(body)?;
         }
-        _ => {}
     }
 
     let transcript_proof = builder.build()?;

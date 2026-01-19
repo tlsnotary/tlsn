@@ -1,6 +1,5 @@
 use std::error::Error;
 
-use spansy::Spanned;
 use tlsn_core::transcript::{Direction, TranscriptCommitConfigBuilder};
 
 use crate::{
@@ -130,7 +129,7 @@ pub trait HttpCommit {
 
         if !request.headers.is_empty() || request.body.is_some() {
             builder
-                .commit(&request.without_data(), direction)
+                .commit(request.without_data(), direction)
                 .map_err(|e| {
                     HttpCommitError::new_with_source(
                         MessageKind::Request,
@@ -207,9 +206,9 @@ pub trait HttpCommit {
             )
         })?;
 
-        if !header.value.span().is_empty() {
+        if !header.value.view().is_empty() {
             builder
-                .commit(&header.without_value(), direction)
+                .commit(header.without_value(), direction)
                 .map_err(|e| {
                     HttpCommitError::new_with_source(
                         MessageKind::Request,
@@ -256,7 +255,7 @@ pub trait HttpCommit {
                         )
                     })?;
             }
-            body => {
+            _ => {
                 builder.commit(body, direction).map_err(|e| {
                     HttpCommitError::new_with_source(
                         MessageKind::Request,
@@ -297,7 +296,7 @@ pub trait HttpCommit {
 
         if !response.headers.is_empty() || response.body.is_some() {
             builder
-                .commit(&response.without_data(), direction)
+                .commit(response.without_data(), direction)
                 .map_err(|e| {
                     HttpCommitError::new_with_source(
                         MessageKind::Response,
@@ -344,9 +343,9 @@ pub trait HttpCommit {
             )
         })?;
 
-        if !header.value.span().is_empty() {
+        if !header.value.view().is_empty() {
             builder
-                .commit(&header.without_value(), direction)
+                .commit(header.without_value(), direction)
                 .map_err(|e| {
                     HttpCommitError::new_with_source(
                         MessageKind::Response,
@@ -393,10 +392,10 @@ pub trait HttpCommit {
                         )
                     })?;
             }
-            body => {
+            _ => {
                 builder.commit(body, direction).map_err(|e| {
                     HttpCommitError::new_with_source(
-                        MessageKind::Request,
+                        MessageKind::Response,
                         "failed to commit to unknown content body",
                         e,
                     )
@@ -417,6 +416,7 @@ impl HttpCommit for DefaultHttpCommitter {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
     use rstest::*;
     use spansy::http::{parse_request, parse_response};
     use tlsn_core::transcript::Transcript;
@@ -429,7 +429,7 @@ mod tests {
     #[case::post_json(fixtures::request::POST_JSON)]
     fn test_http_default_commit_request(#[case] src: &'static [u8]) {
         let transcript = Transcript::new(src, []);
-        let request = parse_request(src).unwrap();
+        let request = parse_request(Bytes::from_static(src)).unwrap();
         let mut committer = DefaultHttpCommitter::default();
         let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
 
@@ -445,9 +445,13 @@ mod tests {
     #[case::empty_header(fixtures::response::OK_EMPTY_HEADER)]
     #[case::json(fixtures::response::OK_JSON)]
     #[case::text(fixtures::response::OK_TEXT)]
+    #[case::chunked_text(fixtures::response::OK_CHUNKED_TEXT)]
+    #[case::chunked_json(fixtures::response::OK_CHUNKED_JSON)]
+    #[case::chunked_text_multi(fixtures::response::OK_CHUNKED_TEXT_MULTI)]
+    #[case::chunked_json_multi(fixtures::response::OK_CHUNKED_JSON_MULTI)]
     fn test_http_default_commit_response(#[case] src: &'static [u8]) {
         let transcript = Transcript::new([], src);
-        let response = parse_response(src).unwrap();
+        let response = parse_response(Bytes::from_static(src)).unwrap();
         let mut committer = DefaultHttpCommitter::default();
         let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
 

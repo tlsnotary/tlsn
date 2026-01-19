@@ -2,7 +2,7 @@
 
 use std::{collections::HashSet, fmt};
 
-use rangeset::set::ToRangeSet;
+use rangeset::iter::{FromRangeIterator, IntoRangeIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -120,12 +120,19 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     /// * `kind` - The kind of commitment.
     pub fn commit_with_kind(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
         direction: Direction,
         kind: TranscriptCommitmentKind,
     ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
-        let idx = ranges.to_range_set();
+        self.commit_with_kind_inner(RangeSet::from_range_iter(ranges), direction, kind)
+    }
 
+    fn commit_with_kind_inner(
+        &mut self,
+        idx: RangeSet<usize>,
+        direction: Direction,
+        kind: TranscriptCommitmentKind,
+    ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
         if idx.end().unwrap_or(0) > self.transcript.len_of_direction(direction) {
             return Err(TranscriptCommitConfigBuilderError::new(
                 ErrorKind::Index,
@@ -151,10 +158,14 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     /// * `direction` - The direction of the transcript.
     pub fn commit(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
         direction: Direction,
     ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
-        self.commit_with_kind(ranges, direction, self.default_kind)
+        self.commit_with_kind_inner(
+            RangeSet::from_range_iter(ranges),
+            direction,
+            self.default_kind,
+        )
     }
 
     /// Adds a commitment with the default kind to the sent data transcript.
@@ -164,9 +175,13 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     /// * `ranges` - The ranges of the commitment.
     pub fn commit_sent(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
     ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
-        self.commit(ranges, Direction::Sent)
+        self.commit_with_kind_inner(
+            RangeSet::from_range_iter(ranges),
+            Direction::Sent,
+            self.default_kind,
+        )
     }
 
     /// Adds a commitment with the default kind to the received data transcript.
@@ -176,9 +191,13 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     /// * `ranges` - The ranges of the commitment.
     pub fn commit_recv(
         &mut self,
-        ranges: &dyn ToRangeSet<usize>,
+        ranges: impl IntoRangeIterator<usize>,
     ) -> Result<&mut Self, TranscriptCommitConfigBuilderError> {
-        self.commit(ranges, Direction::Received)
+        self.commit_with_kind_inner(
+            RangeSet::from_range_iter(ranges),
+            Direction::Received,
+            self.default_kind,
+        )
     }
 
     /// Builds the configuration.
