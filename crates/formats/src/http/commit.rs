@@ -129,7 +129,7 @@ pub trait HttpCommit {
 
         if !request.headers.is_empty() || request.body.is_some() {
             builder
-                .commit(&request.without_data(), direction)
+                .commit(request.without_data(), direction)
                 .map_err(|e| {
                     HttpCommitError::new_with_source(
                         MessageKind::Request,
@@ -296,7 +296,7 @@ pub trait HttpCommit {
 
         if !response.headers.is_empty() || response.body.is_some() {
             builder
-                .commit(&response.without_data(), direction)
+                .commit(response.without_data(), direction)
                 .map_err(|e| {
                     HttpCommitError::new_with_source(
                         MessageKind::Response,
