@@ -42,3 +42,7 @@ path = "src/bin/runner.rs"
 [[bin]]
 name = "tlsn-harness-wasm-server"
 path = "src/bin/wasm.rs"
+
+[[bin]]
+name = "ws-proxy"
+path = "src/bin/ws_proxy.rs"

@@ -9,6 +9,10 @@ pub const PORT_PROXY: u16 = 8000;
 pub const PORT_WASM_SERVER: u16 = 8080;
 pub const PORT_RPC: u16 = 8000;
 pub const PORT_BROWSER: u16 = 8001;
+/// Localhost port for proto proxy (browser connects here, DNAT to proto_0)
+pub const PORT_PROTO_PROXY_LOCAL: u16 = 8000;
+/// Localhost port for app proxy (browser connects here, DNAT to app_0)
+pub const PORT_APP_PROXY_LOCAL: u16 = 8002;
 pub const NS_0: &str = "tlsn-ns0";
 pub const NS_1: &str = "tlsn-ns1";
 pub const NS_APP: &str = "tlsn-nsapp";

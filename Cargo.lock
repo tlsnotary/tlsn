@@ -8602,7 +8602,7 @@ dependencies = [
 [[package]]
 name = "websocket-relay"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=6f1a934#6f1a934bc4ce358c268b26abf4fd086267b91c70"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=92197f9#92197f928b08cd3a1c799d513347c56881db1cb6"
 dependencies = [
  "anyhow",
  "form_urlencoded",

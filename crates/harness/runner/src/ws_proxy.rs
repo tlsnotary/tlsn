@@ -1,25 +1,43 @@
-use std::net::Ipv4Addr;
+use std::{net::Ipv4Addr, path::PathBuf};
 
 use anyhow::Result;
-use tokio::net::TcpListener;
+
+use crate::network::Namespace;
 
 pub struct WsProxy {
+    namespace: Namespace,
+    path: PathBuf,
     addr: (Ipv4Addr, u16),
-    handle: Option<tokio::task::JoinHandle<()>>,
+    handle: Option<duct::Handle>,
 }
 
 impl WsProxy {
-    /// Spawns a new ws proxy.
-    pub fn new(addr: (Ipv4Addr, u16)) -> Self {
-        Self { addr, handle: None }
+    /// Creates a new ws proxy.
+    pub fn new(namespace: Namespace, path: PathBuf, addr: (Ipv4Addr, u16)) -> Self {
+        Self {
+            namespace,
+            path,
+            addr,
+            handle: None,
+        }
     }
 
     /// Starts the ws proxy.
-    pub async fn start(&mut self) -> Result<()> {
-        let listener = TcpListener::bind(self.addr).await?;
-        let handle = tokio::spawn(async move {
-            websocket_relay::run(listener).await.unwrap();
-        });
+    pub fn start(&mut self) -> Result<()> {
+        let handle = duct::cmd!(
+            "sudo",
+            "ip",
+            "netns",
+            "exec",
+            &self.namespace.name(),
+            "env",
+            format!("PROXY_IP={}", self.addr.0),
+            format!("PROXY_PORT={}", self.addr.1),
+            &self.path,
+        )
+        .stderr_capture()
+        .stdout_capture()
+        .start()?;
 
         self.handle = Some(handle);
 
@@ -28,7 +46,9 @@ impl WsProxy {
 
     /// Shuts down the ws proxy.
     pub fn shutdown(&self) {
-        self.handle.as_ref().inspect(|handle| handle.abort());
+        self.handle.as_ref().inspect(|handle| {
+            _ = handle.kill();
+        });
     }
 }
 

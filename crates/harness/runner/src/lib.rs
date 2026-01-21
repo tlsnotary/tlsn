@@ -9,7 +9,7 @@ mod ws_proxy;
 #[cfg(feature = "debug")]
 mod debug_prelude;
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, net::Ipv4Addr, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -18,7 +18,7 @@ use harness_core::{
     ExecutorConfig, Id, IoMode, Role, TEST_APP_BANDWIDTH, TEST_APP_DELAY, TEST_PROTO_BANDWIDTH,
     TEST_PROTO_DELAY,
     bench::{BenchItems, BenchOutput, Measurement, WARM_UP_BENCH},
-    network::NetworkConfig,
+    network::{NetworkConfig, PORT_APP_PROXY_LOCAL, PORT_PROTO_PROXY_LOCAL},
     rpc::{BenchCmd, TestCmd},
     test::TestStatus,
 };
@@ -136,7 +136,18 @@ impl Runner {
         let current_path = std::env::current_exe().unwrap();
         let fixture_path = current_path.parent().unwrap().join("server-fixture");
         let network_config = NetworkConfig::new(*subnet);
+
         let network = Network::new(network_config.clone())?;
+
+        // For the executor config, set proto_proxy and app_proxy to localhost
+        // addresses. The DNAT rules in network.rs forward these to the actual
+        // ws-proxy addresses (proto_0 and app_0 in ns_0). This allows browser
+        // WebSocket connections to work despite Chrome's Private Network Access
+        // restrictions.
+        let localhost = Ipv4Addr::new(127, 0, 0, 1);
+        let mut executor_config = network_config.clone();
+        executor_config.proto_proxy = (localhost, PORT_PROTO_PROXY_LOCAL);
+        executor_config.app_proxy = (localhost, PORT_APP_PROXY_LOCAL);
 
         // Collect display env vars once if headed mode is enabled
         let display_env = if *headed {
@@ -152,14 +163,27 @@ impl Runner {
             current_path.parent().unwrap().join("wasm-server"),
             network_config.wasm,
         );
-        let proto_proxy = WsProxy::new(network_config.proto_proxy);
-        let app_proxy = WsProxy::new(network_config.app_proxy);
+        let ws_proxy_path = current_path.parent().unwrap().join("ws-proxy");
+        // Proxies run in ns_0 and bind to proto_0/app_0 addresses.
+        // Browser connects to localhost:PORT which gets DNAT'd to these addresses.
+        let proto_proxy = WsProxy::new(
+            network.ns_0().clone(),
+            ws_proxy_path.clone(),
+            network_config.proto_0,
+        );
+        let app_proxy = WsProxy::new(
+            network.ns_0().clone(),
+            ws_proxy_path,
+            (network_config.app_0, network_config.app_proxy.1),
+        );
+        // Executors use executor_config which has localhost proxy addresses for browser
+        // mode.
         let exec_p = Executor::new(
             network.ns_0().clone(),
             ExecutorConfig::builder()
                 .id(Id::Zero)
                 .io_mode(IoMode::Client)
-                .network_config(network_config.clone())
+                .network_config(executor_config.clone())
                 .build(),
             *target,
             display_env.clone(),
@@ -169,7 +193,7 @@ impl Runner {
             ExecutorConfig::builder()
                 .id(Id::One)
                 .io_mode(IoMode::Server)
-                .network_config(network_config.clone())
+                .network_config(executor_config)
                 .build(),
             Target::Native,
             Vec::new(), // Verifier doesn't need display env
@@ -194,8 +218,8 @@ impl Runner {
 
         self.server_fixture.start()?;
         self.wasm_server.start()?;
-        self.proto_proxy.start().await?;
-        self.app_proxy.start().await?;
+        self.proto_proxy.start()?;
+        self.app_proxy.start()?;
         self.started = true;
 
         Ok(())

@@ -86,7 +86,7 @@ mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-
 rangeset = { version = "0.4" }
 serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "adfc5ba" }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "6f1a934" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "92197f9" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }

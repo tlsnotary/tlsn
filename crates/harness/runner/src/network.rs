@@ -57,6 +57,8 @@ impl Network {
             .set_addr(config.proto_proxy.0, prefix_len);
         veth_app_proxy.0.set_addr(config.app_proxy.0, prefix_len);
         veth_app.0.set_addr(config.app.0, prefix_len);
+        veth_app_0.0.set_addr(config.app_0, prefix_len);
+        veth_app_1.0.set_addr(config.app_1, prefix_len);
 
         Ok(Self {
             config,
@@ -168,6 +170,16 @@ impl Network {
             &self.ns_0,
             (self.config.rpc_0.0, PORT_BROWSER),
             ("127.0.0.1", PORT_BROWSER),
+        )?;
+
+        // DNAT rules for browser WebSocket connections to reach the proxies.
+        // Browser connects to localhost:PORT which gets forwarded to the actual
+        // ws-proxy addresses in ns_0 (proto_0 and app_0).
+        ip_forward_local(&self.ns_0, PORT_PROTO_PROXY_LOCAL, self.config.proto_0)?;
+        ip_forward_local(
+            &self.ns_0,
+            PORT_APP_PROXY_LOCAL,
+            (self.config.app_0, PORT_APP_SERVER),
         )?;
 
         Ok(())
@@ -714,6 +726,50 @@ fn ip_forward(
         "DNAT",
         "--to-destination",
         format!("{}:{}", local.0.to_string(), local.1)
+    )
+    .run()?;
+
+    Ok(())
+}
+
+/// Forwards locally-originated traffic from a localhost port to a remote
+/// address. Used for browser WebSocket connections that can't directly reach
+/// private IPs.
+fn ip_forward_local(ns: &Namespace, local_port: u16, remote: (impl ToString, u16)) -> Result<()> {
+    duct::cmd!(
+        "sudo",
+        "ip",
+        "netns",
+        "exec",
+        ns.name(),
+        "sysctl",
+        "-w",
+        "net.ipv4.conf.all.route_localnet=1"
+    )
+    .run()?;
+
+    // DNAT on OUTPUT chain for locally-originated packets
+    duct::cmd!(
+        "sudo",
+        "ip",
+        "netns",
+        "exec",
+        ns.name(),
+        "iptables",
+        "-t",
+        "nat",
+        "-A",
+        "OUTPUT",
+        "-p",
+        "tcp",
+        "-d",
+        "127.0.0.1",
+        "--dport",
+        local_port.to_string(),
+        "-j",
+        "DNAT",
+        "--to-destination",
+        format!("{}:{}", remote.0.to_string(), remote.1)
     )
     .run()?;
 

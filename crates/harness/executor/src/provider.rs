@@ -37,6 +37,7 @@ mod native {
         pub async fn provide_server_io(&self) -> Result<impl Io> {
             TcpStream::connect(self.config.app)
                 .await
+                .inspect(|io| io.set_nodelay(true).unwrap())
                 .map(|io| io.compat())
                 .map_err(anyhow::Error::from)
         }
