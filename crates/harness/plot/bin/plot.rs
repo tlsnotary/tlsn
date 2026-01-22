@@ -60,8 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Result<Vec<_>, _>>()?;
 
     for group in groups {
-        if group.protocol_latency.is_some() {
-            let latency = group.protocol_latency.unwrap();
+        if let Some(latency) = group.protocol_latency {
             plot_runtime_vs(
                 &all_data,
                 cli.min_max_band,
@@ -74,8 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
         }
 
-        if group.bandwidth.is_some() {
-            let bandwidth = group.bandwidth.unwrap();
+        if let Some(bandwidth) = group.bandwidth {
             plot_runtime_vs(
                 &all_data,
                 cli.min_max_band,
