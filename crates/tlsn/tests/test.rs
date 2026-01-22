@@ -114,7 +114,6 @@ async fn run_prover(prover: Prover) -> (Transcript, ProverOutput) {
                 .unwrap(),
             client_socket.compat(),
         )
-        .await
         .unwrap();
     let prover_task = tokio::spawn(prover_fut);
 

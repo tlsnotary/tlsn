@@ -6,7 +6,6 @@ use enum_try_as_inner::EnumTryAsInner;
 use futures::TryFutureExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
-use tls_client_async::TlsConnection;
 use tlsn::{
     config::{
         prove::ProveConfig,
@@ -14,7 +13,7 @@ use tlsn::{
         tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
     },
     connection::ServerName,
-    prover::{state, Prover},
+    prover::{state, Prover, TlsConnection},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
     Session, SessionHandle,
 };
@@ -185,7 +184,6 @@ impl JsProver {
 
         let (tls_conn, prover_fut) = prover
             .connect(tls_config, server_conn.into_io())
-            .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         info!("sending request");

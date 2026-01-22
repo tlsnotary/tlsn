@@ -66,7 +66,6 @@ async fn prover(provider: &IoProvider) {
                 .unwrap(),
             provider.provide_server_io().await.unwrap(),
         )
-        .await
         .unwrap();
 
     let prover_task = spawn(prover_fut);

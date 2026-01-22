@@ -378,13 +378,27 @@ impl MpcTlsLeader {
         Ok(())
     }
 
-    /// Defers decryption of any incoming messages.
+    /// Enables or disables the decryption of any incoming messages.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` - Whether to enable or disable decryption.
     #[instrument(level = "debug", skip_all, err)]
-    pub async fn defer_decryption(&mut self) -> Result<(), MpcTlsError> {
-        self.is_decrypting = false;
-        self.notifier.clear();
+    pub fn enable_decryption(&mut self, enable: bool) -> Result<(), MpcTlsError> {
+        self.is_decrypting = enable;
+
+        if enable {
+            self.notifier.set();
+        } else {
+            self.notifier.clear();
+        }
 
         Ok(())
+    }
+
+    /// Returns if incoming messages are decrypted.
+    pub fn is_decrypting(&self) -> bool {
+        self.is_decrypting
     }
 
     /// Stops the actor.
