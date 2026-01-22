@@ -131,12 +131,6 @@ impl From<mpc_tls::MpcTlsError> for Error {
     }
 }
 
-impl From<tls_client_async::ConnectionError> for Error {
-    fn from(e: tls_client_async::ConnectionError) -> Self {
-        Self::io().with_msg("tls connection error").with_source(e)
-    }
-}
-
 impl From<tlsn_mux::ConnectionError> for Error {
     fn from(e: tlsn_mux::ConnectionError) -> Self {
         Self::io().with_msg("mux connection error").with_source(e)
