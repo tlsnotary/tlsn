@@ -1,19 +1,15 @@
 //! TLS prover states.
 
-use std::sync::Arc;
-
 use futures_plex::DuplexStream;
-use mpc_tls::{MpcTlsLeader, SessionKeys};
+use mpc_tls::SessionKeys;
 use tlsn_core::{
     connection::ServerName,
     transcript::{TlsTranscript, Transcript},
 };
-use tlsn_deap::Deap;
-use tokio::sync::Mutex;
 
 use crate::{
     Error,
-    mpz::{ProverMpc, ProverZk},
+    deps::{ProverDeps, ProverZk},
     prover::client::{TlsClient, TlsOutput},
 };
 
@@ -25,9 +21,7 @@ opaque_debug::implement!(Initialized);
 /// State after the verifier has accepted the proposed TLS commitment protocol
 /// configuration and preprocessing has completed.
 pub struct CommitAccepted {
-    pub(crate) mpc_tls: MpcTlsLeader,
-    pub(crate) keys: SessionKeys,
-    pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
+    pub(crate) prover_deps: ProverDeps,
 }
 
 opaque_debug::implement!(CommitAccepted);

@@ -1,17 +1,13 @@
 //! TLS Verifier state.
 
-use std::sync::Arc;
-
-use mpc_tls::{MpcTlsFollower, SessionKeys};
+use mpc_tls::SessionKeys;
 use tlsn_core::{
     config::{prove::ProveRequest, tls_commit::TlsCommitRequest},
     connection::{HandshakeData, ServerName},
     transcript::{PartialTranscript, TlsTranscript},
 };
-use tlsn_deap::Deap;
-use tokio::sync::Mutex;
 
-use crate::mpz::{VerifierMpc, VerifierZk};
+use crate::deps::{VerifierDeps, VerifierZk};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -31,9 +27,7 @@ opaque_debug::implement!(CommitStart);
 /// State after accepting the proposed TLS commitment protocol configuration and
 /// performing preprocessing.
 pub struct CommitAccepted {
-    pub(crate) mpc_tls: MpcTlsFollower,
-    pub(crate) keys: SessionKeys,
-    pub(crate) vm: Arc<Mutex<Deap<VerifierMpc, VerifierZk>>>,
+    pub(crate) verifier_deps: VerifierDeps,
 }
 
 opaque_debug::implement!(CommitAccepted);

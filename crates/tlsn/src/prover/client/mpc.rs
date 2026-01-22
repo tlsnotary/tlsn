@@ -1,13 +1,13 @@
 //! Implementation of an MPC-TLS client.
 
 use crate::{
+    deps::{ProverMpc, ProverZk},
     error::Error as TlsnError,
-    mpz::{ProverMpc, ProverZk},
     prover::client::{DecryptState, TlsClient, TlsOutput},
     tag::verify_tags,
 };
-use futures::{Future, FutureExt};
-use mpc_tls::{LeaderCtrl, SessionKeys};
+use futures::{Future, FutureExt, TryFutureExt};
+use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use mpz_vm_core::Execute;
 use std::{
@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
     task::Poll,
 };
-use tls_client::ClientConnection;
+use tls_client::{ClientConfig, ClientConnection, ServerName};
 use tlsn_core::transcript::TlsTranscript;
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
@@ -69,14 +69,23 @@ enum State {
 
 impl MpcTlsClient {
     pub(crate) fn new(
-        mpc: MpcFuture,
-        keys: SessionKeys,
-        vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
         span: Span,
-        mpc_ctrl: LeaderCtrl,
-        tls: ClientConnection,
-        decrypt: bool,
-    ) -> Self {
+        keys: SessionKeys,
+        mpc_tls: MpcTlsLeader,
+        vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
+        config: ClientConfig,
+        server_name: ServerName,
+    ) -> Result<Self, TlsnError> {
+        let decrypt = mpc_tls.is_decrypting();
+        let (mpc_ctrl, mpc_fut) = mpc_tls.run();
+
+        let tls = ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
+            .map_err(|e| {
+                TlsnError::config()
+                    .with_msg("failed to create tls client connection")
+                    .with_source(e)
+            })?;
+
         let inner = InnerState {
             span,
             tls,
@@ -92,15 +101,16 @@ impl MpcTlsClient {
             decrypt: AtomicBool::new(decrypt),
         };
 
-        Self {
+        let mpc_tls_client = Self {
             decrypt: Arc::new(decrypt),
             client_wants_close: false,
             server_closed: false,
             state: State::Start {
-                mpc: Box::into_pin(mpc),
+                mpc: Box::pin(mpc_fut.map_err(TlsnError::from)),
                 inner: Box::new(inner),
             },
-        }
+        };
+        Ok(mpc_tls_client)
     }
 
     fn inner_client_mut(&mut self) -> Option<&mut ClientConnection> {

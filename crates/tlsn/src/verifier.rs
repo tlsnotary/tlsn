@@ -10,18 +10,14 @@ pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
     Error, Result,
-    mpz::{VerifierDeps, build_verifier_deps, translate_keys},
+    deps::VerifierDeps,
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     tag::verify_tags,
 };
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
-    config::{
-        prove::ProveRequest,
-        tls_commit::{TlsCommitProtocolConfig, TlsCommitRequest},
-        verifier::VerifierConfig,
-    },
+    config::{prove::ProveRequest, tls_commit::TlsCommitRequest, verifier::VerifierConfig},
     connection::{ConnectionInfo, ServerName},
     transcript::TlsTranscript,
 };
@@ -93,6 +89,24 @@ impl Verifier<state::Initialized> {
             return Err(Error::config().with_msg(msg));
         }
 
+        if self.config.mode() != *request.protocol() {
+            let msg = format!(
+                "prover and verifier disagree on the mode of operation. verifier only accepts {}.",
+                self.config.mode()
+            );
+
+            ctx.io_mut()
+                .send(Response::err(Some(msg.clone())))
+                .await
+                .map_err(|e| {
+                    Error::io()
+                        .with_msg("commitment protocol failed because of unequal mode")
+                        .with_source(e)
+                })?;
+
+            return Err(Error::config().with_msg(msg));
+        }
+
         Ok(Verifier {
             config: self.config,
             span: self.span,
@@ -123,29 +137,8 @@ impl Verifier<state::CommitStart> {
                 .with_source(e)
         })?;
 
-        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol().clone() else {
-            unreachable!("only MPC TLS is supported");
-        };
-
-        let VerifierDeps { vm, mut mpc_tls } = build_verifier_deps(mpc_tls_config, ctx);
-
-        // Allocate resources for MPC-TLS in the VM.
-        let mut keys = mpc_tls.alloc().map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed to allocate mpc-tls resources")
-                .with_source(e)
-        })?;
-        let vm_lock = vm.try_lock().expect("VM is not locked");
-        translate_keys(&mut keys, &vm_lock);
-        drop(vm_lock);
-
-        debug!("setting up mpc-tls");
-
-        mpc_tls.preprocess().await.map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed during mpc-tls preprocessing")
-                .with_source(e)
-        })?;
+        let mut verifier_deps = VerifierDeps::new(request.protocol(), ctx);
+        verifier_deps.setup().await?;
 
         debug!("mpc-tls setup complete");
 
@@ -153,7 +146,7 @@ impl Verifier<state::CommitStart> {
             config: self.config,
             span: self.span,
             ctx: None,
-            state: state::CommitAccepted { mpc_tls, keys, vm },
+            state: state::CommitAccepted { verifier_deps },
         })
     }
 
@@ -179,15 +172,26 @@ impl Verifier<state::CommitAccepted> {
     /// Runs the verifier until the TLS connection is closed.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Committed>> {
-        let state::CommitAccepted { mpc_tls, vm, keys } = self.state;
-
         info!("starting MPC-TLS");
 
-        let (mut ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
-            Error::internal()
-                .with_msg("mpc-tls execution failed")
-                .with_source(e)
-        })?;
+        let (vm, keys, mut ctx, tls_transcript) = match self.state.verifier_deps {
+            VerifierDeps::Mpc { vm, mpc_tls, keys } => {
+                let (ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
+                    Error::internal()
+                        .with_msg("mpc-tls execution failed")
+                        .with_source(e)
+                })?;
+                (
+                    vm,
+                    keys.expect("keys should be available"),
+                    ctx,
+                    tls_transcript,
+                )
+            }
+            VerifierDeps::Proxy {} => {
+                todo!()
+            }
+        };
 
         info!("finished MPC-TLS");
 

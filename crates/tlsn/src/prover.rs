@@ -14,7 +14,7 @@ pub use tlsn_core::ProverOutput;
 
 use crate::{
     Error, Result,
-    mpz::{ProverDeps, build_prover_deps, translate_keys},
+    deps::ProverDeps,
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
         client::{MpcTlsClient, TlsOutput},
@@ -22,18 +22,15 @@ use crate::{
     },
 };
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt, ready};
+use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
 use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::{pin::Pin, sync::Arc, task::Poll};
-use tls_client::{ClientConnection, ServerName as TlsServerName};
+use std::{pin::Pin, task::Poll};
+use tls_client::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
-        prove::ProveConfig,
-        prover::ProverConfig,
-        tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, TlsCommitProtocolConfig},
+        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig, tls_commit::TlsCommitConfig,
     },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
@@ -115,29 +112,8 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = config.protocol().clone() else {
-            unreachable!("only MPC TLS is supported");
-        };
-
-        let ProverDeps { vm, mut mpc_tls } = build_prover_deps(mpc_tls_config, ctx);
-
-        // Allocate resources for MPC-TLS in the VM.
-        let mut keys = mpc_tls.alloc().map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed to allocate mpc-tls resources")
-                .with_source(e)
-        })?;
-        let vm_lock = vm.try_lock().expect("VM is not locked");
-        translate_keys(&mut keys, &vm_lock);
-        drop(vm_lock);
-
-        debug!("setting up mpc-tls");
-
-        mpc_tls.preprocess().await.map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed during mpc-tls preprocessing")
-                .with_source(e)
-        })?;
+        let mut prover_deps = ProverDeps::new(config.protocol(), ctx);
+        prover_deps.setup().await?;
 
         debug!("mpc-tls setup complete");
 
@@ -145,7 +121,7 @@ impl Prover<state::Initialized> {
             config: self.config,
             span: self.span,
             ctx: None,
-            state: state::CommitAccepted { mpc_tls, keys, vm },
+            state: state::CommitAccepted { prover_deps },
         })
     }
 }
@@ -167,13 +143,6 @@ impl Prover<state::CommitAccepted> {
         config: TlsClientConfig,
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture<S>)> {
-        let state::CommitAccepted {
-            mpc_tls, keys, vm, ..
-        } = self.state;
-
-        let decrypt = mpc_tls.is_decrypting();
-        let (mpc_ctrl, mpc_fut) = mpc_tls.run();
-
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =
             TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
@@ -217,27 +186,19 @@ impl Prover<state::CommitAccepted> {
             rustls_config.with_no_client_auth()
         };
 
-        let client = ClientConnection::new(
-            Arc::new(rustls_config),
-            Box::new(mpc_ctrl.clone()),
-            server_name,
-        )
-        .map_err(|e| {
-            Error::config()
-                .with_msg("failed to create tls client connection")
-                .with_source(e)
-        })?;
-
         let span = self.span.clone();
-        let mpc_tls = MpcTlsClient::new(
-            Box::new(mpc_fut.map_err(Error::from)),
-            keys,
-            vm,
-            span,
-            mpc_ctrl,
-            client,
-            decrypt,
-        );
+        let tls_client = match self.state.prover_deps {
+            ProverDeps::Mpc { vm, mpc_tls, keys } => {
+                let keys = keys.expect("keys should be available");
+                let mpc_tls =
+                    MpcTlsClient::new(span, keys, *mpc_tls, vm, rustls_config, server_name)?;
+
+                Box::new(mpc_tls)
+            }
+            ProverDeps::Proxy { .. } => {
+                todo!()
+            }
+        };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
         let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
@@ -248,7 +209,7 @@ impl Prover<state::CommitAccepted> {
             span: self.span,
             state: state::Connected {
                 server_name: config.server_name().clone(),
-                tls_client: Box::new(mpc_tls),
+                tls_client,
                 client_io,
                 output: None,
                 server_socket: socket,

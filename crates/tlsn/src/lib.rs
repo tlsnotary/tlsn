@@ -42,10 +42,10 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+pub(crate) mod deps;
 mod error;
 pub(crate) mod ghash;
 pub(crate) mod map;
-pub(crate) mod mpz;
 pub(crate) mod msg;
 pub mod prover;
 mod session;

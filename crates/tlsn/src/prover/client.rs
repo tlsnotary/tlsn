@@ -1,6 +1,6 @@
 //! Provides a TLS client.
 
-use crate::mpz::ProverZk;
+use crate::deps::ProverZk;
 use mpc_tls::SessionKeys;
 use std::{
     sync::{
@@ -12,8 +12,10 @@ use std::{
 use tlsn_core::transcript::{TlsTranscript, Transcript};
 
 mod mpc;
+mod proxy;
 
 pub(crate) use mpc::MpcTlsClient;
+pub(crate) use proxy::ProxyTlsClient;
 
 /// TLS client for MPC and proxy-based TLS implementations.
 pub(crate) trait TlsClient {
