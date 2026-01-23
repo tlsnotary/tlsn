@@ -108,20 +108,18 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                // Create a root certificate store with the server-fixture's self-signed
-                // certificate. This is only required for offline testing with the
-                // server-fixture.
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()?,
-            client_socket.compat(),
-        )
-        .await?;
+    let (tls_connection, prover_fut) = prover.connect(
+        TlsClientConfig::builder()
+            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+            // Create a root certificate store with the server-fixture's self-signed
+            // certificate. This is only required for offline testing with the
+            // server-fixture.
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .build()?,
+        client_socket.compat(),
+    )?;
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the Prover to run in the background.
