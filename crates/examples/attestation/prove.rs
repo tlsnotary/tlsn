@@ -18,7 +18,7 @@ use tlsn::{
     attestation::{
         request::{Request as AttestationRequest, RequestConfig},
         signing::Secp256k1Signer,
-        Attestation, AttestationConfig, CryptoProvider, Secrets,
+        Attestation, AttestationConfig, CryptoProvider,
     },
     config::{
         prove::ProveConfig,
@@ -28,7 +28,7 @@ use tlsn::{
         verifier::VerifierConfig,
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
-    prover::{state::Committed, Prover, ProverOutput},
+    prover::ProverOutput,
     transcript::{ContentType, TranscriptCommitConfig},
     verifier::VerifierOutput,
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
@@ -167,7 +167,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     assert!(response.status() == StatusCode::OK);
 
     // The prover task should be done now, so we can await it.
-    let prover = prover_task.await??;
+    let mut prover = prover_task.await??;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -208,41 +208,10 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let request_config = builder.build()?;
 
-    // Notarize the session, exchanging the attestation request/response over the
-    // wire.
-    let (attestation, secrets) =
-        notarize(prover, &request_config, &mut handle, driver_task).await?;
-
-    // Write the attestation to disk.
-    let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
-    let secrets_path = tlsn_examples::get_file_path(example_type, "secrets");
-
-    tokio::fs::write(&attestation_path, bincode::serialize(&attestation)?).await?;
-
-    // Write the secrets to disk.
-    tokio::fs::write(&secrets_path, bincode::serialize(&secrets)?).await?;
-
-    println!("Notarization completed successfully!");
-    println!(
-        "The attestation has been written to `{attestation_path}` and the \
-        corresponding secrets to `{secrets_path}`."
-    );
-
-    Ok(())
-}
-
-/// Performs the notarization step, sending the attestation request and
-/// receiving the attestation over the wire.
-async fn notarize<S: futures::io::AsyncRead + futures::io::AsyncWrite + Send + Unpin + 'static>(
-    mut prover: Prover<Committed>,
-    config: &RequestConfig,
-    handle: &mut tlsn::SessionHandle,
-    driver_task: tokio::task::JoinHandle<tlsn::Result<S>>,
-) -> Result<(Attestation, Secrets)> {
     // Build the prove config.
     let mut builder = ProveConfig::builder(prover.transcript());
 
-    if let Some(config) = config.transcript_commit() {
+    if let Some(config) = request_config.transcript_commit() {
         builder.transcript_commit(config.clone());
     }
 
@@ -254,12 +223,12 @@ async fn notarize<S: futures::io::AsyncRead + futures::io::AsyncWrite + Send + U
         ..
     } = prover.prove(&disclosure_config).await?;
 
-    let transcript = prover.transcript().clone();
+    let prover_transcript = prover.transcript().clone();
     let tls_transcript = prover.tls_transcript().clone();
     prover.close().await?;
 
     // Build an attestation request.
-    let mut builder = AttestationRequest::builder(config);
+    let mut builder = AttestationRequest::builder(&request_config);
 
     builder
         .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
@@ -274,7 +243,7 @@ async fn notarize<S: futures::io::AsyncRead + futures::io::AsyncWrite + Send + U
                 .clone(),
             binding: tls_transcript.certificate_binding().clone(),
         })
-        .transcript(transcript)
+        .transcript(prover_transcript)
         .transcript_commitments(transcript_secrets, transcript_commitments);
 
     let (request, secrets) = builder.build(&CryptoProvider::default())?;
@@ -299,7 +268,22 @@ async fn notarize<S: futures::io::AsyncRead + futures::io::AsyncWrite + Send + U
     // Check the attestation is consistent with the Prover's view.
     request.validate(&attestation, &provider)?;
 
-    Ok((attestation, secrets))
+    // Write the attestation to disk.
+    let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
+    let secrets_path = tlsn_examples::get_file_path(example_type, "secrets");
+
+    tokio::fs::write(&attestation_path, bincode::serialize(&attestation)?).await?;
+
+    // Write the secrets to disk.
+    tokio::fs::write(&secrets_path, bincode::serialize(&secrets)?).await?;
+
+    println!("Notarization completed successfully!");
+    println!(
+        "The attestation has been written to `{attestation_path}` and the \
+        corresponding secrets to `{secrets_path}`."
+    );
+
+    Ok(())
 }
 
 async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
