@@ -4,15 +4,13 @@
 
 use std::env;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Parser;
+use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use http_body_util::Empty;
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    sync::oneshot::{self, Receiver, Sender},
-};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::info;
 
@@ -20,7 +18,7 @@ use tlsn::{
     attestation::{
         request::{Request as AttestationRequest, RequestConfig},
         signing::Secp256k1Signer,
-        Attestation, AttestationConfig, CryptoProvider, Secrets,
+        Attestation, AttestationConfig, CryptoProvider,
     },
     config::{
         prove::ProveConfig,
@@ -30,7 +28,7 @@ use tlsn::{
         verifier::VerifierConfig,
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
-    prover::{state::Committed, Prover, ProverOutput},
+    prover::ProverOutput,
     transcript::{ContentType, TranscriptCommitConfig},
     verifier::VerifierOutput,
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
@@ -64,32 +62,16 @@ async fn main() -> Result<()> {
     };
 
     let (notary_socket, prover_socket) = tokio::io::duplex(1 << 23);
-    let (request_tx, request_rx) = oneshot::channel();
-    let (attestation_tx, attestation_rx) = oneshot::channel();
 
-    tokio::spawn(async move {
-        notary(notary_socket, request_rx, attestation_tx)
-            .await
-            .unwrap()
-    });
+    tokio::spawn(async move { notary(notary_socket).await.unwrap() });
 
-    prover(
-        prover_socket,
-        request_tx,
-        attestation_rx,
-        uri,
-        extra_headers,
-        &args.example_type,
-    )
-    .await?;
+    prover(prover_socket, uri, extra_headers, &args.example_type).await?;
 
     Ok(())
 }
 
 async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: S,
-    req_tx: Sender<AttestationRequest>,
-    resp_rx: Receiver<Attestation>,
     uri: &str,
     extra_headers: Vec<(&str, &str)>,
     example_type: &ExampleType,
@@ -185,7 +167,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     assert!(response.status() == StatusCode::OK);
 
     // The prover task should be done now, so we can await it.
-    let prover = prover_task.await??;
+    let mut prover = prover_task.await??;
 
     // Parse the HTTP transcript.
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -226,11 +208,65 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let request_config = builder.build()?;
 
-    let (attestation, secrets) = notarize(prover, &request_config, req_tx, resp_rx).await?;
+    // Build the prove config.
+    let mut builder = ProveConfig::builder(prover.transcript());
 
-    // Close the session and wait for the driver to complete.
+    if let Some(config) = request_config.transcript_commit() {
+        builder.transcript_commit(config.clone());
+    }
+
+    let disclosure_config = builder.build()?;
+
+    let ProverOutput {
+        transcript_commitments,
+        transcript_secrets,
+        ..
+    } = prover.prove(&disclosure_config).await?;
+
+    let prover_transcript = prover.transcript().clone();
+    let tls_transcript = prover.tls_transcript().clone();
+    prover.close().await?;
+
+    // Build an attestation request.
+    let mut builder = AttestationRequest::builder(&request_config);
+
+    builder
+        .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+        .handshake_data(HandshakeData {
+            certs: tls_transcript
+                .server_cert_chain()
+                .expect("server cert chain is present")
+                .to_vec(),
+            sig: tls_transcript
+                .server_signature()
+                .expect("server signature is present")
+                .clone(),
+            binding: tls_transcript.certificate_binding().clone(),
+        })
+        .transcript(prover_transcript)
+        .transcript_commitments(transcript_secrets, transcript_commitments);
+
+    let (request, secrets) = builder.build(&CryptoProvider::default())?;
+
+    // Close the session and wait for the driver to complete, reclaiming the socket.
     handle.close();
-    driver_task.await??;
+    let mut socket = driver_task.await??;
+
+    // Send attestation request to notary over the wire.
+    let request_bytes = bincode::serialize(&request)?;
+    socket.write_all(&request_bytes).await?;
+    socket.close().await?;
+
+    // Receive attestation from notary over the wire.
+    let mut attestation_bytes = Vec::new();
+    socket.read_to_end(&mut attestation_bytes).await?;
+    let attestation: Attestation = bincode::deserialize(&attestation_bytes)?;
+
+    // Signature verifier for the signature algorithm in the request.
+    let provider = CryptoProvider::default();
+
+    // Check the attestation is consistent with the Prover's view.
+    request.validate(&attestation, &provider)?;
 
     // Write the attestation to disk.
     let attestation_path = tlsn_examples::get_file_path(example_type, "attestation");
@@ -250,74 +286,8 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     Ok(())
 }
 
-async fn notarize(
-    mut prover: Prover<Committed>,
-    config: &RequestConfig,
-    request_tx: Sender<AttestationRequest>,
-    attestation_rx: Receiver<Attestation>,
-) -> Result<(Attestation, Secrets)> {
-    let mut builder = ProveConfig::builder(prover.transcript());
-
-    if let Some(config) = config.transcript_commit() {
-        builder.transcript_commit(config.clone());
-    }
-
-    let disclosure_config = builder.build()?;
-
-    let ProverOutput {
-        transcript_commitments,
-        transcript_secrets,
-        ..
-    } = prover.prove(&disclosure_config).await?;
-
-    let transcript = prover.transcript().clone();
-    let tls_transcript = prover.tls_transcript().clone();
-    prover.close().await?;
-
-    // Build an attestation request.
-    let mut builder = AttestationRequest::builder(config);
-
-    builder
-        .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-        .handshake_data(HandshakeData {
-            certs: tls_transcript
-                .server_cert_chain()
-                .expect("server cert chain is present")
-                .to_vec(),
-            sig: tls_transcript
-                .server_signature()
-                .expect("server signature is present")
-                .clone(),
-            binding: tls_transcript.certificate_binding().clone(),
-        })
-        .transcript(transcript)
-        .transcript_commitments(transcript_secrets, transcript_commitments);
-
-    let (request, secrets) = builder.build(&CryptoProvider::default())?;
-
-    // Send attestation request to notary.
-    request_tx
-        .send(request.clone())
-        .map_err(|_| anyhow!("notary is not receiving attestation request"))?;
-
-    // Receive attestation from notary.
-    let attestation = attestation_rx
-        .await
-        .map_err(|err| anyhow!("notary did not respond with attestation: {err}"))?;
-
-    // Signature verifier for the signature algorithm in the request.
-    let provider = CryptoProvider::default();
-
-    // Check the attestation is consistent with the Prover's view.
-    request.validate(&attestation, &provider)?;
-
-    Ok((attestation, secrets))
-}
-
 async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: S,
-    request_rx: Receiver<AttestationRequest>,
-    attestation_tx: Sender<Attestation>,
 ) -> Result<()> {
     // Create a session with the prover.
     let session = Session::new(socket.compat());
@@ -381,8 +351,14 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         })
         .sum::<usize>();
 
+    // Close the session and wait for the driver to complete, reclaiming the socket.
+    handle.close();
+    let mut socket = driver_task.await??;
+
     // Receive attestation request from prover.
-    let request = request_rx.await?;
+    let mut request_bytes = Vec::new();
+    socket.read_to_end(&mut request_bytes).await?;
+    let request: AttestationRequest = bincode::deserialize(&request_bytes)?;
 
     // Load a dummy signing key.
     let signing_key = k256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into())?;
@@ -411,13 +387,9 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let attestation = builder.build(&provider)?;
 
     // Send attestation to prover.
-    attestation_tx
-        .send(attestation)
-        .map_err(|_| anyhow!("prover is not receiving attestation"))?;
-
-    // Close the session and wait for the driver to complete.
-    handle.close();
-    driver_task.await??;
+    let attestation_bytes = bincode::serialize(&attestation)?;
+    socket.write_all(&attestation_bytes).await?;
+    socket.close().await?;
 
     Ok(())
 }
