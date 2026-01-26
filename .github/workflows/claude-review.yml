@@ -9,7 +9,7 @@ on:
     types: [created]
 
 jobs:
-  review:
+  claude-review:
     # Run on non-draft PRs, or when a collaborator comments @claude
     if: >
       (github.event_name == 'pull_request' && !github.event.pull_request.draft) ||
@@ -23,13 +23,16 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+      id-token: write
+      actions: read # Required for Claude to read CI results on PRs
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Run Claude Code Review
+        id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
