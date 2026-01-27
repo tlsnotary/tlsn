@@ -111,8 +111,8 @@ jobs:
           sudo apt-get install -y chromium-chromedriver
 
       - name: Install wasm-pack
-        # we install a specific version which supports custom profiles
-        run: cargo install --git https://github.com/rustwasm/wasm-pack.git --rev 32e52ca
+        # we need 0.14.0+ which supports custom profiles
+        run: cargo install wasm-pack
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.7

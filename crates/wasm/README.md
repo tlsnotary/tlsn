@@ -6,10 +6,10 @@ For most use cases, you may prefer to use the `tlsn-js` package instead: [tlsn-j
 
 ## Dependencies
 
-A specific version of `wasm-pack` must be installed to build the WASM binary:
+`wasm-pack` 0.14.0+ must be installed to build the WASM binary (for custom profile support):
 
 ```bash
-cargo install --git https://github.com/rustwasm/wasm-pack.git --rev 32e52ca
+cargo install wasm-pack
 ```
 
 ## Links
