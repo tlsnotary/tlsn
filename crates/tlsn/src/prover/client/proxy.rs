@@ -10,7 +10,7 @@ use std::{
     io::{Read, Write},
     sync::Arc,
 };
-use tlsn_core::connection::ServerName;
+use tlsn_core::{connection::ServerName, transcript::TlsTranscript};
 use tracing::Span;
 
 pub(crate) struct ProxyTlsClient {
@@ -20,6 +20,7 @@ pub(crate) struct ProxyTlsClient {
     decrypt: Arc<DecryptState>,
     client_closed: bool,
     server_closed: bool,
+    transcript: TlsTranscript,
 }
 
 impl ProxyTlsClient {
@@ -102,6 +103,7 @@ impl TlsClient for ProxyTlsClient {
         &mut self,
         _cx: &mut std::task::Context,
     ) -> std::task::Poll<Result<super::TlsOutput, Self::Error>> {
+        self.conn.process_new_packets()?;
         todo!()
     }
 }
