@@ -152,7 +152,8 @@ impl Runner {
             current_path.parent().unwrap().join("wasm-server"),
             network_config.wasm,
         );
-        let proto_proxy = WsProxy::new(network_config.proto_proxy);
+        let proto_proxy =
+            WsProxy::new(network_config.proto_proxy).local_address(network_config.proto_proxy.0.into());
         let app_proxy = WsProxy::new(network_config.app_proxy);
         let exec_p = Executor::new(
             network.ns_0().clone(),
