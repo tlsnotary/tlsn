@@ -43,7 +43,10 @@ pub(crate) enum VerifierDeps {
         mpc_tls: Box<MpcTlsFollower>,
         keys: Option<SessionKeys>,
     },
-    Proxy {},
+    Proxy {
+        vm: VerifierZk,
+        keys: Option<SessionKeys>,
+    },
 }
 
 impl VerifierDeps {
@@ -86,7 +89,9 @@ impl VerifierDeps {
 
                 Ok(())
             }
-            VerifierDeps::Proxy {} => Ok(()),
+            VerifierDeps::Proxy { .. } => {
+                todo!()
+            }
         }
     }
 }

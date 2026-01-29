@@ -188,7 +188,7 @@ impl Verifier<state::CommitAccepted> {
                     tls_transcript,
                 )
             }
-            VerifierDeps::Proxy {} => {
+            VerifierDeps::Proxy { vm, keys, .. } => {
                 todo!()
             }
         };
