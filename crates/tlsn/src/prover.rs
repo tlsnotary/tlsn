@@ -17,14 +17,13 @@ use crate::{
     deps::ProverDeps,
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
-        client::{MpcTlsClient, TlsOutput},
+        client::{MpcTlsClient, ProxyTlsClient, TlsClient, TlsOutput},
         state::ConnectedProj,
     },
 };
 
 use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
-use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
 use std::{pin::Pin, task::Poll};
 use tls_client::ServerName as TlsServerName;
@@ -36,7 +35,6 @@ use tlsn_core::{
     transcript::{TlsTranscript, Transcript},
 };
 use tracing::{Span, debug, info_span, instrument};
-use webpki::anchor_from_trusted_cert;
 
 const BUF_CAP: usize = 16 * 1024 * 1024;
 
@@ -147,58 +145,23 @@ impl Prover<state::CommitAccepted> {
         let server_name =
             TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
 
-        let root_store = tls_client::RootCertStore {
-            roots: config
-                .root_store()
-                .roots
-                .iter()
-                .map(|cert| {
-                    let der = CertificateDer::from_slice(&cert.0);
-                    anchor_from_trusted_cert(&der)
-                        .map(|anchor| anchor.to_owned())
-                        .map_err(|e| {
-                            Error::config()
-                                .with_msg("failed to parse root certificate")
-                                .with_source(e)
-                        })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        };
-
-        let rustls_config = tls_client::ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(root_store);
-
-        let rustls_config = if let Some((cert, key)) = config.client_auth() {
-            rustls_config
-                .with_single_cert(
-                    cert.iter()
-                        .map(|cert| tls_client::Certificate(cert.0.clone()))
-                        .collect(),
-                    tls_client::PrivateKey(key.0.clone()),
-                )
-                .map_err(|e| {
-                    Error::config()
-                        .with_msg("failed to configure client authentication")
-                        .with_source(e)
-                })?
-        } else {
-            rustls_config.with_no_client_auth()
-        };
-
         let span = self.span.clone();
-        let tls_client = match self.state.prover_deps {
-            ProverDeps::Mpc { vm, mpc_tls, keys } => {
-                let keys = keys.expect("keys should be available");
-                let mpc_tls =
-                    MpcTlsClient::new(span, keys, *mpc_tls, vm, rustls_config, server_name)?;
+        let tls_client: Box<dyn TlsClient<Error = Error> + Send + 'static> =
+            match self.state.prover_deps {
+                ProverDeps::Mpc { vm, mpc_tls, keys } => {
+                    let keys = keys.expect("keys should be available");
+                    let mpc_tls =
+                        MpcTlsClient::new(span, keys, *mpc_tls, vm, &config, server_name)?;
 
-                Box::new(mpc_tls)
-            }
-            ProverDeps::Proxy { .. } => {
-                todo!()
-            }
-        };
+                    Box::new(mpc_tls)
+                }
+                ProverDeps::Proxy { vm, keys } => {
+                    let keys = keys.expect("keys should be available");
+                    let proxy_tls = ProxyTlsClient::new(span, keys, vm, &config, server_name)?;
+
+                    Box::new(proxy_tls)
+                }
+            };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
         let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);

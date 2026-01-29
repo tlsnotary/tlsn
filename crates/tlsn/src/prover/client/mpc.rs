@@ -10,16 +10,18 @@ use futures::{Future, FutureExt, TryFutureExt};
 use mpc_tls::{LeaderCtrl, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use mpz_vm_core::Execute;
+use rustls_pki_types::CertificateDer;
 use std::{
     pin::Pin,
     sync::{Arc, atomic::AtomicBool},
     task::Poll,
 };
-use tls_client::{ClientConfig, ClientConnection, ServerName};
-use tlsn_core::transcript::TlsTranscript;
+use tls_client::{ClientConnection, ServerName};
+use tlsn_core::{config::tls::TlsClientConfig, transcript::TlsTranscript};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::{Span, debug, instrument, trace, warn};
+use webpki::anchor_from_trusted_cert;
 
 pub(crate) type MpcFuture =
     Box<dyn Future<Output = Result<(Context, TlsTranscript), TlsnError>> + Send>;
@@ -73,12 +75,13 @@ impl MpcTlsClient {
         keys: SessionKeys,
         mpc_tls: MpcTlsLeader,
         vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
-        config: ClientConfig,
+        config: &TlsClientConfig,
         server_name: ServerName,
     ) -> Result<Self, TlsnError> {
         let decrypt = mpc_tls.is_decrypting();
         let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
+        let config = create_client_config(config)?;
         let tls = ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)
             .map_err(|e| {
                 TlsnError::config()
@@ -516,4 +519,47 @@ impl InnerState {
         debug!("MPC-TLS done");
         Ok((self, ctx, transcript))
     }
+}
+
+fn create_client_config(config: &TlsClientConfig) -> Result<tls_client::ClientConfig, TlsnError> {
+    let root_store = tls_client::RootCertStore {
+        roots: config
+            .root_store()
+            .roots
+            .iter()
+            .map(|cert| {
+                let der = CertificateDer::from_slice(&cert.0);
+                anchor_from_trusted_cert(&der)
+                    .map(|anchor| anchor.to_owned())
+                    .map_err(|e| {
+                        TlsnError::config()
+                            .with_msg("failed to parse root certificate")
+                            .with_source(e)
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+
+    let rustls_config = tls_client::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store);
+
+    let rustls_config = if let Some((cert, key)) = config.client_auth() {
+        rustls_config
+            .with_single_cert(
+                cert.iter()
+                    .map(|cert| tls_client::Certificate(cert.0.clone()))
+                    .collect(),
+                tls_client::PrivateKey(key.0.clone()),
+            )
+            .map_err(|e| {
+                TlsnError::config()
+                    .with_msg("failed to configure client authentication")
+                    .with_source(e)
+            })?
+    } else {
+        rustls_config.with_no_client_auth()
+    };
+
+    Ok(rustls_config)
 }

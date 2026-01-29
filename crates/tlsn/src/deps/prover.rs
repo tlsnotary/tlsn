@@ -45,7 +45,10 @@ pub(crate) enum ProverDeps {
         mpc_tls: Box<MpcTlsLeader>,
         keys: Option<SessionKeys>,
     },
-    Proxy {},
+    Proxy {
+        vm: ProverZk,
+        keys: Option<SessionKeys>,
+    },
 }
 
 impl ProverDeps {
@@ -88,7 +91,9 @@ impl ProverDeps {
 
                 Ok(())
             }
-            ProverDeps::Proxy {} => Ok(()),
+            ProverDeps::Proxy { .. } => {
+                todo!()
+            }
         }
     }
 }
