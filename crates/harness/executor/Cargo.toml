@@ -46,6 +46,7 @@ getrandom = { version = "0.2", features = ["js"] }
 getrandom_03 = { package = "getrandom", version = "0.3", features = [
     "wasm_js",
 ] }
+web-sys = { version = "0.3", features = ["console"] }
 
 [[bin]]
 name = "tlsn-harness-executor-native"
