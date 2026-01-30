@@ -32,6 +32,13 @@ You are reviewing code for TLSNotary, a secure multi-party computation (MPC) pro
 - Doc comments follow the `# Arguments` pattern for function parameters
 - Soft limit of 100 characters per comment line
 
+### Commit Messages
+
+- Must follow [Conventional Commits](https://www.conventionalcommits.org/) format: `<type>[scope]: <description>`
+- Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`
+- Breaking changes indicated with `!` suffix (e.g., `refactor(core)!: rename Transcript`)
+- Description should be lowercase and not end with a period
+
 ### API Design
 
 - Breaking changes to public APIs are clearly justified
