@@ -28,8 +28,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
 
       - name: Run Claude Code Review
         id: claude-review
@@ -38,6 +36,8 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             /review
-
             Follow the guidelines in .github/prompts/review.md
-          claude_args: "--max-turns 3"
+          claude_args: "--max-turns 10"
+      - name: Show Claude execution log
+        if: always()
+        run: cat /home/runner/work/_temp/claude-execution-output.json
