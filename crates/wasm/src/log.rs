@@ -123,3 +123,16 @@ pub(crate) fn filter(config: LoggingConfig) -> impl Fn(&Metadata) -> bool {
         meta.level() <= level
     }
 }
+
+#[no_mangle]
+pub(crate) extern "C" fn __worker_teardown() {
+    use sharded_slab::DefaultConfig;
+    // Manually release sharded_slab's per-thread state.
+    //
+    // On native targets this would normally be cleaned up by Rust's
+    // thread-local destructors when a thread exits. However, in the
+    // wasm32 + wasm-bindgen threading model, TLS destructors are not
+    // invoked when a Web Worker is terminated. As a result, we must
+    // perform this cleanup explicitly before the worker is destroyed.
+    sharded_slab::release_current_thread_id::<DefaultConfig>();
+}
