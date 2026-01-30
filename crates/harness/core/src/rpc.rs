@@ -1,3 +1,5 @@
+#![allow(unused_assignments)]
+
 use enum_try_as_inner::EnumTryAsInner;
 use serde::{Deserialize, Serialize};
 
@@ -23,9 +25,7 @@ pub enum CmdOutput {
     Test(TestOutput),
     Bench(BenchOutput),
     #[cfg(target_arch = "wasm32")]
-    Fail {
-        reason: Option<String>,
-    },
+    Fail { reason: Option<String> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
