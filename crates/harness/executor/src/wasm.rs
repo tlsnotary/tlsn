@@ -12,6 +12,7 @@ use harness_core::{
 
 use crate::Executor;
 
+#[allow(unused_imports)]
 pub use tlsn_wasm::*;
 
 unsafe extern "C" {
@@ -38,6 +39,7 @@ impl WasmExecutor {
         Self(Executor::new(config))
     }
 
+    #[allow(unused_assignments)]
     pub async fn call(
         &mut self,
         cmd: JsValue,
