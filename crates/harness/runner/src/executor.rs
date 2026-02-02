@@ -18,11 +18,103 @@ use harness_core::{
     rpc::{BenchCmd, TestCmd},
     test::{TestOutput, TestStatus},
 };
+use serde::Serialize;
 
 use crate::{Target, network::Namespace, rpc::Rpc};
 
 #[cfg(feature = "debug")]
 use crate::debug_prelude::*;
+
+/// Logging configuration for WASM, matching tlsn-wasm's LoggingConfig.
+#[derive(Debug, Serialize)]
+struct LoggingConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    level: Option<LoggingLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    crate_filters: Option<Vec<CrateLogFilter>>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+enum LoggingLevel {
+    Off,
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+#[derive(Debug, Serialize)]
+struct CrateLogFilter {
+    name: String,
+    level: LoggingLevel,
+}
+
+/// Parses a RUST_LOG string into a LoggingConfig.
+///
+/// Supports formats like:
+/// - `debug` -> level: Debug
+/// - `warn,tlsn=debug` -> level: Warn, crate_filters: [{name: "tlsn", level: Debug}]
+/// - `info,tlsn_mpc_tls=debug,mpz=trace` -> level: Info, crate_filters for each crate
+///
+/// Note: `off` level is not supported by tlsn-wasm's LoggingConfig.
+fn parse_rust_log(rust_log: &str) -> LoggingConfig {
+    let mut level = None;
+    let mut crate_filters = Vec::new();
+
+    for directive in rust_log.split(',') {
+        let directive = directive.trim();
+        if directive.is_empty() {
+            continue;
+        }
+
+        if let Some((crate_name, crate_level)) = directive.split_once('=') {
+            // Crate-specific directive: `crate_name=level`
+            if let Some(parsed_level) = parse_level(crate_level) {
+                crate_filters.push(CrateLogFilter {
+                    name: crate_name.to_string(),
+                    level: parsed_level,
+                });
+            } else {
+                eprintln!(
+                    "warning: unknown log level '{}' for crate '{}' (browser target only supports off/trace/debug/info/warn/error)",
+                    crate_level, crate_name
+                );
+            }
+        } else {
+            // Global level directive
+            if let Some(parsed_level) = parse_level(directive) {
+                level = Some(parsed_level);
+            } else {
+                eprintln!(
+                    "warning: unknown log level '{}' (browser target only supports off/trace/debug/info/warn/error)",
+                    directive
+                );
+            }
+        }
+    }
+
+    LoggingConfig {
+        level,
+        crate_filters: if crate_filters.is_empty() {
+            None
+        } else {
+            Some(crate_filters)
+        },
+    }
+}
+
+fn parse_level(s: &str) -> Option<LoggingLevel> {
+    match s.to_lowercase().as_str() {
+        "off" => Some(LoggingLevel::Off),
+        "trace" => Some(LoggingLevel::Trace),
+        "debug" => Some(LoggingLevel::Debug),
+        "info" => Some(LoggingLevel::Info),
+        "warn" | "warning" => Some(LoggingLevel::Warn),
+        "error" => Some(LoggingLevel::Error),
+        _ => None,
+    }
+}
 
 pub struct Executor {
     ns: Namespace,
@@ -267,17 +359,29 @@ impl Executor {
                     .await?;
                 page.wait_for_navigation().await?;
                 page.bring_to_front().await?;
+
+                // Build logging config from RUST_LOG environment variable
+                let logging_config_js = if cfg!(feature = "debug") {
+                    let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
+                    let logging_config = parse_rust_log(&rust_log);
+                    serde_json::to_string(&logging_config)?
+                } else {
+                    "null".to_string()
+                };
+
                 page.evaluate(format!(
                     r#"
                         (async () => {{
                             const config = JSON.parse('{config}');
-                            console.log("initializing executor", config);
-                            await window.executor.init(config);
+                            const loggingConfig = JSON.parse('{logging_config}');
+                            console.log("initializing executor", config, "logging:", loggingConfig);
+                            await window.executor.init(config, loggingConfig);
                             console.log("executor initialized");
                             return;
                         }})();
                     "#,
-                    config = serde_json::to_string(&self.config)?
+                    config = serde_json::to_string(&self.config)?,
+                    logging_config = logging_config_js
                 ))
                 .await?;
 
