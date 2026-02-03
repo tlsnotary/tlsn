@@ -267,6 +267,7 @@ where
     ) -> Poll<Self::Output> {
         let mut state = Pin::new(&mut self.state).project();
 
+        tracing::info!("io to tls client");
         Self::io_to_tls_client(&mut state, cx)?;
 
         if state.output.is_none()
@@ -275,6 +276,7 @@ where
             *state.output = Some(output);
         }
 
+        tracing::info!("io from tls client");
         Self::io_from_tls_client(&mut state, cx)?;
 
         if *state.server_closed && state.output.is_some() {

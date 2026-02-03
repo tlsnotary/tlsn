@@ -237,6 +237,7 @@ impl MpcTlsFollower {
         let mut sf_vd = None;
         loop {
             let msg: Message = self.ctx.io_mut().expect_next().await?;
+            tracing::info!("got message in mpc-tls loop: {:?}", &msg);
             match msg {
                 Message::SetClientRandom(random) => {
                     if client_random.is_some() {
