@@ -7,7 +7,7 @@ on:
 
 jobs:
   claude-review:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+    if: false && (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -19,17 +19,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 1
+          fetch-depth: 0 # Full history for git log
 
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
-            /review
-
-            Follow the guidelines in .github/prompts/review.md
+            Review PR #${{ github.event.pull_request.number }} following the guidelines in .github/prompts/review.md
           claude_args: "--max-turns 10"
-      - name: Show Claude execution log
-        run: cat /home/runner/work/_temp/claude-execution-output.json
+          track_progress: "true"
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(gh *)", "Bash(git *)"]
+              }
+            }
+      - name: Upload Claude execution log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-execution-log
+          path: /home/runner/work/_temp/claude-execution-output.json
+          retention-days: 7
