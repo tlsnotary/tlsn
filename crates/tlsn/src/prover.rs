@@ -255,6 +255,24 @@ impl Prover<state::CommitAccepted> {
     }
 }
 
+// Debug waker wrapper to trace wake() calls
+pub(crate) struct TracingWaker {
+    pub label: &'static str,
+    pub inner: std::task::Waker,
+}
+
+impl std::task::Wake for TracingWaker {
+    fn wake(self: std::sync::Arc<Self>) {
+        tracing::info!("WAKER[{}]: wake() called", self.label);
+        self.inner.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &std::sync::Arc<Self>) {
+        tracing::info!("WAKER[{}]: wake_by_ref() called", self.label);
+        self.inner.wake_by_ref();
+    }
+}
+
 impl<S> Future for Prover<state::Connected<S>>
 where
     S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
@@ -265,25 +283,51 @@ where
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Self::Output> {
-        let mut state = Pin::new(&mut self.state).project();
-
-        tracing::info!("io to tls client");
-        Self::io_to_tls_client(&mut state, cx)?;
-
-        if state.output.is_none()
-            && let Poll::Ready(output) = state.tls_client.poll(cx)?
         {
-            *state.output = Some(output);
-        }
+            let mut state = Pin::new(&mut self.state).project();
 
-        tracing::info!("io from tls client");
-        Self::io_from_tls_client(&mut state, cx)?;
+            // Create labeled waker for io_to_tls_client
+            let io_to_waker: std::task::Waker = std::sync::Arc::new(TracingWaker {
+                label: "io_to_tls_client",
+                inner: cx.waker().clone(),
+            })
+            .into();
+            let mut io_to_cx = std::task::Context::from_waker(&io_to_waker);
 
-        if *state.server_closed && state.output.is_some() {
-            ready!(state.client_io.poll_close(cx))?;
-            ready!(state.server_socket.poll_close(cx))?;
+            tracing::info!("io to tls client");
+            Self::io_to_tls_client(&mut state, &mut io_to_cx)?;
 
-            return Poll::Ready(Ok(()));
+            // Create labeled waker for tls_client.poll
+            let tls_client_waker: std::task::Waker = std::sync::Arc::new(TracingWaker {
+                label: "tls_client_poll",
+                inner: cx.waker().clone(),
+            })
+            .into();
+            let mut tls_client_cx = std::task::Context::from_waker(&tls_client_waker);
+
+            if state.output.is_none()
+                && let Poll::Ready(output) = state.tls_client.poll(&mut tls_client_cx)?
+            {
+                *state.output = Some(output);
+            }
+
+            // Create labeled waker for io_from_tls_client
+            let io_from_waker: std::task::Waker = std::sync::Arc::new(TracingWaker {
+                label: "io_from_tls_client",
+                inner: cx.waker().clone(),
+            })
+            .into();
+            let mut io_from_cx = std::task::Context::from_waker(&io_from_waker);
+
+            tracing::info!("io from tls client");
+            Self::io_from_tls_client(&mut state, &mut io_from_cx)?;
+
+            if *state.server_closed && state.output.is_some() {
+                ready!(state.client_io.poll_close(cx))?;
+                ready!(state.server_socket.poll_close(cx))?;
+
+                return Poll::Ready(Ok(()));
+            }
         }
 
         Poll::Pending
