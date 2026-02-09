@@ -334,7 +334,10 @@ pub use crate::{
     key_log_file::KeyLogFile,
     kx::{SupportedKxGroup, ALL_KX_GROUPS},
 };
-pub use backend::{Backend, BackendError, DecryptMode, EncryptMode, RustCryptoBackend};
+pub use backend::{
+    Backend, BackendError, BackendNotifier, BackendNotify, DecryptMode, EncryptMode,
+    RustCryptoBackend,
+};
 pub use cipher::{MessageDecrypter, MessageEncrypter};
 pub use tls_core::{
     key::{Certificate, PrivateKey},
@@ -395,7 +398,7 @@ pub mod manual;
 pub type TLSError = Error;
 #[doc(hidden)]
 #[deprecated(since = "0.20.0", note = "Use ClientConnection")]
-pub type ClientSession = ClientConnection;
+pub type ClientSession<B> = ClientConnection<B>;
 
 /* Apologies: would make a trait alias here, but those remain unstable.
 pub trait Session = Connection;

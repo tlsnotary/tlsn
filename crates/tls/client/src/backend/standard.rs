@@ -1,5 +1,5 @@
-use super::{Backend, BackendError};
-use crate::{DecryptMode, EncryptMode, Error};
+use super::{Backend, BackendError, DecryptMode, EncryptMode};
+use crate::Error;
 #[allow(deprecated)]
 use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, NewAead, Payload},

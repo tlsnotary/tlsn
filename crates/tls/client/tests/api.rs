@@ -596,7 +596,7 @@ async fn server_cert_resolve_with_sni() {
 
         let mut client = ClientConnection::new(
             Arc::new(client_config),
-            Box::new(RustCryptoBackend::new()),
+            RustCryptoBackend::new(),
             dns_name("the-value-from-sni"),
         )
         .unwrap();
@@ -622,7 +622,7 @@ async fn server_cert_resolve_with_alpn() {
 
         let mut client = ClientConnection::new(
             Arc::new(client_config),
-            Box::new(RustCryptoBackend::new()),
+            RustCryptoBackend::new(),
             dns_name("sni-value"),
         )
         .unwrap();
@@ -647,7 +647,7 @@ async fn client_trims_terminating_dot() {
 
         let mut client = ClientConnection::new(
             Arc::new(client_config),
-            Box::new(RustCryptoBackend::new()),
+            RustCryptoBackend::new(),
             dns_name("some-host.com."),
         )
         .unwrap();
@@ -683,7 +683,7 @@ async fn check_sigalgs_reduced_by_ciphersuite(
 
     let mut client = ClientConnection::new(
         Arc::new(client_config),
-        Box::new(RustCryptoBackend::new()),
+        RustCryptoBackend::new(),
         dns_name("localhost"),
     )
     .unwrap();
@@ -752,7 +752,7 @@ async fn client_with_sni_disabled_does_not_send_sni() {
 
             let mut client = ClientConnection::new(
                 Arc::new(client_config),
-                Box::new(RustCryptoBackend::new()),
+                RustCryptoBackend::new(),
                 dns_name("value-not-sent"),
             )
             .unwrap();
@@ -774,7 +774,7 @@ async fn client_checks_server_certificate_with_given_name() {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let mut client = ClientConnection::new(
                 Arc::new(client_config),
-                Box::new(RustCryptoBackend::new()),
+                RustCryptoBackend::new(),
                 dns_name("not-the-right-hostname.com"),
             )
             .unwrap();
@@ -1052,7 +1052,7 @@ where
 
 struct ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon<RustCryptoBackend>>,
 {
     sess: &'a mut C,
     pub reads: usize,
@@ -1064,7 +1064,7 @@ where
 
 impl<'a, C> ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon<RustCryptoBackend>>,
 {
     fn new(sess: &'a mut C) -> ClientSession<'a, C> {
         ClientSession {
@@ -1086,7 +1086,7 @@ where
 
 impl<C> io::Read for ClientSession<'_, C>
 where
-    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon<RustCryptoBackend>>,
 {
     fn read(&mut self, mut b: &mut [u8]) -> io::Result<usize> {
         self.reads += 1;
@@ -1096,7 +1096,7 @@ where
 
 impl<C> io::Write for ClientSession<'_, C>
 where
-    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon<RustCryptoBackend>>,
 {
     fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
         unreachable!()
@@ -2488,7 +2488,7 @@ async fn test_client_mtu_reduction() {
         }
     }
 
-    fn collect_write_lengths(client: &mut ClientConnection) -> Vec<usize> {
+    fn collect_write_lengths(client: &mut ClientConnection<RustCryptoBackend>) -> Vec<usize> {
         let mut collector = CollectWrites { writevs: vec![] };
 
         client.write_tls(&mut collector).unwrap();
@@ -2501,7 +2501,7 @@ async fn test_client_mtu_reduction() {
         client_config.max_fragment_size = Some(64);
         let mut client = ClientConnection::new(
             Arc::new(client_config),
-            Box::new(RustCryptoBackend::new()),
+            RustCryptoBackend::new(),
             dns_name("localhost"),
         )
         .unwrap();
@@ -2560,7 +2560,7 @@ async fn check_client_max_fragment_size(size: usize) -> Option<Error> {
     client_config.max_fragment_size = Some(size);
     ClientConnection::new(
         Arc::new(client_config),
-        Box::new(RustCryptoBackend::new()),
+        RustCryptoBackend::new(),
         dns_name("localhost"),
     )
     .err()
@@ -2596,7 +2596,7 @@ fn assert_lt(left: usize, right: usize) {
 #[test]
 fn connection_types_are_not_huge() {
     // Arbitrary sizes
-    assert_lt(mem::size_of::<ClientConnection>(), 1600);
+    assert_lt(mem::size_of::<ClientConnection<RustCryptoBackend>>(), 1600);
 }
 
 use tls_client::internal::msgs::message::{Message, MessagePayload};
@@ -2658,7 +2658,7 @@ async fn test_client_tls12_no_resume_after_server_downgrade() {
 
     let mut client_1 = ClientConnection::new(
         client_config.clone(),
-        Box::new(RustCryptoBackend::new()),
+        RustCryptoBackend::new(),
         "localhost".try_into().unwrap(),
     )
     .unwrap();
@@ -2669,7 +2669,7 @@ async fn test_client_tls12_no_resume_after_server_downgrade() {
 
     let mut client_2 = ClientConnection::new(
         client_config,
-        Box::new(RustCryptoBackend::new()),
+        RustCryptoBackend::new(),
         "localhost".try_into().unwrap(),
     )
     .unwrap();

@@ -3,6 +3,7 @@ use crate::bs_debug;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
 use crate::{
+    backend::Backend,
     check::inappropriate_handshake_message,
     conn::{CommonState, ConnectionRandoms, State},
     error::Error,
@@ -37,16 +38,16 @@ use crate::client::{
 use async_trait::async_trait;
 use std::sync::Arc;
 
-pub(super) type NextState = Box<dyn State<ClientConnectionData>>;
-pub(super) type NextStateOrError = Result<NextState, Error>;
-pub(super) type ClientContext<'a> = crate::conn::Context<'a>;
+pub(super) type NextState<B> = Box<dyn State<B>>;
+pub(super) type NextStateOrError<B> = Result<NextState<B>, Error>;
+pub(super) type ClientContext<'a, B> = crate::conn::Context<'a, B>;
 
-pub(super) async fn start_handshake(
+pub(super) async fn start_handshake<B: Backend + 'static>(
     server_name: ServerName,
     extra_exts: Vec<ClientExtension>,
     config: Arc<ClientConfig>,
-    cx: &mut ClientContext<'_>,
-) -> NextStateOrError {
+    cx: &mut ClientContext<'_, B>,
+) -> NextStateOrError<B> {
     let mut transcript_buffer = HandshakeHashBuffer::new();
     if config.client_auth_cert_resolver.has_certs() {
         transcript_buffer.set_client_auth_enabled();
@@ -127,9 +128,9 @@ struct ExpectServerHelloOrHelloRetryRequest {
     extra_exts: Vec<ClientExtension>,
 }
 
-async fn emit_client_hello_for_retry(
+async fn emit_client_hello_for_retry<B: Backend + 'static>(
     config: Arc<ClientConfig>,
-    cx: &mut ClientContext<'_>,
+    cx: &mut ClientContext<'_, B>,
     random: Random,
     using_ems: bool,
     mut transcript_buffer: HandshakeHashBuffer,
@@ -142,7 +143,7 @@ async fn emit_client_hello_for_retry(
     extra_exts: Vec<ClientExtension>,
     may_send_sct_list: bool,
     suite: Option<SupportedCipherSuite>,
-) -> Result<NextState, Error> {
+) -> Result<NextState<B>, Error> {
     let support_tls12 = config.supports_version(ProtocolVersion::TLSv1_2);
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
 
@@ -277,8 +278,8 @@ async fn emit_client_hello_for_retry(
     }
 }
 
-pub(super) async fn process_alpn_protocol(
-    common: &mut CommonState,
+pub(super) async fn process_alpn_protocol<B: Backend>(
+    common: &mut CommonState<B>,
     config: &ClientConfig,
     proto: Option<&[u8]>,
 ) -> Result<(), Error> {
@@ -304,12 +305,12 @@ pub(super) fn sct_list_is_invalid(scts: &SCTList) -> bool {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectServerHello {
+impl<B: Backend + 'static> State<B> for ExpectServerHello {
     async fn handle(
         mut self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> NextStateOrError {
+    ) -> NextStateOrError<B> {
         let server_hello =
             require_handshake_msg!(m, HandshakeType::ServerHello, HandshakePayload::ServerHello)?;
         trace!("We got ServerHello {:#?}", server_hello);
@@ -488,15 +489,15 @@ impl State<ClientConnectionData> for ExpectServerHello {
 }
 
 impl ExpectServerHelloOrHelloRetryRequest {
-    fn into_expect_server_hello(self) -> NextState {
+    fn into_expect_server_hello<B: Backend + 'static>(self) -> NextState<B> {
         Box::new(self.next)
     }
 
-    async fn handle_hello_retry_request(
+    async fn handle_hello_retry_request<B: Backend + 'static>(
         self,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> NextStateOrError {
+    ) -> NextStateOrError<B> {
         let hrr = require_handshake_msg!(
             m,
             HandshakeType::HelloRetryRequest,
@@ -629,8 +630,8 @@ impl ExpectServerHelloOrHelloRetryRequest {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectServerHelloOrHelloRetryRequest {
-    async fn handle(self: Box<Self>, cx: &mut ClientContext<'_>, m: Message) -> NextStateOrError {
+impl<B: Backend + 'static> State<B> for ExpectServerHelloOrHelloRetryRequest {
+    async fn handle(self: Box<Self>, cx: &mut ClientContext<'_, B>, m: Message) -> NextStateOrError<B> {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHello(..),
@@ -649,8 +650,8 @@ impl State<ClientConnectionData> for ExpectServerHelloOrHelloRetryRequest {
     }
 }
 
-pub(super) async fn send_cert_error_alert(
-    common: &mut CommonState,
+pub(super) async fn send_cert_error_alert<B: Backend>(
+    common: &mut CommonState<B>,
     err: Error,
 ) -> Result<Error, Error> {
     match err {

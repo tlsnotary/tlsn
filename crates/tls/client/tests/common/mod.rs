@@ -101,7 +101,7 @@ pub fn version_eq(left: tls_client::ProtocolVersion, right: rustls::ProtocolVers
     left.as_str() == right.as_str()
 }
 
-pub fn send(client: &mut ClientConnection, server: &mut ServerConnection) -> usize {
+pub fn send(client: &mut ClientConnection<RustCryptoBackend>, server: &mut ServerConnection) -> usize {
     let mut buf = [0u8; 262144];
     let mut total = 0;
 
@@ -128,7 +128,7 @@ pub fn send(client: &mut ClientConnection, server: &mut ServerConnection) -> usi
     total
 }
 
-pub fn receive(server: &mut ServerConnection, client: &mut ClientConnection) -> usize {
+pub fn receive(server: &mut ServerConnection, client: &mut ClientConnection<RustCryptoBackend>) -> usize {
     let mut buf = [0u8; 262144];
     let mut total = 0;
 
@@ -155,7 +155,7 @@ pub fn receive(server: &mut ServerConnection, client: &mut ClientConnection) -> 
     total
 }
 
-pub fn transfer_eof(conn: &mut ClientConnection) {
+pub fn transfer_eof(conn: &mut ClientConnection<RustCryptoBackend>) {
     let empty_buf = [0u8; 0];
     let empty_cursor: &mut dyn io::Read = &mut &empty_buf[..];
     let sz = conn.read_tls(empty_cursor).unwrap();
@@ -177,7 +177,7 @@ pub enum Altered {
 }
 
 pub fn send_altered<F>(
-    client: &mut ClientConnection,
+    client: &mut ClientConnection<RustCryptoBackend>,
     filter: F,
     server: &mut rustls::Connection,
 ) -> usize
@@ -220,7 +220,7 @@ where
 pub fn receive_altered<F>(
     server: &mut rustls::Connection,
     filter: F,
-    client: &mut ClientConnection,
+    client: &mut ClientConnection<RustCryptoBackend>,
 ) -> usize
 where
     F: Fn(&mut Message) -> Altered,
@@ -494,24 +494,24 @@ pub fn make_client_config_with_versions_with_auth(
     finish_client_config_with_creds(kt, builder)
 }
 
-pub async fn make_pair(kt: KeyType) -> (ClientConnection, ServerConnection) {
+pub async fn make_pair(kt: KeyType) -> (ClientConnection<RustCryptoBackend>, ServerConnection) {
     make_pair_for_configs(make_client_config(kt), make_server_config(kt)).await
 }
 
 pub async fn make_pair_for_configs(
     client_config: ClientConfig,
     server_config: ServerConfig,
-) -> (ClientConnection, ServerConnection) {
+) -> (ClientConnection<RustCryptoBackend>, ServerConnection) {
     make_pair_for_arc_configs(&Arc::new(client_config), &Arc::new(server_config)).await
 }
 
 pub async fn make_pair_for_arc_configs(
     client_config: &Arc<ClientConfig>,
     server_config: &Arc<ServerConfig>,
-) -> (ClientConnection, ServerConnection) {
+) -> (ClientConnection<RustCryptoBackend>, ServerConnection) {
     let mut client = ClientConnection::new(
         Arc::clone(client_config),
-        Box::new(RustCryptoBackend::new()),
+        RustCryptoBackend::new(),
         dns_name("localhost"),
     )
     .unwrap();
@@ -523,7 +523,7 @@ pub async fn make_pair_for_arc_configs(
 }
 
 pub async fn do_handshake(
-    client: &mut ClientConnection,
+    client: &mut ClientConnection<RustCryptoBackend>,
     server: &mut ServerConnection,
 ) -> (usize, usize) {
     let (mut to_client, mut to_server) = (0, 0);
@@ -543,7 +543,7 @@ pub enum ErrorFromPeer {
 }
 
 pub async fn do_handshake_until_error(
-    client: &mut ClientConnection,
+    client: &mut ClientConnection<RustCryptoBackend>,
     server: &mut ServerConnection,
 ) -> Result<(), ErrorFromPeer> {
     while server.is_handshaking() || client.is_handshaking() {
@@ -562,7 +562,7 @@ pub async fn do_handshake_until_error(
 }
 
 pub async fn do_handshake_until_both_error(
-    client: &mut ClientConnection,
+    client: &mut ClientConnection<RustCryptoBackend>,
     server: &mut ServerConnection,
 ) -> Result<(), Vec<ErrorFromPeer>> {
     match do_handshake_until_error(client, server).await {

@@ -4212,25 +4212,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
-name = "ludi"
-version = "0.1.0"
-source = "git+https://github.com/sinui0/ludi?rev=e511c3b#e511c3b330dc298613cc3fd168244619e81ac740"
-dependencies = [
- "futures-util",
- "ludi-core",
-]
-
-[[package]]
-name = "ludi-core"
-version = "0.1.0"
-source = "git+https://github.com/sinui0/ludi?rev=e511c3b#e511c3b330dc298613cc3fd168244619e81ac740"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-util",
-]
-
-[[package]]
 name = "macro-string"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7581,7 +7562,6 @@ dependencies = [
  "futures",
  "generic-array",
  "ghash 0.5.1",
- "ludi",
  "mpz-common",
  "mpz-core",
  "mpz-fields",
@@ -7608,7 +7588,6 @@ dependencies = [
  "tlsn-hmac-sha256",
  "tlsn-key-exchange",
  "tlsn-mux",
- "tlsn-tls-backend",
  "tlsn-tls-client",
  "tlsn-tls-core",
  "tokio",
@@ -7662,16 +7641,6 @@ name = "tlsn-server-fixture-certs"
 version = "0.0.0"
 
 [[package]]
-name = "tlsn-tls-backend"
-version = "0.1.0-alpha.14"
-dependencies = [
- "async-trait",
- "futures",
- "thiserror 1.0.69",
- "tlsn-tls-core",
-]
-
-[[package]]
 name = "tlsn-tls-client"
 version = "0.1.0-alpha.14"
 dependencies = [
@@ -7692,7 +7661,7 @@ dependencies = [
  "rustls-webpki 0.103.8",
  "sct",
  "sha2",
- "tlsn-tls-backend",
+ "thiserror 1.0.69",
  "tlsn-tls-core",
  "tokio",
  "web-time 0.2.4",

@@ -2,6 +2,7 @@ use super::{client_conn::ClientConnectionData, hs::ClientContext};
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
 use crate::{
+    backend::Backend,
     check::{inappropriate_handshake_message, inappropriate_message},
     client::{
         common::{ClientAuthDetails, ServerCertDetails},
@@ -55,13 +56,13 @@ mod server_hello {
     }
 
     impl CompleteServerHelloHandling {
-        pub(in crate::client) async fn handle_server_hello(
+        pub(in crate::client) async fn handle_server_hello<B: Backend + 'static>(
             mut self,
-            cx: &mut ClientContext<'_>,
+            cx: &mut ClientContext<'_, B>,
             suite: &'static Tls12CipherSuite,
             server_hello: &ServerHelloPayload,
             tls13_supported: bool,
-        ) -> hs::NextStateOrError {
+        ) -> hs::NextStateOrError<B> {
             server_hello.random.write_slice(&mut self.randoms.server);
 
             // Look for TLS1.3 downgrade signal in server random
@@ -141,12 +142,12 @@ struct ExpectCertificate {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectCertificate {
+impl<B: Backend + 'static> State<B> for ExpectCertificate {
     async fn handle(
         mut self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         self.transcript.add_message(&m);
         let server_cert_chain = require_handshake_msg_move!(
             m,
@@ -205,12 +206,12 @@ struct ExpectCertificateStatusOrServerKx {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectCertificateStatusOrServerKx {
+impl<B: Backend + 'static> State<B> for ExpectCertificateStatusOrServerKx {
     async fn handle(
         self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerKeyExchange(..),
@@ -286,12 +287,12 @@ struct ExpectCertificateStatus {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectCertificateStatus {
+impl<B: Backend + 'static> State<B> for ExpectCertificateStatus {
     async fn handle(
         mut self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         self.transcript.add_message(&m);
         let server_cert_ocsp_response = require_handshake_msg_move!(
             m,
@@ -343,12 +344,12 @@ struct ExpectServerKx {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectServerKx {
+impl<B: Backend + 'static> State<B> for ExpectServerKx {
     async fn handle(
         mut self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         let opaque_kx = require_handshake_msg!(
             m,
             HandshakeType::ServerKeyExchange,
@@ -392,10 +393,10 @@ impl State<ClientConnectionData> for ExpectServerKx {
     }
 }
 
-async fn emit_certificate(
+async fn emit_certificate<B: Backend>(
     transcript: &mut HandshakeHash,
     cert_chain: CertificatePayload,
-    common: &mut CommonState,
+    common: &mut CommonState<B>,
 ) -> Result<(), Error> {
     let cert = Message {
         version: ProtocolVersion::TLSv1_2,
@@ -409,9 +410,9 @@ async fn emit_certificate(
     common.send_msg(cert, false).await
 }
 
-async fn emit_clientkx(
+async fn emit_clientkx<B: Backend>(
     transcript: &mut HandshakeHash,
-    common: &mut CommonState,
+    common: &mut CommonState<B>,
     pubkey: &PublicKey,
 ) -> Result<(), Error> {
     let ecpoint = PayloadU8::new(pubkey.key.clone());
@@ -432,10 +433,10 @@ async fn emit_clientkx(
     common.send_msg(ckx, false).await
 }
 
-async fn emit_certverify(
+async fn emit_certverify<B: Backend>(
     transcript: &mut HandshakeHash,
     signer: &dyn Signer,
-    common: &mut CommonState,
+    common: &mut CommonState<B>,
 ) -> Result<(), Error> {
     let message = transcript
         .take_handshake_buf()
@@ -457,7 +458,7 @@ async fn emit_certverify(
     common.send_msg(m, false).await
 }
 
-async fn emit_ccs(common: &mut CommonState) -> Result<(), Error> {
+async fn emit_ccs<B: Backend>(common: &mut CommonState<B>) -> Result<(), Error> {
     let ccs = Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
@@ -466,10 +467,10 @@ async fn emit_ccs(common: &mut CommonState) -> Result<(), Error> {
     common.send_msg(ccs, false).await
 }
 
-async fn emit_finished(
+async fn emit_finished<B: Backend>(
     verify_data: &[u8],
     transcript: &mut HandshakeHash,
-    common: &mut CommonState,
+    common: &mut CommonState<B>,
 ) -> Result<(), Error> {
     let verify_data_payload = Payload::new(verify_data);
 
@@ -502,12 +503,12 @@ struct ExpectServerDoneOrCertReq {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectServerDoneOrCertReq {
+impl<B: Backend + 'static> State<B> for ExpectServerDoneOrCertReq {
     async fn handle(
         mut self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         if matches!(
             m.payload,
             MessagePayload::Handshake(HandshakeMessagePayload {
@@ -565,12 +566,12 @@ struct ExpectCertificateRequest {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectCertificateRequest {
+impl<B: Backend + 'static> State<B> for ExpectCertificateRequest {
     async fn handle(
         mut self: Box<Self>,
-        _cx: &mut ClientContext<'_>,
+        _cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         let certreq = require_handshake_msg!(
             m,
             HandshakeType::CertificateRequest,
@@ -624,12 +625,12 @@ struct ExpectServerDone {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectServerDone {
+impl<B: Backend + 'static> State<B> for ExpectServerDone {
     async fn handle(
         self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHelloDone,
@@ -842,12 +843,12 @@ struct ExpectNewTicket {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectNewTicket {
+impl<B: Backend + 'static> State<B> for ExpectNewTicket {
     async fn handle(
         mut self: Box<Self>,
-        _cx: &mut ClientContext<'_>,
+        _cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         self.transcript.add_message(&m);
 
         let nst = require_handshake_msg_move!(
@@ -884,12 +885,12 @@ struct ExpectCcs {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectCcs {
+impl<B: Backend + 'static> State<B> for ExpectCcs {
     async fn handle(
         self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         match m.payload {
             MessagePayload::ChangeCipherSpec(..) => {}
             payload => {
@@ -933,12 +934,12 @@ struct ExpectFinished {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectFinished {
+impl<B: Backend + 'static> State<B> for ExpectFinished {
     async fn handle(
         self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         let mut st = *self;
         let finished =
             require_handshake_msg!(m, HandshakeType::Finished, HandshakePayload::Finished)?;
@@ -995,12 +996,12 @@ struct ExpectTraffic {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectTraffic {
+impl<B: Backend + 'static> State<B> for ExpectTraffic {
     async fn handle(
         self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_, B>,
         m: Message,
-    ) -> hs::NextStateOrError {
+    ) -> hs::NextStateOrError<B> {
         match m.payload {
             MessagePayload::ApplicationData(payload) => cx.common.take_received_plaintext(payload),
             payload => {

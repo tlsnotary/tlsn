@@ -1,3 +1,4 @@
+use crate::backend::BackendNotify;
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
 use crate::{
@@ -16,7 +17,6 @@ use std::{
     io, mem,
     ops::{Deref, DerefMut},
 };
-use tls_backend::BackendNotify;
 use tls_core::{
     msgs::{
         alert::AlertMessagePayload,
@@ -158,19 +158,19 @@ enum Limit {
 }
 
 /// Interface shared by client and server connections.
-pub struct ConnectionCommon {
-    state: Result<Box<dyn State<ClientConnectionData>>, Error>,
+pub struct ConnectionCommon<B: Backend> {
+    state: Result<Box<dyn State<B>>, Error>,
     pub(crate) data: ClientConnectionData,
-    pub(crate) common_state: CommonState,
+    pub(crate) common_state: CommonState<B>,
     message_deframer: MessageDeframer,
     handshake_joiner: HandshakeJoiner,
 }
 
-impl ConnectionCommon {
+impl<B: Backend + 'static> ConnectionCommon<B> {
     pub(crate) fn new(
-        state: Box<dyn State<ClientConnectionData>>,
+        state: Box<dyn State<B>>,
         data: ClientConnectionData,
-        common_state: CommonState,
+        common_state: CommonState<B>,
     ) -> Self {
         Self {
             state: Ok(state),
@@ -337,7 +337,7 @@ impl ConnectionCommon {
         Ok(self.handshake_joiner.frames.pop_front())
     }
 
-    pub(crate) fn replace_state(&mut self, new: Box<dyn State<ClientConnectionData>>) {
+    pub(crate) fn replace_state(&mut self, new: Box<dyn State<B>>) {
         self.state = Ok(new);
     }
 
@@ -382,8 +382,8 @@ impl ConnectionCommon {
     async fn process_incoming_plain(
         &mut self,
         msg: PlainMessage,
-        state: Box<dyn State<ClientConnectionData>>,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+        state: Box<dyn State<B>>,
+    ) -> Result<Box<dyn State<B>>, Error> {
         // For handshake messages, we need to join them before parsing
         // and processing.
         if self.handshake_joiner.want_message(&msg) {
@@ -487,6 +487,10 @@ impl ConnectionCommon {
             }
         }
 
+        // Flush any operations generated during decrypted message processing
+        // (e.g. start_traffic → flush_plaintext → push_outgoing).
+        self.backend.flush().await?;
+
         while let Some(msg) = self.backend.next_outgoing().await? {
             self.queue_tls_message(msg);
         }
@@ -498,8 +502,8 @@ impl ConnectionCommon {
 
     async fn process_new_handshake_messages(
         &mut self,
-        mut state: Box<dyn State<ClientConnectionData>>,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+        mut state: Box<dyn State<B>>,
+    ) -> Result<Box<dyn State<B>>, Error> {
         self.common_state.aligned_handshake = self.handshake_joiner.is_empty();
         while let Some(msg) = self.handshake_joiner.frames.pop_front() {
             state = self
@@ -604,26 +608,26 @@ impl ConnectionCommon {
     }
 }
 
-impl Deref for ConnectionCommon {
-    type Target = CommonState;
+impl<B: Backend> Deref for ConnectionCommon<B> {
+    type Target = CommonState<B>;
 
     fn deref(&self) -> &Self::Target {
         &self.common_state
     }
 }
 
-impl DerefMut for ConnectionCommon {
+impl<B: Backend> DerefMut for ConnectionCommon<B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.common_state
     }
 }
 
 /// Connection state common to both client and server connections.
-pub struct CommonState {
+pub struct CommonState<B: Backend> {
     pub(crate) negotiated_version: Option<ProtocolVersion>,
     pub(crate) side: Side,
     pub(crate) record_layer: record_layer::RecordLayer,
-    pub(crate) backend: Box<dyn Backend>,
+    pub(crate) backend: B,
     pub(crate) suite: Option<SupportedCipherSuite>,
     pub(crate) alpn_protocol: Option<Vec<u8>>,
     aligned_handshake: bool,
@@ -646,11 +650,11 @@ pub struct CommonState {
     pub(crate) protocol: Protocol,
 }
 
-impl CommonState {
+impl<B: Backend> CommonState<B> {
     pub(crate) fn new(
         max_fragment_size: Option<usize>,
         side: Side,
-        backend: Box<dyn Backend>,
+        backend: B,
     ) -> Result<Self, Error> {
         Ok(Self {
             negotiated_version: None,
@@ -755,9 +759,9 @@ impl CommonState {
     async fn process_main_protocol(
         &mut self,
         msg: Message,
-        mut state: Box<dyn State<ClientConnectionData>>,
+        mut state: Box<dyn State<B>>,
         data: &mut ClientConnectionData,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+    ) -> Result<Box<dyn State<B>>, Error> {
         // For TLS1.2, outside of the handshake, send rejection alerts for
         // renegotiation requests.  These can occur any time.
         if self.may_receive_application_data && !self.is_tls13() {
@@ -815,7 +819,7 @@ impl CommonState {
         }
 
         self.record_layer
-            .decrypt_incoming(self.backend.as_mut(), encr)
+            .decrypt_incoming(&mut self.backend, encr)
             .await?;
 
         Ok(())
@@ -894,7 +898,7 @@ impl CommonState {
         }
 
         self.record_layer
-            .encrypt_outgoing(self.backend.as_mut(), m)
+            .encrypt_outgoing(&mut self.backend, m)
             .await?;
 
         Ok(())
@@ -1111,13 +1115,13 @@ impl CommonState {
     }
 
     /// Returns a reference to the backend.
-    pub fn backend(&self) -> &dyn Backend {
-        self.backend.as_ref()
+    pub fn backend(&self) -> &B {
+        &self.backend
     }
 
     /// Returns a mutable reference to the backend.
-    pub fn backend_mut(&mut self) -> &mut dyn Backend {
-        self.backend.as_mut()
+    pub fn backend_mut(&mut self) -> &mut B {
+        &mut self.backend
     }
 
     fn current_io_state(&self) -> IoState {
@@ -1130,19 +1134,16 @@ impl CommonState {
 }
 
 #[async_trait]
-pub(crate) trait State<ClientConnectionData>: Send + Sync {
-    async fn start(
-        self: Box<Self>,
-        _cx: &mut Context<'_>,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+pub(crate) trait State<B: Backend>: Send + Sync {
+    async fn start(self: Box<Self>, _cx: &mut Context<'_, B>) -> Result<Box<dyn State<B>>, Error> {
         panic!("Start called on unexpected state")
     }
 
     async fn handle(
         self: Box<Self>,
-        cx: &mut Context<'_>,
+        cx: &mut Context<'_, B>,
         message: Message,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error>;
+    ) -> Result<Box<dyn State<B>>, Error>;
 
     fn export_keying_material(
         &self,
@@ -1153,11 +1154,11 @@ pub(crate) trait State<ClientConnectionData>: Send + Sync {
         Err(Error::HandshakeNotComplete)
     }
 
-    async fn perhaps_write_key_update(&mut self, _cx: &mut CommonState) {}
+    async fn perhaps_write_key_update(&mut self, _cx: &mut CommonState<B>) {}
 }
 
-pub(crate) struct Context<'a> {
-    pub(crate) common: &'a mut CommonState,
+pub(crate) struct Context<'a, B: Backend> {
+    pub(crate) common: &'a mut CommonState<B>,
     pub(crate) data: &'a mut ClientConnectionData,
 }
 

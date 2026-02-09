@@ -5,10 +5,11 @@ use super::hs;
 use crate::log::trace;
 use crate::{
     builder::{ConfigBuilder, WantsCipherSuites},
+    backend::Backend,
     conn::{CommonState, ConnectionCommon, Protocol, Side, State},
     error::Error,
     kx::SupportedKxGroup,
-    sign, verify, Backend, KeyLog,
+    sign, verify, KeyLog,
 };
 use std::{
     convert::TryFrom,
@@ -269,41 +270,41 @@ pub struct Initialized {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for Initialized {
+impl<B: Backend + 'static> State<B> for Initialized {
     async fn start(
         self: Box<Self>,
-        cx: &mut crate::conn::Context<'_>,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+        cx: &mut crate::conn::Context<'_, B>,
+    ) -> Result<Box<dyn State<B>>, Error> {
         hs::start_handshake(self.server_name, self.extra_exts, self.config, cx).await
     }
 
     async fn handle(
         self: Box<Self>,
-        _cx: &mut crate::conn::Context<'_>,
+        _cx: &mut crate::conn::Context<'_, B>,
         _message: Message,
-    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+    ) -> Result<Box<dyn State<B>>, Error> {
         unreachable!()
     }
 }
 
 /// This represents a single TLS client connection.
-pub struct ClientConnection {
-    inner: ConnectionCommon,
+pub struct ClientConnection<B: Backend> {
+    inner: ConnectionCommon<B>,
 }
 
-impl fmt::Debug for ClientConnection {
+impl<B: Backend> fmt::Debug for ClientConnection<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ClientConnection").finish()
     }
 }
 
-impl ClientConnection {
+impl<B: Backend + 'static> ClientConnection<B> {
     /// Make a new ClientConnection.  `config` controls how
     /// we behave in the TLS protocol, `name` is the
     /// name of the server we want to talk to.
     pub fn new(
         config: Arc<ClientConfig>,
-        backend: Box<dyn Backend>,
+        backend: B,
         name: ServerName,
     ) -> Result<Self, Error> {
         Self::new_inner(config, backend, name, Vec::new(), Protocol::Tcp)
@@ -311,7 +312,7 @@ impl ClientConnection {
 
     fn new_inner(
         config: Arc<ClientConfig>,
-        backend: Box<dyn Backend>,
+        backend: B,
         name: ServerName,
         extra_exts: Vec<ClientExtension>,
         proto: Protocol,
@@ -341,15 +342,15 @@ impl ClientConnection {
     }
 }
 
-impl Deref for ClientConnection {
-    type Target = ConnectionCommon;
+impl<B: Backend> Deref for ClientConnection<B> {
+    type Target = ConnectionCommon<B>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl DerefMut for ClientConnection {
+impl<B: Backend> DerefMut for ClientConnection<B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
