@@ -2,7 +2,7 @@
 
 This crate provides a WebAssembly package for TLSNotary, offering core functionality for the TLSNotary attestation protocol along with useful TypeScript types.
 
-For most use cases, you may prefer to use the `tlsn-js` package instead: [tlsn-js on npm](https://www.npmjs.com/package/tlsn-js).
+For browser usage, check the [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension) mono-repo.
 
 ## Dependencies
 

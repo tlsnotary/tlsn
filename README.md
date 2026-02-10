@@ -41,7 +41,7 @@ For evaluation, we recommend using [tagged releases](https://github.com/tlsnotar
 - [examples](./crates/examples/): Examples on how to use the TLSNotary protocol.
 - [tlsn](./crates/tlsn/): The TLSNotary library.
 
-This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-js`](https://github.com/tlsnotary/tlsn-js), [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), among others.
+This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), among others.
 
 
 ## Development
