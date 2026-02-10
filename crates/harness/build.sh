@@ -25,4 +25,8 @@ cp ../../target/release/tlsn-server-fixture bin/server-fixture
 cp ../../target/release/tlsn-harness-wasm-server bin/wasm-server
 cp ../../target/release/tlsn-harness-plot bin/tlsn-harness-plot
 
-./build.wasm.sh
+if [ "$1" = "debug" ]; then
+    ./build.wasm.sh debug
+else
+    ./build.wasm.sh
+fi
