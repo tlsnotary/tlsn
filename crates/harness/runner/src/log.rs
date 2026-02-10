@@ -29,7 +29,8 @@ pub(crate) struct CrateLogFilter {
 ///
 /// Supports formats like:
 /// - `debug` -> level: Debug
-/// - `warn,tlsn=debug` -> level: Warn, crate_filters: [{name: "tlsn", level: Debug}]
+/// - `warn,tlsn=debug` -> level: Warn, crate_filters: [{name: "tlsn", level:
+///   Debug}]
 pub(crate) fn parse_rust_log(rust_log: &str) -> LoggingConfig {
     let mut level = None;
     let mut crate_filters = Vec::new();
