@@ -341,19 +341,32 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "trace", skip_all, err)]
     async fn run(mut self: Box<Self>) -> Result<Box<Self>, TlsnError> {
-        self.tls
+        let mut state = self
+            .tls
             .process_new_packets()
             .await
             .map_err(|err| TlsnError::internal().with_source(err))?;
+        loop {
+            let new_state = self
+                .tls
+                .process_new_packets()
+                .await
+                .map_err(|err| TlsnError::internal().with_source(err))?;
+
+            if new_state.plaintext_bytes_to_read() == state.plaintext_bytes_to_read()
+                && new_state.tls_bytes_to_write() == state.tls_bytes_to_write()
+            {
+                break;
+            }
+            state = new_state;
+        }
+
         Ok(self)
     }
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn client_close(mut self: Box<Self>) -> Result<Box<Self>, TlsnError> {
-        self.tls
-            .process_new_packets()
-            .await
-            .map_err(|err| TlsnError::internal().with_source(err))?;
+        self = self.run().await?;
 
         if !self.client_closed {
             debug!("sending close notify");
@@ -368,10 +381,7 @@ impl InnerState {
 
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn server_close(mut self: Box<Self>) -> Result<Box<Self>, TlsnError> {
-        self.tls
-            .process_new_packets()
-            .await
-            .map_err(|err| TlsnError::internal().with_source(err))?;
+        self = self.run().await?;
 
         self.tls
             .server_closed()
