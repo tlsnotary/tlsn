@@ -1,5 +1,6 @@
 pub mod cli;
 mod executor;
+mod log;
 mod network;
 pub(crate) mod rpc;
 mod server_fixture;

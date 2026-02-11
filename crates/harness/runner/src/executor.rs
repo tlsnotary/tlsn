@@ -19,7 +19,7 @@ use harness_core::{
     test::{TestOutput, TestStatus},
 };
 
-use crate::{Target, network::Namespace, rpc::Rpc};
+use crate::{Target, log::parse_rust_log, network::Namespace, rpc::Rpc};
 
 #[cfg(feature = "debug")]
 use crate::debug_prelude::*;
@@ -267,17 +267,30 @@ impl Executor {
                     .await?;
                 page.wait_for_navigation().await?;
                 page.bring_to_front().await?;
+
+                // Build logging config from RUST_LOG environment variable
+                let logging_config_js = if cfg!(feature = "debug") {
+                    let rust_log =
+                        std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
+                    let logging_config = parse_rust_log(&rust_log);
+                    serde_json::to_string(&logging_config)?
+                } else {
+                    "null".to_string()
+                };
+
                 page.evaluate(format!(
                     r#"
                         (async () => {{
                             const config = JSON.parse('{config}');
-                            console.log("initializing executor", config);
-                            await window.executor.init(config);
+                            const loggingConfig = JSON.parse('{logging_config}');
+                            console.log("initializing executor", config, "logging:", loggingConfig);
+                            await window.executor.init(config, loggingConfig);
                             console.log("executor initialized");
                             return;
                         }})();
                     "#,
-                    config = serde_json::to_string(&self.config)?
+                    config = serde_json::to_string(&self.config)?,
+                    logging_config = logging_config_js
                 ))
                 .await?;
 

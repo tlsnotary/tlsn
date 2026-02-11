@@ -24,6 +24,7 @@ duct = { version = "1" }
 futures = { workspace = true }
 indicatif = { version = "0.17" }
 ipnet = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serio = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
