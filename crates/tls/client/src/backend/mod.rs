@@ -1,4 +1,146 @@
+mod notify;
 mod standard;
 
+pub use notify::{BackendNotifier, BackendNotify};
 pub use standard::RustCryptoBackend;
-pub use tls_backend::{Backend, BackendError, DecryptMode, EncryptMode};
+
+use async_trait::async_trait;
+use mpz_common::Context;
+use tls_core::{
+    cert::ServerCertDetails,
+    ke::ServerKxDetails,
+    key::PublicKey,
+    msgs::{
+        enums::{CipherSuite, NamedGroup, ProtocolVersion},
+        handshake::Random,
+        message::{OpaqueMessage, PlainMessage},
+    },
+    suites::SupportedCipherSuite,
+};
+
+/// Possible backend errors
+#[allow(missing_docs)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum BackendError {
+    #[error("Invalid state: {0:?}")]
+    InvalidState(String),
+    #[error("Unsupported protocol version: {0:?}")]
+    UnsupportedProtocolVersion(ProtocolVersion),
+    #[error("Unsupported ciphersuite: {0:?}")]
+    UnsupportedCiphersuite(CipherSuite),
+    #[error("Unsupported curve group: {0:?}")]
+    UnsupportedCurveGroup(NamedGroup),
+    #[error("Invalid configuration: {0:?}")]
+    InvalidConfig(String),
+    #[error("Invalid server public keyshare")]
+    InvalidServerKey,
+    #[error("internal error: {0:?}")]
+    InternalError(String),
+    #[error("Encryption error: {0:?}")]
+    EncryptionError(String),
+    #[error("Decryption error: {0:?}")]
+    DecryptionError(String),
+}
+
+/// Encryption modes for Crypto implementor
+#[derive(Debug, Clone)]
+pub enum EncryptMode {
+    /// Encrypt payload with PSK
+    EarlyData,
+    /// Encrypt payload with Handshake keys
+    Handshake,
+    /// Encrypt payload with Application traffic keys
+    Application,
+}
+
+/// Decryption modes for Crypto implementor
+#[derive(Debug, Clone)]
+pub enum DecryptMode {
+    /// Decrypt payload with Handshake keys
+    Handshake,
+    /// Decrypt payload with Application traffic keys
+    Application,
+}
+
+/// Core trait which manages crypto operations for the TLS connection such as
+/// key exchange, encryption and decryption.
+#[async_trait]
+pub trait Backend: Send {
+    /// Signals selected protocol version to implementor.
+    /// Throws error if version is not supported.
+    async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError>;
+    /// Signals selected cipher suite to implementor.
+    /// Throws error if cipher suite is not supported.
+    async fn set_cipher_suite(&mut self, suite: SupportedCipherSuite) -> Result<(), BackendError>;
+    /// Returns configured cipher suite.
+    async fn get_suite(&mut self) -> Result<SupportedCipherSuite, BackendError> {
+        Err(BackendError::InternalError("not supported".into()))
+    }
+    /// Set encryption mode
+    async fn set_encrypt(&mut self, _mode: EncryptMode) -> Result<(), BackendError> {
+        Err(BackendError::InternalError("not supported".into()))
+    }
+    /// Set decryption mode
+    async fn set_decrypt(&mut self, _mode: DecryptMode) -> Result<(), BackendError> {
+        Err(BackendError::InternalError("not supported".into()))
+    }
+    /// Returns client_random value.
+    async fn get_client_random(&mut self) -> Result<Random, BackendError>;
+    /// Returns public client keyshare.
+    async fn get_client_key_share(&mut self) -> Result<PublicKey, BackendError>;
+    /// Sets server random.
+    async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError>;
+    /// Sets server keyshare.
+    async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError>;
+    /// Sets the server cert chain
+    async fn set_server_cert_details(
+        &mut self,
+        cert_details: ServerCertDetails,
+    ) -> Result<(), BackendError>;
+    /// Sets the server kx details
+    async fn set_server_kx_details(
+        &mut self,
+        kx_details: ServerKxDetails,
+    ) -> Result<(), BackendError>;
+    /// Sets handshake hash at ClientKeyExchange for EMS.
+    async fn set_hs_hash_client_key_exchange(&mut self, hash: Vec<u8>) -> Result<(), BackendError>;
+    /// Sets handshake hash at ServerHello.
+    async fn set_hs_hash_server_hello(&mut self, hash: Vec<u8>) -> Result<(), BackendError>;
+    /// Returns expected ServerFinished verify_data.
+    async fn get_server_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError>;
+    /// Returns ClientFinished verify_data.
+    async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError>;
+    /// Prepares the backend for encryption.
+    async fn prepare_encryption(&mut self) -> Result<(), BackendError>;
+    /// Buffer incoming message for decryption.
+    async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError>;
+    /// Returns next decrypted incoming message.
+    async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, BackendError>;
+    /// Buffer outgoing message for encryption.
+    async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError>;
+    /// Returns next outgoing message.
+    async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError>;
+    /// Starts processing application data traffic.
+    async fn start_traffic(&mut self) -> Result<(), BackendError>;
+    /// Flushes the record layer.
+    async fn flush(&mut self) -> Result<(), BackendError>;
+    /// Returns a notification future which resolves when the backend is ready
+    /// to process the next message.
+    async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
+        Ok(BackendNotify::dummy())
+    }
+    /// Returns `true` if there are no buffered messages in the backend.
+    fn is_empty(&self) -> Result<bool, BackendError>;
+    /// Signals to the backend that the server has closed the connection.
+    async fn server_closed(&mut self) -> Result<(), BackendError> {
+        Ok(())
+    }
+    /// Enables or disables the decryption of any incoming messages.
+    fn enable_decryption(&mut self, _enable: bool) -> Result<(), BackendError> {
+        unimplemented!()
+    }
+    /// Returns the context and transcript after the connection is closed.
+    fn finish(&mut self) -> Option<(Context, tlsn_core::transcript::TlsTranscript)> {
+        unimplemented!()
+    }
+}

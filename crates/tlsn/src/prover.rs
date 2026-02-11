@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-use futures::{AsyncRead, AsyncWrite, TryFutureExt, ready};
+use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
 use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
@@ -172,7 +172,6 @@ impl Prover<state::CommitAccepted> {
         } = self.state;
 
         let decrypt = mpc_tls.is_decrypting();
-        let (mpc_ctrl, mpc_fut) = mpc_tls.run();
 
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =
@@ -217,27 +216,15 @@ impl Prover<state::CommitAccepted> {
             rustls_config.with_no_client_auth()
         };
 
-        let client = ClientConnection::new(
-            Arc::new(rustls_config),
-            Box::new(mpc_ctrl.clone()),
-            server_name,
-        )
-        .map_err(|e| {
-            Error::config()
-                .with_msg("failed to create tls client connection")
-                .with_source(e)
-        })?;
+        let client =
+            ClientConnection::new(Arc::new(rustls_config), Box::new(mpc_tls), server_name).map_err(|e| {
+                Error::config()
+                    .with_msg("failed to create tls client connection")
+                    .with_source(e)
+            })?;
 
         let span = self.span.clone();
-        let mpc_tls = MpcTlsClient::new(
-            Box::new(mpc_fut.map_err(Error::from)),
-            keys,
-            vm,
-            span,
-            mpc_ctrl,
-            client,
-            decrypt,
-        );
+        let mpc_tls = MpcTlsClient::new(keys, vm, span, client, decrypt);
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
         let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
@@ -280,14 +267,15 @@ where
     ) -> Poll<Self::Output> {
         let mut state = Pin::new(&mut self.state).project();
 
+        Self::io_to_tls_client(&mut state, cx)?;
+
         if state.output.is_none()
             && let Poll::Ready(output) = state.tls_client.poll(cx)?
         {
             *state.output = Some(output);
         }
 
-        Self::io_client_conn(&mut state, cx)?;
-        Self::io_client_server(&mut state, cx)?;
+        Self::io_from_tls_client(&mut state, cx)?;
 
         if *state.server_closed && state.output.is_some() {
             ready!(state.client_io.poll_close(cx))?;
@@ -332,7 +320,7 @@ where
         Ok(prover)
     }
 
-    fn io_client_conn(
+    fn io_to_tls_client(
         state: &mut ConnectedProj<S>,
         cx: &mut std::task::Context<'_>,
     ) -> Result<(), Error> {
@@ -347,6 +335,8 @@ where
                     if write > 0 {
                         simplex.advance(write);
                     }
+                } else {
+                    cx.waker().wake_by_ref();
                 }
             } else if !*state.client_closed && !*state.server_closed {
                 *state.client_closed = true;
@@ -354,56 +344,51 @@ where
             }
         }
 
-        // tls_client -> tls_conn
-        // Always poll to register wakers, then check wants_read()
-        if let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx)
-            && let Poll::Ready(buf) = simplex.poll_mut(cx)?
-            && state.tls_client.wants_read()
-        {
-            let read = state.tls_client.read(buf)?;
-            if read > 0 {
-                simplex.advance_mut(read);
-            }
-        }
-        Ok(())
-    }
-
-    fn io_client_server(
-        state: &mut ConnectedProj<S>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Result<(), Error> {
         // server_socket -> buf
         if let Poll::Ready(write) = state
             .server_to_client
             .poll_write_from(cx, state.server_socket.as_mut())?
-            && write == 0
-            && !*state.server_closed
         {
-            *state.server_closed = true;
-            state.tls_client.server_close();
+            if write == 0 && !*state.server_closed {
+                *state.server_closed = true;
+                state.tls_client.server_close();
+            } else if write > 0 {
+                cx.waker().wake_by_ref();
+            }
         }
 
         // buf -> tls_client
         // Always poll to register wakers, then check wants_read_tls()
         if let Poll::Ready(mut simplex) = state.client_to_server.as_mut().poll_lock_read(cx)
             && let Poll::Ready(buf) = simplex.poll_get(cx)?
-            && state.tls_client.wants_read_tls()
         {
-            let read = state.tls_client.read_tls(buf)?;
-            if read > 0 {
-                simplex.advance(read);
+            if state.tls_client.wants_read_tls() {
+                let read = state.tls_client.read_tls(buf)?;
+                if read > 0 {
+                    simplex.advance(read);
+                }
+            } else if !buf.is_empty() {
+                cx.waker().wake_by_ref();
             }
         }
 
+        Ok(())
+    }
+
+    fn io_from_tls_client(
+        state: &mut ConnectedProj<S>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Result<(), Error> {
         // tls_client -> buf
         // Always poll to register wakers, then check wants_write_tls()
         if let Poll::Ready(mut simplex) = state.client_to_server.as_mut().poll_lock_write(cx)
             && let Poll::Ready(buf) = simplex.poll_mut(cx)?
-            && state.tls_client.wants_write_tls()
         {
             let write = state.tls_client.write_tls(buf)?;
             if write > 0 {
                 simplex.advance_mut(write);
+            } else if state.tls_client.wants_write_tls() {
+                cx.waker().wake_by_ref();
             }
         }
 
@@ -417,6 +402,19 @@ where
             Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::ConnectionReset) => {}
             Poll::Ready(Err(err)) => return Err(Error::from(err)),
             _ => {}
+        }
+
+        // tls_client -> tls_conn
+        // Always poll to register wakers, then check wants_read()
+        if let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx)
+            && let Poll::Ready(buf) = simplex.poll_mut(cx)?
+        {
+            let read = state.tls_client.read(buf)?;
+            if read > 0 {
+                simplex.advance_mut(read);
+            } else if state.tls_client.wants_read() {
+                cx.waker().wake_by_ref();
+            }
         }
 
         Ok(())

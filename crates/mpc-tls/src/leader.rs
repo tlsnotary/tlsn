@@ -1,5 +1,3 @@
-mod actor;
-
 use crate::{
     error::MpcTlsError,
     msg::{
@@ -14,7 +12,6 @@ use async_trait::async_trait;
 use hmac_sha256::{MpcPrf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
-use ludi::Context as LudiContext;
 use mpz_common::{Context, Flush};
 use mpz_core::{bitvec::BitVec, Block};
 use mpz_memory_core::DecodeFutureTyped;
@@ -29,7 +26,7 @@ use mpz_ot::{
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use mpz_vm_core::prelude::*;
 use serio::SinkExt;
-use tls_backend::{Backend, BackendError, BackendNotifier, BackendNotify};
+use tls_client::{Backend, BackendError, BackendNotifier, BackendNotify};
 use tls_core::{
     cert::ServerCertDetails,
     ke::ServerKxDetails,
@@ -50,13 +47,9 @@ use tlsn_core::{
 };
 use tracing::{debug, instrument, trace, warn};
 
-/// Controller for MPC-TLS leader.
-pub type LeaderCtrl = actor::MpcTlsLeaderCtrl;
-
 /// MPC-TLS leader.
 #[derive(Debug)]
 pub struct MpcTlsLeader {
-    self_handle: Option<LeaderCtrl>,
     config: Config,
     state: State,
 
@@ -114,7 +107,6 @@ impl MpcTlsLeader {
 
         let is_decrypting = !config.defer_decryption;
         Self {
-            self_handle: None,
             config,
             state: State::Init {
                 ctx,
@@ -378,32 +370,9 @@ impl MpcTlsLeader {
         Ok(())
     }
 
-    /// Enables or disables the decryption of any incoming messages.
-    ///
-    /// # Arguments
-    ///
-    /// * `enable` - Whether to enable or disable decryption.
-    #[instrument(level = "debug", skip_all, err)]
-    pub fn enable_decryption(&mut self, enable: bool) -> Result<(), MpcTlsError> {
-        self.is_decrypting = enable;
-
-        if enable {
-            self.notifier.set();
-        } else {
-            self.notifier.clear();
-        }
-
-        Ok(())
-    }
-
     /// Returns if incoming messages are decrypted.
     pub fn is_decrypting(&self) -> bool {
         self.is_decrypting
-    }
-
-    /// Stops the actor.
-    pub fn stop(&mut self, ctx: &mut LudiContext<Self>) {
-        ctx.stop();
     }
 }
 
@@ -438,18 +407,6 @@ impl Backend for MpcTlsLeader {
         *cipher_suite = Some(suite.suite());
 
         Ok(())
-    }
-
-    async fn get_suite(&mut self) -> Result<SupportedCipherSuite, BackendError> {
-        unimplemented!()
-    }
-
-    async fn set_encrypt(&mut self, _mode: tls_backend::EncryptMode) -> Result<(), BackendError> {
-        unimplemented!()
-    }
-
-    async fn set_decrypt(&mut self, _mode: tls_backend::DecryptMode) -> Result<(), BackendError> {
-        unimplemented!()
     }
 
     async fn get_client_random(&mut self) -> Result<Random, BackendError> {
@@ -1042,7 +999,7 @@ impl Backend for MpcTlsLeader {
         Ok(self.notifier.get())
     }
 
-    async fn is_empty(&mut self) -> Result<bool, BackendError> {
+    fn is_empty(&self) -> Result<bool, BackendError> {
         let is_empty = match &self.state {
             State::Active { record_layer, .. } => record_layer.is_empty(),
             State::Closed { record_layer, .. } => record_layer.is_empty(),
@@ -1054,6 +1011,30 @@ impl Backend for MpcTlsLeader {
 
     async fn server_closed(&mut self) -> Result<(), BackendError> {
         self.close_connection().await.map_err(BackendError::from)
+    }
+
+    fn enable_decryption(&mut self, enable: bool) -> Result<(), BackendError> {
+        self.is_decrypting = enable;
+
+        if enable {
+            self.notifier.set();
+        } else {
+            self.notifier.clear();
+        }
+
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Option<(Context, TlsTranscript)> {
+        match self.state.take() {
+            State::Closed {
+                ctx, transcript, ..
+            } => Some((ctx, transcript)),
+            state => {
+                self.state = state;
+                None
+            }
+        }
     }
 }
 
