@@ -216,8 +216,8 @@ impl Prover<state::CommitAccepted> {
             rustls_config.with_no_client_auth()
         };
 
-        let client =
-            ClientConnection::new(Arc::new(rustls_config), Box::new(mpc_tls), server_name).map_err(|e| {
+        let client = ClientConnection::new(Arc::new(rustls_config), Box::new(mpc_tls), server_name)
+            .map_err(|e| {
                 Error::config()
                     .with_msg("failed to create tls client connection")
                     .with_source(e)
