@@ -1,23 +1,13 @@
 name: Claude Code Review
 
 on:
+  workflow_dispatch: # Manual trigger for testing
   pull_request:
     types: [opened, synchronize, ready_for_review]
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
 
 jobs:
   claude-review:
-    # Run on non-draft PRs, or when a collaborator comments @claude
-    if: >
-      (github.event_name == 'pull_request' && !github.event.pull_request.draft) ||
-      ((github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
-       contains(github.event.comment.body, '@claude') &&
-       (github.event.comment.author_association == 'OWNER' ||
-        github.event.comment.author_association == 'MEMBER' ||
-        github.event.comment.author_association == 'COLLABORATOR'))
+    if: false && (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,15 +19,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 1
+          fetch-depth: 0 # Full history for git log
 
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
-            /review
-
-            Follow the guidelines in .github/prompts/review.md
-          claude_args: "--max-turns 3"
+            Review PR #${{ github.event.pull_request.number }} following the guidelines in .github/prompts/review.md
+          claude_args: "--max-turns 10"
+          track_progress: "true"
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(gh *)", "Bash(git *)"]
+              }
+            }
+      - name: Upload Claude execution log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-execution-log
+          path: /home/runner/work/_temp/claude-execution-output.json
+          retention-days: 7
