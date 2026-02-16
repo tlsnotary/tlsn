@@ -21,6 +21,29 @@ use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::{Span, debug, instrument, trace, warn};
 
+/// A future that yields once to the event loop.
+/// This prevents microtask saturation in tight polling loops in WASM.
+#[cfg(target_arch = "wasm32")]
+#[derive(Default)]
+struct Yield {
+    yielded: bool,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Future for Yield {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        if self.yielded {
+            Poll::Ready(())
+        } else {
+            self.yielded = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        }
+    }
+}
+
 type FinalizeFuture =
     Box<dyn Future<Output = Result<(InnerState, Context, TlsTranscript), TlsnError>> + Send>;
 
@@ -359,6 +382,14 @@ impl InnerState {
                 break;
             }
             state = new_state;
+
+            // Yield to the event loop to prevent microtask saturation (WASM only).
+            // In WASM's single-threaded environment, this tight loop can saturate
+            // the microtask queue, blocking WebSocket I/O and causing browser hangs.
+            #[cfg(target_arch = "wasm32")]
+            {
+                Yield::default().await;
+            }
         }
 
         Ok(self)

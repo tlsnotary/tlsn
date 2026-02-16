@@ -1,285 +1,182 @@
+//! WASM Prover bindings.
+
 mod config;
 
 pub use config::ProverConfig;
 
-use enum_try_as_inner::EnumTryAsInner;
-use futures::TryFutureExt;
-use http_body_util::{BodyExt, Full};
-use hyper::body::Bytes;
-use tlsn::{
-    config::{
-        prove::ProveConfig,
-        tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
-    },
-    connection::ServerName,
-    prover::{state, Prover, TlsConnection},
-    webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
-    Session, SessionHandle,
+use tlsn_sdk_core::{
+    NetworkSetting as CoreNetworkSetting, ProverConfig as CoreProverConfig, SdkProver,
 };
-use tracing::info;
 use wasm_bindgen::{prelude::*, JsError};
-use wasm_bindgen_futures::spawn_local;
-use ws_stream_wasm::WsMeta;
 
-use crate::{io::FuturesIo, types::*};
+use crate::{
+    io::{JsIo, JsIoAdapter},
+    types::*,
+};
 
 type Result<T> = std::result::Result<T, JsError>;
 
+/// Prover for the TLSNotary protocol.
+///
+/// The prover connects to both a verifier and a target server, executing the
+/// MPC-TLS protocol to generate verifiable proofs of the TLS session.
 #[wasm_bindgen(js_name = Prover)]
 pub struct JsProver {
-    config: ProverConfig,
-    state: State,
-}
-
-#[derive(EnumTryAsInner)]
-#[derive_err(Debug)]
-enum State {
-    Initialized,
-    CommitAccepted {
-        prover: Prover<state::CommitAccepted>,
-        handle: SessionHandle,
-    },
-    Committed {
-        prover: Prover<state::Committed>,
-        handle: SessionHandle,
-    },
-    Complete,
-    Error,
-}
-
-impl std::fmt::Debug for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            State::Initialized => write!(f, "Initialized"),
-            State::CommitAccepted { .. } => write!(f, "CommitAccepted"),
-            State::Committed { .. } => write!(f, "Committed"),
-            State::Complete => write!(f, "Complete"),
-            State::Error => write!(f, "Error"),
-        }
-    }
-}
-
-impl State {
-    fn take(&mut self) -> Self {
-        std::mem::replace(self, State::Error)
-    }
+    inner: SdkProver,
 }
 
 #[wasm_bindgen(js_class = Prover)]
 impl JsProver {
+    /// Creates a new Prover with the given configuration.
     #[wasm_bindgen(constructor)]
     pub fn new(config: ProverConfig) -> Result<JsProver> {
-        Ok(JsProver {
-            config,
-            state: State::Initialized,
-        })
+        let core_config = convert_prover_config(config);
+        let inner = SdkProver::new(core_config).map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(JsProver { inner })
     }
 
-    /// Set up the prover.
+    /// Sets up the prover with the verifier.
     ///
     /// This performs all MPC setup prior to establishing the connection to the
     /// application server.
-    pub async fn setup(&mut self, verifier_url: &str) -> Result<()> {
-        let State::Initialized = self.state.take() else {
-            return Err(JsError::new("prover is not in initialized state"));
-        };
-
-        let tls_commit_config = TlsCommitConfig::builder()
-            .protocol({
-                let mut builder = MpcTlsConfig::builder()
-                    .max_sent_data(self.config.max_sent_data)
-                    .max_recv_data(self.config.max_recv_data);
-
-                if let Some(value) = self.config.max_recv_data_online {
-                    builder = builder.max_recv_data_online(value);
-                }
-
-                if let Some(value) = self.config.max_sent_records {
-                    builder = builder.max_sent_records(value);
-                }
-
-                if let Some(value) = self.config.max_recv_records_online {
-                    builder = builder.max_recv_records_online(value);
-                }
-
-                if let Some(value) = self.config.defer_decryption_from_start {
-                    builder = builder.defer_decryption_from_start(value);
-                }
-
-                builder.network(self.config.network.into()).build()
-            }?)
-            .build()?;
-
-        info!("connecting to verifier");
-
-        let (_, verifier_conn) = WsMeta::connect(verifier_url, None).await?;
-
-        info!("connected to verifier");
-
-        let session = Session::new(verifier_conn.into_io());
-        let (driver, mut handle) = session.split();
-        spawn_local(async move {
-            if let Err(e) = driver.await {
-                tracing::error!("session driver error: {e}");
-            }
-        });
-
-        let prover_config = tlsn::config::prover::ProverConfig::builder().build()?;
-        let prover = handle.new_prover(prover_config)?;
-
-        let prover = prover
-            .commit(tls_commit_config)
+    ///
+    /// # Arguments
+    ///
+    /// * `verifier_io` - A JavaScript object implementing the IoChannel
+    ///   interface, connected to the verifier.
+    pub async fn setup(&mut self, verifier_io: JsIo) -> Result<()> {
+        let adapter = JsIoAdapter::new(verifier_io);
+        self.inner
+            .setup(adapter.into_boxed())
             .await
-            .map_err(|e| JsError::new(&e.to_string()))?;
-
-        self.state = State::CommitAccepted { prover, handle };
-
-        Ok(())
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
-    /// Send the HTTP request to the server.
+    /// Sends an HTTP request to the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_io` - A JavaScript object implementing the IoChannel
+    ///   interface, connected to the server (typically via a WebSocket proxy).
+    /// * `request` - The HTTP request to send.
     pub async fn send_request(
         &mut self,
-        ws_proxy_url: &str,
+        server_io: JsIo,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
-        let State::CommitAccepted { prover, handle } = self.state.take() else {
-            return Err(JsError::new("prover is not in commit accepted state"));
-        };
-
-        let mut builder = TlsClientConfig::builder()
-            .server_name(ServerName::Dns(
-                self.config
-                    .server_name
-                    .clone()
-                    .try_into()
-                    .map_err(|_| JsError::new("invalid server name"))?,
-            ))
-            .root_store(RootCertStore::mozilla());
-
-        if let Some((certs, key)) = self.config.client_auth.clone() {
-            let certs = certs
-                .into_iter()
-                .map(|cert| {
-                    // Try to parse as PEM-encoded, otherwise assume DER.
-                    if let Ok(cert) = CertificateDer::from_pem_slice(&cert) {
-                        cert
-                    } else {
-                        CertificateDer(cert)
-                    }
-                })
-                .collect();
-            let key = PrivateKeyDer(key);
-            builder = builder.client_auth((certs, key));
-        }
-
-        let tls_config = builder.build()?;
-
-        info!("connecting to server");
-
-        let (_, server_conn) = WsMeta::connect(ws_proxy_url, None).await?;
-
-        info!("connected to server");
-
-        let (tls_conn, prover_fut) = prover
-            .connect(tls_config, server_conn.into_io())
+        let adapter = JsIoAdapter::new(server_io);
+        let core_request = convert_http_request(request);
+        let core_response = self
+            .inner
+            .send_request(adapter.into_boxed(), core_request)
+            .await
             .map_err(|e| JsError::new(&e.to_string()))?;
-
-        info!("sending request");
-
-        let (response, prover) = futures::try_join!(
-            send_request(tls_conn, request),
-            prover_fut.map_err(|e| JsError::new(&e.to_string()))
-        )?;
-
-        info!("response received");
-
-        self.state = State::Committed { prover, handle };
-
-        Ok(response)
+        Ok(convert_http_response(core_response))
     }
 
-    /// Returns the transcript.
+    /// Returns the transcript of the TLS session.
     pub fn transcript(&self) -> Result<Transcript> {
-        let State::Committed { prover, .. } = &self.state else {
-            return Err(JsError::new("prover is not in committed state"));
-        };
-
-        Ok(Transcript::from(prover.transcript()))
+        let core_transcript = self
+            .inner
+            .transcript()
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(convert_transcript(core_transcript))
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
     pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
-        let State::Committed { mut prover, handle } = self.state.take() else {
-            return Err(JsError::new("prover is not in committed state"));
-        };
-
-        info!("revealing data");
-
-        let mut builder = ProveConfig::builder(prover.transcript());
-
-        for range in reveal.sent {
-            builder.reveal_sent(&range)?;
-        }
-
-        for range in reveal.recv {
-            builder.reveal_recv(&range)?;
-        }
-
-        if reveal.server_identity {
-            builder.server_identity();
-        }
-
-        let config = builder.build()?;
-
-        prover
-            .prove(&config)
+        let core_reveal = convert_reveal(reveal);
+        self.inner
+            .reveal(core_reveal)
             .await
-            .map_err(|e| JsError::new(&e.to_string()))?;
-        prover
-            .close()
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))?;
-
-        handle.close();
-
-        info!("Finalized");
-
-        self.state = State::Complete;
-
-        Ok(())
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 }
 
-async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpResponse> {
-    let conn = FuturesIo::new(conn);
-    let request = hyper::Request::<Full<Bytes>>::try_from(request)?;
+// Conversion functions between WASM types and sdk-core types.
 
-    let (mut request_sender, conn) = hyper::client::conn::http1::handshake(conn).await?;
+fn convert_prover_config(config: ProverConfig) -> CoreProverConfig {
+    let mut builder = CoreProverConfig::builder(&config.server_name)
+        .max_sent_data(config.max_sent_data)
+        .max_recv_data(config.max_recv_data)
+        .network(match config.network {
+            NetworkSetting::Bandwidth => CoreNetworkSetting::Bandwidth,
+            NetworkSetting::Latency => CoreNetworkSetting::Latency,
+        });
 
-    spawn_local(async move { conn.await.expect("connection runs to completion") });
+    if let Some(value) = config.max_sent_records {
+        builder = builder.max_sent_records(value);
+    }
 
-    let response = request_sender.send_request(request).await?;
+    if let Some(value) = config.max_recv_data_online {
+        builder = builder.max_recv_data_online(value);
+    }
 
-    let (response, body) = response.into_parts();
+    if let Some(value) = config.max_recv_records_online {
+        builder = builder.max_recv_records_online(value);
+    }
 
-    // TODO: return the body
-    let _body = body.collect().await?;
+    if let Some(value) = config.defer_decryption_from_start {
+        builder = builder.defer_decryption_from_start(value);
+    }
 
-    let headers = response
-        .headers
-        .into_iter()
-        .map(|(k, v)| {
-            (
-                k.map(|k| k.to_string()).unwrap_or_default(),
-                v.as_bytes().to_vec(),
-            )
-        })
-        .collect();
+    if let Some((certs, key)) = config.client_auth {
+        builder = builder.client_auth(certs, key);
+    }
 
-    Ok(HttpResponse {
-        status: response.status.as_u16(),
-        headers,
-    })
+    builder.build()
+}
+
+fn convert_http_request(request: HttpRequest) -> tlsn_sdk_core::HttpRequest {
+    let method = match request.method {
+        Method::GET => tlsn_sdk_core::Method::GET,
+        Method::POST => tlsn_sdk_core::Method::POST,
+        Method::PUT => tlsn_sdk_core::Method::PUT,
+        Method::DELETE => tlsn_sdk_core::Method::DELETE,
+    };
+
+    let mut core_request = tlsn_sdk_core::HttpRequest::new(method, &request.uri);
+
+    for (name, value) in request.headers {
+        core_request = core_request.header(name, value);
+    }
+
+    if let Some(body) = request.body {
+        let core_body = match body {
+            Body::Json(value) => tlsn_sdk_core::Body::Json(value),
+        };
+        core_request = core_request.body(core_body);
+    }
+
+    core_request
+}
+
+fn convert_http_response(response: tlsn_sdk_core::HttpResponse) -> HttpResponse {
+    HttpResponse {
+        status: response.status,
+        headers: response.headers,
+    }
+}
+
+fn convert_transcript(transcript: tlsn_sdk_core::Transcript) -> Transcript {
+    Transcript {
+        sent: transcript.sent,
+        recv: transcript.recv,
+    }
+}
+
+fn convert_reveal(reveal: Reveal) -> tlsn_sdk_core::Reveal {
+    let mut core_reveal = tlsn_sdk_core::Reveal::new();
+
+    for range in reveal.sent {
+        core_reveal = core_reveal.sent(range);
+    }
+
+    for range in reveal.recv {
+        core_reveal = core_reveal.recv(range);
+    }
+
+    core_reveal = core_reveal.server_identity(reveal.server_identity);
+
+    core_reveal
 }
