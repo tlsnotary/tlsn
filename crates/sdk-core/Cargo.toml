@@ -1,0 +1,35 @@
+[package]
+name = "tlsn-sdk-core"
+version = "0.1.0-alpha.1"
+edition = "2021"
+repository = "https://github.com/tlsnotary/tlsn.git"
+description = "Platform-agnostic core SDK for TLSNotary."
+license = "MIT OR Apache-2.0"
+keywords = ["tls", "tlsn", "tlsnotary", "sdk"]
+homepage = "https://tlsnotary.org"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+wasm = ["wasm-bindgen-futures"]
+
+[dependencies]
+tlsn = { workspace = true }
+tlsn-core = { workspace = true }
+tlsn-tls-core = { workspace = true }
+
+futures = { workspace = true }
+http-body-util = { version = "0.1" }
+hyper = { workspace = true, features = ["client", "http1"] }
+pin-project-lite = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { version = "1.0" }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync"] }
+tracing = { workspace = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }

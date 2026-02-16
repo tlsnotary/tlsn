@@ -19,4 +19,4 @@ cargo build --all-targets --locked
 cargo test --locked
 
 # Run integration tests, excluding specific targets
-cargo test --locked --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core -- --include-ignored
+cargo test --locked --profile tests-integration --workspace --exclude tlsn-tls-client --exclude tlsn-tls-core --exclude tlsn-sdk-core -- --include-ignored
