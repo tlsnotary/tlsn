@@ -1,186 +1,150 @@
+//! WASM type definitions with TypeScript bindings.
+
 use std::{collections::HashMap, ops::Range};
 
-use http_body_util::Full;
-use hyper::body::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tsify_next::Tsify;
-use wasm_bindgen::prelude::*;
 
+/// HTTP request body.
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 #[serde(untagged)]
 #[non_exhaustive]
 pub enum Body {
+    /// JSON body.
     Json(JsonValue),
 }
 
+/// HTTP method.
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum Method {
+    /// HTTP GET method.
     GET,
+    /// HTTP POST method.
     POST,
+    /// HTTP PUT method.
     PUT,
+    /// HTTP DELETE method.
     DELETE,
 }
 
-impl From<Method> for hyper::Method {
-    fn from(value: Method) -> Self {
-        match value {
-            Method::GET => hyper::Method::GET,
-            Method::POST => hyper::Method::POST,
-            Method::PUT => hyper::Method::PUT,
-            Method::DELETE => hyper::Method::DELETE,
-        }
-    }
-}
-
+/// HTTP request.
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct HttpRequest {
+    /// Request URI.
     pub uri: String,
+    /// HTTP method.
     pub method: Method,
+    /// Request headers.
     pub headers: HashMap<String, Vec<u8>>,
+    /// Optional request body.
     pub body: Option<Body>,
 }
 
-impl TryFrom<HttpRequest> for hyper::Request<Full<Bytes>> {
-    type Error = JsError;
-
-    fn try_from(value: HttpRequest) -> Result<Self, Self::Error> {
-        let mut builder = hyper::Request::builder();
-        builder = builder.uri(value.uri).method(value.method);
-        for (name, value) in value.headers {
-            builder = builder.header(name, value);
-        }
-
-        if let Some(body) = value.body {
-            let body = match body {
-                Body::Json(value) => Full::new(Bytes::from(serde_json::to_vec(&value).unwrap())),
-            };
-            builder.body(body).map_err(Into::into)
-        } else {
-            builder.body(Full::new(Bytes::new())).map_err(Into::into)
-        }
-    }
-}
-
+/// HTTP response.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct HttpResponse {
+    /// HTTP status code.
     pub status: u16,
+    /// Response headers.
     pub headers: Vec<(String, Vec<u8>)>,
 }
 
+/// TLS version.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub enum TlsVersion {
+    /// TLS 1.2.
     V1_2,
+    /// TLS 1.3.
     V1_3,
 }
 
-impl From<tlsn::connection::TlsVersion> for TlsVersion {
-    fn from(value: tlsn::connection::TlsVersion) -> Self {
-        match value {
-            tlsn::connection::TlsVersion::V1_2 => Self::V1_2,
-            tlsn::connection::TlsVersion::V1_3 => Self::V1_3,
-        }
-    }
-}
-
+/// Transcript length information.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct TranscriptLength {
+    /// Bytes sent.
     pub sent: usize,
+    /// Bytes received.
     pub recv: usize,
 }
 
-impl From<tlsn::connection::TranscriptLength> for TranscriptLength {
-    fn from(value: tlsn::connection::TranscriptLength) -> Self {
-        Self {
-            sent: value.sent as usize,
-            recv: value.received as usize,
-        }
-    }
-}
-
+/// Connection information.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct ConnectionInfo {
-    time: u64,
-    version: TlsVersion,
-    transcript_length: TranscriptLength,
+    /// Unix timestamp of the connection.
+    pub time: u64,
+    /// TLS version used.
+    pub version: TlsVersion,
+    /// Transcript length information.
+    pub transcript_length: TranscriptLength,
 }
 
-impl From<tlsn::connection::ConnectionInfo> for ConnectionInfo {
-    fn from(value: tlsn::connection::ConnectionInfo) -> Self {
-        Self {
-            time: value.time,
-            version: value.version.into(),
-            transcript_length: value.transcript_length.into(),
-        }
-    }
-}
-
+/// Full transcript of sent and received data.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct Transcript {
+    /// Data sent to the server.
     pub sent: Vec<u8>,
+    /// Data received from the server.
     pub recv: Vec<u8>,
 }
 
-impl From<&tlsn::transcript::Transcript> for Transcript {
-    fn from(value: &tlsn::transcript::Transcript) -> Self {
-        Self {
-            sent: value.sent().to_vec(),
-            recv: value.received().to_vec(),
-        }
-    }
-}
-
+/// Partial transcript with authenticated ranges.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct PartialTranscript {
+    /// Data sent to the server.
     pub sent: Vec<u8>,
+    /// Authenticated ranges of sent data.
     pub sent_authed: Vec<Range<usize>>,
+    /// Data received from the server.
     pub recv: Vec<u8>,
+    /// Authenticated ranges of received data.
     pub recv_authed: Vec<Range<usize>>,
 }
 
-impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
-    fn from(value: tlsn::transcript::PartialTranscript) -> Self {
-        Self {
-            sent: value.sent_unsafe().to_vec(),
-            sent_authed: value.sent_authed().iter().collect(),
-            recv: value.received_unsafe().to_vec(),
-            recv_authed: value.received_authed().iter().collect(),
-        }
-    }
-}
-
+/// Ranges of data to commit.
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct Commit {
+    /// Ranges of sent data to commit.
     pub sent: Vec<Range<usize>>,
+    /// Ranges of received data to commit.
     pub recv: Vec<Range<usize>>,
 }
 
+/// Ranges of data to reveal.
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct Reveal {
+    /// Ranges of sent data to reveal.
     pub sent: Vec<Range<usize>>,
+    /// Ranges of received data to reveal.
     pub recv: Vec<Range<usize>>,
+    /// Whether to reveal the server identity.
     pub server_identity: bool,
 }
 
+/// Output from the verifier.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct VerifierOutput {
+    /// Server name (if revealed).
     pub server_name: Option<String>,
+    /// Connection information.
     pub connection_info: ConnectionInfo,
+    /// Partial transcript (if revealed).
     pub transcript: Option<PartialTranscript>,
 }
 
+/// Network setting for protocol optimization.
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum NetworkSetting {
@@ -188,13 +152,4 @@ pub enum NetworkSetting {
     Bandwidth,
     /// Prefers a latency-heavy protocol.
     Latency,
-}
-
-impl From<NetworkSetting> for tlsn::config::tls_commit::mpc::NetworkSetting {
-    fn from(value: NetworkSetting) -> Self {
-        match value {
-            NetworkSetting::Bandwidth => Self::Bandwidth,
-            NetworkSetting::Latency => Self::Latency,
-        }
-    }
 }

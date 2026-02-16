@@ -15,6 +15,7 @@ members = [
     "crates/tls/core",
     "crates/mpc-tls",
     "crates/tls/server-fixture",
+    "crates/sdk-core",
     "crates/wasm",
     "crates/harness/core",
     "crates/harness/executor",
@@ -60,6 +61,7 @@ tlsn-tls-core = { path = "crates/tls/core" }
 tlsn-harness-core = { path = "crates/harness/core" }
 tlsn-harness-executor = { path = "crates/harness/executor" }
 tlsn-harness-runner = { path = "crates/harness/runner" }
+tlsn-sdk-core = { path = "crates/sdk-core" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
