@@ -123,16 +123,7 @@ impl SdkProver {
         let session = Session::new(verifier_io);
         let (driver, mut handle) = session.split();
 
-        // Spawn the session driver.
-        #[cfg(feature = "wasm")]
-        wasm_bindgen_futures::spawn_local(async move {
-            match driver.await {
-                Ok(_io) => tracing::warn!("session driver completed (mux closed)"),
-                Err(e) => tracing::error!("session driver error: {e}"),
-            }
-        });
-        #[cfg(not(feature = "wasm"))]
-        tokio::spawn(async move {
+        crate::spawn::spawn(async move {
             match driver.await {
                 Ok(_io) => tracing::warn!("session driver completed (mux closed)"),
                 Err(e) => tracing::error!("session driver error: {e}"),
@@ -307,12 +298,7 @@ async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpR
 
     let (mut request_sender, conn) = hyper::client::conn::http1::handshake(conn).await?;
 
-    #[cfg(feature = "wasm")]
-    wasm_bindgen_futures::spawn_local(
-        async move { conn.await.expect("connection runs to completion") },
-    );
-    #[cfg(not(feature = "wasm"))]
-    tokio::spawn(async move { conn.await.expect("connection runs to completion") });
+    crate::spawn::spawn(async move { conn.await.expect("connection runs to completion") });
 
     let response = request_sender.send_request(request).await?;
 

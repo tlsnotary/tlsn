@@ -47,6 +47,7 @@ pub mod config;
 pub mod error;
 pub mod io;
 pub mod prover;
+mod spawn;
 pub mod types;
 pub mod verifier;
 

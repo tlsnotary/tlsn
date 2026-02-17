@@ -84,8 +84,7 @@ impl SdkVerifier {
         let session = Session::new(prover_io);
         let (driver, mut handle) = session.split();
 
-        // Spawn the session driver.
-        tokio::spawn(async move {
+        crate::spawn::spawn(async move {
             match driver.await {
                 Ok(_io) => tracing::warn!("session driver completed (mux closed)"),
                 Err(e) => tracing::error!("session driver error: {e}"),
