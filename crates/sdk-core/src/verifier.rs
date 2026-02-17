@@ -27,6 +27,7 @@ pub struct SdkVerifier {
     state: State,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum State {
     Initialized,
     Connected {

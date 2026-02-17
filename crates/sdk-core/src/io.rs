@@ -42,10 +42,10 @@ impl<T> HyperIo<T> {
     ///
     /// # Safety
     ///
-    /// This wrapper is only safe to use if the inner IO stream does not under
-    /// any circumstance read from the buffer passed to `poll_read` in the
-    /// `futures::AsyncRead` implementation.
-    pub fn new(inner: T) -> Self {
+    /// The inner IO stream must not read from the buffer passed to `poll_read`
+    /// in the `futures::AsyncRead` implementation. The buffer may contain
+    /// uninitialized memory.
+    pub unsafe fn new(inner: T) -> Self {
         Self { inner }
     }
 
