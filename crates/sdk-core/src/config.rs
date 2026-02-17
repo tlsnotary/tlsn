@@ -158,12 +158,23 @@ impl VerifierConfig {
 }
 
 /// Builder for VerifierConfig.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct VerifierConfigBuilder {
     max_sent_data: usize,
     max_recv_data: usize,
     max_sent_records: Option<usize>,
     max_recv_records_online: Option<usize>,
+}
+
+impl Default for VerifierConfigBuilder {
+    fn default() -> Self {
+        Self {
+            max_sent_data: 4096,
+            max_recv_data: 16384,
+            max_sent_records: None,
+            max_recv_records_online: None,
+        }
+    }
 }
 
 impl VerifierConfigBuilder {
