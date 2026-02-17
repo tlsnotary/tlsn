@@ -295,7 +295,11 @@ async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpR
 
     let (mut request_sender, conn) = hyper::client::conn::http1::handshake(conn).await?;
 
-    crate::spawn::spawn(async move { conn.await.expect("connection runs to completion") });
+    crate::spawn::spawn(async move {
+        if let Err(e) = conn.await {
+            tracing::error!("HTTP connection error: {e}");
+        }
+    });
 
     let response = request_sender.send_request(request).await?;
 
