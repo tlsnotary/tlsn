@@ -111,7 +111,9 @@ impl TryFrom<HttpRequest> for hyper::Request<Full<Bytes>> {
         if let Some(body) = value.body {
             let body = match body {
                 // Serializing serde_json::Value to bytes is infallible.
-                Body::Json(value) => Full::new(Bytes::from(serde_json::to_vec(&value).expect("Value serialization is infallible"))),
+                Body::Json(value) => Full::new(Bytes::from(
+                    serde_json::to_vec(&value).expect("Value serialization is infallible"),
+                )),
                 Body::Raw(bytes) => Full::new(Bytes::from(bytes)),
             };
             builder.body(body).map_err(SdkError::from)

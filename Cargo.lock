@@ -7704,7 +7704,6 @@ dependencies = [
 name = "tlsn-sdk-core"
 version = "0.1.0-alpha.1"
 dependencies = [
- "enum-try-as-inner",
  "futures",
  "http-body-util",
  "hyper",

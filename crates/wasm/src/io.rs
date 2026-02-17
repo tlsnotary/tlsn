@@ -91,7 +91,6 @@ impl JsIoAdapter {
             })),
         }
     }
-
 }
 
 impl AsyncRead for JsIoAdapter {
