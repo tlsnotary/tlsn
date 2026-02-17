@@ -20,7 +20,6 @@ tlsn = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-tls-core = { workspace = true }
 
-enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
 http-body-util = { version = "0.1" }
 hyper = { workspace = true, features = ["client", "http1"] }

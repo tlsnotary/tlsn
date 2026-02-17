@@ -1,6 +1,5 @@
 //! SDK Prover implementation.
 
-use enum_try_as_inner::EnumTryAsInner;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tlsn::{
@@ -32,9 +31,7 @@ pub struct SdkProver {
     state: State,
 }
 
-#[derive(EnumTryAsInner)]
-#[derive_err(Debug)]
-#[allow(clippy::large_enum_variant, unused_assignments)]
+#[allow(clippy::large_enum_variant)]
 enum State {
     Initialized,
     CommitAccepted {

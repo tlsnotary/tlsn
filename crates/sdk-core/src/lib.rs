@@ -40,8 +40,6 @@
 //! ```
 
 #![deny(missing_docs, unreachable_pub, unused_must_use, clippy::all)]
-// Allow unused_assignments for state machine pattern used by enum_try_as_inner.
-#![allow(unused_assignments)]
 
 pub mod config;
 pub mod error;

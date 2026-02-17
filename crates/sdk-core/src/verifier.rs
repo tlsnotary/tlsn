@@ -1,6 +1,5 @@
 //! SDK Verifier implementation.
 
-use enum_try_as_inner::EnumTryAsInner;
 use tlsn::{
     config::tls_commit::TlsCommitProtocolConfig,
     connection::{ConnectionInfo, ServerName, TranscriptLength},
@@ -28,9 +27,6 @@ pub struct SdkVerifier {
     state: State,
 }
 
-#[derive(EnumTryAsInner)]
-#[derive_err(Debug)]
-#[allow(clippy::large_enum_variant, unused_assignments)]
 enum State {
     Initialized,
     Connected {
