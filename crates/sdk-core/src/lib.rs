@@ -53,7 +53,7 @@ pub mod verifier;
 // Re-export main types for convenience.
 pub use config::{NetworkSetting, ProverConfig, VerifierConfig};
 pub use error::{Result, SdkError};
-pub use io::{BoxedIo, HyperIo, Io};
+pub use io::{HyperIo, Io};
 pub use prover::SdkProver;
 pub use types::{
     Body, ConnectionInfo, HttpRequest, HttpResponse, Method, PartialTranscript, Reveal, TlsVersion,

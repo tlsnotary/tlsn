@@ -19,7 +19,7 @@ use tracing::{error, info};
 use crate::{
     config::ProverConfig,
     error::{Result, SdkError},
-    io::{BoxedIo, HyperIo},
+    io::{HyperIo, Io},
     types::*,
 };
 
@@ -85,7 +85,7 @@ impl SdkProver {
     /// # Arguments
     ///
     /// * `verifier_io` - A duplex IO stream connected to the verifier.
-    pub async fn setup(&mut self, verifier_io: BoxedIo) -> Result<()> {
+    pub async fn setup(&mut self, verifier_io: impl Io) -> Result<()> {
         let State::Initialized = self.state.take() else {
             return Err(SdkError::invalid_state(
                 "prover is not in initialized state",
@@ -163,7 +163,7 @@ impl SdkProver {
     /// * `request` - The HTTP request to send.
     pub async fn send_request(
         &mut self,
-        server_io: BoxedIo,
+        server_io: impl Io,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
         let State::CommitAccepted { prover, handle } = self.state.take() else {

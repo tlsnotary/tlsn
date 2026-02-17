@@ -43,7 +43,7 @@ impl JsVerifier {
     pub async fn connect(&mut self, prover_io: JsIo) -> Result<()> {
         let adapter = JsIoAdapter::new(prover_io);
         self.inner
-            .connect(adapter.into_boxed())
+            .connect(adapter)
             .await
             .map_err(|e| JsError::new(&e.to_string()))
     }

@@ -26,12 +26,6 @@ pub trait Io: AsyncRead + AsyncWrite + Send + Unpin + 'static {}
 /// Blanket implementation for any compatible type.
 impl<T> Io for T where T: AsyncRead + AsyncWrite + Send + Unpin + 'static {}
 
-/// Boxed IO for type erasure.
-///
-/// Use this when you need to store or pass around IO streams without
-/// knowing their concrete type at compile time.
-pub type BoxedIo = Box<dyn Io>;
-
 pin_project! {
     /// Adapter that bridges `futures::AsyncRead/AsyncWrite` to `hyper::rt::Read/Write`.
     ///
@@ -126,8 +120,4 @@ mod tests {
 
     // Verify that common types implement Io.
     fn _assert_io<T: Io>() {}
-
-    fn _assert_boxed_io() {
-        fn check(_: BoxedIo) {}
-    }
 }

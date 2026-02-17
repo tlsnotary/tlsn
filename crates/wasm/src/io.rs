@@ -92,10 +92,6 @@ impl JsIoAdapter {
         }
     }
 
-    /// Converts this adapter into a boxed IO for use with sdk-core.
-    pub(crate) fn into_boxed(self) -> tlsn_sdk_core::BoxedIo {
-        Box::new(self)
-    }
 }
 
 impl AsyncRead for JsIoAdapter {
@@ -268,5 +264,5 @@ impl AsyncWrite for JsIoAdapter {
     }
 }
 
-// Required for BoxedIo.
+// Required for Io trait (Send bound).
 unsafe impl Send for JsIoAdapter {}

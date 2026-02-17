@@ -47,7 +47,7 @@ impl JsProver {
     pub async fn setup(&mut self, verifier_io: JsIo) -> Result<()> {
         let adapter = JsIoAdapter::new(verifier_io);
         self.inner
-            .setup(adapter.into_boxed())
+            .setup(adapter)
             .await
             .map_err(|e| JsError::new(&e.to_string()))
     }
@@ -68,7 +68,7 @@ impl JsProver {
         let core_request = convert_http_request(request);
         let core_response = self
             .inner
-            .send_request(adapter.into_boxed(), core_request)
+            .send_request(adapter, core_request)
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(convert_http_response(core_response))

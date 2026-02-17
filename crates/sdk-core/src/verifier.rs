@@ -14,7 +14,7 @@ use tracing::info;
 use crate::{
     config::VerifierConfig,
     error::{Result, SdkError},
-    io::BoxedIo,
+    io::Io,
     types::VerifierOutput,
 };
 
@@ -72,7 +72,7 @@ impl SdkVerifier {
     /// # Arguments
     ///
     /// * `prover_io` - A duplex IO stream connected to the prover.
-    pub async fn connect(&mut self, prover_io: BoxedIo) -> Result<()> {
+    pub async fn connect(&mut self, prover_io: impl Io) -> Result<()> {
         let State::Initialized = self.state.take() else {
             return Err(SdkError::invalid_state(
                 "verifier is not in initialized state",
