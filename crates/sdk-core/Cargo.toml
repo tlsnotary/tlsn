@@ -20,12 +20,16 @@ tlsn = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-tls-core = { workspace = true }
 
+bytes = { workspace = true }
 futures = { workspace = true }
 http-body-util = { version = "0.1" }
 hyper = { workspace = true, features = ["client", "http1"] }
 pin-project-lite = { workspace = true }
+rangeset = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1.0" }
+spansy = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync"] }
 tracing = { workspace = true }
