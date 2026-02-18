@@ -43,6 +43,7 @@
 
 pub mod config;
 pub mod error;
+pub mod handler;
 pub mod io;
 pub mod prover;
 mod spawn;
@@ -52,10 +53,12 @@ pub mod verifier;
 // Re-export main types for convenience.
 pub use config::{NetworkSetting, ProverConfig, VerifierConfig};
 pub use error::{Result, SdkError};
+pub use handler::compute_reveal;
 pub use io::{HyperIo, Io};
 pub use prover::SdkProver;
 pub use types::{
-    Body, ConnectionInfo, HttpRequest, HttpResponse, Method, PartialTranscript, Reveal, TlsVersion,
-    Transcript, TranscriptLength, VerifierOutput,
+    Body, ConnectionInfo, Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType,
+    HttpRequest, HttpResponse, Method, PartialTranscript, Reveal, TlsVersion, Transcript,
+    TranscriptLength, VerifierOutput,
 };
 pub use verifier::SdkVerifier;

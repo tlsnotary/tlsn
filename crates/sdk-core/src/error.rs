@@ -26,6 +26,8 @@ pub enum ErrorKind {
     Protocol,
     /// HTTP error.
     Http,
+    /// Handler processing error.
+    Handler,
     /// Internal error.
     Internal,
 }
@@ -81,6 +83,11 @@ impl SdkError {
     /// Creates an HTTP error.
     pub fn http(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Http, message)
+    }
+
+    /// Creates a handler processing error.
+    pub fn handler(message: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Handler, message)
     }
 
     /// Creates an internal error.
