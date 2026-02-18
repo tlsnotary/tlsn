@@ -4,6 +4,7 @@
 #![deny(unreachable_pub, unused_must_use, clippy::all)]
 #![allow(non_snake_case)]
 
+pub mod handler;
 pub(crate) mod io;
 mod log;
 pub mod prover;

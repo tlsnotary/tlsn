@@ -290,6 +290,94 @@ impl Default for Reveal {
     }
 }
 
+/// Handler direction: sent (request) or received (response) data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum HandlerType {
+    /// Sent data (HTTP request).
+    Sent,
+    /// Received data (HTTP response).
+    Recv,
+}
+
+/// Which part of the HTTP message a handler targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum HandlerPart {
+    /// The entire start line (request line or status line).
+    StartLine,
+    /// The HTTP protocol/version portion of the start line.
+    Protocol,
+    /// The HTTP method (GET, POST, etc.) — requests only.
+    Method,
+    /// The request target (path) — requests only.
+    RequestTarget,
+    /// The status code — responses only.
+    StatusCode,
+    /// HTTP headers.
+    Headers,
+    /// The message body.
+    Body,
+    /// The entire message.
+    All,
+}
+
+/// What action to take with the matched ranges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum HandlerAction {
+    /// Reveal the data in plaintext.
+    Reveal,
+    /// Commit to the data with a Pedersen hash.
+    Pedersen,
+}
+
+/// Optional parameters for a handler.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HandlerParams {
+    /// Header name to target (for `Headers` part).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    /// If true, hide the header/JSON key (reveal only the value).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hide_key: Option<bool>,
+    /// If true, hide the header/JSON value (reveal only the key).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hide_value: Option<bool>,
+    /// Content type: `"json"` for JSON body, `"regex"` for regex matching.
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    /// JSON dot-notation path (for `Body` part with `type: "json"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Regex pattern (for `All` part with `type: "regex"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub regex: Option<String>,
+    /// Regex flags (for `All` part with `type: "regex"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flags: Option<String>,
+}
+
+/// A handler that specifies what data to extract from an HTTP transcript.
+///
+/// Handlers are used by plugins to control selective disclosure in TLS proofs.
+/// Each handler targets a specific part of the HTTP message and specifies
+/// whether to reveal or commit to the data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Handler {
+    /// Direction: sent (request) or received (response).
+    #[serde(rename = "type")]
+    pub handler_type: HandlerType,
+    /// Which part of the HTTP message to target.
+    pub part: HandlerPart,
+    /// What action to take (reveal or Pedersen commitment).
+    pub action: HandlerAction,
+    /// Optional parameters for fine-grained control.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<HandlerParams>,
+}
+
 /// Output from the verifier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifierOutput {
