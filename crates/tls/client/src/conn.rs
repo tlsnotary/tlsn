@@ -1,7 +1,7 @@
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
 use crate::{
-    backend::{Backend, RustCryptoBackend},
+    backend::{Backend, BackendNotify, RustCryptoBackend},
     client::ClientConnectionData,
     error::Error,
     record_layer,
@@ -16,7 +16,6 @@ use std::{
     io, mem,
     ops::{Deref, DerefMut},
 };
-use tls_backend::BackendNotify;
 use tls_core::{
     msgs::{
         alert::AlertMessagePayload,
@@ -200,12 +199,8 @@ impl ConnectionCommon {
     }
 
     /// Returns whether there are buffered data.
-    pub async fn is_empty(&mut self) -> Result<bool, Error> {
-        self.common_state
-            .backend
-            .is_empty()
-            .await
-            .map_err(Error::from)
+    pub fn is_empty(&self) -> Result<bool, Error> {
+        self.common_state.backend.is_empty().map_err(Error::from)
     }
 
     /// Initiate the TLS protocol

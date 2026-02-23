@@ -451,7 +451,7 @@ impl Backend for RustCryptoBackend {
         Ok(())
     }
 
-    async fn is_empty(&mut self) -> Result<bool, BackendError> {
+    fn is_empty(&self) -> Result<bool, BackendError> {
         Ok(self.incoming_plain.is_empty()
             && self.outgoing_plain.is_empty()
             && self.incoming_encrypted.is_empty()
