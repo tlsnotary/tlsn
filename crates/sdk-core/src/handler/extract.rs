@@ -11,7 +11,7 @@ use spansy::{
 
 use crate::{
     error::{Result, SdkError},
-    types::{Handler, HandlerPart, HandlerParams},
+    types::{Handler, HandlerParams, HandlerPart},
 };
 
 /// Converts a `RangeSet<usize>` to `Vec<Range<usize>>`.
@@ -63,7 +63,10 @@ impl<S: Store> HttpMessage<'_, S> {
         }
     }
 
-    fn headers_with_name<'a>(&'a self, name: &'a str) -> Box<dyn Iterator<Item = &'a Header<S>> + 'a> {
+    fn headers_with_name<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> Box<dyn Iterator<Item = &'a Header<S>> + 'a> {
         match self {
             HttpMessage::Request(req) => Box::new(req.headers_with_name(name)),
             HttpMessage::Response(resp) => Box::new(resp.headers_with_name(name)),
@@ -86,7 +89,8 @@ fn extract_start_line<S: Store>(message: &HttpMessage<'_, S>) -> Result<Vec<Rang
 }
 
 fn extract_protocol<S: Store>(message: &HttpMessage<'_, S>) -> Result<Vec<Range<usize>>> {
-    // Protocol is the start line minus method/target (request) or code/reason (response).
+    // Protocol is the start line minus method/target (request) or code/reason
+    // (response).
     match message {
         HttpMessage::Request(req) => {
             let start_line = req.request.indices();
@@ -251,16 +255,19 @@ fn extract_json_body<S: Store>(
                     return extract_kv_ranges(kv, hide_key, hide_value);
                 }
             }
-            // If parent is an array, ignore hideKey/hideValue — return value only
+            // If parent is an array, ignore hideKey/hideValue — return value
+            // only
         }
     }
 
-    // Return the value's ranges directly (full key-value pair for objects, or just the value).
+    // Return the value's ranges directly (full key-value pair for objects, or just
+    // the value).
     let value = doc
         .get(path)
         .ok_or_else(|| SdkError::handler(format!("JSON path '{path}' not found")))?;
 
-    // If no hide options and this is an object field, return the whole key-value pair.
+    // If no hide options and this is an object field, return the whole key-value
+    // pair.
     if !hide_key && !hide_value {
         if let Some((parent_path, key)) = split_json_path(path) {
             let parent: Option<&JsonValue<S>> = if parent_path.is_empty() {

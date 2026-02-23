@@ -407,8 +407,14 @@ fn test_multiple_handlers() {
     // Recv should have status code + body ranges
     assert!(output.reveal.recv.len() >= 2);
     // Annotated ranges should match
-    assert_eq!(output.sent_ranges_with_handlers.len(), output.reveal.sent.len());
-    assert_eq!(output.recv_ranges_with_handlers.len(), output.reveal.recv.len());
+    assert_eq!(
+        output.sent_ranges_with_handlers.len(),
+        output.reveal.sent.len()
+    );
+    assert_eq!(
+        output.recv_ranges_with_handlers.len(),
+        output.reveal.recv.len()
+    );
 }
 
 // ---- Array access with dot notation ----
@@ -440,7 +446,10 @@ fn test_json_body_dot_notation_array() {
 
     let bytes = extract_bytes(response.as_bytes(), &output.reveal.recv);
     let text = std::str::from_utf8(bytes[0]).unwrap();
-    assert!(text.contains("Track One"), "Expected 'Track One' in: {text}");
+    assert!(
+        text.contains("Track One"),
+        "Expected 'Track One' in: {text}"
+    );
 }
 
 // ---- Serde wire compatibility ----
@@ -501,6 +510,9 @@ fn test_handler_serde_all_parts() {
             params: None,
         };
         let json = serde_json::to_value(&handler).unwrap();
-        assert_eq!(json["part"], expected, "HandlerPart::{part:?} should serialize to {expected}");
+        assert_eq!(
+            json["part"], expected,
+            "HandlerPart::{part:?} should serialize to {expected}"
+        );
     }
 }
