@@ -23,6 +23,7 @@ type Result<T> = std::result::Result<T, JsError>;
 #[wasm_bindgen(js_name = Prover)]
 pub struct JsProver {
     inner: SdkProver,
+    progress_callback: Option<js_sys::Function>,
 }
 
 #[wasm_bindgen(js_class = Prover)]
@@ -32,7 +33,21 @@ impl JsProver {
     pub fn new(config: ProverConfig) -> Result<JsProver> {
         let core_config = convert_prover_config(config);
         let inner = SdkProver::new(core_config).map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(JsProver { inner })
+        Ok(JsProver {
+            inner,
+            progress_callback: None,
+        })
+    }
+
+    /// Sets a progress callback that receives structured progress updates.
+    ///
+    /// The callback receives a single argument: `{ step: string, progress:
+    /// number, message: string }`.
+    ///
+    /// Steps emitted: `MPC_SETUP`, `CONNECTING_TO_SERVER`, `SENDING_REQUEST`,
+    /// `REQUEST_COMPLETE`, `REVEAL`, `FINALIZED`.
+    pub fn set_progress_callback(&mut self, callback: js_sys::Function) {
+        self.progress_callback = Some(callback);
     }
 
     /// Sets up the prover with the verifier.
@@ -45,11 +60,17 @@ impl JsProver {
     /// * `verifier_io` - A JavaScript object implementing the IoChannel
     ///   interface, connected to the verifier.
     pub async fn setup(&mut self, verifier_io: JsIo) -> Result<()> {
+        self.emit_progress("MPC_SETUP", 0.1, "Connecting to verifier...");
+
         let adapter = JsIoAdapter::new(verifier_io);
         self.inner
             .setup(adapter)
             .await
-            .map_err(|e| JsError::new(&e.to_string()))
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        self.emit_progress("MPC_SETUP", 0.2, "MPC setup complete");
+
+        Ok(())
     }
 
     /// Sends an HTTP request to the server.
@@ -64,13 +85,25 @@ impl JsProver {
         server_io: JsIo,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
+        self.emit_progress(
+            "CONNECTING_TO_SERVER",
+            0.3,
+            "Connecting to application server...",
+        );
+
         let adapter = JsIoAdapter::new(server_io);
         let core_request = convert_http_request(request);
+
+        self.emit_progress("SENDING_REQUEST", 0.4, "Sending request...");
+
         let core_response = self
             .inner
             .send_request(adapter, core_request)
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
+
+        self.emit_progress("REQUEST_COMPLETE", 0.5, "Response received");
+
         Ok(convert_http_response(core_response))
     }
 
@@ -85,11 +118,31 @@ impl JsProver {
 
     /// Reveals data to the verifier and finalizes the protocol.
     pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
+        self.emit_progress("REVEAL", 0.7, "Proving and revealing data...");
+
         let core_reveal = convert_reveal(reveal);
         self.inner
             .reveal(core_reveal)
             .await
-            .map_err(|e| JsError::new(&e.to_string()))
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        self.emit_progress("FINALIZED", 0.95, "Protocol finalized");
+
+        Ok(())
+    }
+}
+
+impl JsProver {
+    /// Emits a structured progress event to the JS callback (if set).
+    fn emit_progress(&self, step: &str, progress: f64, message: &str) {
+        if let Some(ref cb) = self.progress_callback {
+            let obj = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&obj, &"step".into(), &step.into());
+            let _ = js_sys::Reflect::set(&obj, &"progress".into(), &progress.into());
+            let _ = js_sys::Reflect::set(&obj, &"message".into(), &message.into());
+            let _ = js_sys::Reflect::set(&obj, &"source".into(), &"wasm".into());
+            let _ = cb.call1(&JsValue::NULL, &obj);
+        }
     }
 }
 
