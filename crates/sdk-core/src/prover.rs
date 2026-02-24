@@ -68,6 +68,16 @@ impl State {
 impl SdkProver {
     /// Creates a new SDK Prover with the given configuration.
     pub fn new(config: ProverConfig) -> Result<Self> {
+        if config.server_name.is_empty() {
+            return Err(SdkError::config("server_name cannot be empty"));
+        }
+        if config.max_sent_data == 0 {
+            return Err(SdkError::config("max_sent_data must be > 0"));
+        }
+        if config.max_recv_data == 0 {
+            return Err(SdkError::config("max_recv_data must be > 0"));
+        }
+
         Ok(SdkProver {
             config,
             state: State::Initialized,
@@ -332,4 +342,60 @@ async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpR
             Some(body_bytes)
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::{NetworkSetting, ProverConfig},
+        error::ErrorKind,
+    };
+
+    fn valid_config() -> ProverConfig {
+        ProverConfig::builder("example.com")
+            .max_sent_data(4096)
+            .max_recv_data(16384)
+            .network(NetworkSetting::Latency)
+            .build()
+    }
+
+    #[test]
+    fn new_with_valid_config() {
+        let prover = SdkProver::new(valid_config());
+        assert!(prover.is_ok());
+    }
+
+    #[test]
+    fn new_rejects_empty_server_name() {
+        let config = ProverConfig::builder("")
+            .max_sent_data(4096)
+            .max_recv_data(16384)
+            .build();
+        let err = SdkProver::new(config).err().expect("should fail");
+        assert_eq!(err.kind(), ErrorKind::Config);
+        assert!(err.to_string().contains("server_name"));
+    }
+
+    #[test]
+    fn new_rejects_zero_max_sent_data() {
+        let config = ProverConfig::builder("example.com")
+            .max_sent_data(0)
+            .max_recv_data(16384)
+            .build();
+        let err = SdkProver::new(config).err().expect("should fail");
+        assert_eq!(err.kind(), ErrorKind::Config);
+        assert!(err.to_string().contains("max_sent_data"));
+    }
+
+    #[test]
+    fn new_rejects_zero_max_recv_data() {
+        let config = ProverConfig::builder("example.com")
+            .max_sent_data(4096)
+            .max_recv_data(0)
+            .build();
+        let err = SdkProver::new(config).err().expect("should fail");
+        assert_eq!(err.kind(), ErrorKind::Config);
+        assert!(err.to_string().contains("max_recv_data"));
+    }
 }

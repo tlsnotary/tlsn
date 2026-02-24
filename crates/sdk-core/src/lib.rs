@@ -45,6 +45,7 @@ pub mod config;
 pub mod error;
 pub mod handler;
 pub mod io;
+pub mod logging;
 pub mod prover;
 mod spawn;
 pub mod types;
