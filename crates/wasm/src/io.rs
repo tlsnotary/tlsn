@@ -52,10 +52,6 @@ struct AdapterState {
     eof: bool,
     /// Pending read future.
     pending_read: Option<JsFuture>,
-    /// Pending write future.
-    pending_write: Option<JsFuture>,
-    /// Pending close future.
-    pending_close: Option<JsFuture>,
     /// Waker for when data becomes available.
     read_waker: Option<Waker>,
     /// Whether the stream is closed.
@@ -88,8 +84,6 @@ impl JsIoAdapter {
                 read_buffer: VecDeque::new(),
                 eof: false,
                 pending_read: None,
-                pending_write: None,
-                pending_close: None,
                 read_waker: None,
                 closed: false,
                 error: None,
@@ -205,7 +199,7 @@ impl AsyncRead for JsIoAdapter {
 impl AsyncWrite for JsIoAdapter {
     fn poll_write(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();

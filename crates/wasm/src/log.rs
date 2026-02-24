@@ -1,75 +1,29 @@
+//! WASM-specific logging initialization.
+//!
+//! Provides tsify-annotated types for the wasm_bindgen API surface and
+//! delegates filtering to [`tlsn_sdk_core::logging`]. Console output is
+//! handled by [`wasm_tracing::WASMLayer`] (no `web-sys` dependency).
+
 use serde::Deserialize;
-use tracing::{error, Level, Metadata};
-use tracing_subscriber::{
-    filter::FilterFn,
-    fmt::{format::FmtSpan, time::UtcTime},
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-};
-use tracing_web::MakeWebConsoleWriter;
+use tracing::Level;
+use tracing_subscriber::{filter::FilterFn, layer::SubscriberExt, util::SubscriberInitExt};
 use tsify_next::Tsify;
+use wasm_tracing::{WASMLayer, WASMLayerConfigBuilder};
 
-pub(crate) fn init_logging(config: Option<LoggingConfig>) {
-    let mut config = config.unwrap_or_default();
+// ---------------------------------------------------------------------------
+// Tsify wrapper types (wasm_bindgen API surface)
+// ---------------------------------------------------------------------------
 
-    // Default is NONE
-    let fmt_span = config
-        .span_events
-        .take()
-        .unwrap_or_default()
-        .into_iter()
-        .map(FmtSpan::from)
-        .fold(FmtSpan::NONE, |acc, span| acc | span);
-
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_ansi(false) // Only partially supported across browsers
-        .with_timer(UtcTime::rfc_3339()) // std::time is not available in browsers
-        .with_span_events(fmt_span)
-        .without_time()
-        .with_writer(MakeWebConsoleWriter::new()); // write events to the console
-
-    tracing_subscriber::registry()
-        .with(FilterFn::new(filter(config.clone())))
-        .with(fmt_layer)
-        .init();
-
-    // https://github.com/rustwasm/console_error_panic_hook
-    std::panic::set_hook(Box::new(|info| {
-        error!("panic occurred: {:?}", info);
-        console_error_panic_hook::hook(info);
-    }));
-}
-
-#[derive(Debug, Clone, Copy, Tsify, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum LoggingLevel {
     Off,
     Trace,
     Debug,
+    #[default]
     Info,
     Warn,
     Error,
-}
-
-impl LoggingLevel {
-    /// Returns true if this level disables all logging.
-    fn is_off(&self) -> bool {
-        matches!(self, LoggingLevel::Off)
-    }
-}
-
-impl From<LoggingLevel> for Level {
-    fn from(value: LoggingLevel) -> Self {
-        match value {
-            // Off maps to ERROR as a fallback, but is_off() should be checked first
-            LoggingLevel::Off => Level::ERROR,
-            LoggingLevel::Trace => Level::TRACE,
-            LoggingLevel::Debug => Level::DEBUG,
-            LoggingLevel::Info => Level::INFO,
-            LoggingLevel::Warn => Level::WARN,
-            LoggingLevel::Error => Level::ERROR,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
@@ -78,16 +32,6 @@ pub enum SpanEvent {
     New,
     Close,
     Active,
-}
-
-impl From<SpanEvent> for FmtSpan {
-    fn from(value: SpanEvent) -> Self {
-        match value {
-            SpanEvent::New => FmtSpan::NEW,
-            SpanEvent::Close => FmtSpan::CLOSE,
-            SpanEvent::Active => FmtSpan::ACTIVE,
-        }
-    }
 }
 
 #[derive(Debug, Default, Clone, Tsify, Deserialize)]
@@ -105,36 +49,77 @@ pub struct CrateLogFilter {
     pub name: String,
 }
 
-pub(crate) fn filter(config: LoggingConfig) -> impl Fn(&Metadata) -> bool {
-    let default_level = config.level.unwrap_or(LoggingLevel::Info);
-    let crate_filters = config
-        .crate_filters
-        .unwrap_or_default()
-        .into_iter()
-        .map(|filter| (filter.name, filter.level))
-        .collect::<Vec<_>>();
+// ---------------------------------------------------------------------------
+// Conversions to sdk-core types
+// ---------------------------------------------------------------------------
 
-    move |meta| {
-        let logging_level = if let Some(crate_name) = meta.target().split("::").next() {
-            crate_filters
-                .iter()
-                .find_map(|(filter_name, filter_level)| {
-                    if crate_name.eq_ignore_ascii_case(filter_name) {
-                        Some(*filter_level)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(default_level)
-        } else {
-            default_level
-        };
-
-        // Off disables all logging for this target
-        if logging_level.is_off() {
-            return false;
+impl From<LoggingLevel> for tlsn_sdk_core::logging::LoggingLevel {
+    fn from(val: LoggingLevel) -> Self {
+        match val {
+            LoggingLevel::Off => Self::Off,
+            LoggingLevel::Trace => Self::Trace,
+            LoggingLevel::Debug => Self::Debug,
+            LoggingLevel::Info => Self::Info,
+            LoggingLevel::Warn => Self::Warn,
+            LoggingLevel::Error => Self::Error,
         }
-
-        meta.level() <= &Level::from(logging_level)
     }
+}
+
+impl From<SpanEvent> for tlsn_sdk_core::logging::SpanEvent {
+    fn from(val: SpanEvent) -> Self {
+        match val {
+            SpanEvent::New => Self::New,
+            SpanEvent::Close => Self::Close,
+            SpanEvent::Active => Self::Active,
+        }
+    }
+}
+
+impl From<CrateLogFilter> for tlsn_sdk_core::logging::CrateLogFilter {
+    fn from(val: CrateLogFilter) -> Self {
+        Self {
+            level: val.level.into(),
+            name: val.name,
+        }
+    }
+}
+
+impl From<LoggingConfig> for tlsn_sdk_core::logging::LoggingConfig {
+    fn from(val: LoggingConfig) -> Self {
+        Self {
+            level: val.level.map(Into::into),
+            crate_filters: val
+                .crate_filters
+                .map(|v| v.into_iter().map(Into::into).collect()),
+            span_events: val
+                .span_events
+                .map(|v| v.into_iter().map(Into::into).collect()),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Initialization
+// ---------------------------------------------------------------------------
+
+pub(crate) fn init_logging(config: Option<LoggingConfig>) {
+    // Convert to platform-agnostic config and build the filter.
+    let core_config: tlsn_sdk_core::logging::LoggingConfig = config.unwrap_or_default().into();
+
+    let wasm_layer_config = WASMLayerConfigBuilder::new()
+        .set_report_logs_in_timings(false) // avoid performance.mark (Node.js compat)
+        .set_max_level(Level::TRACE) // let FilterFn handle actual filtering
+        .build();
+
+    tracing_subscriber::registry()
+        .with(FilterFn::new(tlsn_sdk_core::logging::filter(core_config)))
+        .with(WASMLayer::new(wasm_layer_config))
+        .init();
+
+    // WASM-specific panic hook.
+    std::panic::set_hook(Box::new(|info| {
+        tracing::error!("panic occurred: {:?}", info);
+        console_error_panic_hook::hook(info);
+    }));
 }
