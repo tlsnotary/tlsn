@@ -22,31 +22,26 @@ no-bundler = ["web-spawn/no-bundler"]
 [dependencies]
 tlsn-core = { workspace = true }
 tlsn = { workspace = true, features = ["web", "mozilla-certs"] }
+tlsn-sdk-core = { workspace = true, features = ["wasm"] }
 tlsn-server-fixture-certs = { workspace = true }
 tlsn-tls-core = { workspace = true }
 
-async_io_stream = { workspace = true }
-bincode = { workspace = true }
 console_error_panic_hook = { version = "0.1" }
-enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
-http-body-util = { version = "0.1" }
-hyper = { workspace = true, features = ["client", "http1"] }
 js-sys = { version = "0.3" }
 parking_lot = { version = "0.12", features = ["nightly"] }
-pin-project-lite = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1.0" }
-time = { version = "=0.3.37", features = ["wasm-bindgen"] }
+serde-wasm-bindgen = { version = "0.6" }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["time"] }
-tracing-web = { version = "0.1" }
+tracing-subscriber = { workspace = true }
+wasm-tracing = { version = "0.1" }
 tsify-next = { version = "0.5", default-features = false, features = ["js"] }
 wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
 web-spawn = { workspace = true }
-ws_stream_wasm = { workspace = true }
+# ws_stream_wasm removed - IO now injected from JavaScript
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

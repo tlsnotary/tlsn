@@ -1,88 +1,261 @@
-use core::slice;
+//! IO adapters for WASM.
+//!
+//! This module provides adapters to bridge JavaScript IO streams to Rust's
+//! async IO traits.
+
 use std::{
+    cell::RefCell,
+    collections::VecDeque,
     pin::Pin,
-    task::{Context, Poll},
+    rc::Rc,
+    task::{Context, Poll, Waker},
 };
 
-use pin_project_lite::pin_project;
+use futures::{AsyncRead, AsyncWrite, Future};
+use js_sys::{Promise, Uint8Array};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 
-pin_project! {
-    #[derive(Debug)]
-    pub(crate) struct FuturesIo<T> {
-        #[pin]
-        inner: T,
-    }
-}
+/// JavaScript interface for IO channels.
+///
+/// This is the interface that JavaScript objects must implement to be used
+/// as IO streams with the SDK.
+#[wasm_bindgen]
+extern "C" {
+    /// An IO channel from JavaScript.
+    #[wasm_bindgen(typescript_type = "IoChannel")]
+    pub type JsIo;
 
-impl<T> FuturesIo<T> {
-    /// Create a new `FuturesIo` wrapping the given I/O object.
+    /// Reads bytes from the stream.
     ///
-    /// # Safety
+    /// Returns a Promise that resolves to a Uint8Array, or null if EOF.
+    #[wasm_bindgen(method, catch)]
+    pub fn read(this: &JsIo) -> Result<Promise, JsValue>;
+
+    /// Writes bytes to the stream.
     ///
-    /// This wrapper is only safe to use if the inner I/O object does not under
-    /// any circumstance read from the buffer passed to `poll_read` in the
-    /// `futures::AsyncRead` implementation.
-    pub(crate) fn new(inner: T) -> Self {
-        Self { inner }
+    /// Returns a Promise that resolves when the write is complete.
+    #[wasm_bindgen(method, catch)]
+    pub fn write(this: &JsIo, data: &Uint8Array) -> Result<Promise, JsValue>;
+
+    /// Closes the stream.
+    ///
+    /// Returns a Promise that resolves when the stream is closed.
+    #[wasm_bindgen(method, catch)]
+    pub fn close(this: &JsIo) -> Result<Promise, JsValue>;
+}
+
+/// Internal state for the adapter.
+struct AdapterState {
+    /// Buffered data from reads.
+    read_buffer: VecDeque<u8>,
+    /// Whether we've seen EOF.
+    eof: bool,
+    /// Pending read future.
+    pending_read: Option<JsFuture>,
+    /// Waker for when data becomes available.
+    read_waker: Option<Waker>,
+    /// Whether the stream is closed.
+    closed: bool,
+    /// Any error that occurred.
+    error: Option<String>,
+}
+
+/// Adapter that wraps a JavaScript IoChannel object.
+///
+/// This adapter implements `AsyncRead` and `AsyncWrite` by calling the
+/// JavaScript methods on the underlying object.
+pub(crate) struct JsIoAdapter {
+    inner: JsIo,
+    state: Rc<RefCell<AdapterState>>,
+}
+
+impl JsIoAdapter {
+    /// Creates a new adapter wrapping the given JavaScript IO object.
+    pub(crate) fn new(js_io: JsIo) -> Self {
+        Self {
+            inner: js_io,
+            state: Rc::new(RefCell::new(AdapterState {
+                read_buffer: VecDeque::new(),
+                eof: false,
+                pending_read: None,
+                read_waker: None,
+                closed: false,
+                error: None,
+            })),
+        }
     }
 }
 
-impl<T> hyper::rt::Write for FuturesIo<T>
-where
-    T: futures::AsyncWrite + Unpin,
-{
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        self.project().inner.poll_write(cx, buf)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        self.project().inner.poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        self.project().inner.poll_close(cx)
-    }
-
-    fn poll_write_vectored(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &[std::io::IoSlice<'_>],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        self.project().inner.poll_write_vectored(cx, bufs)
-    }
-}
-
-// Adapted from https://github.com/hyperium/hyper-util/blob/99b77a5a6f75f24bc0bcb4ca74b5f26a07b19c80/src/rt/tokio.rs
-impl<T> hyper::rt::Read for FuturesIo<T>
-where
-    T: futures::AsyncRead + Unpin,
-{
+impl AsyncRead for JsIoAdapter {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        mut buf: hyper::rt::ReadBufCursor<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        // Safety: buf_slice should only be written to, so it's safe to convert `&mut
-        // [MaybeUninit<u8>]` to `&mut [u8]`.
-        let buf_slice = unsafe {
-            slice::from_raw_parts_mut(buf.as_mut().as_mut_ptr() as *mut u8, buf.as_mut().len())
-        };
+        buf: &mut [u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        let mut state = this.state.borrow_mut();
 
-        let n = match futures::AsyncRead::poll_read(self.project().inner, cx, buf_slice) {
-            Poll::Ready(Ok(n)) => n,
-            other => return other.map_ok(|_| ()),
-        };
-
-        unsafe {
-            buf.advance(n);
+        // Check for errors.
+        if let Some(ref err) = state.error {
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                err.clone(),
+            )));
         }
-        Poll::Ready(Ok(()))
+
+        // If we have buffered data, return it.
+        if !state.read_buffer.is_empty() {
+            let to_read = std::cmp::min(buf.len(), state.read_buffer.len());
+            for (i, byte) in state.read_buffer.drain(..to_read).enumerate() {
+                buf[i] = byte;
+            }
+            return Poll::Ready(Ok(to_read));
+        }
+
+        // If we've seen EOF, return 0.
+        if state.eof {
+            return Poll::Ready(Ok(0));
+        }
+
+        // Store waker for later.
+        state.read_waker = Some(cx.waker().clone());
+
+        // If there's no pending read, start one.
+        if state.pending_read.is_none() {
+            match this.inner.read() {
+                Ok(promise) => {
+                    state.pending_read = Some(JsFuture::from(promise));
+                }
+                Err(e) => {
+                    let err_msg = format!("read error: {:?}", e);
+                    state.error = Some(err_msg.clone());
+                    return Poll::Ready(Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        err_msg,
+                    )));
+                }
+            }
+        }
+
+        // Poll the pending read.
+        if let Some(ref mut future) = state.pending_read {
+            // SAFETY: We're inside a WASM context where this is safe.
+            let future = unsafe { Pin::new_unchecked(future) };
+            match future.poll(cx) {
+                Poll::Ready(Ok(value)) => {
+                    state.pending_read = None;
+
+                    // Check if it's null (EOF).
+                    if value.is_null() || value.is_undefined() {
+                        tracing::warn!("JsIo read returned null/undefined (EOF)");
+                        state.eof = true;
+                        return Poll::Ready(Ok(0));
+                    }
+
+                    // Convert to bytes.
+                    let array = Uint8Array::new(&value);
+                    let bytes = array.to_vec();
+
+                    if bytes.is_empty() {
+                        tracing::warn!("JsIo read returned empty array (EOF)");
+                        state.eof = true;
+                        return Poll::Ready(Ok(0));
+                    }
+
+                    // Copy to buffer and return.
+                    let to_read = std::cmp::min(buf.len(), bytes.len());
+                    buf[..to_read].copy_from_slice(&bytes[..to_read]);
+
+                    // Buffer any remaining bytes.
+                    if bytes.len() > to_read {
+                        state.read_buffer.extend(&bytes[to_read..]);
+                    }
+
+                    Poll::Ready(Ok(to_read))
+                }
+                Poll::Ready(Err(e)) => {
+                    state.pending_read = None;
+                    let err_msg = format!("read error: {:?}", e);
+                    state.error = Some(err_msg.clone());
+                    Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, err_msg)))
+                }
+                Poll::Pending => Poll::Pending,
+            }
+        } else {
+            Poll::Pending
+        }
     }
 }
+
+impl AsyncWrite for JsIoAdapter {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        let state = this.state.borrow();
+
+        // Check for errors.
+        if let Some(ref err) = state.error {
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                err.clone(),
+            )));
+        }
+
+        if state.closed {
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "stream closed",
+            )));
+        }
+
+        // Create Uint8Array from buffer.
+        let array = Uint8Array::from(buf);
+
+        // Fire-and-forget write: common pattern for WASM IO.
+        // We don't wait for the Promise to resolve to avoid backpressure.
+        match this.inner.write(&array) {
+            Ok(_promise) => {
+                // Return success immediately without waiting for Promise.
+                Poll::Ready(Ok(buf.len()))
+            }
+            Err(e) => {
+                let err_msg = format!("write error: {:?}", e);
+                tracing::error!("JsIo write failed: {}", err_msg);
+                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, err_msg)))
+            }
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        // JS streams typically auto-flush.
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        let mut state = this.state.borrow_mut();
+
+        if state.closed {
+            return Poll::Ready(Ok(()));
+        }
+
+        // Fire-and-forget close to avoid blocking.
+        match this.inner.close() {
+            Ok(_promise) => {
+                state.closed = true;
+                Poll::Ready(Ok(()))
+            }
+            Err(e) => {
+                let err_msg = format!("close error: {:?}", e);
+                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, err_msg)))
+            }
+        }
+    }
+}
+
+// Required for Io trait (Send bound).
+unsafe impl Send for JsIoAdapter {}
