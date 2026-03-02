@@ -1,6 +1,6 @@
 use hmac_sha256::PrfError;
 use key_exchange::KeyExchangeError;
-use tls_backend::BackendError;
+use tls_client::BackendError;
 
 /// MPC-TLS error.
 #[derive(Debug, thiserror::Error)]
@@ -13,13 +13,6 @@ impl MpcTlsError {
         E: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
     {
         Self(ErrorRepr::Peer(err.into()))
-    }
-
-    pub(crate) fn actor<E>(err: E) -> Self
-    where
-        E: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
-    {
-        Self(ErrorRepr::Actor(err.into()))
     }
 
     pub(crate) fn state<E>(err: E) -> Self
@@ -72,8 +65,6 @@ enum ErrorRepr {
     Peer(Box<dyn std::error::Error + Send + Sync>),
     #[error("I/O error: {0}")]
     Io(std::io::Error),
-    #[error("actor error: {0}")]
-    Actor(Box<dyn std::error::Error + Send + Sync>),
     #[error("state error: {0}")]
     State(Box<dyn std::error::Error + Send + Sync>),
     #[error("allocation error: {0}")]

@@ -4,13 +4,13 @@ import initWasm, * as wasm from "./generated/harness_executor.js";
 class Executor {
     executor;
 
-    async init(config) {
+    async init(config, loggingConfig) {
         try {
             console.log("loading wasm");
             await initWasm();
             console.log("wasm loaded");
             console.log("initializing wasm");
-            await wasm.initialize(undefined, navigator.hardwareConcurrency);
+            await wasm.initialize(loggingConfig, navigator.hardwareConcurrency);
             console.log("wasm initialized");
             console.log("initializing executor");
             this.executor = new wasm.WasmExecutor(config);

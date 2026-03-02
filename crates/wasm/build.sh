@@ -5,6 +5,19 @@
 
 set -e
 
+# Check wasm-pack version (0.14.0+ required for custom profile support)
+if ! command -v wasm-pack >/dev/null 2>&1; then
+    echo "Error: wasm-pack not found. Install with: cargo install wasm-pack"
+    exit 1
+fi
+WASM_PACK_VERSION=$(wasm-pack --version | sed 's/wasm-pack //')
+REQUIRED_VERSION="0.14.0"
+if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$WASM_PACK_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+    echo "Error: wasm-pack $WASM_PACK_VERSION is too old. Version $REQUIRED_VERSION+ required."
+    echo "Install with: cargo install wasm-pack"
+    exit 1
+fi
+
 # Clean up older builds
 rm -rf pkg
 

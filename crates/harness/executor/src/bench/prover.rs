@@ -63,17 +63,15 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let uploaded_preprocess = sent.load(Ordering::Relaxed);
     let downloaded_preprocess = recv.load(Ordering::Relaxed);
 
-    let (mut conn, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()?,
-            provider.provide_server_io().await?,
-        )
-        .await?;
+    let (mut conn, prover_fut) = prover.connect(
+        TlsClientConfig::builder()
+            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .build()?,
+        provider.provide_server_io().await?,
+    )?;
 
     let (_, mut prover) = futures::try_join!(
         async {

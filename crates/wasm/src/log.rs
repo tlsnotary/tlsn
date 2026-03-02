@@ -43,6 +43,7 @@ pub(crate) fn init_logging(config: Option<LoggingConfig>) {
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum LoggingLevel {
+    Off,
     Trace,
     Debug,
     Info,
@@ -50,9 +51,18 @@ pub enum LoggingLevel {
     Error,
 }
 
+impl LoggingLevel {
+    /// Returns true if this level disables all logging.
+    fn is_off(&self) -> bool {
+        matches!(self, LoggingLevel::Off)
+    }
+}
+
 impl From<LoggingLevel> for Level {
     fn from(value: LoggingLevel) -> Self {
         match value {
+            // Off maps to ERROR as a fallback, but is_off() should be checked first
+            LoggingLevel::Off => Level::ERROR,
             LoggingLevel::Trace => Level::TRACE,
             LoggingLevel::Debug => Level::DEBUG,
             LoggingLevel::Info => Level::INFO,
@@ -96,30 +106,35 @@ pub struct CrateLogFilter {
 }
 
 pub(crate) fn filter(config: LoggingConfig) -> impl Fn(&Metadata) -> bool {
-    let default_level: Level = config.level.unwrap_or(LoggingLevel::Info).into();
+    let default_level = config.level.unwrap_or(LoggingLevel::Info);
     let crate_filters = config
         .crate_filters
         .unwrap_or_default()
         .into_iter()
-        .map(|filter| (filter.name, Level::from(filter.level)))
+        .map(|filter| (filter.name, filter.level))
         .collect::<Vec<_>>();
 
     move |meta| {
-        let level = if let Some(crate_name) = meta.target().split("::").next() {
+        let logging_level = if let Some(crate_name) = meta.target().split("::").next() {
             crate_filters
                 .iter()
                 .find_map(|(filter_name, filter_level)| {
                     if crate_name.eq_ignore_ascii_case(filter_name) {
-                        Some(filter_level)
+                        Some(*filter_level)
                     } else {
                         None
                     }
                 })
-                .unwrap_or(&default_level)
+                .unwrap_or(default_level)
         } else {
-            &default_level
+            default_level
         };
 
-        meta.level() <= level
+        // Off disables all logging for this target
+        if logging_level.is_off() {
+            return false;
+        }
+
+        meta.level() <= &Level::from(logging_level)
     }
 }

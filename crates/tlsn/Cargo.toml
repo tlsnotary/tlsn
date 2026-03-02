@@ -18,15 +18,15 @@ web = ["dep:web-spawn"]
 
 [dependencies]
 tlsn-attestation = { workspace = true }
+tlsn-cipher = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-deap = { workspace = true }
+tlsn-mpc-tls = { workspace = true }
 tlsn-mux = { workspace = true }
 tlsn-tls-client = { workspace = true }
-tlsn-tls-client-async = { workspace = true }
 tlsn-tls-core = { workspace = true }
-tlsn-mpc-tls = { workspace = true }
-tlsn-cipher = { workspace = true }
 
+futures-plex = { workspace = true }
 serio = { workspace = true, features = ["compat"] }
 web-spawn = { workspace = true, optional = true }
 
@@ -47,6 +47,7 @@ aes = { workspace = true }
 ctr = { workspace = true }
 futures = { workspace = true }
 opaque-debug = { workspace = true }
+pin-project-lite = { workspace = true }
 rand = { workspace = true }
 rustls-pki-types = { workspace = true }
 rustls-webpki = { workspace = true }

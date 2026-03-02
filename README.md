@@ -8,8 +8,8 @@
 
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [apache-badge]: https://img.shields.io/github/license/saltstack/salt
-[actions-badge]: https://github.com/tlsnotary/tlsn/actions/workflows/ci.yml/badge.svg?branch=dev
-[actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Aci+branch%3Adev
+[actions-badge]: https://github.com/tlsnotary/tlsn/actions/workflows/ci.yml/badge.svg?branch=main
+[actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Aci+branch%3Amain
 
 [Website](https://tlsnotary.org) |
 [Documentation](https://tlsnotary.org/docs/intro) |
@@ -32,21 +32,16 @@ All crates in this repository are licensed under either of
 
 at your option.
 
-## Branches
+## Versions
 
-- [`main`](https://github.com/tlsnotary/tlsn/tree/main)
-  - Default branch — points to the latest release.
-  - This is stable and suitable for most users.
-- [`dev`](https://github.com/tlsnotary/tlsn/tree/dev)
-  - Development branch — contains the latest PRs.
-  - Developers should submit their PRs against this branch.
+For evaluation, we recommend using [tagged releases](https://github.com/tlsnotary/tlsn/releases) rather than the latest `main` branch, as the project is under active development.
 
 ## Directory
 
 - [examples](./crates/examples/): Examples on how to use the TLSNotary protocol.
 - [tlsn](./crates/tlsn/): The TLSNotary library.
 
-This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-js`](https://github.com/tlsnotary/tlsn-js), [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), among others.
+This repository contains the source code for the Rust implementation of the TLSNotary protocol. For additional tools and implementations related to TLSNotary, visit <https://github.com/tlsnotary>. This includes repositories such as [`tlsn-extension`](https://github.com/tlsnotary/tlsn-extension), among others.
 
 
 ## Development

@@ -35,6 +35,15 @@ impl ChunkVecBuffer {
         self.chunks.is_empty()
     }
 
+    /// If the buffer has reached limit.
+    pub(crate) fn is_full(&self) -> bool {
+        if let Some(limit) = self.limit {
+            self.len() >= limit
+        } else {
+            false
+        }
+    }
+
     /// How many bytes we're storing
     pub(crate) fn len(&self) -> usize {
         let mut len = 0;

@@ -6,6 +6,11 @@ use tokio_util::codec::LengthDelimitedCodec;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "debug")]
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
     let config = std::env::var("CONFIG").expect("CONFIG env var must be set");
 
     let config: ExecutorConfig = serde_json::from_str(&config)?;
