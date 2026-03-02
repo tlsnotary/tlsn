@@ -351,7 +351,6 @@ where
         {
             if write == 0 && !*state.server_closed {
                 *state.server_closed = true;
-                state.tls_client.server_close();
             } else if write > 0 {
                 cx.waker().wake_by_ref();
             }
@@ -366,10 +365,13 @@ where
                 let read = state.tls_client.read_tls(buf)?;
                 if read > 0 {
                     simplex.advance(read);
+                    cx.waker().wake_by_ref();
                 }
             } else if !buf.is_empty() {
                 cx.waker().wake_by_ref();
             }
+        } else if *state.server_closed {
+            state.tls_client.server_close();
         }
 
         Ok(())
