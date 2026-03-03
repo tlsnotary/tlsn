@@ -242,6 +242,10 @@ impl TlsClient for MpcTlsClient {
                 match fut.as_mut().poll(cx)? {
                     Poll::Ready(inner) => {
                         self.state = State::Active { inner };
+                        // re-poll immediately if a close transition is pending
+                        if self.server_closed {
+                            return self.poll(cx);
+                        }
                     }
                     Poll::Pending => self.state = State::Busy { fut },
                 }
