@@ -5,24 +5,22 @@ mod verify;
 
 use std::sync::Arc;
 
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use mpz_common::Context;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Error, Result,
-    mpz::{VerifierDeps, build_verifier_deps, translate_keys},
+    Error, Result, Role,
+    deps::VerifierDeps,
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
+    proxy::{InspectReader, TlsParser},
     tag::verify_tags,
 };
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
 use tlsn_core::{
-    config::{
-        prove::ProveRequest,
-        tls_commit::{TlsCommitProtocolConfig, TlsCommitRequest},
-        verifier::VerifierConfig,
-    },
-    connection::{ConnectionInfo, ServerName},
+    config::{prove::ProveRequest, tls_commit::TlsCommitRequest, verifier::VerifierConfig},
+    connection::{ConnectionInfo, DnsName, ServerName},
     transcript::TlsTranscript,
 };
 
@@ -93,6 +91,24 @@ impl Verifier<state::Initialized> {
             return Err(Error::config().with_msg(msg));
         }
 
+        if !self.config.mode().agrees_with(&request) {
+            let msg = format!(
+                "prover and verifier disagree on the mode of operation. verifier only accepts {}.",
+                self.config.mode()
+            );
+
+            ctx.io_mut()
+                .send(Response::err(Some(msg.clone())))
+                .await
+                .map_err(|e| {
+                    Error::io()
+                        .with_msg("commitment protocol failed because of unequal mode")
+                        .with_source(e)
+                })?;
+
+            return Err(Error::config().with_msg(msg));
+        }
+
         Ok(Verifier {
             config: self.config,
             span: self.span,
@@ -123,29 +139,8 @@ impl Verifier<state::CommitStart> {
                 .with_source(e)
         })?;
 
-        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol().clone() else {
-            unreachable!("only MPC TLS is supported");
-        };
-
-        let VerifierDeps { vm, mut mpc_tls } = build_verifier_deps(mpc_tls_config, ctx);
-
-        // Allocate resources for MPC-TLS in the VM.
-        let mut keys = mpc_tls.alloc().map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed to allocate mpc-tls resources")
-                .with_source(e)
-        })?;
-        let vm_lock = vm.try_lock().expect("VM is not locked");
-        translate_keys(&mut keys, &vm_lock);
-        drop(vm_lock);
-
-        debug!("setting up mpc-tls");
-
-        mpc_tls.preprocess().await.map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed during mpc-tls preprocessing")
-                .with_source(e)
-        })?;
+        let mut verifier_deps = VerifierDeps::new(request.protocol(), ctx);
+        verifier_deps.setup().await?;
 
         debug!("mpc-tls setup complete");
 
@@ -153,7 +148,11 @@ impl Verifier<state::CommitStart> {
             config: self.config,
             span: self.span,
             ctx: None,
-            state: state::CommitAccepted { mpc_tls, keys, vm },
+            state: state::CommitAccepted {
+                verifier_deps,
+                prover_socket: None,
+                server_socket: None,
+            },
         })
     }
 
@@ -176,40 +175,115 @@ impl Verifier<state::CommitStart> {
 }
 
 impl Verifier<state::CommitAccepted> {
+    /// Returns the server name if available.
+    pub fn server_name(&self) -> Option<&DnsName> {
+        match &self.state.verifier_deps {
+            VerifierDeps::Mpc { .. } => None,
+            VerifierDeps::Proxy { server_name, .. } => Some(server_name),
+        }
+    }
+
+    /// Passes the additional sockets needed for the proxy approach.
+    pub fn set_proxy_sockets<S, T>(&mut self, prover_socket: S, server_socket: T)
+    where
+        S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    {
+        self.state.prover_socket = Some(Box::new(prover_socket));
+        self.state.server_socket = Some(Box::new(server_socket));
+    }
+
     /// Runs the verifier until the TLS connection is closed.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Committed>> {
-        let state::CommitAccepted { mpc_tls, vm, keys } = self.state;
-
-        info!("starting MPC-TLS");
-
-        let (mut ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
-            Error::internal()
-                .with_msg("mpc-tls execution failed")
-                .with_source(e)
-        })?;
-
-        info!("finished MPC-TLS");
-
+        if self.config.mode().requires_proxy_setup()
+            && (self.state.prover_socket.is_none() || self.state.server_socket.is_none())
         {
-            let mut vm = vm.try_lock().expect("VM should not be locked");
-
-            debug!("finalizing mpc");
-
-            vm.finalize(&mut ctx).await.map_err(|e| {
-                Error::internal()
-                    .with_msg("mpc finalization failed")
-                    .with_source(e)
-            })?;
-
-            debug!("mpc finalized");
+            return Err(Error::user().with_msg(
+                "the verifier is configured to support proxy mode and needs to be setup for this",
+            ));
         }
 
-        // Pull out ZK VM.
-        let (_, mut vm) = Arc::into_inner(vm)
-            .expect("vm should have only 1 reference")
-            .into_inner()
-            .into_inner();
+        let (mut vm, keys, mut ctx, tls_transcript) = match self.state.verifier_deps {
+            VerifierDeps::Mpc { vm, mpc_tls, keys } => {
+                info!("starting MPC-TLS");
+                let (mut ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
+                    Error::internal()
+                        .with_msg("mpc-tls execution failed")
+                        .with_source(e)
+                })?;
+                info!("finished MPC-TLS");
+
+                {
+                    let mut vm = vm.try_lock().expect("VM should not be locked");
+
+                    debug!("finalizing mpc");
+
+                    vm.finalize(&mut ctx).await.map_err(|e| {
+                        Error::internal()
+                            .with_msg("mpc finalization failed")
+                            .with_source(e)
+                    })?;
+
+                    debug!("mpc finalized");
+                }
+
+                // Pull out ZK VM.
+                let (_, vm) = Arc::into_inner(vm)
+                    .expect("vm should have only 1 reference")
+                    .into_inner()
+                    .into_inner();
+                (
+                    vm,
+                    keys.expect("keys should be available"),
+                    ctx,
+                    tls_transcript,
+                )
+            }
+            VerifierDeps::Proxy { verifier, .. } => {
+                let mut parser = TlsParser::new(Role::Verifier);
+                let prover_socket = self
+                    .state
+                    .prover_socket
+                    .expect("prover socket should be set");
+                let server_socket = self
+                    .state
+                    .server_socket
+                    .expect("server socket should be set");
+
+                info!("starting Proxy-TLS");
+                {
+                    let (prover_read, mut prover_write) = prover_socket.split();
+                    let (server_read, mut server_write) = server_socket.split();
+
+                    let (sent_buf, recv_buf) = parser.tls_buffers_mut();
+                    let mut prover_reader = InspectReader::new(prover_read, sent_buf);
+                    let mut server_reader = InspectReader::new(server_read, recv_buf);
+
+                    futures::future::try_join(
+                        async {
+                            futures::io::copy(&mut prover_reader, &mut server_write).await?;
+                            server_write.close().await
+                        },
+                        async {
+                            futures::io::copy(&mut server_reader, &mut prover_write).await?;
+                            prover_write.close().await
+                        },
+                    )
+                    .await
+                    .map_err(|e| {
+                        Error::io()
+                            .with_msg("proxy traffic forwarding failed")
+                            .with_source(e)
+                    })?;
+                }
+
+                let (ctx, vm, output) = verifier.finalize(parser).await?;
+                info!("Proxy-TLS done");
+
+                (vm, output.keys, ctx, output.tls_transcript)
+            }
+        };
 
         // Prepare for the prover to prove tag verification of the received
         // records.

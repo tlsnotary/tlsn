@@ -1,25 +1,26 @@
 //! Implementation of an MPC-TLS client.
 
 use crate::{
+    deps::{ProverMpc, ProverZk},
     error::Error as TlsnError,
-    mpz::{ProverMpc, ProverZk},
     prover::client::{DecryptState, TlsClient, TlsOutput},
-    tag::verify_tags,
 };
 use futures::{Future, FutureExt};
-use mpc_tls::SessionKeys;
+use mpc_tls::MpcTlsLeader;
 use mpz_common::Context;
-use mpz_vm_core::Execute;
+use rustls_pki_types::CertificateDer;
 use std::{
     pin::Pin,
     sync::{Arc, atomic::AtomicBool},
     task::Poll,
 };
 use tls_client::ClientConnection;
-use tlsn_core::transcript::TlsTranscript;
+use tls_core::dns::ServerName;
+use tlsn_core::{SessionKeys, config::tls::TlsClientConfig, transcript::TlsTranscript};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::{Span, debug, instrument, trace, warn};
+use webpki::anchor_from_trusted_cert;
 
 type FinalizeFuture =
     Box<dyn Future<Output = Result<(InnerState, Context, TlsTranscript), TlsnError>> + Send>;
@@ -59,30 +60,40 @@ impl MpcTlsClient {
         keys: SessionKeys,
         vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
         span: Span,
-        tls: ClientConnection,
-        decrypt: bool,
-    ) -> Self {
+        config: &TlsClientConfig,
+        server_name: ServerName,
+        mpc_tls: Box<MpcTlsLeader>,
+    ) -> Result<Self, TlsnError> {
+        let config = create_client_config(config)?;
+        let decrypt = DecryptState {
+            decrypt: AtomicBool::new(mpc_tls.is_decrypting()),
+        };
+
+        let tls = ClientConnection::new(Arc::new(config), mpc_tls, server_name).map_err(|e| {
+            TlsnError::config()
+                .with_msg("failed to create tls client connection")
+                .with_source(e)
+        })?;
+
         let inner = InnerState {
             span,
             tls,
             vm,
             keys,
-            decrypt,
+            decrypt: decrypt.is_decrypting(),
             client_closed: false,
         };
 
-        let decrypt = DecryptState {
-            decrypt: AtomicBool::new(decrypt),
-        };
-
-        Self {
+        let client = Self {
             decrypt: Arc::new(decrypt),
             client_wants_close: false,
             server_closed: false,
             state: State::Start {
                 inner: Box::new(inner),
             },
-        }
+        };
+
+        Ok(client)
     }
 
     fn inner_client_mut(&mut self) -> Option<&mut ClientConnection> {
@@ -191,7 +202,10 @@ impl TlsClient for MpcTlsClient {
         self.decrypt.clone()
     }
 
-    fn poll(&mut self, cx: &mut std::task::Context) -> Poll<Result<TlsOutput, Self::Error>> {
+    fn poll(
+        &mut self,
+        cx: &mut std::task::Context,
+    ) -> Poll<Result<(Context, ProverZk, TlsOutput), Self::Error>> {
         match std::mem::replace(&mut self.state, State::Error) {
             State::Start { inner } => {
                 trace!("inner client is starting");
@@ -289,25 +303,18 @@ impl TlsClient for MpcTlsClient {
                     let (inner, ctx, tls_transcript) = output?;
                     let InnerState { vm, keys, .. } = inner;
 
-                    let transcript = tls_transcript
-                        .to_transcript()
-                        .expect("transcript is complete");
-
                     let (_, vm) = Arc::into_inner(vm)
                         .expect("vm should have only 1 reference")
                         .into_inner()
                         .into_inner();
 
                     let output = TlsOutput {
-                        ctx,
-                        vm,
                         keys,
                         tls_transcript,
-                        transcript,
                     };
 
                     self.state = State::Finished;
-                    Poll::Ready(Ok(output))
+                    Poll::Ready(Ok((ctx, vm, output)))
                 }
                 Poll::Pending => {
                     self.state = State::Finalizing { fut };
@@ -411,25 +418,6 @@ impl InnerState {
                 .map_err(|err| TlsnError::internal().with_source(err))?;
 
             debug!("mpc finalized");
-
-            // Pull out ZK VM.
-            let mut zk = vm.zk();
-
-            // Prove tag verification of received records.
-            // The prover drops the proof output.
-            let _ = verify_tags(
-                &mut *zk,
-                (self.keys.server_write_key, self.keys.server_write_iv),
-                self.keys.server_write_mac_key,
-                *transcript.version(),
-                transcript.recv().to_vec(),
-            )
-            .map_err(|err| TlsnError::internal().with_source(err))?;
-            debug!("verified tags from server");
-
-            zk.execute_all(&mut ctx)
-                .await
-                .map_err(|err| TlsnError::internal().with_source(err))?;
         }
 
         debug!("MPC-TLS done");
@@ -439,4 +427,47 @@ impl InnerState {
     fn is_record_layer_empty(&self) -> bool {
         self.tls.plaintext_is_empty() && self.tls.is_empty().unwrap_or(false)
     }
+}
+
+fn create_client_config(config: &TlsClientConfig) -> Result<tls_client::ClientConfig, TlsnError> {
+    let root_store = tls_client::RootCertStore {
+        roots: config
+            .root_store()
+            .roots
+            .iter()
+            .map(|cert| {
+                let der = CertificateDer::from_slice(&cert.0);
+                anchor_from_trusted_cert(&der)
+                    .map(|anchor| anchor.to_owned())
+                    .map_err(|e| {
+                        TlsnError::config()
+                            .with_msg("failed to parse root certificate")
+                            .with_source(e)
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+
+    let rustls_config = tls_client::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store);
+
+    let rustls_config = if let Some((cert, key)) = config.client_auth() {
+        rustls_config
+            .with_single_cert(
+                cert.iter()
+                    .map(|cert| tls_client::Certificate(cert.0.clone()))
+                    .collect(),
+                tls_client::PrivateKey(key.0.clone()),
+            )
+            .map_err(|e| {
+                TlsnError::config()
+                    .with_msg("failed to configure client authentication")
+                    .with_source(e)
+            })?
+    } else {
+        rustls_config.with_no_client_auth()
+    };
+
+    Ok(rustls_config)
 }

@@ -14,12 +14,12 @@ mod normal;
 mod reduced;
 
 #[derive(Debug)]
-pub(crate) enum Prf {
+pub(crate) enum InnerPrf {
     Reduced(reduced::PrfFunction),
     Normal(normal::PrfFunction),
 }
 
-impl Prf {
+impl InnerPrf {
     pub(crate) fn alloc_master_secret(
         mode: Mode,
         vm: &mut dyn Vm<Binary>,
@@ -106,29 +106,29 @@ impl Prf {
 
     pub(crate) fn wants_flush(&self) -> bool {
         match self {
-            Prf::Reduced(prf) => prf.wants_flush(),
-            Prf::Normal(prf) => prf.wants_flush(),
+            InnerPrf::Reduced(prf) => prf.wants_flush(),
+            InnerPrf::Normal(prf) => prf.wants_flush(),
         }
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         match self {
-            Prf::Reduced(prf) => prf.flush(vm),
-            Prf::Normal(prf) => prf.flush(vm),
+            InnerPrf::Reduced(prf) => prf.flush(vm),
+            InnerPrf::Normal(prf) => prf.flush(vm),
         }
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
         match self {
-            Prf::Reduced(prf) => prf.set_start_seed(seed),
-            Prf::Normal(prf) => prf.set_start_seed(seed),
+            InnerPrf::Reduced(prf) => prf.set_start_seed(seed),
+            InnerPrf::Normal(prf) => prf.set_start_seed(seed),
         }
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
         match self {
-            Prf::Reduced(prf) => prf.output(),
-            Prf::Normal(prf) => prf.output(),
+            InnerPrf::Reduced(prf) => prf.output(),
+            InnerPrf::Normal(prf) => prf.output(),
         }
     }
 }
@@ -136,7 +136,7 @@ impl Prf {
 #[cfg(test)]
 mod tests {
     use crate::{
-        prf::{compute_partial, function::Prf},
+        prf::{compute_partial, function::InnerPrf},
         test_utils::phash,
         Mode,
     };
@@ -185,7 +185,7 @@ mod tests {
         let outer_partial_leader = compute_partial(&mut leader, leader_key.into(), OPAD).unwrap();
         let inner_partial_leader = compute_partial(&mut leader, leader_key.into(), IPAD).unwrap();
 
-        let mut prf_leader = Prf::alloc_master_secret(
+        let mut prf_leader = InnerPrf::alloc_master_secret(
             mode,
             &mut leader,
             outer_partial_leader,
@@ -210,7 +210,7 @@ mod tests {
         let inner_partial_follower =
             compute_partial(&mut follower, follower_key.into(), IPAD).unwrap();
 
-        let mut prf_follower = Prf::alloc_master_secret(
+        let mut prf_follower = InnerPrf::alloc_master_secret(
             mode,
             &mut follower,
             outer_partial_follower,

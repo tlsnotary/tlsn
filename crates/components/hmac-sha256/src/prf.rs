@@ -18,22 +18,22 @@ mod state;
 use state::State;
 
 mod function;
-use function::Prf;
+use function::InnerPrf;
 
-/// MPC PRF for computing TLS 1.2 HMAC-SHA256 PRF.
+/// PRF for computing TLS 1.2 HMAC-SHA256 PRF.
 #[derive(Debug)]
-pub struct MpcPrf {
+pub struct Prf {
     mode: Mode,
     state: State,
 }
 
-impl MpcPrf {
+impl Prf {
     /// Creates a new instance of the PRF.
     ///
     /// # Arguments
     ///
     /// `mode` - The PRF mode.
-    pub fn new(mode: Mode) -> MpcPrf {
+    pub fn new(mode: Mode) -> Prf {
         Self {
             mode,
             state: State::Initialized,
@@ -63,22 +63,26 @@ impl MpcPrf {
         let inner_partial_pms = compute_partial(vm, pms, IPAD)?;
 
         let master_secret =
-            Prf::alloc_master_secret(mode, vm, outer_partial_pms, inner_partial_pms)?;
+            InnerPrf::alloc_master_secret(mode, vm, outer_partial_pms, inner_partial_pms)?;
         let ms = master_secret.output();
         let ms = merge_outputs(vm, ms, 48)?;
 
         let outer_partial_ms = compute_partial(vm, ms, OPAD)?;
         let inner_partial_ms = compute_partial(vm, ms, IPAD)?;
 
-        let key_expansion =
-            Prf::alloc_key_expansion(mode, vm, outer_partial_ms.clone(), inner_partial_ms.clone())?;
-        let client_finished = Prf::alloc_client_finished(
+        let key_expansion = InnerPrf::alloc_key_expansion(
             mode,
             vm,
             outer_partial_ms.clone(),
             inner_partial_ms.clone(),
         )?;
-        let server_finished = Prf::alloc_server_finished(
+        let client_finished = InnerPrf::alloc_client_finished(
+            mode,
+            vm,
+            outer_partial_ms.clone(),
+            inner_partial_ms.clone(),
+        )?;
+        let server_finished = InnerPrf::alloc_server_finished(
             mode,
             vm,
             outer_partial_ms.clone(),

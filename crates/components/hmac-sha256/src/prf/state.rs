@@ -1,5 +1,5 @@
 use crate::{
-    prf::{function::Prf, merge_outputs},
+    prf::{function::InnerPrf, merge_outputs},
     PrfError, PrfOutput, SessionKeys,
 };
 use mpz_vm_core::{
@@ -16,17 +16,17 @@ pub(crate) enum State {
     Initialized,
     SessionKeys {
         client_random: Option<[u8; 32]>,
-        master_secret: Prf,
-        key_expansion: Prf,
-        client_finished: Prf,
-        server_finished: Prf,
+        master_secret: InnerPrf,
+        key_expansion: InnerPrf,
+        client_finished: InnerPrf,
+        server_finished: InnerPrf,
     },
     ClientFinished {
-        client_finished: Prf,
-        server_finished: Prf,
+        client_finished: InnerPrf,
+        server_finished: InnerPrf,
     },
     ServerFinished {
-        server_finished: Prf,
+        server_finished: InnerPrf,
     },
     Complete,
     Error,

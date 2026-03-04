@@ -119,6 +119,12 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<rustls::Error> for Error {
+    fn from(e: rustls::Error) -> Self {
+        Self::internal().with_msg("proxy-tls error").with_source(e)
+    }
+}
+
 impl From<mpz_common::ContextError> for Error {
     fn from(e: mpz_common::ContextError) -> Self {
         Self::internal().with_msg("context error").with_source(e)

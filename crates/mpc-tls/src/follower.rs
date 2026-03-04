@@ -1,9 +1,9 @@
 use crate::{
     msg::{Message, StartHandshake},
     record_layer::{aead::MpcAesGcm, RecordLayer},
-    Config, MpcTlsError, Role, SessionKeys, Vm,
+    Config, MpcTlsError, Role, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfOutput};
+use hmac_sha256::{Prf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -24,6 +24,7 @@ use tls_core::msgs::enums::NamedGroup;
 use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2, TlsVersion, VerifyData},
     transcript::TlsTranscript,
+    SessionKeys,
 };
 use tracing::{debug, instrument};
 
@@ -64,7 +65,7 @@ impl MpcTlsFollower {
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(config.prf);
+        let prf = Prf::new(config.prf);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -436,13 +437,13 @@ enum State {
     Init {
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Prf,
         record_layer: RecordLayer,
     },
     Setup {
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Prf,
         record_layer: RecordLayer,
         cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
@@ -450,7 +451,7 @@ enum State {
     Ready {
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Prf,
         record_layer: RecordLayer,
         cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,

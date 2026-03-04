@@ -10,36 +10,34 @@ pub mod state;
 pub use conn::TlsConnection;
 pub use control::ProverControl;
 pub use future::ProverFuture;
+use mpz_vm_core::Execute;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Error, Result,
-    mpz::{ProverDeps, build_prover_deps, translate_keys},
+    Error, Result, TlsOutput,
+    deps::ProverDeps,
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
-        client::{MpcTlsClient, TlsOutput},
+        client::{MpcTlsClient, ProxyTlsClient, TlsClient},
+        future::FutureState,
         state::ConnectedProj,
     },
+    tag::verify_tags,
 };
 
 use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
-use rustls_pki_types::CertificateDer;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::{pin::Pin, sync::Arc, task::Poll};
-use tls_client::{ClientConnection, ServerName as TlsServerName};
+use std::{pin::Pin, task::Poll};
+use tls_client::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
-        prove::ProveConfig,
-        prover::ProverConfig,
-        tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, TlsCommitProtocolConfig},
+        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig, tls_commit::TlsCommitConfig,
     },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
 };
 use tracing::{Span, debug, info_span, instrument};
-use webpki::anchor_from_trusted_cert;
 
 const BUF_CAP: usize = 16 * 1024 * 1024;
 
@@ -115,29 +113,8 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = config.protocol().clone() else {
-            unreachable!("only MPC TLS is supported");
-        };
-
-        let ProverDeps { vm, mut mpc_tls } = build_prover_deps(mpc_tls_config, ctx);
-
-        // Allocate resources for MPC-TLS in the VM.
-        let mut keys = mpc_tls.alloc().map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed to allocate mpc-tls resources")
-                .with_source(e)
-        })?;
-        let vm_lock = vm.try_lock().expect("VM is not locked");
-        translate_keys(&mut keys, &vm_lock);
-        drop(vm_lock);
-
-        debug!("setting up mpc-tls");
-
-        mpc_tls.preprocess().await.map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed during mpc-tls preprocessing")
-                .with_source(e)
-        })?;
+        let mut prover_deps = ProverDeps::new(config.protocol(), ctx);
+        prover_deps.setup().await?;
 
         debug!("mpc-tls setup complete");
 
@@ -145,7 +122,7 @@ impl Prover<state::Initialized> {
             config: self.config,
             span: self.span,
             ctx: None,
-            state: state::CommitAccepted { mpc_tls, keys, vm },
+            state: state::CommitAccepted { prover_deps },
         })
     }
 }
@@ -167,64 +144,24 @@ impl Prover<state::CommitAccepted> {
         config: TlsClientConfig,
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture<S>)> {
-        let state::CommitAccepted {
-            mpc_tls, keys, vm, ..
-        } = self.state;
-
-        let decrypt = mpc_tls.is_decrypting();
-
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =
             TlsServerName::try_from(server_name.as_ref()).expect("name was validated");
 
-        let root_store = tls_client::RootCertStore {
-            roots: config
-                .root_store()
-                .roots
-                .iter()
-                .map(|cert| {
-                    let der = CertificateDer::from_slice(&cert.0);
-                    anchor_from_trusted_cert(&der)
-                        .map(|anchor| anchor.to_owned())
-                        .map_err(|e| {
-                            Error::config()
-                                .with_msg("failed to parse root certificate")
-                                .with_source(e)
-                        })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        };
-
-        let rustls_config = tls_client::ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(root_store);
-
-        let rustls_config = if let Some((cert, key)) = config.client_auth() {
-            rustls_config
-                .with_single_cert(
-                    cert.iter()
-                        .map(|cert| tls_client::Certificate(cert.0.clone()))
-                        .collect(),
-                    tls_client::PrivateKey(key.0.clone()),
-                )
-                .map_err(|e| {
-                    Error::config()
-                        .with_msg("failed to configure client authentication")
-                        .with_source(e)
-                })?
-        } else {
-            rustls_config.with_no_client_auth()
-        };
-
-        let client = ClientConnection::new(Arc::new(rustls_config), Box::new(mpc_tls), server_name)
-            .map_err(|e| {
-                Error::config()
-                    .with_msg("failed to create tls client connection")
-                    .with_source(e)
-            })?;
-
         let span = self.span.clone();
-        let mpc_tls = MpcTlsClient::new(keys, vm, span, client, decrypt);
+        let tls_client: Box<dyn TlsClient<Error = Error> + Send + 'static> =
+            match self.state.prover_deps {
+                ProverDeps::Mpc { vm, mpc_tls, keys } => {
+                    let keys = keys.expect("keys should be available");
+                    let mpc_tls = MpcTlsClient::new(keys, vm, span, &config, server_name, mpc_tls)?;
+
+                    Box::new(mpc_tls)
+                }
+                ProverDeps::Proxy { prover } => {
+                    let proxy_tls = ProxyTlsClient::new(prover, &config, server_name)?;
+                    Box::new(proxy_tls)
+                }
+            };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
         let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
@@ -235,7 +172,7 @@ impl Prover<state::CommitAccepted> {
             span: self.span,
             state: state::Connected {
                 server_name: config.server_name().clone(),
-                tls_client: Box::new(mpc_tls),
+                tls_client,
                 client_io,
                 output: None,
                 server_socket: socket,
@@ -248,7 +185,7 @@ impl Prover<state::CommitAccepted> {
 
         let conn = TlsConnection::new(tlsn_conn);
         let fut = ProverFuture {
-            prover: Some(prover),
+            state: FutureState::Connected { prover },
         };
 
         Ok((conn, fut))
@@ -292,17 +229,47 @@ impl<S> Prover<state::Connected<S>>
 where
     S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    fn finish(self) -> Result<Prover<state::Committed>, Error> {
-        let TlsOutput {
-            ctx,
-            vm,
-            keys,
-            tls_transcript,
-            transcript,
-        } = self
+    async fn finish(self) -> Result<Prover<state::Committed>, Error> {
+        let (
+            mut ctx,
+            mut vm,
+            TlsOutput {
+                keys,
+                tls_transcript,
+            },
+        ) = self
             .state
             .output
             .ok_or(Error::internal().with_msg("prover has not yet closed the connection"))?;
+
+        // Prove tag verification of received records.
+        // The prover drops the proof output.
+        let _ = verify_tags(
+            &mut vm,
+            (keys.server_write_key, keys.server_write_iv),
+            keys.server_write_mac_key,
+            *tls_transcript.version(),
+            tls_transcript.recv().to_vec(),
+        )
+        .map_err(|err| {
+            Error::internal()
+                .with_msg("tag verification setup failed")
+                .with_source(err)
+        })?;
+
+        vm.execute_all(&mut ctx).await.map_err(|err| {
+            Error::internal()
+                .with_msg("tag verification zk execution failed")
+                .with_source(err)
+        })?;
+
+        debug!("verified tags from server");
+
+        let transcript = tls_transcript.to_transcript().map_err(|e| {
+            Error::internal()
+                .with_msg("prover could not create transcript")
+                .with_source(e)
+        })?;
 
         let prover = Prover {
             config: self.config,

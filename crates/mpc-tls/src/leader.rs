@@ -6,10 +6,10 @@ use crate::{
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
-    Config, Role, SessionKeys, Vm,
+    Config, Role, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfOutput};
+use hmac_sha256::{Prf, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -44,6 +44,7 @@ use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2, ServerSignature, TlsVersion, VerifyData},
     transcript::TlsTranscript,
     webpki::CertificateDer,
+    SessionKeys,
 };
 use tracing::{debug, instrument, trace, warn};
 
@@ -86,7 +87,7 @@ impl MpcTlsLeader {
             ))),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(config.prf);
+        let prf = Prf::new(config.prf);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
@@ -1043,14 +1044,14 @@ enum State {
         ctx: Context,
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Prf,
         record_layer: RecordLayer,
     },
     Setup {
         ctx: Context,
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Prf,
         record_layer: RecordLayer,
         cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
@@ -1060,7 +1061,7 @@ enum State {
         ctx: Context,
         vm: Vm,
         ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Prf,
         record_layer: RecordLayer,
         cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
@@ -1077,7 +1078,7 @@ enum State {
         ctx: Context,
         vm: Vm,
         _ke: Box<dyn KeyExchange + Send + Sync + 'static>,
-        prf: MpcPrf,
+        prf: Prf,
         record_layer: RecordLayer,
         cf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,
         sf_vd_fut: DecodeFutureTyped<BitVec, [u8; 12]>,

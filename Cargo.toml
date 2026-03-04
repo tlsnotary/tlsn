@@ -139,7 +139,7 @@ regex = { version = "1.10" }
 ring = { version = "0.17" }
 rs_merkle = { git = "https://github.com/tlsnotary/rs-merkle.git", rev = "85f3e82" }
 rstest = { version = "0.17" }
-rustls = { version = "0.21" }
+rustls = { version = "0.23" }
 rustls-pemfile = { version = "1.0" }
 rustls-webpki = { version = "0.103" }
 rustls-pki-types = { version = "1.12" }
@@ -151,6 +151,7 @@ sha2 = { version = "0.10" }
 signature = { version = "2.2" }
 thiserror = { version = "1.0" }
 tiny-keccak = { version = "2.0" }
+tls-parser = { version = "0.12" }
 tokio = { version = "1.38" }
 tokio-util = { version = "0.7" }
 toml = { version = "0.8" }

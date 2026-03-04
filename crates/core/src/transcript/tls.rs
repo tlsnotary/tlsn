@@ -352,6 +352,7 @@ pub struct Record {
 
 opaque_debug::implement!(Record);
 
+/// Error type.
 #[derive(Debug, thiserror::Error)]
 #[error("TLS transcript error: {0}")]
 pub struct TlsTranscriptError(#[from] ErrorRepr);

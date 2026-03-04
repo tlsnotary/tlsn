@@ -1,6 +1,7 @@
 //! TLS commitment configuration.
 
 pub mod mpc;
+pub mod proxy;
 
 use serde::{Deserialize, Serialize};
 
@@ -61,11 +62,19 @@ impl TlsCommitConfigBuilder {
 pub enum TlsCommitProtocolConfig {
     /// MPC-TLS configuration.
     Mpc(mpc::MpcTlsConfig),
+    /// Proxy-TLS configuration.
+    Proxy(proxy::ProxyTlsConfig),
 }
 
 impl From<mpc::MpcTlsConfig> for TlsCommitProtocolConfig {
     fn from(config: mpc::MpcTlsConfig) -> Self {
         Self::Mpc(config)
+    }
+}
+
+impl From<proxy::ProxyTlsConfig> for TlsCommitProtocolConfig {
+    fn from(config: proxy::ProxyTlsConfig) -> Self {
+        Self::Proxy(config)
     }
 }
 
@@ -80,6 +89,21 @@ impl TlsCommitRequest {
     pub fn protocol(&self) -> &TlsCommitProtocolConfig {
         &self.config
     }
+}
+
+/// Settings for the network environment.
+///
+/// Provides optimization options to adapt the protocol to different network
+/// situations.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum NetworkSetting {
+    /// Reduces network round-trips at the expense of consuming more network
+    /// bandwidth.
+    Bandwidth,
+    /// Reduces network bandwidth utilization at the expense of more network
+    /// round-trips.
+    #[default]
+    Latency,
 }
 
 /// Error for [`TlsCommitConfig`].
