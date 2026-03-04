@@ -37,6 +37,9 @@ impl ProxyVerifier {
                 .with_source(e)
         })?;
 
+        vm.mark_blind(pms)
+            .map_err(|e| TlsnError::internal().with_source(e))?;
+
         let prf_output = self.prf.alloc(vm, pms).map_err(|e| {
             TlsnError::internal()
                 .with_msg("prf allocation failed")
@@ -98,6 +101,7 @@ impl ProxyVerifier {
                 .with_msg("receive sf_hash from prover failed")
                 .with_source(e)
         })?;
+        tracing::debug!("received hadshake hashes");
 
         let cf_hash: [u8; 32] = cf_hash
             .try_into()
@@ -111,6 +115,7 @@ impl ProxyVerifier {
                 .with_msg("failed to parse handshake")
                 .with_source(e)
         })?;
+        tracing::debug!("successfully parsed handshake");
 
         let tlsn_core::connection::CertBinding::V1_2(binding) = handshake.binding else {
             return Err(
@@ -118,9 +123,7 @@ impl ProxyVerifier {
             );
         };
 
-        self.vm
-            .mark_blind(refs.pms)
-            .map_err(|e| TlsnError::internal().with_source(e))?;
+        tracing::debug!("computing PRF...");
         self.vm
             .commit(refs.pms)
             .map_err(|e| TlsnError::internal().with_source(e))?;
@@ -128,16 +131,6 @@ impl ProxyVerifier {
         self.prf
             .set_client_random(binding.client_random)
             .map_err(|e| TlsnError::internal().with_source(e))?;
-
-        while self.prf.wants_flush() {
-            self.prf
-                .flush(&mut self.vm)
-                .map_err(|e| TlsnError::internal().with_source(e))?;
-            self.vm
-                .execute_all(&mut self.ctx)
-                .await
-                .map_err(|e| TlsnError::internal().with_source(e))?;
-        }
 
         self.prf
             .set_server_random(binding.server_random)
@@ -166,6 +159,7 @@ impl ProxyVerifier {
                 .await
                 .map_err(|e| TlsnError::internal().with_source(e))?;
         }
+
         self.prf
             .set_sf_hash(sf_hash)
             .map_err(|e| TlsnError::internal().with_source(e))?;
@@ -180,6 +174,7 @@ impl ProxyVerifier {
                 .map_err(|e| TlsnError::internal().with_source(e))?;
         }
 
+        tracing::debug!("decoding verify data...");
         let cf_vd = refs
             .cf_vd
             .try_recv()
@@ -200,6 +195,7 @@ impl ProxyVerifier {
                 .with_msg("verifier could not build tls transcript")
                 .with_source(e)
         })?;
+        tracing::debug!("sucessfully parsed transcript");
 
         let output = TlsOutput {
             keys: refs.keys,

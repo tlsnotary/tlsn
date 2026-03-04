@@ -277,6 +277,7 @@ impl Verifier<state::CommitAccepted> {
                             .with_source(e)
                     })?;
                 }
+                info!("proxying TLS traffic finished");
 
                 let (ctx, vm, output) = verifier.finalize(parser).await?;
                 info!("Proxy-TLS done");

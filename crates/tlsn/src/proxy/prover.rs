@@ -57,6 +57,9 @@ impl ProxyProver {
                 .with_source(e)
         })?;
 
+        vm.mark_private(pms)
+            .map_err(|e| TlsnError::internal().with_source(e))?;
+
         let prf_output = self.prf.alloc(vm, pms).map_err(|e| {
             TlsnError::internal()
                 .with_msg("prf allocation failed")
@@ -122,6 +125,7 @@ impl ProxyProver {
                 .with_msg("send cf_hash to verifier failed")
                 .with_source(e)
         })?;
+        tracing::debug!("sent hadshake hashes");
 
         let cf_hash: [u8; 32] = cf_hash
             .try_into()
@@ -142,9 +146,7 @@ impl ProxyProver {
             );
         };
 
-        self.vm
-            .mark_private(refs.pms)
-            .map_err(|e| TlsnError::internal().with_source(e))?;
+        tracing::debug!("computing PRF...");
         self.vm
             .assign(refs.pms, pms)
             .map_err(|e| TlsnError::internal().with_source(e))?;
@@ -155,16 +157,6 @@ impl ProxyProver {
         self.prf
             .set_client_random(binding.client_random)
             .map_err(|e| TlsnError::internal().with_source(e))?;
-
-        while self.prf.wants_flush() {
-            self.prf
-                .flush(&mut self.vm)
-                .map_err(|e| TlsnError::internal().with_source(e))?;
-            self.vm
-                .execute_all(&mut self.ctx)
-                .await
-                .map_err(|e| TlsnError::internal().with_source(e))?;
-        }
 
         self.prf
             .set_server_random(binding.server_random)
