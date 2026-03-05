@@ -6,13 +6,22 @@ pub(crate) const SHA256_IV: [u32; 8] = [
 ];
 
 pub(crate) fn prf_ms(pms: [u8; 32], client_random: [u8; 32], server_random: [u8; 32]) -> [u8; 48] {
-    let mut label_start_seed = b"master secret".to_vec();
-    label_start_seed.extend_from_slice(&client_random);
-    label_start_seed.extend_from_slice(&server_random);
+    let mut seed = client_random.to_vec();
+    seed.extend_from_slice(&server_random);
+    prf_ms_inner(&pms, b"master secret", &seed)
+}
 
-    let ms = phash(pms.to_vec(), &label_start_seed, 2)[..48].to_vec();
+pub(crate) fn prf_ems_ms(pms: [u8; 32], session_hash: [u8; 32]) -> [u8; 48] {
+    prf_ms_inner(&pms, b"extended master secret", &session_hash)
+}
 
-    ms.try_into().unwrap()
+fn prf_ms_inner(pms: &[u8], label: &[u8], seed: &[u8]) -> [u8; 48] {
+    let mut label_start_seed = label.to_vec();
+    label_start_seed.extend_from_slice(seed);
+
+    phash(pms.to_vec(), &label_start_seed, 2)[..48]
+        .try_into()
+        .unwrap()
 }
 
 pub(crate) fn prf_keys(
@@ -183,6 +192,28 @@ fn test_prf_reference_ms() {
 
     let mut expected_ms: [u8; 48] = [0; 48];
     prf_ref(&mut expected_ms, &pms, label, &seed);
+
+    assert_eq!(ms, expected_ms);
+}
+
+#[test]
+fn test_prf_reference_ems_ms() {
+    use ring_prf::prf as prf_ref;
+
+    let mut rng = StdRng::from_seed([5; 32]);
+
+    let pms: [u8; 32] = rng.random();
+    let session_hash: [u8; 32] = rng.random();
+
+    let ms = prf_ems_ms(pms, session_hash);
+
+    let mut expected_ms: [u8; 48] = [0; 48];
+    prf_ref(
+        &mut expected_ms,
+        &pms,
+        b"extended master secret",
+        &session_hash,
+    );
 
     assert_eq!(ms, expected_ms);
 }

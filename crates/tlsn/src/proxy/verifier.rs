@@ -92,6 +92,11 @@ impl ProxyVerifier {
     ) -> Result<(Context, VerifierZk, TlsOutput), TlsnError> {
         let mut refs = self.refs.expect("key refs should be available");
 
+        let session_hash: Vec<u8> = self.ctx.io_mut().expect_next().await.map_err(|e| {
+            TlsnError::io()
+                .with_msg("receive session_hash from prover failed")
+                .with_source(e)
+        })?;
         let cf_hash: Vec<u8> = self.ctx.io_mut().expect_next().await.map_err(|e| {
             TlsnError::io()
                 .with_msg("receive cf_hash from prover failed")
@@ -102,7 +107,7 @@ impl ProxyVerifier {
                 .with_msg("receive sf_hash from prover failed")
                 .with_source(e)
         })?;
-        tracing::debug!("received hadshake hashes");
+        tracing::debug!("received handshake hashes");
 
         let cf_hash: [u8; 32] = cf_hash
             .try_into()
@@ -127,6 +132,10 @@ impl ProxyVerifier {
         tracing::debug!("computing PRF...");
         self.vm
             .commit(refs.pms)
+            .map_err(|e| TlsnError::internal().with_source(e))?;
+
+        self.prf
+            .set_ms_seed(session_hash)
             .map_err(|e| TlsnError::internal().with_source(e))?;
 
         self.prf

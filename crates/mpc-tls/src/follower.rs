@@ -65,7 +65,7 @@ impl MpcTlsFollower {
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = Prf::new(config.prf);
+        let prf = Prf::new(config.prf, false);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(

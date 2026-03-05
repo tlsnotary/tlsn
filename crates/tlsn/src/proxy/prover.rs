@@ -32,7 +32,7 @@ impl ProxyProver {
             NetworkSetting::Latency => Mode::Reduced,
         };
 
-        let prf = Prf::new(prf_mode);
+        let prf = Prf::new(prf_mode, true);
         let defer_decryption_from_start = config.defer_decryption_from_start();
 
         Self {
@@ -109,12 +109,22 @@ impl ProxyProver {
     pub(crate) async fn finalize(
         mut self,
         pms: Vec<u8>,
+        session_hash: Vec<u8>,
         cf_hash: Vec<u8>,
         sf_hash: Vec<u8>,
         tls_transcript: TlsTranscript,
     ) -> Result<(Context, ProverZk, TlsOutput), TlsnError> {
         let refs = self.refs.expect("key refs should be available");
 
+        self.ctx
+            .io_mut()
+            .send(session_hash.clone())
+            .await
+            .map_err(|e| {
+                TlsnError::io()
+                    .with_msg("send session_hash to verifier failed")
+                    .with_source(e)
+            })?;
         self.ctx.io_mut().send(cf_hash.clone()).await.map_err(|e| {
             TlsnError::io()
                 .with_msg("send cf_hash to verifier failed")
@@ -122,10 +132,10 @@ impl ProxyProver {
         })?;
         self.ctx.io_mut().send(sf_hash.clone()).await.map_err(|e| {
             TlsnError::io()
-                .with_msg("send cf_hash to verifier failed")
+                .with_msg("send sf_hash to verifier failed")
                 .with_source(e)
         })?;
-        tracing::debug!("sent hadshake hashes");
+        tracing::debug!("sent handshake hashes");
 
         let cf_hash: [u8; 32] = cf_hash
             .try_into()
@@ -152,6 +162,10 @@ impl ProxyProver {
             .map_err(|e| TlsnError::internal().with_source(e))?;
         self.vm
             .commit(refs.pms)
+            .map_err(|e| TlsnError::internal().with_source(e))?;
+
+        self.prf
+            .set_ms_seed(session_hash)
             .map_err(|e| TlsnError::internal().with_source(e))?;
 
         self.prf

@@ -283,6 +283,10 @@ impl TlsClient for ProxyTlsClient {
                     Poll::Pending
                 } else {
                     let pms = self.pms.get().expect("pms should be available");
+                    let session_hash = self
+                        .verify_data
+                        .session_hash()
+                        .expect("session_hash should be available");
                     let cf_hash = self
                         .verify_data
                         .client_handshake_hash()
@@ -290,7 +294,7 @@ impl TlsClient for ProxyTlsClient {
                     let sf_hash = self
                         .verify_data
                         .server_handshake_hash()
-                        .expect("cf_hash should be available");
+                        .expect("sf_hash should be available");
 
                     let tls_transcript = self
                         .parser
@@ -298,7 +302,7 @@ impl TlsClient for ProxyTlsClient {
                         .map_err(|e| TlsnError::internal().with_source(e))?;
                     trace!("successfully parsed transcript");
 
-                    let fut = Box::pin(prover.finalize(pms, cf_hash, sf_hash, tls_transcript));
+                    let fut = Box::pin(prover.finalize(pms, session_hash, cf_hash, sf_hash, tls_transcript));
 
                     self.state = State::Finalizing { fut };
                     cx.waker().wake_by_ref();

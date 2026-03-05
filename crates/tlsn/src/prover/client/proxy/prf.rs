@@ -10,6 +10,7 @@ pub(crate) struct VerifyData {
     server_finished: Arc<OnceLock<Vec<u8>>>,
     client_handshake_hash: Arc<OnceLock<Vec<u8>>>,
     server_handshake_hash: Arc<OnceLock<Vec<u8>>>,
+    session_hash: Arc<OnceLock<Vec<u8>>>,
 }
 
 impl VerifyData {
@@ -46,6 +47,10 @@ impl VerifyData {
     pub(crate) fn server_handshake_hash(&self) -> Option<Vec<u8>> {
         self.server_handshake_hash.get().cloned()
     }
+
+    pub(crate) fn session_hash(&self) -> Option<Vec<u8>> {
+        self.session_hash.get().cloned()
+    }
 }
 
 opaque_debug::implement!(VerifyData);
@@ -64,6 +69,7 @@ impl Prf for InterceptingPrf {
         label: &[u8],
         seed: &[u8],
     ) -> Result<(), rustls::Error> {
+        let _ = self.verify_data.session_hash.set(seed.to_vec());
         self.inner
             .for_key_exchange(output, kx, peer_pub_key, label, seed)
     }

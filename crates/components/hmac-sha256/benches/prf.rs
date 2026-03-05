@@ -48,8 +48,8 @@ async fn prf(mode: Mode) {
     follower_vm.assign(follower_pms, pms).unwrap();
     follower_vm.commit(follower_pms).unwrap();
 
-    let mut leader = Prf::new(mode);
-    let mut follower = Prf::new(mode);
+    let mut leader = Prf::new(mode, false);
+    let mut follower = Prf::new(mode, false);
 
     let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
     let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();

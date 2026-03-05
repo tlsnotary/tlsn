@@ -87,7 +87,7 @@ impl MpcTlsLeader {
             ))),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = Prf::new(config.prf);
+        let prf = Prf::new(config.prf, false);
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(

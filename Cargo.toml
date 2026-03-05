@@ -168,3 +168,19 @@ webpki-roots = { version = "1.0" }
 webpki-root-certs = { version = "1.0" }
 ws_stream_wasm = { version = "0.7.5" }
 zeroize = { version = "1.8" }
+
+[patch."https://github.com/privacy-ethereum/mpz"]
+mpz-circuits = { path = "../mpz/crates/circuits/" }
+mpz-memory-core = { path = "../mpz/crates/memory-core/" }
+mpz-common = { path = "../mpz/crates/common/" }
+mpz-core = { path = "../mpz/crates/core/" }
+mpz-vm-core = { path = "../mpz/crates/vm-core/" }
+mpz-garble = { path = "../mpz/crates/garble/" }
+mpz-garble-core = { path = "../mpz/crates/garble-core/" }
+mpz-ole = { path = "../mpz/crates/ole/" }
+mpz-ot = { path = "../mpz/crates/ot/" }
+mpz-share-conversion = { path = "../mpz/crates/share-conversion/" }
+mpz-fields = { path = "../mpz/crates/fields/" }
+mpz-zk = { path = "../mpz/crates/zk" }
+mpz-zk-core = { path = "../mpz/crates/zk-core" }
+mpz-hash = { path = "../mpz/crates/hash/" }

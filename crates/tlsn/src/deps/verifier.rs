@@ -186,7 +186,7 @@ fn build_proxy_verifier_deps(config: &ProxyTlsConfig, ctx: Context) -> VerifierD
         NetworkSetting::Latency => Mode::Reduced,
     };
 
-    let prf = Prf::new(prf_mode);
+    let prf = Prf::new(prf_mode, true);
 
     let server_name = config.server_name().clone();
     let verifier = ProxyVerifier::new(prf, vm, ctx);
