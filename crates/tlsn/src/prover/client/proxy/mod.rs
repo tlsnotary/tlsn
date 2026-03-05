@@ -248,17 +248,22 @@ impl TlsClient for ProxyTlsClient {
                 prover,
             } => {
                 trace!("inner client is connected");
-                if self.client_closed && !self.server_closed && !sent_close_notify {
-                    debug!("sent close notify");
-                    self.conn.send_close_notify();
-                    sent_close_notify = true;
-                }
-
                 self.conn.process_new_packets()?;
                 if self.server_closed {
                     self.decrypt.enable_decryption(true);
-
                     self.state = State::Decrypting { prover };
+
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                } else if self.client_closed && !sent_close_notify {
+                    debug!("sent close notify");
+                    self.conn.send_close_notify();
+                    sent_close_notify = true;
+
+                    self.state = State::Connected {
+                        sent_close_notify,
+                        prover,
+                    };
                     cx.waker().wake_by_ref();
                     Poll::Pending
                 } else {

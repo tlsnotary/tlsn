@@ -173,13 +173,7 @@ async fn run_verifier(
     prover_socket: tokio::io::DuplexStream,
     server_socket: tokio::io::DuplexStream,
 ) -> VerifierOutput {
-    let mut verifier = verifier
-        .commit()
-        .await
-        .unwrap()
-        .accept()
-        .await
-        .unwrap();
+    let mut verifier = verifier.commit().await.unwrap().accept().await.unwrap();
 
     verifier.set_proxy_sockets(prover_socket.compat(), server_socket.compat());
 
