@@ -122,10 +122,12 @@ async fn run_prover(
         .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
         .await
         .unwrap();
-    tls_connection.close().await.unwrap();
 
     let mut response = vec![0u8; 1024];
     tls_connection.read_to_end(&mut response).await.unwrap();
+
+    // TODO: check if there is no better way.
+    tls_connection.close().await.unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap();
     let sent_tx_len = prover.transcript().sent().len();

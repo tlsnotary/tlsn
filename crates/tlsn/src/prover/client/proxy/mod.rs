@@ -249,6 +249,7 @@ impl TlsClient for ProxyTlsClient {
             } => {
                 trace!("inner client is connected");
                 self.conn.process_new_packets()?;
+
                 if self.server_closed {
                     self.decrypt.enable_decryption(true);
                     self.state = State::Decrypting { prover };
@@ -264,6 +265,7 @@ impl TlsClient for ProxyTlsClient {
                         sent_close_notify,
                         prover,
                     };
+
                     cx.waker().wake_by_ref();
                     Poll::Pending
                 } else {
