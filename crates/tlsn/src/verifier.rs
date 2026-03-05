@@ -252,34 +252,35 @@ impl Verifier<state::CommitAccepted> {
                     .expect("server socket should be set");
 
                 info!("starting Proxy-TLS");
-                {
-                    let (prover_read, mut prover_write) = prover_socket.split();
-                    let (server_read, mut server_write) = server_socket.split();
+                let (prover_read, mut prover_write) = prover_socket.split();
+                let (server_read, mut server_write) = server_socket.split();
 
-                    let (sent_buf, recv_buf) = parser.tls_buffers_mut();
-                    let mut prover_reader = InspectReader::new(prover_read, sent_buf);
-                    let mut server_reader = InspectReader::new(server_read, recv_buf);
+                let (sent_buf, recv_buf) = parser.tls_buffers_mut();
+                let mut prover_reader = InspectReader::new(prover_read, sent_buf);
+                let mut server_reader = InspectReader::new(server_read, recv_buf);
 
-                    futures::future::try_join(
-                        async {
-                            futures::io::copy(&mut prover_reader, &mut server_write).await?;
-                            server_write.close().await
-                        },
-                        async {
-                            futures::io::copy(&mut server_reader, &mut prover_write).await?;
-                            prover_write.close().await
-                        },
-                    )
-                    .await
-                    .map_err(|e| {
-                        Error::io()
-                            .with_msg("proxy traffic forwarding failed")
-                            .with_source(e)
-                    })?;
-                }
+                futures::future::try_join(
+                    async {
+                        futures::io::copy(&mut prover_reader, &mut server_write).await?;
+                        server_write.close().await
+                    },
+                    async {
+                        futures::io::copy(&mut server_reader, &mut prover_write).await?;
+                        prover_write.close().await
+                    },
+                )
+                .await
+                .map_err(|e| {
+                    Error::io()
+                        .with_msg("proxy traffic forwarding failed")
+                        .with_source(e)
+                })?;
                 info!("proxying TLS traffic finished");
+                let conn_time = prover_reader
+                    .first_read()
+                    .expect("connection time should have been set");
 
-                let (ctx, vm, output) = verifier.finalize(parser).await?;
+                let (ctx, vm, output) = verifier.finalize(parser, conn_time).await?;
                 info!("Proxy-TLS done");
 
                 (vm, output.keys, ctx, output.tls_transcript)

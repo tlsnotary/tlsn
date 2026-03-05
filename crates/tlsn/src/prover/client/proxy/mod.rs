@@ -289,6 +289,7 @@ impl TlsClient for ProxyTlsClient {
                         .parser
                         .build()
                         .map_err(|e| TlsnError::internal().with_source(e))?;
+                    trace!("successfully parsed transcript");
 
                     let fut = Box::pin(prover.finalize(pms, cf_hash, sf_hash, tls_transcript));
 

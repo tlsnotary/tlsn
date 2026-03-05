@@ -88,6 +88,7 @@ impl ProxyVerifier {
     pub(crate) async fn finalize(
         mut self,
         mut parser: TlsParser,
+        conn_time: u64,
     ) -> Result<(Context, VerifierZk, TlsOutput), TlsnError> {
         let mut refs = self.refs.expect("key refs should be available");
 
@@ -186,6 +187,8 @@ impl ProxyVerifier {
             .try_recv()
             .map_err(|e| TlsnError::internal().with_source(e))?
             .ok_or(TlsnError::internal().with_msg("unable to receive sf_vd from decoding"))?;
+
+        parser.set_time(conn_time);
 
         parser.set_cf_vd(&cf_vd);
         parser.set_sf_vd(&sf_vd);

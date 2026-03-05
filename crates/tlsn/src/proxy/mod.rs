@@ -55,11 +55,20 @@ struct References {
 pub(crate) struct InspectReader<'a, R> {
     inner: R,
     buf: &'a mut Vec<u8>,
+    first_read: Option<u64>,
 }
 
 impl<'a, R> InspectReader<'a, R> {
     pub(crate) fn new(inner: R, buf: &'a mut Vec<u8>) -> Self {
-        Self { inner, buf }
+        Self {
+            inner,
+            buf,
+            first_read: None,
+        }
+    }
+
+    pub(crate) fn first_read(&self) -> Option<u64> {
+        self.first_read
     }
 }
 
@@ -71,6 +80,13 @@ impl<R: AsyncRead + Unpin> AsyncRead for InspectReader<'_, R> {
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
         let n = ready!(Pin::new(&mut this.inner).poll_read(cx, buf))?;
+        if this.first_read.is_none() && n > 0 {
+            let now = web_time::UNIX_EPOCH
+                .elapsed()
+                .expect("system time is available")
+                .as_secs();
+            this.first_read = Some(now);
+        }
         this.buf.extend_from_slice(&buf[..n]);
         Poll::Ready(Ok(n))
     }
