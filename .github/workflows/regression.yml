@@ -1,0 +1,199 @@
+name: Regression Detection
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit1:
+        description: 'First commit/branch/tag (baseline)'
+        required: true
+        default: 'main'
+        type: string
+      commit2:
+        description: 'Second commit/branch/tag (comparison)'
+        required: true
+        default: 'main'
+        type: string
+      mode:
+        # quick: representative bench (bench.toml) at 3 samples
+        # precise: all benches (bench.toml + sweeps) at 5 samples
+        description: 'Benchmark mode'
+        required: true
+        default: 'quick'
+        type: choice
+        options:
+          - quick
+          - precise
+
+jobs:
+  compare:
+    runs-on: [self-hosted-ghr, size-l-x64]
+    timeout-minutes: 300
+
+    steps:
+      # Setup phase - install all dependencies once
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg clang build-essential iproute2 iptables
+          # Install Google Chrome (deb package, not snap)
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+          components: rust-src
+
+      - name: Create results directory
+        run: mkdir -p /tmp/benchmark-results
+
+      # ===================================================================
+      # COMMIT 1: Build and run all benchmarks
+      # ===================================================================
+
+      - name: Checkout tlsn at ${{ github.event.inputs.commit1 }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit1 }}
+          path: tlsn-commit1
+
+      - name: Build harness for ${{ github.event.inputs.commit1 }}
+        working-directory: tlsn-commit1/crates/harness
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Setup network for commit1
+        working-directory: tlsn-commit1/crates/harness
+        run: |
+          sudo ./bin/runner setup
+
+      - name: Run NATIVE benchmark for ${{ github.event.inputs.commit1 }}
+        working-directory: tlsn-commit1/crates/harness
+        run: |
+          ./bin/runner bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
+          cp metrics.csv /tmp/benchmark-results/commit1-native-bench.csv
+          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
+            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
+              ./bin/runner bench --config "$config" --samples 5 --samples-override
+              cp metrics.csv /tmp/benchmark-results/commit1-native-${config%.toml}.csv
+            done
+          fi
+
+      - name: Run BROWSER benchmark for ${{ github.event.inputs.commit1 }}
+        working-directory: tlsn-commit1/crates/harness
+        run: |
+          ./bin/runner --target browser bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
+          cp metrics.csv /tmp/benchmark-results/commit1-browser-bench.csv
+          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
+            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
+              ./bin/runner --target browser bench --config "$config"
+              cp metrics.csv /tmp/benchmark-results/commit1-browser-${config%.toml}.csv
+            done
+          fi
+
+      - name: Cleanup commit1
+        if: always()
+        run: |
+          cd tlsn-commit1/crates/harness && sudo ./bin/runner clean || true
+
+      # ===================================================================
+      # COMMIT 2: Build and run all benchmarks
+      # ===================================================================
+
+      - name: Checkout tlsn at ${{ github.event.inputs.commit2 }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit2 }}
+          path: tlsn-commit2
+
+      - name: Build harness for ${{ github.event.inputs.commit2 }}
+        working-directory: tlsn-commit2/crates/harness
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Setup network for commit2
+        working-directory: tlsn-commit2/crates/harness
+        run: |
+          sudo ./bin/runner setup
+
+      - name: Run NATIVE benchmark for ${{ github.event.inputs.commit2 }}
+        working-directory: tlsn-commit2/crates/harness
+        run: |
+          ./bin/runner bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
+          cp metrics.csv /tmp/benchmark-results/commit2-native-bench.csv
+          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
+            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
+              ./bin/runner bench --config "$config" --samples 5 --samples-override
+              cp metrics.csv /tmp/benchmark-results/commit2-native-${config%.toml}.csv
+            done
+          fi
+
+      - name: Run BROWSER benchmark for ${{ github.event.inputs.commit2 }}
+        working-directory: tlsn-commit2/crates/harness
+        run: |
+          ./bin/runner --target browser bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
+          cp metrics.csv /tmp/benchmark-results/commit2-browser-bench.csv
+          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
+            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
+              ./bin/runner --target browser bench --config "$config"
+              cp metrics.csv /tmp/benchmark-results/commit2-browser-${config%.toml}.csv
+            done
+          fi
+
+      - name: Cleanup commit2
+        if: always()
+        run: |
+          cd tlsn-commit2/crates/harness && sudo ./bin/runner clean || true
+
+      # ===================================================================
+      # UPLOAD RESULTS & ANALYSIS
+      # ===================================================================
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: /tmp/benchmark-results/
+
+      # Analyze results
+      - name: Checkout current branch for analyze.py
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install pandas
+
+      - name: Analyze benchmarks
+        run: |
+          CONFIGS="bench"
+          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
+            CONFIGS="bench bench_bandwidth_sweep bench_latency_sweep bench_download_sweep"
+          fi
+          FAILED=0
+          for target in native browser; do
+            echo "## ${target^} Benchmark Analysis" >> $GITHUB_STEP_SUMMARY
+            for config in $CONFIGS; do
+              echo "### ${config}" >> $GITHUB_STEP_SUMMARY
+              python3 analyze.py \
+                /tmp/benchmark-results/commit1-${target}-${config}.csv \
+                /tmp/benchmark-results/commit2-${target}-${config}.csv \
+                --commit1 "${{ github.event.inputs.commit1 }} (${target}/${config})" \
+                --commit2 "${{ github.event.inputs.commit2 }} (${target}/${config})" || FAILED=1
+            done
+            echo "---" >> $GITHUB_STEP_SUMMARY
+          done
+          exit $FAILED
