@@ -150,7 +150,10 @@ impl TlsClient for ProxyTlsClient {
     }
 
     fn wants_write(&self) -> bool {
-        !self.client_closed
+        matches!(
+            self.state,
+            State::Connected { .. } | State::Decrypting { .. }
+        ) && !self.client_closed
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
