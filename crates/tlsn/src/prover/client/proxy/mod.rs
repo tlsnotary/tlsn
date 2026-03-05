@@ -32,7 +32,7 @@ pub(crate) struct ProxyTlsClient {
     conn: ClientConnection,
     parser: TlsParser,
     decrypt: Arc<DecryptState>,
-    decrypt_mark: Option<usize>,
+    decrypt_mark: usize,
     client_closed: bool,
     server_closed: bool,
     pms: Pms,
@@ -49,6 +49,9 @@ enum State {
     },
     Connected {
         sent_close_notify: bool,
+        prover: ProxyProver,
+    },
+    Decrypting {
         prover: ProxyProver,
     },
     Finalizing {
@@ -85,6 +88,7 @@ impl ProxyTlsClient {
         let conn = ClientConnection::new(Arc::new(config), server_name.into_pki_server_name())?;
 
         let decrypt = !prover.defer_decryption_from_start();
+
         let decrypt = DecryptState {
             decrypt: AtomicBool::new(decrypt),
         };
@@ -97,7 +101,7 @@ impl ProxyTlsClient {
             decrypt: Arc::new(decrypt),
             client_closed: false,
             server_closed: false,
-            decrypt_mark: None,
+            decrypt_mark: 0,
             pms,
             verify_data,
             state: State::Init { prover },
@@ -139,7 +143,10 @@ impl TlsClient for ProxyTlsClient {
     }
 
     fn wants_read(&self) -> bool {
-        !self.server_closed
+        matches!(
+            self.state,
+            State::Handshaking { .. } | State::Connected { .. } | State::Decrypting { .. }
+        )
     }
 
     fn wants_write(&self) -> bool {
@@ -148,7 +155,6 @@ impl TlsClient for ProxyTlsClient {
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let recv_app = self.parser.mut_app_recv();
-        let old_end = recv_app.len();
         match self.conn.reader().read_to_end(recv_app) {
             Ok(_) => {}
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
@@ -156,14 +162,12 @@ impl TlsClient for ProxyTlsClient {
         }
 
         if self.decrypt.is_decrypting() {
-            let remaining = self.decrypt_mark.take().unwrap_or(old_end);
+            let remaining = self.decrypt_mark;
             let mut reader = &recv_app[remaining..];
             let n = reader
                 .read(buf)
                 .map_err(|e| TlsnError::internal().with_source(e))?;
-            if remaining + n < recv_app.len() {
-                self.decrypt_mark = Some(remaining + n);
-            }
+            self.decrypt_mark = remaining + n;
             Ok(n)
         } else {
             Ok(0)
@@ -249,6 +253,25 @@ impl TlsClient for ProxyTlsClient {
 
                 self.conn.process_new_packets()?;
                 if self.server_closed {
+                    self.decrypt.enable_decryption(true);
+
+                    self.state = State::Decrypting { prover };
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                } else {
+                    self.state = State::Connected {
+                        sent_close_notify,
+                        prover,
+                    };
+                    Poll::Pending
+                }
+            }
+            State::Decrypting { prover } => {
+                trace!("inner client is decrypting");
+                if self.decrypt_mark < self.parser.mut_app_recv().len() {
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                } else {
                     let pms = self.pms.get().expect("pms should be available");
                     let cf_hash = self
                         .verify_data
@@ -265,15 +288,9 @@ impl TlsClient for ProxyTlsClient {
                         .map_err(|e| TlsnError::internal().with_source(e))?;
 
                     let fut = Box::pin(prover.finalize(pms, cf_hash, sf_hash, tls_transcript));
-                    self.state = State::Finalizing { fut };
 
+                    self.state = State::Finalizing { fut };
                     cx.waker().wake_by_ref();
-                    Poll::Pending
-                } else {
-                    self.state = State::Connected {
-                        sent_close_notify,
-                        prover,
-                    };
                     Poll::Pending
                 }
             }
