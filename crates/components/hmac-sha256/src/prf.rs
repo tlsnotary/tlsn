@@ -24,6 +24,7 @@ use function::Prf;
 #[derive(Debug)]
 pub struct MpcPrf {
     mode: Mode,
+    ems: bool,
     state: State,
 }
 
@@ -32,10 +33,12 @@ impl MpcPrf {
     ///
     /// # Arguments
     ///
-    /// `mode` - The PRF mode.
-    pub fn new(mode: Mode) -> MpcPrf {
+    /// * `mode` - The PRF mode.
+    /// * `ems` - Whether to use Extended Master Secret (RFC 7627).
+    pub fn new(mode: Mode, ems: bool) -> MpcPrf {
         Self {
             mode,
+            ems,
             state: State::Initialized,
         }
     }
@@ -63,7 +66,7 @@ impl MpcPrf {
         let inner_partial_pms = compute_partial(vm, pms, IPAD)?;
 
         let master_secret =
-            Prf::alloc_master_secret(mode, vm, outer_partial_pms, inner_partial_pms)?;
+            Prf::alloc_master_secret(mode, vm, outer_partial_pms, inner_partial_pms, self.ems)?;
         let ms = master_secret.output();
         let ms = merge_outputs(vm, ms, 48)?;
 
@@ -111,6 +114,27 @@ impl MpcPrf {
         Ok(())
     }
 
+    /// Sets the master secret seed directly.
+    ///
+    /// This is used for Extended Master Secret (RFC 7627) where the seed is
+    /// the session hash rather than `client_random || server_random`.
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - The master secret seed (session hash for EMS).
+    #[instrument(level = "debug", skip_all, err)]
+    pub fn set_ms_seed(&mut self, seed: Vec<u8>) -> Result<(), PrfError> {
+        let State::SessionKeys {
+            master_secret, ..
+        } = &mut self.state
+        else {
+            return Err(PrfError::state("PRF not set up"));
+        };
+
+        master_secret.set_start_seed(seed);
+        Ok(())
+    }
+
     /// Sets the server random.
     ///
     /// # Arguments
@@ -131,9 +155,11 @@ impl MpcPrf {
         let client_random = client_random.expect("Client random should have been set by now");
         let server_random = random;
 
-        let mut seed_ms = client_random.to_vec();
-        seed_ms.extend_from_slice(&server_random);
-        master_secret.set_start_seed(seed_ms);
+        if !self.ems {
+            let mut seed_ms = client_random.to_vec();
+            seed_ms.extend_from_slice(&server_random);
+            master_secret.set_start_seed(seed_ms);
+        }
 
         let mut seed_ke = server_random.to_vec();
         seed_ke.extend_from_slice(&client_random);

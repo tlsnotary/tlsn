@@ -45,6 +45,7 @@ enum PrfState {
 
 impl PrfFunction {
     const MS_LABEL: &[u8] = b"master secret";
+    const EMS_LABEL: &[u8] = b"extended master secret";
     const KEY_LABEL: &[u8] = b"key expansion";
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
@@ -53,8 +54,13 @@ impl PrfFunction {
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
+        ems: bool,
     ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48)
+        if ems {
+            Self::alloc(vm, Self::EMS_LABEL, outer_partial, inner_partial, 48)
+        } else {
+            Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48)
+        }
     }
 
     pub(crate) fn alloc_key_expansion(

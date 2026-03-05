@@ -25,17 +25,20 @@ impl Prf {
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
+        ems: bool,
     ) -> Result<Self, PrfError> {
         let prf = match mode {
             Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
+                ems,
             )?),
             Mode::Normal => Self::Normal(normal::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
+                ems,
             )?),
         };
         Ok(prf)
@@ -190,6 +193,7 @@ mod tests {
             &mut leader,
             outer_partial_leader,
             inner_partial_leader,
+            false,
         )
         .unwrap();
         prf_leader.set_start_seed(start_seed.clone());
@@ -215,6 +219,7 @@ mod tests {
             &mut follower,
             outer_partial_follower,
             inner_partial_follower,
+            false,
         )
         .unwrap();
         prf_follower.set_start_seed(start_seed.clone());
