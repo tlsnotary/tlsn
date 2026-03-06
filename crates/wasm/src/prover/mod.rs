@@ -41,7 +41,8 @@ impl JsProver {
 
     /// Sets a progress callback that receives structured progress updates.
     ///
-    /// The callback receives a single argument: `{ step: string, progress: number, message: string }`.
+    /// The callback receives a single argument: `{ step: string, progress:
+    /// number, message: string }`.
     ///
     /// Steps emitted: `MPC_SETUP`, `CONNECTING_TO_SERVER`, `SENDING_REQUEST`,
     /// `REQUEST_COMPLETE`, `REVEAL`, `FINALIZED`.

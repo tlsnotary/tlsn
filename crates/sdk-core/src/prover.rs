@@ -299,11 +299,58 @@ impl SdkProver {
     }
 }
 
+async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpResponse> {
+    // SAFETY: TlsConnection's AsyncRead does not read from the buffer.
+    let conn = unsafe { HyperIo::new(conn) };
+    let request = hyper::Request::<Full<Bytes>>::try_from(request)?;
+
+    let (mut request_sender, conn) = hyper::client::conn::http1::handshake(conn).await?;
+
+    crate::spawn::spawn(async move {
+        if let Err(e) = conn.await {
+            tracing::error!("HTTP connection error: {e}");
+        }
+    });
+
+    let response = request_sender.send_request(request).await?;
+
+    let (response, body) = response.into_parts();
+
+    let body = body
+        .collect()
+        .await
+        .map_err(|e| SdkError::http(e.to_string()))?;
+    let body_bytes = body.to_bytes().to_vec();
+
+    let headers = response
+        .headers
+        .into_iter()
+        .map(|(k, v)| {
+            (
+                k.map(|k| k.to_string()).unwrap_or_default(),
+                v.as_bytes().to_vec(),
+            )
+        })
+        .collect();
+
+    Ok(HttpResponse {
+        status: response.status.as_u16(),
+        headers,
+        body: if body_bytes.is_empty() {
+            None
+        } else {
+            Some(body_bytes)
+        },
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{NetworkSetting, ProverConfig};
-    use crate::error::ErrorKind;
+    use crate::{
+        config::{NetworkSetting, ProverConfig},
+        error::ErrorKind,
+    };
 
     fn valid_config() -> ProverConfig {
         ProverConfig::builder("example.com")
@@ -351,49 +398,4 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Config);
         assert!(err.to_string().contains("max_recv_data"));
     }
-}
-
-async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpResponse> {
-    // SAFETY: TlsConnection's AsyncRead does not read from the buffer.
-    let conn = unsafe { HyperIo::new(conn) };
-    let request = hyper::Request::<Full<Bytes>>::try_from(request)?;
-
-    let (mut request_sender, conn) = hyper::client::conn::http1::handshake(conn).await?;
-
-    crate::spawn::spawn(async move {
-        if let Err(e) = conn.await {
-            tracing::error!("HTTP connection error: {e}");
-        }
-    });
-
-    let response = request_sender.send_request(request).await?;
-
-    let (response, body) = response.into_parts();
-
-    let body = body
-        .collect()
-        .await
-        .map_err(|e| SdkError::http(e.to_string()))?;
-    let body_bytes = body.to_bytes().to_vec();
-
-    let headers = response
-        .headers
-        .into_iter()
-        .map(|(k, v)| {
-            (
-                k.map(|k| k.to_string()).unwrap_or_default(),
-                v.as_bytes().to_vec(),
-            )
-        })
-        .collect();
-
-    Ok(HttpResponse {
-        status: response.status.as_u16(),
-        headers,
-        body: if body_bytes.is_empty() {
-            None
-        } else {
-            Some(body_bytes)
-        },
-    })
 }
