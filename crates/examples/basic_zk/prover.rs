@@ -242,7 +242,11 @@ fn reveal_received(
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Response body not found"))?;
 
-    let BodyContent::Json(JsonValue::Object(json)) = &body.content else {
+    let BodyContent::Json(doc) = &body.content else {
+        return Err(anyhow::anyhow!("Expected JSON body content"));
+    };
+
+    let JsonValue::Object(json) = &doc.root else {
         return Err(anyhow::anyhow!("Expected JSON body content"));
     };
 

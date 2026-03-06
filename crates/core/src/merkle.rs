@@ -1,7 +1,8 @@
 //! Merkle tree types.
 
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
-use utils::iter::DuplicateCheck;
 
 use crate::hash::{Hash, HashAlgId, HashAlgorithm, TypedHash};
 
@@ -47,7 +48,7 @@ impl MerkleProof {
 
         let (indices, leaves): (Vec<_>, Vec<_>) = leaves.into_iter().unzip();
 
-        if indices.iter().contains_dups() {
+        if indices.len() != indices.iter().collect::<HashSet<_>>().len() {
             return Err(MerkleError::new("duplicate leaf indices provided"));
         }
 

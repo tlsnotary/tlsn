@@ -246,7 +246,7 @@ pub trait HttpCommit {
         match &body.content {
             BodyContent::Json(body) => {
                 DefaultJsonCommitter::default()
-                    .commit_value(builder, body, direction)
+                    .commit_value(builder, &body.root, direction)
                     .map_err(|e| {
                         HttpCommitError::new_with_source(
                             MessageKind::Request,
@@ -383,7 +383,7 @@ pub trait HttpCommit {
         match &body.content {
             BodyContent::Json(body) => {
                 DefaultJsonCommitter::default()
-                    .commit_value(builder, body, direction)
+                    .commit_value(builder, &body.root, direction)
                     .map_err(|e| {
                         HttpCommitError::new_with_source(
                             MessageKind::Response,
