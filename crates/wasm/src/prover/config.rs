@@ -14,4 +14,8 @@ pub struct ProverConfig {
     pub defer_decryption_from_start: Option<bool>,
     pub network: NetworkSetting,
     pub client_auth: Option<(Vec<Vec<u8>>, Vec<u8>)>,
+    /// Custom root certificates (DER-encoded) for TLS server verification.
+    ///
+    /// If not provided, Mozilla root certificates are used.
+    pub root_certs: Option<Vec<Vec<u8>>>,
 }
