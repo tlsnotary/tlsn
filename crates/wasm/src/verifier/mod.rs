@@ -74,6 +74,10 @@ fn convert_verifier_config(config: VerifierConfig) -> CoreVerifierConfig {
         builder = builder.max_recv_records_online(value);
     }
 
+    if let Some(root_certs) = config.root_certs {
+        builder = builder.root_certs(root_certs);
+    }
+
     builder.build()
 }
 
