@@ -177,6 +177,10 @@ fn convert_prover_config(config: ProverConfig) -> CoreProverConfig {
         builder = builder.client_auth(certs, key);
     }
 
+    if let Some(root_certs) = config.root_certs {
+        builder = builder.root_certs(root_certs);
+    }
+
     builder.build()
 }
 
