@@ -47,8 +47,9 @@ jobs:
           toolchain: stable
 
       - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: nightly
           targets: wasm32-unknown-unknown
           components: rust-src
 
