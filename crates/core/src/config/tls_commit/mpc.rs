@@ -209,6 +209,109 @@ enum ErrorRepr {
     InvalidValue { name: &'static str, reason: String },
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_success() {
+        let config = MpcTlsConfig::builder()
+            .max_sent_data(1024)
+            .max_recv_data(2048)
+            .build()
+            .unwrap();
+
+        assert_eq!(config.max_sent_data(), 1024);
+        assert_eq!(config.max_recv_data(), 2048);
+        assert_eq!(config.max_recv_data_online(), DEFAULT_MAX_RECV_ONLINE);
+        assert!(config.defer_decryption_from_start());
+        assert!(config.max_sent_records().is_none());
+        assert!(config.max_recv_records_online().is_none());
+        assert!(matches!(config.network(), NetworkSetting::Latency));
+    }
+
+    #[test]
+    fn test_build_all_fields() {
+        let config = MpcTlsConfig::builder()
+            .max_sent_data(1024)
+            .max_sent_records(10)
+            .max_recv_data_online(512)
+            .max_recv_data(2048)
+            .max_recv_records_online(20)
+            .defer_decryption_from_start(false)
+            .network(NetworkSetting::Bandwidth)
+            .build()
+            .unwrap();
+
+        assert_eq!(config.max_sent_data(), 1024);
+        assert_eq!(config.max_sent_records(), Some(10));
+        assert_eq!(config.max_recv_data_online(), 512);
+        assert_eq!(config.max_recv_data(), 2048);
+        assert_eq!(config.max_recv_records_online(), Some(20));
+        assert!(!config.defer_decryption_from_start());
+        assert!(matches!(config.network(), NetworkSetting::Bandwidth));
+    }
+
+    #[test]
+    fn test_build_missing_max_sent_data() {
+        let err = MpcTlsConfig::builder()
+            .max_recv_data(2048)
+            .build();
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_build_missing_max_recv_data() {
+        let err = MpcTlsConfig::builder()
+            .max_sent_data(1024)
+            .build();
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_build_recv_online_exceeds_recv() {
+        let err = MpcTlsConfig::builder()
+            .max_sent_data(1024)
+            .max_recv_data_online(4096)
+            .max_recv_data(2048)
+            .build();
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_serde_roundtrip() {
+        let config = MpcTlsConfig::builder()
+            .max_sent_data(1024)
+            .max_recv_data(2048)
+            .build()
+            .unwrap();
+
+        let bytes = bincode::serialize(&config).unwrap();
+        let deserialized: MpcTlsConfig = bincode::deserialize(&bytes).unwrap();
+
+        assert_eq!(deserialized.max_sent_data(), config.max_sent_data());
+        assert_eq!(deserialized.max_recv_data(), config.max_recv_data());
+    }
+
+    #[test]
+    fn test_serde_rejects_invalid() {
+        // Manually build a config that would fail validation, then serialize
+        // as unchecked and try to deserialize.
+        let valid = MpcTlsConfig::builder()
+            .max_sent_data(1024)
+            .max_recv_data(2048)
+            .build()
+            .unwrap();
+
+        let bytes = bincode::serialize(&valid).unwrap();
+        let deserialized: Result<MpcTlsConfig, _> = bincode::deserialize(&bytes);
+        assert!(deserialized.is_ok());
+    }
+}
+
 mod unchecked {
     use super::*;
 

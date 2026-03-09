@@ -248,3 +248,88 @@ pub trait JsonCommit {
 pub struct DefaultJsonCommitter {}
 
 impl JsonCommit for DefaultJsonCommitter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use spansy::json::parse as parse_json;
+    use tlsn_core::transcript::Transcript;
+
+    fn commit_json(json: &[u8]) {
+        let transcript = Transcript::new([], json);
+        let doc = parse_json(Bytes::from(json.to_vec())).unwrap();
+        let mut committer = DefaultJsonCommitter::default();
+        let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
+
+        committer
+            .commit_value(&mut builder, &doc.root, Direction::Received)
+            .unwrap();
+
+        builder.build().unwrap();
+    }
+
+    #[test]
+    fn test_commit_object() {
+        commit_json(br#"{"key": "value"}"#);
+    }
+
+    #[test]
+    fn test_commit_nested_object() {
+        commit_json(br#"{"outer": {"inner": "value"}}"#);
+    }
+
+    #[test]
+    fn test_commit_array() {
+        commit_json(br#"[1, 2, 3]"#);
+    }
+
+    #[test]
+    fn test_commit_string() {
+        commit_json(br#""hello""#);
+    }
+
+    #[test]
+    fn test_commit_number() {
+        commit_json(b"42");
+    }
+
+    #[test]
+    fn test_commit_bool() {
+        commit_json(b"true");
+    }
+
+    #[test]
+    fn test_commit_null() {
+        commit_json(b"null");
+    }
+
+    #[test]
+    fn test_commit_empty_object() {
+        commit_json(br#"{}"#);
+    }
+
+    #[test]
+    fn test_commit_empty_array() {
+        commit_json(br#"[]"#);
+    }
+
+    #[test]
+    fn test_commit_complex() {
+        commit_json(br#"{"name": "alice", "age": 30, "active": true, "scores": [1, 2], "meta": null}"#);
+    }
+
+    #[test]
+    fn test_error_new() {
+        let err = JsonCommitError::new("test error");
+        assert_eq!(err.msg(), "test error");
+    }
+
+    #[test]
+    fn test_error_with_source() {
+        let source = std::io::Error::new(std::io::ErrorKind::Other, "inner");
+        let err = JsonCommitError::new_with_source("outer", source);
+        assert_eq!(err.msg(), "outer");
+        assert!(err.source().is_some());
+    }
+}

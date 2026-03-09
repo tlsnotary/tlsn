@@ -109,3 +109,47 @@ enum ErrorRepr {
     #[error("missing required field: {field}")]
     MissingField { field: &'static str },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::connection::DnsName;
+    use crate::webpki::RootCertStore;
+
+    #[test]
+    fn test_build_success() {
+        let server_name = ServerName::Dns(DnsName::try_from("example.com").unwrap());
+        let root_store = RootCertStore::empty();
+
+        let config = TlsClientConfig::builder()
+            .server_name(server_name)
+            .root_store(root_store)
+            .build()
+            .unwrap();
+
+        assert!(matches!(config.server_name(), ServerName::Dns(_)));
+        assert!(config.client_auth().is_none());
+    }
+
+    #[test]
+    fn test_build_missing_server_name() {
+        let root_store = RootCertStore::empty();
+
+        let err = TlsClientConfig::builder()
+            .root_store(root_store)
+            .build();
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_build_missing_root_store() {
+        let server_name = ServerName::Dns(DnsName::try_from("example.com").unwrap());
+
+        let err = TlsClientConfig::builder()
+            .server_name(server_name)
+            .build();
+
+        assert!(err.is_err());
+    }
+}

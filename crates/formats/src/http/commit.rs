@@ -440,6 +440,20 @@ mod tests {
         builder.build().unwrap();
     }
 
+    #[test]
+    fn test_http_default_commit_transcript_requests_only() {
+        let transcript = Transcript::new(fixtures::request::GET_WITH_HEADER, []);
+        let http = crate::http::HttpTranscript::parse(&transcript).unwrap();
+        let mut committer = DefaultHttpCommitter::default();
+        let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
+
+        committer
+            .commit_transcript(&mut builder, &http)
+            .unwrap();
+
+        builder.build().unwrap();
+    }
+
     #[rstest]
     #[case::empty(fixtures::response::OK_EMPTY)]
     #[case::empty_header(fixtures::response::OK_EMPTY_HEADER)]

@@ -368,3 +368,143 @@ mod keccak {
 }
 
 pub use keccak::Keccak256;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::sha256(Sha256::default())]
+    #[case::blake3(Blake3::default())]
+    #[case::keccak256(Keccak256::default())]
+    fn test_hash_deterministic<H: HashAlgorithm>(#[case] hasher: H) {
+        let data = b"hello world";
+        let h1 = hasher.hash(data);
+        let h2 = hasher.hash(data);
+        assert_eq!(h1, h2);
+        assert!(!h1.as_bytes().is_empty());
+    }
+
+    #[rstest]
+    #[case::sha256(Sha256::default())]
+    #[case::blake3(Blake3::default())]
+    #[case::keccak256(Keccak256::default())]
+    fn test_hash_different_inputs<H: HashAlgorithm>(#[case] hasher: H) {
+        let h1 = hasher.hash(b"hello");
+        let h2 = hasher.hash(b"world");
+        assert_ne!(h1, h2);
+    }
+
+    #[rstest]
+    #[case::sha256(Sha256::default())]
+    #[case::blake3(Blake3::default())]
+    #[case::keccak256(Keccak256::default())]
+    fn test_hash_prefixed_differs<H: HashAlgorithm>(#[case] hasher: H) {
+        let data = b"hello world";
+        let h1 = hasher.hash(data);
+        let h2 = hasher.hash_prefixed(b"prefix", data);
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn test_sha256_known_vector() {
+        let hasher = Sha256::default();
+        let hash = hasher.hash(b"");
+        // SHA-256 of empty string
+        assert_eq!(
+            hex::encode(hash.as_bytes()),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn test_hash_serialization_roundtrip() {
+        let hasher = Sha256::default();
+        let hash = hasher.hash(b"test data");
+
+        let bytes = bincode::serialize(&hash).unwrap();
+        let deserialized: Hash = bincode::deserialize(&bytes).unwrap();
+
+        assert_eq!(hash, deserialized);
+    }
+
+    #[test]
+    fn test_hash_try_from_vec() {
+        let data = vec![1u8; 32];
+        let hash = Hash::try_from(data.clone()).unwrap();
+        assert_eq!(hash.as_bytes(), &data[..]);
+    }
+
+    #[test]
+    fn test_hash_try_from_vec_too_long() {
+        let data = vec![1u8; 65];
+        assert!(Hash::try_from(data).is_err());
+    }
+
+    #[test]
+    fn test_hash_into_vec() {
+        let hasher = Sha256::default();
+        let hash = hasher.hash(b"test");
+        let bytes: Vec<u8> = hash.into();
+        assert_eq!(bytes.len(), 32);
+    }
+
+    #[test]
+    fn test_hash_provider_default() {
+        let provider = HashProvider::default();
+        assert!(provider.get(&HashAlgId::SHA256).is_ok());
+        assert!(provider.get(&HashAlgId::BLAKE3).is_ok());
+        assert!(provider.get(&HashAlgId::KECCAK256).is_ok());
+    }
+
+    #[test]
+    fn test_hash_provider_unknown_id() {
+        let provider = HashProvider::default();
+        let custom_id = HashAlgId::new(200);
+        assert!(provider.get(&custom_id).is_err());
+    }
+
+    #[test]
+    fn test_hash_alg_id_as_u8() {
+        assert_eq!(HashAlgId::SHA256.as_u8(), 1);
+        assert_eq!(HashAlgId::BLAKE3.as_u8(), 2);
+        assert_eq!(HashAlgId::KECCAK256.as_u8(), 3);
+    }
+
+    #[test]
+    fn test_hash_alg_id_custom() {
+        let id = HashAlgId::new(128);
+        assert_eq!(id.as_u8(), 128);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_hash_alg_id_reserved() {
+        let _ = HashAlgId::new(127);
+    }
+
+    #[test]
+    fn test_blinder() {
+        let blinder: Blinder = rand::random();
+        assert_eq!(blinder.as_bytes().len(), 16);
+    }
+
+    #[test]
+    fn test_blinded() {
+        let blinded = Blinded::new(42u32);
+        assert_eq!(*blinded.data(), 42);
+    }
+
+    #[test]
+    fn test_typed_hash() {
+        let hasher = Sha256::default();
+        let hash = hasher.hash(b"test");
+        let typed = TypedHash {
+            alg: HashAlgId::SHA256,
+            value: hash,
+        };
+        assert_eq!(typed.alg, HashAlgId::SHA256);
+        assert_eq!(typed.value, hash);
+    }
+}
