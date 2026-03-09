@@ -52,6 +52,12 @@ jobs:
           targets: wasm32-unknown-unknown
           components: rust-src
 
+      # Checkout default branch to make bench-commit.sh available
+      - name: Checkout scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+
       - name: Create results directory
         run: mkdir -p /tmp/benchmark-results
 
@@ -65,40 +71,9 @@ jobs:
           ref: ${{ github.event.inputs.commit1 }}
           path: tlsn-commit1
 
-      - name: Build harness for ${{ github.event.inputs.commit1 }}
+      - name: Benchmark ${{ github.event.inputs.commit1 }}
         working-directory: tlsn-commit1/crates/harness
-        run: |
-          chmod +x build.sh
-          ./build.sh
-
-      - name: Setup network for commit1
-        working-directory: tlsn-commit1/crates/harness
-        run: |
-          sudo ./bin/runner setup
-
-      - name: Run NATIVE benchmark for ${{ github.event.inputs.commit1 }}
-        working-directory: tlsn-commit1/crates/harness
-        run: |
-          ./bin/runner bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
-          cp metrics.csv /tmp/benchmark-results/commit1-native-bench.csv
-          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
-            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
-              ./bin/runner bench --config "$config" --samples 5 --samples-override
-              cp metrics.csv /tmp/benchmark-results/commit1-native-${config%.toml}.csv
-            done
-          fi
-
-      - name: Run BROWSER benchmark for ${{ github.event.inputs.commit1 }}
-        working-directory: tlsn-commit1/crates/harness
-        run: |
-          ./bin/runner --target browser bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
-          cp metrics.csv /tmp/benchmark-results/commit1-browser-bench.csv
-          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
-            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
-              ./bin/runner --target browser bench --config "$config"
-              cp metrics.csv /tmp/benchmark-results/commit1-browser-${config%.toml}.csv
-            done
-          fi
+        run: ${{ github.workspace }}/_scripts/.github/workflows/bench-commit.sh commit1 ${{ github.event.inputs.mode }}
 
       - name: Cleanup commit1
         if: always()
@@ -115,40 +90,9 @@ jobs:
           ref: ${{ github.event.inputs.commit2 }}
           path: tlsn-commit2
 
-      - name: Build harness for ${{ github.event.inputs.commit2 }}
+      - name: Benchmark ${{ github.event.inputs.commit2 }}
         working-directory: tlsn-commit2/crates/harness
-        run: |
-          chmod +x build.sh
-          ./build.sh
-
-      - name: Setup network for commit2
-        working-directory: tlsn-commit2/crates/harness
-        run: |
-          sudo ./bin/runner setup
-
-      - name: Run NATIVE benchmark for ${{ github.event.inputs.commit2 }}
-        working-directory: tlsn-commit2/crates/harness
-        run: |
-          ./bin/runner bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
-          cp metrics.csv /tmp/benchmark-results/commit2-native-bench.csv
-          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
-            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
-              ./bin/runner bench --config "$config" --samples 5 --samples-override
-              cp metrics.csv /tmp/benchmark-results/commit2-native-${config%.toml}.csv
-            done
-          fi
-
-      - name: Run BROWSER benchmark for ${{ github.event.inputs.commit2 }}
-        working-directory: tlsn-commit2/crates/harness
-        run: |
-          ./bin/runner --target browser bench --config bench.toml ${{ github.event.inputs.mode == 'quick' && '--samples 3 --samples-override' || '--samples 5 --samples-override' }}
-          cp metrics.csv /tmp/benchmark-results/commit2-browser-bench.csv
-          if [ "${{ github.event.inputs.mode }}" = "precise" ]; then
-            for config in bench_bandwidth_sweep.toml bench_latency_sweep.toml bench_download_sweep.toml; do
-              ./bin/runner --target browser bench --config "$config"
-              cp metrics.csv /tmp/benchmark-results/commit2-browser-${config%.toml}.csv
-            done
-          fi
+        run: ${{ github.workspace }}/_scripts/.github/workflows/bench-commit.sh commit2 ${{ github.event.inputs.mode }}
 
       - name: Cleanup commit2
         if: always()
