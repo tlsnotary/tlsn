@@ -9,7 +9,7 @@ use crate::{
     Config, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
-use hmac_sha256::{MpcPrf, PrfOutput};
+use hmac_sha256::{MSMode, MpcPrf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -86,7 +86,7 @@ impl MpcTlsLeader {
             ))),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(config.prf);
+        let prf = MpcPrf::new(PrfConfig::new(config.prf, MSMode::Standard));
 
         let encrypter = MpcAesGcm::new(
             ShareConversionSender::new(OLESender::new(
@@ -242,7 +242,7 @@ impl MpcTlsLeader {
             .await
             .map_err(MpcTlsError::from)?;
 
-        prf.set_client_random(client_random.0)?;
+        prf.set_client_random(client_random.0);
 
         self.state = State::Handshake {
             ctx,

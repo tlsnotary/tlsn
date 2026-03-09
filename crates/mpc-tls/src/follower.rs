@@ -3,7 +3,7 @@ use crate::{
     record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, MpcTlsError, Role, SessionKeys, Vm,
 };
-use hmac_sha256::{MpcPrf, PrfOutput};
+use hmac_sha256::{MSMode, MpcPrf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -64,7 +64,7 @@ impl MpcTlsFollower {
             )),
         )) as Box<dyn KeyExchange + Send + Sync>;
 
-        let prf = MpcPrf::new(config.prf);
+        let prf = MpcPrf::new(PrfConfig::new(config.prf, MSMode::Standard));
 
         let encrypter = MpcAesGcm::new(
             ShareConversionReceiver::new(OLEReceiver::new(AnyReceiver::new(
@@ -243,7 +243,7 @@ impl MpcTlsFollower {
                         return Err(MpcTlsError::hs("client random already set"));
                     }
 
-                    prf.set_client_random(random.random)?;
+                    prf.set_client_random(random.random);
                     client_random = Some(random.random);
                 }
                 Message::StartHandshake(StartHandshake { time: prover_time }) => {

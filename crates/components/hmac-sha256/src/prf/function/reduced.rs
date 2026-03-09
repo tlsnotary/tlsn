@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use crate::{hmac::hmac_sha256, sha256, state_to_bytes, PrfError};
+use crate::{hmac::hmac_sha256, sha256, state_to_bytes, MSMode, PrfError};
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
@@ -45,6 +45,7 @@ enum PrfState {
 
 impl PrfFunction {
     const MS_LABEL: &[u8] = b"master secret";
+    const EMS_LABEL: &[u8] = b"extended master secret";
     const KEY_LABEL: &[u8] = b"key expansion";
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
@@ -53,8 +54,12 @@ impl PrfFunction {
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
+        ms_mode: MSMode,
     ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48)
+        match ms_mode {
+            MSMode::Standard => Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48),
+            MSMode::Extended => Self::alloc(vm, Self::EMS_LABEL, outer_partial, inner_partial, 48),
+        }
     }
 
     pub(crate) fn alloc_key_expansion(
@@ -82,7 +87,7 @@ impl PrfFunction {
     }
 
     pub(crate) fn wants_flush(&self) -> bool {
-        !matches!(self.state, PrfState::Done) && self.start_seed_label.is_some()
+        !self.is_done() && self.start_seed_label.is_some()
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -152,6 +157,10 @@ impl PrfFunction {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn is_done(&self) -> bool {
+        matches!(self.state, PrfState::Done)
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
