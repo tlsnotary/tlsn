@@ -10,13 +10,13 @@ use tlsn::{
     },
     connection::ServerName,
     prover::{state, Prover, TlsConnection},
-    webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
+    webpki::{CertificateDer, PrivateKeyDer},
     Session, SessionHandle,
 };
 use tracing::{error, info};
 
 use crate::{
-    config::ProverConfig,
+    config::{build_root_store, ProverConfig},
     error::{Result, SdkError},
     io::{HyperIo, Io},
     types::*,
@@ -170,6 +170,8 @@ impl SdkProver {
             ));
         };
 
+        let root_store = build_root_store(&self.config.root_certs)?;
+
         let mut builder = TlsClientConfig::builder()
             .server_name(ServerName::Dns(
                 self.config
@@ -178,7 +180,7 @@ impl SdkProver {
                     .try_into()
                     .map_err(|_| SdkError::config("invalid server name"))?,
             ))
-            .root_store(RootCertStore::mozilla());
+            .root_store(root_store);
 
         if let Some(ref client_auth) = self.config.client_auth {
             let certs = client_auth

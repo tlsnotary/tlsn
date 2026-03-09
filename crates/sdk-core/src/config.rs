@@ -1,6 +1,11 @@
 //! Configuration types for the SDK.
 
 use serde::{Deserialize, Serialize};
+use tlsn::webpki::{CertificateDer, RootCertStore};
+
+use crate::error::Result;
+#[cfg(not(feature = "mozilla-certs"))]
+use crate::error::SdkError;
 
 /// Configuration for the Prover.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +28,10 @@ pub struct ProverConfig {
     pub network: NetworkSetting,
     /// Optional client authentication credentials (certificates, private key).
     pub client_auth: Option<ClientAuth>,
+    /// Custom root certificates (DER-encoded) for TLS server verification.
+    ///
+    /// If `None`, the Mozilla root certificates are used.
+    pub root_certs: Option<Vec<Vec<u8>>>,
 }
 
 impl ProverConfig {
@@ -44,6 +53,7 @@ pub struct ProverConfigBuilder {
     defer_decryption_from_start: Option<bool>,
     network: NetworkSetting,
     client_auth: Option<ClientAuth>,
+    root_certs: Option<Vec<Vec<u8>>>,
 }
 
 impl ProverConfigBuilder {
@@ -59,6 +69,7 @@ impl ProverConfigBuilder {
             defer_decryption_from_start: None,
             network: NetworkSetting::Latency,
             client_auth: None,
+            root_certs: None,
         }
     }
 
@@ -110,6 +121,14 @@ impl ProverConfigBuilder {
         self
     }
 
+    /// Sets custom root certificates (DER-encoded) for TLS server verification.
+    ///
+    /// If not set, the Mozilla root certificates are used.
+    pub fn root_certs(mut self, certs: Vec<Vec<u8>>) -> Self {
+        self.root_certs = Some(certs);
+        self
+    }
+
     /// Builds the ProverConfig.
     pub fn build(self) -> ProverConfig {
         ProverConfig {
@@ -122,6 +141,7 @@ impl ProverConfigBuilder {
             defer_decryption_from_start: self.defer_decryption_from_start,
             network: self.network,
             client_auth: self.client_auth,
+            root_certs: self.root_certs,
         }
     }
 }
@@ -137,6 +157,10 @@ pub struct VerifierConfig {
     pub max_sent_records: Option<usize>,
     /// Maximum number of received records during online phase.
     pub max_recv_records_online: Option<usize>,
+    /// Custom root certificates (DER-encoded) for TLS server verification.
+    ///
+    /// If `None`, the Mozilla root certificates are used.
+    pub root_certs: Option<Vec<Vec<u8>>>,
 }
 
 impl Default for VerifierConfig {
@@ -146,6 +170,7 @@ impl Default for VerifierConfig {
             max_recv_data: 16384,
             max_sent_records: None,
             max_recv_records_online: None,
+            root_certs: None,
         }
     }
 }
@@ -164,6 +189,7 @@ pub struct VerifierConfigBuilder {
     max_recv_data: usize,
     max_sent_records: Option<usize>,
     max_recv_records_online: Option<usize>,
+    root_certs: Option<Vec<Vec<u8>>>,
 }
 
 impl Default for VerifierConfigBuilder {
@@ -173,6 +199,7 @@ impl Default for VerifierConfigBuilder {
             max_recv_data: 16384,
             max_sent_records: None,
             max_recv_records_online: None,
+            root_certs: None,
         }
     }
 }
@@ -202,6 +229,14 @@ impl VerifierConfigBuilder {
         self
     }
 
+    /// Sets custom root certificates (DER-encoded) for TLS server verification.
+    ///
+    /// If not set, the Mozilla root certificates are used.
+    pub fn root_certs(mut self, certs: Vec<Vec<u8>>) -> Self {
+        self.root_certs = Some(certs);
+        self
+    }
+
     /// Builds the VerifierConfig.
     pub fn build(self) -> VerifierConfig {
         VerifierConfig {
@@ -209,6 +244,7 @@ impl VerifierConfigBuilder {
             max_recv_data: self.max_recv_data,
             max_sent_records: self.max_sent_records,
             max_recv_records_online: self.max_recv_records_online,
+            root_certs: self.root_certs,
         }
     }
 }
@@ -239,4 +275,32 @@ pub struct ClientAuth {
     pub certs: Vec<Vec<u8>>,
     /// Client private key (DER encoded).
     pub key: Vec<u8>,
+}
+
+/// Builds a [`RootCertStore`] from optional DER-encoded root certificates.
+///
+/// If `root_certs` is `Some`, builds a store from the provided certificates.
+/// If `None`, falls back to Mozilla root certificates (requires `mozilla-certs`
+/// feature).
+pub(crate) fn build_root_store(root_certs: &Option<Vec<Vec<u8>>>) -> Result<RootCertStore> {
+    match root_certs {
+        Some(certs) => Ok(RootCertStore {
+            roots: certs
+                .iter()
+                .map(|cert| CertificateDer(cert.clone()))
+                .collect(),
+        }),
+        None => {
+            #[cfg(feature = "mozilla-certs")]
+            {
+                Ok(RootCertStore::mozilla())
+            }
+            #[cfg(not(feature = "mozilla-certs"))]
+            {
+                Err(SdkError::config(
+                    "no root certificates provided and mozilla-certs feature is not enabled",
+                ))
+            }
+        }
+    }
 }

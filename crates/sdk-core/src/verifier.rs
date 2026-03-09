@@ -5,13 +5,12 @@ use tlsn::{
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
     verifier::{state, Verifier},
-    webpki::RootCertStore,
     Session, SessionHandle,
 };
 use tracing::info;
 
 use crate::{
-    config::VerifierConfig,
+    config::{build_root_store, VerifierConfig},
     error::{Result, SdkError},
     io::Io,
     types::VerifierOutput,
@@ -88,8 +87,9 @@ impl SdkVerifier {
             }
         });
 
+        let root_store = build_root_store(&self.config.root_certs)?;
         let verifier_config = tlsn::config::verifier::VerifierConfig::builder()
-            .root_store(RootCertStore::mozilla())
+            .root_store(root_store)
             .build()
             .map_err(|e| SdkError::config(e.to_string()))?;
         let verifier = handle
