@@ -39,13 +39,7 @@ pin_project! {
 
 impl<T> HyperIo<T> {
     /// Creates a new `HyperIo` wrapping the given IO stream.
-    ///
-    /// # Safety
-    ///
-    /// The inner IO stream must not read from the buffer passed to `poll_read`
-    /// in the `futures::AsyncRead` implementation. The buffer may contain
-    /// uninitialized memory.
-    pub unsafe fn new(inner: T) -> Self {
+    pub fn new(inner: T) -> Self {
         Self { inner }
     }
 
@@ -96,8 +90,8 @@ where
         cx: &mut Context<'_>,
         mut buf: hyper::rt::ReadBufCursor<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
-        // Safety: buf_slice should only be written to, so it's safe to convert
-        // `&mut [MaybeUninit<u8>]` to `&mut [u8]`.
+        // The cast from MaybeUninit<u8> to u8 is sound because AsyncRead
+        // implementations only write to the buffer, never read from it.
         let buf_slice = unsafe {
             slice::from_raw_parts_mut(buf.as_mut().as_mut_ptr() as *mut u8, buf.as_mut().len())
         };

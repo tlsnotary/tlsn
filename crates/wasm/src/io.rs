@@ -4,10 +4,9 @@
 //! async IO traits.
 
 use std::{
-    cell::RefCell,
     collections::VecDeque,
     pin::Pin,
-    rc::Rc,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
     task::{Context, Poll, Waker},
 };
 
@@ -67,15 +66,21 @@ struct AdapterState {
 /// JavaScript methods on the underlying object.
 pub(crate) struct JsIoAdapter {
     inner: JsIo,
-    state: Rc<RefCell<AdapterState>>,
+    state: Arc<Mutex<AdapterState>>,
 }
 
 impl JsIoAdapter {
+    fn lock_state(&self) -> std::io::Result<MutexGuard<'_, AdapterState>> {
+        self.state.lock().map_err(|e: PoisonError<_>| {
+            std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+        })
+    }
+
     /// Creates a new adapter wrapping the given JavaScript IO object.
     pub(crate) fn new(js_io: JsIo) -> Self {
         Self {
             inner: js_io,
-            state: Rc::new(RefCell::new(AdapterState {
+            state: Arc::new(Mutex::new(AdapterState {
                 read_buffer: VecDeque::new(),
                 eof: false,
                 pending_read: None,
@@ -94,7 +99,10 @@ impl AsyncRead for JsIoAdapter {
         buf: &mut [u8],
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
-        let mut state = this.state.borrow_mut();
+        let mut state = match this.lock_state() {
+            Ok(guard) => guard,
+            Err(e) => return Poll::Ready(Err(e)),
+        };
 
         // Check for errors.
         if let Some(ref err) = state.error {
@@ -195,7 +203,10 @@ impl AsyncWrite for JsIoAdapter {
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
-        let state = this.state.borrow();
+        let state = match this.lock_state() {
+            Ok(guard) => guard,
+            Err(e) => return Poll::Ready(Err(e)),
+        };
 
         // Check for errors.
         if let Some(ref err) = state.error {
@@ -237,7 +248,10 @@ impl AsyncWrite for JsIoAdapter {
 
     fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let this = self.get_mut();
-        let mut state = this.state.borrow_mut();
+        let mut state = match this.lock_state() {
+            Ok(guard) => guard,
+            Err(e) => return Poll::Ready(Err(e)),
+        };
 
         if state.closed {
             return Poll::Ready(Ok(()));
@@ -257,5 +271,9 @@ impl AsyncWrite for JsIoAdapter {
     }
 }
 
-// Required for Io trait (Send bound).
+// SAFETY: `JsIo` (a JS handle via wasm_bindgen) is `!Send`. This is safe
+// because `JsIoAdapter` is only used from the main WASM async executor thread.
+// While the extension does use multi-threaded WASM (SharedArrayBuffer + rayon
+// via web-spawn), the rayon worker threads only perform parallel computation
+// (mpz/garble) on shared memory and never access JS handles or this adapter.
 unsafe impl Send for JsIoAdapter {}

@@ -300,8 +300,7 @@ impl SdkProver {
 }
 
 async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpResponse> {
-    // SAFETY: TlsConnection's AsyncRead does not read from the buffer.
-    let conn = unsafe { HyperIo::new(conn) };
+    let conn = HyperIo::new(conn);
     let request = hyper::Request::<Full<Bytes>>::try_from(request)?;
 
     let (mut request_sender, conn) = hyper::client::conn::http1::handshake(conn).await?;
