@@ -111,9 +111,6 @@ jobs:
           path: /tmp/benchmark-results/
 
       # Analyze results
-      - name: Checkout current branch for analyze.py
-        uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -133,7 +130,7 @@ jobs:
             echo "## ${target^} Benchmark Analysis" >> $GITHUB_STEP_SUMMARY
             for config in $CONFIGS; do
               echo "### ${config}" >> $GITHUB_STEP_SUMMARY
-              python3 analyze.py \
+              python3 ${{ github.workspace }}/_scripts/.github/workflows/regression-analyze.py \
                 /tmp/benchmark-results/commit1-${target}-${config}.csv \
                 /tmp/benchmark-results/commit2-${target}-${config}.csv \
                 --commit1 "${{ github.event.inputs.commit1 }} (${target}/${config})" \
