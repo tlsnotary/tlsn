@@ -254,18 +254,14 @@ mod tests {
 
     #[test]
     fn test_build_missing_max_sent_data() {
-        let err = MpcTlsConfig::builder()
-            .max_recv_data(2048)
-            .build();
+        let err = MpcTlsConfig::builder().max_recv_data(2048).build();
 
         assert!(err.is_err());
     }
 
     #[test]
     fn test_build_missing_max_recv_data() {
-        let err = MpcTlsConfig::builder()
-            .max_sent_data(1024)
-            .build();
+        let err = MpcTlsConfig::builder().max_sent_data(1024).build();
 
         assert!(err.is_err());
     }

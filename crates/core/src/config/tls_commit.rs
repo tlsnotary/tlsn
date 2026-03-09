@@ -112,10 +112,7 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(matches!(
-            config.protocol(),
-            TlsCommitProtocolConfig::Mpc(_)
-        ));
+        assert!(matches!(config.protocol(), TlsCommitProtocolConfig::Mpc(_)));
     }
 
     #[test]

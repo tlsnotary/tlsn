@@ -161,21 +161,13 @@ impl ServerCertVerifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        connection::DnsName,
-        fixtures::ConnectionFixture,
-        transcript::Transcript,
-    };
+    use crate::{connection::DnsName, fixtures::ConnectionFixture, transcript::Transcript};
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
     #[test]
     fn test_cert_from_pem_valid() {
-        // Use a known PEM certificate from the fixtures
-        let fixture = ConnectionFixture::tlsnotary(
-            Transcript::new(GET_WITH_HEADER, OK_JSON).length(),
-        );
         // We can't easily get PEM from fixtures (they're DER), so test the
-        // error path and the RootCertStore API instead.
+        // RootCertStore API instead.
         let store = RootCertStore::empty();
         assert!(store.roots.is_empty());
     }
@@ -234,9 +226,8 @@ mod tests {
         };
         let verifier = ServerCertVerifier::new(&root_store).unwrap();
 
-        let fixture = ConnectionFixture::tlsnotary(
-            Transcript::new(GET_WITH_HEADER, OK_JSON).length(),
-        );
+        let fixture =
+            ConnectionFixture::tlsnotary(Transcript::new(GET_WITH_HEADER, OK_JSON).length());
 
         let (ee, intermediates) = fixture.server_cert_data.certs.split_first().unwrap();
         assert!(verifier
@@ -259,18 +250,13 @@ mod tests {
         };
         let verifier = ServerCertVerifier::new(&root_store).unwrap();
 
-        let fixture = ConnectionFixture::tlsnotary(
-            Transcript::new(GET_WITH_HEADER, OK_JSON).length(),
-        );
+        let fixture =
+            ConnectionFixture::tlsnotary(Transcript::new(GET_WITH_HEADER, OK_JSON).length());
 
         let bad_name = ServerName::Dns(DnsName::try_from("wrong.example.com").unwrap());
         let (ee, intermediates) = fixture.server_cert_data.certs.split_first().unwrap();
-        let err = verifier.verify_server_cert(
-            ee,
-            intermediates,
-            &bad_name,
-            fixture.connection_info.time,
-        );
+        let err =
+            verifier.verify_server_cert(ee, intermediates, &bad_name, fixture.connection_info.time);
 
         assert!(matches!(
             err.unwrap_err(),

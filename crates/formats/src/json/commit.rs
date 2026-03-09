@@ -316,7 +316,9 @@ mod tests {
 
     #[test]
     fn test_commit_complex() {
-        commit_json(br#"{"name": "alice", "age": 30, "active": true, "scores": [1, 2], "meta": null}"#);
+        commit_json(
+            br#"{"name": "alice", "age": 30, "active": true, "scores": [1, 2], "meta": null}"#,
+        );
     }
 
     #[test]
@@ -327,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_error_with_source() {
-        let source = std::io::Error::new(std::io::ErrorKind::Other, "inner");
+        let source = std::io::Error::other("inner");
         let err = JsonCommitError::new_with_source("outer", source);
         assert_eq!(err.msg(), "outer");
         assert!(err.source().is_some());

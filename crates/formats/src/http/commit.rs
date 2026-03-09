@@ -447,9 +447,7 @@ mod tests {
         let mut committer = DefaultHttpCommitter::default();
         let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
 
-        committer
-            .commit_transcript(&mut builder, &http)
-            .unwrap();
+        committer.commit_transcript(&mut builder, &http).unwrap();
 
         builder.build().unwrap();
     }
