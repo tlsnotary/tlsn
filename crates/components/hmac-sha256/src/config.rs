@@ -12,7 +12,8 @@ pub enum NetworkMode {
 /// Master secret derivation mode.
 #[derive(Debug, Clone, Copy)]
 pub enum MSMode {
-    /// Standard master secret derivation using `client_random || server_random`.
+    /// Standard master secret derivation using `client_random ||
+    /// server_random`.
     Standard,
     /// Extended Master Secret (RFC 7627) using session hash.
     Extended,

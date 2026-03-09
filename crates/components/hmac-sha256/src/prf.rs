@@ -29,10 +29,10 @@ pub struct MpcPrf {
 pub(crate) enum State {
     Initialized,
     Setup {
-        master_secret: Prf,
-        key_expansion: Prf,
-        client_finished: Prf,
-        server_finished: Prf,
+        master_secret: Box<Prf>,
+        key_expansion: Box<Prf>,
+        client_finished: Box<Prf>,
+        server_finished: Box<Prf>,
     },
     Complete,
     Error,
@@ -113,10 +113,10 @@ impl MpcPrf {
         let output = PrfOutput { keys, cf_vd, sf_vd };
 
         self.state = State::Setup {
-            master_secret,
-            key_expansion,
-            client_finished,
-            server_finished,
+            master_secret: Box::new(master_secret),
+            key_expansion: Box::new(key_expansion),
+            client_finished: Box::new(client_finished),
+            server_finished: Box::new(server_finished),
         };
 
         Ok(output)
