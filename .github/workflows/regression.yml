@@ -77,7 +77,7 @@ jobs:
         run: ${{ github.workspace }}/_scripts/.github/workflows/bench-commit.sh commit1 ${{ github.event.inputs.mode }}
 
       - name: Cleanup commit1
-        if: always()
+
         run: |
           cd tlsn-commit1/crates/harness && sudo ./bin/runner clean || true
 
@@ -96,7 +96,7 @@ jobs:
         run: ${{ github.workspace }}/_scripts/.github/workflows/bench-commit.sh commit2 ${{ github.event.inputs.mode }}
 
       - name: Cleanup commit2
-        if: always()
+
         run: |
           cd tlsn-commit2/crates/harness && sudo ./bin/runner clean || true
 
