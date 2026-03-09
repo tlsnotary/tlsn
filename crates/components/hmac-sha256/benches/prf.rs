@@ -2,7 +2,7 @@
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use hmac_sha256::{MSMode, MpcPrf, NetworkMode, PrfConfig};
+use hmac_sha256::{MSMode, NetworkMode, Prf, PrfConfig};
 use mpz_common::context::test_mt_context;
 use mpz_ideal_vm::IdealVm;
 use mpz_vm_core::{
@@ -61,8 +61,8 @@ async fn prf(config: PrfConfig) {
     follower_vm.assign(follower_pms, pms).unwrap();
     follower_vm.commit(follower_pms).unwrap();
 
-    let mut leader = MpcPrf::new(config);
-    let mut follower = MpcPrf::new(config);
+    let mut leader = Prf::new(config);
+    let mut follower = Prf::new(config);
 
     let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
     let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();

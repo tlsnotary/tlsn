@@ -15,7 +15,7 @@ mod error;
 pub use error::PrfError;
 
 mod prf;
-pub use prf::MpcPrf;
+pub use prf::Prf;
 
 use mpz_vm_core::memory::{binary::U8, Array};
 
@@ -73,7 +73,7 @@ fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
 mod tests {
     use crate::{
         test_utils::{prf_cf_vd, prf_ems_ms, prf_keys, prf_ms, prf_sf_vd},
-        MSMode, MpcPrf, NetworkMode, PrfConfig, SessionKeys,
+        MSMode, NetworkMode, Prf, PrfConfig, SessionKeys,
     };
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
@@ -146,8 +146,8 @@ mod tests {
         follower.commit(follower_pms).unwrap();
 
         let config = PrfConfig::new(network, ms_mode);
-        let mut prf_leader = MpcPrf::new(config);
-        let mut prf_follower = MpcPrf::new(config);
+        let mut prf_leader = Prf::new(config);
+        let mut prf_follower = Prf::new(config);
 
         let leader_prf_out = prf_leader.alloc(&mut leader, leader_pms).unwrap();
         let follower_prf_out = prf_follower.alloc(&mut follower, follower_pms).unwrap();

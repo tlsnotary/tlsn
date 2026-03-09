@@ -15,11 +15,11 @@ use std::{fmt::Debug, sync::Arc};
 use tracing::instrument;
 
 mod function;
-use function::Prf;
+use function::InnerPrf;
 
-/// MPC PRF for computing TLS 1.2 HMAC-SHA256 PRF.
+/// PRF for computing TLS 1.2 HMAC-SHA256 PRF.
 #[derive(Debug)]
-pub struct MpcPrf {
+pub struct Prf {
     config: PrfConfig,
     state: State,
     client_random: Option<[u8; 32]>,
@@ -29,10 +29,10 @@ pub struct MpcPrf {
 pub(crate) enum State {
     Initialized,
     Setup {
-        master_secret: Box<Prf>,
-        key_expansion: Box<Prf>,
-        client_finished: Box<Prf>,
-        server_finished: Box<Prf>,
+        master_secret: Box<InnerPrf>,
+        key_expansion: Box<InnerPrf>,
+        client_finished: Box<InnerPrf>,
+        server_finished: Box<InnerPrf>,
     },
     Complete,
     Error,
@@ -44,13 +44,13 @@ impl State {
     }
 }
 
-impl MpcPrf {
+impl Prf {
     /// Creates a new instance of the PRF.
     ///
     /// # Arguments
     ///
     /// * `config` - The PRF configuration.
-    pub fn new(config: PrfConfig) -> MpcPrf {
+    pub fn new(config: PrfConfig) -> Prf {
         Self {
             config,
             state: State::Initialized,
@@ -80,26 +80,26 @@ impl MpcPrf {
         let inner_partial_pms = compute_partial(vm, pms, IPAD)?;
 
         let master_secret =
-            Prf::alloc_master_secret(self.config, vm, outer_partial_pms, inner_partial_pms)?;
+            InnerPrf::alloc_master_secret(self.config, vm, outer_partial_pms, inner_partial_pms)?;
         let ms = master_secret.output();
         let ms = merge_outputs(vm, ms, 48)?;
 
         let outer_partial_ms = compute_partial(vm, ms, OPAD)?;
         let inner_partial_ms = compute_partial(vm, ms, IPAD)?;
 
-        let key_expansion = Prf::alloc_key_expansion(
+        let key_expansion = InnerPrf::alloc_key_expansion(
             self.config.network,
             vm,
             outer_partial_ms.clone(),
             inner_partial_ms.clone(),
         )?;
-        let client_finished = Prf::alloc_client_finished(
+        let client_finished = InnerPrf::alloc_client_finished(
             self.config.network,
             vm,
             outer_partial_ms.clone(),
             inner_partial_ms.clone(),
         )?;
-        let server_finished = Prf::alloc_server_finished(
+        let server_finished = InnerPrf::alloc_server_finished(
             self.config.network,
             vm,
             outer_partial_ms.clone(),
