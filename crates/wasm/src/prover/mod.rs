@@ -32,7 +32,8 @@ impl JsProver {
     #[wasm_bindgen(constructor)]
     pub fn new(config: ProverConfig) -> Result<JsProver> {
         let core_config = convert_prover_config(config);
-        let inner = SdkProver::new(core_config).map_err(|e| JsError::new(&e.to_string()))?;
+        let inner = SdkProver::new(core_config, crate::context_pool())
+            .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(JsProver {
             inner,
             progress_callback: None,

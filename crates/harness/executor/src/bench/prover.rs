@@ -5,7 +5,7 @@ use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
 
 use harness_core::bench::{Bench, ProverMetrics};
 use tlsn::{
-    Session,
+    Session, SharedPool, StdSpawn,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
@@ -29,7 +29,8 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let sent = verifier_io.sent();
     let recv = verifier_io.recv();
 
-    let mut session = Session::new(verifier_io);
+    let pool = SharedPool::new(8, &mut StdSpawn).map_err(|e| anyhow::anyhow!(e))?;
+    let mut session = Session::new(verifier_io, pool);
 
     let prover = session.new_prover(ProverConfig::builder().build()?)?;
     let (session, handle) = session.split();

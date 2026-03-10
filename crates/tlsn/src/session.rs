@@ -9,7 +9,12 @@ use std::{
 };
 
 use futures::{AsyncRead, AsyncWrite};
-use mpz_common::{ThreadId, context::Multithread, io::Io, mux::Mux};
+use mpz_common::{
+    ThreadId,
+    context::{Multithread, SharedPool},
+    io::Io,
+    mux::Mux,
+};
 use tlsn_core::config::{prover::ProverConfig, verifier::VerifierConfig};
 use tlsn_mux::{Connection, Handle};
 
@@ -18,9 +23,6 @@ use crate::{
     prover::{Prover, state as prover_state},
     verifier::{Verifier, state as verifier_state},
 };
-
-/// Maximum concurrency for multi-threaded context.
-const MAX_CONCURRENCY: usize = 8;
 
 /// A TLSNotary session over a communication channel.
 ///
@@ -48,7 +50,12 @@ where
     Io: AsyncRead + AsyncWrite + Unpin,
 {
     /// Creates a new session.
-    pub fn new(io: Io) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `io` - The underlying I/O stream.
+    /// * `pool` - Shared thread pool for async task dispatch.
+    pub fn new(io: Io, pool: SharedPool) -> Self {
         let mut mux_config = tlsn_mux::Config::default();
 
         mux_config.set_max_num_streams(36);
@@ -57,7 +64,7 @@ where
 
         let conn = tlsn_mux::Connection::new(io, mux_config);
         let handle = conn.handle().expect("handle should be available");
-        let mt = build_mt_context(MuxHandle { handle });
+        let mt = build_mt_context(MuxHandle { handle }, pool);
 
         Self {
             conn: Some(conn),
@@ -310,17 +317,11 @@ impl Mux for MuxHandle {
     }
 }
 
-/// Builds a multi-threaded context with the given muxer.
-fn build_mt_context(mux: MuxHandle) -> Multithread {
-    let builder = Multithread::builder()
+/// Builds a multi-threaded context with the given muxer and pool.
+fn build_mt_context(mux: MuxHandle, pool: SharedPool) -> Multithread {
+    Multithread::builder()
+        .pool(pool)
         .mux(Box::new(mux) as Box<_>)
-        .concurrency(MAX_CONCURRENCY);
-
-    #[cfg(all(feature = "web", target_arch = "wasm32"))]
-    let builder = builder.spawn_handler(|f| {
-        let _ = web_spawn::spawn(f);
-        Ok(())
-    });
-
-    builder.build().unwrap()
+        .build()
+        .expect("pool and mux are both set")
 }

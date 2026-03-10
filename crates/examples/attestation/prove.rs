@@ -32,7 +32,7 @@ use tlsn::{
     transcript::{ContentType, TranscriptCommitConfig},
     verifier::VerifierOutput,
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
-    Session,
+    Session, SharedPool, StdSpawn,
 };
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
@@ -82,7 +82,8 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .unwrap_or(DEFAULT_FIXTURE_PORT);
 
     // Create a session with the notary.
-    let session = Session::new(socket.compat());
+    let pool = SharedPool::new(8, &mut StdSpawn)?;
+    let session = Session::new(socket.compat(), pool);
     let (driver, mut handle) = session.split();
 
     // Spawn the session driver to run in the background.
@@ -290,7 +291,8 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: S,
 ) -> Result<()> {
     // Create a session with the prover.
-    let session = Session::new(socket.compat());
+    let pool = SharedPool::new(8, &mut StdSpawn)?;
+    let session = Session::new(socket.compat(), pool);
     let (driver, mut handle) = session.split();
 
     // Spawn the session driver to run in the background.

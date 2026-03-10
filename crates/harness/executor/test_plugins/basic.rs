@@ -1,5 +1,5 @@
 use tlsn::{
-    Session,
+    Session, SharedPool, StdSpawn,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
@@ -29,7 +29,8 @@ crate::test!("basic", prover, verifier);
 
 async fn prover(provider: &IoProvider) {
     let io = provider.provide_proto_io().await.unwrap();
-    let mut session = Session::new(io);
+    let pool = SharedPool::new(8, &mut StdSpawn).unwrap();
+    let mut session = Session::new(io, pool);
     let prover = session
         .new_prover(ProverConfig::builder().build().unwrap())
         .unwrap();
@@ -129,7 +130,8 @@ async fn prover(provider: &IoProvider) {
 
 async fn verifier(provider: &IoProvider) {
     let io = provider.provide_proto_io().await.unwrap();
-    let mut session = Session::new(io);
+    let pool = SharedPool::new(8, &mut StdSpawn).unwrap();
+    let mut session = Session::new(io, pool);
 
     let config = VerifierConfig::builder()
         .root_store(RootCertStore {

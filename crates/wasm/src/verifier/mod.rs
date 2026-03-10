@@ -30,7 +30,7 @@ impl JsVerifier {
     #[wasm_bindgen(constructor)]
     pub fn new(config: VerifierConfig) -> JsVerifier {
         let core_config = convert_verifier_config(config);
-        let inner = SdkVerifier::new(core_config);
+        let inner = SdkVerifier::new(core_config, crate::context_pool());
         JsVerifier { inner }
     }
 

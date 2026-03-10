@@ -23,7 +23,7 @@ use tlsn::{
     transcript::PartialTranscript,
     verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
-    Session,
+    Session, SharedPool, StdSpawn,
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -78,7 +78,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let server_domain = uri.authority().unwrap().host();
 
     // Create a session with the verifier.
-    let session = Session::new(verifier_socket.compat());
+    let pool = SharedPool::new(8, &mut StdSpawn)?;
+    let session = Session::new(verifier_socket.compat(), pool);
     let (driver, mut handle) = session.split();
 
     // Spawn the session driver to run in the background.
@@ -192,7 +193,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     socket: T,
 ) -> Result<PartialTranscript> {
     // Create a session with the prover.
-    let session = Session::new(socket.compat());
+    let pool = SharedPool::new(8, &mut StdSpawn)?;
+    let session = Session::new(socket.compat(), pool);
     let (driver, mut handle) = session.split();
 
     // Spawn the session driver to run in the background.

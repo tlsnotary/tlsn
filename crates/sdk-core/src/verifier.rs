@@ -6,7 +6,7 @@ use tlsn::{
     transcript::ContentType,
     verifier::{state, Verifier},
     webpki::RootCertStore,
-    Session, SessionHandle,
+    Session, SessionHandle, SharedPool,
 };
 use tracing::info;
 
@@ -24,6 +24,7 @@ use crate::{
 /// full plaintext.
 pub struct SdkVerifier {
     config: VerifierConfig,
+    pool: SharedPool,
     state: State,
 }
 
@@ -57,9 +58,15 @@ impl State {
 
 impl SdkVerifier {
     /// Creates a new SDK Verifier with the given configuration.
-    pub fn new(config: VerifierConfig) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Verifier configuration.
+    /// * `pool` - Shared thread pool for async task dispatch.
+    pub fn new(config: VerifierConfig, pool: SharedPool) -> Self {
         SdkVerifier {
             state: State::Initialized,
+            pool,
             config,
         }
     }
@@ -78,7 +85,7 @@ impl SdkVerifier {
 
         info!("connecting to prover");
 
-        let session = Session::new(prover_io);
+        let session = Session::new(prover_io, self.pool.clone());
         let (driver, mut handle) = session.split();
 
         crate::spawn::spawn(async move {

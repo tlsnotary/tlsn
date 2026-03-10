@@ -39,7 +39,7 @@ use tlsn::{
         TranscriptSecret,
     },
     webpki::{CertificateDer, RootCertStore},
-    Session,
+    Session, SharedPool, StdSpawn,
 };
 
 use futures::io::AsyncWriteExt as _;
@@ -66,7 +66,8 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         .host();
 
     // Create a session with the verifier.
-    let session = Session::new(verifier_socket.compat());
+    let pool = SharedPool::new(8, &mut StdSpawn)?;
+    let session = Session::new(verifier_socket.compat(), pool);
     let (driver, mut handle) = session.split();
 
     // Spawn the session driver to run in the background.

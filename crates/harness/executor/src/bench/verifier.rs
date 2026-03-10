@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use harness_core::bench::Bench;
 use tlsn::{
-    Session,
+    Session, SharedPool, StdSpawn,
     config::verifier::VerifierConfig,
     webpki::{CertificateDer, RootCertStore},
 };
@@ -12,7 +12,8 @@ use crate::{IoProvider, spawn};
 
 pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()> {
     let io = provider.provide_proto_io().await?;
-    let mut session = Session::new(io);
+    let pool = SharedPool::new(8, &mut StdSpawn).map_err(|e| anyhow::anyhow!(e))?;
+    let mut session = Session::new(io, pool);
 
     let verifier = session.new_verifier(
         VerifierConfig::builder()

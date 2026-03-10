@@ -14,7 +14,7 @@ use tlsn::{
     transcript::{Direction, PartialTranscript},
     verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
-    Session,
+    Session, SharedPool, StdSpawn,
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
@@ -27,7 +27,8 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     socket: T,
 ) -> Result<PartialTranscript> {
     // Create a session with the prover.
-    let session = Session::new(socket.compat());
+    let pool = SharedPool::new(8, &mut StdSpawn)?;
+    let session = Session::new(socket.compat(), pool);
     let (driver, mut handle) = session.split();
 
     // Spawn the session driver to run in the background.

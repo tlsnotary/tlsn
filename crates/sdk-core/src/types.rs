@@ -112,9 +112,7 @@ impl TryFrom<HttpRequest> for hyper::Request<Full<Bytes>> {
             let body = match body {
                 // If the JSON value is a plain string, use its contents directly
                 // to avoid double-serialization (wrapping in extra quotes).
-                Body::Json(serde_json::Value::String(s)) => {
-                    Full::new(Bytes::from(s))
-                }
+                Body::Json(serde_json::Value::String(s)) => Full::new(Bytes::from(s)),
                 // For other JSON values, serialize to bytes (infallible).
                 Body::Json(value) => Full::new(Bytes::from(
                     serde_json::to_vec(&value).expect("Value serialization is infallible"),

@@ -11,7 +11,7 @@ use tlsn::{
     connection::ServerName,
     prover::{state, Prover, TlsConnection},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
-    Session, SessionHandle,
+    Session, SessionHandle, SharedPool,
 };
 use tracing::{error, info};
 
@@ -28,6 +28,7 @@ use crate::{
 /// MPC-TLS protocol to generate verifiable proofs of the TLS session.
 pub struct SdkProver {
     config: ProverConfig,
+    pool: SharedPool,
     state: State,
 }
 
@@ -67,7 +68,12 @@ impl State {
 
 impl SdkProver {
     /// Creates a new SDK Prover with the given configuration.
-    pub fn new(config: ProverConfig) -> Result<Self> {
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Prover configuration.
+    /// * `pool` - Shared thread pool for async task dispatch.
+    pub fn new(config: ProverConfig, pool: SharedPool) -> Result<Self> {
         if config.server_name.is_empty() {
             return Err(SdkError::config("server_name cannot be empty"));
         }
@@ -80,6 +86,7 @@ impl SdkProver {
 
         Ok(SdkProver {
             config,
+            pool,
             state: State::Initialized,
         })
     }
@@ -127,7 +134,7 @@ impl SdkProver {
 
         info!("connecting to verifier");
 
-        let session = Session::new(verifier_io);
+        let session = Session::new(verifier_io, self.pool.clone());
         let (driver, mut handle) = session.split();
 
         crate::spawn::spawn(async move {
@@ -350,6 +357,11 @@ mod tests {
         config::{NetworkSetting, ProverConfig},
         error::ErrorKind,
     };
+    use tlsn::StdSpawn;
+
+    fn test_pool() -> SharedPool {
+        SharedPool::new(2, &mut StdSpawn).unwrap()
+    }
 
     fn valid_config() -> ProverConfig {
         ProverConfig::builder("example.com")
@@ -361,7 +373,7 @@ mod tests {
 
     #[test]
     fn new_with_valid_config() {
-        let prover = SdkProver::new(valid_config());
+        let prover = SdkProver::new(valid_config(), test_pool());
         assert!(prover.is_ok());
     }
 
@@ -371,7 +383,9 @@ mod tests {
             .max_sent_data(4096)
             .max_recv_data(16384)
             .build();
-        let err = SdkProver::new(config).err().expect("should fail");
+        let err = SdkProver::new(config, test_pool())
+            .err()
+            .expect("should fail");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert!(err.to_string().contains("server_name"));
     }
@@ -382,7 +396,9 @@ mod tests {
             .max_sent_data(0)
             .max_recv_data(16384)
             .build();
-        let err = SdkProver::new(config).err().expect("should fail");
+        let err = SdkProver::new(config, test_pool())
+            .err()
+            .expect("should fail");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert!(err.to_string().contains("max_sent_data"));
     }
@@ -393,7 +409,9 @@ mod tests {
             .max_sent_data(4096)
             .max_recv_data(0)
             .build();
-        let err = SdkProver::new(config).err().expect("should fail");
+        let err = SdkProver::new(config, test_pool())
+            .err()
+            .expect("should fail");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert!(err.to_string().contains("max_recv_data"));
     }

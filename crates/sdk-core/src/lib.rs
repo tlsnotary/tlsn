@@ -24,7 +24,7 @@
 //!     .network(NetworkSetting::Latency)
 //!     .build();
 //!
-//! let mut prover = SdkProver::new(config)?;
+//! let mut prover = SdkProver::new(config, pool)?;
 //!
 //! // Setup with verifier (IO stream provided by platform).
 //! prover.setup(verifier_io).await?;
@@ -57,6 +57,7 @@ pub use error::{Result, SdkError};
 pub use handler::compute_reveal;
 pub use io::{HyperIo, Io};
 pub use prover::SdkProver;
+pub use tlsn::SharedPool;
 pub use types::{
     Body, ConnectionInfo, Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType,
     HttpRequest, HttpResponse, Method, PartialTranscript, Reveal, TlsVersion, Transcript,

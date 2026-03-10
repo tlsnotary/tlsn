@@ -1,6 +1,6 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tlsn::{
-    Session,
+    Session, SharedPool, StdSpawn,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
@@ -36,8 +36,9 @@ async fn test() {
     tracing_subscriber::fmt::init();
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
-    let mut session_p = Session::new(socket_0.compat());
-    let mut session_v = Session::new(socket_1.compat());
+    let pool = SharedPool::new(8, &mut StdSpawn).unwrap();
+    let mut session_p = Session::new(socket_0.compat(), pool.clone());
+    let mut session_v = Session::new(socket_1.compat(), pool);
 
     let prover = session_p
         .new_prover(ProverConfig::builder().build().unwrap())
