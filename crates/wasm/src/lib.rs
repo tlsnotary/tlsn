@@ -61,7 +61,7 @@ pub async fn initialize(
         .unwrap_throw();
 
     // Initialize context thread pool (async MPC coordination).
-    use mpz_common::context::{CustomSpawn, SpawnError};
+    use tlsn::{CustomSpawn, SpawnError};
 
     let mut spawn = CustomSpawn(|f: Box<dyn FnOnce() + Send>| -> Result<(), SpawnError> {
         let _ = web_spawn::spawn(f);

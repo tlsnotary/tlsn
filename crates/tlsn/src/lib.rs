@@ -54,7 +54,7 @@ pub(crate) mod transcript_internal;
 pub mod verifier;
 
 pub use error::Error;
-pub use mpz_common::context::{SharedPool, StdSpawn};
+pub use mpz_common::context::{CustomSpawn, SharedPool, SpawnError, StdSpawn};
 pub use rangeset;
 pub use session::{Session, SessionDriver, SessionHandle};
 pub use tlsn_attestation as attestation;

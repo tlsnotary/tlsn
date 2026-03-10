@@ -65,21 +65,21 @@ tlsn-sdk-core = { path = "crates/sdk-core" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-circuits-data = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-common = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
+mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-circuits-data = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-common = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
+mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", branch = "feat/thread-pool" }
 
 futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "dd419bf" }
 rangeset = { version = "0.4" }
@@ -169,19 +169,3 @@ webpki-root-certs = { version = "1.0" }
 ws_stream_wasm = { version = "0.7.5" }
 zeroize = { version = "1.8" }
 
-[patch."https://github.com/privacy-ethereum/mpz"]
-mpz-circuits = { path = "../mpz/crates/circuits" }
-mpz-circuits-data = { path = "../mpz/crates/circuits-data" }
-mpz-common = { path = "../mpz/crates/common" }
-mpz-core = { path = "../mpz/crates/core" }
-mpz-fields = { path = "../mpz/crates/fields" }
-mpz-garble = { path = "../mpz/crates/garble" }
-mpz-garble-core = { path = "../mpz/crates/garble-core" }
-mpz-hash = { path = "../mpz/crates/hash" }
-mpz-ideal-vm = { path = "../mpz/crates/ideal-vm" }
-mpz-memory-core = { path = "../mpz/crates/memory-core" }
-mpz-ole = { path = "../mpz/crates/ole" }
-mpz-ot = { path = "../mpz/crates/ot" }
-mpz-share-conversion = { path = "../mpz/crates/share-conversion" }
-mpz-vm-core = { path = "../mpz/crates/vm-core" }
-mpz-zk = { path = "../mpz/crates/zk" }

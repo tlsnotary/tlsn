@@ -58,7 +58,10 @@ where
     pub fn new(io: Io, pool: SharedPool) -> Self {
         let mut mux_config = tlsn_mux::Config::default();
 
-        mux_config.set_max_num_streams(36);
+        // Scale stream limit with pool size. Each nested try_join doubles
+        // the child count; the protocol uses ~4 nesting levels.
+        let max_streams = pool.num_threads().max(8) * 12;
+        mux_config.set_max_num_streams(max_streams);
         mux_config.set_keep_alive(true);
         mux_config.set_close_sync(true);
 
