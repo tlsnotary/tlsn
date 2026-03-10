@@ -30,7 +30,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           trigger_phrase: "@claude"
-          claude_args: "--model opus --max-turns 10 --append-system-prompt 'When reviewing PRs, follow the guidelines in .github/prompts/review.md'"
+          claude_args: "--model opus --max-turns 30 --append-system-prompt 'When reviewing PRs, follow the guidelines in .github/prompts/review.md'"
           track_progress: "true"
           settings: |
             {
