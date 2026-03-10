@@ -45,3 +45,25 @@ impl HttpTranscript {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tlsn_data_fixtures::http as fixtures;
+
+    #[test]
+    fn test_parse_transcript_empty() {
+        let transcript = Transcript::new([], []);
+        let http = HttpTranscript::parse(&transcript).unwrap();
+        assert!(http.requests.is_empty());
+        assert!(http.responses.is_empty());
+    }
+
+    #[test]
+    fn test_parse_request_only() {
+        let transcript = Transcript::new(fixtures::request::GET_WITH_HEADER, []);
+        let http = HttpTranscript::parse(&transcript).unwrap();
+        assert_eq!(http.requests.len(), 1);
+        assert!(http.responses.is_empty());
+    }
+}

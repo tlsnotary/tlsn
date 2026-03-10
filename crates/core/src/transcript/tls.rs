@@ -369,3 +369,67 @@ enum ErrorRepr {
     #[error("incomplete transcript ({direction}): seq {seq}")]
     Incomplete { direction: Direction, seq: u64 },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fixtures::transcript::transcript_fixture;
+
+    #[test]
+    fn test_new_valid_transcript() {
+        let transcript = transcript_fixture(b"hello", b"world");
+
+        assert!(transcript.time() > 0);
+        assert!(matches!(transcript.version(), TlsVersion::V1_2));
+        assert!(transcript.server_cert_chain().is_some());
+        assert!(transcript.server_signature().is_some());
+        assert!(!transcript.sent().is_empty());
+        assert!(!transcript.recv().is_empty());
+    }
+
+    #[test]
+    fn test_to_transcript() {
+        let sent = b"request data here";
+        let recv = b"response data here";
+        let tls_transcript = transcript_fixture(sent, recv);
+
+        let transcript = tls_transcript.to_transcript().unwrap();
+        let (sent_len, recv_len) = transcript.len();
+        assert_eq!(sent_len, sent.len());
+        assert_eq!(recv_len, recv.len());
+    }
+
+    #[test]
+    fn test_to_transcript_empty_app_data() {
+        let tls_transcript = transcript_fixture(b"", b"");
+
+        let transcript = tls_transcript.to_transcript().unwrap();
+        let (sent_len, recv_len) = transcript.len();
+        assert_eq!(sent_len, 0);
+        assert_eq!(recv_len, 0);
+    }
+
+    #[test]
+    fn test_getters() {
+        let tls_transcript = transcript_fixture(b"test", b"data");
+
+        let _ = tls_transcript.server_ephemeral_key();
+        let _ = tls_transcript.certificate_binding();
+        let _ = tls_transcript.sent();
+        let _ = tls_transcript.recv();
+    }
+
+    #[test]
+    fn test_to_transcript_missing_plaintext() {
+        let sent = b"hello";
+        let recv = b"world";
+        let mut tls_transcript = transcript_fixture(sent, recv);
+
+        // Remove plaintext from an application data record
+        if tls_transcript.sent.len() > 1 {
+            tls_transcript.sent[1].plaintext = None;
+            let err = tls_transcript.to_transcript();
+            assert!(err.is_err());
+        }
+    }
+}

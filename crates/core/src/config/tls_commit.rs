@@ -92,3 +92,46 @@ enum ErrorRepr {
     #[error("missing field: {name}")]
     MissingField { name: &'static str },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mpc_config() -> mpc::MpcTlsConfig {
+        mpc::MpcTlsConfig::builder()
+            .max_sent_data(1024)
+            .max_recv_data(2048)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_build_success() {
+        let config = TlsCommitConfig::builder()
+            .protocol(mpc_config())
+            .build()
+            .unwrap();
+
+        assert!(matches!(config.protocol(), TlsCommitProtocolConfig::Mpc(_)));
+    }
+
+    #[test]
+    fn test_build_missing_protocol() {
+        let err = TlsCommitConfig::builder().build();
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_to_request() {
+        let config = TlsCommitConfig::builder()
+            .protocol(mpc_config())
+            .build()
+            .unwrap();
+
+        let request = config.to_request();
+        assert!(matches!(
+            request.protocol(),
+            TlsCommitProtocolConfig::Mpc(_)
+        ));
+    }
+}

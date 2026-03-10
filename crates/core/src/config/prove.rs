@@ -196,3 +196,109 @@ enum ErrorRepr {
         len: usize,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn transcript() -> Transcript {
+        Transcript::new(vec![0u8; 100], vec![0u8; 200])
+    }
+
+    #[test]
+    fn test_build_default() {
+        let t = transcript();
+        let config = ProveConfig::builder(&t).build().unwrap();
+
+        assert!(!config.server_identity());
+        assert!(config.reveal().is_none());
+        assert!(config.transcript_commit().is_none());
+    }
+
+    #[test]
+    fn test_server_identity() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        builder.server_identity();
+        let config = builder.build().unwrap();
+
+        assert!(config.server_identity());
+    }
+
+    #[test]
+    fn test_reveal_sent() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        builder.reveal_sent(0..50).unwrap();
+        let config = builder.build().unwrap();
+
+        let (sent, recv) = config.reveal().unwrap();
+        assert_eq!(sent.len(), 50);
+        assert_eq!(recv.len(), 0);
+    }
+
+    #[test]
+    fn test_reveal_recv() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        builder.reveal_recv(10..100).unwrap();
+        let config = builder.build().unwrap();
+
+        let (sent, recv) = config.reveal().unwrap();
+        assert_eq!(sent.len(), 0);
+        assert_eq!(recv.len(), 90);
+    }
+
+    #[test]
+    fn test_reveal_sent_all() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        builder.reveal_sent_all().unwrap();
+        let config = builder.build().unwrap();
+
+        let (sent, _) = config.reveal().unwrap();
+        assert_eq!(sent.len(), 100);
+    }
+
+    #[test]
+    fn test_reveal_recv_all() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        builder.reveal_recv_all().unwrap();
+        let config = builder.build().unwrap();
+
+        let (_, recv) = config.reveal().unwrap();
+        assert_eq!(recv.len(), 200);
+    }
+
+    #[test]
+    fn test_reveal_sent_out_of_bounds() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        let err = builder.reveal_sent(0..101);
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_reveal_recv_out_of_bounds() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        let err = builder.reveal_recv(0..201);
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_to_request() {
+        let t = transcript();
+        let mut builder = ProveConfig::builder(&t);
+        builder.server_identity();
+        builder.reveal_sent(0..10).unwrap();
+        let config = builder.build().unwrap();
+
+        let request = config.to_request();
+        assert!(request.server_identity());
+        assert!(request.reveal().is_some());
+    }
+}

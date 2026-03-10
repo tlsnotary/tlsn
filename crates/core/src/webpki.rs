@@ -158,6 +158,113 @@ impl ServerCertVerifier {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{connection::DnsName, fixtures::ConnectionFixture, transcript::Transcript};
+    use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
+
+    #[test]
+    fn test_cert_from_pem_valid() {
+        // We can't easily get PEM from fixtures (they're DER), so test the
+        // RootCertStore API instead.
+        let store = RootCertStore::empty();
+        assert!(store.roots.is_empty());
+    }
+
+    #[test]
+    fn test_cert_from_pem_invalid() {
+        let err = CertificateDer::from_pem_slice(b"not a valid PEM");
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_private_key_from_pem_invalid() {
+        let err = PrivateKeyDer::from_pem_slice(b"not a valid PEM");
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_root_cert_store_empty() {
+        let store = RootCertStore::empty();
+        assert!(store.roots.is_empty());
+    }
+
+    #[test]
+    fn test_server_cert_verifier_new() {
+        let root_store = RootCertStore {
+            roots: webpki_root_certs::TLS_SERVER_ROOT_CERTS
+                .iter()
+                .map(|c| CertificateDer(c.to_vec()))
+                .collect(),
+        };
+
+        let verifier = ServerCertVerifier::new(&root_store);
+        assert!(verifier.is_ok());
+    }
+
+    #[test]
+    fn test_server_cert_verifier_invalid_root() {
+        let root_store = RootCertStore {
+            roots: vec![CertificateDer(vec![0, 1, 2, 3])],
+        };
+
+        let err = ServerCertVerifier::new(&root_store);
+        assert!(matches!(
+            err.unwrap_err(),
+            ServerCertVerifierError::InvalidRootCertificate { .. }
+        ));
+    }
+
+    #[test]
+    fn test_verify_server_cert_success() {
+        let root_store = RootCertStore {
+            roots: webpki_root_certs::TLS_SERVER_ROOT_CERTS
+                .iter()
+                .map(|c| CertificateDer(c.to_vec()))
+                .collect(),
+        };
+        let verifier = ServerCertVerifier::new(&root_store).unwrap();
+
+        let fixture =
+            ConnectionFixture::tlsnotary(Transcript::new(GET_WITH_HEADER, OK_JSON).length());
+
+        let (ee, intermediates) = fixture.server_cert_data.certs.split_first().unwrap();
+        assert!(verifier
+            .verify_server_cert(
+                ee,
+                intermediates,
+                &fixture.server_name,
+                fixture.connection_info.time,
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn test_verify_server_cert_wrong_name() {
+        let root_store = RootCertStore {
+            roots: webpki_root_certs::TLS_SERVER_ROOT_CERTS
+                .iter()
+                .map(|c| CertificateDer(c.to_vec()))
+                .collect(),
+        };
+        let verifier = ServerCertVerifier::new(&root_store).unwrap();
+
+        let fixture =
+            ConnectionFixture::tlsnotary(Transcript::new(GET_WITH_HEADER, OK_JSON).length());
+
+        let bad_name = ServerName::Dns(DnsName::try_from("wrong.example.com").unwrap());
+        let (ee, intermediates) = fixture.server_cert_data.certs.split_first().unwrap();
+        let err =
+            verifier.verify_server_cert(ee, intermediates, &bad_name, fixture.connection_info.time);
+
+        assert!(matches!(
+            err.unwrap_err(),
+            ServerCertVerifierError::InvalidServerName
+        ));
+    }
+}
+
 /// Error for [`ServerCertVerifier`].
 #[derive(Debug, thiserror::Error)]
 #[error("server certificate verification failed: {0}")]

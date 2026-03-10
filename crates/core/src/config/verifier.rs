@@ -54,3 +54,26 @@ enum ErrorRepr {
     #[error("missing field: {name}")]
     MissingField { name: &'static str },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::webpki::RootCertStore;
+
+    #[test]
+    fn test_build_success() {
+        let root_store = RootCertStore::empty();
+        let config = VerifierConfig::builder()
+            .root_store(root_store)
+            .build()
+            .unwrap();
+
+        assert!(config.root_store().roots.is_empty());
+    }
+
+    #[test]
+    fn test_build_missing_root_store() {
+        let err = VerifierConfig::builder().build();
+        assert!(err.is_err());
+    }
+}
