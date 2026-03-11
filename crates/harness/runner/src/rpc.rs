@@ -105,15 +105,19 @@ impl Rpc {
 }
 
 async fn browser_cmd(page: &Page, cmd: Cmd) -> io::Result<Result<CmdOutput>> {
-    page.evaluate(format!(
-        r#"
-            (async () => {{
-                return await window.executor.call(JSON.parse('{cmd}'));
-            }})();
-        "#,
-        cmd = serde_json::to_string(&cmd).unwrap()
-    ))
+    tokio::time::timeout(
+        Duration::from_secs(120),
+        page.evaluate(format!(
+            r#"
+                (async () => {{
+                    return await window.executor.call(JSON.parse('{cmd}'));
+                }})();
+            "#,
+            cmd = serde_json::to_string(&cmd).unwrap()
+        )),
+    )
     .await
+    .map_err(|e| io::Error::new(io::ErrorKind::TimedOut, e))?
     .map_err(io::Error::other)?
     .into_value()
     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))

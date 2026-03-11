@@ -9,6 +9,7 @@ pub mod connection;
 pub mod fixtures;
 pub mod hash;
 pub mod merkle;
+pub mod telemetry;
 pub mod transcript;
 pub mod webpki;
 pub use rangeset;

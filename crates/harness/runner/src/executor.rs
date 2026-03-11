@@ -8,7 +8,7 @@ use chromiumoxide::{
         network::{EnableParams, SetCacheDisabledParams},
         page::ReloadParams,
     },
-    handler::HandlerConfig,
+    handler::{Handler, HandlerConfig},
 };
 use futures::StreamExt;
 use harness_core::{
@@ -18,11 +18,18 @@ use harness_core::{
     rpc::{BenchCmd, TestCmd},
     test::{TestOutput, TestStatus},
 };
+use serde::Deserialize;
 
 use crate::{Target, log::parse_rust_log, network::Namespace, rpc::Rpc};
 
 #[cfg(feature = "debug")]
 use crate::debug_prelude::*;
+
+#[derive(Debug, Default, Deserialize)]
+struct BrowserVersion {
+    #[serde(rename = "webSocketDebuggerUrl")]
+    web_socket_debugger_url: String,
+}
 
 pub struct Executor {
     ns: Namespace,
@@ -150,6 +157,9 @@ impl Executor {
 
                 args.push(chrome_path.to_string_lossy().into());
                 args.push(format!("--remote-debugging-port={PORT_BROWSER}"));
+                // Bind DevTools on the namespace interface so the host can
+                // connect directly to the executor's RPC address.
+                args.push("--remote-debugging-address=0.0.0.0".into());
 
                 if headed {
                     // Headed mode: no headless, add flags to suppress first-run dialogs
@@ -188,18 +198,76 @@ impl Executor {
                     ..Default::default()
                 };
 
-                let (browser, mut handler) = loop {
-                    match Browser::connect_with_config(
-                        format!("http://{}:{}", rpc_addr.0, PORT_BROWSER),
-                        config.clone(),
-                    )
-                    .await
+                let version_url = format!("http://{}:{}/json/version", rpc_addr.0, PORT_BROWSER);
+                let client = reqwest::Client::builder()
+                    .no_proxy()
+                    .build()
+                    .context("failed to build DevTools HTTP client")?;
+
+                let (browser, mut handler): (Browser, Handler) = loop {
+                    let response = match client
+                        .get(&version_url)
+                        .header("content-type", "application/json")
+                        .send()
+                        .await
                     {
+                        Ok(response) => response,
+                        Err(e) => {
+                            retries += 1;
+                            if retries * DELAY > TIMEOUT {
+                                return Err(e)
+                                    .context("timed out probing browser DevTools HTTP endpoint");
+                            }
+                            tokio::time::sleep(Duration::from_millis(DELAY as u64)).await;
+                            continue;
+                        }
+                    };
+
+                    let body = match response.bytes().await {
+                        Ok(body) => body,
+                        Err(e) => {
+                            retries += 1;
+                            if retries * DELAY > TIMEOUT {
+                                return Err(e)
+                                    .context("timed out reading browser DevTools response body");
+                            }
+                            tokio::time::sleep(Duration::from_millis(DELAY as u64)).await;
+                            continue;
+                        }
+                    };
+
+                    let version = match serde_json::from_slice::<BrowserVersion>(&body) {
+                        Ok(version) if !version.web_socket_debugger_url.is_empty() => version,
+                        Ok(_) => {
+                            retries += 1;
+                            if retries * DELAY > TIMEOUT {
+                                return Err(anyhow!(
+                                    "browser DevTools response did not include a websocket URL"
+                                ));
+                            }
+                            tokio::time::sleep(Duration::from_millis(DELAY as u64)).await;
+                            continue;
+                        }
+                        Err(e) => {
+                            retries += 1;
+                            if retries * DELAY > TIMEOUT {
+                                return Err(e)
+                                    .context("timed out decoding browser DevTools response");
+                            }
+                            tokio::time::sleep(Duration::from_millis(DELAY as u64)).await;
+                            continue;
+                        }
+                    };
+
+                    let debug_ws_url =
+                        version.web_socket_debugger_url.replace("127.0.0.1", &rpc_addr.0.to_string());
+
+                    match Browser::connect_with_config(debug_ws_url, config.clone()).await {
                         Ok(browser) => break browser,
                         Err(e) => {
                             retries += 1;
                             if retries * DELAY > TIMEOUT {
-                                return Err(e.into());
+                                return Err(anyhow!(e));
                             }
                             tokio::time::sleep(Duration::from_millis(DELAY as u64)).await;
                         }
@@ -265,7 +333,9 @@ impl Executor {
                 .await?;
                 page.execute(ReloadParams::builder().ignore_cache(true).build())
                     .await?;
-                page.wait_for_navigation().await?;
+                tokio::time::timeout(Duration::from_secs(30), page.wait_for_navigation())
+                    .await
+                    .context("timed out waiting for browser page navigation")??;
                 page.bring_to_front().await?;
 
                 // Build logging config from RUST_LOG environment variable
@@ -278,21 +348,25 @@ impl Executor {
                     "null".to_string()
                 };
 
-                page.evaluate(format!(
-                    r#"
-                        (async () => {{
-                            const config = JSON.parse('{config}');
-                            const loggingConfig = JSON.parse('{logging_config}');
-                            console.log("initializing executor", config, "logging:", loggingConfig);
-                            await window.executor.init(config, loggingConfig);
-                            console.log("executor initialized");
-                            return;
-                        }})();
-                    "#,
-                    config = serde_json::to_string(&self.config)?,
-                    logging_config = logging_config_js
-                ))
-                .await?;
+                tokio::time::timeout(
+                    Duration::from_secs(60),
+                    page.evaluate(format!(
+                        r#"
+                            (async () => {{
+                                const config = JSON.parse('{config}');
+                                const loggingConfig = JSON.parse('{logging_config}');
+                                console.log("initializing executor", config, "logging:", loggingConfig);
+                                await window.executor.init(config, loggingConfig);
+                                console.log("executor initialized");
+                                return;
+                            }})();
+                        "#,
+                        config = serde_json::to_string(&self.config)?,
+                        logging_config = logging_config_js
+                    )),
+                )
+                .await
+                .context("timed out waiting for browser executor initialization")??;
 
                 let rpc = Rpc::new_browser(page);
 
@@ -355,11 +429,44 @@ impl Executor {
     }
 
     pub async fn bench(&mut self, bench: BenchCmd) -> Result<BenchOutput> {
-        let State::Started { rpc, .. } = &mut self.state else {
+        let State::Started { process, rpc, .. } = &mut self.state else {
             return Err(anyhow!("executor not started"));
         };
 
-        rpc.bench(bench).await?.map_err(From::from)
+        let output: Result<BenchOutput> = match rpc.bench(bench).await {
+            Ok(res) => res.map_err(From::from),
+            // Bench could cause the native executor process to panic or exit
+            // before the RPC reply is serialized.
+            Err(e) if self.target == Target::Native => {
+                // Wait a moment to give the process time to exit.
+                tokio::time::sleep(Duration::from_millis(100)).await;
+
+                if let Some(output) = process.try_wait()? {
+                    let res = if output.status.success() {
+                        Err(e).context(
+                            "executor process closed with success exit code even though RPC call returned an error",
+                        )
+                    } else {
+                        Err(anyhow!(
+                            "native benchmark executor exited unexpectedly:\n{}",
+                            String::from_utf8_lossy(&output.stderr)
+                        ))
+                    };
+
+                    // Restart the executor so the runner state remains valid.
+                    self.start().await?;
+
+                    return res;
+                }
+
+                return Err(e.into());
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+
+        output
     }
 
     pub fn shutdown(&mut self) -> impl Future<Output = Result<()>> {
