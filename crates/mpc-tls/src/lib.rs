@@ -10,6 +10,7 @@ mod error;
 pub(crate) mod follower;
 pub(crate) mod leader;
 mod msg;
+mod phase;
 mod record_layer;
 pub(crate) mod utils;
 

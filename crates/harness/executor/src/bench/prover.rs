@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
@@ -19,22 +19,22 @@ use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
 use crate::{
     IoProvider,
-    bench::{Meter, RECV_PADDING},
+    bench::{BenchmarkTelemetry, Meter, RECV_PADDING},
     spawn,
 };
 
 pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<ProverMetrics> {
     let verifier_io = Meter::new(provider.provide_proto_io().await?);
-
-    let sent = verifier_io.sent();
-    let recv = verifier_io.recv();
+    let meter = verifier_io.stats();
+    let telemetry = Arc::new(BenchmarkTelemetry::new(meter.clone()));
 
     let mut session = Session::new(verifier_io);
 
-    let prover = session.new_prover(ProverConfig::builder().build()?)?;
+    let prover = session
+        .new_prover(ProverConfig::builder().build()?)?
+        .with_telemetry(telemetry.clone());
     let (session, handle) = session.split();
-
-    _ = spawn(session);
+    let session_task = spawn(session);
 
     let time_start = web_time::Instant::now();
 
@@ -60,8 +60,9 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let time_preprocess = time_start.elapsed().as_millis();
     let time_start_online = web_time::Instant::now();
-    let uploaded_preprocess = sent.load(Ordering::Relaxed);
-    let downloaded_preprocess = recv.load(Ordering::Relaxed);
+    let preprocess_snapshot = meter.snapshot();
+    let uploaded_preprocess = preprocess_snapshot.sent;
+    let downloaded_preprocess = preprocess_snapshot.recv;
 
     let (mut conn, prover_fut) = prover.connect(
         TlsClientConfig::builder()
@@ -94,8 +95,9 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     )?;
 
     let time_online = time_start_online.elapsed().as_millis();
-    let uploaded_online = sent.load(Ordering::Relaxed) - uploaded_preprocess;
-    let downloaded_online = recv.load(Ordering::Relaxed) - downloaded_preprocess;
+    let online_snapshot = meter.snapshot();
+    let uploaded_online = online_snapshot.sent - uploaded_preprocess;
+    let downloaded_online = online_snapshot.recv - downloaded_preprocess;
 
     let (sent_len, recv_len) = prover.transcript().len();
 
@@ -125,7 +127,9 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     prover.close().await?;
     handle.close();
 
+    let _ = session_task.await??;
     let time_total = time_start.elapsed().as_millis();
+    let total_snapshot = meter.snapshot();
 
     Ok(ProverMetrics {
         time_preprocess: time_preprocess as u64,
@@ -135,8 +139,9 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
         downloaded_preprocess,
         uploaded_online,
         downloaded_online,
-        uploaded_total: sent.load(Ordering::Relaxed),
-        downloaded_total: recv.load(Ordering::Relaxed),
+        uploaded_total: total_snapshot.sent,
+        downloaded_total: total_snapshot.recv,
         heap_max_bytes: None,
+        phase_metrics: telemetry.phase_metrics(),
     })
 }

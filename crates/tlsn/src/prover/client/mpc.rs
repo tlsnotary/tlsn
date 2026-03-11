@@ -3,6 +3,7 @@
 use crate::{
     error::Error as TlsnError,
     mpz::{ProverMpc, ProverZk},
+    phase::{TelemetryHandle, in_phase},
     prover::client::{DecryptState, TlsClient, TlsOutput},
     tag::verify_tags,
 };
@@ -16,7 +17,7 @@ use std::{
     task::Poll,
 };
 use tls_client::ClientConnection;
-use tlsn_core::transcript::TlsTranscript;
+use tlsn_core::{telemetry::BenchPhase, transcript::TlsTranscript};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::{Span, debug, instrument, trace, warn};
@@ -61,6 +62,7 @@ impl MpcTlsClient {
         span: Span,
         tls: ClientConnection,
         decrypt: bool,
+        telemetry: Option<TelemetryHandle>,
     ) -> Self {
         let inner = InnerState {
             span,
@@ -69,6 +71,7 @@ impl MpcTlsClient {
             keys,
             decrypt,
             client_closed: false,
+            telemetry,
         };
 
         let decrypt = DecryptState {
@@ -331,6 +334,7 @@ struct InnerState {
     keys: SessionKeys,
     decrypt: bool,
     client_closed: bool,
+    telemetry: Option<TelemetryHandle>,
 }
 
 impl InnerState {
@@ -402,38 +406,47 @@ impl InnerState {
         mut ctx: Context,
         transcript: TlsTranscript,
     ) -> Result<(Self, Context, TlsTranscript), TlsnError> {
-        {
-            let mut vm = self.vm.try_lock().expect("VM should not be locked");
+        let telemetry = self.telemetry.clone();
 
-            // Finalize DEAP.
-            vm.finalize(&mut ctx)
-                .await
-                .map_err(|err| TlsnError::internal().with_source(err))?;
+        in_phase(
+            telemetry.as_ref(),
+            BenchPhase::FinalizeTlsAuth,
+            async move {
+                {
+                    let mut vm = self.vm.try_lock().expect("VM should not be locked");
 
-            debug!("mpc finalized");
+                    // Finalize DEAP.
+                    vm.finalize(&mut ctx)
+                        .await
+                        .map_err(|err| TlsnError::internal().with_source(err))?;
 
-            // Pull out ZK VM.
-            let mut zk = vm.zk();
+                    debug!("mpc finalized");
 
-            // Prove tag verification of received records.
-            // The prover drops the proof output.
-            let _ = verify_tags(
-                &mut *zk,
-                (self.keys.server_write_key, self.keys.server_write_iv),
-                self.keys.server_write_mac_key,
-                *transcript.version(),
-                transcript.recv().to_vec(),
-            )
-            .map_err(|err| TlsnError::internal().with_source(err))?;
-            debug!("verified tags from server");
+                    // Pull out ZK VM.
+                    let mut zk = vm.zk();
 
-            zk.execute_all(&mut ctx)
-                .await
-                .map_err(|err| TlsnError::internal().with_source(err))?;
-        }
+                    // Prove tag verification of received records.
+                    // The prover drops the proof output.
+                    let _ = verify_tags(
+                        &mut *zk,
+                        (self.keys.server_write_key, self.keys.server_write_iv),
+                        self.keys.server_write_mac_key,
+                        *transcript.version(),
+                        transcript.recv().to_vec(),
+                    )
+                    .map_err(|err| TlsnError::internal().with_source(err))?;
+                    debug!("verified tags from server");
 
-        debug!("MPC-TLS done");
-        Ok((self, ctx, transcript))
+                    zk.execute_all(&mut ctx)
+                        .await
+                        .map_err(|err| TlsnError::internal().with_source(err))?;
+                }
+
+                debug!("MPC-TLS done");
+                Ok((self, ctx, transcript))
+            },
+        )
+        .await
     }
 
     fn is_record_layer_empty(&self) -> bool {

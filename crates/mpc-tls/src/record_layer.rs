@@ -36,6 +36,26 @@ const MAX_RECORD_SIZE: usize = 1026 * 16;
 // This limits how much the leader can cause the follower to allocate.
 const MAX_BUFFER_SIZE: usize = (16 * (1 << 20)) / MAX_RECORD_SIZE;
 
+fn has_effective_flush_work(
+    has_encrypt_ops: bool,
+    decrypt_ops: &[DecryptOp],
+    is_decrypting: bool,
+) -> bool {
+    if has_encrypt_ops {
+        return true;
+    }
+
+    if is_decrypting {
+        return !decrypt_ops.is_empty();
+    }
+
+    decrypt_ops
+        .iter()
+        .take_while(|op| op.typ != ContentType::ApplicationData)
+        .next()
+        .is_some()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PlainRecord {
     pub(crate) typ: ContentType,
@@ -276,6 +296,14 @@ impl RecordLayer {
 
     pub(crate) fn wants_flush(&self) -> bool {
         !self.encrypt_buffer.is_empty() || !self.decrypt_buffer.is_empty()
+    }
+
+    pub(crate) fn has_effective_flush_work(&self, is_decrypting: bool) -> bool {
+        has_effective_flush_work(
+            !self.encrypt_buffer.is_empty(),
+            &self.decrypt_buffer,
+            is_decrypting,
+        )
     }
 
     pub(crate) fn start_traffic(&mut self) {
@@ -623,4 +651,82 @@ impl RecordLayer {
 pub(crate) struct TagData {
     pub(crate) explicit_nonce: Vec<u8>,
     pub(crate) aad: Vec<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+    use tls_core::msgs::enums::{ContentType, ProtocolVersion};
+
+    use super::{DecryptMode, DecryptOp, has_effective_flush_work};
+
+    fn decrypt_op(typ: ContentType) -> DecryptOp {
+        DecryptOp::new(
+            0,
+            typ,
+            ProtocolVersion::TLSv1_2,
+            Vec::new(),
+            vec![1, 2, 3],
+            Vec::new(),
+            vec![4; 16],
+            DecryptMode::Public,
+        )
+    }
+
+    #[test]
+    fn effective_flush_work_empty_buffers() {
+        assert!(!has_effective_flush_work(false, &[], false));
+        assert!(!has_effective_flush_work(false, &[], true));
+    }
+
+    #[test]
+    fn effective_flush_work_pending_encrypt_ops() {
+        assert!(has_effective_flush_work(true, &[], false));
+    }
+
+    #[test]
+    fn effective_flush_work_pending_decrypt_when_decrypting() {
+        assert!(has_effective_flush_work(
+            false,
+            &[decrypt_op(ContentType::ApplicationData)],
+            true,
+        ));
+    }
+
+    #[test]
+    fn effective_flush_work_skips_app_data_when_not_decrypting() {
+        assert!(!has_effective_flush_work(
+            false,
+            &[decrypt_op(ContentType::ApplicationData)],
+            false,
+        ));
+    }
+
+    #[test]
+    fn effective_flush_work_keeps_public_handshake_records_when_not_decrypting() {
+        assert!(has_effective_flush_work(
+            false,
+            &[decrypt_op(ContentType::Handshake)],
+            false,
+        ));
+    }
+
+    #[test]
+    fn effective_flush_work_stops_at_first_application_data_record() {
+        assert!(!has_effective_flush_work(
+            false,
+            &[
+                decrypt_op(ContentType::ApplicationData),
+                decrypt_op(ContentType::Handshake),
+            ],
+            false,
+        ));
+        assert!(has_effective_flush_work(
+            false,
+            &[
+                decrypt_op(ContentType::Handshake),
+                decrypt_op(ContentType::ApplicationData),
+            ],
+            false,
+        ));
+    }
 }

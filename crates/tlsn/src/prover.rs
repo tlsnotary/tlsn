@@ -16,6 +16,7 @@ use crate::{
     Error, Result,
     mpz::{ProverDeps, build_prover_deps, translate_keys},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
+    phase::TelemetryHandle,
     prover::{
         client::{MpcTlsClient, TlsOutput},
         state::ConnectedProj,
@@ -36,6 +37,7 @@ use tlsn_core::{
         tls_commit::{TlsCommitConfig, TlsCommitProtocolConfig},
     },
     connection::{HandshakeData, ServerName},
+    telemetry::TelemetrySink,
     transcript::{TlsTranscript, Transcript},
 };
 use tracing::{Span, debug, info_span, instrument};
@@ -49,6 +51,7 @@ pub struct Prover<T: state::ProverState = state::Initialized> {
     config: ProverConfig,
     span: Span,
     ctx: Option<Context>,
+    telemetry: Option<TelemetryHandle>,
     state: T,
 }
 
@@ -65,8 +68,21 @@ impl Prover<state::Initialized> {
             config,
             span,
             ctx: Some(ctx),
+            telemetry: None,
             state: state::Initialized,
         }
+    }
+
+    /// Attaches a benchmark telemetry sink to the prover.
+    ///
+    /// Call this before [`Prover::commit`] so the sink is propagated through
+    /// MPC-TLS setup, transcript finalization, and proving.
+    pub fn with_telemetry(
+        mut self,
+        sink: Arc<dyn TelemetrySink + Send + Sync>,
+    ) -> Self {
+        self.telemetry = Some(TelemetryHandle::new(sink));
+        self
     }
 
     /// Starts the TLS commitment protocol.
@@ -121,6 +137,10 @@ impl Prover<state::Initialized> {
 
         let ProverDeps { vm, mut mpc_tls } = build_prover_deps(mpc_tls_config, ctx);
 
+        if let Some(telemetry) = &self.telemetry {
+            mpc_tls.set_telemetry(telemetry.arc());
+        }
+
         // Allocate resources for MPC-TLS in the VM.
         let mut keys = mpc_tls.alloc().map_err(|e| {
             Error::internal()
@@ -145,6 +165,7 @@ impl Prover<state::Initialized> {
             config: self.config,
             span: self.span,
             ctx: None,
+            telemetry: self.telemetry,
             state: state::CommitAccepted { mpc_tls, keys, vm },
         })
     }
@@ -224,7 +245,7 @@ impl Prover<state::CommitAccepted> {
             })?;
 
         let span = self.span.clone();
-        let mpc_tls = MpcTlsClient::new(keys, vm, span, client, decrypt);
+        let mpc_tls = MpcTlsClient::new(keys, vm, span, client, decrypt, self.telemetry.clone());
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
         let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
@@ -233,6 +254,7 @@ impl Prover<state::CommitAccepted> {
             ctx: self.ctx,
             config: self.config,
             span: self.span,
+            telemetry: self.telemetry,
             state: state::Connected {
                 server_name: config.server_name().clone(),
                 tls_client: Box::new(mpc_tls),
@@ -308,6 +330,7 @@ where
             config: self.config,
             span: self.span,
             ctx: Some(ctx),
+            telemetry: self.telemetry,
             state: state::Committed {
                 vm,
                 server_name: self.state.server_name,
@@ -501,7 +524,16 @@ impl Prover<state::Committed> {
                     .with_source(e)
             })?;
 
-        let output = prove::prove(ctx, vm, keys, transcript, tls_transcript, config).await?;
+        let output = prove::prove(
+            ctx,
+            vm,
+            keys,
+            transcript,
+            tls_transcript,
+            config,
+            self.telemetry.as_ref(),
+        )
+        .await?;
 
         Ok(output)
     }

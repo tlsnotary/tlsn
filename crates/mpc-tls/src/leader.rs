@@ -4,6 +4,7 @@ use crate::{
         ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetClientRandom,
         SetServerKey, SetServerRandom, StartHandshake,
     },
+    phase::{TelemetryHandle, in_phase},
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
     Config, Role, SessionKeys, Vm,
@@ -42,6 +43,7 @@ use tls_core::{
 };
 use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2, ServerSignature, TlsVersion, VerifyData},
+    telemetry::{BenchPhase, TelemetrySink},
     transcript::TlsTranscript,
     webpki::CertificateDer,
 };
@@ -58,6 +60,7 @@ pub struct MpcTlsLeader {
     notifier: BackendNotifier,
     /// Whether the record layer is decrypting application data.
     is_decrypting: bool,
+    telemetry: Option<TelemetryHandle>,
 }
 
 impl MpcTlsLeader {
@@ -117,7 +120,16 @@ impl MpcTlsLeader {
             },
             notifier: BackendNotifier::new(),
             is_decrypting,
+            telemetry: None,
         }
+    }
+
+    /// Attaches a benchmark telemetry sink to the leader.
+    pub fn set_telemetry(
+        &mut self,
+        sink: std::sync::Arc<dyn TelemetrySink + Send + Sync>,
+    ) {
+        self.telemetry = Some(TelemetryHandle::new(sink));
     }
 
     /// Allocates resources for the connection.
@@ -206,43 +218,51 @@ impl MpcTlsLeader {
             .clone()
             .try_lock_owned()
             .map_err(|_| MpcTlsError::other("VM lock is held"))?;
+        let (ke, record_layer, _) = in_phase(
+            self.telemetry.as_ref(),
+            BenchPhase::PreprocessSetup,
+            async {
+                let (ke, record_layer, _) = ctx
+                    .try_join3(
+                        async move |ctx| {
+                            ke.setup(ctx)
+                                .await
+                                .map(|_| ke)
+                                .map_err(MpcTlsError::preprocess)
+                        },
+                        async move |ctx| {
+                            record_layer
+                                .preprocess(ctx)
+                                .await
+                                .map(|_| record_layer)
+                                .map_err(MpcTlsError::preprocess)
+                        },
+                        async move |ctx| {
+                            vm_lock
+                                .preprocess(ctx)
+                                .await
+                                .map_err(MpcTlsError::preprocess)?;
+                            vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
-        let (ke, record_layer, _) = ctx
-            .try_join3(
-                async move |ctx| {
-                    ke.setup(ctx)
-                        .await
-                        .map(|_| ke)
-                        .map_err(MpcTlsError::preprocess)
-                },
-                async move |ctx| {
-                    record_layer
-                        .preprocess(ctx)
-                        .await
-                        .map(|_| record_layer)
-                        .map_err(MpcTlsError::preprocess)
-                },
-                async move |ctx| {
-                    vm_lock
-                        .preprocess(ctx)
-                        .await
-                        .map_err(MpcTlsError::preprocess)?;
-                    vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                            Ok::<_, MpcTlsError>(())
+                        },
+                    )
+                    .await
+                    .map_err(MpcTlsError::preprocess)??;
 
-                    Ok::<_, MpcTlsError>(())
-                },
-            )
-            .await
-            .map_err(MpcTlsError::preprocess)??;
+                ctx.io_mut()
+                    .send(Message::SetClientRandom(SetClientRandom {
+                        random: client_random.0,
+                    }))
+                    .await
+                    .map_err(MpcTlsError::from)?;
 
-        ctx.io_mut()
-            .send(Message::SetClientRandom(SetClientRandom {
-                random: client_random.0,
-            }))
-            .await
-            .map_err(MpcTlsError::from)?;
+                prf.set_client_random(client_random.0)?;
 
-        prf.set_client_random(client_random.0)?;
+                Ok::<_, MpcTlsError>((ke, record_layer, ()))
+            },
+        )
+        .await?;
 
         self.state = State::Handshake {
             ctx,
@@ -583,20 +603,26 @@ impl Backend for MpcTlsLeader {
             .try_lock()
             .map_err(|_| MpcTlsError::other("VM lock is held"))?;
         prf.set_sf_hash(hash).map_err(MpcTlsError::hs)?;
+        in_phase(
+            self.telemetry.as_ref(),
+            BenchPhase::HandshakePrfServerFinished,
+            async {
+                while prf.wants_flush() {
+                    prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
+                    vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+                }
 
-        while prf.wants_flush() {
-            prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
-            vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
-        }
+                let vd = sf_vd_fut
+                    .try_recv()
+                    .map_err(MpcTlsError::hs)?
+                    .ok_or_else(|| MpcTlsError::hs("sf_vd is not decoded"))?;
 
-        let vd = sf_vd_fut
-            .try_recv()
-            .map_err(MpcTlsError::hs)?
-            .ok_or_else(|| MpcTlsError::hs("sf_vd is not decoded"))?;
+                *sf_vd = Some(vd);
 
-        *sf_vd = Some(vd);
-
-        Ok(vd.to_vec())
+                Ok(vd.to_vec())
+            },
+        )
+        .await
     }
 
     #[instrument(level = "debug", skip_all, err)]
@@ -632,20 +658,26 @@ impl Backend for MpcTlsLeader {
             .try_lock()
             .map_err(|_| MpcTlsError::hs("VM lock is held"))?;
         prf.set_cf_hash(hash).map_err(MpcTlsError::hs)?;
+        in_phase(
+            self.telemetry.as_ref(),
+            BenchPhase::HandshakePrfClientFinished,
+            async {
+                while prf.wants_flush() {
+                    prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
+                    vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
+                }
 
-        while prf.wants_flush() {
-            prf.flush(&mut *vm).map_err(MpcTlsError::hs)?;
-            vm.execute_all(ctx).await.map_err(MpcTlsError::hs)?;
-        }
+                let vd = cf_vd_fut
+                    .try_recv()
+                    .map_err(MpcTlsError::hs)?
+                    .ok_or_else(|| MpcTlsError::hs("cf_vd is not decoded"))?;
 
-        let vd = cf_vd_fut
-            .try_recv()
-            .map_err(MpcTlsError::hs)?
-            .ok_or_else(|| MpcTlsError::hs("cf_vd is not decoded"))?;
+                *cf_vd = Some(vd);
 
-        *cf_vd = Some(vd);
-
-        Ok(vd.to_vec())
+                Ok(vd.to_vec())
+            },
+        )
+        .await
     }
 
     #[instrument(level = "debug", skip_all, err)]
@@ -686,31 +718,68 @@ impl Backend for MpcTlsLeader {
         let server_kx_details =
             server_kx_details.ok_or_else(|| MpcTlsError::hs("server kx details is not set"))?;
 
-        ke.set_server_key(
-            p256::PublicKey::from_sec1_bytes(&server_key.key).map_err(MpcTlsError::hs)?,
-        )
-        .map_err(|err| BackendError::InvalidState(err.to_string()))?;
+        in_phase(
+            self.telemetry.as_ref(),
+            BenchPhase::HandshakeKeOnline,
+            async {
+            ke.set_server_key(
+                p256::PublicKey::from_sec1_bytes(&server_key.key).map_err(MpcTlsError::hs)?,
+            )
+            .map_err(|err| BackendError::InvalidState(err.to_string()))?;
 
-        ke.compute_shares(&mut ctx).await.map_err(MpcTlsError::hs)?;
+            ke.compute_shares(&mut ctx).await.map_err(MpcTlsError::hs)?;
 
-        {
             let mut vm_lock = vm
                 .try_lock()
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?;
-
             ke.assign(&mut (*vm_lock)).map_err(MpcTlsError::hs)?;
+                Ok::<_, BackendError>(())
+            },
+        )
+        .await?;
 
-            while prf.wants_flush() {
-                prf.flush(&mut *vm_lock).map_err(MpcTlsError::hs)?;
-                vm_lock
-                    .execute_all(&mut ctx)
-                    .await
-                    .map_err(MpcTlsError::hs)?;
+        in_phase(
+            self.telemetry.as_ref(),
+            BenchPhase::HandshakePrfSessionKeys,
+            async {
+                let mut vm_lock = vm
+                    .try_lock()
+                    .map_err(|_| MpcTlsError::other("VM lock is held"))?;
+
+                while prf.wants_flush() {
+                    prf.flush(&mut *vm_lock).map_err(MpcTlsError::hs)?;
+                    vm_lock
+                        .execute_all(&mut ctx)
+                        .await
+                        .map_err(MpcTlsError::hs)?;
+                }
+
+                Ok::<_, BackendError>(())
+            },
+        )
+        .await?;
+
+        // `ke.finalize()` completes the online key exchange, but it depends on
+        // the equality-check result produced by the VM work above.
+        in_phase(
+            self.telemetry.as_ref(),
+            BenchPhase::HandshakeKeOnline,
+            async {
+                ke.finalize().await.map_err(MpcTlsError::hs)?;
+                Ok::<_, BackendError>(())
             }
+        )
+        .await?;
 
-            ke.finalize().await.map_err(MpcTlsError::hs)?;
-            record_layer.setup(&mut ctx).await?;
-        }
+        in_phase(
+            self.telemetry.as_ref(),
+            BenchPhase::HandshakeRecordSetup,
+            async {
+                record_layer.setup(&mut ctx).await?;
+                Ok::<_, BackendError>(())
+            },
+        )
+        .await?;
 
         debug!("encryption prepared");
 
@@ -989,10 +1058,24 @@ impl Backend for MpcTlsLeader {
             .await
             .map_err(MpcTlsError::from)?;
 
-        record_layer
-            .flush(ctx, vm.clone(), self.is_decrypting)
+        if record_layer.has_effective_flush_work(self.is_decrypting) {
+            in_phase(
+                self.telemetry.as_ref(),
+                BenchPhase::RecordLayerFlush,
+                async {
+                    record_layer
+                        .flush(ctx, vm.clone(), self.is_decrypting)
+                        .await
+                        .map_err(BackendError::from)
+                },
+            )
             .await
-            .map_err(BackendError::from)
+        } else {
+            record_layer
+                .flush(ctx, vm.clone(), self.is_decrypting)
+                .await
+                .map_err(BackendError::from)
+        }
     }
 
     async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
