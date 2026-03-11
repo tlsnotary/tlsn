@@ -32,6 +32,13 @@ impl PrfError {
             source: Some(msg.into().into()),
         }
     }
+
+    pub(crate) fn config(msg: impl Into<String>) -> Self {
+        Self {
+            kind: ErrorKind::Config,
+            source: Some(msg.into().into()),
+        }
+    }
 }
 
 impl From<Sha256Error> for PrfError {
@@ -45,6 +52,7 @@ pub(crate) enum ErrorKind {
     Vm,
     State,
     Hash,
+    Config,
 }
 
 impl fmt::Display for PrfError {
@@ -53,6 +61,7 @@ impl fmt::Display for PrfError {
             ErrorKind::Vm => write!(f, "vm error")?,
             ErrorKind::State => write!(f, "state error")?,
             ErrorKind::Hash => write!(f, "hash error")?,
+            ErrorKind::Config => write!(f, "config error")?,
         }
 
         if let Some(ref source) = self.source {

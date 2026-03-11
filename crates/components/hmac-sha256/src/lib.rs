@@ -9,13 +9,13 @@ mod hmac;
 mod test_utils;
 
 mod config;
-pub use config::Mode;
+pub use config::{MSMode, NetworkMode, PrfConfig};
 
 mod error;
 pub use error::PrfError;
 
 mod prf;
-pub use prf::MpcPrf;
+pub use prf::Prf;
 
 use mpz_vm_core::memory::{binary::U8, Array};
 
@@ -72,8 +72,8 @@ fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use crate::{
-        test_utils::{prf_cf_vd, prf_keys, prf_ms, prf_sf_vd},
-        Mode, MpcPrf, SessionKeys,
+        test_utils::{prf_cf_vd, prf_ems_ms, prf_keys, prf_ms, prf_sf_vd},
+        MSMode, NetworkMode, Prf, PrfConfig, SessionKeys,
     };
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
@@ -85,28 +85,39 @@ mod tests {
 
     #[tokio::test]
     async fn test_prf_reduced() {
-        let mode = Mode::Reduced;
-        test_prf(mode).await;
+        test_prf(NetworkMode::Reduced, MSMode::Standard).await;
     }
 
     #[tokio::test]
     async fn test_prf_normal() {
-        let mode = Mode::Normal;
-        test_prf(mode).await;
+        test_prf(NetworkMode::Normal, MSMode::Standard).await;
     }
 
-    async fn test_prf(mode: Mode) {
+    #[tokio::test]
+    async fn test_prf_ems_reduced() {
+        test_prf(NetworkMode::Reduced, MSMode::Extended).await;
+    }
+
+    #[tokio::test]
+    async fn test_prf_ems_normal() {
+        test_prf(NetworkMode::Normal, MSMode::Extended).await;
+    }
+
+    async fn test_prf(network: NetworkMode, ms_mode: MSMode) {
         let mut rng = StdRng::seed_from_u64(1);
-        // Test input
+
         let pms: [u8; 32] = rng.random();
         let client_random: [u8; 32] = rng.random();
         let server_random: [u8; 32] = rng.random();
-
+        let session_hash: [u8; 32] = rng.random();
         let cf_hs_hash: [u8; 32] = rng.random();
         let sf_hs_hash: [u8; 32] = rng.random();
 
-        // Expected output
-        let ms_expected = prf_ms(pms, client_random, server_random);
+        // Expected output — only the master secret derivation differs for EMS.
+        let ms_expected = match ms_mode {
+            MSMode::Extended => prf_ems_ms(pms, session_hash),
+            MSMode::Standard => prf_ms(pms, client_random, server_random),
+        };
 
         let [cwk_expected, swk_expected, civ_expected, siv_expected] =
             prf_keys(ms_expected, client_random, server_random);
@@ -116,11 +127,8 @@ mod tests {
         let civ_expected: [u8; 4] = civ_expected.try_into().unwrap();
         let siv_expected: [u8; 4] = siv_expected.try_into().unwrap();
 
-        let cf_vd_expected = prf_cf_vd(ms_expected, cf_hs_hash);
-        let sf_vd_expected = prf_sf_vd(ms_expected, sf_hs_hash);
-
-        let cf_vd_expected: [u8; 12] = cf_vd_expected.try_into().unwrap();
-        let sf_vd_expected: [u8; 12] = sf_vd_expected.try_into().unwrap();
+        let cf_vd_expected: [u8; 12] = prf_cf_vd(ms_expected, cf_hs_hash).try_into().unwrap();
+        let sf_vd_expected: [u8; 12] = prf_sf_vd(ms_expected, sf_hs_hash).try_into().unwrap();
 
         // Set up vm and prf
         let (mut ctx_a, mut ctx_b) = test_st_context(128);
@@ -137,15 +145,22 @@ mod tests {
         follower.assign(follower_pms, pms).unwrap();
         follower.commit(follower_pms).unwrap();
 
-        let mut prf_leader = MpcPrf::new(mode);
-        let mut prf_follower = MpcPrf::new(mode);
+        let config = PrfConfig::new(network, ms_mode);
+        let mut prf_leader = Prf::new(config);
+        let mut prf_follower = Prf::new(config);
 
         let leader_prf_out = prf_leader.alloc(&mut leader, leader_pms).unwrap();
         let follower_prf_out = prf_follower.alloc(&mut follower, follower_pms).unwrap();
 
-        // client_random and server_random
-        prf_leader.set_client_random(client_random).unwrap();
-        prf_follower.set_client_random(client_random).unwrap();
+        if matches!(ms_mode, MSMode::Extended) {
+            prf_leader.set_session_hash(session_hash.to_vec()).unwrap();
+            prf_follower
+                .set_session_hash(session_hash.to_vec())
+                .unwrap();
+        }
+
+        prf_leader.set_client_random(client_random);
+        prf_follower.set_client_random(client_random);
 
         prf_leader.set_server_random(server_random).unwrap();
         prf_follower.set_server_random(server_random).unwrap();

@@ -1,42 +1,60 @@
 use crate::{
     hmac::{IPAD, OPAD},
-    Mode, PrfError, PrfOutput,
+    MSMode, PrfConfig, PrfError, PrfOutput, SessionKeys,
 };
 use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
         binary::{Binary, U8},
-        Array, MemoryExt, StaticSize, Vector, ViewExt,
+        Array, FromRaw, MemoryExt, StaticSize, ToRaw, Vector, ViewExt,
     },
     Call, CallableExt, Vm,
 };
 use std::{fmt::Debug, sync::Arc};
 use tracing::instrument;
 
-mod state;
-use state::State;
-
 mod function;
-use function::Prf;
+use function::InnerPrf;
 
-/// MPC PRF for computing TLS 1.2 HMAC-SHA256 PRF.
+/// PRF for computing TLS 1.2 HMAC-SHA256 PRF.
 #[derive(Debug)]
-pub struct MpcPrf {
-    mode: Mode,
+pub struct Prf {
+    config: PrfConfig,
     state: State,
+    client_random: Option<[u8; 32]>,
 }
 
-impl MpcPrf {
+#[derive(Debug)]
+pub(crate) enum State {
+    Initialized,
+    Setup {
+        master_secret: Box<InnerPrf>,
+        key_expansion: Box<InnerPrf>,
+        client_finished: Box<InnerPrf>,
+        server_finished: Box<InnerPrf>,
+    },
+    Complete,
+    Error,
+}
+
+impl State {
+    pub(crate) fn take(&mut self) -> State {
+        std::mem::replace(self, State::Error)
+    }
+}
+
+impl Prf {
     /// Creates a new instance of the PRF.
     ///
     /// # Arguments
     ///
-    /// `mode` - The PRF mode.
-    pub fn new(mode: Mode) -> MpcPrf {
+    /// * `config` - The PRF configuration.
+    pub fn new(config: PrfConfig) -> Prf {
         Self {
-            mode,
+            config,
             state: State::Initialized,
+            client_random: None,
         }
     }
 
@@ -56,44 +74,52 @@ impl MpcPrf {
             return Err(PrfError::state("PRF not in initialized state"));
         };
 
-        let mode = self.mode;
         let pms: Vector<U8> = pms.into();
 
         let outer_partial_pms = compute_partial(vm, pms, OPAD)?;
         let inner_partial_pms = compute_partial(vm, pms, IPAD)?;
 
         let master_secret =
-            Prf::alloc_master_secret(mode, vm, outer_partial_pms, inner_partial_pms)?;
+            InnerPrf::alloc_master_secret(self.config, vm, outer_partial_pms, inner_partial_pms)?;
         let ms = master_secret.output();
         let ms = merge_outputs(vm, ms, 48)?;
 
         let outer_partial_ms = compute_partial(vm, ms, OPAD)?;
         let inner_partial_ms = compute_partial(vm, ms, IPAD)?;
 
-        let key_expansion =
-            Prf::alloc_key_expansion(mode, vm, outer_partial_ms.clone(), inner_partial_ms.clone())?;
-        let client_finished = Prf::alloc_client_finished(
-            mode,
+        let key_expansion = InnerPrf::alloc_key_expansion(
+            self.config.network,
             vm,
             outer_partial_ms.clone(),
             inner_partial_ms.clone(),
         )?;
-        let server_finished = Prf::alloc_server_finished(
-            mode,
+        let client_finished = InnerPrf::alloc_client_finished(
+            self.config.network,
+            vm,
+            outer_partial_ms.clone(),
+            inner_partial_ms.clone(),
+        )?;
+        let server_finished = InnerPrf::alloc_server_finished(
+            self.config.network,
             vm,
             outer_partial_ms.clone(),
             inner_partial_ms.clone(),
         )?;
 
-        self.state = State::SessionKeys {
-            client_random: None,
-            master_secret,
-            key_expansion,
-            client_finished,
-            server_finished,
+        let keys = get_session_keys(key_expansion.output(), vm)?;
+        let cf_vd = get_client_finished_vd(client_finished.output(), vm)?;
+        let sf_vd = get_server_finished_vd(server_finished.output(), vm)?;
+
+        let output = PrfOutput { keys, cf_vd, sf_vd };
+
+        self.state = State::Setup {
+            master_secret: Box::new(master_secret),
+            key_expansion: Box::new(key_expansion),
+            client_finished: Box::new(client_finished),
+            server_finished: Box::new(server_finished),
         };
 
-        self.state.prf_output(vm)
+        Ok(output)
     }
 
     /// Sets the client random.
@@ -101,14 +127,9 @@ impl MpcPrf {
     /// # Arguments
     ///
     /// * `random` - The client random.
-    #[instrument(level = "debug", skip_all, err)]
-    pub fn set_client_random(&mut self, random: [u8; 32]) -> Result<(), PrfError> {
-        let State::SessionKeys { client_random, .. } = &mut self.state else {
-            return Err(PrfError::state("PRF not set up"));
-        };
-
-        *client_random = Some(random);
-        Ok(())
+    #[instrument(level = "debug", skip_all)]
+    pub fn set_client_random(&mut self, random: [u8; 32]) {
+        self.client_random = Some(random);
     }
 
     /// Sets the server random.
@@ -118,8 +139,7 @@ impl MpcPrf {
     /// * `random` - The server random.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_server_random(&mut self, random: [u8; 32]) -> Result<(), PrfError> {
-        let State::SessionKeys {
-            client_random,
+        let State::Setup {
             master_secret,
             key_expansion,
             ..
@@ -128,17 +148,44 @@ impl MpcPrf {
             return Err(PrfError::state("PRF not set up"));
         };
 
-        let client_random = client_random.expect("Client random should have been set by now");
+        let client_random = self
+            .client_random
+            .expect("Client random should have been set by now");
         let server_random = random;
 
-        let mut seed_ms = client_random.to_vec();
-        seed_ms.extend_from_slice(&server_random);
-        master_secret.set_start_seed(seed_ms);
+        if matches!(self.config.ms, MSMode::Standard) {
+            let mut seed_ms = client_random.to_vec();
+            seed_ms.extend_from_slice(&server_random);
+            master_secret.set_start_seed(seed_ms);
+        }
 
         let mut seed_ke = server_random.to_vec();
         seed_ke.extend_from_slice(&client_random);
         key_expansion.set_start_seed(seed_ke);
 
+        Ok(())
+    }
+
+    /// Sets the session hash.
+    ///
+    /// This is used for Extended Master Secret (RFC 7627).
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - The session hash.
+    #[instrument(level = "debug", skip_all, err)]
+    pub fn set_session_hash(&mut self, seed: Vec<u8>) -> Result<(), PrfError> {
+        let State::Setup { master_secret, .. } = &mut self.state else {
+            return Err(PrfError::state("PRF not set up"));
+        };
+
+        if !matches!(self.config.ms, MSMode::Extended) {
+            return Err(PrfError::config(
+                "session hash should only be set in EMS mode",
+            ));
+        }
+
+        master_secret.set_start_seed(seed);
         Ok(())
     }
 
@@ -149,11 +196,11 @@ impl MpcPrf {
     /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_cf_hash(&mut self, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
-        let State::ClientFinished {
+        let State::Setup {
             client_finished, ..
         } = &mut self.state
         else {
-            return Err(PrfError::state("PRF not in client finished state"));
+            return Err(PrfError::state("PRF not setup"));
         };
 
         let seed_cf = handshake_hash.to_vec();
@@ -169,8 +216,11 @@ impl MpcPrf {
     /// * `handshake_hash` - The handshake transcript hash.
     #[instrument(level = "debug", skip_all, err)]
     pub fn set_sf_hash(&mut self, handshake_hash: [u8; 32]) -> Result<(), PrfError> {
-        let State::ServerFinished { server_finished } = &mut self.state else {
-            return Err(PrfError::state("PRF not in server finished state"));
+        let State::Setup {
+            server_finished, ..
+        } = &mut self.state
+        else {
+            return Err(PrfError::state("PRF not setup"));
         };
 
         let seed_sf = handshake_hash.to_vec();
@@ -183,15 +233,17 @@ impl MpcPrf {
     pub fn wants_flush(&self) -> bool {
         match &self.state {
             State::Initialized => false,
-            State::SessionKeys {
+            State::Setup {
                 master_secret,
                 key_expansion,
-                ..
-            } => master_secret.wants_flush() || key_expansion.wants_flush(),
-            State::ClientFinished {
-                client_finished, ..
-            } => client_finished.wants_flush(),
-            State::ServerFinished { server_finished } => server_finished.wants_flush(),
+                client_finished,
+                server_finished,
+            } => {
+                master_secret.wants_flush()
+                    || key_expansion.wants_flush()
+                    || client_finished.wants_flush()
+                    || server_finished.wants_flush()
+            }
             State::Complete => false,
             State::Error => false,
         }
@@ -200,24 +252,33 @@ impl MpcPrf {
     /// Flushes the PRF.
     pub fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         self.state = match self.state.take() {
-            State::SessionKeys {
-                client_random,
+            State::Setup {
                 mut master_secret,
                 mut key_expansion,
-                client_finished,
-                server_finished,
+                mut client_finished,
+                mut server_finished,
             } => {
-                master_secret.flush(vm)?;
-                key_expansion.flush(vm)?;
+                if master_secret.wants_flush() {
+                    master_secret.flush(vm)?;
+                }
+                if key_expansion.wants_flush() {
+                    key_expansion.flush(vm)?;
+                }
+                if client_finished.wants_flush() {
+                    client_finished.flush(vm)?;
+                }
+                if server_finished.wants_flush() {
+                    server_finished.flush(vm)?;
+                }
 
-                if !master_secret.wants_flush() && !key_expansion.wants_flush() {
-                    State::ClientFinished {
-                        client_finished,
-                        server_finished,
-                    }
+                if master_secret.is_done()
+                    && key_expansion.is_done()
+                    && client_finished.is_done()
+                    && server_finished.is_done()
+                {
+                    State::Complete
                 } else {
-                    State::SessionKeys {
-                        client_random,
+                    State::Setup {
                         master_secret,
                         key_expansion,
                         client_finished,
@@ -225,37 +286,53 @@ impl MpcPrf {
                     }
                 }
             }
-            State::ClientFinished {
-                mut client_finished,
-                server_finished,
-            } => {
-                client_finished.flush(vm)?;
-
-                if !client_finished.wants_flush() {
-                    State::ServerFinished { server_finished }
-                } else {
-                    State::ClientFinished {
-                        client_finished,
-                        server_finished,
-                    }
-                }
-            }
-            State::ServerFinished {
-                mut server_finished,
-            } => {
-                server_finished.flush(vm)?;
-
-                if !server_finished.wants_flush() {
-                    State::Complete
-                } else {
-                    State::ServerFinished { server_finished }
-                }
-            }
             other => other,
         };
 
         Ok(())
     }
+}
+
+fn get_session_keys(
+    output: Vec<Array<U8, 32>>,
+    vm: &mut dyn Vm<Binary>,
+) -> Result<SessionKeys, PrfError> {
+    let mut keys = merge_outputs(vm, output, 40)?;
+    debug_assert!(keys.len() == 40, "session keys len should be 40");
+
+    let server_iv = Array::<U8, 4>::try_from(keys.split_off(36)).unwrap();
+    let client_iv = Array::<U8, 4>::try_from(keys.split_off(32)).unwrap();
+    let server_write_key = Array::<U8, 16>::try_from(keys.split_off(16)).unwrap();
+    let client_write_key = Array::<U8, 16>::try_from(keys).unwrap();
+
+    let session_keys = SessionKeys {
+        client_write_key,
+        server_write_key,
+        client_iv,
+        server_iv,
+    };
+
+    Ok(session_keys)
+}
+
+fn get_client_finished_vd(
+    output: Vec<Array<U8, 32>>,
+    vm: &mut dyn Vm<Binary>,
+) -> Result<Array<U8, 12>, PrfError> {
+    let cf_vd = merge_outputs(vm, output, 12)?;
+    let cf_vd = <Array<U8, 12> as FromRaw<Binary>>::from_raw(cf_vd.to_raw());
+
+    Ok(cf_vd)
+}
+
+fn get_server_finished_vd(
+    output: Vec<Array<U8, 32>>,
+    vm: &mut dyn Vm<Binary>,
+) -> Result<Array<U8, 12>, PrfError> {
+    let sf_vd = merge_outputs(vm, output, 12)?;
+    let sf_vd = <Array<U8, 12> as FromRaw<Binary>>::from_raw(sf_vd.to_raw());
+
+    Ok(sf_vd)
 }
 
 /// Depending on the provided `mask` computes and returns `outer_partial` or

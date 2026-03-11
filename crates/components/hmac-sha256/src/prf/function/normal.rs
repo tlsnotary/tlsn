@@ -1,6 +1,6 @@
 //! Computes the whole PRF in MPC.
 
-use crate::{hmac::hmac_sha256, PrfError};
+use crate::{hmac::hmac_sha256, MSMode, PrfError};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
@@ -23,6 +23,7 @@ pub(crate) struct PrfFunction {
 
 impl PrfFunction {
     const MS_LABEL: &[u8] = b"master secret";
+    const EMS_LABEL: &[u8] = b"extended master secret";
     const KEY_LABEL: &[u8] = b"key expansion";
     const CF_LABEL: &[u8] = b"client finished";
     const SF_LABEL: &[u8] = b"server finished";
@@ -31,8 +32,16 @@ impl PrfFunction {
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
+        ms_mode: MSMode,
     ) -> Result<Self, PrfError> {
-        Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48, 64)
+        match ms_mode {
+            MSMode::Standard => {
+                Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48, 64)
+            }
+            MSMode::Extended => {
+                Self::alloc(vm, Self::EMS_LABEL, outer_partial, inner_partial, 48, 32)
+            }
+        }
     }
 
     pub(crate) fn alloc_key_expansion(
@@ -60,11 +69,7 @@ impl PrfFunction {
     }
 
     pub(crate) fn wants_flush(&self) -> bool {
-        let is_computing = match self.state {
-            State::Computing => true,
-            State::Finished => false,
-        };
-        is_computing && self.start_seed_label.is_some()
+        !self.is_done() && self.start_seed_label.is_some()
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
@@ -83,6 +88,10 @@ impl PrfFunction {
             self.state = State::Finished;
         }
         Ok(())
+    }
+
+    pub(crate) fn is_done(&self) -> bool {
+        matches!(self.state, State::Finished)
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
