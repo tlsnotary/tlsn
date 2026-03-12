@@ -7,5 +7,5 @@ mod verifier;
 const RECV_PADDING: usize = 256;
 
 pub(crate) use io::Meter;
-pub(crate) use prover::bench_prover;
-pub(crate) use verifier::bench_verifier;
+pub(crate) use prover::{bench_prover, bench_prover_proxy};
+pub(crate) use verifier::{bench_verifier, bench_verifier_proxy};

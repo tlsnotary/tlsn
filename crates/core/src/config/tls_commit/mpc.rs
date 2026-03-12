@@ -1,5 +1,6 @@
 //! MPC-TLS commitment protocol configuration.
 
+use crate::config::tls_commit::NetworkSetting;
 use serde::{Deserialize, Serialize};
 
 // Default is 32 bytes to decrypt the TLS protocol messages.
@@ -179,21 +180,6 @@ impl MpcTlsConfigBuilder {
             network,
         })
     }
-}
-
-/// Settings for the network environment.
-///
-/// Provides optimization options to adapt the protocol to different network
-/// situations.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum NetworkSetting {
-    /// Reduces network round-trips at the expense of consuming more network
-    /// bandwidth.
-    Bandwidth,
-    /// Reduces network bandwidth utilization at the expense of more network
-    /// round-trips.
-    #[default]
-    Latency,
 }
 
 /// Error for [`MpcTlsConfig`].

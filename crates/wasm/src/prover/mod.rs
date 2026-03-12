@@ -157,6 +157,11 @@ fn convert_prover_config(config: ProverConfig) -> CoreProverConfig {
             NetworkSetting::Latency => CoreNetworkSetting::Latency,
         });
 
+    builder = builder.mode(match config.mode {
+        crate::prover::config::ProverMode::Mpc => tlsn_sdk_core::ProverMode::Mpc,
+        crate::prover::config::ProverMode::Proxy => tlsn_sdk_core::ProverMode::Proxy,
+    });
+
     if let Some(value) = config.max_sent_records {
         builder = builder.max_sent_records(value);
     }

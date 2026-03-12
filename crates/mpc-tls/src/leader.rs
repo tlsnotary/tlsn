@@ -6,7 +6,7 @@ use crate::{
     },
     record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
     utils::opaque_into_parts,
-    Config, Role, SessionKeys, Vm,
+    Config, Role, Vm,
 };
 use async_trait::async_trait;
 use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
@@ -44,6 +44,7 @@ use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2, ServerSignature, TlsVersion, VerifyData},
     transcript::TlsTranscript,
     webpki::CertificateDer,
+    SessionKeys,
 };
 use tracing::{debug, instrument, trace, warn};
 

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub const PORT_PROTO: u16 = 8000;
 pub const PORT_APP_SERVER: u16 = 8000;
 pub const PORT_PROXY: u16 = 8000;
+pub const PORT_PROXY_CHANNEL: u16 = 8001;
 pub const PORT_WASM_SERVER: u16 = 8080;
 pub const PORT_RPC: u16 = 8000;
 pub const PORT_BROWSER: u16 = 8001;
@@ -34,6 +35,7 @@ pub struct NetworkConfig {
     pub rpc_1: (Ipv4Addr, u16),
     pub proto_0: (Ipv4Addr, u16),
     pub proto_1: (Ipv4Addr, u16),
+    pub proxy: (Ipv4Addr, u16),
     pub app: (Ipv4Addr, u16),
     pub app_0: Ipv4Addr,
     pub app_1: Ipv4Addr,
@@ -42,16 +44,24 @@ pub struct NetworkConfig {
 impl NetworkConfig {
     pub fn new(subnet: Ipv4Net) -> Self {
         let mut hosts = subnet.hosts();
+        let host = hosts.next().unwrap();
+        let proto_proxy_ip = hosts.next().unwrap();
+        let app_proxy_ip = hosts.next().unwrap();
+        let rpc_0_ip = hosts.next().unwrap();
+        let rpc_1_ip = hosts.next().unwrap();
+        let proto_0_ip = hosts.next().unwrap();
+        let proto_1_ip = hosts.next().unwrap();
         Self {
             subnet,
-            host: hosts.next().unwrap(),
+            host,
             wasm: (Ipv4Addr::new(127, 0, 0, 1), PORT_WASM_SERVER),
-            proto_proxy: (hosts.next().unwrap(), PORT_PROXY),
-            app_proxy: (hosts.next().unwrap(), PORT_PROXY),
-            rpc_0: (hosts.next().unwrap(), PORT_RPC),
-            rpc_1: (hosts.next().unwrap(), PORT_RPC),
-            proto_0: (hosts.next().unwrap(), PORT_PROTO),
-            proto_1: (hosts.next().unwrap(), PORT_PROTO),
+            proto_proxy: (proto_proxy_ip, PORT_PROXY),
+            app_proxy: (app_proxy_ip, PORT_PROXY),
+            rpc_0: (rpc_0_ip, PORT_RPC),
+            rpc_1: (rpc_1_ip, PORT_RPC),
+            proto_0: (proto_0_ip, PORT_PROTO),
+            proto_1: (proto_1_ip, PORT_PROTO),
+            proxy: (proto_1_ip, PORT_PROXY_CHANNEL),
             app: (hosts.next().unwrap(), PORT_APP_SERVER),
             app_0: hosts.next().unwrap(),
             app_1: hosts.next().unwrap(),

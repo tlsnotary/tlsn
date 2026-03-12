@@ -214,6 +214,10 @@ impl Network {
             "protocol 1: {}:{}",
             self.config.proto_1.0, self.config.proto_1.1
         );
+        println!(
+            "proxy channel: {}:{}",
+            self.config.proxy.0, self.config.proxy.1
+        );
         println!("app: {}:{}", self.config.app.0, self.config.app.1);
     }
 

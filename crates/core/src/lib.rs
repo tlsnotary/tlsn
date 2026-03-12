@@ -15,12 +15,29 @@ pub use rangeset;
 pub mod config;
 pub(crate) mod display;
 
+pub use mpz_memory_core::{binary::U8, Array};
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::ServerName,
     transcript::{PartialTranscript, TranscriptCommitment, TranscriptSecret},
 };
+
+/// TLS session keys.
+#[derive(Debug, Clone)]
+pub struct SessionKeys {
+    /// Client write key.
+    pub client_write_key: Array<U8, 16>,
+    /// Client write IV.
+    pub client_write_iv: Array<U8, 4>,
+    /// Server write key.
+    pub server_write_key: Array<U8, 16>,
+    /// Server write IV.
+    pub server_write_iv: Array<U8, 4>,
+    /// Server write MAC key.
+    pub server_write_mac_key: Array<U8, 16>,
+}
 
 /// Prover output.
 #[derive(Serialize, Deserialize)]

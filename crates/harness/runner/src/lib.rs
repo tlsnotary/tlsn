@@ -18,7 +18,7 @@ use csv::WriterBuilder;
 use harness_core::{
     ExecutorConfig, Id, IoMode, Role, TEST_APP_BANDWIDTH, TEST_APP_DELAY, TEST_PROTO_BANDWIDTH,
     TEST_PROTO_DELAY,
-    bench::{BenchItems, BenchOutput, Measurement, WARM_UP_BENCH},
+    bench::{BenchItems, BenchOutput, Measurement, WARM_UP_BENCH, WARM_UP_BENCH_PROXY},
     network::NetworkConfig,
     rpc::{BenchCmd, TestCmd},
     test::TestStatus,
@@ -42,6 +42,7 @@ struct BenchStats {
     latency: usize,
     upload_size: usize,
     download_size: usize,
+    proxy: bool,
     times: Vec<u64>,
 }
 
@@ -75,9 +76,11 @@ fn print_bench_summary(stats: &[BenchStats]) {
 
     for stat in stats {
         let group_name = stat.group.as_deref().unwrap_or("unnamed");
+        let mode = if stat.proxy { "proxy" } else { "mpc" };
         println!(
-            "{} ({} Mbps, {}ms latency, {}KB↑ {}KB↓):",
+            "{} [{}] ({} Mbps, {}ms latency, {}KB↑ {}KB↓):",
             group_name,
+            mode,
             stat.bandwidth,
             stat.latency,
             stat.upload_size / 1024,
@@ -313,11 +316,20 @@ pub async fn main() -> Result<()> {
             let output_file = std::fs::File::create(output)?;
             let mut writer = WriterBuilder::new().from_writer(output_file);
 
+            let actual_benches = items.to_benches(samples, samples_override);
+            let has_proxy = actual_benches.iter().any(|b| b.proxy);
+            let has_mpc = actual_benches.iter().any(|b| !b.proxy);
+
             let mut benches = Vec::new();
             if !skip_warmup {
-                benches.extend(vec![WARM_UP_BENCH; 3]);
+                if has_mpc {
+                    benches.extend(vec![WARM_UP_BENCH; 3]);
+                }
+                if has_proxy {
+                    benches.extend(vec![WARM_UP_BENCH_PROXY; 3]);
+                }
             }
-            benches.extend(items.to_benches(samples, samples_override));
+            benches.extend(actual_benches);
 
             runner.start_services().await?;
             runner.exec_p.start().await?;
@@ -335,7 +347,11 @@ pub async fn main() -> Result<()> {
             // Collect measurements for stats
             let mut measurements_by_config: HashMap<String, Vec<u64>> = HashMap::new();
 
-            let warmup_count = if skip_warmup { 0 } else { 3 };
+            let warmup_count = if skip_warmup {
+                0
+            } else {
+                (if has_mpc { 3 } else { 0 }) + (if has_proxy { 3 } else { 0 })
+            };
 
             for (idx, config) in benches.iter().enumerate() {
                 let is_warmup = idx < warmup_count;
@@ -382,12 +398,13 @@ pub async fn main() -> Result<()> {
                 // Collect metrics for stats (skip warmup benches)
                 if !is_warmup {
                     let config_key = format!(
-                        "{:?}|{}|{}|{}|{}",
+                        "{:?}|{}|{}|{}|{}|{}",
                         config.group,
                         config.bandwidth,
                         config.protocol_latency,
                         config.upload_size,
-                        config.download_size
+                        config.download_size,
+                        config.proxy
                     );
                     measurements_by_config
                         .entry(config_key)
@@ -410,7 +427,7 @@ pub async fn main() -> Result<()> {
             for (key, times) in measurements_by_config {
                 // Parse back the config from the key
                 let parts: Vec<&str> = key.split('|').collect();
-                if parts.len() >= 5 {
+                if parts.len() >= 6 {
                     let group = if parts[0] == "None" {
                         None
                     } else {
@@ -425,6 +442,7 @@ pub async fn main() -> Result<()> {
                     let latency: usize = parts[2].parse().unwrap_or(0);
                     let upload_size: usize = parts[3].parse().unwrap_or(0);
                     let download_size: usize = parts[4].parse().unwrap_or(0);
+                    let proxy: bool = parts[5].parse().unwrap_or(false);
 
                     all_stats.push(BenchStats {
                         group,
@@ -432,6 +450,7 @@ pub async fn main() -> Result<()> {
                         latency,
                         upload_size,
                         download_size,
+                        proxy,
                         times,
                     });
                 }

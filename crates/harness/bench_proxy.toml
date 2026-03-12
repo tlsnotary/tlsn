@@ -1,0 +1,48 @@
+#### Default Proxy Benchmarks ####
+#
+# Same representative network scenarios as bench.toml but using proxy mode
+# instead of MPC mode. In proxy mode the verifier forwards TLS traffic between
+# the prover and the server, so there is no MPC preprocessing phase.
+#
+# Payload sizes:
+#   - upload-size: 1KB (typical HTTP request)
+#   - download-size: 2KB (typical HTTP response/API data)
+
+#### Cable/DSL Home Internet ####
+
+[[group]]
+name = "cable_proxy"
+bandwidth = 20
+protocol_latency = 20
+upload-size = 1024
+download-size = 2048
+proxy = true
+
+[[bench]]
+group = "cable_proxy"
+
+#### Mobile 5G ####
+
+[[group]]
+name = "mobile_5g_proxy"
+bandwidth = 30
+protocol_latency = 30
+upload-size = 1024
+download-size = 2048
+proxy = true
+
+[[bench]]
+group = "mobile_5g_proxy"
+
+#### Fiber Home Internet ####
+
+[[group]]
+name = "fiber_proxy"
+bandwidth = 100
+protocol_latency = 15
+upload-size = 1024
+download-size = 2048
+proxy = true
+
+[[bench]]
+group = "fiber_proxy"

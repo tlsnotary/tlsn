@@ -48,3 +48,4 @@ getrandom = { version = "0.2", features = ["js"] }
 getrandom_03 = { package = "getrandom", version = "0.3", features = [
     "wasm_js",
 ] }
+rustls-pki-types = { workspace = true, features = ["web"] }

@@ -20,10 +20,7 @@ pub use leader::MpcTlsLeader;
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use mpz_memory_core::{
-    binary::{Binary, U8},
-    Array,
-};
+use mpz_memory_core::binary::Binary;
 use mpz_vm_core::Vm as VmTrait;
 
 use tokio::sync::Mutex;
@@ -36,19 +33,4 @@ pub type Vm = Arc<Mutex<dyn VmTrait<Binary> + Send + Sync + 'static>>;
 pub(crate) enum Role {
     Leader,
     Follower,
-}
-
-/// TLS session keys.
-#[derive(Debug, Clone)]
-pub struct SessionKeys {
-    /// Client write key.
-    pub client_write_key: Array<U8, 16>,
-    /// Client write IV.
-    pub client_write_iv: Array<U8, 4>,
-    /// Server write key.
-    pub server_write_key: Array<U8, 16>,
-    /// Server write IV.
-    pub server_write_iv: Array<U8, 4>,
-    /// Server write MAC key.
-    pub server_write_mac_key: Array<U8, 16>,
 }

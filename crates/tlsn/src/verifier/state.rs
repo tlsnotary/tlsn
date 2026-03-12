@@ -1,17 +1,14 @@
 //! TLS Verifier state.
 
-use std::sync::Arc;
-
-use mpc_tls::{MpcTlsFollower, SessionKeys};
+use futures::{AsyncRead, AsyncWrite};
 use tlsn_core::{
+    SessionKeys,
     config::{prove::ProveRequest, tls_commit::TlsCommitRequest},
     connection::{HandshakeData, ServerName},
     transcript::{PartialTranscript, TlsTranscript},
 };
-use tlsn_deap::Deap;
-use tokio::sync::Mutex;
 
-use crate::mpz::{VerifierMpc, VerifierZk};
+use crate::deps::{VerifierDeps, VerifierZk};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -31,12 +28,17 @@ opaque_debug::implement!(CommitStart);
 /// State after accepting the proposed TLS commitment protocol configuration and
 /// performing preprocessing.
 pub struct CommitAccepted {
-    pub(crate) mpc_tls: MpcTlsFollower,
-    pub(crate) keys: SessionKeys,
-    pub(crate) vm: Arc<Mutex<Deap<VerifierMpc, VerifierZk>>>,
+    pub(crate) verifier_deps: VerifierDeps,
+    pub(crate) prover_socket: Option<BoxedIo>,
+    pub(crate) server_socket: Option<BoxedIo>,
 }
 
 opaque_debug::implement!(CommitAccepted);
+
+pub(crate) trait AsyncReadWrite: AsyncRead + AsyncWrite {}
+impl<T: AsyncRead + AsyncWrite + ?Sized> AsyncReadWrite for T {}
+
+type BoxedIo = Box<dyn AsyncReadWrite + Send + Unpin + 'static>;
 
 /// State after the TLS transcript has been committed.
 pub struct Committed {

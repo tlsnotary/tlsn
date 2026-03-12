@@ -144,6 +144,18 @@ pub struct VerifierOutput {
     pub transcript: Option<PartialTranscript>,
 }
 
+/// Protocol mode for the verifier.
+#[derive(Debug, Clone, Copy, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub enum VerifierMode {
+    /// MPC (Multi-Party Computation) mode.
+    Mpc,
+    /// Proxy mode.
+    Proxy,
+    /// Universal mode (accepts both MPC and Proxy).
+    Universal,
+}
+
 /// Network setting for protocol optimization.
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
@@ -152,4 +164,13 @@ pub enum NetworkSetting {
     Bandwidth,
     /// Prefers a latency-heavy protocol.
     Latency,
+}
+
+impl From<NetworkSetting> for tlsn::config::tls_commit::NetworkSetting {
+    fn from(value: NetworkSetting) -> Self {
+        match value {
+            NetworkSetting::Bandwidth => Self::Bandwidth,
+            NetworkSetting::Latency => Self::Latency,
+        }
+    }
 }
