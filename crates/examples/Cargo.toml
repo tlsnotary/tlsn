@@ -51,6 +51,10 @@ name = "basic_zk"
 path = "basic_zk/basic_zk.rs"
 
 [[example]]
+name = "proxy"
+path = "proxy/proxy.rs"
+
+[[example]]
 name = "attestation_prove"
 path = "attestation/prove.rs"
 

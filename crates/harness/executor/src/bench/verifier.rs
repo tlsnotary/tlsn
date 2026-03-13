@@ -33,3 +33,37 @@ pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()
 
     Ok(())
 }
+
+pub async fn bench_verifier_proxy(provider: &IoProvider, _config: &Bench) -> Result<()> {
+    let io = provider.provide_proto_io().await?;
+    let mut session = Session::new(io);
+
+    let verifier = session.new_verifier(
+        VerifierConfig::builder()
+            .root_store(RootCertStore {
+                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+            })
+            .proxy()
+            .build()?,
+    )?;
+
+    let (session, handle) = session.split();
+
+    _ = spawn(session);
+
+    let mut verifier = verifier.commit().await?.accept().await?;
+
+    if verifier.is_proxy_setup_required().is_some() {
+        verifier.set_proxy_sockets(
+            provider.provide_proxy_io().await?,
+            provider.provide_server_io().await?,
+        );
+    }
+
+    let verifier = verifier.run().await?;
+    let (_, verifier) = verifier.verify().await?.accept().await?;
+    verifier.close().await?;
+    handle.close();
+
+    Ok(())
+}

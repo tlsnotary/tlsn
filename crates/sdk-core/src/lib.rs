@@ -52,7 +52,7 @@ pub mod types;
 pub mod verifier;
 
 // Re-export main types for convenience.
-pub use config::{NetworkSetting, ProverConfig, VerifierConfig};
+pub use config::{NetworkSetting, ProverConfig, ProverMode, VerifierConfig, VerifierMode};
 pub use error::{Result, SdkError};
 pub use handler::compute_reveal;
 pub use io::{HyperIo, Io};

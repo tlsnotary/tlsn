@@ -19,7 +19,7 @@ use harness_core::{
     test::{TestOutput, TestStatus},
 };
 
-use crate::bench::{bench_prover, bench_verifier};
+use crate::bench::{bench_prover, bench_prover_proxy, bench_verifier, bench_verifier_proxy};
 
 pub struct Executor {
     config: ExecutorConfig,
@@ -54,18 +54,35 @@ impl Executor {
                 let provider =
                     IoProvider::new(*self.config.io_mode(), self.config.network().clone());
 
-                match role {
-                    Role::Prover => {
+                match (role, config.proxy) {
+                    (Role::Prover, false) => {
                         let metrics = bench_prover(&provider, &config)
                             .await
                             .map_err(|e| RpcError::new(format!("prover bench failed: {e}")))?;
 
                         Ok(CmdOutput::Bench(BenchOutput::Prover { metrics }))
                     }
-                    Role::Verifier => {
+                    (Role::Prover, true) => {
+                        let metrics =
+                            bench_prover_proxy(&provider, &config).await.map_err(|e| {
+                                RpcError::new(format!("prover proxy bench failed: {e}"))
+                            })?;
+
+                        Ok(CmdOutput::Bench(BenchOutput::Prover { metrics }))
+                    }
+                    (Role::Verifier, false) => {
                         bench_verifier(&provider, &config)
                             .await
                             .map_err(|e| RpcError::new(format!("verifier bench failed: {e}")))?;
+
+                        Ok(CmdOutput::Bench(BenchOutput::Verifier))
+                    }
+                    (Role::Verifier, true) => {
+                        bench_verifier_proxy(&provider, &config)
+                            .await
+                            .map_err(|e| {
+                                RpcError::new(format!("verifier proxy bench failed: {e}"))
+                            })?;
 
                         Ok(CmdOutput::Bench(BenchOutput::Verifier))
                     }

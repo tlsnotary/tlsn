@@ -4,7 +4,9 @@ mod config;
 
 pub use config::VerifierConfig;
 
-use tlsn_sdk_core::{SdkVerifier, VerifierConfig as CoreVerifierConfig};
+use tlsn_sdk_core::{
+    SdkVerifier, VerifierConfig as CoreVerifierConfig, VerifierMode as CoreVerifierMode,
+};
 use wasm_bindgen::prelude::*;
 
 use crate::{
@@ -48,6 +50,30 @@ impl JsVerifier {
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
+    /// Performs the commitment handshake with the prover.
+    ///
+    /// Returns the server name if proxy sockets are needed, or
+    /// null/undefined for MPC mode. If a server name is returned,
+    /// call `set_proxy_sockets()` before `verify()`.
+    pub async fn setup(&mut self) -> Result<Option<String>> {
+        self.inner
+            .setup()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Sets the proxy sockets for proxy mode.
+    ///
+    /// Must be called after `setup()` returns a server name and before
+    /// `verify()`.
+    pub fn set_proxy_sockets(&mut self, proxy_io: JsIo, server_io: JsIo) -> Result<()> {
+        let proxy_adapter = JsIoAdapter::new(proxy_io);
+        let server_adapter = JsIoAdapter::new(server_io);
+        self.inner
+            .set_proxy_sockets(proxy_adapter, server_adapter)
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
     /// Verifies the connection and finalizes the protocol.
     pub async fn verify(&mut self) -> Result<VerifierOutput> {
         let core_output = self
@@ -65,6 +91,14 @@ fn convert_verifier_config(config: VerifierConfig) -> CoreVerifierConfig {
     let mut builder = CoreVerifierConfig::builder()
         .max_sent_data(config.max_sent_data)
         .max_recv_data(config.max_recv_data);
+
+    if let Some(mode) = config.mode {
+        builder = builder.mode(match mode {
+            crate::types::VerifierMode::Mpc => CoreVerifierMode::Mpc,
+            crate::types::VerifierMode::Proxy => CoreVerifierMode::Proxy,
+            crate::types::VerifierMode::Universal => CoreVerifierMode::Universal,
+        });
+    }
 
     if let Some(value) = config.max_sent_records {
         builder = builder.max_sent_records(value);

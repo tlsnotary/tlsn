@@ -65,21 +65,21 @@ tlsn-sdk-core = { path = "crates/sdk-core" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-circuits-data = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-common = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
-mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", tag = "v0.1.0-alpha.5" }
+mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-circuits-data = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-common = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
+mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", branch = "fix/zk-ot-alloc" }
 
 futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "dd419bf" }
 rangeset = { version = "0.4" }
@@ -140,7 +140,7 @@ regex = { version = "1.10" }
 ring = { version = "0.17" }
 rs_merkle = { git = "https://github.com/tlsnotary/rs-merkle.git", rev = "85f3e82" }
 rstest = { version = "0.17" }
-rustls = { version = "0.21" }
+rustls = { version = "0.23", default-features = false }
 rustls-pemfile = { version = "1.0" }
 rustls-webpki = { version = "0.103" }
 rustls-pki-types = { version = "1.12" }
@@ -152,6 +152,7 @@ sha2 = { version = "0.10" }
 signature = { version = "2.2" }
 thiserror = { version = "1.0" }
 tiny-keccak = { version = "2.0" }
+tls-parser = { version = "0.12" }
 tokio = { version = "1.38" }
 tokio-util = { version = "0.7" }
 toml = { version = "0.8" }

@@ -1,7 +1,7 @@
 use crate::{
     msg::{Message, StartHandshake},
     record_layer::{aead::MpcAesGcm, RecordLayer},
-    Config, MpcTlsError, Role, SessionKeys, Vm,
+    Config, MpcTlsError, Role, Vm,
 };
 use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
@@ -24,6 +24,7 @@ use tls_core::msgs::enums::NamedGroup;
 use tlsn_core::{
     connection::{CertBinding, CertBindingV1_2, TlsVersion, VerifyData},
     transcript::TlsTranscript,
+    SessionKeys,
 };
 use tracing::{debug, instrument};
 

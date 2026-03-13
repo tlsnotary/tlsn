@@ -74,6 +74,43 @@ mod native {
                 }
             }
         }
+
+        /// Provides a proxy channel connection (prover↔verifier for TLS
+        /// traffic).
+        ///
+        /// Shares the proto veths so proxy traffic experiences protocol
+        /// latency.
+        pub async fn provide_proxy_io(&self) -> Result<impl Io> {
+            match self.mode {
+                IoMode::Client => {
+                    let mut retries = 0;
+                    loop {
+                        match TcpStream::connect(self.config.proxy)
+                            .await
+                            .inspect(|io| io.set_nodelay(true).unwrap())
+                            .map(|io| io.compat())
+                        {
+                            Ok(io) => return Ok(io),
+                            Err(e) if e.kind() == ErrorKind::ConnectionRefused => {
+                                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS as u64))
+                                    .await;
+                                retries += 1;
+                                if retries > MAX_RETRIES {
+                                    return Err(e.into());
+                                }
+                            }
+                            Err(e) => return Err(e.into()),
+                        }
+                    }
+                }
+                IoMode::Server => {
+                    let listener = TcpListener::bind(self.config.proxy).await?;
+                    let (io, _) = listener.accept().await?;
+                    io.set_nodelay(true).unwrap();
+                    Ok(io.compat())
+                }
+            }
+        }
     }
 }
 
@@ -130,6 +167,36 @@ mod wasm {
                 retries += 1;
                 if retries > MAX_RETRIES {
                     return Err(anyhow!("verifier did not accept connection"));
+                }
+            };
+
+            Ok(io.into_io())
+        }
+
+        /// Provides a proxy channel connection (prover↔verifier for TLS
+        /// traffic).
+        pub async fn provide_proxy_io(&self) -> Result<impl Io> {
+            let url = format!(
+                "ws://{}:{}/tcp?addr={}%3A{}",
+                &self.config.proto_proxy.0,
+                self.config.proto_proxy.1,
+                &self.config.proxy.0,
+                self.config.proxy.1,
+            );
+            let mut retries = 0;
+
+            let io = loop {
+                let (_, io) = ws_stream_wasm::WsMeta::connect(url.clone(), None).await?;
+
+                std::thread::sleep(Duration::from_millis(CHECK_WS_OPEN_DELAY_MS as u64));
+
+                if io.ready_state() == ws_stream_wasm::WsState::Open {
+                    break io;
+                }
+
+                retries += 1;
+                if retries > MAX_RETRIES {
+                    return Err(anyhow!("verifier did not accept proxy connection"));
                 }
             };
 

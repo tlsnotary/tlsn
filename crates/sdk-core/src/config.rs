@@ -2,11 +2,35 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Protocol mode for the prover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ProverMode {
+    /// MPC (Multi-Party Computation) mode.
+    #[default]
+    Mpc,
+    /// Proxy mode.
+    Proxy,
+}
+
+/// Connection mode for the verifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum VerifierMode {
+    /// MPC (Multi-Party Computation) mode.
+    #[default]
+    Mpc,
+    /// Proxy mode.
+    Proxy,
+    /// Universal mode (accepts both MPC and Proxy).
+    Universal,
+}
+
 /// Configuration for the Prover.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProverConfig {
     /// The server name (domain) to connect to.
     pub server_name: String,
+    /// Protocol mode.
+    pub mode: ProverMode,
     /// Maximum bytes that can be sent.
     pub max_sent_data: usize,
     /// Maximum number of sent records.
@@ -36,6 +60,7 @@ impl ProverConfig {
 #[derive(Debug, Clone)]
 pub struct ProverConfigBuilder {
     server_name: String,
+    mode: ProverMode,
     max_sent_data: usize,
     max_sent_records: Option<usize>,
     max_recv_data_online: Option<usize>,
@@ -51,6 +76,7 @@ impl ProverConfigBuilder {
     pub fn new(server_name: impl Into<String>) -> Self {
         Self {
             server_name: server_name.into(),
+            mode: ProverMode::Mpc,
             max_sent_data: 4096,
             max_sent_records: None,
             max_recv_data_online: None,
@@ -60,6 +86,12 @@ impl ProverConfigBuilder {
             network: NetworkSetting::Latency,
             client_auth: None,
         }
+    }
+
+    /// Sets the protocol mode.
+    pub fn mode(mut self, mode: ProverMode) -> Self {
+        self.mode = mode;
+        self
     }
 
     /// Sets the maximum bytes that can be sent.
@@ -114,6 +146,7 @@ impl ProverConfigBuilder {
     pub fn build(self) -> ProverConfig {
         ProverConfig {
             server_name: self.server_name,
+            mode: self.mode,
             max_sent_data: self.max_sent_data,
             max_sent_records: self.max_sent_records,
             max_recv_data_online: self.max_recv_data_online,
@@ -129,6 +162,8 @@ impl ProverConfigBuilder {
 /// Configuration for the Verifier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifierConfig {
+    /// Connection mode.
+    pub mode: VerifierMode,
     /// Maximum bytes that can be sent.
     pub max_sent_data: usize,
     /// Maximum bytes that can be received.
@@ -142,6 +177,7 @@ pub struct VerifierConfig {
 impl Default for VerifierConfig {
     fn default() -> Self {
         Self {
+            mode: VerifierMode::Mpc,
             max_sent_data: 4096,
             max_recv_data: 16384,
             max_sent_records: None,
@@ -160,6 +196,7 @@ impl VerifierConfig {
 /// Builder for VerifierConfig.
 #[derive(Debug, Clone)]
 pub struct VerifierConfigBuilder {
+    mode: VerifierMode,
     max_sent_data: usize,
     max_recv_data: usize,
     max_sent_records: Option<usize>,
@@ -169,6 +206,7 @@ pub struct VerifierConfigBuilder {
 impl Default for VerifierConfigBuilder {
     fn default() -> Self {
         Self {
+            mode: VerifierMode::Mpc,
             max_sent_data: 4096,
             max_recv_data: 16384,
             max_sent_records: None,
@@ -178,6 +216,24 @@ impl Default for VerifierConfigBuilder {
 }
 
 impl VerifierConfigBuilder {
+    /// Sets the connection mode.
+    pub fn mode(mut self, mode: VerifierMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Sets proxy mode.
+    pub fn proxy(mut self) -> Self {
+        self.mode = VerifierMode::Proxy;
+        self
+    }
+
+    /// Sets universal mode.
+    pub fn universal(mut self) -> Self {
+        self.mode = VerifierMode::Universal;
+        self
+    }
+
     /// Sets the maximum bytes that can be sent.
     pub fn max_sent_data(mut self, value: usize) -> Self {
         self.max_sent_data = value;
@@ -205,6 +261,7 @@ impl VerifierConfigBuilder {
     /// Builds the VerifierConfig.
     pub fn build(self) -> VerifierConfig {
         VerifierConfig {
+            mode: self.mode,
             max_sent_data: self.max_sent_data,
             max_recv_data: self.max_recv_data,
             max_sent_records: self.max_sent_records,
@@ -223,7 +280,7 @@ pub enum NetworkSetting {
     Latency,
 }
 
-impl From<NetworkSetting> for tlsn::config::tls_commit::mpc::NetworkSetting {
+impl From<NetworkSetting> for tlsn::config::tls_commit::NetworkSetting {
     fn from(value: NetworkSetting) -> Self {
         match value {
             NetworkSetting::Bandwidth => Self::Bandwidth,

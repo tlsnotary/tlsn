@@ -42,12 +42,13 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod deps;
 mod error;
 pub(crate) mod ghash;
 pub(crate) mod map;
-pub(crate) mod mpz;
 pub(crate) mod msg;
 pub mod prover;
+mod proxy;
 mod session;
 pub(crate) mod tag;
 pub(crate) mod transcript_internal;
@@ -62,9 +63,9 @@ pub use tlsn_core::{config, connection, hash, transcript, webpki};
 /// Result type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-use std::sync::LazyLock;
-
 use semver::Version;
+use std::sync::LazyLock;
+use tlsn_core::{SessionKeys, transcript::TlsTranscript};
 
 // Package version.
 pub(crate) static VERSION: LazyLock<Version> = LazyLock::new(|| {
@@ -80,4 +81,10 @@ pub(crate) enum Role {
     Prover,
     /// The verifier.
     Verifier,
+}
+
+/// Output of a TLS session.
+pub(crate) struct TlsOutput {
+    pub(crate) keys: SessionKeys,
+    pub(crate) tls_transcript: TlsTranscript,
 }

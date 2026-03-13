@@ -6,9 +6,9 @@ use tlsn::{
     config::{
         prove::ProveConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
+        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig, TlsCommitConfig},
     },
-    connection::ServerName,
+    connection::{DnsName, ServerName},
     prover::{state, Prover, TlsConnection},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
     Session, SessionHandle,
@@ -71,11 +71,13 @@ impl SdkProver {
         if config.server_name.is_empty() {
             return Err(SdkError::config("server_name cannot be empty"));
         }
-        if config.max_sent_data == 0 {
-            return Err(SdkError::config("max_sent_data must be > 0"));
-        }
-        if config.max_recv_data == 0 {
-            return Err(SdkError::config("max_recv_data must be > 0"));
+        if config.mode == crate::config::ProverMode::Mpc {
+            if config.max_sent_data == 0 {
+                return Err(SdkError::config("max_sent_data must be > 0"));
+            }
+            if config.max_recv_data == 0 {
+                return Err(SdkError::config("max_recv_data must be > 0"));
+            }
         }
 
         Ok(SdkProver {
@@ -99,31 +101,49 @@ impl SdkProver {
             ));
         };
 
-        let tls_commit_config = TlsCommitConfig::builder()
-            .protocol({
-                let mut builder = MpcTlsConfig::builder()
-                    .max_sent_data(self.config.max_sent_data)
-                    .max_recv_data(self.config.max_recv_data);
+        let tls_commit_config = if self.config.mode == crate::config::ProverMode::Proxy {
+            TlsCommitConfig::builder()
+                .protocol({
+                    let mut builder = ProxyTlsConfig::builder()
+                        .server_name(
+                            DnsName::try_from(self.config.server_name.as_str())
+                                .map_err(|e| SdkError::config(e.to_string()))?,
+                        )
+                        .network(self.config.network.into());
 
-                if let Some(value) = self.config.max_recv_data_online {
-                    builder = builder.max_recv_data_online(value);
-                }
+                    if let Some(value) = self.config.defer_decryption_from_start {
+                        builder = builder.defer_decryption_from_start(value);
+                    }
+                    builder.build()
+                }?)
+                .build()?
+        } else {
+            TlsCommitConfig::builder()
+                .protocol({
+                    let mut builder = MpcTlsConfig::builder()
+                        .max_sent_data(self.config.max_sent_data)
+                        .max_recv_data(self.config.max_recv_data);
 
-                if let Some(value) = self.config.max_sent_records {
-                    builder = builder.max_sent_records(value);
-                }
+                    if let Some(value) = self.config.max_recv_data_online {
+                        builder = builder.max_recv_data_online(value);
+                    }
 
-                if let Some(value) = self.config.max_recv_records_online {
-                    builder = builder.max_recv_records_online(value);
-                }
+                    if let Some(value) = self.config.max_sent_records {
+                        builder = builder.max_sent_records(value);
+                    }
 
-                if let Some(value) = self.config.defer_decryption_from_start {
-                    builder = builder.defer_decryption_from_start(value);
-                }
+                    if let Some(value) = self.config.max_recv_records_online {
+                        builder = builder.max_recv_records_online(value);
+                    }
 
-                builder.network(self.config.network.into()).build()
-            }?)
-            .build()?;
+                    if let Some(value) = self.config.defer_decryption_from_start {
+                        builder = builder.defer_decryption_from_start(value);
+                    }
+
+                    builder.network(self.config.network.into()).build()
+                }?)
+                .build()?
+        };
 
         info!("connecting to verifier");
 
