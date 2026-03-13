@@ -71,7 +71,10 @@ impl Prf for InterceptingPrf {
         label: &[u8],
         seed: &[u8],
     ) -> Result<(), rustls::Error> {
-        let _ = self.transcript.session_hash.set(seed.to_vec());
+        self.transcript
+            .session_hash
+            .set(seed.to_vec())
+            .expect("session hash should be set only once");
         self.inner
             .for_key_exchange(output, kx, peer_pub_key, label, seed)
     }
