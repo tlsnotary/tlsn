@@ -358,7 +358,7 @@ fn create_client_config(
         })?
         .with_root_certificates(root_store);
 
-    let rustls_config = if let Some((cert, key)) = config.client_auth() {
+    let mut rustls_config = if let Some((cert, key)) = config.client_auth() {
         builder
             .with_client_auth_cert(
                 cert.iter()
@@ -378,6 +378,7 @@ fn create_client_config(
     } else {
         builder.with_no_client_auth()
     };
+    rustls_config.require_ems = true;
 
     Ok(rustls_config)
 }
