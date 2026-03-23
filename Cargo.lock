@@ -7320,7 +7320,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "aes 0.8.4",
  "ctr 0.9.2",
@@ -7373,7 +7373,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-attestation"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -7397,7 +7397,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-cipher"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "aes 0.8.4",
  "async-trait",
@@ -7414,7 +7414,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-core"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -7453,7 +7453,7 @@ version = "0.0.0"
 
 [[package]]
 name = "tlsn-deap"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "async-trait",
  "futures",
@@ -7500,7 +7500,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-formats"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "bytes",
  "rstest",
@@ -7594,7 +7594,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-hmac-sha256"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "criterion",
  "hex",
@@ -7614,7 +7614,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-key-exchange"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "async-trait",
  "derive_builder 0.12.0",
@@ -7641,7 +7641,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-mpc-tls"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
@@ -7706,7 +7706,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-sdk-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "bytes",
  "futures",
@@ -7757,7 +7757,7 @@ version = "0.0.0"
 
 [[package]]
 name = "tlsn-tls-client"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -7787,7 +7787,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-tls-core"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "futures",
  "hmac",
@@ -7806,7 +7806,7 @@ dependencies = [
 
 [[package]]
 name = "tlsn-wasm"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15-pre"
 dependencies = [
  "console_error_panic_hook",
  "futures",

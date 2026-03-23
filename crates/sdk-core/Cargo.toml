@@ -1,6 +1,6 @@
 [package]
 name = "tlsn-sdk-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.15-pre"
 edition = "2021"
 repository = "https://github.com/tlsnotary/tlsn.git"
 description = "Platform-agnostic core SDK for TLSNotary."
