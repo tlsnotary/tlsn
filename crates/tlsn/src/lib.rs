@@ -47,6 +47,7 @@ pub(crate) mod ghash;
 pub(crate) mod map;
 pub(crate) mod mpz;
 pub(crate) mod msg;
+pub(crate) mod phase;
 pub mod prover;
 mod session;
 pub(crate) mod tag;
@@ -57,7 +58,7 @@ pub use error::Error;
 pub use rangeset;
 pub use session::{Session, SessionDriver, SessionHandle};
 pub use tlsn_attestation as attestation;
-pub use tlsn_core::{config, connection, hash, transcript, webpki};
+pub use tlsn_core::{config, connection, hash, telemetry, transcript, webpki};
 
 /// Result type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;

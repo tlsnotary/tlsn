@@ -50,3 +50,9 @@ getrandom_03 = { package = "getrandom", version = "0.3", features = [
 [[bin]]
 name = "tlsn-harness-executor-native"
 path = "src/bin/native.rs"
+
+[package.metadata.wasm-pack.profile.custom]
+# The harness builds the browser bundle with `wasm-pack build --profile wasm`.
+# Disable wasm-opt here so local/browser smoke builds do not depend on
+# downloading Binaryen at build time.
+wasm-opt = false

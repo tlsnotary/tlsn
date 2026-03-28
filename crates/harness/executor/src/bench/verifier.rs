@@ -22,14 +22,15 @@ pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()
             .build()?,
     )?;
 
-    let (session, handle) = session.split();
-
-    _ = spawn(session);
+    let (session, _handle) = session.split();
+    let session_task = spawn(session);
 
     let verifier = verifier.commit().await?.accept().await?.run().await?;
     let (_, verifier) = verifier.verify().await?.accept().await?;
     verifier.close().await?;
-    handle.close();
+    // Let the prover drive session shutdown after it finishes transcript proof
+    // traffic so the verifier does not tear down the mux early.
+    let _ = session_task.await??;
 
     Ok(())
 }
