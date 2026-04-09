@@ -28,7 +28,10 @@ mod prf;
 use prf::{PrfTranscript, create_intercepting_suites};
 
 const ALLOWED_GROUPS: &[NamedGroup] = &[NamedGroup::secp256r1];
-const ALLOWED_SUITES: &[CipherSuite] = &[CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256];
+const ALLOWED_SUITES: &[CipherSuite] = &[
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+];
 
 pub(crate) struct ProxyTlsClient {
     conn: ClientConnection,
