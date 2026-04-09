@@ -376,7 +376,7 @@ impl HandshakeData {
 
         end_entity
             .verify_signature(sig_alg, &message, &self.sig.sig)
-            .map_err(|_| HandshakeVerificationError::InvalidServerSignature)?;
+            .map_err(|err| HandshakeVerificationError::InvalidServerSignature(Box::new(err)))?;
 
         Ok(())
     }
@@ -390,8 +390,8 @@ pub enum HandshakeVerificationError {
     InvalidEndEntityCertificate,
     #[error("missing server certificates")]
     MissingCerts,
-    #[error("invalid server signature")]
-    InvalidServerSignature,
+    #[error("invalid server signature: {0}")]
+    InvalidServerSignature(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error("invalid server ephemeral key")]
     InvalidServerEphemeralKey,
     #[error("server certificate verification failed: {0}")]
@@ -602,7 +602,7 @@ mod tests {
 
         assert!(matches!(
             err.unwrap_err(),
-            HandshakeVerificationError::InvalidServerSignature
+            HandshakeVerificationError::InvalidServerSignature(_)
         ));
     }
 
@@ -625,7 +625,7 @@ mod tests {
 
         assert!(matches!(
             err.unwrap_err(),
-            HandshakeVerificationError::InvalidServerSignature
+            HandshakeVerificationError::InvalidServerSignature(_)
         ));
     }
 
