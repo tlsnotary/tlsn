@@ -12,18 +12,13 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 use tlsn::{
-    config::{
+    Session, config::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig, TlsCommitProtocolConfig},
+        tls_commit::{TlsCommitConfig, TlsCommitProtocolConfig, mpc::MpcTlsConfig},
         verifier::VerifierConfig,
-    },
-    connection::ServerName,
-    transcript::PartialTranscript,
-    verifier::VerifierOutput,
-    webpki::{CertificateDer, RootCertStore},
-    Session,
+    }, connection::ServerName, hash::HashAlgId, transcript::{Direction, PartialTranscript, TranscriptCommitConfig, TranscriptCommitmentKind}, verifier::VerifierOutput, webpki::{CertificateDer, RootCertStore}
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};

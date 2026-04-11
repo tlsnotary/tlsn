@@ -50,6 +50,7 @@ rustls-webpki = { workspace = true, features = ["ring"] }
 rustls-pki-types = { workspace = true }
 itybity = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive"] }
+poseidon-m31 = { workspace = true }
 
 [dev-dependencies]
 aead = { workspace = true, features = ["alloc"] }

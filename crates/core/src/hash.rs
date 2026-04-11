@@ -25,6 +25,7 @@ impl Default for HashProvider {
         algs.insert(HashAlgId::SHA256, Box::new(Sha256::default()));
         algs.insert(HashAlgId::BLAKE3, Box::new(Blake3::default()));
         algs.insert(HashAlgId::KECCAK256, Box::new(Keccak256::default()));
+        algs.insert(HashAlgId::POSEIDON2, Box::new(Poseidon2::default()));
 
         Self { algs }
     }
@@ -66,6 +67,8 @@ impl HashAlgId {
     pub const BLAKE3: Self = Self(2);
     /// Keccak-256 hash algorithm.
     pub const KECCAK256: Self = Self(3);
+    /// POSEIDON2 hash algorithm
+    pub const POSEIDON2: Self = Self(4);
 
     /// Creates a new hash algorithm identifier.
     ///
@@ -368,3 +371,32 @@ mod keccak {
 }
 
 pub use keccak::Keccak256;
+
+use crate::hash::poseidon2::Poseidon2;
+
+mod poseidon2 {
+    use poseidon_m31::{PoseidonHasher, hash_bytes};
+
+    /// Poseidon2 hash algorithm (native, non-VM).
+    #[derive(Default, Clone)]
+    pub(super) struct Poseidon2 {}
+
+    impl super::HashAlgorithm for Poseidon2 {
+        fn id(&self) -> super::HashAlgId {
+            super::HashAlgId::POSEIDON2
+        }
+
+        fn hash(&self, data: &[u8]) -> super::Hash {                                            
+            println!("Poseidon native hasher");                                                 
+            super::Hash::new(&hash_bytes(data))                                                                                    
+        }                                                                                       
+                                                                                                
+        fn hash_prefixed(&self, prefix: &[u8], data: &[u8]) -> super::Hash {
+            println!("Poseidon native hasher");
+            let mut hasher = PoseidonHasher::new();
+            hasher.update(prefix);                                                              
+            hasher.update(data);
+            super::Hash::new(&hasher.finalize())                                                
+        }         
+    }
+}
