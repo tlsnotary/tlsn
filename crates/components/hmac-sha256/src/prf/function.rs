@@ -1,6 +1,6 @@
 //! Provides [`Prf`], for computing the TLS 1.2 PRF.
 
-use crate::{Mode, PrfError};
+use crate::{NetworkMode, PrfConfig, PrfError};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
     memory::{
@@ -14,46 +14,53 @@ mod normal;
 mod reduced;
 
 #[derive(Debug)]
-pub(crate) enum Prf {
+pub(crate) enum InnerPrf {
     Reduced(reduced::PrfFunction),
     Normal(normal::PrfFunction),
 }
 
-impl Prf {
+impl InnerPrf {
     pub(crate) fn alloc_master_secret(
-        mode: Mode,
+        config: PrfConfig,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
-        let prf = match mode {
-            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_master_secret(
+        let PrfConfig {
+            network,
+            ms: ms_mode,
+        } = config;
+
+        let prf = match network {
+            NetworkMode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
+                ms_mode,
             )?),
-            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_master_secret(
+            NetworkMode::Normal => Self::Normal(normal::PrfFunction::alloc_master_secret(
                 vm,
                 outer_partial,
                 inner_partial,
+                ms_mode,
             )?),
         };
         Ok(prf)
     }
 
     pub(crate) fn alloc_key_expansion(
-        mode: Mode,
+        network: NetworkMode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
-        let prf = match mode {
-            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_key_expansion(
+        let prf = match network {
+            NetworkMode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_key_expansion(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_key_expansion(
+            NetworkMode::Normal => Self::Normal(normal::PrfFunction::alloc_key_expansion(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -63,18 +70,18 @@ impl Prf {
     }
 
     pub(crate) fn alloc_client_finished(
-        config: Mode,
+        network: NetworkMode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
-        let prf = match config {
-            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_client_finished(
+        let prf = match network {
+            NetworkMode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_client_finished(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_client_finished(
+            NetworkMode::Normal => Self::Normal(normal::PrfFunction::alloc_client_finished(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -84,18 +91,18 @@ impl Prf {
     }
 
     pub(crate) fn alloc_server_finished(
-        config: Mode,
+        network: NetworkMode,
         vm: &mut dyn Vm<Binary>,
         outer_partial: Sha256,
         inner_partial: Sha256,
     ) -> Result<Self, PrfError> {
-        let prf = match config {
-            Mode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_server_finished(
+        let prf = match network {
+            NetworkMode::Reduced => Self::Reduced(reduced::PrfFunction::alloc_server_finished(
                 vm,
                 outer_partial,
                 inner_partial,
             )?),
-            Mode::Normal => Self::Normal(normal::PrfFunction::alloc_server_finished(
+            NetworkMode::Normal => Self::Normal(normal::PrfFunction::alloc_server_finished(
                 vm,
                 outer_partial,
                 inner_partial,
@@ -106,29 +113,36 @@ impl Prf {
 
     pub(crate) fn wants_flush(&self) -> bool {
         match self {
-            Prf::Reduced(prf) => prf.wants_flush(),
-            Prf::Normal(prf) => prf.wants_flush(),
+            InnerPrf::Reduced(prf) => prf.wants_flush(),
+            InnerPrf::Normal(prf) => prf.wants_flush(),
         }
     }
 
     pub(crate) fn flush(&mut self, vm: &mut dyn Vm<Binary>) -> Result<(), PrfError> {
         match self {
-            Prf::Reduced(prf) => prf.flush(vm),
-            Prf::Normal(prf) => prf.flush(vm),
+            InnerPrf::Reduced(prf) => prf.flush(vm),
+            InnerPrf::Normal(prf) => prf.flush(vm),
+        }
+    }
+
+    pub(crate) fn is_done(&self) -> bool {
+        match self {
+            InnerPrf::Reduced(prf) => prf.is_done(),
+            InnerPrf::Normal(prf) => prf.is_done(),
         }
     }
 
     pub(crate) fn set_start_seed(&mut self, seed: Vec<u8>) {
         match self {
-            Prf::Reduced(prf) => prf.set_start_seed(seed),
-            Prf::Normal(prf) => prf.set_start_seed(seed),
+            InnerPrf::Reduced(prf) => prf.set_start_seed(seed),
+            InnerPrf::Normal(prf) => prf.set_start_seed(seed),
         }
     }
 
     pub(crate) fn output(&self) -> Vec<Array<U8, 32>> {
         match self {
-            Prf::Reduced(prf) => prf.output(),
-            Prf::Normal(prf) => prf.output(),
+            InnerPrf::Reduced(prf) => prf.output(),
+            InnerPrf::Normal(prf) => prf.output(),
         }
     }
 }
@@ -136,9 +150,9 @@ impl Prf {
 #[cfg(test)]
 mod tests {
     use crate::{
-        prf::{compute_partial, function::Prf},
+        prf::{compute_partial, function::InnerPrf},
         test_utils::phash,
-        Mode,
+        MSMode, NetworkMode, PrfConfig,
     };
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
@@ -153,17 +167,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_phash_reduced() {
-        let mode = Mode::Reduced;
-        test_phash(mode).await;
+        let config = PrfConfig::new(NetworkMode::Reduced, MSMode::Standard);
+        test_phash(config).await;
+    }
+
+    #[tokio::test]
+    async fn test_phash_reduced_ems() {
+        let config = PrfConfig::new(NetworkMode::Reduced, MSMode::Extended);
+        test_phash(config).await;
     }
 
     #[tokio::test]
     async fn test_phash_normal() {
-        let mode = Mode::Normal;
-        test_phash(mode).await;
+        let config = PrfConfig::new(NetworkMode::Normal, MSMode::Standard);
+        test_phash(config).await;
     }
 
-    async fn test_phash(mode: Mode) {
+    #[tokio::test]
+    async fn test_phash_normal_ems() {
+        let config = PrfConfig::new(NetworkMode::Normal, MSMode::Extended);
+        test_phash(config).await;
+    }
+
+    async fn test_phash(config: PrfConfig) {
         let mut rng = ThreadRng::default();
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
@@ -171,9 +197,14 @@ mod tests {
         let mut follower = IdealVm::new();
 
         let key: [u8; 32] = rng.random();
-        let start_seed: Vec<u8> = vec![42; 64];
 
-        let mut label_seed = b"master secret".to_vec();
+        let (label, seed_len): (&[u8], usize) = match config.ms {
+            MSMode::Standard => (b"master secret", 64),
+            MSMode::Extended => (b"extended master secret", 32),
+        };
+        let start_seed: Vec<u8> = vec![42; seed_len];
+
+        let mut label_seed = label.to_vec();
         label_seed.extend_from_slice(&start_seed);
         let iterations = 2;
 
@@ -185,8 +216,8 @@ mod tests {
         let outer_partial_leader = compute_partial(&mut leader, leader_key.into(), OPAD).unwrap();
         let inner_partial_leader = compute_partial(&mut leader, leader_key.into(), IPAD).unwrap();
 
-        let mut prf_leader = Prf::alloc_master_secret(
-            mode,
+        let mut prf_leader = InnerPrf::alloc_master_secret(
+            config,
             &mut leader,
             outer_partial_leader,
             inner_partial_leader,
@@ -210,8 +241,8 @@ mod tests {
         let inner_partial_follower =
             compute_partial(&mut follower, follower_key.into(), IPAD).unwrap();
 
-        let mut prf_follower = Prf::alloc_master_secret(
-            mode,
+        let mut prf_follower = InnerPrf::alloc_master_secret(
+            config,
             &mut follower,
             outer_partial_follower,
             inner_partial_follower,
