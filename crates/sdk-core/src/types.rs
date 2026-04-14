@@ -368,17 +368,8 @@ pub enum HandlerAction {
     Reveal,
     /// Hash-commit to the data (blinded, never revealed as plaintext).
     Hash,
-    /// Deprecated alias for `Hash`. Kept for backward compatibility.
-    #[serde(alias = "PEDERSEN")]
-    Pedersen,
 }
 
-impl HandlerAction {
-    /// Returns `true` if this action is a hash commitment (Hash or Pedersen).
-    pub fn is_hash(&self) -> bool {
-        matches!(self, Self::Hash | Self::Pedersen)
-    }
-}
 
 /// Optional parameters for a handler.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

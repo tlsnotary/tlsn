@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Result, SdkError},
-    types::{Commit, CommitRange, Handler, HandlerType, Reveal},
+    types::{Commit, CommitRange, Handler, HandlerAction, HandlerType, Reveal},
 };
 
 /// A byte range annotated with the handler that produced it.
@@ -90,8 +90,6 @@ pub fn compute_reveal(
             HandlerType::Recv => extract::extract_ranges(handler, &recv_msg, recv)?,
         };
 
-        let is_hash = handler.action.is_hash();
-
         let with_handlers_vec = match handler.handler_type {
             HandlerType::Sent => &mut sent_with_handlers,
             HandlerType::Recv => &mut recv_with_handlers,
@@ -105,7 +103,7 @@ pub fn compute_reveal(
             });
         }
 
-        if is_hash {
+        if handler.action == HandlerAction::Hash {
             // Each range carries the handler's algorithm for per-range commit.
             let commit_vec = match handler.handler_type {
                 HandlerType::Sent => &mut commit_sent,

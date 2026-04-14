@@ -620,13 +620,6 @@ fn test_reveal_only_has_no_commit() {
 }
 
 #[test]
-fn test_pedersen_alias_deserializes_to_hash() {
-    let json_str = r#"{"type":"RECV","part":"BODY","action":"PEDERSEN"}"#;
-    let handler: Handler = serde_json::from_str(json_str).unwrap();
-    assert!(handler.action.is_hash());
-}
-
-#[test]
 fn test_hash_action_serde_roundtrip() {
     let json_str = r#"{"type":"RECV","part":"BODY","action":"HASH","algorithm":"SHA256"}"#;
     let handler: Handler = serde_json::from_str(json_str).unwrap();
