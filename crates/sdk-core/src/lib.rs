@@ -58,8 +58,8 @@ pub use handler::compute_reveal;
 pub use io::{HyperIo, Io};
 pub use prover::SdkProver;
 pub use types::{
-    Body, ConnectionInfo, Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType,
-    HttpRequest, HttpResponse, Method, PartialTranscript, Reveal, TlsVersion, Transcript,
-    TranscriptLength, VerifierOutput,
+    Body, Commit, CommitRange, ConnectionInfo, Handler, HandlerAction, HandlerParams, HandlerPart,
+    HandlerType, HashAlgorithm, HttpRequest, HttpResponse, Method, PartialTranscript, Reveal,
+    TlsVersion, Transcript, TranscriptLength, VerifierOutput,
 };
 pub use verifier::SdkVerifier;

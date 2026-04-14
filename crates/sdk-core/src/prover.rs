@@ -252,7 +252,11 @@ impl SdkProver {
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
-    pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
+    ///
+    /// Optionally accepts a [`Commit`] with ranges to hash-commit (blinded,
+    /// not revealed as plaintext). The commit ranges are processed via the
+    /// TLSNotary hash-commitment path (`prove_hash`).
+    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<()> {
         let State::Committed { mut prover, handle } = self.state.take() else {
             return Err(SdkError::invalid_state("prover is not in committed state"));
         };
@@ -271,6 +275,46 @@ impl SdkProver {
 
         if reveal.server_identity {
             builder.server_identity();
+        }
+
+        // Build transcript commit config for hash-commitment ranges.
+        // Each range carries its own algorithm (defaulting to BLAKE3).
+        if let Some(commit) = commit {
+            let mut commit_builder =
+                tlsn_core::transcript::TranscriptCommitConfig::builder(prover.transcript());
+
+            for cr in &commit.sent {
+                let alg: tlsn_core::hash::HashAlgId =
+                    cr.algorithm.unwrap_or_default().into();
+                let kind =
+                    tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
+                commit_builder
+                    .commit_with_kind(
+                        cr.start..cr.end,
+                        tlsn_core::transcript::Direction::Sent,
+                        kind,
+                    )
+                    .map_err(|e| SdkError::handler(e.to_string()))?;
+            }
+            for cr in &commit.recv {
+                let alg: tlsn_core::hash::HashAlgId =
+                    cr.algorithm.unwrap_or_default().into();
+                let kind =
+                    tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
+                commit_builder
+                    .commit_with_kind(
+                        cr.start..cr.end,
+                        tlsn_core::transcript::Direction::Received,
+                        kind,
+                    )
+                    .map_err(|e| SdkError::handler(e.to_string()))?;
+            }
+
+            builder.transcript_commit(
+                commit_builder
+                    .build()
+                    .map_err(|e| SdkError::handler(e.to_string()))?,
+            );
         }
 
         let config = builder.build()?;

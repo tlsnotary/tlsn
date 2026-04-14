@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Result, SdkError},
-    types::{Handler, HandlerType, Reveal},
+    types::{Commit, CommitRange, Handler, HandlerType, Reveal},
 };
 
 /// A byte range annotated with the handler that produced it.
@@ -37,6 +37,10 @@ pub struct RangeWithHandler {
 pub struct ComputeRevealOutput {
     /// The `Reveal` struct ready for `SdkProver::reveal()`.
     pub reveal: Reveal,
+    /// Ranges to hash-commit (not revealed as plaintext).
+    /// `None` when no handlers use `action: HASH`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit: Option<Commit>,
     /// Sent ranges annotated with their originating handler.
     pub sent_ranges_with_handlers: Vec<RangeWithHandler>,
     /// Received ranges annotated with their originating handler.
@@ -70,8 +74,10 @@ pub fn compute_reveal(
     let response = spansy::http::parse_response(recv)
         .map_err(|e| SdkError::handler(format!("failed to parse HTTP response: {e}")))?;
 
-    let mut sent_ranges: Vec<Range<usize>> = Vec::new();
-    let mut recv_ranges: Vec<Range<usize>> = Vec::new();
+    let mut reveal_sent: Vec<Range<usize>> = Vec::new();
+    let mut reveal_recv: Vec<Range<usize>> = Vec::new();
+    let mut commit_sent: Vec<CommitRange> = Vec::new();
+    let mut commit_recv: Vec<CommitRange> = Vec::new();
     let mut sent_with_handlers: Vec<RangeWithHandler> = Vec::new();
     let mut recv_with_handlers: Vec<RangeWithHandler> = Vec::new();
 
@@ -84,9 +90,11 @@ pub fn compute_reveal(
             HandlerType::Recv => extract::extract_ranges(handler, &recv_msg, recv)?,
         };
 
-        let (ranges_vec, with_handlers_vec) = match handler.handler_type {
-            HandlerType::Sent => (&mut sent_ranges, &mut sent_with_handlers),
-            HandlerType::Recv => (&mut recv_ranges, &mut recv_with_handlers),
+        let is_hash = handler.action.is_hash();
+
+        let with_handlers_vec = match handler.handler_type {
+            HandlerType::Sent => &mut sent_with_handlers,
+            HandlerType::Recv => &mut recv_with_handlers,
         };
 
         for range in &extracted {
@@ -96,15 +104,45 @@ pub fn compute_reveal(
                 handler: handler.clone(),
             });
         }
-        ranges_vec.extend(extracted);
+
+        if is_hash {
+            // Each range carries the handler's algorithm for per-range commit.
+            let commit_vec = match handler.handler_type {
+                HandlerType::Sent => &mut commit_sent,
+                HandlerType::Recv => &mut commit_recv,
+            };
+            for range in extracted {
+                commit_vec.push(CommitRange {
+                    start: range.start,
+                    end: range.end,
+                    algorithm: handler.algorithm,
+                });
+            }
+        } else {
+            let reveal_vec = match handler.handler_type {
+                HandlerType::Sent => &mut reveal_sent,
+                HandlerType::Recv => &mut reveal_recv,
+            };
+            reveal_vec.extend(extracted);
+        }
     }
+
+    let commit = if commit_sent.is_empty() && commit_recv.is_empty() {
+        None
+    } else {
+        Some(Commit {
+            sent: commit_sent,
+            recv: commit_recv,
+        })
+    };
 
     Ok(ComputeRevealOutput {
         reveal: Reveal {
-            sent: sent_ranges,
-            recv: recv_ranges,
+            sent: reveal_sent,
+            recv: reveal_recv,
             server_identity: true,
         },
+        commit,
         sent_ranges_with_handlers: sent_with_handlers,
         recv_ranges_with_handlers: recv_with_handlers,
     })

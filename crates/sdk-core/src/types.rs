@@ -238,13 +238,25 @@ impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
     }
 }
 
-/// Ranges of data to commit.
+/// A byte range paired with a hash algorithm for commitment.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommitRange {
+    /// Start of the byte range (inclusive).
+    pub start: usize,
+    /// End of the byte range (exclusive).
+    pub end: usize,
+    /// Hash algorithm to use for this range. Defaults to BLAKE3 if not specified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<HashAlgorithm>,
+}
+
+/// Ranges of data to hash-commit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
-    /// Ranges of sent data to commit.
-    pub sent: Vec<Range<usize>>,
-    /// Ranges of received data to commit.
-    pub recv: Vec<Range<usize>>,
+    /// Ranges of sent data to commit, each with its own algorithm.
+    pub sent: Vec<CommitRange>,
+    /// Ranges of received data to commit, each with its own algorithm.
+    pub recv: Vec<CommitRange>,
 }
 
 /// Ranges of data to reveal.
@@ -325,14 +337,52 @@ pub enum HandlerPart {
     All,
 }
 
+/// Hash algorithm for hash-commitment actions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum HashAlgorithm {
+    /// BLAKE3 hash algorithm (default).
+    Blake3,
+    /// SHA-256 hash algorithm.
+    Sha256,
+    /// Keccak-256 hash algorithm.
+    Keccak256,
+}
+
+impl Default for HashAlgorithm {
+    fn default() -> Self {
+        Self::Blake3
+    }
+}
+
+impl From<HashAlgorithm> for tlsn_core::hash::HashAlgId {
+    fn from(alg: HashAlgorithm) -> Self {
+        match alg {
+            HashAlgorithm::Blake3 => tlsn_core::hash::HashAlgId::BLAKE3,
+            HashAlgorithm::Sha256 => tlsn_core::hash::HashAlgId::SHA256,
+            HashAlgorithm::Keccak256 => tlsn_core::hash::HashAlgId::KECCAK256,
+        }
+    }
+}
+
 /// What action to take with the matched ranges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HandlerAction {
     /// Reveal the data in plaintext.
     Reveal,
-    /// Commit to the data with a Pedersen hash.
+    /// Hash-commit to the data (blinded, never revealed as plaintext).
+    Hash,
+    /// Deprecated alias for `Hash`. Kept for backward compatibility.
+    #[serde(alias = "PEDERSEN")]
     Pedersen,
+}
+
+impl HandlerAction {
+    /// Returns `true` if this action is a hash commitment (Hash or Pedersen).
+    pub fn is_hash(&self) -> bool {
+        matches!(self, Self::Hash | Self::Pedersen)
+    }
 }
 
 /// Optional parameters for a handler.
@@ -366,7 +416,7 @@ pub struct HandlerParams {
 ///
 /// Handlers are used by plugins to control selective disclosure in TLS proofs.
 /// Each handler targets a specific part of the HTTP message and specifies
-/// whether to reveal or commit to the data.
+/// whether to reveal or hash-commit the data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Handler {
     /// Direction: sent (request) or received (response).
@@ -374,11 +424,15 @@ pub struct Handler {
     pub handler_type: HandlerType,
     /// Which part of the HTTP message to target.
     pub part: HandlerPart,
-    /// What action to take (reveal or Pedersen commitment).
+    /// What action to take (reveal plaintext or hash-commit).
     pub action: HandlerAction,
     /// Optional parameters for fine-grained control.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<HandlerParams>,
+    /// Hash algorithm for HASH actions. Ignored when action is Reveal.
+    /// Defaults to BLAKE3.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<HashAlgorithm>,
 }
 
 /// Output from the verifier.

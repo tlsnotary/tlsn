@@ -117,12 +117,23 @@ impl JsProver {
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
-    pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
+    ///
+    /// Optionally accepts a `Commit` object with ranges to hash-commit.
+    /// Pass `undefined` or omit the second argument for reveal-only proofs.
+    pub async fn reveal(&mut self, reveal: Reveal, commit: JsValue) -> Result<()> {
         self.emit_progress("REVEAL", 0.7, "Proving and revealing data...");
 
         let core_reveal = convert_reveal(reveal);
+        let core_commit = if commit.is_undefined() || commit.is_null() {
+            None
+        } else {
+            let wasm_commit: Commit = serde_wasm_bindgen::from_value(commit)
+                .map_err(|e| JsError::new(&format!("invalid commit: {e}")))?;
+            Some(convert_commit(wasm_commit))
+        };
+
         self.inner
-            .reveal(core_reveal)
+            .reveal(core_reveal, core_commit)
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
@@ -215,6 +226,29 @@ fn convert_transcript(transcript: tlsn_sdk_core::Transcript) -> Transcript {
     Transcript {
         sent: transcript.sent,
         recv: transcript.recv,
+    }
+}
+
+fn convert_hash_algorithm(alg: HashAlgorithm) -> tlsn_sdk_core::HashAlgorithm {
+    match alg {
+        HashAlgorithm::BLAKE3 => tlsn_sdk_core::HashAlgorithm::Blake3,
+        HashAlgorithm::SHA256 => tlsn_sdk_core::HashAlgorithm::Sha256,
+        HashAlgorithm::KECCAK256 => tlsn_sdk_core::HashAlgorithm::Keccak256,
+    }
+}
+
+fn convert_commit_range(cr: CommitRange) -> tlsn_sdk_core::CommitRange {
+    tlsn_sdk_core::CommitRange {
+        start: cr.start,
+        end: cr.end,
+        algorithm: cr.algorithm.map(convert_hash_algorithm),
+    }
+}
+
+fn convert_commit(commit: Commit) -> tlsn_sdk_core::Commit {
+    tlsn_sdk_core::Commit {
+        sent: commit.sent.into_iter().map(convert_commit_range).collect(),
+        recv: commit.recv.into_iter().map(convert_commit_range).collect(),
     }
 }
 
