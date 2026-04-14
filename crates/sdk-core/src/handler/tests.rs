@@ -1,6 +1,8 @@
 //! Tests for handler-based range extraction.
 
-use crate::types::{Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType, HashAlgorithm};
+use crate::types::{
+    Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType, HashAlgorithm,
+};
 
 use super::compute_reveal;
 
@@ -117,7 +119,7 @@ fn test_method_on_response_errors() {
             part: HandlerPart::Method,
             action: HandlerAction::Reveal,
             params: None,
-        algorithm: None,
+            algorithm: None,
         }],
     );
     assert!(result.is_err());
@@ -133,7 +135,7 @@ fn test_status_code_on_request_errors() {
             part: HandlerPart::StatusCode,
             action: HandlerAction::Reveal,
             params: None,
-        algorithm: None,
+            algorithm: None,
         }],
     );
     assert!(result.is_err());
@@ -399,14 +401,14 @@ fn test_multiple_handlers() {
             part: HandlerPart::StartLine,
             action: HandlerAction::Reveal,
             params: None,
-        algorithm: None,
+            algorithm: None,
         },
         Handler {
             handler_type: HandlerType::Recv,
             part: HandlerPart::StatusCode,
             action: HandlerAction::Reveal,
             params: None,
-        algorithm: None,
+            algorithm: None,
         },
         Handler {
             handler_type: HandlerType::Recv,
@@ -532,7 +534,7 @@ fn test_handler_serde_all_parts() {
             part,
             action: HandlerAction::Reveal,
             params: None,
-        algorithm: None,
+            algorithm: None,
         };
         let json = serde_json::to_value(&handler).unwrap();
         assert_eq!(
@@ -576,7 +578,9 @@ fn test_hash_action_splits_ranges() {
     // Recv body should NOT be in reveal (action: HASH)
     assert!(output.reveal.recv.is_empty());
     // Commit should be present with recv ranges
-    let commit = output.commit.expect("commit should be Some when HASH handlers are used");
+    let commit = output
+        .commit
+        .expect("commit should be Some when HASH handlers are used");
     assert!(!commit.recv.is_empty());
     assert!(commit.sent.is_empty());
     // Per-range algorithm is None (BLAKE3 default applied downstream)

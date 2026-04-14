@@ -338,21 +338,16 @@ pub enum HandlerPart {
 }
 
 /// Hash algorithm for hash-commitment actions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HashAlgorithm {
     /// BLAKE3 hash algorithm (default).
+    #[default]
     Blake3,
     /// SHA-256 hash algorithm.
     Sha256,
     /// Keccak-256 hash algorithm.
     Keccak256,
-}
-
-impl Default for HashAlgorithm {
-    fn default() -> Self {
-        Self::Blake3
-    }
 }
 
 impl From<HashAlgorithm> for tlsn_core::hash::HashAlgId {
