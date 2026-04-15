@@ -37,7 +37,6 @@ fn test_start_line_request() {
         part: HandlerPart::StartLine,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -56,7 +55,6 @@ fn test_start_line_response() {
         part: HandlerPart::StartLine,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(RESPONSE, &output.reveal.recv);
@@ -74,7 +72,6 @@ fn test_method() {
         part: HandlerPart::Method,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -88,7 +85,6 @@ fn test_request_target() {
         part: HandlerPart::RequestTarget,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -102,7 +98,6 @@ fn test_status_code() {
         part: HandlerPart::StatusCode,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(RESPONSE, &output.reveal.recv);
@@ -119,7 +114,6 @@ fn test_method_on_response_errors() {
             part: HandlerPart::Method,
             action: HandlerAction::Reveal,
             params: None,
-            algorithm: None,
         }],
     );
     assert!(result.is_err());
@@ -135,7 +129,6 @@ fn test_status_code_on_request_errors() {
             part: HandlerPart::StatusCode,
             action: HandlerAction::Reveal,
             params: None,
-            algorithm: None,
         }],
     );
     assert!(result.is_err());
@@ -150,7 +143,6 @@ fn test_protocol_request() {
         part: HandlerPart::Protocol,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -172,7 +164,6 @@ fn test_headers_all() {
         part: HandlerPart::Headers,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -193,7 +184,6 @@ fn test_headers_specific_key() {
             key: Some("Host".to_string()),
             ..Default::default()
         }),
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -216,7 +206,6 @@ fn test_headers_hide_key() {
             hide_key: Some(true),
             ..Default::default()
         }),
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -238,7 +227,6 @@ fn test_headers_hide_value() {
             hide_value: Some(true),
             ..Default::default()
         }),
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -264,7 +252,6 @@ fn test_headers_hide_both_errors() {
                 hide_value: Some(true),
                 ..Default::default()
             }),
-            algorithm: None,
         }],
     );
     assert!(result.is_err());
@@ -279,7 +266,6 @@ fn test_body_entire() {
         part: HandlerPart::Body,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     let bytes = extract_bytes(RESPONSE, &output.reveal.recv);
@@ -300,7 +286,6 @@ fn test_body_json_path() {
             path: Some("screen_name".to_string()),
             ..Default::default()
         }),
-        algorithm: None,
     });
 
     let bytes = extract_bytes(RESPONSE, &output.reveal.recv);
@@ -322,7 +307,6 @@ fn test_body_json_hide_key() {
             hide_key: Some(true),
             ..Default::default()
         }),
-        algorithm: None,
     });
 
     let bytes = extract_bytes(RESPONSE, &output.reveal.recv);
@@ -345,7 +329,6 @@ fn test_body_json_hide_value() {
             hide_value: Some(true),
             ..Default::default()
         }),
-        algorithm: None,
     });
 
     let bytes = extract_bytes(RESPONSE, &output.reveal.recv);
@@ -365,7 +348,6 @@ fn test_all_entire() {
         part: HandlerPart::All,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     });
 
     assert_eq!(output.reveal.sent.len(), 1);
@@ -383,7 +365,6 @@ fn test_all_regex() {
             regex: Some(r"Bearer [A-Za-z0-9\-]+".to_string()),
             ..Default::default()
         }),
-        algorithm: None,
     });
 
     let bytes = extract_bytes(REQUEST, &output.reveal.sent);
@@ -401,14 +382,12 @@ fn test_multiple_handlers() {
             part: HandlerPart::StartLine,
             action: HandlerAction::Reveal,
             params: None,
-            algorithm: None,
         },
         Handler {
             handler_type: HandlerType::Recv,
             part: HandlerPart::StatusCode,
             action: HandlerAction::Reveal,
             params: None,
-            algorithm: None,
         },
         Handler {
             handler_type: HandlerType::Recv,
@@ -420,7 +399,6 @@ fn test_multiple_handlers() {
                 hide_key: Some(true),
                 ..Default::default()
             }),
-            algorithm: None,
         },
     ];
 
@@ -464,7 +442,6 @@ fn test_json_body_dot_notation_array() {
                 path: Some("items.0.name".to_string()),
                 ..Default::default()
             }),
-            algorithm: None,
         }],
     )
     .unwrap();
@@ -491,7 +468,6 @@ fn test_handler_serde_roundtrip() {
             hide_key: Some(true),
             ..Default::default()
         }),
-        algorithm: None,
     };
 
     let json = serde_json::to_string(&handler).unwrap();
@@ -534,7 +510,6 @@ fn test_handler_serde_all_parts() {
             part,
             action: HandlerAction::Reveal,
             params: None,
-            algorithm: None,
         };
         let json = serde_json::to_value(&handler).unwrap();
         assert_eq!(
@@ -555,19 +530,19 @@ fn test_hash_action_splits_ranges() {
             part: HandlerPart::StartLine,
             action: HandlerAction::Reveal,
             params: None,
-            algorithm: None,
         },
         Handler {
             handler_type: HandlerType::Recv,
             part: HandlerPart::Body,
-            action: HandlerAction::Hash,
+            action: HandlerAction::Hash {
+                algorithm: HashAlgorithm::Blake3,
+            },
             params: Some(HandlerParams {
                 content_type: Some("json".to_string()),
                 path: Some("screen_name".to_string()),
                 hide_key: Some(true),
                 ..Default::default()
             }),
-            algorithm: None,
         },
     ];
 
@@ -583,8 +558,8 @@ fn test_hash_action_splits_ranges() {
         .expect("commit should be Some when HASH handlers are used");
     assert!(!commit.recv.is_empty());
     assert!(commit.sent.is_empty());
-    // Per-range algorithm is None (BLAKE3 default applied downstream)
-    assert!(commit.recv[0].algorithm.is_none());
+    // Each range carries the handler's algorithm (BLAKE3 default)
+    assert_eq!(commit.recv[0].algorithm, Some(HashAlgorithm::Blake3));
 }
 
 #[test]
@@ -592,9 +567,10 @@ fn test_hash_action_with_algorithm() {
     let handler = Handler {
         handler_type: HandlerType::Recv,
         part: HandlerPart::Body,
-        action: HandlerAction::Hash,
+        action: HandlerAction::Hash {
+            algorithm: HashAlgorithm::Sha256,
+        },
         params: None,
-        algorithm: Some(HashAlgorithm::Sha256),
     };
 
     let output = reveal_one(handler);
@@ -612,7 +588,6 @@ fn test_reveal_only_has_no_commit() {
         part: HandlerPart::Body,
         action: HandlerAction::Reveal,
         params: None,
-        algorithm: None,
     };
 
     let output = reveal_one(handler);
@@ -624,8 +599,12 @@ fn test_hash_action_serde_roundtrip() {
     let json_str = r#"{"type":"RECV","part":"BODY","action":"HASH","algorithm":"SHA256"}"#;
     let handler: Handler = serde_json::from_str(json_str).unwrap();
 
-    assert_eq!(handler.action, HandlerAction::Hash);
-    assert_eq!(handler.algorithm, Some(HashAlgorithm::Sha256));
+    assert_eq!(
+        handler.action,
+        HandlerAction::Hash {
+            algorithm: HashAlgorithm::Sha256,
+        }
+    );
 
     // Roundtrip
     let serialized = serde_json::to_string(&handler).unwrap();
@@ -635,12 +614,16 @@ fn test_hash_action_serde_roundtrip() {
 
 #[test]
 fn test_hash_action_wire_format_without_algorithm() {
-    // Plugins may send HASH without algorithm — should default to None (BLAKE3 at runtime)
+    // Plugins may send HASH without algorithm — should default to BLAKE3.
     let json_str = r#"{"type":"RECV","part":"BODY","action":"HASH"}"#;
     let handler: Handler = serde_json::from_str(json_str).unwrap();
 
-    assert_eq!(handler.action, HandlerAction::Hash);
-    assert!(handler.algorithm.is_none());
+    assert_eq!(
+        handler.action,
+        HandlerAction::Hash {
+            algorithm: HashAlgorithm::Blake3,
+        }
+    );
 }
 
 #[test]
@@ -650,24 +633,26 @@ fn test_mixed_hash_algorithms_per_range() {
         Handler {
             handler_type: HandlerType::Recv,
             part: HandlerPart::Body,
-            action: HandlerAction::Hash,
+            action: HandlerAction::Hash {
+                algorithm: HashAlgorithm::Sha256,
+            },
             params: Some(HandlerParams {
                 content_type: Some("json".to_string()),
                 path: Some("screen_name".to_string()),
                 ..Default::default()
             }),
-            algorithm: Some(HashAlgorithm::Sha256),
         },
         Handler {
             handler_type: HandlerType::Recv,
             part: HandlerPart::Body,
-            action: HandlerAction::Hash,
+            action: HandlerAction::Hash {
+                algorithm: HashAlgorithm::Keccak256,
+            },
             params: Some(HandlerParams {
                 content_type: Some("json".to_string()),
                 path: Some("verified".to_string()),
                 ..Default::default()
             }),
-            algorithm: Some(HashAlgorithm::Keccak256),
         },
     ];
 

@@ -130,7 +130,8 @@ pub struct CommitRange {
     pub start: usize,
     /// End of the byte range (exclusive).
     pub end: usize,
-    /// Hash algorithm to use for this range. Defaults to BLAKE3 if not specified.
+    /// Hash algorithm to use for this range. Defaults to BLAKE3 if not
+    /// specified.
     pub algorithm: Option<HashAlgorithm>,
 }
 

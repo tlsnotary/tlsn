@@ -103,8 +103,7 @@ pub fn compute_reveal(
             });
         }
 
-        if handler.action == HandlerAction::Hash {
-            // Each range carries the handler's algorithm for per-range commit.
+        if let HandlerAction::Hash { algorithm } = handler.action {
             let commit_vec = match handler.handler_type {
                 HandlerType::Sent => &mut commit_sent,
                 HandlerType::Recv => &mut commit_recv,
@@ -113,7 +112,7 @@ pub fn compute_reveal(
                 commit_vec.push(CommitRange {
                     start: range.start,
                     end: range.end,
-                    algorithm: handler.algorithm,
+                    algorithm: Some(algorithm),
                 });
             }
         } else {

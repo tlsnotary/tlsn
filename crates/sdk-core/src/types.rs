@@ -245,7 +245,8 @@ pub struct CommitRange {
     pub start: usize,
     /// End of the byte range (exclusive).
     pub end: usize,
-    /// Hash algorithm to use for this range. Defaults to BLAKE3 if not specified.
+    /// Hash algorithm to use for this range. Defaults to BLAKE3 if not
+    /// specified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub algorithm: Option<HashAlgorithm>,
 }
@@ -362,14 +363,17 @@ impl From<HashAlgorithm> for tlsn_core::hash::HashAlgId {
 
 /// What action to take with the matched ranges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(tag = "action", rename_all = "UPPERCASE")]
 pub enum HandlerAction {
     /// Reveal the data in plaintext.
     Reveal,
     /// Hash-commit to the data (blinded, never revealed as plaintext).
-    Hash,
+    Hash {
+        /// Hash algorithm. Defaults to BLAKE3.
+        #[serde(default)]
+        algorithm: HashAlgorithm,
+    },
 }
-
 
 /// Optional parameters for a handler.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -411,14 +415,11 @@ pub struct Handler {
     /// Which part of the HTTP message to target.
     pub part: HandlerPart,
     /// What action to take (reveal plaintext or hash-commit).
+    #[serde(flatten)]
     pub action: HandlerAction,
     /// Optional parameters for fine-grained control.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<HandlerParams>,
-    /// Hash algorithm for HASH actions. Ignored when action is Reveal.
-    /// Defaults to BLAKE3.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub algorithm: Option<HashAlgorithm>,
 }
 
 /// Output from the verifier.
