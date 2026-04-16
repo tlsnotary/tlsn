@@ -21,6 +21,7 @@ use wasm_bindgen::prelude::*;
 /// - `sentRanges` / `recvRanges`: byte ranges for `Prover.reveal()`
 /// - `sentRangesWithHandlers` / `recvRangesWithHandlers`: ranges annotated with
 ///   handlers
+/// - `commit` (optional): ranges to hash-commit, with per-range algorithm
 #[wasm_bindgen(js_name = compute_reveal)]
 pub fn compute_reveal(sent: &[u8], recv: &[u8], handlers: JsValue) -> Result<JsValue, JsError> {
     let handlers: Vec<tlsn_sdk_core::Handler> = serde_wasm_bindgen::from_value(handlers)

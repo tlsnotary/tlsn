@@ -68,11 +68,14 @@ pub async fn test_prove() -> Result<(), JsValue> {
         .await?;
 
     prover
-        .reveal(Reveal {
-            sent: vec![0..10],
-            recv: vec![0..10],
-            server_identity: true,
-        })
+        .reveal(
+            Reveal {
+                sent: vec![0..10],
+                recv: vec![0..10],
+                server_identity: true,
+            },
+            JsValue::UNDEFINED,
+        )
         .await?;
 
     Ok(())

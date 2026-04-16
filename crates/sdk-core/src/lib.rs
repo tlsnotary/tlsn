@@ -36,7 +36,7 @@
 //!
 //! // Get transcript and reveal data.
 //! let transcript = prover.transcript()?;
-//! prover.reveal(Reveal::new().recv(0..100).server_identity(true)).await?;
+//! prover.reveal(Reveal::new().recv(0..100).server_identity(true), None).await?;
 //! ```
 
 #![deny(missing_docs, unreachable_pub, unused_must_use, clippy::all)]
