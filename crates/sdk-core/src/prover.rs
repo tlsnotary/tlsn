@@ -278,32 +278,21 @@ impl SdkProver {
         }
 
         // Build transcript commit config for hash-commitment ranges.
-        // Each range carries its own algorithm (defaulting to BLAKE3).
         if let Some(commit) = commit {
             let mut commit_builder =
                 tlsn_core::transcript::TranscriptCommitConfig::builder(prover.transcript());
 
-            for cr in &commit.sent {
-                let alg: tlsn_core::hash::HashAlgId = cr.algorithm.into();
-                let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
-                commit_builder
-                    .commit_with_kind(
-                        cr.range.clone(),
-                        tlsn_core::transcript::Direction::Sent,
-                        kind,
-                    )
-                    .map_err(|e| SdkError::handler(e.to_string()))?;
-            }
-            for cr in &commit.recv {
-                let alg: tlsn_core::hash::HashAlgId = cr.algorithm.into();
-                let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
-                commit_builder
-                    .commit_with_kind(
-                        cr.range.clone(),
-                        tlsn_core::transcript::Direction::Received,
-                        kind,
-                    )
-                    .map_err(|e| SdkError::handler(e.to_string()))?;
+            for (ranges, direction) in [
+                (&commit.sent, tlsn_core::transcript::Direction::Sent),
+                (&commit.recv, tlsn_core::transcript::Direction::Received),
+            ] {
+                for cr in ranges {
+                    let alg: tlsn_core::hash::HashAlgId = cr.algorithm.into();
+                    let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
+                    commit_builder
+                        .commit_with_kind(cr.range.clone(), direction, kind)
+                        .map_err(|e| SdkError::handler(e.to_string()))?;
+                }
             }
 
             builder.transcript_commit(

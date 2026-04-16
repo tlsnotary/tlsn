@@ -123,6 +123,10 @@ pub enum HashAlgorithm {
 }
 
 /// A byte range paired with a hash algorithm for commitment.
+///
+/// Uses explicit `start`/`end` fields (rather than `Range<usize>`) for
+/// clean JS/TS interop via tsify. Converted to the sdk-core `CommitRange`
+/// (which uses `Range<usize>`) in [`super::prover::convert_commit_range`].
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct CommitRange {
