@@ -559,7 +559,7 @@ fn test_hash_action_splits_ranges() {
     assert!(!commit.recv.is_empty());
     assert!(commit.sent.is_empty());
     // Each range carries the handler's algorithm (BLAKE3 default)
-    assert_eq!(commit.recv[0].algorithm, Some(HashAlgorithm::Blake3));
+    assert_eq!(commit.recv[0].algorithm, HashAlgorithm::Blake3);
 }
 
 #[test]
@@ -578,7 +578,7 @@ fn test_hash_action_with_algorithm() {
     let commit = output.commit.expect("commit should be Some");
     assert!(!commit.recv.is_empty());
     // Each range carries its handler's algorithm
-    assert_eq!(commit.recv[0].algorithm, Some(HashAlgorithm::Sha256));
+    assert_eq!(commit.recv[0].algorithm, HashAlgorithm::Sha256);
 }
 
 #[test]
@@ -613,17 +613,10 @@ fn test_hash_action_serde_roundtrip() {
 }
 
 #[test]
-fn test_hash_action_wire_format_without_algorithm() {
-    // Plugins may send HASH without algorithm — should default to BLAKE3.
+fn test_hash_action_without_algorithm_errors() {
+    // HASH without algorithm must fail — plugins must specify it explicitly.
     let json_str = r#"{"type":"RECV","part":"BODY","action":"HASH"}"#;
-    let handler: Handler = serde_json::from_str(json_str).unwrap();
-
-    assert_eq!(
-        handler.action,
-        HandlerAction::Hash {
-            algorithm: HashAlgorithm::Blake3,
-        }
-    );
+    assert!(serde_json::from_str::<Handler>(json_str).is_err());
 }
 
 #[test]
@@ -660,6 +653,6 @@ fn test_mixed_hash_algorithms_per_range() {
     let commit = output.commit.expect("commit should be Some");
 
     assert_eq!(commit.recv.len(), 2);
-    assert_eq!(commit.recv[0].algorithm, Some(HashAlgorithm::Sha256));
-    assert_eq!(commit.recv[1].algorithm, Some(HashAlgorithm::Keccak256));
+    assert_eq!(commit.recv[0].algorithm, HashAlgorithm::Sha256);
+    assert_eq!(commit.recv[1].algorithm, HashAlgorithm::Keccak256);
 }

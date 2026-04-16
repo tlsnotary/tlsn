@@ -114,7 +114,7 @@ pub struct PartialTranscript {
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub enum HashAlgorithm {
-    /// BLAKE3 hash algorithm (default).
+    /// BLAKE3 hash algorithm.
     BLAKE3,
     /// SHA-256 hash algorithm.
     SHA256,
@@ -130,9 +130,8 @@ pub struct CommitRange {
     pub start: usize,
     /// End of the byte range (exclusive).
     pub end: usize,
-    /// Hash algorithm to use for this range. Defaults to BLAKE3 if not
-    /// specified.
-    pub algorithm: Option<HashAlgorithm>,
+    /// Hash algorithm to use for this range.
+    pub algorithm: HashAlgorithm,
 }
 
 /// Ranges of data to hash-commit.

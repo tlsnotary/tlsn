@@ -37,7 +37,7 @@ pub struct RangeWithHandler {
 pub struct ComputeRevealOutput {
     /// The `Reveal` struct ready for `SdkProver::reveal()`.
     pub reveal: Reveal,
-    /// Ranges to hash-commit (not revealed as plaintext).
+    /// Ranges to hash-commit (the verifier receives `H(plaintext, blinder)`).
     /// `None` when no handlers use `action: HASH`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit: Option<Commit>,
@@ -109,11 +109,7 @@ pub fn compute_reveal(
                 HandlerType::Recv => &mut commit_recv,
             };
             for range in extracted {
-                commit_vec.push(CommitRange {
-                    start: range.start,
-                    end: range.end,
-                    algorithm: Some(algorithm),
-                });
+                commit_vec.push(CommitRange { range, algorithm });
             }
         } else {
             let reveal_vec = match handler.handler_type {

@@ -241,14 +241,10 @@ impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
 /// A byte range paired with a hash algorithm for commitment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommitRange {
-    /// Start of the byte range (inclusive).
-    pub start: usize,
-    /// End of the byte range (exclusive).
-    pub end: usize,
-    /// Hash algorithm to use for this range. Defaults to BLAKE3 if not
-    /// specified.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub algorithm: Option<HashAlgorithm>,
+    /// Byte range to commit.
+    pub range: Range<usize>,
+    /// Hash algorithm to use for this range.
+    pub algorithm: HashAlgorithm,
 }
 
 /// Ranges of data to hash-commit.
@@ -339,11 +335,10 @@ pub enum HandlerPart {
 }
 
 /// Hash algorithm for hash-commitment actions.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HashAlgorithm {
-    /// BLAKE3 hash algorithm (default).
-    #[default]
+    /// BLAKE3 hash algorithm.
     Blake3,
     /// SHA-256 hash algorithm.
     Sha256,
@@ -369,8 +364,7 @@ pub enum HandlerAction {
     Reveal,
     /// Hash-commit to the data (blinded, never revealed as plaintext).
     Hash {
-        /// Hash algorithm. Defaults to BLAKE3.
-        #[serde(default)]
+        /// Hash algorithm.
         algorithm: HashAlgorithm,
     },
 }

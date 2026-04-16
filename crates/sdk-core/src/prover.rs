@@ -284,22 +284,22 @@ impl SdkProver {
                 tlsn_core::transcript::TranscriptCommitConfig::builder(prover.transcript());
 
             for cr in &commit.sent {
-                let alg: tlsn_core::hash::HashAlgId = cr.algorithm.unwrap_or_default().into();
+                let alg: tlsn_core::hash::HashAlgId = cr.algorithm.into();
                 let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
                 commit_builder
                     .commit_with_kind(
-                        cr.start..cr.end,
+                        cr.range.clone(),
                         tlsn_core::transcript::Direction::Sent,
                         kind,
                     )
                     .map_err(|e| SdkError::handler(e.to_string()))?;
             }
             for cr in &commit.recv {
-                let alg: tlsn_core::hash::HashAlgId = cr.algorithm.unwrap_or_default().into();
+                let alg: tlsn_core::hash::HashAlgId = cr.algorithm.into();
                 let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
                 commit_builder
                     .commit_with_kind(
-                        cr.start..cr.end,
+                        cr.range.clone(),
                         tlsn_core::transcript::Direction::Received,
                         kind,
                     )
