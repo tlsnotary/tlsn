@@ -158,10 +158,15 @@ jobs:
       - name: Use caching
         uses: Swatinem/rust-cache@v2.7.7
 
-      - name: Check tlsn-core and tlsn-attestation
+      - name: Check tlsn-core and tlsn-attestation compile
         env:
           RUSTFLAGS: '--cfg getrandom_backend="unsupported"'
         run: cargo check -p tlsn-core -p tlsn-attestation --locked
+
+      - name: Run verification test without getrandom
+        env:
+          RUSTFLAGS: '--cfg getrandom_backend="unsupported"'
+        run: cargo test -p tlsn-attestation --test no_syscall_verify --locked
 
   tests-integration:
     name: Run tests release build
