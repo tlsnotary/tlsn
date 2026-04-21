@@ -166,9 +166,10 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let proof = msg.proof.clone();
 
-    // noir-rs returns proofs as `[4-byte BE num_public_inputs][public_inputs][proof]`,
-    // where each public input is a 32-byte field element.
-    // We expect 35 public inputs: 3 date fields (day, month, year) + 32 hash bytes.
+    // noir-rs returns proofs as `[4-byte BE
+    // num_public_inputs][public_inputs][proof]`, where each public input is a
+    // 32-byte field element. We expect 35 public inputs: 3 date fields (day,
+    // month, year) + 32 hash bytes.
     const EXPECTED_NUM_PUB: u32 = 3 + 32;
     const PREFIX_LEN: usize = 4;
     let min_bytes = PREFIX_LEN + (EXPECTED_NUM_PUB as usize) * 32;
