@@ -143,6 +143,26 @@ jobs:
           path: ./crates/wasm/pkg
           if-no-files-found: error
 
+  check-unknown-target-support:
+    name: Check unknown target support
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.7.7
+
+      - name: Check tlsn-core and tlsn-attestation
+        env:
+          RUSTFLAGS: '--cfg getrandom_backend="unsupported"'
+        run: cargo check -p tlsn-core -p tlsn-attestation --locked
+
   tests-integration:
     name: Run tests release build
     runs-on: ubuntu-latest
