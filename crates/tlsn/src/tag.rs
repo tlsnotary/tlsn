@@ -128,7 +128,7 @@ impl TagProof {
             if *record_tag
                 != ghash_tag
                     .into_iter()
-                    .zip(j0.into_iter())
+                    .zip(j0)
                     .map(|(a, b)| a ^ b)
                     .collect::<Vec<_>>()
             {
