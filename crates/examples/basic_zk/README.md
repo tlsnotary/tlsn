@@ -124,11 +124,13 @@ basic_zk/
 
 We use [Mopro's `noir_rs`](https://zkmopro.org/docs/crates/noir-rs/) for ZK proof generation.  The **circuit is pre-compiled and ready to use**. You don't need to install Noir tools to run the example. But if you want to change or test the circuit in isolation, you can use the following instructions.
 
-Before you proceed, we recommend to double check that your Noir tooling matches the versions used in Mopro's `noir_rs`:
+Before you proceed, we recommend to double check that your Noir tooling matches the version used in Mopro's `noir_rs`:
 ```sh
-# Install correct Noir and BB versions (important for compatibility!)
-noirup --version 1.0.0-beta.8
-bbup -v 1.0.0-nightly.20250723
+# Install the matching Noir compiler version
+noirup --version 1.0.0-beta.19
+
+# Optional: install a compatible barretenberg CLI for manual proving/verifying.
+bbup
 ```
 
 If you don't have `noirup` and `bbup` installed yet, check [Noir's Quick Start](https://noir-lang.org/docs/getting_started/quick_start).
