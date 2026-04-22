@@ -7499,6 +7499,7 @@ dependencies = [
  "alloy-signer",
  "alloy-signer-local",
  "bcs",
+ "bincode 1.3.3",
  "blake3",
  "k256 0.13.4",
  "opaque-debug",

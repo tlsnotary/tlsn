@@ -161,6 +161,23 @@
 //! # }
 //! ```
 //!
+//! # Platform Support
+//!
+//! This crate depends on `rand`, which requires `getrandom` for OS-level
+//! randomness. On targets where `getrandom` has no built-in backend (e.g.,
+//! custom or embedded targets), set:
+//!
+//! ```text
+//! RUSTFLAGS='--cfg getrandom_backend="unsupported"'
+//! ```
+//!
+//! The presentation **verification** path
+//! ([`Presentation::verify`](crate::presentation::Presentation::verify))
+//! does not invoke `getrandom` at runtime and is safe to use on such targets.
+//! However, **attestation creation**
+//! ([`AttestationBuilder::build`]) requires a working RNG and will panic on
+//! unsupported targets.
+//!
 //! # Verifying a presentation
 //!
 //! Verifying a presentation is as simple as checking the verifier trusts the
