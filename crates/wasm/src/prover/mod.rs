@@ -239,7 +239,8 @@ fn convert_hash_algorithm(alg: HashAlgorithm) -> tlsn_sdk_core::HashAlgorithm {
 
 fn convert_commit_range(cr: CommitRange) -> tlsn_sdk_core::CommitRange {
     tlsn_sdk_core::CommitRange {
-        range: cr.start..cr.end,
+        start: cr.start,
+        end: cr.end,
         algorithm: convert_hash_algorithm(cr.algorithm),
     }
 }

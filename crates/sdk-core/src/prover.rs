@@ -290,7 +290,7 @@ impl SdkProver {
                     let alg: tlsn_core::hash::HashAlgId = cr.algorithm.into();
                     let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
                     commit_builder
-                        .commit_with_kind(cr.range.clone(), direction, kind)
+                        .commit_with_kind(cr.range(), direction, kind)
                         .map_err(|e| SdkError::handler(e.to_string()))?;
                 }
             }

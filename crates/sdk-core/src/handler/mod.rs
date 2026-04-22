@@ -109,7 +109,11 @@ pub fn compute_reveal(
                 HandlerType::Recv => &mut commit_recv,
             };
             for range in extracted {
-                commit_vec.push(CommitRange { range, algorithm });
+                commit_vec.push(CommitRange {
+                    start: range.start,
+                    end: range.end,
+                    algorithm,
+                });
             }
         } else {
             let reveal_vec = match handler.handler_type {

@@ -239,12 +239,24 @@ impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
 }
 
 /// A byte range paired with a hash algorithm for commitment.
+///
+/// Uses flat `start`/`end` fields so the JS wire format matches
+/// [`crate::wasm::CommitRange`] in the wasm crate without conversion.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommitRange {
-    /// Byte range to commit.
-    pub range: Range<usize>,
+    /// Start of the byte range (inclusive).
+    pub start: usize,
+    /// End of the byte range (exclusive).
+    pub end: usize,
     /// Hash algorithm to use for this range.
     pub algorithm: HashAlgorithm,
+}
+
+impl CommitRange {
+    /// Returns the byte range as a [`Range<usize>`].
+    pub fn range(&self) -> Range<usize> {
+        self.start..self.end
+    }
 }
 
 /// Ranges of data to hash-commit.
