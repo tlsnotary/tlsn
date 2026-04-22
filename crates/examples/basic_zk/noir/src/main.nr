@@ -1,4 +1,4 @@
-use dep::date::Date;
+use date::Date;
 
 fn main(
     // Public inputs

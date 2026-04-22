@@ -166,23 +166,31 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     let proof = msg.proof.clone();
 
-    // Validate proof has enough data.
-    // The proof should start with the public inputs:
-    // * We expect at least 3 * 32 bytes for the three date fields (day, month,
-    //   year)
-    // * and 32*32 bytes for the hash
-    let min_bytes = (32 + 3) * 32;
+    // noir-rs returns proofs as `[4-byte BE
+    // num_public_inputs][public_inputs][proof]`, where each public input is a
+    // 32-byte field element. We expect 35 public inputs: 3 date fields (day,
+    // month, year) + 32 hash bytes.
+    const EXPECTED_NUM_PUB: u32 = 3 + 32;
+    const PREFIX_LEN: usize = 4;
+    let min_bytes = PREFIX_LEN + (EXPECTED_NUM_PUB as usize) * 32;
     if proof.len() < min_bytes {
         return Err(anyhow::anyhow!(
             "Proof too short: expected at least {min_bytes} bytes, got {}",
             proof.len()
         ));
     }
+    let num_pub = u32::from_be_bytes(proof[0..PREFIX_LEN].try_into()?);
+    if num_pub != EXPECTED_NUM_PUB {
+        return Err(anyhow::anyhow!(
+            "Unexpected public input count in proof: got {num_pub}, expected {EXPECTED_NUM_PUB}"
+        ));
+    }
+    let public_inputs = &proof[PREFIX_LEN..PREFIX_LEN + (num_pub as usize) * 32];
 
     // Check that the proof date is correctly included in the proof
-    let proof_date_day: u32 = u32::from_be_bytes(proof[28..32].try_into()?);
-    let proof_date_month: u32 = u32::from_be_bytes(proof[60..64].try_into()?);
-    let proof_date_year: i32 = i32::from_be_bytes(proof[92..96].try_into()?);
+    let proof_date_day: u32 = u32::from_be_bytes(public_inputs[28..32].try_into()?);
+    let proof_date_month: u32 = u32::from_be_bytes(public_inputs[60..64].try_into()?);
+    let proof_date_year: i32 = i32::from_be_bytes(public_inputs[92..96].try_into()?);
     let proof_date_from_proof =
         NaiveDate::from_ymd_opt(proof_date_year, proof_date_month, proof_date_day)
             .ok_or_else(|| anyhow::anyhow!("Invalid proof date in proof"))?;
@@ -194,10 +202,11 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     }
 
     // Check that the committed hash in the proof matches the hash from the
-    // commitment
-    let committed_hash_in_proof: Vec<u8> = proof
+    // commitment. The hash occupies public inputs 3..35 (one byte per field,
+    // right-aligned in each 32-byte element).
+    let committed_hash_in_proof: Vec<u8> = public_inputs
         .chunks(32)
-        .skip(3) // skip the first 3 chunks
+        .skip(3)
         .take(32)
         .map(|chunk| *chunk.last().unwrap_or(&0))
         .collect();

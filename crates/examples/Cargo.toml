@@ -38,7 +38,7 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-noir = { git = "https://github.com/zkmopro/noir-rs", tag = "v1.0.0-beta.8", features = [
+noir = { git = "https://github.com/zkmopro/noir-rs", tag = "v1.0.0-beta.19", features = [
   "barretenberg",
 ] }
 
