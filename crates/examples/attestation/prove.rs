@@ -2,7 +2,7 @@
 // an HTTP request sent to a server fixture. The attestation and secrets are
 // saved to disk.
 
-use std::env;
+use std::{env, future::IntoFuture};
 
 use anyhow::Result;
 use clap::Parser;
@@ -112,7 +112,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect((server_host, server_port)).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover.connect(
+    let (tls_connection, prover) = prover.connect_mpc(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
             // Create a root certificate store with the server-fixture's self-signed
@@ -132,7 +132,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the prover task to be run concurrently in the background.
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(prover.into_future());
 
     // Attach the hyper HTTP client to the connection.
     let (mut request_sender, connection) =
@@ -312,7 +312,7 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .await?
         .accept()
         .await?
-        .run()
+        .run_mpc()
         .await?;
 
     let (

@@ -3,29 +3,26 @@
 pub mod state;
 mod verify;
 
-use std::sync::Arc;
-
-use mpz_common::Context;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Error, Result,
-    mpz::{VerifierDeps, build_verifier_deps, translate_keys},
+    Error, PROXY_STREAM_PREFIX, Result,
+    deps::VerifierDeps,
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
+    proxy::InspectReader,
     tag::verify_tags,
 };
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use mpz_common::Context;
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
+use std::sync::Arc;
 use tlsn_core::{
-    config::{
-        prove::ProveRequest,
-        tls_commit::{TlsCommitProtocolConfig, TlsCommitRequest},
-        verifier::VerifierConfig,
-    },
+    config::{prove::ProveRequest, tls_commit::TlsCommitRequest, verifier::VerifierConfig},
     connection::{ConnectionInfo, ServerName},
     transcript::TlsTranscript,
 };
-
+use tlsn_mux::Handle;
 use tracing::{Span, debug, info, info_span, instrument};
 
 /// Information about the TLS session.
@@ -42,17 +39,25 @@ pub struct Verifier<T: state::VerifierState = state::Initialized> {
     config: VerifierConfig,
     span: Span,
     ctx: Option<Context>,
+    mux_handle: Handle,
     state: T,
 }
 
 impl Verifier<state::Initialized> {
     /// Creates a new verifier.
-    pub(crate) fn new(ctx: Context, config: VerifierConfig) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - A thread context.
+    /// * `mux_handle` - A handle for the multiplexer.
+    /// * `config` - The configuration for the verifier.
+    pub(crate) fn new(ctx: Context, mux_handle: Handle, config: VerifierConfig) -> Self {
         let span = info_span!("verifier");
         Self {
             config,
             span,
             ctx: Some(ctx),
+            mux_handle,
             state: state::Initialized,
         }
     }
@@ -97,6 +102,7 @@ impl Verifier<state::Initialized> {
             config: self.config,
             span: self.span,
             ctx: Some(ctx),
+            mux_handle: self.mux_handle,
             state: state::CommitStart { request },
         })
     }
@@ -123,37 +129,17 @@ impl Verifier<state::CommitStart> {
                 .with_source(e)
         })?;
 
-        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol().clone() else {
-            unreachable!("only MPC TLS is supported");
-        };
+        let mut verifier_deps = VerifierDeps::new(request.protocol(), ctx);
+        verifier_deps.setup().await?;
 
-        let VerifierDeps { vm, mut mpc_tls } = build_verifier_deps(mpc_tls_config, ctx);
-
-        // Allocate resources for MPC-TLS in the VM.
-        let mut keys = mpc_tls.alloc().map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed to allocate mpc-tls resources")
-                .with_source(e)
-        })?;
-        let vm_lock = vm.try_lock().expect("VM is not locked");
-        translate_keys(&mut keys, &vm_lock);
-        drop(vm_lock);
-
-        debug!("setting up mpc-tls");
-
-        mpc_tls.preprocess().await.map_err(|e| {
-            Error::internal()
-                .with_msg("commitment protocol failed during mpc-tls preprocessing")
-                .with_source(e)
-        })?;
-
-        debug!("mpc-tls setup complete");
+        debug!("setup complete");
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
             ctx: None,
-            state: state::CommitAccepted { mpc_tls, keys, vm },
+            mux_handle: self.mux_handle,
+            state: state::CommitAccepted { verifier_deps },
         })
     }
 
@@ -177,12 +163,15 @@ impl Verifier<state::CommitStart> {
 
 impl Verifier<state::CommitAccepted> {
     /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// This method is used for MPC mode only.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run(self) -> Result<Verifier<state::Committed>> {
-        let state::CommitAccepted { mpc_tls, vm, keys } = self.state;
+    pub async fn run_mpc(self) -> Result<Verifier<state::Committed>> {
+        let VerifierDeps::Mpc { vm, mpc_tls, keys } = self.state.verifier_deps else {
+            return Err(Error::user().with_msg("the verifier is not configured to run in MPC mode"));
+        };
 
         info!("starting MPC-TLS");
-
         let (mut ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
             Error::internal()
                 .with_msg("mpc-tls execution failed")
@@ -210,6 +199,7 @@ impl Verifier<state::CommitAccepted> {
             .expect("vm should have only 1 reference")
             .into_inner()
             .into_inner();
+        let keys = keys.expect("keys should be available");
 
         // Prepare for the prover to prove tag verification of the received
         // records.
@@ -240,12 +230,124 @@ impl Verifier<state::CommitAccepted> {
                 .with_msg("tag verification failed")
                 .with_source(e)
         })?;
-        debug!("MPC-TLS done");
+
+        debug!("verified tags successfully");
 
         Ok(Verifier {
             config: self.config,
             span: self.span,
             ctx: Some(ctx),
+            mux_handle: self.mux_handle,
+            state: state::Committed {
+                vm,
+                keys,
+                tls_transcript,
+            },
+        })
+    }
+
+    /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// This method is used for proxy mode only.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_socket` - The connection to the server.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn run_proxy<T>(self, server_socket: T) -> Result<Verifier<state::Committed>>
+    where
+        T: AsyncRead + AsyncWrite + Send + Unpin,
+    {
+        let VerifierDeps::Proxy { verifier, id } = self.state.verifier_deps else {
+            return Err(
+                Error::user().with_msg("the verifier is not configured to run in proxy mode")
+            );
+        };
+        let mut sent_buf = Vec::new();
+        let mut recv_buf = Vec::new();
+
+        info!("starting Proxy-TLS");
+
+        let mut proxy_id = PROXY_STREAM_PREFIX.to_vec();
+        proxy_id.extend_from_slice(id.as_bytes());
+
+        let prover_socket = self.mux_handle.new_stream(&proxy_id)?;
+
+        let (prover_read, mut prover_write) = prover_socket.split();
+        let (server_read, mut server_write) = server_socket.split();
+
+        let mut prover_reader = InspectReader::new(prover_read, &mut sent_buf);
+        let mut server_reader = InspectReader::new(server_read, &mut recv_buf);
+
+        futures::future::try_join(
+            async {
+                futures::io::copy(&mut prover_reader, &mut server_write).await?;
+                server_write.close().await
+            },
+            async {
+                futures::io::copy(&mut server_reader, &mut prover_write).await?;
+                prover_write.close().await
+            },
+        )
+        .await
+        .map_err(|e| {
+            Error::io()
+                .with_msg("proxy traffic forwarding failed")
+                .with_source(e)
+        })?;
+        info!("proxying TLS traffic finished");
+
+        let conn_time = prover_reader
+            .first_read()
+            .expect("connection time should have been set");
+
+        let (mut ctx, mut vm, output, cf_vd_check, sf_vd_check) =
+            verifier.finalize(&sent_buf, &recv_buf, conn_time).await?;
+
+        let keys = output.keys;
+        let tls_transcript = output.tls_transcript;
+
+        // Prepare for the prover to prove tag verification of the received
+        // records.
+        let tag_proof = verify_tags(
+            &mut vm,
+            (keys.server_write_key, keys.server_write_iv),
+            keys.server_write_mac_key,
+            *tls_transcript.version(),
+            tls_transcript.recv().to_vec(),
+        )
+        .map_err(|e| {
+            Error::internal()
+                .with_msg("tag verification setup failed")
+                .with_source(e)
+        })?;
+
+        vm.execute_all(&mut ctx).await.map_err(|e| {
+            Error::internal()
+                .with_msg("tag verification zk execution failed")
+                .with_source(e)
+        })?;
+
+        // Verify the tags.
+        // After the verification, the entire TLS trancript becomes
+        // authenticated from the verifier's perspective.
+        tag_proof.verify().map_err(|e| {
+            Error::internal()
+                .with_msg("tag verification failed")
+                .with_source(e)
+        })?;
+        debug!("verified tags successfully");
+
+        // Verify finished records
+        cf_vd_check.check(&mut vm)?;
+        sf_vd_check.check(&mut vm)?;
+        debug!("verified finished records successfully");
+
+        Ok(Verifier {
+            config: self.config,
+            span: self.span,
+            ctx: Some(ctx),
+            mux_handle: self.mux_handle,
             state: state::Committed {
                 vm,
                 keys,
@@ -288,6 +390,7 @@ impl Verifier<state::Committed> {
             config: self.config,
             span: self.span,
             ctx: Some(ctx),
+            mux_handle: self.mux_handle,
             state: state::Verify {
                 vm,
                 keys,
@@ -357,6 +460,7 @@ impl Verifier<state::Verify> {
                 config: self.config,
                 span: self.span,
                 ctx: Some(ctx),
+                mux_handle: self.mux_handle,
                 state: state::Committed {
                     vm,
                     keys,
@@ -389,6 +493,7 @@ impl Verifier<state::Verify> {
             config: self.config,
             span: self.span,
             ctx: Some(ctx),
+            mux_handle: self.mux_handle,
             state: state::Committed {
                 vm,
                 keys,

@@ -1,6 +1,7 @@
 //! TLS commitment configuration.
 
 pub mod mpc;
+pub mod proxy;
 
 use serde::{Deserialize, Serialize};
 
@@ -61,11 +62,19 @@ impl TlsCommitConfigBuilder {
 pub enum TlsCommitProtocolConfig {
     /// MPC-TLS configuration.
     Mpc(mpc::MpcTlsConfig),
+    /// Proxy-TLS configuration.
+    Proxy(proxy::ProxyTlsConfig),
 }
 
 impl From<mpc::MpcTlsConfig> for TlsCommitProtocolConfig {
     fn from(config: mpc::MpcTlsConfig) -> Self {
         Self::Mpc(config)
+    }
+}
+
+impl From<proxy::ProxyTlsConfig> for TlsCommitProtocolConfig {
+    fn from(config: proxy::ProxyTlsConfig) -> Self {
+        Self::Proxy(config)
     }
 }
 

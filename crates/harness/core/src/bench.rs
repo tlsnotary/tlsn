@@ -10,6 +10,7 @@ pub const DEFAULT_DOWNLOAD_SIZE: usize = 4096;
 pub const DEFAULT_DEFER_DECRYPTION: bool = true;
 pub const DEFAULT_MEMORY_PROFILE: bool = false;
 pub const DEFAULT_REVEAL_ALL: bool = false;
+pub const DEFAULT_PROXY: bool = false;
 
 pub const WARM_UP_BENCH: Bench = Bench {
     group: None,
@@ -22,6 +23,21 @@ pub const WARM_UP_BENCH: Bench = Bench {
     defer_decryption: true,
     memory_profile: false,
     reveal_all: true,
+    proxy: false,
+};
+
+pub const WARM_UP_BENCH_PROXY: Bench = Bench {
+    group: None,
+    name: None,
+    protocol_latency: 1,
+    app_latency: 1,
+    bandwidth: 1000,
+    upload_size: 1024,
+    download_size: 4096,
+    defer_decryption: true,
+    memory_profile: false,
+    reveal_all: true,
+    proxy: true,
 };
 
 #[derive(Deserialize)]
@@ -83,6 +99,7 @@ pub struct BenchGroupItem {
     pub memory_profile: Option<bool>,
     #[serde(rename = "reveal-all")]
     pub reveal_all: Option<bool>,
+    pub proxy: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +120,7 @@ pub struct BenchItem {
     pub memory_profile: Option<bool>,
     #[serde(rename = "reveal-all")]
     pub reveal_all: Option<bool>,
+    pub proxy: Option<bool>,
 }
 
 impl BenchItem {
@@ -142,6 +160,10 @@ impl BenchItem {
         if self.reveal_all.is_none() {
             self.reveal_all = group.reveal_all;
         }
+
+        if self.proxy.is_none() {
+            self.proxy = group.proxy;
+        }
     }
 
     pub fn into_bench(&self) -> Bench {
@@ -156,6 +178,7 @@ impl BenchItem {
             defer_decryption: self.defer_decryption.unwrap_or(DEFAULT_DEFER_DECRYPTION),
             memory_profile: self.memory_profile.unwrap_or(DEFAULT_MEMORY_PROFILE),
             reveal_all: self.reveal_all.unwrap_or(DEFAULT_REVEAL_ALL),
+            proxy: self.proxy.unwrap_or(DEFAULT_PROXY),
         }
     }
 }
@@ -177,6 +200,7 @@ pub struct Bench {
     pub memory_profile: bool,
     #[serde(rename = "reveal-all")]
     pub reveal_all: bool,
+    pub proxy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,6 +246,7 @@ pub struct Measurement {
     pub upload_size: usize,
     pub download_size: usize,
     pub defer_decryption: bool,
+    pub proxy: bool,
     /// Time taken to preprocess the connection in milliseconds.
     pub time_preprocess: u64,
     /// TLS connection online time in milliseconds.
@@ -258,6 +283,7 @@ impl Measurement {
             upload_size: config.upload_size,
             download_size: config.download_size,
             defer_decryption: config.defer_decryption,
+            proxy: config.proxy,
             time_preprocess: metrics.time_preprocess,
             time_online: metrics.time_online,
             time_total: metrics.time_total,

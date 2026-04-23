@@ -1,19 +1,14 @@
 //! Provides a TLS client.
 
-use crate::mpz::ProverZk;
-use mpc_tls::SessionKeys;
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    task::{Context, Poll},
-};
-use tlsn_core::transcript::{TlsTranscript, Transcript};
+use crate::{TlsOutput, deps::ProverZk};
+use std::task::Poll;
 
 mod mpc;
+pub(crate) use mpc::{DecryptState, MpcTlsClient};
 
-pub(crate) use mpc::MpcTlsClient;
+mod proxy;
+use mpz_common::Context;
+pub(crate) use proxy::ProxyTlsClient;
 
 /// TLS client for MPC and proxy-based TLS implementations.
 pub(crate) trait TlsClient {
@@ -49,34 +44,9 @@ pub(crate) trait TlsClient {
     /// Server closes the connection.
     fn server_close(&mut self);
 
-    /// Returns the inner decryption state.
-    fn decrypt(&self) -> Arc<DecryptState>;
-
     /// Polls the client to make progress.
-    fn poll(&mut self, cx: &mut Context) -> Poll<Result<TlsOutput, Self::Error>>;
-}
-
-/// Decryption state.
-#[derive(Debug)]
-pub(crate) struct DecryptState {
-    decrypt: AtomicBool,
-}
-
-impl DecryptState {
-    pub(crate) fn enable_decryption(&self, enable: bool) {
-        self.decrypt.store(enable, Ordering::Release);
-    }
-
-    pub(crate) fn is_decrypting(&self) -> bool {
-        self.decrypt.load(Ordering::Acquire)
-    }
-}
-
-/// Output of a TLS session.
-pub(crate) struct TlsOutput {
-    pub(crate) ctx: mpz_common::Context,
-    pub(crate) vm: ProverZk,
-    pub(crate) keys: SessionKeys,
-    pub(crate) tls_transcript: TlsTranscript,
-    pub(crate) transcript: Transcript,
+    fn poll(
+        &mut self,
+        cx: &mut std::task::Context,
+    ) -> Poll<Result<(Context, ProverZk, TlsOutput), Self::Error>>;
 }

@@ -1,13 +1,15 @@
+use std::future::IntoFuture;
+
 use tlsn::{
     Session,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
         verifier::VerifierConfig,
     },
-    connection::ServerName,
+    connection::{DnsName, ServerName},
     hash::HashAlgId,
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
     verifier::VerifierOutput,
@@ -25,9 +27,40 @@ const MAX_SENT_DATA: usize = 1 << 11;
 // Maximum number of bytes that can be received by prover from server
 const MAX_RECV_DATA: usize = 1 << 11;
 
-crate::test!("basic", prover, verifier);
+crate::test!("mpc", prover_mpc, verifier);
+crate::test!("proxy", prover_proxy, verifier);
 
-async fn prover(provider: &IoProvider) {
+async fn prover_mpc(provider: &IoProvider) {
+    let config = TlsCommitConfig::builder()
+        .protocol(
+            MpcTlsConfig::builder()
+                .max_sent_data(MAX_SENT_DATA)
+                .max_recv_data(MAX_RECV_DATA)
+                .defer_decryption_from_start(true)
+                .build()
+                .unwrap(),
+        )
+        .build()
+        .unwrap();
+
+    prover(provider, config).await
+}
+
+async fn prover_proxy(provider: &IoProvider) {
+    let config = TlsCommitConfig::builder()
+        .protocol(
+            ProxyTlsConfig::builder()
+                .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
+                .build()
+                .unwrap(),
+        )
+        .build()
+        .unwrap();
+
+    prover(provider, config).await
+}
+
+async fn prover(provider: &IoProvider, config: TlsCommitConfig) {
     let io = provider.provide_proto_io().await.unwrap();
     let mut session = Session::new(io);
     let prover = session
@@ -38,64 +71,96 @@ async fn prover(provider: &IoProvider) {
 
     _ = spawn(session);
 
-    let prover = prover
-        .commit(
-            TlsCommitConfig::builder()
-                .protocol(
-                    MpcTlsConfig::builder()
-                        .max_sent_data(MAX_SENT_DATA)
-                        .max_recv_data(MAX_RECV_DATA)
-                        .defer_decryption_from_start(true)
-                        .build()
-                        .unwrap(),
-                )
-                .build()
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let is_proxy = matches!(
+        config.protocol(),
+        tlsn::config::tls_commit::TlsCommitProtocolConfig::Proxy(_)
+    );
+    let prover = prover.commit(config).await.unwrap();
 
-    let (tls_connection, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()
-                .unwrap(),
-            provider.provide_server_io().await.unwrap(),
-        )
-        .unwrap();
-
-    let prover_task = spawn(prover_fut);
-
-    let (mut request_sender, connection) =
-        hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
-            .await
+    let mut prover = if is_proxy {
+        let (tls_connection, prover) = prover
+            .connect_proxy(
+                TlsClientConfig::builder()
+                    .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+                    .root_store(RootCertStore {
+                        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                    })
+                    .build()
+                    .unwrap(),
+            )
             .unwrap();
 
-    _ = spawn(connection);
+        let prover_task = spawn(prover.into_future());
 
-    let request = Request::builder()
-        .uri(format!(
-            "https://{}/bytes?size={recv}",
-            SERVER_DOMAIN,
-            recv = MAX_RECV_DATA - 256
-        ))
-        .header("Host", SERVER_DOMAIN)
-        .header("Connection", "close")
-        .method("GET")
-        .body(Empty::<Bytes>::new())
-        .unwrap();
+        let (mut request_sender, connection) =
+            hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
+                .await
+                .unwrap();
 
-    let response = request_sender.send_request(request).await.unwrap();
+        _ = spawn(connection);
 
-    assert!(response.status() == StatusCode::OK);
+        let request = Request::builder()
+            .uri(format!(
+                "https://{}/bytes?size={recv}",
+                SERVER_DOMAIN,
+                recv = MAX_RECV_DATA - 256
+            ))
+            .header("Host", SERVER_DOMAIN)
+            .header("Connection", "close")
+            .method("GET")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
 
-    let _ = response.into_body().collect().await.unwrap().to_bytes();
+        let response = request_sender.send_request(request).await.unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap();
+        assert!(response.status() == StatusCode::OK);
+
+        let _ = response.into_body().collect().await.unwrap().to_bytes();
+
+        prover_task.await.unwrap().unwrap()
+    } else {
+        let (tls_connection, prover) = prover
+            .connect_mpc(
+                TlsClientConfig::builder()
+                    .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+                    .root_store(RootCertStore {
+                        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                    })
+                    .build()
+                    .unwrap(),
+                provider.provide_server_io().await.unwrap(),
+            )
+            .unwrap();
+
+        let prover_task = spawn(prover.into_future());
+
+        let (mut request_sender, connection) =
+            hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
+                .await
+                .unwrap();
+
+        _ = spawn(connection);
+
+        let request = Request::builder()
+            .uri(format!(
+                "https://{}/bytes?size={recv}",
+                SERVER_DOMAIN,
+                recv = MAX_RECV_DATA - 256
+            ))
+            .header("Host", SERVER_DOMAIN)
+            .header("Connection", "close")
+            .method("GET")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let response = request_sender.send_request(request).await.unwrap();
+
+        assert!(response.status() == StatusCode::OK);
+
+        let _ = response.into_body().collect().await.unwrap().to_bytes();
+
+        prover_task.await.unwrap().unwrap()
+    };
 
     let (sent_len, recv_len) = prover.transcript().len();
 
@@ -143,16 +208,21 @@ async fn verifier(provider: &IoProvider) {
 
     _ = spawn(session);
 
-    let verifier = verifier
-        .commit()
-        .await
-        .unwrap()
-        .accept()
-        .await
-        .unwrap()
-        .run()
-        .await
-        .unwrap();
+    let verifier = verifier.commit().await.unwrap();
+
+    let is_proxy = matches!(
+        verifier.request().protocol(),
+        tlsn::config::tls_commit::TlsCommitProtocolConfig::Proxy(_)
+    );
+
+    let verifier = verifier.accept().await.unwrap();
+
+    let verifier = if is_proxy {
+        let server_io = provider.provide_server_io().await.unwrap();
+        verifier.run_proxy(server_io).await.unwrap()
+    } else {
+        verifier.run_mpc().await.unwrap()
+    };
 
     let (
         VerifierOutput {

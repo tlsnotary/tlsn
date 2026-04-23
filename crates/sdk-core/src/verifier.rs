@@ -34,6 +34,14 @@ enum State {
         verifier: Verifier<state::Initialized>,
         handle: SessionHandle,
     },
+    Accepted {
+        verifier: Verifier<state::CommitAccepted>,
+        handle: SessionHandle,
+    },
+    Committed {
+        verifier: Verifier<state::Committed>,
+        handle: SessionHandle,
+    },
     Complete,
     Error,
 }
@@ -43,6 +51,8 @@ impl std::fmt::Debug for State {
         match self {
             State::Initialized => write!(f, "Initialized"),
             State::Connected { .. } => write!(f, "Connected"),
+            State::Accepted { .. } => write!(f, "Accepted"),
+            State::Committed { .. } => write!(f, "Committed"),
             State::Complete => write!(f, "Complete"),
             State::Error => write!(f, "Error"),
         }
@@ -88,8 +98,9 @@ impl SdkVerifier {
             }
         });
 
-        let verifier_config = tlsn::config::verifier::VerifierConfig::builder()
-            .root_store(RootCertStore::mozilla())
+        let builder =
+            tlsn::config::verifier::VerifierConfig::builder().root_store(RootCertStore::mozilla());
+        let verifier_config = builder
             .build()
             .map_err(|e| SdkError::config(e.to_string()))?;
         let verifier = handle
@@ -103,18 +114,16 @@ impl SdkVerifier {
         Ok(())
     }
 
-    /// Verifies the connection and finalizes the protocol.
-    pub async fn verify(&mut self) -> Result<VerifierOutput> {
+    /// Performs the commitment handshake with the prover.
+    ///
+    /// Returns `Some(server_name)` if proxy sockets are needed
+    /// (call `set_proxy_sockets()` before `verify()`), or `None` for MPC mode.
+    pub async fn setup(&mut self) -> Result<Option<String>> {
         let State::Connected { verifier, handle } = self.state.take() else {
             return Err(SdkError::invalid_state(
                 "verifier is not in connected state",
             ));
         };
-
-        let max_sent_data = self.config.max_sent_data;
-        let max_recv_data = self.config.max_recv_data;
-        let max_sent_records = self.config.max_sent_records;
-        let max_recv_records_online = self.config.max_recv_records_online;
 
         let verifier = verifier
             .commit()
@@ -122,37 +131,98 @@ impl SdkVerifier {
             .map_err(|e| SdkError::protocol(e.to_string()))?;
         let request = verifier.request();
 
-        let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = request.protocol() else {
-            return Err(SdkError::protocol("only MPC protocol is supported"));
-        };
+        match request.protocol() {
+            TlsCommitProtocolConfig::Mpc(mpc_tls_config) => {
+                let reject = if mpc_tls_config.max_sent_data() > self.config.max_sent_data {
+                    Some("max_sent_data is too large")
+                } else if mpc_tls_config.max_recv_data() > self.config.max_recv_data {
+                    Some("max_recv_data is too large")
+                } else if mpc_tls_config.max_sent_records() > self.config.max_sent_records {
+                    Some("max_sent_records is too large")
+                } else if mpc_tls_config.max_recv_records_online()
+                    > self.config.max_recv_records_online
+                {
+                    Some("max_recv_records_online is too large")
+                } else {
+                    None
+                };
 
-        let reject = if mpc_tls_config.max_sent_data() > max_sent_data {
-            Some("max_sent_data is too large")
-        } else if mpc_tls_config.max_recv_data() > max_recv_data {
-            Some("max_recv_data is too large")
-        } else if mpc_tls_config.max_sent_records() > max_sent_records {
-            Some("max_sent_records is too large")
-        } else if mpc_tls_config.max_recv_records_online() > max_recv_records_online {
-            Some("max_recv_records_online is too large")
-        } else {
-            None
-        };
-
-        if reject.is_some() {
-            verifier
-                .reject(reject)
-                .await
-                .map_err(|e| SdkError::protocol(e.to_string()))?;
-            return Err(SdkError::protocol("protocol configuration rejected"));
+                if reject.is_some() {
+                    verifier
+                        .reject(reject)
+                        .await
+                        .map_err(|e| SdkError::protocol(e.to_string()))?;
+                    return Err(SdkError::protocol("protocol configuration rejected"));
+                }
+            }
+            TlsCommitProtocolConfig::Proxy(_) => {
+                // No limit validation needed for proxy mode.
+            }
+            _ => {
+                return Err(SdkError::protocol("unsupported protocol configuration"));
+            }
         }
+
+        let proxy_server_name =
+            if let TlsCommitProtocolConfig::Proxy(config) = verifier.request().protocol() {
+                Some(config.server_name().to_string())
+            } else {
+                None
+            };
 
         let verifier = verifier
             .accept()
             .await
-            .map_err(|e| SdkError::protocol(e.to_string()))?
-            .run()
+            .map_err(|e| SdkError::protocol(e.to_string()))?;
+
+        self.state = State::Accepted { verifier, handle };
+
+        Ok(proxy_server_name)
+    }
+
+    /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// This method is used for MPC mode only.
+    pub async fn run_mpc(&mut self) -> Result<()> {
+        let State::Accepted { verifier, handle } = self.state.take() else {
+            return Err(SdkError::invalid_state("verifier is not in accepted state"));
+        };
+
+        let verifier = verifier
+            .run_mpc()
             .await
             .map_err(|e| SdkError::protocol(e.to_string()))?;
+
+        self.state = State::Committed { verifier, handle };
+        Ok(())
+    }
+
+    /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// This method is used for proxy mode only.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_socket` - The connection to the server.
+    pub async fn run_proxy(&mut self, server_socket: impl Io) -> Result<()> {
+        let State::Accepted { verifier, handle } = self.state.take() else {
+            return Err(SdkError::invalid_state("verifier is not in accepted state"));
+        };
+
+        let verifier = verifier
+            .run_proxy(server_socket)
+            .await
+            .map_err(|e| SdkError::protocol(e.to_string()))?;
+
+        self.state = State::Committed { verifier, handle };
+        Ok(())
+    }
+
+    /// Verifies the connection and finalizes the protocol.
+    pub async fn verify(&mut self) -> Result<VerifierOutput> {
+        let State::Committed { verifier, handle } = self.state.take() else {
+            return Err(SdkError::invalid_state("verifier is not in accepted state"));
+        };
 
         let sent = verifier
             .tls_transcript()

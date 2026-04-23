@@ -40,6 +40,7 @@ impl VerifierConfigBuilder {
         let root_store = self
             .root_store
             .ok_or(ErrorRepr::MissingField { name: "root_store" })?;
+
         Ok(VerifierConfig { root_store })
     }
 }

@@ -1,43 +1,77 @@
-use futures::{AsyncReadExt, AsyncWriteExt};
+use tls_server_fixture::SERVER_DOMAIN;
 use tlsn::{
     Session,
     config::{
-        prove::ProveConfig,
         prover::ProverConfig,
-        tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+        tls_commit::{
+            TlsCommitConfig, TlsCommitProtocolConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig,
+        },
         verifier::VerifierConfig,
     },
-    connection::ServerName,
-    hash::HashAlgId,
-    prover::Prover,
-    transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitmentKind},
-    verifier::{Verifier, VerifierOutput},
+    connection::{DnsName, ServerName},
     webpki::{CertificateDer, RootCertStore},
 };
-use tlsn_core::ProverOutput;
 use tlsn_server_fixture::bind;
-use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
-
+use tlsn_server_fixture_certs::CA_CERT_DER;
 use tokio_util::compat::TokioAsyncReadCompatExt;
+use tracing::{info, warn};
 
-// Maximum number of bytes that can be sent from prover to server
-const MAX_SENT_DATA: usize = 1 << 12;
-// Maximum number of application records sent from prover to server
-const MAX_SENT_RECORDS: usize = 4;
-// Maximum number of bytes that can be received by prover from server
-const MAX_RECV_DATA: usize = 1 << 14;
-// Maximum number of application records received by prover from server
-const MAX_RECV_RECORDS: usize = 6;
+mod utils;
+use utils::{run_prover, run_verifier};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
-async fn test() {
-    tracing_subscriber::fmt::init();
+async fn test_mpc() {
+    // Maximum number of bytes that can be sent from prover to server
+    const MAX_SENT_DATA: usize = 1 << 12;
+    // Maximum number of application records sent from prover to server
+    const MAX_SENT_RECORDS: usize = 4;
+    // Maximum number of bytes that can be received by prover from server
+    const MAX_RECV_DATA: usize = 1 << 14;
+    // Maximum number of application records received by prover from server
+    const MAX_RECV_RECORDS: usize = 6;
 
-    let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
-    let mut session_p = Session::new(socket_0.compat());
-    let mut session_v = Session::new(socket_1.compat());
+    let config = TlsCommitConfig::builder()
+        .protocol(
+            MpcTlsConfig::builder()
+                .max_sent_data(MAX_SENT_DATA)
+                .max_sent_records(MAX_SENT_RECORDS)
+                .max_recv_data(MAX_RECV_DATA)
+                .max_recv_records_online(MAX_RECV_RECORDS)
+                .build()
+                .unwrap(),
+        )
+        .build()
+        .unwrap();
+
+    test(config).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore]
+async fn test_proxy() {
+    let config = TlsCommitConfig::builder()
+        .protocol(
+            ProxyTlsConfig::builder()
+                .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
+                .build()
+                .unwrap(),
+        )
+        .build()
+        .unwrap();
+
+    test(config).await;
+}
+
+async fn test(config: TlsCommitConfig) {
+    match tracing_subscriber::fmt::try_init() {
+        Ok(_) => info!("set up tracing subscriber"),
+        Err(_) => warn!("tracing subscriber already set up"),
+    };
+
+    let (prover_socket, verifier_socket) = tokio::io::duplex(2 << 23);
+    let mut session_p = Session::new(prover_socket.compat());
+    let mut session_v = Session::new(verifier_socket.compat());
 
     let prover = session_p
         .new_prover(ProverConfig::builder().build().unwrap())
@@ -59,12 +93,29 @@ async fn test() {
     tokio::spawn(session_p_driver);
     tokio::spawn(session_v_driver);
 
-    let ((_full_transcript, _prover_output), verifier_output) =
-        tokio::join!(run_prover(prover), run_verifier(verifier));
+    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let server_task = tokio::spawn(bind(server_socket.compat()));
+
+    let ((_full_transcript, _prover_output), verifier_output) = match config.protocol() {
+        TlsCommitProtocolConfig::Mpc(_) => {
+            tokio::join!(
+                run_prover(config, prover, Some(client_socket)),
+                run_verifier(verifier, None)
+            )
+        }
+        TlsCommitProtocolConfig::Proxy(_) => {
+            tokio::join!(
+                run_prover(config, prover, None),
+                run_verifier(verifier, Some(client_socket))
+            )
+        }
+        _ => panic!("unknown protocol config"),
+    };
 
     session_p_handle.close();
     session_v_handle.close();
 
+    let _ = server_task.await.unwrap();
     let partial_transcript = verifier_output.transcript.unwrap();
     let ServerName::Dns(server_name) = verifier_output.server_name.unwrap();
 
@@ -78,111 +129,4 @@ async fn test() {
         partial_transcript.received_authed().iter().next().unwrap(),
         0..10
     );
-}
-
-async fn run_prover(prover: Prover) -> (Transcript, ProverOutput) {
-    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
-
-    let server_task = tokio::spawn(bind(server_socket.compat()));
-
-    let prover = prover
-        .commit(
-            TlsCommitConfig::builder()
-                .protocol(
-                    MpcTlsConfig::builder()
-                        .max_sent_data(MAX_SENT_DATA)
-                        .max_sent_records(MAX_SENT_RECORDS)
-                        .max_recv_data(MAX_RECV_DATA)
-                        .max_recv_records_online(MAX_RECV_RECORDS)
-                        .build()
-                        .unwrap(),
-                )
-                .build()
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    let (mut tls_connection, prover_fut) = prover
-        .connect(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()
-                .unwrap(),
-            client_socket.compat(),
-        )
-        .unwrap();
-    let prover_task = tokio::spawn(prover_fut);
-
-    tls_connection
-        .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
-        .await
-        .unwrap();
-    tls_connection.close().await.unwrap();
-
-    let mut response = vec![0u8; 1024];
-    tls_connection.read_to_end(&mut response).await.unwrap();
-
-    let _ = server_task.await.unwrap();
-
-    let mut prover = prover_task.await.unwrap().unwrap();
-    let sent_tx_len = prover.transcript().sent().len();
-    let recv_tx_len = prover.transcript().received().len();
-
-    let mut builder = TranscriptCommitConfig::builder(prover.transcript());
-
-    let kind = TranscriptCommitmentKind::Hash {
-        alg: HashAlgId::SHA256,
-    };
-    builder
-        .commit_with_kind(&(0..sent_tx_len), Direction::Sent, kind)
-        .unwrap();
-    builder
-        .commit_with_kind(&(0..recv_tx_len), Direction::Received, kind)
-        .unwrap();
-    builder
-        .commit_with_kind(&(1..sent_tx_len - 1), Direction::Sent, kind)
-        .unwrap();
-    builder
-        .commit_with_kind(&(1..recv_tx_len - 1), Direction::Received, kind)
-        .unwrap();
-
-    let transcript_commit = builder.build().unwrap();
-
-    let mut builder = ProveConfig::builder(prover.transcript());
-
-    builder.server_identity();
-
-    builder.reveal_sent(&(0..10)).unwrap();
-    builder.reveal_recv(&(0..10)).unwrap();
-
-    builder.transcript_commit(transcript_commit);
-
-    let config = builder.build().unwrap();
-    let transcript = prover.transcript().clone();
-    let output = prover.prove(&config).await.unwrap();
-    prover.close().await.unwrap();
-
-    (transcript, output)
-}
-
-async fn run_verifier(verifier: Verifier) -> VerifierOutput {
-    let verifier = verifier
-        .commit()
-        .await
-        .unwrap()
-        .accept()
-        .await
-        .unwrap()
-        .run()
-        .await
-        .unwrap();
-
-    let (output, verifier) = verifier.verify().await.unwrap().accept().await.unwrap();
-    verifier.close().await.unwrap();
-
-    output
 }

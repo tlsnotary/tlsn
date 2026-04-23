@@ -67,7 +67,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     }
 
     // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept().await?.run().await?;
+    let verifier = verifier.accept().await?.run_mpc().await?;
 
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;
