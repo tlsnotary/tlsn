@@ -1,7 +1,7 @@
 use crate::{
     Error as TlsnError, TlsOutput,
     deps::ProverZk,
-    proxy::{PmsVisibility, References, TlsBytes, VerifyDataCheck, alloc_proxy_refs},
+    proxy::{MsVisibility, References, TlsBytes, VerifyDataCheck, alloc_proxy_refs},
 };
 use hmac_sha256::{MSMode, NetworkMode, Prf, PrfConfig};
 use mpz_common::Context;
@@ -21,7 +21,7 @@ pub(crate) struct ProxyProver {
 
 impl ProxyProver {
     pub(crate) fn new(vm: ProverZk, ctx: Context) -> Self {
-        let prf_config = PrfConfig::new(NetworkMode::Normal, MSMode::Extended);
+        let prf_config = PrfConfig::new(NetworkMode::Normal, MSMode::Direct);
         let prf = Prf::new(prf_config);
 
         Self {
@@ -40,7 +40,7 @@ impl ProxyProver {
             &mut self.prf,
             &mut self.cf_vd_check,
             &mut self.sf_vd_check,
-            PmsVisibility::Private,
+            MsVisibility::Private,
         )?);
         Ok(())
     }
@@ -55,20 +55,15 @@ impl ProxyProver {
 
     pub(crate) async fn finalize(
         mut self,
-        pms: Vec<u8>,
+        ms: Vec<u8>,
         time: u64,
         traffic: TlsBytes,
     ) -> Result<(Context, ProverZk, TlsOutput), TlsnError> {
         let mut refs = self.refs.expect("key refs should be available");
 
-        let pms: [u8; 32] = pms
+        let ms: [u8; 48] = ms
             .try_into()
-            .map_err(|_| TlsnError::internal().with_msg("pms has wrong length"))?;
-
-        let session_hash =
-            TlsTranscript::compute_session_hash(&traffic.tls_sent, &traffic.tls_recv)
-                .map_err(|e| TlsnError::internal().with_source(e))?
-                .to_vec();
+            .map_err(|_| TlsnError::internal().with_msg("ms has wrong length"))?;
 
         let cf_hash = TlsTranscript::compute_cf_hash(&traffic.tls_sent, &traffic.tls_recv)
             .map_err(|e| {
@@ -96,18 +91,15 @@ impl ProxyProver {
 
         tracing::debug!("computing PRF...");
         self.vm
-            .assign(refs.pms, pms)
+            .assign(refs.ms, ms)
             .map_err(|e| TlsnError::internal().with_source(e))?;
         self.vm
-            .commit(refs.pms)
+            .commit(refs.ms)
             .map_err(|e| TlsnError::internal().with_source(e))?;
 
         self.prf.set_client_random(binding.client_random);
         self.prf
             .set_server_random(binding.server_random)
-            .map_err(|e| TlsnError::internal().with_source(e))?;
-        self.prf
-            .set_session_hash(session_hash)
             .map_err(|e| TlsnError::internal().with_source(e))?;
         self.prf
             .set_cf_hash(cf_hash)

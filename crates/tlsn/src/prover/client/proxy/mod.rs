@@ -24,8 +24,8 @@ use tlsn_core::config::tls::TlsClientConfig;
 use tracing::{debug, trace};
 use webpki::anchor_from_trusted_cert;
 
-mod kx;
-use kx::{InterceptingKxGroup, take_pms};
+mod keylog;
+use keylog::MasterSecretLog;
 
 const ALLOWED_GROUPS: &[NamedGroup] = &[NamedGroup::secp256r1];
 const ALLOWED_SUITES: &[CipherSuite] = &[
@@ -35,6 +35,7 @@ const ALLOWED_SUITES: &[CipherSuite] = &[
 
 pub(crate) struct ProxyTlsClient {
     conn: ClientConnection,
+    ms_log: Arc<MasterSecretLog>,
     time: Option<u64>,
     traffic: TlsBytes,
     client_closed: bool,
@@ -68,11 +69,14 @@ impl ProxyTlsClient {
         config: &TlsClientConfig,
         server_name: ServerName,
     ) -> Result<Self, TlsnError> {
-        // provider can only be set once per process to work around rustls limitation of
-        // static references.
         let provider = rustls::crypto::ring::default_provider();
 
-        let kx_groups = InterceptingKxGroup::from_allowed_groups(&provider, ALLOWED_GROUPS);
+        let kx_groups = provider
+            .kx_groups
+            .iter()
+            .filter(|g| ALLOWED_GROUPS.contains(&g.name()))
+            .copied()
+            .collect();
         let cipher_suites: Vec<SupportedCipherSuite> = provider
             .cipher_suites
             .iter()
@@ -88,7 +92,10 @@ impl ProxyTlsClient {
             ..provider
         };
 
-        let config = create_client_config(config, provider)?;
+        let ms_log = Arc::new(MasterSecretLog::default());
+        let mut config = create_client_config(config, provider)?;
+        config.key_log = ms_log.clone();
+
         let conn = ClientConnection::new(Arc::new(config), server_name.into_pki_server_name())
             .map_err(|err| {
                 TlsnError::internal()
@@ -98,6 +105,7 @@ impl ProxyTlsClient {
 
         let tls_client = Self {
             conn,
+            ms_log,
             time: None,
             traffic: TlsBytes::default(),
             client_closed: false,
@@ -228,10 +236,10 @@ impl TlsClient for ProxyTlsClient {
                 })?;
 
                 if self.server_closed {
-                    let pms = take_pms();
-                    if pms.is_empty() {
+                    let ms = self.ms_log.take();
+                    if ms.is_empty() {
                         return Poll::Ready(Err(
-                            TlsnError::internal().with_msg("pms is not available")
+                            TlsnError::internal().with_msg("master secret is not available")
                         ));
                     }
                     let time = self.time.ok_or_else(|| {
@@ -239,7 +247,7 @@ impl TlsClient for ProxyTlsClient {
                     })?;
                     let traffic = std::mem::take(&mut self.traffic);
 
-                    let fut = Box::pin(prover.finalize(pms, time, traffic));
+                    let fut = Box::pin(prover.finalize(ms, time, traffic));
 
                     self.state = State::Finalizing { fut };
                     self.poll(cx)
@@ -305,7 +313,7 @@ fn create_client_config(
         })?
         .with_root_certificates(root_store);
 
-    let mut rustls_config = if let Some((cert, key)) = config.client_auth() {
+    let rustls_config = if let Some((cert, key)) = config.client_auth() {
         builder
             .with_client_auth_cert(
                 cert.iter()
@@ -325,7 +333,6 @@ fn create_client_config(
     } else {
         builder.with_no_client_auth()
     };
-    rustls_config.require_ems = true;
 
     Ok(rustls_config)
 }

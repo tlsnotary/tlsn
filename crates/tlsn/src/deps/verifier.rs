@@ -173,7 +173,7 @@ fn build_proxy_verifier_deps(ctx: Context) -> VerifierDeps {
     #[cfg(tlsn_insecure)]
     let vm = mpz_ideal_vm::IdealVm::new();
 
-    let prf_config = PrfConfig::new(NetworkMode::Normal, MSMode::Extended);
+    let prf_config = PrfConfig::new(NetworkMode::Normal, MSMode::Direct);
     let prf = Prf::new(prf_config);
 
     let id = ctx.id().to_owned();
