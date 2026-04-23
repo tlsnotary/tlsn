@@ -370,7 +370,7 @@ impl From<HashAlgorithm> for tlsn_core::hash::HashAlgId {
 
 /// What action to take with the matched ranges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "UPPERCASE")]
+#[serde(tag = "kind", rename_all = "UPPERCASE")]
 pub enum HandlerAction {
     /// Reveal the data in plaintext.
     Reveal,
@@ -420,8 +420,10 @@ pub struct Handler {
     pub handler_type: HandlerType,
     /// Which part of the HTTP message to target.
     pub part: HandlerPart,
-    /// What action to take (reveal plaintext or hash-commit).
-    #[serde(flatten)]
+    /// What action to take (reveal plaintext or hash-commit). Serialized as a
+    /// nested object with a `kind` discriminant so that action-specific fields
+    /// (e.g. `algorithm` for hash) are namespaced under `action` rather than
+    /// scattered across the handler.
     pub action: HandlerAction,
     /// Optional parameters for fine-grained control.
     #[serde(skip_serializing_if = "Option::is_none")]

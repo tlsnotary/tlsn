@@ -31,8 +31,7 @@ pub fn compute_reveal(sent: &[u8], recv: &[u8], handlers: JsValue) -> Result<JsV
     let output = tlsn_sdk_core::compute_reveal(sent, recv, &handlers)
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-    // Use the JSON-compatible serializer so Handler (which uses
-    // `#[serde(flatten)]` on its action field) produces plain JS Objects
+    // Use the JSON-compatible serializer so Handler produces plain JS Objects
     // instead of `Map` instances. `JSON.stringify(Map)` returns "{}", so a
     // non-Object handler would silently lose all its fields when the
     // extension forwards the reveal_config to the verifier over WebSocket.

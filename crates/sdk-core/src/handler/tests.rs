@@ -478,7 +478,7 @@ fn test_handler_serde_roundtrip() {
 #[test]
 fn test_handler_serde_wire_format() {
     // Verify JSON matches what existing TypeScript plugins produce
-    let json_str = r#"{"type":"SENT","part":"BODY","action":"REVEAL","params":{"type":"json","path":"screen_name","hideKey":true}}"#;
+    let json_str = r#"{"type":"SENT","part":"BODY","action":{"kind":"REVEAL"},"params":{"type":"json","path":"screen_name","hideKey":true}}"#;
     let handler: Handler = serde_json::from_str(json_str).unwrap();
 
     assert_eq!(handler.handler_type, HandlerType::Sent);
@@ -596,7 +596,7 @@ fn test_reveal_only_has_no_commit() {
 
 #[test]
 fn test_hash_action_serde_roundtrip() {
-    let json_str = r#"{"type":"RECV","part":"BODY","action":"HASH","algorithm":"SHA256"}"#;
+    let json_str = r#"{"type":"RECV","part":"BODY","action":{"kind":"HASH","algorithm":"SHA256"}}"#;
     let handler: Handler = serde_json::from_str(json_str).unwrap();
 
     assert_eq!(
@@ -615,7 +615,7 @@ fn test_hash_action_serde_roundtrip() {
 #[test]
 fn test_hash_action_without_algorithm_errors() {
     // HASH without algorithm must fail — plugins must specify it explicitly.
-    let json_str = r#"{"type":"RECV","part":"BODY","action":"HASH"}"#;
+    let json_str = r#"{"type":"RECV","part":"BODY","action":{"kind":"HASH"}}"#;
     assert!(serde_json::from_str::<Handler>(json_str).is_err());
 }
 
