@@ -42,36 +42,37 @@ fn alloc_ghash_key(
     Ok(ghash_key)
 }
 
-/// Controls how the PMS is marked in the VM during allocation.
-enum PmsVisibility {
-    /// Prover knows the PMS value.
+/// Controls how the master secret is marked in the VM during allocation.
+enum MsVisibility {
+    /// Prover knows the master secret value.
     Private,
-    /// Verifier is blind to the PMS value.
+    /// Verifier is blind to the master secret value.
     Blind,
 }
 
-/// Allocates all proxy-mode resources in the VM: PMS, PRF-derived keys,
-/// ciphers, GHASH key, verify-data decode futures, and verify-data checks.
+/// Allocates all proxy-mode resources in the VM: master secret, PRF-derived
+/// keys, ciphers, GHASH key, verify-data decode futures, and verify-data
+/// checks.
 fn alloc_proxy_refs<V: Vm<Binary>>(
     vm: &mut V,
     prf: &mut Prf,
     cf_vd_check: &mut VerifyDataCheck,
     sf_vd_check: &mut VerifyDataCheck,
-    pms_visibility: PmsVisibility,
+    ms_visibility: MsVisibility,
 ) -> Result<References, TlsnError> {
-    let pms: Array<U8, 32> = vm.alloc().map_err(|e| {
+    let ms: Array<U8, 48> = vm.alloc().map_err(|e| {
         TlsnError::internal()
-            .with_msg("pms allocation failed")
+            .with_msg("ms allocation failed")
             .with_source(e)
     })?;
 
-    match pms_visibility {
-        PmsVisibility::Private => vm.mark_private(pms),
-        PmsVisibility::Blind => vm.mark_blind(pms),
+    match ms_visibility {
+        MsVisibility::Private => vm.mark_private(ms),
+        MsVisibility::Blind => vm.mark_blind(ms),
     }
     .map_err(|e| TlsnError::internal().with_source(e))?;
 
-    let prf_output = prf.alloc(vm, pms).map_err(|e| {
+    let prf_output = prf.alloc_ms(vm, ms).map_err(|e| {
         TlsnError::internal()
             .with_msg("prf allocation failed")
             .with_source(e)
@@ -106,7 +107,7 @@ fn alloc_proxy_refs<V: Vm<Binary>>(
     sf_vd_check.alloc(vm, &mut decrypt, prf_output.sf_vd)?;
 
     Ok(References {
-        pms,
+        ms,
         keys,
         cf_vd,
         sf_vd,
@@ -115,7 +116,7 @@ fn alloc_proxy_refs<V: Vm<Binary>>(
 
 #[derive(Debug)]
 struct References {
-    pub(crate) pms: Array<U8, 32>,
+    pub(crate) ms: Array<U8, 48>,
     pub(crate) keys: SessionKeys,
     pub(crate) cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
     pub(crate) sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,

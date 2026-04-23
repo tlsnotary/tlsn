@@ -1,7 +1,7 @@
 use crate::{
     Error as TlsnError, TlsOutput,
     deps::VerifierZk,
-    proxy::{PmsVisibility, References, VerifyDataCheck, alloc_proxy_refs},
+    proxy::{MsVisibility, References, VerifyDataCheck, alloc_proxy_refs},
 };
 use hmac_sha256::Prf;
 use mpz_common::Context;
@@ -35,7 +35,7 @@ impl ProxyVerifier {
             &mut self.prf,
             &mut self.cf_vd_check,
             &mut self.sf_vd_check,
-            PmsVisibility::Blind,
+            MsVisibility::Blind,
         )?);
         Ok(())
     }
@@ -65,14 +65,6 @@ impl ProxyVerifier {
     > {
         let mut refs = self.refs.expect("key refs should be available");
 
-        let session_hash = tlsn_core::transcript::TlsTranscript::compute_session_hash(sent, recv)
-            .map_err(|e| {
-                TlsnError::internal()
-                    .with_msg("failed to compute session_hash")
-                    .with_source(e)
-            })?
-            .to_vec();
-
         let cf_hash =
             tlsn_core::transcript::TlsTranscript::compute_cf_hash(sent, recv).map_err(|e| {
                 TlsnError::internal()
@@ -96,15 +88,12 @@ impl ProxyVerifier {
 
         tracing::debug!("computing PRF...");
         self.vm
-            .commit(refs.pms)
+            .commit(refs.ms)
             .map_err(|e| TlsnError::internal().with_source(e))?;
 
         self.prf.set_client_random(binding.client_random);
         self.prf
             .set_server_random(binding.server_random)
-            .map_err(|e| TlsnError::internal().with_source(e))?;
-        self.prf
-            .set_session_hash(session_hash)
             .map_err(|e| TlsnError::internal().with_source(e))?;
         self.prf
             .set_cf_hash(cf_hash)
