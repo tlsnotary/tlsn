@@ -64,8 +64,8 @@ async fn prf(config: PrfConfig) {
     let mut leader = Prf::new(config);
     let mut follower = Prf::new(config);
 
-    let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
-    let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();
+    let leader_output = leader.alloc_pms(&mut leader_vm, leader_pms).unwrap();
+    let follower_output = follower.alloc_pms(&mut follower_vm, follower_pms).unwrap();
 
     if matches!(config.ms, MSMode::Extended) {
         leader.set_session_hash(session_hash.to_vec()).unwrap();

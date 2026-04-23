@@ -3,11 +3,11 @@
 use crate::{NetworkMode, PrfConfig, PrfError};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array,
-    },
     Vm,
+    memory::{
+        Array,
+        binary::{Binary, U8},
+    },
 };
 
 mod normal;
@@ -150,17 +150,17 @@ impl InnerPrf {
 #[cfg(test)]
 mod tests {
     use crate::{
+        MSMode, NetworkMode, PrfConfig,
         prf::{compute_partial, function::InnerPrf},
         test_utils::phash,
-        MSMode, NetworkMode, PrfConfig,
     };
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
+        memory::{Array, MemoryExt, ViewExt, binary::U8},
     };
-    use rand::{rngs::ThreadRng, Rng};
+    use rand::{Rng, rngs::ThreadRng};
 
     const IPAD: [u8; 64] = [0x36; 64];
     const OPAD: [u8; 64] = [0x5c; 64];
@@ -201,6 +201,9 @@ mod tests {
         let (label, seed_len): (&[u8], usize) = match config.ms {
             MSMode::Standard => (b"master secret", 64),
             MSMode::Extended => (b"extended master secret", 32),
+            // irrelevant since [`InnerPrf::alloc_master_secret`] does not exist for
+            // [`MSMode::Direct`]
+            MSMode::Direct => unreachable!("test_phash is never parameterised with MSMode::Direct"),
         };
         let start_seed: Vec<u8> = vec![42; seed_len];
 

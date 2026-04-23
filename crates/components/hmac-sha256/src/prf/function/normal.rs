@@ -41,6 +41,9 @@ impl PrfFunction {
             MSMode::Extended => {
                 Self::alloc(vm, Self::EMS_LABEL, outer_partial, inner_partial, 48, 32)
             }
+            MSMode::Direct => {
+                unreachable!("alloc_master_secret is never called in MSMode::Direct")
+            }
         }
     }
 

@@ -17,6 +17,11 @@ pub enum MSMode {
     Standard,
     /// Extended Master Secret (RFC 7627) using session hash.
     Extended,
+    /// Master secret is supplied directly via [`Prf::alloc_ms`]; no derivation
+    /// from a pre-master secret is performed.
+    ///
+    /// [`Prf::alloc_ms`]: crate::Prf::alloc_ms
+    Direct,
 }
 
 /// PRF configuration.

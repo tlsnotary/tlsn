@@ -142,7 +142,7 @@ impl MpcTlsLeader {
 
         // Allocate.
         let pms = ke.alloc(&mut (*vm_lock))?;
-        let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc(&mut (*vm_lock), pms)?;
+        let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc_pms(&mut (*vm_lock), pms)?;
         record_layer.set_keys(
             keys.client_write_key,
             keys.client_iv,
