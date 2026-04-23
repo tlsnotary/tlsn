@@ -20,11 +20,11 @@
 
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array,
-    },
     Vm,
+    memory::{
+        Array,
+        binary::{Binary, U8},
+    },
 };
 
 use crate::PrfError;
@@ -60,11 +60,11 @@ mod tests {
     use mpz_hash::sha256::Sha256;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{
-            binary::{U32, U8},
-            Array, MemoryExt, ViewExt,
-        },
         Execute,
+        memory::{
+            Array, MemoryExt, ViewExt,
+            binary::{U8, U32},
+        },
     };
 
     #[test]

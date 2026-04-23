@@ -1,14 +1,14 @@
 #![allow(clippy::let_underscore_future)]
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 use hmac_sha256::{MSMode, NetworkMode, Prf, PrfConfig};
 use mpz_common::context::test_mt_context;
 use mpz_ideal_vm::IdealVm;
 use mpz_vm_core::{
-    memory::{binary::U8, Array},
-    prelude::*,
     Execute,
+    memory::{Array, binary::U8},
+    prelude::*,
 };
 
 #[allow(clippy::unit_arg)]

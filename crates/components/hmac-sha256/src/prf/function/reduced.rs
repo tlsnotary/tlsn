@@ -2,15 +2,15 @@
 
 use std::collections::VecDeque;
 
-use crate::{hmac::hmac_sha256, sha256, state_to_bytes, MSMode, PrfError};
+use crate::{MSMode, PrfError, hmac::hmac_sha256, sha256, state_to_bytes};
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array, DecodeFutureTyped, MemoryExt, ViewExt,
-    },
     Vm,
+    memory::{
+        Array, DecodeFutureTyped, MemoryExt, ViewExt,
+        binary::{Binary, U8},
+    },
 };
 
 #[derive(Debug)]

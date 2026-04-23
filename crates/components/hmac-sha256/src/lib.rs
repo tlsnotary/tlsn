@@ -17,7 +17,7 @@ pub use error::PrfError;
 mod prf;
 pub use prf::Prf;
 
-use mpz_vm_core::memory::{binary::U8, Array};
+use mpz_vm_core::memory::{Array, binary::U8};
 
 /// PRF output.
 #[derive(Debug, Clone, Copy)]
@@ -72,16 +72,16 @@ fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use crate::{
-        test_utils::{prf_cf_vd, prf_ems_ms, prf_keys, prf_ms, prf_sf_vd},
         MSMode, NetworkMode, Prf, PrfConfig, SessionKeys,
+        test_utils::{prf_cf_vd, prf_ems_ms, prf_keys, prf_ms, prf_sf_vd},
     };
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
+        memory::{Array, MemoryExt, ViewExt, binary::U8},
     };
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_prf_reduced() {
