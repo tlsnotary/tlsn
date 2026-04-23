@@ -25,11 +25,13 @@ fixtures = [
 [dependencies]
 tlsn-data-fixtures = { workspace = true, optional = true }
 tlsn-tls-core = { workspace = true, features = ["serde"] }
+
 rangeset = { workspace = true, features = ["serde"] }
 
 aead = { workspace = true, features = ["alloc"], optional = true }
 aes-gcm = { workspace = true, optional = true }
 generic-array = { workspace = true, optional = true }
+const-oid = { workspace = true }
 bimap = { version = "0.6", features = ["serde"] }
 blake3 = { workspace = true }
 hex = { workspace = true, optional = true }
@@ -41,6 +43,7 @@ rs_merkle = { workspace = true, features = ["serde"] }
 rstest = { workspace = true, optional = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
+spki = { workspace = true }
 thiserror = { workspace = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 web-time = { workspace = true }
@@ -58,6 +61,7 @@ generic-array = { workspace = true }
 bincode = { workspace = true }
 hex = { workspace = true }
 rstest = { workspace = true }
+tls-server-fixture = { workspace = true }
 tlsn-core = { workspace = true, features = ["fixtures"] }
 tlsn-attestation = { workspace = true, features = ["fixtures"] }
 tlsn-data-fixtures = { workspace = true }

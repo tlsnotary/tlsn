@@ -48,6 +48,43 @@ impl JsVerifier {
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
+    /// Performs the commitment handshake with the prover.
+    ///
+    /// Returns the server name if proxy sockets are needed, or
+    /// null/undefined for MPC mode. If a server name is returned,
+    /// call `set_proxy_sockets()` before `verify()`.
+    pub async fn setup(&mut self) -> Result<Option<String>> {
+        self.inner
+            .setup()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// This method is used for MPC mode only.
+    pub async fn run_mpc(&mut self) -> Result<()> {
+        self.inner
+            .run_mpc()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// This method is used for proxy mode only.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_io` - A JavaScript object implementing the IoChannel
+    ///   interface, connected to the server.
+    pub async fn run_proxy(&mut self, server_io: JsIo) -> Result<()> {
+        self.inner
+            .run_proxy(JsIoAdapter::new(server_io))
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
     /// Verifies the connection and finalizes the protocol.
     pub async fn verify(&mut self) -> Result<VerifierOutput> {
         let core_output = self
