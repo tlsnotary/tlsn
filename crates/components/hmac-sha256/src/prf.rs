@@ -1,15 +1,15 @@
 use crate::{
-    hmac::{IPAD, OPAD},
     MSMode, PrfConfig, PrfError, PrfOutput, SessionKeys,
+    hmac::{IPAD, OPAD},
 };
-use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
+use mpz_circuits::{Circuit, CircuitBuilder, circuits::xor};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array, FromRaw, MemoryExt, StaticSize, ToRaw, Vector, ViewExt,
-    },
     Call, CallableExt, Vm,
+    memory::{
+        Array, FromRaw, MemoryExt, StaticSize, ToRaw, Vector, ViewExt,
+        binary::{Binary, U8},
+    },
 };
 use std::{fmt::Debug, sync::Arc};
 use tracing::instrument;
@@ -314,8 +314,10 @@ impl Prf {
                 mut client_finished,
                 mut server_finished,
             } => {
-                if let Some(ms) = master_secret.as_mut() && ms.wants_flush() {
-                        ms.flush(vm)?;
+                if let Some(ms) = master_secret.as_mut()
+                    && ms.wants_flush()
+                {
+                    ms.flush(vm)?;
                 }
                 if key_expansion.wants_flush() {
                     key_expansion.flush(vm)?;
@@ -477,8 +479,8 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
+        memory::{Array, MemoryExt, ViewExt, binary::U8},
     };
 
     #[tokio::test]
