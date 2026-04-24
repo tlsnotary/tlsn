@@ -174,10 +174,11 @@ impl Prover<state::CommitAccepted> {
 
         let keys = keys.expect("keys should be available");
         let client = MpcTlsClient::new(keys, vm, span, &config, server_name, mpc_tls)?;
-        let control = ProverControl {
-            decrypt: client.decrypt_state(),
-        };
         let tls_client: Box<dyn TlsClient<Error = Error> + Send> = Box::new(client);
+
+        let control = ProverControl {
+            decrypt: tls_client.decrypt(),
+        };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
         let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
@@ -190,7 +191,7 @@ impl Prover<state::CommitAccepted> {
             state: state::Connected {
                 server_name: config.server_name().clone(),
                 tls_client,
-                control: Some(control),
+                control,
                 client_io,
                 output: None,
                 server_socket,
@@ -243,6 +244,10 @@ impl Prover<state::CommitAccepted> {
         let tls_client: Box<dyn TlsClient<Error = Error> + Send> =
             Box::new(ProxyTlsClient::new(proxy_prover, &config, server_name)?);
 
+        let control = ProverControl {
+            decrypt: tls_client.decrypt(),
+        };
+
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
         let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
 
@@ -254,7 +259,7 @@ impl Prover<state::CommitAccepted> {
             state: state::Connected {
                 server_name: config.server_name().clone(),
                 tls_client,
-                control: None,
+                control,
                 client_io,
                 output: None,
                 server_socket: proxy_socket,
@@ -276,9 +281,7 @@ where
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
     /// Returns a [`ProverControl`] for connection specific settings.
-    ///
-    /// Only provided for MPC mode.
-    pub fn control(&self) -> Option<ProverControl> {
+    pub fn control(&self) -> ProverControl {
         self.state.control.clone()
     }
 
