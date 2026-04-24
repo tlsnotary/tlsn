@@ -110,14 +110,42 @@ pub struct PartialTranscript {
     pub recv_authed: Vec<Range<usize>>,
 }
 
-/// Ranges of data to commit.
+/// Hash algorithm for hash-commitment actions.
+#[derive(Debug, Clone, Copy, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub enum HashAlgorithm {
+    /// BLAKE3 hash algorithm.
+    BLAKE3,
+    /// SHA-256 hash algorithm.
+    SHA256,
+    /// Keccak-256 hash algorithm.
+    KECCAK256,
+}
+
+/// A byte range paired with a hash algorithm for commitment.
+///
+/// Uses explicit `start`/`end` fields (rather than `Range<usize>`) for
+/// clean JS/TS interop via tsify. Converted to the sdk-core `CommitRange`
+/// (which uses `Range<usize>`) in [`super::prover::convert_commit_range`].
+#[derive(Debug, Tsify, Deserialize)]
+#[tsify(from_wasm_abi)]
+pub struct CommitRange {
+    /// Start of the byte range (inclusive).
+    pub start: usize,
+    /// End of the byte range (exclusive).
+    pub end: usize,
+    /// Hash algorithm to use for this range.
+    pub algorithm: HashAlgorithm,
+}
+
+/// Ranges of data to hash-commit.
 #[derive(Debug, Tsify, Deserialize)]
 #[tsify(from_wasm_abi)]
 pub struct Commit {
-    /// Ranges of sent data to commit.
-    pub sent: Vec<Range<usize>>,
-    /// Ranges of received data to commit.
-    pub recv: Vec<Range<usize>>,
+    /// Ranges of sent data to commit, each with its own algorithm.
+    pub sent: Vec<CommitRange>,
+    /// Ranges of received data to commit, each with its own algorithm.
+    pub recv: Vec<CommitRange>,
 }
 
 /// Ranges of data to reveal.

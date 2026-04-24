@@ -36,7 +36,7 @@
 //!
 //! // Get transcript and reveal data.
 //! let transcript = prover.transcript()?;
-//! prover.reveal(Reveal::new().recv(0..100).server_identity(true)).await?;
+//! prover.reveal(Reveal::new().recv(0..100).server_identity(true), None).await?;
 //! ```
 
 #![deny(missing_docs, unreachable_pub, unused_must_use, clippy::all)]
@@ -58,8 +58,8 @@ pub use handler::compute_reveal;
 pub use io::{HyperIo, Io};
 pub use prover::SdkProver;
 pub use types::{
-    Body, ConnectionInfo, Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType,
-    HttpRequest, HttpResponse, Method, PartialTranscript, Reveal, TlsVersion, Transcript,
-    TranscriptLength, VerifierOutput,
+    Body, Commit, CommitRange, ConnectionInfo, Handler, HandlerAction, HandlerParams, HandlerPart,
+    HandlerType, HashAlgorithm, HttpRequest, HttpResponse, Method, PartialTranscript, Reveal,
+    TlsVersion, Transcript, TranscriptLength, VerifierOutput,
 };
 pub use verifier::SdkVerifier;

@@ -1,6 +1,8 @@
 //! Tests for handler-based range extraction.
 
-use crate::types::{Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType};
+use crate::types::{
+    Handler, HandlerAction, HandlerParams, HandlerPart, HandlerType, HashAlgorithm,
+};
 
 use super::compute_reveal;
 
@@ -476,7 +478,7 @@ fn test_handler_serde_roundtrip() {
 #[test]
 fn test_handler_serde_wire_format() {
     // Verify JSON matches what existing TypeScript plugins produce
-    let json_str = r#"{"type":"SENT","part":"BODY","action":"REVEAL","params":{"type":"json","path":"screen_name","hideKey":true}}"#;
+    let json_str = r#"{"type":"SENT","part":"BODY","action":{"kind":"REVEAL"},"params":{"type":"json","path":"screen_name","hideKey":true}}"#;
     let handler: Handler = serde_json::from_str(json_str).unwrap();
 
     assert_eq!(handler.handler_type, HandlerType::Sent);
@@ -515,4 +517,142 @@ fn test_handler_serde_all_parts() {
             "HandlerPart::{part:?} should serialize to {expected}"
         );
     }
+}
+
+// ---- HASH action ----
+
+#[test]
+fn test_hash_action_splits_ranges() {
+    // Mix of REVEAL and HASH handlers: HASH ranges go to commit, REVEAL to reveal.
+    let handlers = vec![
+        Handler {
+            handler_type: HandlerType::Sent,
+            part: HandlerPart::StartLine,
+            action: HandlerAction::Reveal,
+            params: None,
+        },
+        Handler {
+            handler_type: HandlerType::Recv,
+            part: HandlerPart::Body,
+            action: HandlerAction::Hash {
+                algorithm: HashAlgorithm::Blake3,
+            },
+            params: Some(HandlerParams {
+                content_type: Some("json".to_string()),
+                path: Some("screen_name".to_string()),
+                hide_key: Some(true),
+                ..Default::default()
+            }),
+        },
+    ];
+
+    let output = compute_reveal(REQUEST, RESPONSE, &handlers).unwrap();
+
+    // Sent start line should be in reveal (action: REVEAL)
+    assert!(!output.reveal.sent.is_empty());
+    // Recv body should NOT be in reveal (action: HASH)
+    assert!(output.reveal.recv.is_empty());
+    // Commit should be present with recv ranges
+    let commit = output
+        .commit
+        .expect("commit should be Some when HASH handlers are used");
+    assert!(!commit.recv.is_empty());
+    assert!(commit.sent.is_empty());
+    // Each range carries the handler's algorithm (BLAKE3 default)
+    assert_eq!(commit.recv[0].algorithm, HashAlgorithm::Blake3);
+}
+
+#[test]
+fn test_hash_action_with_algorithm() {
+    let handler = Handler {
+        handler_type: HandlerType::Recv,
+        part: HandlerPart::Body,
+        action: HandlerAction::Hash {
+            algorithm: HashAlgorithm::Sha256,
+        },
+        params: None,
+    };
+
+    let output = reveal_one(handler);
+
+    let commit = output.commit.expect("commit should be Some");
+    assert!(!commit.recv.is_empty());
+    // Each range carries its handler's algorithm
+    assert_eq!(commit.recv[0].algorithm, HashAlgorithm::Sha256);
+}
+
+#[test]
+fn test_reveal_only_has_no_commit() {
+    let handler = Handler {
+        handler_type: HandlerType::Recv,
+        part: HandlerPart::Body,
+        action: HandlerAction::Reveal,
+        params: None,
+    };
+
+    let output = reveal_one(handler);
+    assert!(output.commit.is_none());
+}
+
+#[test]
+fn test_hash_action_serde_roundtrip() {
+    let json_str = r#"{"type":"RECV","part":"BODY","action":{"kind":"HASH","algorithm":"SHA256"}}"#;
+    let handler: Handler = serde_json::from_str(json_str).unwrap();
+
+    assert_eq!(
+        handler.action,
+        HandlerAction::Hash {
+            algorithm: HashAlgorithm::Sha256,
+        }
+    );
+
+    // Roundtrip
+    let serialized = serde_json::to_string(&handler).unwrap();
+    let deserialized: Handler = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(handler, deserialized);
+}
+
+#[test]
+fn test_hash_action_without_algorithm_errors() {
+    // HASH without algorithm must fail — plugins must specify it explicitly.
+    let json_str = r#"{"type":"RECV","part":"BODY","action":{"kind":"HASH"}}"#;
+    assert!(serde_json::from_str::<Handler>(json_str).is_err());
+}
+
+#[test]
+fn test_mixed_hash_algorithms_per_range() {
+    // Two HASH handlers with different algorithms produce per-range algorithms.
+    let handlers = vec![
+        Handler {
+            handler_type: HandlerType::Recv,
+            part: HandlerPart::Body,
+            action: HandlerAction::Hash {
+                algorithm: HashAlgorithm::Sha256,
+            },
+            params: Some(HandlerParams {
+                content_type: Some("json".to_string()),
+                path: Some("screen_name".to_string()),
+                ..Default::default()
+            }),
+        },
+        Handler {
+            handler_type: HandlerType::Recv,
+            part: HandlerPart::Body,
+            action: HandlerAction::Hash {
+                algorithm: HashAlgorithm::Keccak256,
+            },
+            params: Some(HandlerParams {
+                content_type: Some("json".to_string()),
+                path: Some("verified".to_string()),
+                ..Default::default()
+            }),
+        },
+    ];
+
+    let output = compute_reveal(REQUEST, RESPONSE, &handlers).unwrap();
+    let commit = output.commit.expect("commit should be Some");
+
+    assert_eq!(commit.recv.len(), 2);
+    assert_eq!(commit.recv[0].algorithm, HashAlgorithm::Sha256);
+    assert_eq!(commit.recv[1].algorithm, HashAlgorithm::Keccak256);
 }

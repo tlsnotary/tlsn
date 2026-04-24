@@ -252,7 +252,11 @@ impl SdkProver {
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
-    pub async fn reveal(&mut self, reveal: Reveal) -> Result<()> {
+    ///
+    /// Optionally accepts a [`Commit`] with ranges to hash-commit (blinded,
+    /// not revealed as plaintext). The commit ranges are processed via the
+    /// TLSNotary hash-commitment path (`prove_hash`).
+    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<()> {
         let State::Committed { mut prover, handle } = self.state.take() else {
             return Err(SdkError::invalid_state("prover is not in committed state"));
         };
@@ -271,6 +275,31 @@ impl SdkProver {
 
         if reveal.server_identity {
             builder.server_identity();
+        }
+
+        // Build transcript commit config for hash-commitment ranges.
+        if let Some(commit) = commit {
+            let mut commit_builder =
+                tlsn_core::transcript::TranscriptCommitConfig::builder(prover.transcript());
+
+            for (ranges, direction) in [
+                (&commit.sent, tlsn_core::transcript::Direction::Sent),
+                (&commit.recv, tlsn_core::transcript::Direction::Received),
+            ] {
+                for cr in ranges {
+                    let alg: tlsn_core::hash::HashAlgId = cr.algorithm.into();
+                    let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
+                    commit_builder
+                        .commit_with_kind(cr.range(), direction, kind)
+                        .map_err(|e| SdkError::config(e.to_string()))?;
+                }
+            }
+
+            builder.transcript_commit(
+                commit_builder
+                    .build()
+                    .map_err(|e| SdkError::config(e.to_string()))?,
+            );
         }
 
         let config = builder.build()?;
