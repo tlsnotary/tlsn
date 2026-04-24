@@ -240,8 +240,8 @@ impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
 
 /// A byte range paired with a hash algorithm for commitment.
 ///
-/// Uses flat `start`/`end` fields so the JS wire format matches
-/// [`crate::wasm::CommitRange`] in the wasm crate without conversion.
+/// Uses flat `start`/`end` fields so the JS wire format matches the wasm
+/// crate's `CommitRange` without conversion.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommitRange {
     /// Start of the byte range (inclusive).

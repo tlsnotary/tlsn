@@ -291,14 +291,14 @@ impl SdkProver {
                     let kind = tlsn_core::transcript::TranscriptCommitmentKind::Hash { alg };
                     commit_builder
                         .commit_with_kind(cr.range(), direction, kind)
-                        .map_err(|e| SdkError::handler(e.to_string()))?;
+                        .map_err(|e| SdkError::config(e.to_string()))?;
                 }
             }
 
             builder.transcript_commit(
                 commit_builder
                     .build()
-                    .map_err(|e| SdkError::handler(e.to_string()))?,
+                    .map_err(|e| SdkError::config(e.to_string()))?,
             );
         }
 

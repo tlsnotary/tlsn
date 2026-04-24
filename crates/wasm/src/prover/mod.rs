@@ -120,17 +120,11 @@ impl JsProver {
     ///
     /// Optionally accepts a `Commit` object with ranges to hash-commit.
     /// Pass `undefined` or omit the second argument for reveal-only proofs.
-    pub async fn reveal(&mut self, reveal: Reveal, commit: JsValue) -> Result<()> {
+    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<()> {
         self.emit_progress("REVEAL", 0.7, "Proving and revealing data...");
 
         let core_reveal = convert_reveal(reveal);
-        let core_commit = if commit.is_undefined() || commit.is_null() {
-            None
-        } else {
-            let wasm_commit: Commit = serde_wasm_bindgen::from_value(commit)
-                .map_err(|e| JsError::new(&format!("invalid commit: {e}")))?;
-            Some(convert_commit(wasm_commit))
-        };
+        let core_commit = commit.map(convert_commit);
 
         self.inner
             .reveal(core_reveal, core_commit)

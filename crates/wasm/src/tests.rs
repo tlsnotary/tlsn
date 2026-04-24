@@ -74,7 +74,7 @@ pub async fn test_prove() -> Result<(), JsValue> {
                 recv: vec![0..10],
                 server_identity: true,
             },
-            JsValue::UNDEFINED,
+            None,
         )
         .await?;
 
