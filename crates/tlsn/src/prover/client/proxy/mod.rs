@@ -3,7 +3,7 @@
 use crate::{
     Error as TlsnError,
     deps::ProverZk,
-    prover::client::{TlsClient, TlsOutput},
+    prover::client::{DecryptState, TlsClient, TlsOutput},
     proxy::{ProxyProver, TlsBytes},
 };
 use futures::FutureExt;
@@ -16,7 +16,7 @@ use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use std::{
     io::{Read, Write},
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, atomic::AtomicBool},
     task::Poll,
 };
 use tls_core::dns::ServerName;
@@ -41,6 +41,7 @@ pub(crate) struct ProxyTlsClient {
     client_closed: bool,
     server_closed: bool,
     state: State,
+    decrypt: Arc<DecryptState>,
 }
 
 enum State {
@@ -103,6 +104,10 @@ impl ProxyTlsClient {
                     .with_source(err)
             })?;
 
+        let decrypt = DecryptState {
+            decrypt: AtomicBool::new(true),
+        };
+
         let tls_client = Self {
             conn,
             ms_log,
@@ -111,6 +116,7 @@ impl ProxyTlsClient {
             client_closed: false,
             server_closed: false,
             state: State::Init { prover },
+            decrypt: Arc::new(decrypt),
         };
 
         Ok(tls_client)
@@ -187,6 +193,10 @@ impl TlsClient for ProxyTlsClient {
 
     fn server_close(&mut self) {
         self.server_closed = true;
+    }
+
+    fn decrypt(&self) -> Arc<DecryptState> {
+        self.decrypt.clone()
     }
 
     fn poll(

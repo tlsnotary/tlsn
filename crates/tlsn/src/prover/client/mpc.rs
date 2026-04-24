@@ -3,7 +3,7 @@
 use crate::{
     deps::{ProverMpc, ProverZk},
     error::Error as TlsnError,
-    prover::client::{TlsClient, TlsOutput},
+    prover::client::{DecryptState, TlsClient, TlsOutput},
 };
 use futures::{Future, FutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys};
@@ -11,10 +11,7 @@ use mpz_common::Context;
 use rustls_pki_types::CertificateDer;
 use std::{
     pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, atomic::AtomicBool},
     task::Poll,
 };
 use tls_client::ClientConnection;
@@ -28,21 +25,6 @@ use webpki::anchor_from_trusted_cert;
 type FinalizeFuture =
     Box<dyn Future<Output = Result<(InnerState, Context, TlsTranscript), TlsnError>> + Send>;
 
-/// Decryption state.
-#[derive(Debug)]
-pub(crate) struct DecryptState {
-    decrypt: AtomicBool,
-}
-
-impl DecryptState {
-    pub(crate) fn enable_decryption(&self, enable: bool) {
-        self.decrypt.store(enable, Ordering::Release);
-    }
-
-    pub(crate) fn is_decrypting(&self) -> bool {
-        self.decrypt.load(Ordering::Acquire)
-    }
-}
 pub(crate) struct MpcTlsClient {
     state: State,
     decrypt: Arc<DecryptState>,
@@ -112,10 +94,6 @@ impl MpcTlsClient {
         };
 
         Ok(client)
-    }
-
-    pub(crate) fn decrypt_state(&self) -> Arc<DecryptState> {
-        self.decrypt.clone()
     }
 
     fn inner_client_mut(&mut self) -> Option<&mut ClientConnection> {
@@ -218,6 +196,10 @@ impl TlsClient for MpcTlsClient {
 
     fn server_close(&mut self) {
         self.server_closed = true;
+    }
+
+    fn decrypt(&self) -> Arc<DecryptState> {
+        self.decrypt.clone()
     }
 
     fn poll(

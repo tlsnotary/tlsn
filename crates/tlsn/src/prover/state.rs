@@ -33,7 +33,7 @@ pin_project_lite::pin_project! {
     pub struct Connected<S> {
         pub(crate) server_name: ServerName,
         pub(crate) tls_client: Box<dyn TlsClient<Error = Error> + Send>,
-        pub(crate) control: Option<ProverControl>,
+        pub(crate) control: ProverControl,
         #[pin]
         pub(crate) client_io: DuplexStream,
         pub(crate) output: Option<(Context, ProverZk, TlsOutput)>,

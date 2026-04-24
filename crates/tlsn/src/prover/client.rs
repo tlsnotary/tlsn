@@ -1,10 +1,16 @@
 //! Provides a TLS client.
 
 use crate::{TlsOutput, deps::ProverZk};
-use std::task::Poll;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    task::Poll,
+};
 
 mod mpc;
-pub(crate) use mpc::{DecryptState, MpcTlsClient};
+pub(crate) use mpc::MpcTlsClient;
 
 mod proxy;
 use mpz_common::Context;
@@ -44,9 +50,28 @@ pub(crate) trait TlsClient {
     /// Server closes the connection.
     fn server_close(&mut self);
 
+    /// Returns the decryption state.
+    fn decrypt(&self) -> Arc<DecryptState>;
+
     /// Polls the client to make progress.
     fn poll(
         &mut self,
         cx: &mut std::task::Context,
     ) -> Poll<Result<(Context, ProverZk, TlsOutput), Self::Error>>;
+}
+
+/// Decryption state.
+#[derive(Debug)]
+pub(crate) struct DecryptState {
+    decrypt: AtomicBool,
+}
+
+impl DecryptState {
+    pub(crate) fn enable_decryption(&self, enable: bool) {
+        self.decrypt.store(enable, Ordering::Release);
+    }
+
+    pub(crate) fn is_decrypting(&self) -> bool {
+        self.decrypt.load(Ordering::Acquire)
+    }
 }
