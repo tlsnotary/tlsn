@@ -14,12 +14,12 @@ pub use tlsn_core::ProverOutput;
 
 use crate::{
     Error, PROXY_STREAM_PREFIX, Result, TlsOutput,
-    deps::ProverDeps,
+    deps::{MpcProverDeps, ProxyProverDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
         client::{MpcTlsClient, ProxyTlsClient, TlsClient},
         future::FutureState,
-        state::ConnectedProj,
+        state::{ConnectedProj, ProverProtocol},
     },
     tag::verify_tags,
 };
@@ -28,11 +28,16 @@ use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
 use mpz_vm_core::Execute;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::{fmt::Debug, pin::Pin, task::Poll};
+use std::{fmt::Debug, future::Future, pin::Pin, task::Poll};
 use tls_client::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
-        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig, tls_commit::TlsCommitConfig,
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{
+            CommitConfig, Mpc, Proxy, TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig,
+        },
     },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
@@ -63,6 +68,52 @@ impl<T: state::ProverState> Debug for Prover<T> {
     }
 }
 
+/// Internal dispatch trait: how a [`CommitConfig`] constructs its
+/// protocol-specific prover dependencies.
+///
+/// Sealed. Users invoke this indirectly via [`Prover::commit`].
+pub trait ProverCommit: CommitConfig<Protocol = Self::ProverProto> + sealed::Sealed {
+    /// Protocol marker tied to a [`ProverProtocol`] binding.
+    ///
+    /// Mirrors [`CommitConfig::Protocol`] but with the additional bound
+    /// required for prover-side dispatch.
+    type ProverProto: ProverProtocol;
+
+    #[doc(hidden)]
+    fn setup_prover(
+        self,
+        ctx: Context,
+    ) -> impl Future<Output = Result<<Self::ProverProto as ProverProtocol>::Deps>> + Send;
+}
+
+impl ProverCommit for MpcTlsConfig {
+    type ProverProto = Mpc;
+
+    async fn setup_prover(self, ctx: Context) -> Result<MpcProverDeps> {
+        let mut deps = MpcProverDeps::new(&self, ctx);
+        deps.setup().await?;
+        Ok(deps)
+    }
+}
+
+impl ProverCommit for ProxyTlsConfig {
+    type ProverProto = Proxy;
+
+    async fn setup_prover(self, ctx: Context) -> Result<ProxyProverDeps> {
+        let mut deps = ProxyProverDeps::new(ctx);
+        deps.setup().await?;
+        Ok(deps)
+    }
+}
+
+mod sealed {
+    use tlsn_core::config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig};
+
+    pub trait Sealed {}
+    impl Sealed for MpcTlsConfig {}
+    impl Sealed for ProxyTlsConfig {}
+}
+
 impl Prover<state::Initialized> {
     /// Creates a new prover.
     ///
@@ -85,25 +136,29 @@ impl Prover<state::Initialized> {
     /// Starts the TLS commitment protocol.
     ///
     /// This initiates the TLS commitment protocol, including performing any
-    /// necessary preprocessing operations.
+    /// necessary preprocessing operations. The resulting prover state is
+    /// parameterized by the protocol marker of `config` (e.g. `Mpc` for
+    /// [`MpcTlsConfig`], `Proxy` for [`ProxyTlsConfig`]), which determines the
+    /// available `connect` method.
     ///
     /// # Arguments
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit(
+    pub async fn commit<C: ProverCommit>(
         mut self,
-        config: TlsCommitConfig,
-    ) -> Result<Prover<state::CommitAccepted>> {
+        config: C,
+    ) -> Result<Prover<state::CommitAccepted<C::Protocol>>> {
         let mut ctx = self
             .ctx
             .take()
             .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
 
+        let wire = config.clone().into();
         // Sends protocol configuration to verifier for compatibility check.
         ctx.io_mut()
             .send(TlsCommitRequestMsg {
-                request: config.to_request(),
+                request: TlsCommitRequest::new(wire),
                 version: crate::VERSION.clone(),
             })
             .await
@@ -128,8 +183,7 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let mut prover_deps = ProverDeps::new(config.protocol(), ctx);
-        prover_deps.setup().await?;
+        let deps = config.setup_prover(ctx).await?;
 
         debug!("setup complete");
 
@@ -138,15 +192,13 @@ impl Prover<state::Initialized> {
             span: self.span,
             ctx: None,
             mux_handle: self.mux_handle,
-            state: state::CommitAccepted { prover_deps },
+            state: state::CommitAccepted { deps },
         })
     }
 }
 
-impl Prover<state::CommitAccepted> {
+impl Prover<state::CommitAccepted<Mpc>> {
     /// Connects to the server via MPC-TLS.
-    ///
-    /// This method is used for MPC mode only.
     ///
     /// # Arguments
     ///
@@ -158,14 +210,12 @@ impl Prover<state::CommitAccepted> {
     /// * handle to the TLS connection
     /// * the connected prover
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub fn connect_mpc<S: AsyncWrite + AsyncRead + Send + Unpin>(
+    pub fn connect<S: AsyncWrite + AsyncRead + Send + Unpin>(
         self,
         config: TlsClientConfig,
         server_socket: S,
     ) -> Result<(TlsConnection, Prover<state::Connected<S>>)> {
-        let ProverDeps::Mpc { vm, mpc_tls, keys } = self.state.prover_deps else {
-            return Err(Error::user().with_msg("the prover is not configured to run in MPC mode"));
-        };
+        let MpcProverDeps { vm, mpc_tls, keys } = self.state.deps;
 
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =
@@ -206,11 +256,13 @@ impl Prover<state::CommitAccepted> {
 
         Ok((conn, prover))
     }
+}
 
+impl Prover<state::CommitAccepted<Proxy>> {
     /// Connects to the proxy.
     ///
-    /// This method is used for proxy mode only. The proxy stream through the
-    /// verifier is opened internally.
+    /// The proxy stream through the verifier is opened internally using the
+    /// session multiplexer.
     ///
     /// # Arguments
     ///
@@ -221,17 +273,14 @@ impl Prover<state::CommitAccepted> {
     /// * handle to the TLS connection
     /// * the connected prover
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub fn connect_proxy(
+    pub fn connect(
         self,
         config: TlsClientConfig,
     ) -> Result<(TlsConnection, Prover<state::Connected<Stream>>)> {
-        let ProverDeps::Proxy {
+        let ProxyProverDeps {
             prover: proxy_prover,
             id,
-        } = self.state.prover_deps
-        else {
-            return Err(Error::user().with_msg("the prover is not configured to run in proxy mode"));
-        };
+        } = self.state.deps;
 
         let mut proxy_id = PROXY_STREAM_PREFIX.to_vec();
         proxy_id.extend_from_slice(id.as_bytes());

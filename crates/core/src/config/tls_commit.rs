@@ -5,55 +5,38 @@ pub mod proxy;
 
 use serde::{Deserialize, Serialize};
 
-/// TLS commitment configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TlsCommitConfig {
-    protocol: TlsCommitProtocolConfig,
+/// Marker type for the MPC-TLS commitment protocol.
+#[derive(Debug, Clone, Copy)]
+pub struct Mpc;
+
+/// Marker type for the proxy-TLS commitment protocol.
+#[derive(Debug, Clone, Copy)]
+pub struct Proxy;
+
+/// TLS commitment protocol marker.
+pub trait Protocol: sealed::SealedProtocol {}
+
+impl Protocol for Mpc {}
+impl Protocol for Proxy {}
+
+/// A TLS commitment protocol configuration.
+///
+/// Implemented by the concrete configuration types for each supported protocol
+/// (e.g. [`mpc::MpcTlsConfig`], [`proxy::ProxyTlsConfig`]). Associates a config
+/// with its [`Protocol`] marker.
+pub trait CommitConfig:
+    Into<TlsCommitProtocolConfig> + Clone + sealed::SealedConfig
+{
+    /// The protocol marker for this configuration.
+    type Protocol: Protocol;
 }
 
-impl TlsCommitConfig {
-    /// Creates a new builder.
-    pub fn builder() -> TlsCommitConfigBuilder {
-        TlsCommitConfigBuilder::default()
-    }
-
-    /// Returns the protocol configuration.
-    pub fn protocol(&self) -> &TlsCommitProtocolConfig {
-        &self.protocol
-    }
-
-    /// Returns a TLS commitment request.
-    pub fn to_request(&self) -> TlsCommitRequest {
-        TlsCommitRequest {
-            config: self.protocol.clone(),
-        }
-    }
+impl CommitConfig for mpc::MpcTlsConfig {
+    type Protocol = Mpc;
 }
 
-/// Builder for [`TlsCommitConfig`].
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct TlsCommitConfigBuilder {
-    protocol: Option<TlsCommitProtocolConfig>,
-}
-
-impl TlsCommitConfigBuilder {
-    /// Sets the protocol configuration.
-    pub fn protocol<C>(mut self, protocol: C) -> Self
-    where
-        C: Into<TlsCommitProtocolConfig>,
-    {
-        self.protocol = Some(protocol.into());
-        self
-    }
-
-    /// Builds the configuration.
-    pub fn build(self) -> Result<TlsCommitConfig, TlsCommitConfigError> {
-        let protocol = self
-            .protocol
-            .ok_or(ErrorRepr::MissingField { name: "protocol" })?;
-
-        Ok(TlsCommitConfig { protocol })
-    }
+impl CommitConfig for proxy::ProxyTlsConfig {
+    type Protocol = Proxy;
 }
 
 /// TLS commitment protocol configuration.
@@ -85,19 +68,23 @@ pub struct TlsCommitRequest {
 }
 
 impl TlsCommitRequest {
+    /// Creates a new request for the given protocol configuration.
+    pub fn new(config: TlsCommitProtocolConfig) -> Self {
+        Self { config }
+    }
+
     /// Returns the protocol configuration.
     pub fn protocol(&self) -> &TlsCommitProtocolConfig {
         &self.config
     }
 }
 
-/// Error for [`TlsCommitConfig`].
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct TlsCommitConfigError(#[from] ErrorRepr);
+mod sealed {
+    pub trait SealedProtocol {}
+    impl SealedProtocol for super::Mpc {}
+    impl SealedProtocol for super::Proxy {}
 
-#[derive(Debug, thiserror::Error)]
-enum ErrorRepr {
-    #[error("missing field: {name}")]
-    MissingField { name: &'static str },
+    pub trait SealedConfig {}
+    impl SealedConfig for super::mpc::MpcTlsConfig {}
+    impl SealedConfig for super::proxy::ProxyTlsConfig {}
 }

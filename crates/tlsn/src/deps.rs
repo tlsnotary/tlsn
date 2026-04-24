@@ -3,7 +3,7 @@ use tlsn_core::config::tls_commit::mpc::{MpcTlsConfig, NetworkSetting};
 use tlsn_deap::Deap;
 
 mod prover;
-pub(crate) use prover::{ProverDeps, ProverMpc, ProverZk};
+pub(crate) use prover::{MpcProverDeps, ProverMpc, ProverZk, ProxyProverDeps};
 
 mod verifier;
 pub(crate) use verifier::{VerifierDeps, VerifierZk};
