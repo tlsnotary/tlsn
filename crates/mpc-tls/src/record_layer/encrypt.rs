@@ -1,16 +1,16 @@
 use futures::TryFutureExt as _;
 use mpz_core::bitvec::BitVec;
-use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_memory_core::{DecodeFutureTyped, binary::Binary};
+use mpz_vm_core::{Vm, prelude::*};
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 
 use crate::{
-    record_layer::{
-        aead::{AeadError, ComputeTags, MpcAesGcm},
-        TagData,
-    },
     BoxFut, MpcTlsError,
+    record_layer::{
+        TagData,
+        aead::{AeadError, ComputeTags, MpcAesGcm},
+    },
 };
 
 #[allow(clippy::type_complexity)]
@@ -144,14 +144,14 @@ impl EncryptOp {
         aad: Vec<u8>,
         mode: EncryptMode,
     ) -> Result<Self, MpcTlsError> {
-        if let Some(plaintext) = &plaintext {
-            if plaintext.len() != len {
-                return Err(MpcTlsError::record_layer(format!(
-                    "inconsistent plaintext length: {} != {}",
-                    plaintext.len(),
-                    len
-                )));
-            }
+        if let Some(plaintext) = &plaintext
+            && plaintext.len() != len
+        {
+            return Err(MpcTlsError::record_layer(format!(
+                "inconsistent plaintext length: {} != {}",
+                plaintext.len(),
+                len
+            )));
         }
 
         if mode == EncryptMode::Public && plaintext.is_none() {

@@ -5,25 +5,25 @@ use std::{
 
 use anyhow::Result;
 use http_body_util::Empty;
-use hyper::{body::Bytes, Request, StatusCode, Uri};
+use hyper::{Request, StatusCode, Uri, body::Bytes};
 use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 use tlsn::{
+    Session,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig, TlsCommitProtocolConfig},
+        tls_commit::{TlsCommitConfig, TlsCommitProtocolConfig, mpc::MpcTlsConfig},
         verifier::VerifierConfig,
     },
     connection::ServerName,
     transcript::PartialTranscript,
     verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
-    Session,
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};

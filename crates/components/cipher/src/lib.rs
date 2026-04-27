@@ -14,10 +14,10 @@ pub mod aes;
 use async_trait::async_trait;
 use mpz_circuits::circuits::xor;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     MemoryExt, Repr, Slice, StaticSize, ToRaw, Vector,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Call, CallBuilder, CallError, Vm};
+use mpz_vm_core::{Call, CallBuilder, CallError, Vm, prelude::*};
 use std::{collections::VecDeque, sync::Arc};
 
 /// Provides computation of 2PC ciphers in counter and ECB mode.

@@ -1,10 +1,10 @@
 //! Transcript fixtures for testing.
 
 use aead::Payload as AeadPayload;
-use aes_gcm::{aead::Aead, Aes128Gcm, NewAead};
+use aes_gcm::{Aes128Gcm, NewAead, aead::Aead};
 #[allow(deprecated)]
 use generic_array::GenericArray;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tls_core::msgs::{
     base::Payload,
     codec::Codec,

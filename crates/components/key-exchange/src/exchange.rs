@@ -11,17 +11,17 @@ use tracing::instrument;
 
 use mpz_common::{Context, Flush};
 use mpz_core::bitvec::BitVec;
-use mpz_fields::{p256::P256, Field};
+use mpz_fields::{Field, p256::P256};
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Array, DecodeFutureTyped, MemoryExt, ViewExt,
+    binary::{Binary, U8},
 };
 use mpz_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConvert};
 use mpz_vm_core::{CallBuilder, CallableExt, Vm};
 
 use crate::{
-    circuit::build_pms_circuit, point_addition::derive_x_coord_share, KeyExchange,
-    KeyExchangeError, Pms, Role,
+    KeyExchange, KeyExchangeError, Pms, Role, circuit::build_pms_circuit,
+    point_addition::derive_x_coord_share,
 };
 
 /// NIST P-256 prime big-endian.
@@ -461,7 +461,7 @@ mod tests {
     use mpz_fields::UniformRand;
     use mpz_ideal_vm::IdealVm;
     use mpz_share_conversion::ideal::{
-        ideal_share_convert, IdealShareConvertReceiver, IdealShareConvertSender,
+        IdealShareConvertReceiver, IdealShareConvertSender, ideal_share_convert,
     };
     use mpz_vm_core::Execute;
     use p256::{NonZeroScalar, PublicKey, SecretKey};
@@ -482,7 +482,7 @@ mod tests {
     async fn test_key_exchange() {
         let mut rng = StdRng::seed_from_u64(0).compat();
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let mut gen = IdealVm::new();
+        let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
 
         let leader_private_key = SecretKey::random(&mut rng);
@@ -502,7 +502,7 @@ mod tests {
         leader.private_key = leader_private_key.clone();
         follower.private_key = follower_private_key.clone();
 
-        let leader_pms = leader.alloc(&mut gen).unwrap();
+        let leader_pms = leader.alloc(&mut gen_vm).unwrap();
         let follower_pms = follower.alloc(&mut ev).unwrap();
 
         tokio::try_join!(leader.setup(&mut ctx_a), follower.setup(&mut ctx_b)).unwrap();
@@ -510,7 +510,7 @@ mod tests {
         let client_public_key = leader.client_key().unwrap();
         assert_eq!(client_public_key, expected_client_public_key);
 
-        let mut leader_pms = gen.decode(leader_pms).unwrap();
+        let mut leader_pms = gen_vm.decode(leader_pms).unwrap();
         let mut follower_pms = ev.decode(follower_pms).unwrap();
 
         leader.set_server_key(server_public_key).unwrap();
@@ -519,11 +519,11 @@ mod tests {
         let (leader_pms, follower_pms) = tokio::join!(
             async {
                 leader.compute_shares(&mut ctx_a).await.unwrap();
-                leader.assign(&mut gen).unwrap();
+                leader.assign(&mut gen_vm).unwrap();
 
-                gen.flush(&mut ctx_a).await.unwrap();
-                gen.execute(&mut ctx_a).await.unwrap();
-                gen.flush(&mut ctx_a).await.unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
+                gen_vm.execute(&mut ctx_a).await.unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
 
                 leader.finalize().await.unwrap();
 
@@ -624,7 +624,7 @@ mod tests {
     async fn test_malicious_key_exchange(#[case] malicious: Malicious) {
         let mut rng = StdRng::seed_from_u64(0);
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let mut gen = IdealVm::new();
+        let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
 
         let leader_private_key = SecretKey::random(&mut rng.compat_by_ref());
@@ -642,7 +642,7 @@ mod tests {
         leader.private_key = leader_private_key.clone();
         follower.private_key = follower_private_key.clone();
 
-        leader.alloc(&mut gen).unwrap();
+        leader.alloc(&mut gen_vm).unwrap();
         follower.alloc(&mut ev).unwrap();
 
         tokio::try_join!(leader.setup(&mut ctx_a), follower.setup(&mut ctx_b)).unwrap();
@@ -662,11 +662,11 @@ mod tests {
                     leader.set_pms_0(bad_pms_share);
                 }
 
-                leader.assign(&mut gen).unwrap();
+                leader.assign(&mut gen_vm).unwrap();
 
-                gen.flush(&mut ctx_a).await.unwrap();
-                gen.execute(&mut ctx_a).await.unwrap();
-                gen.flush(&mut ctx_a).await.unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
+                gen_vm.execute(&mut ctx_a).await.unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
 
                 leader.finalize().await
             },
@@ -704,7 +704,7 @@ mod tests {
     #[tokio::test]
     async fn test_circuit() {
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let gen = IdealVm::new();
+        let gen_vm = IdealVm::new();
         let ev = IdealVm::new();
 
         let share_a0_bytes = [5_u8; 32];
@@ -715,7 +715,7 @@ mod tests {
 
         let (res_gen, res_ev) = tokio::join!(
             async move {
-                let mut vm = gen;
+                let mut vm = gen_vm;
 
                 let p_constant: Array<U8, 32> = vm.alloc().unwrap();
                 vm.mark_public(p_constant).unwrap();

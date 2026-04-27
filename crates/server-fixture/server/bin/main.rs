@@ -1,6 +1,6 @@
 use std::{env, io};
 
-use tlsn_server_fixture::{bind, DEFAULT_FIXTURE_PORT};
+use tlsn_server_fixture::{DEFAULT_FIXTURE_PORT, bind};
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::info;

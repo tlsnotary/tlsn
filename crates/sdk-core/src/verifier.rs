@@ -1,12 +1,12 @@
 //! SDK Verifier implementation.
 
 use tlsn::{
+    Session, SessionHandle,
     config::tls_commit::TlsCommitProtocolConfig,
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
-    verifier::{state, Verifier},
+    verifier::{Verifier, state},
     webpki::RootCertStore,
-    Session, SessionHandle,
 };
 use tracing::info;
 

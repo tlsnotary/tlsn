@@ -6,7 +6,7 @@ keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "Apache-2.0 OR ISC OR MIT"
 version = "0.1.0-alpha.15-pre"
-edition = "2021"
+edition = "2024"
 
 [lints]
 workspace = true

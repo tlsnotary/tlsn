@@ -12,8 +12,8 @@ use async_trait::async_trait;
 use mpz_common::Context;
 use mpz_core::bitvec::BitVec;
 use mpz_vm_core::{
-    memory::{binary::Binary, DecodeFuture, Memory, Repr, Slice, View},
     Call, Callable, Execute, Vm, VmError,
+    memory::{DecodeFuture, Memory, Repr, Slice, View, binary::Binary},
 };
 use rangeset::{ops::Set, set::RangeSet};
 use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
@@ -388,7 +388,7 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{binary::U8, Array},
+        memory::{Array, binary::U8},
         prelude::*,
     };
 

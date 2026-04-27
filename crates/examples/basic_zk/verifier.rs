@@ -8,13 +8,13 @@ use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_h
 use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
+    Session,
     config::{tls_commit::TlsCommitProtocolConfig, verifier::VerifierConfig},
     connection::ServerName,
     hash::HashAlgId,
     transcript::{Direction, PartialTranscript},
     verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
-    Session,
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;

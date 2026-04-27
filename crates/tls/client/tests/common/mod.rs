@@ -21,7 +21,7 @@ use webpki::anchor_from_trusted_cert;
 macro_rules! embed_files {
     (
         $(
-            ($name:ident, $keytype:expr, $path:expr);
+            ($name:ident, $keytype:expr_2021, $path:expr_2021);
         )+
     ) => {
         $(

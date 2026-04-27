@@ -449,15 +449,16 @@ mod tests {
         // Remove the CA cert
         data.server_cert_data.certs.pop();
 
-        assert!(data
-            .server_cert_data
-            .verify(
-                verifier,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &data.server_name,
-            )
-            .is_ok());
+        assert!(
+            data.server_cert_data
+                .verify(
+                    verifier,
+                    data.connection_info.time,
+                    data.server_ephemeral_key(),
+                    &data.server_name,
+                )
+                .is_ok()
+        );
     }
 
     /// Expect chain verification to succeed even when a trusted CA is provided
@@ -469,15 +470,16 @@ mod tests {
         verifier: &ServerCertVerifier,
         #[case] data: ConnectionFixture,
     ) {
-        assert!(data
-            .server_cert_data
-            .verify(
-                verifier,
-                data.connection_info.time,
-                data.server_ephemeral_key(),
-                &data.server_name,
-            )
-            .is_ok());
+        assert!(
+            data.server_cert_data
+                .verify(
+                    verifier,
+                    data.connection_info.time,
+                    data.server_ephemeral_key(),
+                    &data.server_name,
+                )
+                .is_ok()
+        );
     }
 
     /// Expect to fail since the end entity cert was not valid at the time.

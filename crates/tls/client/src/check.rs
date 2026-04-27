@@ -11,7 +11,7 @@ use tls_core::msgs::{
 /// has the given $payload_type.  If not, return Err(rustls::Error) quoting
 /// $handshake_type as the expected handshake type.
 macro_rules! require_handshake_msg(
-  ( $m:expr, $handshake_type:path, $payload_type:path ) => (
+  ( $m:expr_2021, $handshake_type:path, $payload_type:path ) => (
     match &$m.payload {
         MessagePayload::Handshake($crate::tls_core::msgs::handshake::HandshakeMessagePayload {
             payload: $payload_type(hm),
@@ -28,7 +28,7 @@ macro_rules! require_handshake_msg(
 /// Like require_handshake_msg, but moves the payload out of $m.
 #[cfg(feature = "tls12")]
 macro_rules! require_handshake_msg_move(
-  ( $m:expr, $handshake_type:path, $payload_type:path ) => (
+  ( $m:expr_2021, $handshake_type:path, $payload_type:path ) => (
     match $m.payload {
         MessagePayload::Handshake($crate::tls_core::msgs::handshake::HandshakeMessagePayload {
             payload: $payload_type(hm),

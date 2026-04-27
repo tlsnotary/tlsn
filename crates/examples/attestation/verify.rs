@@ -8,9 +8,9 @@ use clap::Parser;
 
 use tlsn::{
     attestation::{
+        CryptoProvider,
         presentation::{Presentation, PresentationOutput},
         signing::VerifyingKey,
-        CryptoProvider,
     },
     verifier::ServerCertVerifier,
     webpki::{CertificateDer, RootCertStore},
