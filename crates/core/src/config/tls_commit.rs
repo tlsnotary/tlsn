@@ -5,13 +5,21 @@ pub mod proxy;
 
 use serde::{Deserialize, Serialize};
 
+use crate::config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig};
+
 /// TLS commitment configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TlsCommitConfig<P> {
+pub struct TlsCommitConfig<P>
+where
+    P: Into<TlsCommitRequest>,
+{
     protocol: P,
 }
 
-impl<P: Clone> TlsCommitConfig<P> {
+impl<P> TlsCommitConfig<P>
+where
+    P: Into<TlsCommitRequest>,
+{
     /// Creates a new builder.
     pub fn builder() -> TlsCommitConfigBuilder<P> {
         TlsCommitConfigBuilder::default()
@@ -20,13 +28,6 @@ impl<P: Clone> TlsCommitConfig<P> {
     /// Returns the protocol configuration.
     pub fn protocol(&self) -> &P {
         &self.protocol
-    }
-
-    /// Returns a TLS commitment request.
-    pub fn to_request(&self) -> TlsCommitRequest<P> {
-        TlsCommitRequest {
-            config: self.protocol.clone(),
-        }
     }
 }
 
@@ -42,7 +43,10 @@ impl<P> Default for TlsCommitConfigBuilder<P> {
     }
 }
 
-impl<P> TlsCommitConfigBuilder<P> {
+impl<P> TlsCommitConfigBuilder<P>
+where
+    P: Into<TlsCommitRequest>,
+{
     /// Sets the protocol configuration.
     pub fn protocol(mut self, protocol: P) -> Self {
         self.protocol = Some(protocol);
@@ -61,19 +65,22 @@ impl<P> TlsCommitConfigBuilder<P> {
 
 /// TLS commitment request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TlsCommitRequest<P> {
-    config: P,
+pub enum TlsCommitRequest {
+    /// Protocol config for mpc mode.
+    Mpc(MpcTlsConfig),
+    /// Protocol config for proxy mode.
+    Proxy(ProxyTlsConfig),
 }
 
-impl<P> TlsCommitRequest<P> {
-    /// Creates a new commit request.
-    pub fn new(config: P) -> Self {
-        Self { config }
+impl From<MpcTlsConfig> for TlsCommitRequest {
+    fn from(value: MpcTlsConfig) -> Self {
+        Self::Mpc(value)
     }
+}
 
-    /// Returns the protocol configuration.
-    pub fn protocol(&self) -> &P {
-        &self.config
+impl From<ProxyTlsConfig> for TlsCommitRequest {
+    fn from(value: ProxyTlsConfig) -> Self {
+        Self::Proxy(value)
     }
 }
 

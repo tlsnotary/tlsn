@@ -103,7 +103,7 @@ impl Prover<state::Initialized> {
         // Sends protocol configuration to verifier for compatibility check.
         ctx.io_mut()
             .send(TlsCommitRequestMsg {
-                request: config.to_request(),
+                request: config.protocol().clone().into(),
                 version: crate::VERSION.clone(),
             })
             .await

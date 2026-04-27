@@ -110,7 +110,7 @@ impl Verifier<state::Initialized> {
 
 impl Verifier<state::CommitStart> {
     /// Returns the TLS commitment request.
-    pub fn request<P>(&self) -> &TlsCommitRequest<P> {
+    pub fn request(&self) -> &TlsCommitRequest {
         &self.state.request
     }
 
@@ -129,7 +129,7 @@ impl Verifier<state::CommitStart> {
                 .with_source(e)
         })?;
 
-        let mut verifier_deps = VerifierDeps::new(request.protocol(), ctx);
+        let mut verifier_deps = VerifierDeps::new(&request, ctx);
         verifier_deps.setup().await?;
 
         debug!("setup complete");

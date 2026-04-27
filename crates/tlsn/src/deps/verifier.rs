@@ -13,7 +13,7 @@ use mpz_ot::{
 };
 use mpz_zk::Verifier;
 use std::sync::Arc;
-use tlsn_core::config::tls_commit::{TlsCommitProtocolConfig, mpc::MpcTlsConfig};
+use tlsn_core::config::tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig};
 use tlsn_deap::Deap;
 use tokio::sync::Mutex;
 use tracing::debug;
@@ -49,13 +49,10 @@ pub(crate) enum VerifierDeps {
 }
 
 impl VerifierDeps {
-    pub(crate) fn new(config: &TlsCommitProtocolConfig, ctx: Context) -> Self {
+    pub(crate) fn new(config: &TlsCommitRequest, ctx: Context) -> Self {
         match config {
-            TlsCommitProtocolConfig::Mpc(mpc_tls_config) => {
-                build_mpc_verifier_deps(mpc_tls_config, ctx)
-            }
-            TlsCommitProtocolConfig::Proxy(_) => build_proxy_verifier_deps(ctx),
-            _ => panic!("tls commitment mode not supported"),
+            TlsCommitRequest::Mpc(mpc_tls_config) => build_mpc_verifier_deps(mpc_tls_config, ctx),
+            TlsCommitRequest::Proxy(_) => build_proxy_verifier_deps(ctx),
         }
     }
 
