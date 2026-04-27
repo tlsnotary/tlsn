@@ -120,7 +120,7 @@ impl ProtocolDeps for ProverMpcDeps {
     }
 }
 
-/// Protocol dependencies for MPC.
+/// Protocol dependencies for Proxy.
 pub struct ProverProxyDeps {
     pub(crate) prover: Box<ProxyProver>,
     pub(crate) id: ThreadId,
