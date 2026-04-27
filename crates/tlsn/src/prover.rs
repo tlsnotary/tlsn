@@ -35,7 +35,7 @@ use tlsn_core::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, TlsCommitRequest},
+        tls_commit::TlsCommitConfig,
     },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
@@ -94,14 +94,10 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit<P>(
+    pub async fn commit<P: Protocol>(
         mut self,
-        config: TlsCommitConfig<<<P as Protocol>::ProverDeps as ProtocolDeps>::Config>,
-    ) -> Result<Prover<state::CommitAccepted<P>>>
-    where
-        P: Protocol,
-        <<P as Protocol>::ProverDeps as ProtocolDeps>::Config: Into<TlsCommitRequest>,
-    {
+        config: TlsCommitConfig<P::Config>,
+    ) -> Result<Prover<state::CommitAccepted<P>>> {
         let mut ctx = self
             .ctx
             .take()
@@ -135,7 +131,7 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let mut deps = <<P as Protocol>::ProverDeps as ProtocolDeps>::new(config.protocol(), ctx);
+        let mut deps = P::ProverDeps::new(config.protocol(), ctx);
         deps.setup().await?;
 
         debug!("setup complete");

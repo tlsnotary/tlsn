@@ -69,7 +69,10 @@ use deps::{ProverMpcDeps, ProverProxyDeps, VerifierMpcDeps, VerifierProxyDeps};
 use mpc_tls::SessionKeys;
 use semver::Version;
 use std::sync::LazyLock;
-use tlsn_core::transcript::TlsTranscript;
+use tlsn_core::{
+    config::tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+    transcript::TlsTranscript,
+};
 
 // Package version.
 pub(crate) static VERSION: LazyLock<Version> = LazyLock::new(|| {
@@ -97,25 +100,37 @@ pub(crate) struct TlsOutput {
 }
 
 /// The protocol variant.
-pub trait Protocol {
+pub trait Protocol: sealed::Sealed {
+    /// Protocol configuration.
+    type Config: Clone + Into<TlsCommitRequest>;
     /// Prover protocol dependencies.
-    type ProverDeps: ProtocolDeps;
+    type ProverDeps: ProtocolDeps<Config = Self::Config>;
     /// Verifier protocol dependencies.
-    type VerifierDeps: ProtocolDeps;
+    type VerifierDeps: ProtocolDeps<Config = Self::Config>;
 }
 
 /// Mpc mode.
+#[derive(Debug, Clone, Copy)]
 pub struct Mpc;
 
 impl Protocol for Mpc {
+    type Config = MpcTlsConfig;
     type ProverDeps = ProverMpcDeps;
     type VerifierDeps = VerifierMpcDeps;
 }
 
 /// Proxy mode.
+#[derive(Debug, Clone, Copy)]
 pub struct Proxy;
 
 impl Protocol for Proxy {
+    type Config = ProxyTlsConfig;
     type ProverDeps = ProverProxyDeps;
     type VerifierDeps = VerifierProxyDeps;
+}
+
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::Mpc {}
+    impl Sealed for super::Proxy {}
 }

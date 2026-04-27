@@ -9,10 +9,7 @@ use crate::config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig};
 
 /// TLS commitment configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TlsCommitConfig<P>
-where
-    P: Into<TlsCommitRequest>,
-{
+pub struct TlsCommitConfig<P> {
     protocol: P,
 }
 

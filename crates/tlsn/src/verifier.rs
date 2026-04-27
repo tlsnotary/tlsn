@@ -118,7 +118,7 @@ impl Verifier<state::CommitStart> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn accept<P: Protocol>(
         mut self,
-        config: <<P as Protocol>::VerifierDeps as ProtocolDeps>::Config,
+        config: P::Config,
     ) -> Result<Verifier<state::CommitAccepted<P>>> {
         let mut ctx = self
             .ctx
@@ -131,7 +131,7 @@ impl Verifier<state::CommitStart> {
                 .with_source(e)
         })?;
 
-        let mut deps = <<P as Protocol>::VerifierDeps as ProtocolDeps>::new(&config, ctx);
+        let mut deps = P::VerifierDeps::new(&config, ctx);
         deps.setup().await?;
 
         debug!("setup complete");
