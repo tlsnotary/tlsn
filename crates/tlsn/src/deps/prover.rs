@@ -38,13 +38,13 @@ pub(crate) type ProverZk =
 pub(crate) type ProverZk = mpz_ideal_vm::IdealVm;
 
 /// Protocol dependencies for MPC.
-pub struct Mpc {
+pub struct ProverMpcDeps {
     pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
     pub(crate) mpc_tls: Box<MpcTlsLeader>,
     pub(crate) keys: Option<SessionKeys>,
 }
 
-impl ProtocolDeps for Mpc {
+impl ProtocolDeps for ProverMpcDeps {
     type Config = MpcTlsConfig;
 
     fn new(config: &MpcTlsConfig, ctx: Context) -> Self {
@@ -120,13 +120,13 @@ impl ProtocolDeps for Mpc {
     }
 }
 
-/// Protocol dependencies for Proxy.
-pub struct Proxy {
+/// Protocol dependencies for MPC.
+pub struct ProverProxyDeps {
     pub(crate) prover: Box<ProxyProver>,
     pub(crate) id: ThreadId,
 }
 
-impl ProtocolDeps for Proxy {
+impl ProtocolDeps for ProverProxyDeps {
     type Config = ProxyTlsConfig;
 
     fn new(_config: &ProxyTlsConfig, ctx: Context) -> Self {

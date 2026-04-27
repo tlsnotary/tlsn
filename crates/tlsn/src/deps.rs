@@ -1,22 +1,19 @@
 use crate::Error;
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
-use tlsn_core::config::tls_commit::{
-    TlsCommitRequest,
-    mpc::{MpcTlsConfig, NetworkSetting},
-};
+use tlsn_core::config::tls_commit::mpc::{MpcTlsConfig, NetworkSetting};
 use tlsn_deap::Deap;
 
 mod prover;
-pub(crate) use prover::{Mpc, ProverMpc, ProverZk, Proxy};
+pub(crate) use prover::{ProverMpc, ProverMpcDeps, ProverProxyDeps, ProverZk};
 
 mod verifier;
-pub(crate) use verifier::{VerifierDeps, VerifierZk};
+pub(crate) use verifier::{VerifierMpcDeps, VerifierProxyDeps, VerifierZk};
 
 /// Trait for protocol dependencies.
 pub trait ProtocolDeps {
     /// The associated protocol config.
-    type Config: Clone + Into<TlsCommitRequest>;
+    type Config: Clone;
 
     fn new(config: &Self::Config, ctx: Context) -> Self;
     fn setup(&mut self) -> impl Future<Output = Result<(), Error>> + Send;

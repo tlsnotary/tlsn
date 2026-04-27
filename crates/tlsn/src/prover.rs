@@ -14,7 +14,7 @@ pub use tlsn_core::ProverOutput;
 
 use crate::{
     Error, PROXY_STREAM_PREFIX, Result, TlsOutput,
-    deps::{Mpc, ProtocolDeps, Proxy},
+    deps::{ProtocolDeps, ProverMpcDeps, ProverProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
         client::{MpcTlsClient, ProxyTlsClient, TlsClient},
@@ -32,7 +32,10 @@ use std::{fmt::Debug, pin::Pin, task::Poll};
 use tls_client::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
-        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig, tls_commit::TlsCommitConfig,
+        prove::ProveConfig,
+        prover::ProverConfig,
+        tls::TlsClientConfig,
+        tls_commit::{TlsCommitConfig, TlsCommitRequest},
     },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
@@ -91,10 +94,14 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit<P: ProtocolDeps>(
+    pub async fn commit<P>(
         mut self,
         config: TlsCommitConfig<P::Config>,
-    ) -> Result<Prover<state::CommitAccepted<P>>> {
+    ) -> Result<Prover<state::CommitAccepted<P>>>
+    where
+        P: ProtocolDeps,
+        P::Config: Into<TlsCommitRequest>,
+    {
         let mut ctx = self
             .ctx
             .take()
@@ -143,7 +150,7 @@ impl Prover<state::Initialized> {
     }
 }
 
-impl Prover<state::CommitAccepted<Mpc>> {
+impl Prover<state::CommitAccepted<ProverMpcDeps>> {
     /// Connects to the server via MPC-TLS.
     ///
     /// This method is used for MPC mode only.
@@ -163,7 +170,7 @@ impl Prover<state::CommitAccepted<Mpc>> {
         config: TlsClientConfig,
         server_socket: S,
     ) -> Result<(TlsConnection, Prover<state::Connected<S>>)> {
-        let Mpc { vm, mpc_tls, keys } = self.state.deps;
+        let ProverMpcDeps { vm, mpc_tls, keys } = self.state.deps;
 
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =
@@ -206,7 +213,7 @@ impl Prover<state::CommitAccepted<Mpc>> {
     }
 }
 
-impl Prover<state::CommitAccepted<Proxy>> {
+impl Prover<state::CommitAccepted<ProverProxyDeps>> {
     /// Connects to the proxy.
     ///
     /// This method is used for proxy mode only. The proxy stream through the
@@ -225,7 +232,7 @@ impl Prover<state::CommitAccepted<Proxy>> {
         self,
         config: TlsClientConfig,
     ) -> Result<(TlsConnection, Prover<state::Connected<Stream>>)> {
-        let Proxy {
+        let ProverProxyDeps {
             prover: proxy_prover,
             id,
         } = self.state.deps;

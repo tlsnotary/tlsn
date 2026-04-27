@@ -7,7 +7,7 @@ use tlsn_core::{
     transcript::{PartialTranscript, TlsTranscript},
 };
 
-use crate::deps::{VerifierDeps, VerifierZk};
+use crate::deps::VerifierZk;
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -26,11 +26,11 @@ opaque_debug::implement!(CommitStart);
 
 /// State after accepting the proposed TLS commitment protocol configuration and
 /// performing preprocessing.
-pub struct CommitAccepted {
-    pub(crate) verifier_deps: VerifierDeps,
+pub struct CommitAccepted<D> {
+    pub(crate) deps: D,
 }
 
-opaque_debug::implement!(CommitAccepted);
+opaque_debug::implement!(CommitAccepted<D>);
 
 /// State after the TLS transcript has been committed.
 pub struct Committed {
@@ -55,7 +55,7 @@ opaque_debug::implement!(Verify);
 
 impl VerifierState for Initialized {}
 impl VerifierState for CommitStart {}
-impl VerifierState for CommitAccepted {}
+impl<D> VerifierState for CommitAccepted<D> {}
 impl VerifierState for Committed {}
 impl VerifierState for Verify {}
 
@@ -63,7 +63,7 @@ mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl Sealed for super::CommitStart {}
-    impl Sealed for super::CommitAccepted {}
+    impl<D> Sealed for super::CommitAccepted<D> {}
     impl Sealed for super::Committed {}
     impl Sealed for super::Verify {}
 }

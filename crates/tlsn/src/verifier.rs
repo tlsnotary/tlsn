@@ -7,7 +7,7 @@ pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
     Error, PROXY_STREAM_PREFIX, Result,
-    deps::VerifierDeps,
+    deps::{ProtocolDeps, VerifierMpcDeps, VerifierProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
     tag::verify_tags,
@@ -116,12 +116,14 @@ impl Verifier<state::CommitStart> {
 
     /// Accepts the proposed protocol configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept(mut self) -> Result<Verifier<state::CommitAccepted>> {
+    pub async fn accept<D: ProtocolDeps>(
+        mut self,
+        config: D::Config,
+    ) -> Result<Verifier<state::CommitAccepted<D>>> {
         let mut ctx = self
             .ctx
             .take()
             .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
-        let state::CommitStart { request } = self.state;
 
         ctx.io_mut().send(Response::ok()).await.map_err(|e| {
             Error::io()
@@ -129,8 +131,8 @@ impl Verifier<state::CommitStart> {
                 .with_source(e)
         })?;
 
-        let mut verifier_deps = VerifierDeps::new(&request, ctx);
-        verifier_deps.setup().await?;
+        let mut deps = D::new(&config, ctx);
+        deps.setup().await?;
 
         debug!("setup complete");
 
@@ -139,7 +141,7 @@ impl Verifier<state::CommitStart> {
             span: self.span,
             ctx: None,
             mux_handle: self.mux_handle,
-            state: state::CommitAccepted { verifier_deps },
+            state: state::CommitAccepted { deps },
         })
     }
 
@@ -161,15 +163,13 @@ impl Verifier<state::CommitStart> {
     }
 }
 
-impl Verifier<state::CommitAccepted> {
+impl Verifier<state::CommitAccepted<VerifierMpcDeps>> {
     /// Runs the verifier until the TLS connection is closed.
     ///
     /// This method is used for MPC mode only.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run_mpc(self) -> Result<Verifier<state::Committed>> {
-        let VerifierDeps::Mpc { vm, mpc_tls, keys } = self.state.verifier_deps else {
-            return Err(Error::user().with_msg("the verifier is not configured to run in MPC mode"));
-        };
+    pub async fn run(self) -> Result<Verifier<state::Committed>> {
+        let VerifierMpcDeps { vm, mpc_tls, keys } = self.state.deps;
 
         info!("starting MPC-TLS");
         let (mut ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
@@ -245,7 +245,9 @@ impl Verifier<state::CommitAccepted> {
             },
         })
     }
+}
 
+impl Verifier<state::CommitAccepted<VerifierProxyDeps>> {
     /// Runs the verifier until the TLS connection is closed.
     ///
     /// This method is used for proxy mode only.
@@ -254,15 +256,12 @@ impl Verifier<state::CommitAccepted> {
     ///
     /// * `server_socket` - The connection to the server.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn run_proxy<T>(self, server_socket: T) -> Result<Verifier<state::Committed>>
+    pub async fn run<T>(self, server_socket: T) -> Result<Verifier<state::Committed>>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin,
     {
-        let VerifierDeps::Proxy { verifier, id } = self.state.verifier_deps else {
-            return Err(
-                Error::user().with_msg("the verifier is not configured to run in proxy mode")
-            );
-        };
+        let VerifierProxyDeps { verifier, id } = self.state.deps;
+
         let mut sent_buf = Vec::new();
         let mut recv_buf = Vec::new();
 
