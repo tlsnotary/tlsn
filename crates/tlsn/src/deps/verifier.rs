@@ -36,6 +36,7 @@ pub(crate) type VerifierZk =
 #[cfg(tlsn_insecure)]
 pub(crate) type VerifierZk = mpz_ideal_vm::IdealVm;
 
+/// Protocol dependencies for Mpc.
 pub struct VerifierMpcDeps {
     pub(crate) vm: Arc<Mutex<Deap<VerifierMpc, VerifierZk>>>,
     pub(crate) mpc_tls: Box<MpcTlsFollower>,
@@ -118,6 +119,7 @@ impl ProtocolDeps for VerifierMpcDeps {
     }
 }
 
+/// Protocol dependencies for Proxy.
 pub struct VerifierProxyDeps {
     pub(crate) verifier: Box<ProxyVerifier>,
     pub(crate) id: ThreadId,

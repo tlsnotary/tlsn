@@ -62,6 +62,7 @@ where
 
 /// TLS commitment request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TlsCommitRequest {
     /// Protocol config for mpc mode.
     Mpc(MpcTlsConfig),
