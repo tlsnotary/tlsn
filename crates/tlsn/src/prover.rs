@@ -13,7 +13,7 @@ pub use future::ProverFuture;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Error, PROXY_STREAM_PREFIX, Result, TlsOutput,
+    Error, Mpc, PROXY_STREAM_PREFIX, Protocol, Proxy, Result, TlsOutput,
     deps::{ProtocolDeps, ProverMpcDeps, ProverProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
@@ -96,11 +96,11 @@ impl Prover<state::Initialized> {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn commit<P>(
         mut self,
-        config: TlsCommitConfig<P::Config>,
+        config: TlsCommitConfig<<<P as Protocol>::ProverDeps as ProtocolDeps>::Config>,
     ) -> Result<Prover<state::CommitAccepted<P>>>
     where
-        P: ProtocolDeps,
-        P::Config: Into<TlsCommitRequest>,
+        P: Protocol,
+        <<P as Protocol>::ProverDeps as ProtocolDeps>::Config: Into<TlsCommitRequest>,
     {
         let mut ctx = self
             .ctx
@@ -135,7 +135,7 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let mut deps = P::new(config.protocol(), ctx);
+        let mut deps = <<P as Protocol>::ProverDeps as ProtocolDeps>::new(config.protocol(), ctx);
         deps.setup().await?;
 
         debug!("setup complete");
@@ -150,7 +150,7 @@ impl Prover<state::Initialized> {
     }
 }
 
-impl Prover<state::CommitAccepted<ProverMpcDeps>> {
+impl Prover<state::CommitAccepted<Mpc>> {
     /// Connects to the server via MPC-TLS.
     ///
     /// This method is used for MPC mode only.
@@ -213,7 +213,7 @@ impl Prover<state::CommitAccepted<ProverMpcDeps>> {
     }
 }
 
-impl Prover<state::CommitAccepted<ProverProxyDeps>> {
+impl Prover<state::CommitAccepted<Proxy>> {
     /// Connects to the proxy.
     ///
     /// This method is used for proxy mode only. The proxy stream through the

@@ -54,6 +54,7 @@ pub(crate) mod tag;
 pub(crate) mod transcript_internal;
 pub mod verifier;
 
+pub use deps::ProtocolDeps;
 pub use error::Error;
 pub use rangeset;
 pub use session::{Session, SessionDriver, SessionHandle};
@@ -64,6 +65,7 @@ pub use tlsn_mux::Stream;
 /// Result type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
+use deps::{ProverMpcDeps, ProverProxyDeps, VerifierMpcDeps, VerifierProxyDeps};
 use mpc_tls::SessionKeys;
 use semver::Version;
 use std::sync::LazyLock;
@@ -92,4 +94,28 @@ pub(crate) enum Role {
 pub(crate) struct TlsOutput {
     pub(crate) keys: SessionKeys,
     pub(crate) tls_transcript: TlsTranscript,
+}
+
+/// The protocol variant.
+pub trait Protocol {
+    /// Prover protocol dependencies.
+    type ProverDeps: ProtocolDeps;
+    /// Verifier protocol dependencies.
+    type VerifierDeps: ProtocolDeps;
+}
+
+/// Mpc mode.
+pub struct Mpc;
+
+impl Protocol for Mpc {
+    type ProverDeps = ProverMpcDeps;
+    type VerifierDeps = VerifierMpcDeps;
+}
+
+/// Proxy mode.
+pub struct Proxy;
+
+impl Protocol for Proxy {
+    type ProverDeps = ProverProxyDeps;
+    type VerifierDeps = VerifierProxyDeps;
 }

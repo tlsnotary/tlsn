@@ -15,7 +15,9 @@ pub trait ProtocolDeps {
     /// The associated protocol config.
     type Config: Clone;
 
+    /// Creates a new protocol dependency.
     fn new(config: &Self::Config, ctx: Context) -> Self;
+    /// Setup dependencies.
     fn setup(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
 }
 
