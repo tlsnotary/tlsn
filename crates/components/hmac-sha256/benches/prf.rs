@@ -1,14 +1,14 @@
 #![allow(clippy::let_underscore_future)]
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 use hmac_sha256::{MSMode, NetworkMode, Prf, PrfConfig};
 use mpz_common::context::test_mt_context;
 use mpz_ideal_vm::IdealVm;
 use mpz_vm_core::{
-    memory::{binary::U8, Array},
-    prelude::*,
     Execute,
+    memory::{Array, binary::U8},
+    prelude::*,
 };
 
 #[allow(clippy::unit_arg)]
@@ -64,8 +64,8 @@ async fn prf(config: PrfConfig) {
     let mut leader = Prf::new(config);
     let mut follower = Prf::new(config);
 
-    let leader_output = leader.alloc(&mut leader_vm, leader_pms).unwrap();
-    let follower_output = follower.alloc(&mut follower_vm, follower_pms).unwrap();
+    let leader_output = leader.alloc_pms(&mut leader_vm, leader_pms).unwrap();
+    let follower_output = follower.alloc_pms(&mut follower_vm, follower_pms).unwrap();
 
     if matches!(config.ms, MSMode::Extended) {
         leader.set_session_hash(session_hash.to_vec()).unwrap();

@@ -17,7 +17,7 @@ pub use error::PrfError;
 mod prf;
 pub use prf::Prf;
 
-use mpz_vm_core::memory::{binary::U8, Array};
+use mpz_vm_core::memory::{Array, binary::U8};
 
 /// PRF output.
 #[derive(Debug, Clone, Copy)]
@@ -72,16 +72,16 @@ fn state_to_bytes(input: [u32; 8]) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use crate::{
-        test_utils::{prf_cf_vd, prf_ems_ms, prf_keys, prf_ms, prf_sf_vd},
         MSMode, NetworkMode, Prf, PrfConfig, SessionKeys,
+        test_utils::{prf_cf_vd, prf_ems_ms, prf_keys, prf_ms, prf_sf_vd},
     };
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
+        memory::{Array, MemoryExt, ViewExt, binary::U8},
     };
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_prf_reduced() {
@@ -103,6 +103,16 @@ mod tests {
         test_prf(NetworkMode::Normal, MSMode::Extended).await;
     }
 
+    #[tokio::test]
+    async fn test_prf_direct_reduced() {
+        test_prf(NetworkMode::Reduced, MSMode::Direct).await;
+    }
+
+    #[tokio::test]
+    async fn test_prf_direct_normal() {
+        test_prf(NetworkMode::Normal, MSMode::Direct).await;
+    }
+
     async fn test_prf(network: NetworkMode, ms_mode: MSMode) {
         let mut rng = StdRng::seed_from_u64(1);
 
@@ -113,10 +123,9 @@ mod tests {
         let cf_hs_hash: [u8; 32] = rng.random();
         let sf_hs_hash: [u8; 32] = rng.random();
 
-        // Expected output — only the master secret derivation differs for EMS.
         let ms_expected = match ms_mode {
             MSMode::Extended => prf_ems_ms(pms, session_hash),
-            MSMode::Standard => prf_ms(pms, client_random, server_random),
+            MSMode::Standard | MSMode::Direct => prf_ms(pms, client_random, server_random),
         };
 
         let [cwk_expected, swk_expected, civ_expected, siv_expected] =
@@ -135,29 +144,48 @@ mod tests {
         let mut leader = IdealVm::new();
         let mut follower = IdealVm::new();
 
-        let leader_pms: Array<U8, 32> = leader.alloc().unwrap();
-        leader.mark_public(leader_pms).unwrap();
-        leader.assign(leader_pms, pms).unwrap();
-        leader.commit(leader_pms).unwrap();
-
-        let follower_pms: Array<U8, 32> = follower.alloc().unwrap();
-        follower.mark_public(follower_pms).unwrap();
-        follower.assign(follower_pms, pms).unwrap();
-        follower.commit(follower_pms).unwrap();
-
         let config = PrfConfig::new(network, ms_mode);
         let mut prf_leader = Prf::new(config);
         let mut prf_follower = Prf::new(config);
 
-        let leader_prf_out = prf_leader.alloc(&mut leader, leader_pms).unwrap();
-        let follower_prf_out = prf_follower.alloc(&mut follower, follower_pms).unwrap();
+        let (leader_prf_out, follower_prf_out) = if matches!(ms_mode, MSMode::Direct) {
+            let leader_ms: Array<U8, 48> = leader.alloc().unwrap();
+            leader.mark_public(leader_ms).unwrap();
+            leader.assign(leader_ms, ms_expected).unwrap();
+            leader.commit(leader_ms).unwrap();
 
-        if matches!(ms_mode, MSMode::Extended) {
-            prf_leader.set_session_hash(session_hash.to_vec()).unwrap();
-            prf_follower
-                .set_session_hash(session_hash.to_vec())
-                .unwrap();
-        }
+            let follower_ms: Array<U8, 48> = follower.alloc().unwrap();
+            follower.mark_public(follower_ms).unwrap();
+            follower.assign(follower_ms, ms_expected).unwrap();
+            follower.commit(follower_ms).unwrap();
+
+            (
+                prf_leader.alloc_ms(&mut leader, leader_ms).unwrap(),
+                prf_follower.alloc_ms(&mut follower, follower_ms).unwrap(),
+            )
+        } else {
+            let leader_pms: Array<U8, 32> = leader.alloc().unwrap();
+            leader.mark_public(leader_pms).unwrap();
+            leader.assign(leader_pms, pms).unwrap();
+            leader.commit(leader_pms).unwrap();
+
+            let follower_pms: Array<U8, 32> = follower.alloc().unwrap();
+            follower.mark_public(follower_pms).unwrap();
+            follower.assign(follower_pms, pms).unwrap();
+            follower.commit(follower_pms).unwrap();
+
+            let leader_prf_out = prf_leader.alloc_pms(&mut leader, leader_pms).unwrap();
+            let follower_prf_out = prf_follower.alloc_pms(&mut follower, follower_pms).unwrap();
+
+            if matches!(ms_mode, MSMode::Extended) {
+                prf_leader.set_session_hash(session_hash.to_vec()).unwrap();
+                prf_follower
+                    .set_session_hash(session_hash.to_vec())
+                    .unwrap();
+            }
+
+            (leader_prf_out, follower_prf_out)
+        };
 
         prf_leader.set_client_random(client_random);
         prf_follower.set_client_random(client_random);

@@ -1,13 +1,13 @@
 //! Computes the whole PRF in MPC.
 
-use crate::{hmac::hmac_sha256, MSMode, PrfError};
+use crate::{MSMode, PrfError, hmac::hmac_sha256};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array, MemoryExt, Vector, ViewExt,
-    },
     Vm,
+    memory::{
+        Array, MemoryExt, Vector, ViewExt,
+        binary::{Binary, U8},
+    },
 };
 
 #[derive(Debug)]
@@ -40,6 +40,9 @@ impl PrfFunction {
             }
             MSMode::Extended => {
                 Self::alloc(vm, Self::EMS_LABEL, outer_partial, inner_partial, 48, 32)
+            }
+            MSMode::Direct => {
+                unreachable!("alloc_master_secret is never called in MSMode::Direct")
             }
         }
     }

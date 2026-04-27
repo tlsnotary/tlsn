@@ -1,15 +1,15 @@
 use crate::{
-    hmac::{IPAD, OPAD},
     MSMode, PrfConfig, PrfError, PrfOutput, SessionKeys,
+    hmac::{IPAD, OPAD},
 };
-use mpz_circuits::{circuits::xor, Circuit, CircuitBuilder};
+use mpz_circuits::{Circuit, CircuitBuilder, circuits::xor};
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array, FromRaw, MemoryExt, StaticSize, ToRaw, Vector, ViewExt,
-    },
     Call, CallableExt, Vm,
+    memory::{
+        Array, FromRaw, MemoryExt, StaticSize, ToRaw, Vector, ViewExt,
+        binary::{Binary, U8},
+    },
 };
 use std::{fmt::Debug, sync::Arc};
 use tracing::instrument;
@@ -29,7 +29,9 @@ pub struct Prf {
 pub(crate) enum State {
     Initialized,
     Setup {
-        master_secret: Box<InnerPrf>,
+        /// `None` when running in [`MSMode::Direct`] — the master secret is
+        /// supplied directly by the caller and has no PRF to flush.
+        master_secret: Option<Box<InnerPrf>>,
         key_expansion: Box<InnerPrf>,
         client_finished: Box<InnerPrf>,
         server_finished: Box<InnerPrf>,
@@ -58,18 +60,28 @@ impl Prf {
         }
     }
 
-    /// Allocates resources for the PRF.
+    /// Allocates resources for the PRF, deriving the master secret from a
+    /// pre-master secret.
+    ///
+    /// Use this when [`PrfConfig::ms`] is [`MSMode::Standard`] or
+    /// [`MSMode::Extended`].
     ///
     /// # Arguments
     ///
     /// * `vm` - Virtual machine.
     /// * `pms` - The pre-master secret.
     #[instrument(level = "debug", skip_all, err)]
-    pub fn alloc(
+    pub fn alloc_pms(
         &mut self,
         vm: &mut dyn Vm<Binary>,
         pms: Array<U8, 32>,
     ) -> Result<PrfOutput, PrfError> {
+        if matches!(self.config.ms, MSMode::Direct) {
+            return Err(PrfError::config(
+                "alloc_pms called with MSMode::Direct; use alloc_ms",
+            ));
+        }
+
         let State::Initialized = self.state.take() else {
             return Err(PrfError::state("PRF not in initialized state"));
         };
@@ -84,6 +96,44 @@ impl Prf {
         let ms = master_secret.output();
         let ms = merge_outputs(vm, ms, 48)?;
 
+        self.alloc_post_ms(vm, ms, Some(Box::new(master_secret)))
+    }
+
+    /// Allocates resources for the PRF using a caller-supplied master secret,
+    /// skipping the PMS → MS derivation.
+    ///
+    /// Use this when [`PrfConfig::ms`] is [`MSMode::Direct`].
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - Virtual machine.
+    /// * `ms` - The master secret.
+    #[instrument(level = "debug", skip_all, err)]
+    pub fn alloc_ms(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        ms: Array<U8, 48>,
+    ) -> Result<PrfOutput, PrfError> {
+        if !matches!(self.config.ms, MSMode::Direct) {
+            return Err(PrfError::config(
+                "alloc_ms called without MSMode::Direct; use alloc_pms",
+            ));
+        }
+
+        let State::Initialized = self.state.take() else {
+            return Err(PrfError::state("PRF not in initialized state"));
+        };
+
+        let ms: Vector<U8> = ms.into();
+        self.alloc_post_ms(vm, ms, None)
+    }
+
+    fn alloc_post_ms(
+        &mut self,
+        vm: &mut dyn Vm<Binary>,
+        ms: Vector<U8>,
+        master_secret: Option<Box<InnerPrf>>,
+    ) -> Result<PrfOutput, PrfError> {
         let outer_partial_ms = compute_partial(vm, ms, OPAD)?;
         let inner_partial_ms = compute_partial(vm, ms, IPAD)?;
 
@@ -113,7 +163,7 @@ impl Prf {
         let output = PrfOutput { keys, cf_vd, sf_vd };
 
         self.state = State::Setup {
-            master_secret: Box::new(master_secret),
+            master_secret,
             key_expansion: Box::new(key_expansion),
             client_finished: Box::new(client_finished),
             server_finished: Box::new(server_finished),
@@ -154,6 +204,9 @@ impl Prf {
         let server_random = random;
 
         if matches!(self.config.ms, MSMode::Standard) {
+            let master_secret = master_secret
+                .as_mut()
+                .expect("master_secret circuit should be set in MSMode::Standard");
             let mut seed_ms = client_random.to_vec();
             seed_ms.extend_from_slice(&server_random);
             master_secret.set_start_seed(seed_ms);
@@ -185,6 +238,9 @@ impl Prf {
             ));
         }
 
+        let master_secret = master_secret
+            .as_mut()
+            .expect("master_secret circuit should be set in MSMode::Extended");
         master_secret.set_start_seed(seed);
         Ok(())
     }
@@ -239,7 +295,7 @@ impl Prf {
                 client_finished,
                 server_finished,
             } => {
-                master_secret.wants_flush()
+                master_secret.as_ref().is_some_and(|ms| ms.wants_flush())
                     || key_expansion.wants_flush()
                     || client_finished.wants_flush()
                     || server_finished.wants_flush()
@@ -258,8 +314,10 @@ impl Prf {
                 mut client_finished,
                 mut server_finished,
             } => {
-                if master_secret.wants_flush() {
-                    master_secret.flush(vm)?;
+                if let Some(ms) = master_secret.as_mut()
+                    && ms.wants_flush()
+                {
+                    ms.flush(vm)?;
                 }
                 if key_expansion.wants_flush() {
                     key_expansion.flush(vm)?;
@@ -271,7 +329,8 @@ impl Prf {
                     server_finished.flush(vm)?;
                 }
 
-                if master_secret.is_done()
+                let ms_done = master_secret.as_ref().is_none_or(|ms| ms.is_done());
+                if ms_done
                     && key_expansion.is_done()
                     && client_finished.is_done()
                     && server_finished.is_done()
@@ -420,8 +479,8 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::{
-        memory::{binary::U8, Array, MemoryExt, ViewExt},
         Execute,
+        memory::{Array, MemoryExt, ViewExt, binary::U8},
     };
 
     #[tokio::test]

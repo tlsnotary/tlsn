@@ -111,7 +111,7 @@ impl MpcTlsFollower {
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?);
 
             let pms = ke.alloc(vm)?;
-            let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc(vm, pms)?;
+            let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc_pms(vm, pms)?;
             record_layer.set_keys(
                 keys.client_write_key,
                 keys.client_iv,

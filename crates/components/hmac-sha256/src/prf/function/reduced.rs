@@ -2,15 +2,15 @@
 
 use std::collections::VecDeque;
 
-use crate::{hmac::hmac_sha256, sha256, state_to_bytes, MSMode, PrfError};
+use crate::{MSMode, PrfError, hmac::hmac_sha256, sha256, state_to_bytes};
 use mpz_core::bitvec::BitVec;
 use mpz_hash::sha256::Sha256;
 use mpz_vm_core::{
-    memory::{
-        binary::{Binary, U8},
-        Array, DecodeFutureTyped, MemoryExt, ViewExt,
-    },
     Vm,
+    memory::{
+        Array, DecodeFutureTyped, MemoryExt, ViewExt,
+        binary::{Binary, U8},
+    },
 };
 
 #[derive(Debug)]
@@ -59,6 +59,9 @@ impl PrfFunction {
         match ms_mode {
             MSMode::Standard => Self::alloc(vm, Self::MS_LABEL, outer_partial, inner_partial, 48),
             MSMode::Extended => Self::alloc(vm, Self::EMS_LABEL, outer_partial, inner_partial, 48),
+            MSMode::Direct => {
+                unreachable!("alloc_master_secret is never called in MSMode::Direct")
+            }
         }
     }
 
