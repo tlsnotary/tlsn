@@ -10,7 +10,7 @@ use tlsn_core::{
 
 use crate::{
     Error, TlsOutput,
-    deps::{ProverDeps, ProverZk},
+    deps::ProverZk,
     prover::{ProverControl, client::TlsClient},
 };
 
@@ -21,11 +21,11 @@ opaque_debug::implement!(Initialized);
 
 /// State after the verifier has accepted the proposed TLS commitment protocol
 /// configuration and preprocessing has completed.
-pub struct CommitAccepted {
-    pub(crate) prover_deps: ProverDeps,
+pub struct CommitAccepted<D> {
+    pub(crate) deps: D,
 }
 
-opaque_debug::implement!(CommitAccepted);
+opaque_debug::implement!(CommitAccepted<D>);
 
 pin_project_lite::pin_project! {
     /// State during the MPC-TLS connection.
@@ -65,14 +65,14 @@ opaque_debug::implement!(Committed);
 pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
-impl ProverState for CommitAccepted {}
+impl<D> ProverState for CommitAccepted<D> {}
 impl<S> ProverState for Connected<S> {}
 impl ProverState for Committed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl Sealed for super::CommitAccepted {}
+    impl<D> Sealed for super::CommitAccepted<D> {}
     impl<S> Sealed for super::Connected<S> {}
     impl Sealed for super::Committed {}
 }

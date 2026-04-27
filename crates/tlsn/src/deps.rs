@@ -1,12 +1,24 @@
+use crate::Error;
 use mpc_tls::SessionKeys;
+use mpz_common::Context;
+use serde::{Deserialize, Serialize};
 use tlsn_core::config::tls_commit::mpc::{MpcTlsConfig, NetworkSetting};
 use tlsn_deap::Deap;
 
 mod prover;
-pub(crate) use prover::{ProverDeps, ProverMpc, ProverZk};
+pub(crate) use prover::{Mpc, ProverMpc, ProverZk, Proxy};
 
 mod verifier;
 pub(crate) use verifier::{VerifierDeps, VerifierZk};
+
+/// Trait for protocol dependencies.
+pub trait ProtocolDeps {
+    /// The associated protocol config.
+    type Config: Send + Sync + Clone + Serialize + Deserialize<'static> + 'static;
+
+    fn new(config: &Self::Config, ctx: Context) -> Self;
+    async fn setup(&mut self) -> Result<(), Error>;
+}
 
 fn build_mpc_tls_config(config: &MpcTlsConfig) -> mpc_tls::Config {
     let mut builder = mpc_tls::Config::builder();

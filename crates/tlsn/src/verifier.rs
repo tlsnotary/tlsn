@@ -110,7 +110,7 @@ impl Verifier<state::Initialized> {
 
 impl Verifier<state::CommitStart> {
     /// Returns the TLS commitment request.
-    pub fn request(&self) -> &TlsCommitRequest {
+    pub fn request<P>(&self) -> &TlsCommitRequest<P> {
         &self.state.request
     }
 

@@ -7,23 +7,23 @@ use serde::{Deserialize, Serialize};
 
 /// TLS commitment configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TlsCommitConfig {
-    protocol: TlsCommitProtocolConfig,
+pub struct TlsCommitConfig<P> {
+    protocol: P,
 }
 
-impl TlsCommitConfig {
+impl<P: Clone> TlsCommitConfig<P> {
     /// Creates a new builder.
-    pub fn builder() -> TlsCommitConfigBuilder {
+    pub fn builder() -> TlsCommitConfigBuilder<P> {
         TlsCommitConfigBuilder::default()
     }
 
     /// Returns the protocol configuration.
-    pub fn protocol(&self) -> &TlsCommitProtocolConfig {
+    pub fn protocol(&self) -> &P {
         &self.protocol
     }
 
     /// Returns a TLS commitment request.
-    pub fn to_request(&self) -> TlsCommitRequest {
+    pub fn to_request(&self) -> TlsCommitRequest<P> {
         TlsCommitRequest {
             config: self.protocol.clone(),
         }
@@ -31,23 +31,26 @@ impl TlsCommitConfig {
 }
 
 /// Builder for [`TlsCommitConfig`].
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct TlsCommitConfigBuilder {
-    protocol: Option<TlsCommitProtocolConfig>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TlsCommitConfigBuilder<P> {
+    protocol: Option<P>,
 }
 
-impl TlsCommitConfigBuilder {
+impl<P> Default for TlsCommitConfigBuilder<P> {
+    fn default() -> Self {
+        Self { protocol: None }
+    }
+}
+
+impl<P> TlsCommitConfigBuilder<P> {
     /// Sets the protocol configuration.
-    pub fn protocol<C>(mut self, protocol: C) -> Self
-    where
-        C: Into<TlsCommitProtocolConfig>,
-    {
-        self.protocol = Some(protocol.into());
+    pub fn protocol(mut self, protocol: P) -> Self {
+        self.protocol = Some(protocol);
         self
     }
 
     /// Builds the configuration.
-    pub fn build(self) -> Result<TlsCommitConfig, TlsCommitConfigError> {
+    pub fn build(self) -> Result<TlsCommitConfig<P>, TlsCommitConfigError> {
         let protocol = self
             .protocol
             .ok_or(ErrorRepr::MissingField { name: "protocol" })?;
@@ -56,37 +59,20 @@ impl TlsCommitConfigBuilder {
     }
 }
 
-/// TLS commitment protocol configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum TlsCommitProtocolConfig {
-    /// MPC-TLS configuration.
-    Mpc(mpc::MpcTlsConfig),
-    /// Proxy-TLS configuration.
-    Proxy(proxy::ProxyTlsConfig),
-}
-
-impl From<mpc::MpcTlsConfig> for TlsCommitProtocolConfig {
-    fn from(config: mpc::MpcTlsConfig) -> Self {
-        Self::Mpc(config)
-    }
-}
-
-impl From<proxy::ProxyTlsConfig> for TlsCommitProtocolConfig {
-    fn from(config: proxy::ProxyTlsConfig) -> Self {
-        Self::Proxy(config)
-    }
-}
-
 /// TLS commitment request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TlsCommitRequest {
-    config: TlsCommitProtocolConfig,
+pub struct TlsCommitRequest<P> {
+    config: P,
 }
 
-impl TlsCommitRequest {
+impl<P> TlsCommitRequest<P> {
+    /// Creates a new commit request.
+    pub fn new(config: P) -> Self {
+        Self { config }
+    }
+
     /// Returns the protocol configuration.
-    pub fn protocol(&self) -> &TlsCommitProtocolConfig {
+    pub fn protocol(&self) -> &P {
         &self.config
     }
 }

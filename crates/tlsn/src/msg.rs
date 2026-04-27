@@ -10,8 +10,8 @@ use tlsn_core::{
 };
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct TlsCommitRequestMsg {
-    pub(crate) request: TlsCommitRequest,
+pub(crate) struct TlsCommitRequestMsg<P> {
+    pub(crate) request: TlsCommitRequest<P>,
     pub(crate) version: Version,
 }
 
