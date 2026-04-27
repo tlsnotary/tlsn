@@ -99,38 +99,28 @@ pub(crate) struct TlsOutput {
     pub(crate) tls_transcript: TlsTranscript,
 }
 
-/// The protocol variant.
-pub trait Protocol: sealed::Sealed {
-    /// Protocol configuration.
-    type Config: Clone + Into<TlsCommitRequest>;
+/// Protocol variant.
+pub trait Protocol: sealed::Sealed + Clone + Into<TlsCommitRequest> {
     /// Prover protocol dependencies.
-    type ProverDeps: ProtocolDeps<Config = Self::Config>;
+    type ProverDeps: ProtocolDeps<Config = Self>;
     /// Verifier protocol dependencies.
-    type VerifierDeps: ProtocolDeps<Config = Self::Config>;
+    type VerifierDeps: ProtocolDeps<Config = Self>;
 }
 
-/// Mpc mode.
-#[derive(Debug, Clone, Copy)]
-pub struct Mpc;
-
-impl Protocol for Mpc {
-    type Config = MpcTlsConfig;
+impl Protocol for MpcTlsConfig {
     type ProverDeps = ProverMpcDeps;
     type VerifierDeps = VerifierMpcDeps;
 }
 
-/// Proxy mode.
-#[derive(Debug, Clone, Copy)]
-pub struct Proxy;
-
-impl Protocol for Proxy {
-    type Config = ProxyTlsConfig;
+impl Protocol for ProxyTlsConfig {
     type ProverDeps = ProverProxyDeps;
     type VerifierDeps = VerifierProxyDeps;
 }
 
 mod sealed {
+    use super::{MpcTlsConfig, ProxyTlsConfig};
+
     pub trait Sealed {}
-    impl Sealed for super::Mpc {}
-    impl Sealed for super::Proxy {}
+    impl Sealed for MpcTlsConfig {}
+    impl Sealed for ProxyTlsConfig {}
 }

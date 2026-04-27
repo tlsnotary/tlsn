@@ -6,7 +6,7 @@ mod verify;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Error, Mpc, PROXY_STREAM_PREFIX, Protocol, Proxy, Result,
+    Error, PROXY_STREAM_PREFIX, Protocol, Result,
     deps::{ProtocolDeps, VerifierMpcDeps, VerifierProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
@@ -18,7 +18,11 @@ use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
 use std::sync::Arc;
 use tlsn_core::{
-    config::{prove::ProveRequest, tls_commit::TlsCommitRequest, verifier::VerifierConfig},
+    config::{
+        prove::ProveRequest,
+        tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        verifier::VerifierConfig,
+    },
     connection::{ConnectionInfo, ServerName},
     transcript::TlsTranscript,
 };
@@ -118,7 +122,7 @@ impl Verifier<state::CommitStart> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn accept<P: Protocol>(
         mut self,
-        config: P::Config,
+        config: P,
     ) -> Result<Verifier<state::CommitAccepted<P>>> {
         let mut ctx = self
             .ctx
@@ -163,7 +167,7 @@ impl Verifier<state::CommitStart> {
     }
 }
 
-impl Verifier<state::CommitAccepted<Mpc>> {
+impl Verifier<state::CommitAccepted<MpcTlsConfig>> {
     /// Runs the verifier until the TLS connection is closed.
     ///
     /// This method is used for MPC mode only.
@@ -247,7 +251,7 @@ impl Verifier<state::CommitAccepted<Mpc>> {
     }
 }
 
-impl Verifier<state::CommitAccepted<Proxy>> {
+impl Verifier<state::CommitAccepted<ProxyTlsConfig>> {
     /// Runs the verifier until the TLS connection is closed.
     ///
     /// This method is used for proxy mode only.
