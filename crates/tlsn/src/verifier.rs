@@ -6,7 +6,7 @@ mod verify;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Error, PROXY_STREAM_PREFIX, Protocol, Result,
+    Error, PROXY_STREAM_PREFIX, ProtocolConfig, Result,
     deps::{ProtocolDeps, VerifierMpcDeps, VerifierProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
@@ -120,7 +120,7 @@ impl Verifier<state::CommitStart> {
 
     /// Accepts the proposed protocol configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept<P: Protocol>(
+    pub async fn accept<P: ProtocolConfig>(
         mut self,
         config: P,
     ) -> Result<Verifier<state::CommitAccepted<P>>> {

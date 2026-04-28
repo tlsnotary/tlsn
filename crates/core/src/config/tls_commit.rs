@@ -13,10 +13,7 @@ pub struct TlsCommitConfig<P> {
     protocol: P,
 }
 
-impl<P> TlsCommitConfig<P>
-where
-    P: Into<TlsCommitRequest>,
-{
+impl<P> TlsCommitConfig<P> {
     /// Creates a new builder.
     pub fn builder() -> TlsCommitConfigBuilder<P> {
         TlsCommitConfigBuilder::default()
@@ -40,10 +37,7 @@ impl<P> Default for TlsCommitConfigBuilder<P> {
     }
 }
 
-impl<P> TlsCommitConfigBuilder<P>
-where
-    P: Into<TlsCommitRequest>,
-{
+impl<P> TlsCommitConfigBuilder<P> {
     /// Sets the protocol configuration.
     pub fn protocol(mut self, protocol: P) -> Self {
         self.protocol = Some(protocol);
