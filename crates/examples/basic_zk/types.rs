@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tlsn::transcript::{hash::PlaintextHash, Direction, TranscriptCommitment};
+use tlsn::transcript::{Direction, TranscriptCommitment, hash::PlaintextHash};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ZKProofBundle {

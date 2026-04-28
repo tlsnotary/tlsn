@@ -1,7 +1,7 @@
 [package]
 name = "tlsn-sdk-core"
 version = "0.1.0-alpha.15-pre"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/tlsnotary/tlsn.git"
 description = "Platform-agnostic core SDK for TLSNotary."
 license = "MIT OR Apache-2.0"

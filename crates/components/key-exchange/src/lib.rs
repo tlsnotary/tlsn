@@ -27,8 +27,8 @@ pub use exchange::MpcKeyExchange;
 use async_trait::async_trait;
 use mpz_common::Context;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Array,
+    binary::{Binary, U8},
 };
 use mpz_vm_core::Vm;
 use p256::PublicKey;

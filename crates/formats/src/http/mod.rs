@@ -8,8 +8,8 @@ pub use commit::{DefaultHttpCommitter, HttpCommit, HttpCommitError};
 pub use spansy::http;
 
 pub use http::{
-    parse_request, parse_response, Body, BodyContent, Header, HeaderName, HeaderValue, Method,
-    Reason, Request, RequestLine, Requests, Response, Responses, Status, Target,
+    Body, BodyContent, Header, HeaderName, HeaderValue, Method, Reason, Request, RequestLine,
+    Requests, Response, Responses, Status, Target, parse_request, parse_response,
 };
 use tlsn_core::transcript::Transcript;
 

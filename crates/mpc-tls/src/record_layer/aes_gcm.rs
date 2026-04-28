@@ -1,10 +1,10 @@
-use aes_gcm::{aead::AeadMutInPlace, Aes128Gcm, NewAead};
+use aes_gcm::{Aes128Gcm, NewAead, aead::AeadMutInPlace};
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Array, DecodeFutureTyped,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_vm_core::{Vm, prelude::*};
 use rand::RngCore;
 
 use crate::{MpcTlsError, Role};
@@ -222,7 +222,7 @@ impl AesGcm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aes_gcm::{aead::AeadMutInPlace, Aes128Gcm, NewAead};
+    use aes_gcm::{Aes128Gcm, NewAead, aead::AeadMutInPlace};
 
     #[test]
     fn test_aes_gcm_local() {

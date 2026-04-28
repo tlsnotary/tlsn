@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::{stream::FuturesOrdered, StreamExt};
+use futures::{StreamExt, stream::FuturesOrdered};
 use mpz_common::{Context, Task};
-use serio::{stream::IoStreamExt, SinkExt};
+use serio::{SinkExt, stream::IoStreamExt};
 
 use crate::{
+    Role,
     decode::OneTimePadShared,
     record_layer::aead::{
-        ghash::{build_ghash_data, Ghash, TagShare},
         AeadError,
+        ghash::{Ghash, TagShare, build_ghash_data},
     },
-    Role,
 };
 
 pub(crate) struct VerifyTagData {

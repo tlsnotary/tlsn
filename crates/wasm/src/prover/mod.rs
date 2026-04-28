@@ -7,7 +7,7 @@ pub use config::ProverConfig;
 use tlsn_sdk_core::{
     NetworkSetting as CoreNetworkSetting, ProverConfig as CoreProverConfig, SdkProver,
 };
-use wasm_bindgen::{prelude::*, JsError};
+use wasm_bindgen::{JsError, prelude::*};
 
 use crate::{
     io::{JsIo, JsIoAdapter},

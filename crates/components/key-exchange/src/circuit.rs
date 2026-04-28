@@ -1,6 +1,6 @@
 //! This module provides the circuits used in the key exchange protocol.
 
-use mpz_circuits::{ops::add_mod, Circuit, CircuitBuilder, Feed, Node};
+use mpz_circuits::{Circuit, CircuitBuilder, Feed, Node, ops::add_mod};
 use std::sync::Arc;
 
 /// Circuit for combining additive shares of the PMS, twice

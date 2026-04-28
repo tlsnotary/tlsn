@@ -1,16 +1,16 @@
 use mpz_core::bitvec::BitVec;
-use mpz_memory_core::{binary::Binary, DecodeFutureTyped};
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_memory_core::{DecodeFutureTyped, binary::Binary};
+use mpz_vm_core::{Vm, prelude::*};
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 
 use crate::{
+    MpcTlsError, Role,
     record_layer::{
+        TagData,
         aead::{MpcAesGcm, VerifyTags},
         aes_gcm::AesGcm,
-        TagData,
     },
-    MpcTlsError, Role,
 };
 
 pub(crate) fn private_mpc(
@@ -19,14 +19,14 @@ pub(crate) fn private_mpc(
     otp: Option<&mut Vec<u8>>,
     op: &DecryptOp,
 ) -> Result<DecryptOutput, MpcTlsError> {
-    if let Some(otp) = otp.as_ref() {
-        if op.ciphertext.len() > otp.len() {
-            return Err(MpcTlsError::record_layer(format!(
-                "ciphertext length exceeds allocated: {} > {}",
-                op.ciphertext.len(),
-                otp.len()
-            )));
-        }
+    if let Some(otp) = otp.as_ref()
+        && op.ciphertext.len() > otp.len()
+    {
+        return Err(MpcTlsError::record_layer(format!(
+            "ciphertext length exceeds allocated: {} > {}",
+            op.ciphertext.len(),
+            otp.len()
+        )));
     }
 
     let (otp_ref, masked_keystream) = decrypter

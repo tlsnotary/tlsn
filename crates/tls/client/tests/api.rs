@@ -557,14 +557,14 @@ impl ResolvesServerCert for ServerCheckCertResolve {
             assert_eq!(expected_sni, sni);
         }
 
-        if let Some(expected_sigalgs) = &self.expected_sigalgs {
-            if expected_sigalgs != client_hello.signature_schemes() {
-                panic!(
-                    "unexpected signature schemes (wanted {:?} got {:?})",
-                    self.expected_sigalgs,
-                    client_hello.signature_schemes()
-                );
-            }
+        if let Some(expected_sigalgs) = &self.expected_sigalgs
+            && expected_sigalgs != client_hello.signature_schemes()
+        {
+            panic!(
+                "unexpected signature schemes (wanted {:?} got {:?})",
+                self.expected_sigalgs,
+                client_hello.signature_schemes()
+            );
         }
 
         if let Some(expected_alpn) = &self.expected_alpn {

@@ -7,16 +7,16 @@
 use bytes::Bytes;
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures_rustls::{
+    TlsAcceptor,
     pki_types::{CertificateDer, PrivateKeyDer},
     rustls::ServerConfig,
-    TlsAcceptor,
 };
-use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use http_body_util::{BodyExt, Empty, Full, combinators::BoxBody};
 use hyper::{
+    Method, Request, Response, StatusCode,
     body::{Frame, Incoming},
     server::conn::http1,
     service::service_fn,
-    Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
 use std::{io::Write, sync::Arc};

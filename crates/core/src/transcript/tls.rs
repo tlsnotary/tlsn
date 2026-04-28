@@ -179,7 +179,7 @@ impl TlsTranscript {
                 typ => {
                     return Err(TlsTranscriptError::validation(format!(
                         "sent unexpected record content type: {typ:?}"
-                    )))
+                    )));
                 }
             }
         }
@@ -212,7 +212,7 @@ impl TlsTranscript {
                 typ => {
                     return Err(TlsTranscriptError::validation(format!(
                         "received unexpected record content type: {typ:?}"
-                    )))
+                    )));
                 }
             }
         }

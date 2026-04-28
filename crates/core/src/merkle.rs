@@ -182,9 +182,11 @@ mod test {
 
         let proof = tree.proof(&[2, 3, 4]);
 
-        assert!(proof
-            .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
-            .is_ok());
+        assert!(
+            proof
+                .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
+                .is_ok()
+        );
     }
 
     #[rstest]
@@ -266,9 +268,11 @@ mod test {
 
         let proof = tree.proof(&[2, 3, 4]);
 
-        assert!(proof
-            .verify(&hasher, &tree.root(), choose_leaves([2, 2, 3], &leaves))
-            .is_err());
+        assert!(
+            proof
+                .verify(&hasher, &tree.root(), choose_leaves([2, 2, 3], &leaves))
+                .is_err()
+        );
     }
 
     #[rstest]
@@ -291,13 +295,17 @@ mod test {
         proof2.leaf_count -= 1;
 
         // Fail because leaf count is wrong.
-        assert!(proof1
-            .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
-            .is_err());
+        assert!(
+            proof1
+                .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
+                .is_err()
+        );
 
-        assert!(proof2
-            .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
-            .is_err());
+        assert!(
+            proof2
+                .verify(&hasher, &tree.root(), choose_leaves([2, 3, 4], &leaves))
+                .is_err()
+        );
     }
 
     #[rstest]
@@ -334,8 +342,10 @@ mod test {
         let proof = tree.proof(&[2, 3, 4]);
 
         // Trying to verify less leaves than what was included in the proof.
-        assert!(proof
-            .verify(&hasher, &tree.root(), choose_leaves([2, 3], &leaves))
-            .is_err());
+        assert!(
+            proof
+                .verify(&hasher, &tree.root(), choose_leaves([2, 3], &leaves))
+                .is_err()
+        );
     }
 }

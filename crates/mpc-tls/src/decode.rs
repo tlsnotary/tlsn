@@ -2,16 +2,16 @@ use std::{
     array::from_fn,
     future::Future,
     pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll, ready},
 };
 
 use crate::Role;
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     DecodeError, DecodeFutureTyped,
+    binary::{Binary, U8},
 };
-use mpz_vm_core::{prelude::*, Vm, VmError};
+use mpz_vm_core::{Vm, VmError, prelude::*};
 use pin_project_lite::pin_project;
 use rand::Rng;
 

@@ -3,15 +3,15 @@
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tlsn::{
+    Session, SessionHandle,
     config::{
         prove::ProveConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
     },
     connection::ServerName,
-    prover::{state, Prover, TlsConnection},
+    prover::{Prover, TlsConnection, state},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
-    Session, SessionHandle,
 };
 use tracing::{error, info};
 

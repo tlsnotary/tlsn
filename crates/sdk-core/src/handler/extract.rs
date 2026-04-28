@@ -4,9 +4,9 @@ use std::ops::Range;
 
 use rangeset::{iter::RangeIterator, ops::Set, set::RangeSet};
 use spansy::{
+    Store,
     http::{Body, BodyContent, Header, Request, Response},
     json::{JsonValue, KeyValue},
-    Store,
 };
 
 use crate::{
@@ -242,22 +242,22 @@ fn extract_json_body<S: Store>(
 
     // For hideKey/hideValue, we need the parent object's key-value pair.
     // Otherwise we just need the value itself.
-    if hide_key || hide_value {
-        if let Some((parent_path, key)) = split_json_path(path) {
-            let parent: Option<&JsonValue<S>> = if parent_path.is_empty() {
-                Some(&doc.root)
-            } else {
-                doc.get(parent_path)
-            };
+    if (hide_key || hide_value)
+        && let Some((parent_path, key)) = split_json_path(path)
+    {
+        let parent: Option<&JsonValue<S>> = if parent_path.is_empty() {
+            Some(&doc.root)
+        } else {
+            doc.get(parent_path)
+        };
 
-            if let Some(JsonValue::Object(obj)) = parent {
-                if let Some(kv) = obj.elems.iter().find(|kv| kv.key == key) {
-                    return extract_kv_ranges(kv, hide_key, hide_value);
-                }
-            }
-            // If parent is an array, ignore hideKey/hideValue — return value
-            // only
+        if let Some(JsonValue::Object(obj)) = parent
+            && let Some(kv) = obj.elems.iter().find(|kv| kv.key == key)
+        {
+            return extract_kv_ranges(kv, hide_key, hide_value);
         }
+        // If parent is an array, ignore hideKey/hideValue — return value
+        // only
     }
 
     // Return the value's ranges directly (full key-value pair for objects, or just
@@ -268,19 +268,20 @@ fn extract_json_body<S: Store>(
 
     // If no hide options and this is an object field, return the whole key-value
     // pair.
-    if !hide_key && !hide_value {
-        if let Some((parent_path, key)) = split_json_path(path) {
-            let parent: Option<&JsonValue<S>> = if parent_path.is_empty() {
-                Some(&doc.root)
-            } else {
-                doc.get(parent_path)
-            };
+    if !hide_key
+        && !hide_value
+        && let Some((parent_path, key)) = split_json_path(path)
+    {
+        let parent: Option<&JsonValue<S>> = if parent_path.is_empty() {
+            Some(&doc.root)
+        } else {
+            doc.get(parent_path)
+        };
 
-            if let Some(JsonValue::Object(obj)) = parent {
-                if let Some(kv) = obj.elems.iter().find(|kv| kv.key == key) {
-                    return Ok(rangeset_to_vec(kv.view().indices()));
-                }
-            }
+        if let Some(JsonValue::Object(obj)) = parent
+            && let Some(kv) = obj.elems.iter().find(|kv| kv.key == key)
+        {
+            return Ok(rangeset_to_vec(kv.view().indices()));
         }
     }
 
@@ -326,12 +327,11 @@ fn split_json_path(path: &str) -> Option<(&str, &str)> {
 fn extract_all(handler: &Handler, raw: &[u8]) -> Result<Vec<Range<usize>>> {
     let params = handler.params.as_ref();
 
-    if let Some(params) = params {
-        if params.content_type.as_deref() == Some("regex") {
-            if let Some(pattern) = params.regex.as_deref() {
-                return extract_regex(raw, pattern);
-            }
-        }
+    if let Some(params) = params
+        && params.content_type.as_deref() == Some("regex")
+        && let Some(pattern) = params.regex.as_deref()
+    {
+        return extract_regex(raw, pattern);
     }
 
     // Return entire transcript as a single range.
