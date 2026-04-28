@@ -415,20 +415,24 @@ impl TlsTranscript {
         {
             return Err(TlsTranscriptError::parse("missing ServerHello"));
         }
-        if !recv_msgs
+        let shd = recv_msgs
             .iter()
-            .any(|m| m.typ == HandshakeType::ServerHelloDone)
-        {
-            return Err(TlsTranscriptError::parse("missing ServerHelloDone"));
-        }
+            .find(|m| m.typ == HandshakeType::ServerHelloDone)
+            .ok_or_else(|| TlsTranscriptError::parse("missing ServerHelloDone"))?;
 
-        // Wire order: ClientHello → server flight → remaining client
+        // Server's first flight ends at ServerHelloDone. Anything in the
+        // pre-CCS recv stream after that (notably an RFC 5077
+        // NewSessionTicket) arrives on the wire after the Client Finished
+        // and must not enter cf_hash.
+        let recv_first_flight = &recv_hs_bytes[..shd.end];
+
+        // Wire order: ClientHello → server first flight → remaining client
         // flight (ClientKeyExchange and, when client auth is active,
         // CertificateVerify). All pre-CCS bytes on the sent side are
         // included.
         let mut hasher = Sha256::new();
         hasher.update(&sent_hs_bytes[..client_hello.end]);
-        hasher.update(&recv_hs_bytes);
+        hasher.update(recv_first_flight);
         hasher.update(&sent_hs_bytes[client_hello.end..]);
 
         Ok(hasher.finalize().into())
@@ -468,20 +472,24 @@ impl TlsTranscript {
         {
             return Err(TlsTranscriptError::parse("missing ServerHello"));
         }
-        if !recv_msgs
+        let shd = recv_msgs
             .iter()
-            .any(|m| m.typ == HandshakeType::ServerHelloDone)
-        {
-            return Err(TlsTranscriptError::parse("missing ServerHelloDone"));
-        }
+            .find(|m| m.typ == HandshakeType::ServerHelloDone)
+            .ok_or_else(|| TlsTranscriptError::parse("missing ServerHelloDone"))?;
+
+        // Split pre-CCS recv bytes at ServerHelloDone. Anything after
+        // (notably an RFC 5077 NewSessionTicket) arrives on the wire
+        // after the Client Finished and must be hashed in that position.
+        let (recv_first_flight, recv_post_cf) = recv_hs_bytes.split_at(shd.end);
 
         let mut hasher = Sha256::new();
         hasher.update(&sent_hs_bytes[..client_hello.end]);
-        hasher.update(&recv_hs_bytes);
+        hasher.update(recv_first_flight);
         hasher.update(&sent_hs_bytes[client_hello.end..]);
         // Append the reconstructed Client Finished handshake message.
         hasher.update([0x14, 0x00, 0x00, 0x0c]);
         hasher.update(cf_vd);
+        hasher.update(recv_post_cf);
 
         Ok(hasher.finalize().into())
     }

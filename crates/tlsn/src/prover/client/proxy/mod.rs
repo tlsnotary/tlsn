@@ -10,7 +10,7 @@ use futures::FutureExt;
 use mpz_common::Context;
 use rustls::{
     CipherSuite, ClientConnection, NamedGroup, RootCertStore, SupportedCipherSuite,
-    crypto::CryptoProvider,
+    client::Resumption, crypto::CryptoProvider,
 };
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use std::{
@@ -323,7 +323,7 @@ fn create_client_config(
         })?
         .with_root_certificates(root_store);
 
-    let rustls_config = if let Some((cert, key)) = config.client_auth() {
+    let mut rustls_config = if let Some((cert, key)) = config.client_auth() {
         builder
             .with_client_auth_cert(
                 cert.iter()
@@ -343,6 +343,9 @@ fn create_client_config(
     } else {
         builder.with_no_client_auth()
     };
+
+    // disable session resumption, due to more complicated security assumptions
+    rustls_config.resumption = Resumption::disabled();
 
     Ok(rustls_config)
 }
