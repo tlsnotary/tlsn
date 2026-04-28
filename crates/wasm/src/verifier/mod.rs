@@ -50,9 +50,9 @@ impl JsVerifier {
 
     /// Performs the commitment handshake with the prover.
     ///
-    /// Returns the server name if proxy sockets are needed, or
-    /// null/undefined for MPC mode. If a server name is returned,
-    /// call `set_proxy_sockets()` before `verify()`.
+    /// Returns the server name in proxy mode, or null/undefined for MPC
+    /// mode. When a server name is returned, call `set_server_socket()`
+    /// with a connection to that server before calling `run()`.
     pub async fn setup(&mut self) -> Result<Option<String>> {
         self.inner
             .setup()
@@ -60,27 +60,27 @@ impl JsVerifier {
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
-    /// Runs the verifier until the TLS connection is closed.
+    /// Provides the server socket for proxy mode.
     ///
-    /// This method is used for MPC mode only.
-    pub async fn run_mpc(&mut self) -> Result<()> {
-        self.inner
-            .run_mpc()
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))
-    }
-
-    /// Runs the verifier until the TLS connection is closed.
-    ///
-    /// This method is used for proxy mode only.
+    /// Must be called between `setup()` and `run()` when `setup` returned a
+    /// server name.
     ///
     /// # Arguments
     ///
     /// * `server_io` - A JavaScript object implementing the IoChannel
     ///   interface, connected to the server.
-    pub async fn run_proxy(&mut self, server_io: JsIo) -> Result<()> {
+    pub fn set_server_socket(&mut self, server_io: JsIo) -> Result<()> {
         self.inner
-            .run_proxy(JsIoAdapter::new(server_io))
+            .set_server_socket(JsIoAdapter::new(server_io))
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Runs the verifier until the TLS connection is closed.
+    ///
+    /// In proxy mode, `set_server_socket()` must be called first.
+    pub async fn run(&mut self) -> Result<()> {
+        self.inner
+            .run()
             .await
             .map_err(|e| JsError::new(&e.to_string()))
     }
