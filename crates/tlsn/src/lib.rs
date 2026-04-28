@@ -101,6 +101,7 @@ pub(crate) struct TlsOutput {
 
 /// The protocol mode.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum ProtocolMode {
     /// MPC mode.
     Mpc,
