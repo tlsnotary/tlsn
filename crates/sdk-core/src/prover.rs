@@ -34,8 +34,12 @@ pub struct SdkProver {
 #[allow(clippy::large_enum_variant)]
 enum State {
     Initialized,
-    CommitAccepted {
-        prover: Prover<state::CommitAccepted>,
+    CommitAcceptedMpc {
+        prover: Prover<state::CommitAccepted<MpcTlsConfig>>,
+        handle: SessionHandle,
+    },
+    CommitAcceptedProxy {
+        prover: Prover<state::CommitAccepted<ProxyTlsConfig>>,
         handle: SessionHandle,
     },
     Committed {
@@ -51,7 +55,8 @@ impl std::fmt::Debug for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             State::Initialized => write!(f, "Initialized"),
-            State::CommitAccepted { .. } => write!(f, "CommitAccepted"),
+            State::CommitAcceptedMpc { .. } => write!(f, "CommitAcceptedMpc"),
+            State::CommitAcceptedProxy { .. } => write!(f, "CommitAcceptedProxy"),
             State::Committed { .. } => write!(f, "Committed"),
             State::Complete => write!(f, "Complete"),
             State::Error => write!(f, "Error"),
@@ -101,19 +106,41 @@ impl SdkProver {
             ));
         };
 
-        let tls_commit_config = if self.config.mode == crate::config::ProverMode::Proxy {
-            TlsCommitConfig::builder()
-                .protocol({
-                    let builder = ProxyTlsConfig::builder().server_name(
-                        DnsName::try_from(self.config.server_name.as_str())
-                            .map_err(|e| SdkError::config(e.to_string()))?,
-                    );
+        info!("connecting to verifier");
 
-                    builder.build()
-                }?)
-                .build()?
+        let session = Session::new(verifier_io);
+        let (driver, mut handle) = session.split();
+
+        crate::spawn::spawn(async move {
+            match driver.await {
+                Ok(_io) => tracing::warn!("session driver completed (mux closed)"),
+                Err(e) => tracing::error!("session driver error: {e}"),
+            }
+        });
+
+        let prover_config = tlsn::config::prover::ProverConfig::builder().build()?;
+        let prover = handle.new_prover(prover_config)?;
+
+        if self.config.mode == crate::config::ProverMode::Proxy {
+            let commit_config = TlsCommitConfig::builder()
+                .protocol(
+                    ProxyTlsConfig::builder()
+                        .server_name(
+                            DnsName::try_from(self.config.server_name.as_str())
+                                .map_err(|e| SdkError::config(e.to_string()))?,
+                        )
+                        .build()?,
+                )
+                .build()?;
+
+            let prover = prover
+                .commit(commit_config)
+                .await
+                .map_err(|e| SdkError::protocol(e.to_string()))?;
+
+            self.state = State::CommitAcceptedProxy { prover, handle };
         } else {
-            TlsCommitConfig::builder()
+            let commit_config = TlsCommitConfig::builder()
                 .protocol({
                     let mut builder = MpcTlsConfig::builder()
                         .max_sent_data(self.config.max_sent_data)
@@ -137,30 +164,15 @@ impl SdkProver {
 
                     builder.network(self.config.network.into()).build()
                 }?)
-                .build()?
-        };
+                .build()?;
 
-        info!("connecting to verifier");
+            let prover = prover
+                .commit(commit_config)
+                .await
+                .map_err(|e| SdkError::protocol(e.to_string()))?;
 
-        let session = Session::new(verifier_io);
-        let (driver, mut handle) = session.split();
-
-        crate::spawn::spawn(async move {
-            match driver.await {
-                Ok(_io) => tracing::warn!("session driver completed (mux closed)"),
-                Err(e) => tracing::error!("session driver error: {e}"),
-            }
-        });
-
-        let prover_config = tlsn::config::prover::ProverConfig::builder().build()?;
-        let prover = handle.new_prover(prover_config)?;
-
-        let prover = prover
-            .commit(tls_commit_config)
-            .await
-            .map_err(|e| SdkError::protocol(e.to_string()))?;
-
-        self.state = State::CommitAccepted { prover, handle };
+            self.state = State::CommitAcceptedMpc { prover, handle };
+        }
 
         info!("setup complete");
 
@@ -185,9 +197,9 @@ impl SdkProver {
         server_io: impl Io,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
-        let State::CommitAccepted { prover, handle } = self.state.take() else {
+        let State::CommitAcceptedMpc { prover, handle } = self.state.take() else {
             return Err(SdkError::invalid_state(
-                "prover is not in commit accepted state",
+                "prover is not in commit accepted MPC state",
             ));
         };
 
@@ -196,7 +208,7 @@ impl SdkProver {
         info!("connecting to server");
 
         let (tls_conn, prover) = prover
-            .connect_mpc(tls_config, server_io)
+            .connect(tls_config, server_io)
             .map_err(|e| SdkError::protocol(e.to_string()))?;
 
         info!("sending request");
@@ -245,9 +257,9 @@ impl SdkProver {
     ///
     /// * `request` - The HTTP request to send.
     pub async fn send_request_proxy(&mut self, request: HttpRequest) -> Result<HttpResponse> {
-        let State::CommitAccepted { prover, handle } = self.state.take() else {
+        let State::CommitAcceptedProxy { prover, handle } = self.state.take() else {
             return Err(SdkError::invalid_state(
-                "prover is not in commit accepted state",
+                "prover is not in commit accepted proxy state",
             ));
         };
 
@@ -256,7 +268,7 @@ impl SdkProver {
         info!("connecting to proxy");
 
         let (tls_conn, prover) = prover
-            .connect_proxy(tls_config)
+            .connect(tls_config)
             .map_err(|e| SdkError::protocol(e.to_string()))?;
 
         info!("sending request");
