@@ -44,7 +44,6 @@ enum State {
     },
     Committed {
         prover: Prover<state::Committed>,
-        #[allow(dead_code)]
         handle: SessionHandle,
     },
     Complete,

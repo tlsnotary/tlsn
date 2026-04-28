@@ -99,43 +99,22 @@ pub(crate) struct TlsOutput {
     pub(crate) tls_transcript: TlsTranscript,
 }
 
-/// The protocol mode.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub enum ProtocolMode {
-    /// MPC mode.
-    Mpc,
-    /// Proxy mode.
-    Proxy,
-}
-
 /// Protocol variant.
 pub trait ProtocolConfig: Clone + Into<TlsCommitRequest> + sealed::Sealed {
     /// Prover protocol dependencies.
     type ProverDeps: ProtocolDeps<Config = Self>;
     /// Verifier protocol dependencies.
     type VerifierDeps: ProtocolDeps<Config = Self>;
-
-    /// Returns the protocol mode.
-    fn mode(&self) -> ProtocolMode;
 }
 
 impl ProtocolConfig for MpcTlsConfig {
     type ProverDeps = ProverMpcDeps;
     type VerifierDeps = VerifierMpcDeps;
-
-    fn mode(&self) -> ProtocolMode {
-        ProtocolMode::Mpc
-    }
 }
 
 impl ProtocolConfig for ProxyTlsConfig {
     type ProverDeps = ProverProxyDeps;
     type VerifierDeps = VerifierProxyDeps;
-
-    fn mode(&self) -> ProtocolMode {
-        ProtocolMode::Proxy
-    }
 }
 
 mod sealed {

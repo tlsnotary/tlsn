@@ -32,7 +32,7 @@
 //! // Send request through server connection.
 //! let request = HttpRequest::get("/api/data")
 //!     .header("Authorization", "Bearer token");
-//! let response = prover.send_request(server_io, request).await?;
+//! let response = prover.send_request_mpc(server_io, request).await?;
 //!
 //! // Get transcript and reveal data.
 //! let transcript = prover.transcript()?;
