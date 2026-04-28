@@ -1,7 +1,7 @@
 //! SDK Verifier implementation.
 
 use tlsn::{
-    config::tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+    config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig, TlsCommitRequest},
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
     verifier::{state, Verifier},
@@ -250,9 +250,7 @@ impl SdkVerifier {
             } => Err(SdkError::invalid_state(
                 "server socket not set; call set_server_socket() first",
             )),
-            _ => Err(SdkError::invalid_state(
-                "verifier is not in accepted state",
-            )),
+            _ => Err(SdkError::invalid_state("verifier is not in accepted state")),
         }
     }
 
