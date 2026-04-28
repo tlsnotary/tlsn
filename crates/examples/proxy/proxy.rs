@@ -17,7 +17,7 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{proxy::ProxyTlsConfig, TlsCommitConfig, TlsCommitProtocolConfig},
+        tls_commit::{proxy::ProxyTlsConfig, TlsCommitConfig, TlsCommitRequest},
         verifier::VerifierConfig,
     },
     connection::{DnsName, ServerName},
@@ -99,7 +99,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // In proxy mode, connect TLS through the proxy instead of directly
     // to the server via TCP. The verifier will forward traffic to the actual
     // server.
-    let (tls_connection, prover) = prover.connect_proxy(
+    let (tls_connection, prover) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
             // Create a root certificate store with the server-fixture's self-signed
@@ -211,12 +211,11 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // The verifier can inspect the protocol configuration requested by the prover
     // and decide what he wants to do. Here we decide to support both, requests
     // for mpc mode and proxy mode.
-    let verifier = match verifier.request().protocol() {
-        TlsCommitProtocolConfig::Mpc(_mpc_tls_config) => {
-            let verifier = verifier.accept().await?;
-            verifier.run_mpc().await?
+    let verifier = match verifier.request().clone() {
+        TlsCommitRequest::Mpc(mpc_tls_config) => {
+            verifier.accept(mpc_tls_config).await?.run().await?
         }
-        TlsCommitProtocolConfig::Proxy(proxy_tls_config) => {
+        TlsCommitRequest::Proxy(proxy_tls_config) => {
             // In proxy mode, the verifier needs to connect to the server and set up
             // sockets to forward traffic between the prover and the server.
             let _server_name = proxy_tls_config.server_name();
@@ -224,8 +223,11 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
             // to obtain the server address, but since this is an example we use the fixed
             // `server_addr`.
             let client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
-            let verifier = verifier.accept().await?;
-            verifier.run_proxy(client_socket.compat()).await?
+            verifier
+                .accept(proxy_tls_config)
+                .await?
+                .run(client_socket.compat())
+                .await?
         }
         _ => panic!("unknown protocol configuration"),
     };

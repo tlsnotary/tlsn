@@ -8,7 +8,7 @@ use noir::barretenberg::verify::{get_ultra_honk_verification_key, verify_ultra_h
 use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
-    config::{tls_commit::TlsCommitProtocolConfig, verifier::VerifierConfig},
+    config::{tls_commit::TlsCommitRequest, verifier::VerifierConfig},
     connection::ServerName,
     hash::HashAlgId,
     transcript::{Direction, PartialTranscript},
@@ -48,17 +48,20 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
-    let reject = if let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = verifier.request().protocol()
-    {
-        if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
-            Some("max_sent_data is too large")
-        } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
-            Some("max_recv_data is too large")
-        } else {
-            None
+    let mpc_tls_config = match verifier.request() {
+        TlsCommitRequest::Mpc(mpc_tls_config) => mpc_tls_config.clone(),
+        _ => {
+            verifier.reject(Some("expecting to use MPC-TLS")).await?;
+            return Err(anyhow::anyhow!("protocol configuration rejected"));
         }
+    };
+
+    let reject = if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
+        Some("max_sent_data is too large")
+    } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
+        Some("max_recv_data is too large")
     } else {
-        Some("expecting to use MPC-TLS")
+        None
     };
 
     if reject.is_some() {
@@ -67,7 +70,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     }
 
     // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept().await?.run_mpc().await?;
+    let verifier = verifier.accept(mpc_tls_config).await?.run().await?;
 
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;

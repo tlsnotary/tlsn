@@ -96,7 +96,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover) = prover.connect_mpc(
+    let (tls_connection, prover) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
             // Create a root certificate store with the server-fixture's self-signed

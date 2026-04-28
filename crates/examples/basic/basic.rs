@@ -17,7 +17,7 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig, TlsCommitProtocolConfig},
+        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig, TlsCommitRequest},
         verifier::VerifierConfig,
     },
     connection::ServerName,
@@ -109,7 +109,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover) = prover.connect_mpc(
+    let (tls_connection, prover) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
             // Create a root certificate store with the server-fixture's self-signed
@@ -214,17 +214,20 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
-    let reject = if let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = verifier.request().protocol()
-    {
-        if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
-            Some("max_sent_data is too large")
-        } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
-            Some("max_recv_data is too large")
-        } else {
-            None
+    let mpc_tls_config = match verifier.request() {
+        TlsCommitRequest::Mpc(mpc_tls_config) => mpc_tls_config.clone(),
+        _ => {
+            verifier.reject(Some("expecting to use MPC-TLS")).await?;
+            return Err(anyhow::anyhow!("protocol configuration rejected"));
         }
+    };
+
+    let reject = if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
+        Some("max_sent_data is too large")
+    } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
+        Some("max_recv_data is too large")
     } else {
-        Some("expecting to use MPC-TLS")
+        None
     };
 
     if reject.is_some() {
@@ -233,7 +236,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     }
 
     // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept().await?.run_mpc().await?;
+    let verifier = verifier.accept(mpc_tls_config).await?.run().await?;
 
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;

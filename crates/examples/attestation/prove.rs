@@ -24,7 +24,7 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
+        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig, TlsCommitRequest},
         verifier::VerifierConfig,
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
@@ -112,7 +112,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect((server_host, server_port)).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover) = prover.connect_mpc(
+    let (tls_connection, prover) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
             // Create a root certificate store with the server-fixture's self-signed
@@ -306,14 +306,17 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()
         .unwrap();
 
-    let verifier = handle
-        .new_verifier(verifier_config)?
-        .commit()
-        .await?
-        .accept()
-        .await?
-        .run_mpc()
-        .await?;
+    let verifier = handle.new_verifier(verifier_config)?.commit().await?;
+
+    let mpc_tls_config = match verifier.request() {
+        TlsCommitRequest::Mpc(mpc_tls_config) => mpc_tls_config.clone(),
+        _ => {
+            verifier.reject(Some("expecting to use MPC-TLS")).await?;
+            return Err(anyhow::anyhow!("protocol configuration rejected"));
+        }
+    };
+
+    let verifier = verifier.accept(mpc_tls_config).await?.run().await?;
 
     let (
         VerifierOutput {
