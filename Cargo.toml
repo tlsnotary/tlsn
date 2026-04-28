@@ -100,7 +100,7 @@ blake3 = { version = "1.5" }
 bon = { version = "3.6" }
 bytes = { version = "1.4" }
 cfg-if = { version = "1" }
-chromiumoxide = { version = "0.7" }
+chromiumoxide = { version = "0.9.1" }
 chrono = { version = "0.4" }
 cipher = { version = "0.4" }
 clap = { version = "4.5" }
