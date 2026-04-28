@@ -1,16 +1,18 @@
 use std::future::IntoFuture;
 
+use futures::{AsyncRead, AsyncWrite};
 use tlsn::{
     Session,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{TlsCommitConfig, TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
         verifier::VerifierConfig,
     },
     connection::{DnsName, ServerName},
     hash::HashAlgId,
+    prover::{Prover, TlsConnection, state},
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
     verifier::VerifierOutput,
     webpki::{CertificateDer, RootCertStore},
@@ -31,7 +33,17 @@ crate::test!("mpc", prover_mpc, verifier);
 crate::test!("proxy", prover_proxy, verifier);
 
 async fn prover_mpc(provider: &IoProvider) {
-    let config = TlsCommitConfig::builder()
+    let io = provider.provide_proto_io().await.unwrap();
+    let mut session = Session::new(io);
+    let prover = session
+        .new_prover(ProverConfig::builder().build().unwrap())
+        .unwrap();
+
+    let (session, handle) = session.split();
+
+    _ = spawn(session);
+
+    let commit_config = TlsCommitConfig::builder()
         .protocol(
             MpcTlsConfig::builder()
                 .max_sent_data(MAX_SENT_DATA)
@@ -43,24 +55,20 @@ async fn prover_mpc(provider: &IoProvider) {
         .build()
         .unwrap();
 
-    prover(provider, config).await
+    let prover = prover.commit(commit_config).await.unwrap();
+
+    let (tls_connection, prover) = prover
+        .connect(
+            tls_client_config(),
+            provider.provide_server_io().await.unwrap(),
+        )
+        .unwrap();
+
+    let prover = drive_prover(prover, tls_connection).await;
+    finish_prover(prover, handle).await;
 }
 
 async fn prover_proxy(provider: &IoProvider) {
-    let config = TlsCommitConfig::builder()
-        .protocol(
-            ProxyTlsConfig::builder()
-                .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
-                .build()
-                .unwrap(),
-        )
-        .build()
-        .unwrap();
-
-    prover(provider, config).await
-}
-
-async fn prover(provider: &IoProvider, config: TlsCommitConfig) {
     let io = provider.provide_proto_io().await.unwrap();
     let mut session = Session::new(io);
     let prover = session
@@ -71,97 +79,72 @@ async fn prover(provider: &IoProvider, config: TlsCommitConfig) {
 
     _ = spawn(session);
 
-    let is_proxy = matches!(
-        config.protocol(),
-        tlsn::config::tls_commit::TlsCommitProtocolConfig::Proxy(_)
-    );
-    let prover = prover.commit(config).await.unwrap();
+    let commit_config = TlsCommitConfig::builder()
+        .protocol(
+            ProxyTlsConfig::builder()
+                .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
+                .build()
+                .unwrap(),
+        )
+        .build()
+        .unwrap();
 
-    let mut prover = if is_proxy {
-        let (tls_connection, prover) = prover
-            .connect_proxy(
-                TlsClientConfig::builder()
-                    .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-                    .root_store(RootCertStore {
-                        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                    })
-                    .build()
-                    .unwrap(),
-            )
+    let prover = prover.commit(commit_config).await.unwrap();
+
+    let (tls_connection, prover) = prover.connect(tls_client_config()).unwrap();
+
+    let prover = drive_prover(prover, tls_connection).await;
+    finish_prover(prover, handle).await;
+}
+
+fn tls_client_config() -> TlsClientConfig {
+    TlsClientConfig::builder()
+        .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+        .root_store(RootCertStore {
+            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+        })
+        .build()
+        .unwrap()
+}
+
+async fn drive_prover<S: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
+    prover: Prover<state::Connected<S>>,
+    tls_connection: TlsConnection,
+) -> Prover<state::Committed> {
+    let prover_task = spawn(prover.into_future());
+
+    let (mut request_sender, connection) =
+        hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
+            .await
             .unwrap();
 
-        let prover_task = spawn(prover.into_future());
+    _ = spawn(connection);
 
-        let (mut request_sender, connection) =
-            hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
-                .await
-                .unwrap();
+    let request = Request::builder()
+        .uri(format!(
+            "https://{}/bytes?size={recv}",
+            SERVER_DOMAIN,
+            recv = MAX_RECV_DATA - 256
+        ))
+        .header("Host", SERVER_DOMAIN)
+        .header("Connection", "close")
+        .method("GET")
+        .body(Empty::<Bytes>::new())
+        .unwrap();
 
-        _ = spawn(connection);
+    let response = request_sender.send_request(request).await.unwrap();
 
-        let request = Request::builder()
-            .uri(format!(
-                "https://{}/bytes?size={recv}",
-                SERVER_DOMAIN,
-                recv = MAX_RECV_DATA - 256
-            ))
-            .header("Host", SERVER_DOMAIN)
-            .header("Connection", "close")
-            .method("GET")
-            .body(Empty::<Bytes>::new())
-            .unwrap();
+    assert!(response.status() == StatusCode::OK);
 
-        let response = request_sender.send_request(request).await.unwrap();
+    let _ = response.into_body().collect().await.unwrap().to_bytes();
 
-        assert!(response.status() == StatusCode::OK);
+    prover_task.await.unwrap().unwrap()
+}
 
-        let _ = response.into_body().collect().await.unwrap().to_bytes();
-
-        prover_task.await.unwrap().unwrap()
-    } else {
-        let (tls_connection, prover) = prover
-            .connect_mpc(
-                TlsClientConfig::builder()
-                    .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-                    .root_store(RootCertStore {
-                        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                    })
-                    .build()
-                    .unwrap(),
-                provider.provide_server_io().await.unwrap(),
-            )
-            .unwrap();
-
-        let prover_task = spawn(prover.into_future());
-
-        let (mut request_sender, connection) =
-            hyper::client::conn::http1::handshake(FuturesIo::new(tls_connection))
-                .await
-                .unwrap();
-
-        _ = spawn(connection);
-
-        let request = Request::builder()
-            .uri(format!(
-                "https://{}/bytes?size={recv}",
-                SERVER_DOMAIN,
-                recv = MAX_RECV_DATA - 256
-            ))
-            .header("Host", SERVER_DOMAIN)
-            .header("Connection", "close")
-            .method("GET")
-            .body(Empty::<Bytes>::new())
-            .unwrap();
-
-        let response = request_sender.send_request(request).await.unwrap();
-
-        assert!(response.status() == StatusCode::OK);
-
-        let _ = response.into_body().collect().await.unwrap().to_bytes();
-
-        prover_task.await.unwrap().unwrap()
-    };
-
+async fn finish_prover(
+    mut prover: Prover<state::Committed>,
+    handle: tlsn::SessionHandle,
+) {
     let (sent_len, recv_len) = prover.transcript().len();
 
     let mut builder = TranscriptCommitConfig::builder(prover.transcript());
@@ -210,18 +193,21 @@ async fn verifier(provider: &IoProvider) {
 
     let verifier = verifier.commit().await.unwrap();
 
-    let is_proxy = matches!(
-        verifier.request().protocol(),
-        tlsn::config::tls_commit::TlsCommitProtocolConfig::Proxy(_)
-    );
-
-    let verifier = verifier.accept().await.unwrap();
-
-    let verifier = if is_proxy {
-        let server_io = provider.provide_server_io().await.unwrap();
-        verifier.run_proxy(server_io).await.unwrap()
-    } else {
-        verifier.run_mpc().await.unwrap()
+    let verifier = match verifier.request().clone() {
+        TlsCommitRequest::Mpc(config) => {
+            verifier.accept(config).await.unwrap().run().await.unwrap()
+        }
+        TlsCommitRequest::Proxy(config) => {
+            let server_io = provider.provide_server_io().await.unwrap();
+            verifier
+                .accept(config)
+                .await
+                .unwrap()
+                .run(server_io)
+                .await
+                .unwrap()
+        }
+        _ => panic!("unsupported protocol mode"),
     };
 
     let (

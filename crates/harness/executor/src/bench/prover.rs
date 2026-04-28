@@ -38,16 +38,57 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let time_start = web_time::Instant::now();
 
-    let commit_config = if config.proxy {
-        TlsCommitConfig::builder()
+    let tls_client_config = TlsClientConfig::builder()
+        .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+        .root_store(RootCertStore {
+            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+        })
+        .build()?;
+
+    let request = format!(
+        "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
+        config.download_size,
+        // Subtract the 68 bytes already present in the request template.
+        String::from_utf8(vec![0x42u8; config.upload_size.saturating_sub(68)])?,
+    );
+
+    let time_preprocess: u128;
+    let time_start_online: web_time::Instant;
+    let uploaded_preprocess: u64;
+    let downloaded_preprocess: u64;
+
+    let mut prover = if config.proxy {
+        let commit_config = TlsCommitConfig::builder()
             .protocol(
                 ProxyTlsConfig::builder()
                     .server_name(DnsName::try_from(SERVER_DOMAIN)?)
                     .build()?,
             )
-            .build()?
+            .build()?;
+        let prover = prover.commit(commit_config).await?;
+
+        time_preprocess = time_start.elapsed().as_millis();
+        time_start_online = web_time::Instant::now();
+        uploaded_preprocess = sent.load(Ordering::Relaxed);
+        downloaded_preprocess = recv.load(Ordering::Relaxed);
+
+        let (mut conn, prover) = prover.connect(tls_client_config)?;
+
+        let (_, prover) = futures::try_join!(
+            async {
+                conn.write_all(request.as_bytes()).await?;
+
+                let mut response = Vec::new();
+                conn.read_to_end(&mut response).await?;
+                conn.close().await?;
+
+                Ok(())
+            },
+            prover.into_future().map_err(anyhow::Error::from)
+        )?;
+        prover
     } else {
-        TlsCommitConfig::builder()
+        let commit_config = TlsCommitConfig::builder()
             .protocol({
                 let mut builder = MpcTlsConfig::builder()
                     .max_sent_data(config.upload_size)
@@ -61,65 +102,19 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
                     .max_recv_data(config.download_size + RECV_PADDING)
                     .build()
             }?)
-            .build()?
-    };
-    let prover = prover.commit(commit_config).await?;
+            .build()?;
+        let prover = prover.commit(commit_config).await?;
 
-    let time_preprocess = time_start.elapsed().as_millis();
-    let time_start_online = web_time::Instant::now();
-    let uploaded_preprocess = sent.load(Ordering::Relaxed);
-    let downloaded_preprocess = recv.load(Ordering::Relaxed);
+        time_preprocess = time_start.elapsed().as_millis();
+        time_start_online = web_time::Instant::now();
+        uploaded_preprocess = sent.load(Ordering::Relaxed);
+        downloaded_preprocess = recv.load(Ordering::Relaxed);
 
-    let mut prover = if config.proxy {
-        let (mut conn, prover) = prover.connect_proxy(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()?,
-        )?;
+        let (mut conn, prover) =
+            prover.connect(tls_client_config, provider.provide_server_io().await?)?;
 
         let (_, prover) = futures::try_join!(
             async {
-                let request = format!(
-                    "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
-                    config.download_size,
-                    // Subtract the 68 bytes already present in the request template.
-                    String::from_utf8(vec![0x42u8; config.upload_size.saturating_sub(68)])?,
-                );
-
-                conn.write_all(request.as_bytes()).await?;
-
-                let mut response = Vec::new();
-                conn.read_to_end(&mut response).await?;
-                conn.close().await?;
-
-                Ok(())
-            },
-            prover.into_future().map_err(anyhow::Error::from)
-        )?;
-        prover
-    } else {
-        let (mut conn, prover) = prover.connect_mpc(
-            TlsClientConfig::builder()
-                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-                .root_store(RootCertStore {
-                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-                })
-                .build()?,
-            provider.provide_server_io().await?,
-        )?;
-
-        let (_, prover) = futures::try_join!(
-            async {
-                let request = format!(
-                    "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
-                    config.download_size,
-                    // Subtract the 68 bytes already present in the request template.
-                    String::from_utf8(vec![0x42u8; config.upload_size.saturating_sub(68)])?,
-                );
-
                 conn.write_all(request.as_bytes()).await?;
 
                 let mut response = Vec::new();

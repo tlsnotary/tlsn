@@ -3,7 +3,7 @@ use anyhow::Result;
 use harness_core::bench::Bench;
 use tlsn::{
     Session,
-    config::{tls_commit::TlsCommitProtocolConfig, verifier::VerifierConfig},
+    config::{tls_commit::TlsCommitRequest, verifier::VerifierConfig},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::CA_CERT_DER;
@@ -28,17 +28,13 @@ pub async fn bench_verifier(provider: &IoProvider, _config: &Bench) -> Result<()
 
     let verifier = verifier.commit().await?;
 
-    let is_proxy = matches!(
-        verifier.request().protocol(),
-        TlsCommitProtocolConfig::Proxy(_)
-    );
-
-    let verifier = verifier.accept().await?;
-    let verifier = if is_proxy {
-        let server_io = provider.provide_server_io().await?;
-        verifier.run_proxy(server_io).await?
-    } else {
-        verifier.run_mpc().await?
+    let verifier = match verifier.request().clone() {
+        TlsCommitRequest::Mpc(config) => verifier.accept(config).await?.run().await?,
+        TlsCommitRequest::Proxy(config) => {
+            let server_io = provider.provide_server_io().await?;
+            verifier.accept(config).await?.run(server_io).await?
+        }
+        _ => panic!("unsupported protocol mode"),
     };
 
     let (_, verifier) = verifier.verify().await?.accept().await?;
