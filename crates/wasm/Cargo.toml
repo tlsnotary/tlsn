@@ -16,15 +16,10 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-test = []
 no-bundler = ["web-spawn/no-bundler"]
 
 [dependencies]
-tlsn-core = { workspace = true }
-tlsn = { workspace = true, features = ["web", "mozilla-certs"] }
-tlsn-sdk-core = { workspace = true, features = ["wasm"] }
-tlsn-server-fixture-certs = { workspace = true }
-tlsn-tls-core = { workspace = true }
+tlsn-sdk-core = { workspace = true, features = ["wasm", "mozilla-certs"] }
 
 console_error_panic_hook = { version = "0.1" }
 futures = { workspace = true }

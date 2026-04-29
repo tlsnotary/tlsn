@@ -17,6 +17,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 tlsn-harness-core = { workspace = true }
 tlsn = { workspace = true }
+tlsn-sdk-core = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
 
 inventory = { workspace = true }

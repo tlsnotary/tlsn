@@ -13,12 +13,15 @@ workspace = true
 
 [features]
 default = []
+mozilla-certs = ["tlsn/mozilla-certs"]
 wasm = ["wasm-bindgen-futures"]
 
 [dependencies]
 tlsn = { workspace = true }
 tlsn-core = { workspace = true }
 tlsn-tls-core = { workspace = true }
+rustls-webpki = { workspace = true, features = ["ring"] }
+rustls-pki-types = { workspace = true }
 
 bytes = { workspace = true }
 futures = { workspace = true }
@@ -37,4 +40,5 @@ tracing-subscriber = { workspace = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 
 [dev-dependencies]
+tlsn-server-fixture-certs = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros"] }
