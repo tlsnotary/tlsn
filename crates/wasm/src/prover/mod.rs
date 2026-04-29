@@ -31,7 +31,7 @@ impl JsProver {
     /// Creates a new Prover with the given configuration.
     #[wasm_bindgen(constructor)]
     pub fn new(config: ProverConfig) -> Result<JsProver> {
-        let core_config = convert_prover_config(config);
+        let core_config = convert_prover_config(config)?;
         let inner = SdkProver::new(core_config).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(JsProver {
             inner,
@@ -153,7 +153,7 @@ impl JsProver {
 
 // Conversion functions between WASM types and sdk-core types.
 
-fn convert_prover_config(config: ProverConfig) -> CoreProverConfig {
+fn convert_prover_config(config: ProverConfig) -> Result<CoreProverConfig> {
     let mut builder = CoreProverConfig::builder(&config.server_name)
         .max_sent_data(config.max_sent_data)
         .max_recv_data(config.max_recv_data)
@@ -182,7 +182,11 @@ fn convert_prover_config(config: ProverConfig) -> CoreProverConfig {
         builder = builder.client_auth(certs, key);
     }
 
-    builder.build()
+    if let Some(root_certs) = config.root_certs {
+        builder = builder.root_certs(root_certs);
+    }
+
+    builder.build().map_err(|e| JsError::new(&e.to_string()))
 }
 
 fn convert_http_request(request: HttpRequest) -> tlsn_sdk_core::HttpRequest {

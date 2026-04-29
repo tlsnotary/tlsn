@@ -8,8 +8,6 @@ pub mod handler;
 pub(crate) mod io;
 mod log;
 pub mod prover;
-#[cfg(feature = "test")]
-pub mod tests;
 pub mod types;
 pub mod verifier;
 
@@ -17,9 +15,6 @@ pub use log::{LoggingConfig, LoggingLevel};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-
-#[cfg(feature = "test")]
-pub use tests::*;
 
 /// Initializes the module.
 #[wasm_bindgen]

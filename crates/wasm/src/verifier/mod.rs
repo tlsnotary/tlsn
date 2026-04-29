@@ -28,10 +28,10 @@ pub struct JsVerifier {
 impl JsVerifier {
     /// Creates a new Verifier with the given configuration.
     #[wasm_bindgen(constructor)]
-    pub fn new(config: VerifierConfig) -> JsVerifier {
-        let core_config = convert_verifier_config(config);
+    pub fn new(config: VerifierConfig) -> Result<JsVerifier> {
+        let core_config = convert_verifier_config(config)?;
         let inner = SdkVerifier::new(core_config);
-        JsVerifier { inner }
+        Ok(JsVerifier { inner })
     }
 
     /// Connects to the prover.
@@ -61,7 +61,7 @@ impl JsVerifier {
 
 // Conversion functions between WASM types and sdk-core types.
 
-fn convert_verifier_config(config: VerifierConfig) -> CoreVerifierConfig {
+fn convert_verifier_config(config: VerifierConfig) -> Result<CoreVerifierConfig> {
     let mut builder = CoreVerifierConfig::builder()
         .max_sent_data(config.max_sent_data)
         .max_recv_data(config.max_recv_data);
@@ -74,7 +74,11 @@ fn convert_verifier_config(config: VerifierConfig) -> CoreVerifierConfig {
         builder = builder.max_recv_records_online(value);
     }
 
-    builder.build()
+    if let Some(root_certs) = config.root_certs {
+        builder = builder.root_certs(root_certs);
+    }
+
+    builder.build().map_err(|e| JsError::new(&e.to_string()))
 }
 
 fn convert_verifier_output(output: tlsn_sdk_core::VerifierOutput) -> VerifierOutput {
