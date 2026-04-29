@@ -30,7 +30,7 @@ use tlsn::{
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::ProverOutput,
     transcript::{ContentType, TranscriptCommitConfig},
-    verifier::VerifierOutput,
+    verifier::{VerifierCommitAccepted, VerifierOutput},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
     Session,
 };
@@ -308,15 +308,15 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let verifier = handle.new_verifier(verifier_config)?.commit().await?;
 
-    let mpc_tls_config = match verifier.request() {
-        TlsCommitRequest::Mpc(mpc_tls_config) => mpc_tls_config.clone(),
-        _ => {
-            verifier.reject(Some("expecting to use MPC-TLS")).await?;
-            return Err(anyhow::anyhow!("protocol configuration rejected"));
-        }
-    };
+    if !matches!(verifier.request(), TlsCommitRequest::Mpc(_)) {
+        verifier.reject(Some("expecting to use MPC-TLS")).await?;
+        return Err(anyhow::anyhow!("protocol configuration rejected"));
+    }
 
-    let verifier = verifier.accept(mpc_tls_config).await?.run().await?;
+    let VerifierCommitAccepted::Mpc(verifier) = verifier.accept().await? else {
+        return Err(anyhow::anyhow!("expected MPC-TLS commitment"));
+    };
+    let verifier = verifier.run().await?;
 
     let (
         VerifierOutput {

@@ -7,14 +7,14 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
         verifier::VerifierConfig,
     },
     connection::{DnsName, ServerName},
     hash::HashAlgId,
     prover::{Prover, TlsConnection, state},
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
-    verifier::VerifierOutput,
+    verifier::{VerifierCommitAccepted, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -193,21 +193,12 @@ async fn verifier(provider: &IoProvider) {
 
     let verifier = verifier.commit().await.unwrap();
 
-    let verifier = match verifier.request().clone() {
-        TlsCommitRequest::Mpc(config) => {
-            verifier.accept(config).await.unwrap().run().await.unwrap()
-        }
-        TlsCommitRequest::Proxy(config) => {
+    let verifier = match verifier.accept().await.unwrap() {
+        VerifierCommitAccepted::Mpc(verifier) => verifier.run().await.unwrap(),
+        VerifierCommitAccepted::Proxy(verifier) => {
             let server_io = provider.provide_server_io().await.unwrap();
-            verifier
-                .accept(config)
-                .await
-                .unwrap()
-                .run(server_io)
-                .await
-                .unwrap()
+            verifier.run(server_io).await.unwrap()
         }
-        _ => panic!("unsupported protocol mode"),
     };
 
     let (

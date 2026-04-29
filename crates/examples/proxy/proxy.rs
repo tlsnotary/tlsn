@@ -17,12 +17,12 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{proxy::ProxyTlsConfig, TlsCommitConfig, TlsCommitRequest},
+        tls_commit::{proxy::ProxyTlsConfig, TlsCommitConfig},
         verifier::VerifierConfig,
     },
     connection::{DnsName, ServerName},
     transcript::PartialTranscript,
-    verifier::VerifierOutput,
+    verifier::{VerifierCommitAccepted, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
     Session,
 };
@@ -211,25 +211,18 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // The verifier can inspect the protocol configuration requested by the prover
     // and decide what he wants to do. Here we decide to support both, requests
     // for mpc mode and proxy mode.
-    let verifier = match verifier.request().clone() {
-        TlsCommitRequest::Mpc(mpc_tls_config) => {
-            verifier.accept(mpc_tls_config).await?.run().await?
-        }
-        TlsCommitRequest::Proxy(proxy_tls_config) => {
+    let verifier = match verifier.accept().await? {
+        VerifierCommitAccepted::Mpc(verifier) => verifier.run().await?,
+        VerifierCommitAccepted::Proxy(verifier) => {
             // In proxy mode, the verifier needs to connect to the server and set up
             // sockets to forward traffic between the prover and the server.
-            let _server_name = proxy_tls_config.server_name();
+            //
             // In a real-world scenario, the verifier would resolve the server name
-            // to obtain the server address, but since this is an example we use the fixed
-            // `server_addr`.
+            // to obtain the server address, but since this is an example we use the
+            // fixed `server_addr`.
             let client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
-            verifier
-                .accept(proxy_tls_config)
-                .await?
-                .run(client_socket.compat())
-                .await?
+            verifier.run(client_socket.compat()).await?
         }
-        _ => panic!("unknown protocol configuration"),
     };
 
     // Validate the proving request and then verify.

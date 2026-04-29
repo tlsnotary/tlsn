@@ -12,7 +12,7 @@ use tlsn::{
     connection::ServerName,
     hash::HashAlgId,
     transcript::{Direction, PartialTranscript},
-    verifier::VerifierOutput,
+    verifier::{VerifierCommitAccepted, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
     Session,
 };
@@ -48,20 +48,17 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
-    let mpc_tls_config = match verifier.request() {
-        TlsCommitRequest::Mpc(mpc_tls_config) => mpc_tls_config.clone(),
-        _ => {
-            verifier.reject(Some("expecting to use MPC-TLS")).await?;
-            return Err(anyhow::anyhow!("protocol configuration rejected"));
+    let reject = match verifier.request() {
+        TlsCommitRequest::Mpc(mpc_tls_config) => {
+            if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
+                Some("max_sent_data is too large")
+            } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
+                Some("max_recv_data is too large")
+            } else {
+                None
+            }
         }
-    };
-
-    let reject = if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
-        Some("max_sent_data is too large")
-    } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
-        Some("max_recv_data is too large")
-    } else {
-        None
+        _ => Some("expecting to use MPC-TLS"),
     };
 
     if reject.is_some() {
@@ -70,7 +67,10 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     }
 
     // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept(mpc_tls_config).await?.run().await?;
+    let VerifierCommitAccepted::Mpc(verifier) = verifier.accept().await? else {
+        return Err(anyhow::anyhow!("expected MPC-TLS commitment"));
+    };
+    let verifier = verifier.run().await?;
 
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;

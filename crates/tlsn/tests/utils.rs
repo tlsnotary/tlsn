@@ -5,18 +5,13 @@ use tlsn::{
     config::{
         prove::ProveConfig,
         tls::TlsClientConfig,
-        tls_commit::{
-            TlsCommitConfig,
-            TlsCommitRequest::{Mpc, Proxy},
-            mpc::MpcTlsConfig,
-            proxy::ProxyTlsConfig,
-        },
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     },
     connection::ServerName,
     hash::HashAlgId,
     prover::Prover,
     transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitmentKind},
-    verifier::Verifier,
+    verifier::{Verifier, VerifierCommitAccepted},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_core::{ProverOutput, VerifierOutput};
@@ -137,21 +132,13 @@ pub async fn run_verifier(
     server_socket: Option<tokio::io::DuplexStream>,
 ) -> VerifierOutput {
     let verifier = verifier.commit().await.unwrap();
-    let config = verifier.request().clone();
 
-    let verifier = match config {
-        Mpc(config) => verifier.accept(config).await.unwrap().run().await.unwrap(),
-        Proxy(config) => {
+    let verifier = match verifier.accept().await.unwrap() {
+        VerifierCommitAccepted::Mpc(verifier) => verifier.run().await.unwrap(),
+        VerifierCommitAccepted::Proxy(verifier) => {
             let socket = server_socket.unwrap();
-            verifier
-                .accept(config)
-                .await
-                .unwrap()
-                .run(socket.compat())
-                .await
-                .unwrap()
+            verifier.run(socket.compat()).await.unwrap()
         }
-        _ => panic!("unsupported protocol mode"),
     };
 
     let (output, verifier) = verifier.verify().await.unwrap().accept().await.unwrap();

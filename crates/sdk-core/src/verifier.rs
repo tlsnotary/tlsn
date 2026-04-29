@@ -4,7 +4,7 @@ use tlsn::{
     config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig, TlsCommitRequest},
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
-    verifier::{state, Verifier},
+    verifier::{state, Verifier, VerifierCommitAccepted},
     webpki::RootCertStore,
     Session, SessionHandle,
 };
@@ -136,7 +136,7 @@ impl SdkVerifier {
             .await
             .map_err(|e| SdkError::protocol(e.to_string()))?;
 
-        match verifier.request().clone() {
+        let server_name = match verifier.request() {
             TlsCommitRequest::Mpc(mpc_tls_config) => {
                 let reject = if mpc_tls_config.max_sent_data() > self.config.max_sent_data {
                     Some("max_sent_data is too large")
@@ -160,37 +160,36 @@ impl SdkVerifier {
                     return Err(SdkError::protocol("protocol configuration rejected"));
                 }
 
-                let verifier = verifier
-                    .accept(mpc_tls_config)
-                    .await
-                    .map_err(|e| SdkError::protocol(e.to_string()))?;
-
-                self.state = State::AcceptedMpc { verifier, handle };
-
-                Ok(None)
+                None
             }
             TlsCommitRequest::Proxy(proxy_tls_config) => {
-                let server_name = proxy_tls_config.server_name().to_string();
-
-                let verifier = verifier
-                    .accept(proxy_tls_config)
-                    .await
-                    .map_err(|e| SdkError::protocol(e.to_string()))?;
-
-                self.state = State::AcceptedProxy {
-                    verifier,
-                    handle,
-                    server_socket: None,
-                };
-
-                Ok(Some(server_name))
+                Some(proxy_tls_config.server_name().to_string())
             }
             _ => {
                 verifier
                     .reject(Some("unsupported protocol configuration"))
                     .await
                     .map_err(|e| SdkError::protocol(e.to_string()))?;
-                Err(SdkError::protocol("unsupported protocol configuration"))
+                return Err(SdkError::protocol("unsupported protocol configuration"));
+            }
+        };
+
+        match verifier
+            .accept()
+            .await
+            .map_err(|e| SdkError::protocol(e.to_string()))?
+        {
+            VerifierCommitAccepted::Mpc(verifier) => {
+                self.state = State::AcceptedMpc { verifier, handle };
+                Ok(None)
+            }
+            VerifierCommitAccepted::Proxy(verifier) => {
+                self.state = State::AcceptedProxy {
+                    verifier,
+                    handle,
+                    server_socket: None,
+                };
+                Ok(server_name)
             }
         }
     }
