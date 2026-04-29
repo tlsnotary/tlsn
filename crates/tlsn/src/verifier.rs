@@ -6,7 +6,7 @@ mod verify;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Error, PROXY_STREAM_PREFIX, ProtocolConfig, Result,
+    Error, PROXY_STREAM_PREFIX, Result,
     deps::{ProtocolDeps, VerifierMpcDeps, VerifierProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
@@ -112,6 +112,14 @@ impl Verifier<state::Initialized> {
     }
 }
 
+/// Commit accepted verifiers for different protocols.
+pub enum VerifierCommitAccepted {
+    /// Verifier for MPC protocol.
+    Mpc(Verifier<state::CommitAccepted<MpcTlsConfig>>),
+    /// Verifier for Proxy protocol.
+    Proxy(Verifier<state::CommitAccepted<ProxyTlsConfig>>),
+}
+
 impl Verifier<state::CommitStart> {
     /// Returns the TLS commitment request.
     pub fn request(&self) -> &TlsCommitRequest {
@@ -120,10 +128,7 @@ impl Verifier<state::CommitStart> {
 
     /// Accepts the proposed protocol configuration.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept<P: ProtocolConfig>(
-        mut self,
-        config: P,
-    ) -> Result<Verifier<state::CommitAccepted<P>>> {
+    pub async fn accept(mut self) -> Result<VerifierCommitAccepted> {
         let mut ctx = self
             .ctx
             .take()
@@ -135,18 +140,39 @@ impl Verifier<state::CommitStart> {
                 .with_source(e)
         })?;
 
-        let mut deps = P::VerifierDeps::new(&config, ctx);
-        deps.setup().await?;
+        match self.request() {
+            TlsCommitRequest::Mpc(config) => {
+                let mut deps = VerifierMpcDeps::new(config, ctx);
+                deps.setup().await?;
 
-        debug!("setup complete");
+                debug!("setup complete");
 
-        Ok(Verifier {
-            config: self.config,
-            span: self.span,
-            ctx: None,
-            mux_handle: self.mux_handle,
-            state: state::CommitAccepted { deps },
-        })
+                let verifier = Verifier {
+                    config: self.config,
+                    span: self.span,
+                    ctx: None,
+                    mux_handle: self.mux_handle,
+                    state: state::CommitAccepted { deps },
+                };
+                Ok(VerifierCommitAccepted::Mpc(verifier))
+            }
+            TlsCommitRequest::Proxy(config) => {
+                let mut deps = VerifierProxyDeps::new(config, ctx);
+                deps.setup().await?;
+
+                debug!("setup complete");
+
+                let verifier = Verifier {
+                    config: self.config,
+                    span: self.span,
+                    ctx: None,
+                    mux_handle: self.mux_handle,
+                    state: state::CommitAccepted { deps },
+                };
+                Ok(VerifierCommitAccepted::Proxy(verifier))
+            }
+            _ => Err(Error::config().with_msg("unsupported protocol request")),
+        }
     }
 
     /// Rejects the proposed protocol configuration.
