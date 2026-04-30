@@ -2,7 +2,7 @@
 
 use const_oid::db::rfc5912;
 use rustls_pki_types as pki_types;
-use spki::der::{oid::ObjectIdentifier, Decode};
+use spki::der::{Decode, oid::ObjectIdentifier};
 
 use crate::{
     connection::{
@@ -189,7 +189,7 @@ impl TlsTranscript {
                 typ => {
                     return Err(TlsTranscriptError::validation(format!(
                         "sent unexpected record content type: {typ:?}"
-                    )))
+                    )));
                 }
             }
         }
@@ -222,7 +222,7 @@ impl TlsTranscript {
                 typ => {
                     return Err(TlsTranscriptError::validation(format!(
                         "received unexpected record content type: {typ:?}"
-                    )))
+                    )));
                 }
             }
         }

@@ -8,23 +8,24 @@ use anyhow::Result;
 use clap::Parser;
 use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use http_body_util::Empty;
-use hyper::{body::Bytes, Request, StatusCode};
+use hyper::{Request, StatusCode, body::Bytes};
 use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::info;
 
 use tlsn::{
+    Session,
     attestation::{
+        Attestation, AttestationConfig, CryptoProvider,
         request::{Request as AttestationRequest, RequestConfig},
         signing::Secp256k1Signer,
-        Attestation, AttestationConfig, CryptoProvider,
     },
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig, TlsCommitRequest},
+        tls_commit::{TlsCommitConfig, TlsCommitRequest, mpc::MpcTlsConfig},
         verifier::VerifierConfig,
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
@@ -32,7 +33,6 @@ use tlsn::{
     transcript::{ContentType, TranscriptCommitConfig},
     verifier::{VerifierCommitAccepted, VerifierOutput},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
-    Session,
 };
 use tlsn_examples::ExampleType;
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};

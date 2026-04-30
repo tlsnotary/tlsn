@@ -7,7 +7,7 @@ use super::types::ZKProofBundle;
 use anyhow::Result;
 use chrono::{Datelike, Local, NaiveDate};
 use http_body_util::Empty;
-use hyper::{body::Bytes, header, Request, StatusCode, Uri};
+use hyper::{Request, StatusCode, Uri, body::Bytes, header};
 use hyper_util::rt::TokioIo;
 use k256::sha2::{Digest, Sha256};
 use noir::{
@@ -24,22 +24,22 @@ use spansy::{
 };
 use tls_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn::{
+    Session,
     config::{
         prove::{ProveConfig, ProveConfigBuilder},
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, TlsCommitConfig},
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
     },
     connection::ServerName,
     hash::HashAlgId,
     rangeset::iter::{IntoRangeIterator, RangeIterator},
     transcript::{
-        hash::{PlaintextHash, PlaintextHashSecret},
         Direction, TranscriptCommitConfig, TranscriptCommitConfigBuilder, TranscriptCommitmentKind,
         TranscriptSecret,
+        hash::{PlaintextHash, PlaintextHashSecret},
     },
     webpki::{CertificateDer, RootCertStore},
-    Session,
 };
 
 use futures::io::AsyncWriteExt as _;

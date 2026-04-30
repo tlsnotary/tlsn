@@ -21,8 +21,8 @@ pub use leader::MpcTlsLeader;
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Array,
+    binary::{Binary, U8},
 };
 use mpz_vm_core::Vm as VmTrait;
 

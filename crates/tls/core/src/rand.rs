@@ -1,5 +1,5 @@
-use crate::{msgs::codec, Error};
-use rand::{rng, Rng};
+use crate::{Error, msgs::codec};
+use rand::{Rng, rng};
 
 /// Fill the whole slice with random material.
 pub fn fill_random(bytes: &mut [u8]) -> Result<(), Error> {

@@ -1,9 +1,9 @@
 use crate::{
     error::Error,
-    kx::{SupportedKxGroup, ALL_KX_GROUPS},
+    kx::{ALL_KX_GROUPS, SupportedKxGroup},
 };
 use tls_core::{
-    suites::{SupportedCipherSuite, DEFAULT_CIPHER_SUITES},
+    suites::{DEFAULT_CIPHER_SUITES, SupportedCipherSuite},
     versions,
 };
 

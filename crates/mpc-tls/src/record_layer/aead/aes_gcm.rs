@@ -1,26 +1,26 @@
 use std::{future::Future, sync::Arc};
 
-use cipher::{aes::Aes128, Cipher, CtrBlock, Keystream};
+use cipher::{Cipher, CtrBlock, Keystream, aes::Aes128};
 use mpz_common::{Context, Flush};
 use mpz_fields::gf2_128::Gf2_128;
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Vector,
+    binary::{Binary, U8},
 };
 use mpz_share_conversion::ShareConvert;
-use mpz_vm_core::{prelude::*, Vm};
+use mpz_vm_core::{Vm, prelude::*};
 use tracing::instrument;
 
 use crate::{
+    Role,
     decode::OneTimePadShared,
     record_layer::{
-        aead::{
-            ghash::{ComputeTagData, ComputeTags, Ghash, MpcGhash, VerifyTagData, VerifyTags},
-            AeadError, Block, Ctr, Nonce,
-        },
         TagData,
+        aead::{
+            AeadError, Block, Ctr, Nonce,
+            ghash::{ComputeTagData, ComputeTags, Ghash, MpcGhash, VerifyTagData, VerifyTags},
+        },
     },
-    Role,
 };
 
 const START_CTR: u32 = 2;
@@ -315,7 +315,7 @@ impl MpcAesGcm {
             _ => {
                 return Err(AeadError::state(
                     "must be in setup or ready state to return ghash key",
-                ))
+                ));
             }
         };
 
@@ -451,15 +451,15 @@ fn assign_j0(
 mod tests {
     use super::*;
     use aes_gcm::{
-        aead::{AeadInPlace, NewAead},
         Aes128Gcm,
+        aead::{AeadInPlace, NewAead},
     };
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
     use mpz_ideal_vm::IdealVm;
     use mpz_memory_core::binary::U8;
     use mpz_share_conversion::ideal::ideal_share_convert;
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
     use rstest::*;
 
     static SHORT_MSG: &[u8] = b"hello world";

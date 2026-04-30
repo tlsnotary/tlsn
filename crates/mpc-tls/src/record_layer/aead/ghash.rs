@@ -7,9 +7,9 @@ pub(crate) use verify::{VerifyTagData, VerifyTags};
 use std::{fmt::Debug, ops::Add};
 
 use async_trait::async_trait;
-use mpz_common::{future::Output, Context, Flush};
+use mpz_common::{Context, Flush, future::Output};
 use mpz_core::Block;
-use mpz_fields::{gf2_128::Gf2_128, Field};
+use mpz_fields::{Field, gf2_128::Gf2_128};
 use mpz_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use serde::{Deserialize, Serialize};
 
@@ -337,16 +337,16 @@ impl From<GhashError> for AeadError {
 mod tests {
     use super::*;
     use ghash_rc::{
-        universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
         GHash as GhashReference,
+        universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
     };
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
-    use mpz_fields::{gf2_128::Gf2_128, UniformRand};
+    use mpz_fields::{UniformRand, gf2_128::Gf2_128};
     use mpz_share_conversion::ideal::{
-        ideal_share_convert, IdealShareConvertReceiver, IdealShareConvertSender,
+        IdealShareConvertReceiver, IdealShareConvertSender, ideal_share_convert,
     };
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
 
     fn create_pair() -> (
         MpcGhash<IdealShareConvertSender<Gf2_128>>,

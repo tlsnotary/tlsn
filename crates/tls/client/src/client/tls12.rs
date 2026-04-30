@@ -4,8 +4,9 @@ use crate::log::{debug, trace};
 use crate::{
     check::{inappropriate_handshake_message, inappropriate_message},
     client::{
+        ClientConfig, ServerName,
         common::{ClientAuthDetails, ServerCertDetails},
-        hs, ClientConfig, ServerName,
+        hs,
     },
     conn::{CommonState, ConnectionRandoms, State},
     error::Error,
@@ -33,7 +34,7 @@ use tls_core::{
         },
         message::{Message, MessagePayload},
     },
-    suites::{tls12, SupportedCipherSuite, Tls12CipherSuite},
+    suites::{SupportedCipherSuite, Tls12CipherSuite, tls12},
 };
 
 pub(super) use server_hello::CompleteServerHelloHandling;
@@ -720,7 +721,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
             ) {
                 Ok(sig_verified) => sig_verified,
                 Err(e) => {
-                    return Err(hs::send_cert_error_alert(cx.common, Error::CoreError(e)).await?)
+                    return Err(hs::send_cert_error_alert(cx.common, Error::CoreError(e)).await?);
                 }
             }
         };

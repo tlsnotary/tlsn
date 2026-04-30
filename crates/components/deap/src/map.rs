@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use mpz_vm_core::{memory::Slice, VmError};
+use mpz_vm_core::{VmError, memory::Slice};
 use rangeset::ops::Set;
 
 /// A mapping between the memories of the MPC and ZK VMs.
@@ -23,10 +23,10 @@ impl MemoryMap {
 
         assert_eq!(mpc.len(), zk.len(), "slices must be the same length");
 
-        if let Some(last) = self.mpc.last() {
-            if last.end > mpc.start {
-                panic!("slices must be provided in ascending order");
-            }
+        if let Some(last) = self.mpc.last()
+            && last.end > mpc.start
+        {
+            panic!("slices must be provided in ascending order");
         }
 
         self.mpc.push(mpc);

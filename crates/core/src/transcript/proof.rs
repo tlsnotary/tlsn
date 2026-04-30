@@ -12,9 +12,9 @@ use crate::{
     display::FmtRangeSet,
     hash::{HashAlgId, HashProvider},
     transcript::{
-        commit::{TranscriptCommitment, TranscriptCommitmentKind},
-        hash::{hash_plaintext, PlaintextHash, PlaintextHashSecret},
         Direction, PartialTranscript, RangeSet, Transcript, TranscriptSecret,
+        commit::{TranscriptCommitment, TranscriptCommitmentKind},
+        hash::{PlaintextHash, PlaintextHashSecret, hash_plaintext},
     },
 };
 

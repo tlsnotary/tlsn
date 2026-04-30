@@ -1,11 +1,10 @@
 use crate::{
-    anchors,
+    NoKeyLog, anchors,
     builder::{ConfigBuilder, WantsVerifier},
-    client::{handy, ClientConfig, ResolvesClientCert},
+    client::{ClientConfig, ResolvesClientCert, handy},
     error::Error,
     kx::SupportedKxGroup,
     verify::{self, CertificateTransparencyPolicy},
-    NoKeyLog,
 };
 use std::sync::Arc;
 use tls_core::{key, suites::SupportedCipherSuite, versions};

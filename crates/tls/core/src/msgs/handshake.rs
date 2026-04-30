@@ -1,9 +1,9 @@
 use rustls_pki_types as pki_types;
 
 use crate::{
-    key,
+    Error, key,
     msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+        base::{Payload, PayloadU8, PayloadU16, PayloadU24},
         codec,
         codec::{Codec, Reader},
         enums::{
@@ -13,7 +13,7 @@ use crate::{
             SignatureScheme,
         },
     },
-    rand, Error,
+    rand,
 };
 
 #[cfg(feature = "logging")]
@@ -514,7 +514,7 @@ pub enum CertificateStatusRequest {
 impl Codec for CertificateStatusRequest {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match self {
-            Self::OCSP(ref r) => r.encode(bytes),
+            Self::OCSP(r) => r.encode(bytes),
             Self::Unknown((typ, payload)) => {
                 typ.encode(bytes);
                 payload.encode(bytes);
@@ -689,11 +689,7 @@ impl Codec for ClientExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -833,11 +829,7 @@ impl Codec for ServerExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1030,7 +1022,7 @@ impl ClientHelloPayload {
 
     pub fn set_psk_binder(&mut self, binder: impl Into<Vec<u8>>) {
         let last_extension = self.extensions.last_mut();
-        if let Some(ClientExtension::PresharedKey(ref mut offer)) = last_extension {
+        if let Some(ClientExtension::PresharedKey(offer)) = last_extension {
             offer.binders[0] = PresharedKeyBinder::new(binder.into());
         }
     }
@@ -1094,11 +1086,7 @@ impl Codec for HelloRetryExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1230,11 +1218,7 @@ impl Codec for ServerHelloPayload {
             extensions,
         };
 
-        if r.any_left() {
-            None
-        } else {
-            Some(ret)
-        }
+        if r.any_left() { None } else { Some(ret) }
     }
 }
 
@@ -1376,11 +1360,7 @@ impl Codec for CertificateExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1849,11 +1829,7 @@ impl Codec for CertReqExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1977,11 +1953,7 @@ impl Codec for NewSessionTicketExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -2291,7 +2263,7 @@ impl HandshakeMessagePayload {
 
         let binder_len = match self.payload {
             HandshakePayload::ClientHello(ref ch) => match ch.extensions.last() {
-                Some(ClientExtension::PresharedKey(ref offer)) => {
+                Some(ClientExtension::PresharedKey(offer)) => {
                     let mut binders_encoding = Vec::new();
                     offer.binders.encode(&mut binders_encoding);
                     binders_encoding.len()

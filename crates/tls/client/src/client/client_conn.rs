@@ -4,11 +4,12 @@ use super::hs;
 #[cfg(feature = "logging")]
 use crate::log::trace;
 use crate::{
+    Backend, KeyLog,
     builder::{ConfigBuilder, WantsCipherSuites},
     conn::{CommonState, ConnectionCommon, Protocol, Side, State},
     error::Error,
     kx::SupportedKxGroup,
-    sign, verify, Backend, KeyLog,
+    sign, verify,
 };
 use std::{
     convert::TryFrom,

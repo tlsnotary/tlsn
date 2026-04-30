@@ -7,7 +7,7 @@ pub use config::ProverConfig;
 use tlsn_sdk_core::{
     NetworkSetting as CoreNetworkSetting, ProverConfig as CoreProverConfig, ProverMode, SdkProver,
 };
-use wasm_bindgen::{prelude::*, JsError};
+use wasm_bindgen::{JsError, prelude::*};
 
 use crate::{
     io::{JsIo, JsIoAdapter},
@@ -103,11 +103,11 @@ impl JsProver {
                     .await
             }
             (ProverMode::Mpc, None) => {
-                return Err(JsError::new("server_io is required in MPC mode"))
+                return Err(JsError::new("server_io is required in MPC mode"));
             }
             (ProverMode::Proxy, None) => self.inner.send_request_proxy(core_request).await,
             (ProverMode::Proxy, Some(_)) => {
-                return Err(JsError::new("server_io must not be provided in proxy mode"))
+                return Err(JsError::new("server_io must not be provided in proxy mode"));
             }
         }
         .map_err(|e| JsError::new(&e.to_string()))?;

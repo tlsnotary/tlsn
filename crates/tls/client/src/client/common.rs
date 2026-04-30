@@ -1,7 +1,7 @@
 use super::ResolvesClientCert;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
-use crate::{sign, DistinguishedNames, SignatureScheme};
+use crate::{DistinguishedNames, SignatureScheme, sign};
 use std::sync::Arc;
 pub use tls_core::cert::ServerCertDetails;
 use tls_core::msgs::{

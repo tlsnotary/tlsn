@@ -4,12 +4,12 @@
 // etc. because it's unstable at the time of writing.
 
 use rustls::{
+    ClientConfig, ClientConnection, ConnectionCommon, RootCertStore, ServerConfig,
+    ServerConnection, SideData, Ticketer,
     client::{ClientSessionMemoryCache, NoClientSessionStorage},
     server::{
         AllowAnyAuthenticatedClient, NoClientAuth, NoServerSessionStorage, ServerSessionMemoryCache,
     },
-    ClientConfig, ClientConnection, ConnectionCommon, RootCertStore, ServerConfig,
-    ServerConnection, SideData, Ticketer,
 };
 use std::{
     convert::TryInto,

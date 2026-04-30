@@ -1,13 +1,13 @@
 use crate::{
-    msg::{Message, StartHandshake},
-    record_layer::{aead::MpcAesGcm, RecordLayer},
     Config, MpcTlsError, Role, SessionKeys, Vm,
+    msg::{Message, StartHandshake},
+    record_layer::{RecordLayer, aead::MpcAesGcm},
 };
 use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
-use mpz_core::{bitvec::BitVec, Block};
+use mpz_core::{Block, bitvec::BitVec};
 use mpz_memory_core::{DecodeFutureTyped, MemoryExt};
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
 use mpz_ot::{

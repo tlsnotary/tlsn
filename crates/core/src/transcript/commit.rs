@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hash::HashAlgId,
     transcript::{
-        hash::{PlaintextHash, PlaintextHashSecret},
         Direction, RangeSet, Transcript,
+        hash::{PlaintextHash, PlaintextHashSecret},
     },
 };
 

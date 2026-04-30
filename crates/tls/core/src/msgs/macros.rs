@@ -4,7 +4,7 @@ macro_rules! enum_builder {
     $(#[$comment:meta])*
     @U8
         EnumName: $enum_name: ident;
-        EnumVal { $( $enum_var: ident => $enum_val: expr ),* }
+        EnumVal { $( $enum_var: ident => $enum_val: expr_2021 ),* }
     ) => {
         $(#[$comment])*
         #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -44,7 +44,7 @@ macro_rules! enum_builder {
     $(#[$comment:meta])*
     @U16
         EnumName: $enum_name: ident;
-        EnumVal { $( $enum_var: ident => $enum_val: expr ),* }
+        EnumVal { $( $enum_var: ident => $enum_val: expr_2021 ),* }
     ) => {
         $(#[$comment])*
         #[derive(Debug, PartialEq, Eq, Clone, Copy)]

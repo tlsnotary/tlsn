@@ -1,12 +1,12 @@
 //! SDK Verifier implementation.
 
 use tlsn::{
-    config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig, TlsCommitRequest},
+    Session, SessionHandle,
+    config::tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
-    verifier::{state, Verifier, VerifierCommitAccepted},
+    verifier::{Verifier, VerifierCommitAccepted, state},
     webpki::RootCertStore,
-    Session, SessionHandle,
 };
 use tracing::info;
 

@@ -5,7 +5,7 @@ use crate::{MpcKeyExchange, Role};
 use mpz_core::Block;
 use mpz_fields::p256::P256;
 use mpz_share_conversion::ideal::{
-    ideal_share_convert, IdealShareConvertReceiver, IdealShareConvertSender,
+    IdealShareConvertReceiver, IdealShareConvertSender, ideal_share_convert,
 };
 
 /// A mock key exchange instance.

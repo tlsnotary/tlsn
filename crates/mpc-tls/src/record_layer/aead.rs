@@ -2,10 +2,10 @@ mod aes_gcm;
 mod ghash;
 
 pub(crate) use aes_gcm::MpcAesGcm;
-use cipher::{aes::AesError, CipherError};
+use cipher::{CipherError, aes::AesError};
 pub(crate) use ghash::{ComputeTags, VerifyTags};
 
-use mpz_memory_core::{binary::U8, Array};
+use mpz_memory_core::{Array, binary::U8};
 use mpz_vm_core::VmError;
 
 type Nonce = Array<U8, 8>;

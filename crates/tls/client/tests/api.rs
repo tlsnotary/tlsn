@@ -9,19 +9,19 @@ use std::{
     mem,
     ops::{Deref, DerefMut},
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
 use tls_client::{
-    client::ResolvesClientCert, sign, CipherSuite, ClientConfig, ClientConnection, Error, KeyLog,
-    ProtocolVersion, RustCryptoBackend, SignatureScheme, SupportedCipherSuite, ALL_CIPHER_SUITES,
+    ALL_CIPHER_SUITES, CipherSuite, ClientConfig, ClientConnection, Error, KeyLog, ProtocolVersion,
+    RustCryptoBackend, SignatureScheme, SupportedCipherSuite, client::ResolvesClientCert, sign,
 };
 
 use rustls::{
-    server::{ClientHello, ResolvesServerCert},
     ServerConfig, ServerConnection,
+    server::{ClientHello, ResolvesServerCert},
 };
 
 mod common;
@@ -557,14 +557,14 @@ impl ResolvesServerCert for ServerCheckCertResolve {
             assert_eq!(expected_sni, sni);
         }
 
-        if let Some(expected_sigalgs) = &self.expected_sigalgs {
-            if expected_sigalgs != client_hello.signature_schemes() {
-                panic!(
-                    "unexpected signature schemes (wanted {:?} got {:?})",
-                    self.expected_sigalgs,
-                    client_hello.signature_schemes()
-                );
-            }
+        if let Some(expected_sigalgs) = &self.expected_sigalgs
+            && expected_sigalgs != client_hello.signature_schemes()
+        {
+            panic!(
+                "unexpected signature schemes (wanted {:?} got {:?})",
+                self.expected_sigalgs,
+                client_hello.signature_schemes()
+            );
         }
 
         if let Some(expected_alpn) = &self.expected_alpn {
@@ -1915,8 +1915,8 @@ async fn servered_write_for_server_handshake_with_half_rtt_data() {
         assert!(wrlen > 4000); // its pretty big (contains cert chain)
         assert_eq!(pipe.writevs.len(), 1); // only one writev
         assert_eq!(pipe.writevs[0].len(), 8); // at least a server
-                                              // hello/ccs/cert/serverkx/0.5rtt
-                                              // data
+        // hello/ccs/cert/serverkx/0.5rtt
+        // data
     }
 
     client.process_new_packets().await.unwrap();
@@ -1950,7 +1950,7 @@ async fn check_half_rtt_does_not_work(server_config: ServerConfig) {
         assert!(wrlen > 4000); // its pretty big (contains cert chain)
         assert_eq!(pipe.writevs.len(), 1); // only one writev
         assert!(pipe.writevs[0].len() >= 6); // at least a server
-                                             // hello/ccs/cert/serverkx data
+        // hello/ccs/cert/serverkx data
     }
 
     // client second flight
@@ -2361,9 +2361,11 @@ async fn test_client_config_keyshare_mismatch() {
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::X25519]);
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
-    assert!(do_handshake_until_error(&mut client, &mut server)
-        .await
-        .is_err());
+    assert!(
+        do_handshake_until_error(&mut client, &mut server)
+            .await
+            .is_err()
+    );
 }
 
 #[ignore = "needs to be fixed"]
@@ -2421,7 +2423,7 @@ async fn test_client_sends_helloretryrequest() {
         assert!(wrlen > 200);
         assert_eq!(pipe.writevs.len(), 1);
         assert!(pipe.writevs[0].len() == 5); // server hello / encrypted exts /
-                                             // cert / cert-verify / finished
+        // cert / cert-verify / finished
     }
 
     do_handshake_until_error(&mut client, &mut server)
@@ -2534,9 +2536,11 @@ async fn test_server_mtu_reduction() {
         server.write_tls(&mut pipe).unwrap();
 
         assert_eq!(pipe.writevs.len(), 1);
-        assert!(pipe.writevs[0]
-            .iter()
-            .all(|x| *x <= 64 + encryption_overhead));
+        assert!(
+            pipe.writevs[0]
+                .iter()
+                .all(|x| *x <= 64 + encryption_overhead)
+        );
     }
 
     client.process_new_packets().await.unwrap();
@@ -2546,9 +2550,11 @@ async fn test_server_mtu_reduction() {
         let mut pipe = ClientSession::new(&mut client);
         server.write_tls(&mut pipe).unwrap();
         assert_eq!(pipe.writevs.len(), 1);
-        assert!(pipe.writevs[0]
-            .iter()
-            .all(|x| *x <= 64 + encryption_overhead));
+        assert!(
+            pipe.writevs[0]
+                .iter()
+                .all(|x| *x <= 64 + encryption_overhead)
+        );
     }
 
     client.process_new_packets().await.unwrap();

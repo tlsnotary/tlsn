@@ -1,19 +1,19 @@
 use crate::{
+    Config, Role, SessionKeys, Vm,
     error::MpcTlsError,
     msg::{
         ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetClientRandom,
         SetServerKey, SetServerRandom, StartHandshake,
     },
-    record_layer::{aead::MpcAesGcm, DecryptMode, EncryptMode, RecordLayer},
+    record_layer::{DecryptMode, EncryptMode, RecordLayer, aead::MpcAesGcm},
     utils::opaque_into_parts,
-    Config, Role, SessionKeys, Vm,
 };
 use async_trait::async_trait;
 use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
-use mpz_core::{bitvec::BitVec, Block};
+use mpz_core::{Block, bitvec::BitVec};
 use mpz_memory_core::DecodeFutureTyped;
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
 use mpz_ot::{
@@ -750,7 +750,7 @@ impl Backend for MpcTlsLeader {
                     "can not push incoming message in state: {}",
                     self.state
                 ))
-                .into())
+                .into());
             }
         };
 
@@ -807,7 +807,7 @@ impl Backend for MpcTlsLeader {
                     "can not pull next incoming message in state: {}",
                     self.state
                 ))
-                .into())
+                .into());
             }
         };
 
@@ -846,7 +846,7 @@ impl Backend for MpcTlsLeader {
                     "can not push outgoing message in state: {}",
                     self.state
                 ))
-                .into())
+                .into());
             }
         };
 
@@ -898,7 +898,7 @@ impl Backend for MpcTlsLeader {
                     "can not pull next outgoing message in state: {}",
                     self.state
                 ))
-                .into())
+                .into());
             }
         };
 
@@ -940,7 +940,7 @@ impl Backend for MpcTlsLeader {
                     "can not start traffic in state: {}",
                     self.state
                 ))
-                .into())
+                .into());
             }
         }
 
@@ -971,7 +971,7 @@ impl Backend for MpcTlsLeader {
                     "can not flush record layer in state: {}",
                     self.state
                 ))
-                .into())
+                .into());
             }
         };
 

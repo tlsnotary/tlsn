@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use futures::{AsyncRead, AsyncWrite};
-use rustls::{server::AllowAnyAuthenticatedClient, ServerConfig, ServerConnection};
+use rustls::{ServerConfig, ServerConnection, server::AllowAnyAuthenticatedClient};
 use rustls_pki_types::CertificateDer;
 use std::{
     convert::{TryFrom, TryInto},
@@ -9,19 +9,19 @@ use std::{
     sync::Arc,
 };
 use tls_client::{
+    Certificate, ClientConfig, ClientConnection, Error, PrivateKey, RootCertStore,
+    RustCryptoBackend,
     internal::msgs::{
         codec::Reader,
         message::{Message, OpaqueMessage, PlainMessage},
     },
-    Certificate, ClientConfig, ClientConnection, Error, PrivateKey, RootCertStore,
-    RustCryptoBackend,
 };
 use webpki::anchor_from_trusted_cert;
 
 macro_rules! embed_files {
     (
         $(
-            ($name:ident, $keytype:expr, $path:expr);
+            ($name:ident, $keytype:expr_2021, $path:expr_2021);
         )+
     ) => {
         $(

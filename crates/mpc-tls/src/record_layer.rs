@@ -11,8 +11,8 @@ use aead::MpcAesGcm;
 use futures::TryFutureExt;
 use mpz_common::{Context, Task};
 use mpz_memory_core::{
-    binary::{Binary, U8},
     Array,
+    binary::{Binary, U8},
 };
 use mpz_vm_core::Vm as VmTrait;
 use rand::RngCore;
@@ -26,8 +26,8 @@ use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use crate::{
-    record_layer::{aes_gcm::AesGcm, decrypt::DecryptOp, encrypt::EncryptOp},
     MpcTlsError, Role, Vm,
+    record_layer::{aes_gcm::AesGcm, decrypt::DecryptOp, encrypt::EncryptOp},
 };
 pub(crate) use decrypt::DecryptMode;
 pub(crate) use encrypt::EncryptMode;
@@ -330,7 +330,9 @@ impl RecordLayer {
         } else if self.recv + ciphertext.len() > self.max_recv {
             return Err(MpcTlsError::record_layer(format!(
                 "attempted to receive more data than was configured, increase `max_recv` in the config: current={}, additional={}, max={}",
-                self.recv, ciphertext.len(), self.max_recv
+                self.recv,
+                ciphertext.len(),
+                self.max_recv
             )));
         }
 

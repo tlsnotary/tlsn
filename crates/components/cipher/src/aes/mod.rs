@@ -4,7 +4,7 @@ use crate::{Cipher, CtrBlock, Keystream};
 use async_trait::async_trait;
 use mpz_circuits::{AES128_KS, AES128_POST_KS};
 use mpz_memory_core::binary::{Binary, U8};
-use mpz_vm_core::{prelude::*, Call, Vm};
+use mpz_vm_core::{Call, Vm, prelude::*};
 use std::fmt::Debug;
 
 mod error;
@@ -208,8 +208,8 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_memory_core::{
-        binary::{Binary, U8},
         Array, MemoryExt, Vector, ViewExt,
+        binary::{Binary, U8},
     };
     use mpz_vm_core::{Execute, Vm};
 
@@ -221,21 +221,21 @@ mod tests {
         let start_counter = 3u32;
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let mut gen = IdealVm::new();
+        let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
 
-        let mut aes_gen = setup_ctr(key, iv, &mut gen);
+        let mut aes_gen = setup_ctr(key, iv, &mut gen_vm);
         let mut aes_ev = setup_ctr(key, iv, &mut ev);
 
         let msg = vec![42u8; 128];
 
-        let keystream_gen = aes_gen.alloc_keystream(&mut gen, msg.len()).unwrap();
+        let keystream_gen = aes_gen.alloc_keystream(&mut gen_vm, msg.len()).unwrap();
         let keystream_ev = aes_ev.alloc_keystream(&mut ev, msg.len()).unwrap();
 
-        let msg_ref_gen: Vector<U8> = gen.alloc_vec(msg.len()).unwrap();
-        gen.mark_public(msg_ref_gen).unwrap();
-        gen.assign(msg_ref_gen, msg.clone()).unwrap();
-        gen.commit(msg_ref_gen).unwrap();
+        let msg_ref_gen: Vector<U8> = gen_vm.alloc_vec(msg.len()).unwrap();
+        gen_vm.mark_public(msg_ref_gen).unwrap();
+        gen_vm.assign(msg_ref_gen, msg.clone()).unwrap();
+        gen_vm.commit(msg_ref_gen).unwrap();
 
         let msg_ref_ev: Vector<U8> = ev.alloc_vec(msg.len()).unwrap();
         ev.mark_public(msg_ref_ev).unwrap();
@@ -244,22 +244,24 @@ mod tests {
 
         let mut ctr = start_counter..;
         keystream_gen
-            .assign(&mut gen, nonce, move || ctr.next().unwrap().to_be_bytes())
+            .assign(&mut gen_vm, nonce, move || {
+                ctr.next().unwrap().to_be_bytes()
+            })
             .unwrap();
         let mut ctr = start_counter..;
         keystream_ev
             .assign(&mut ev, nonce, move || ctr.next().unwrap().to_be_bytes())
             .unwrap();
 
-        let cipher_out_gen = keystream_gen.apply(&mut gen, msg_ref_gen).unwrap();
+        let cipher_out_gen = keystream_gen.apply(&mut gen_vm, msg_ref_gen).unwrap();
         let cipher_out_ev = keystream_ev.apply(&mut ev, msg_ref_ev).unwrap();
 
         let (ct_gen, ct_ev) = tokio::try_join!(
             async {
-                let out = gen.decode(cipher_out_gen).unwrap();
-                gen.flush(&mut ctx_a).await.unwrap();
-                gen.execute(&mut ctx_a).await.unwrap();
-                gen.flush(&mut ctx_a).await.unwrap();
+                let out = gen_vm.decode(cipher_out_gen).unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
+                gen_vm.execute(&mut ctx_a).await.unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
                 out.await
             },
             async {
@@ -284,31 +286,31 @@ mod tests {
         let input = [5_u8; 16];
 
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
-        let mut gen = IdealVm::new();
+        let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
 
-        let mut aes_gen = setup_block(key, &mut gen);
+        let mut aes_gen = setup_block(key, &mut gen_vm);
         let mut aes_ev = setup_block(key, &mut ev);
 
-        let block_ref_gen: Array<U8, 16> = gen.alloc().unwrap();
-        gen.mark_public(block_ref_gen).unwrap();
-        gen.assign(block_ref_gen, input).unwrap();
-        gen.commit(block_ref_gen).unwrap();
+        let block_ref_gen: Array<U8, 16> = gen_vm.alloc().unwrap();
+        gen_vm.mark_public(block_ref_gen).unwrap();
+        gen_vm.assign(block_ref_gen, input).unwrap();
+        gen_vm.commit(block_ref_gen).unwrap();
 
         let block_ref_ev: Array<U8, 16> = ev.alloc().unwrap();
         ev.mark_public(block_ref_ev).unwrap();
         ev.assign(block_ref_ev, input).unwrap();
         ev.commit(block_ref_ev).unwrap();
 
-        let block_gen = aes_gen.alloc_block(&mut gen, block_ref_gen).unwrap();
+        let block_gen = aes_gen.alloc_block(&mut gen_vm, block_ref_gen).unwrap();
         let block_ev = aes_ev.alloc_block(&mut ev, block_ref_ev).unwrap();
 
         let (ciphertext_gen, ciphetext_ev) = tokio::try_join!(
             async {
-                let out = gen.decode(block_gen).unwrap();
-                gen.flush(&mut ctx_a).await.unwrap();
-                gen.execute(&mut ctx_a).await.unwrap();
-                gen.flush(&mut ctx_a).await.unwrap();
+                let out = gen_vm.decode(block_gen).unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
+                gen_vm.execute(&mut ctx_a).await.unwrap();
+                gen_vm.flush(&mut ctx_a).await.unwrap();
                 out.await
             },
             async {

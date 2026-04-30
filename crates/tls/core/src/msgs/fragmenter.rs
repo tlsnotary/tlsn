@@ -1,10 +1,10 @@
 use crate::{
+    Error,
     msgs::{
         base::Payload,
         enums::{ContentType, ProtocolVersion},
         message::{BorrowedPlainMessage, PlainMessage},
     },
-    Error,
 };
 use std::collections::VecDeque;
 

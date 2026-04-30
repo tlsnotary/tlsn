@@ -8,7 +8,7 @@
 
 use crate::{KeyExchangeError, Role};
 use mpz_common::{Context, Flush};
-use mpz_fields::{p256::P256, Field};
+use mpz_fields::{Field, p256::P256};
 use mpz_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConvert};
 use p256::EncodedPoint;
 
@@ -100,13 +100,13 @@ mod tests {
 
     use mpz_common::context::test_st_context;
     use mpz_core::Block;
-    use mpz_fields::{p256::P256, Field};
+    use mpz_fields::{Field, p256::P256};
     use mpz_share_conversion::ideal::ideal_share_convert;
     use p256::{
-        elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
         EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
+        elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
     };
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_point_addition() {
