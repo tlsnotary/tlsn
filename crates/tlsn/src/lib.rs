@@ -99,7 +99,14 @@ pub(crate) struct TlsOutput {
 }
 
 /// Protocol variant.
-pub trait ProtocolConfig<R>: Clone + Into<TlsCommitRequest> + ProtocolDeps<R> {}
+// Sealed via `sealed::Sealed`; `ProtocolDeps<R>` is an intentionally crate-private
+// supertrait kept here so internal `T: ProtocolConfig<R>` bounds get `to_deps`/`setup`
+// for free.
+#[allow(private_bounds)]
+pub trait ProtocolConfig<R>:
+    Clone + Into<TlsCommitRequest> + ProtocolDeps<R> + sealed::Sealed
+{
+}
 
 impl ProtocolConfig<Prove> for MpcTlsConfig {}
 impl ProtocolConfig<Verify> for MpcTlsConfig {}
@@ -114,3 +121,10 @@ pub struct Prove;
 /// Marker type for verifier.
 #[derive(Debug, Clone, Copy)]
 pub struct Verify;
+
+mod sealed {
+    pub trait Sealed {}
+
+    impl Sealed for super::MpcTlsConfig {}
+    impl Sealed for super::ProxyTlsConfig {}
+}
