@@ -54,7 +54,6 @@ pub(crate) mod tag;
 pub(crate) mod transcript_internal;
 pub mod verifier;
 
-pub use deps::ProtocolDeps;
 pub use error::Error;
 pub use rangeset;
 pub use session::{Session, SessionDriver, SessionHandle};
@@ -65,7 +64,7 @@ pub use tlsn_mux::Stream;
 /// Result type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-use deps::{ProverMpcDeps, ProverProxyDeps, VerifierMpcDeps, VerifierProxyDeps};
+use crate::deps::ProtocolDeps;
 use mpc_tls::SessionKeys;
 use semver::Version;
 use std::sync::LazyLock;
@@ -100,27 +99,18 @@ pub(crate) struct TlsOutput {
 }
 
 /// Protocol variant.
-pub trait ProtocolConfig: Clone + Into<TlsCommitRequest> + sealed::Sealed {
-    /// Prover protocol dependencies.
-    type ProverDeps: ProtocolDeps<Config = Self>;
-    /// Verifier protocol dependencies.
-    type VerifierDeps: ProtocolDeps<Config = Self>;
-}
+pub trait ProtocolConfig<R>: Clone + Into<TlsCommitRequest> + ProtocolDeps<R> {}
 
-impl ProtocolConfig for MpcTlsConfig {
-    type ProverDeps = ProverMpcDeps;
-    type VerifierDeps = VerifierMpcDeps;
-}
+impl ProtocolConfig<Prove> for MpcTlsConfig {}
+impl ProtocolConfig<Verify> for MpcTlsConfig {}
 
-impl ProtocolConfig for ProxyTlsConfig {
-    type ProverDeps = ProverProxyDeps;
-    type VerifierDeps = VerifierProxyDeps;
-}
+impl ProtocolConfig<Prove> for ProxyTlsConfig {}
+impl ProtocolConfig<Verify> for ProxyTlsConfig {}
 
-mod sealed {
-    use super::{MpcTlsConfig, ProxyTlsConfig};
+/// Marker type for prover.
+#[derive(Debug, Clone, Copy)]
+pub struct Prove;
 
-    pub trait Sealed {}
-    impl Sealed for MpcTlsConfig {}
-    impl Sealed for ProxyTlsConfig {}
-}
+/// Marker type for verifier.
+#[derive(Debug, Clone, Copy)]
+pub struct Verify;
