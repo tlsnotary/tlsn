@@ -20,7 +20,7 @@ use tokio::sync::Mutex;
 use tracing::debug;
 
 use crate::{
-    Error,
+    Error, Prove,
     deps::{ProtocolDeps, build_mpc_tls_config, translate_keys},
     proxy::ProxyProver,
 };
@@ -38,16 +38,16 @@ pub(crate) type ProverZk =
 pub(crate) type ProverZk = mpz_ideal_vm::IdealVm;
 
 /// Protocol dependencies for MPC.
-pub struct ProverMpcDeps {
+pub(crate) struct ProverMpcDeps {
     pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
     pub(crate) mpc_tls: Box<MpcTlsLeader>,
     pub(crate) keys: Option<SessionKeys>,
 }
 
-impl ProtocolDeps for ProverMpcDeps {
-    type Config = MpcTlsConfig;
+impl ProtocolDeps<Prove> for MpcTlsConfig {
+    type Deps = ProverMpcDeps;
 
-    fn new(config: &MpcTlsConfig, ctx: Context) -> Self {
+    fn to_deps(&self, ctx: Context) -> Self::Deps {
         let mut rng = rand::rng();
         let delta = Delta::new(Block::random(&mut rng));
 
@@ -83,34 +83,34 @@ impl ProtocolDeps for ProverMpcDeps {
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
         let mpc_tls = MpcTlsLeader::new(
-            build_mpc_tls_config(config),
+            build_mpc_tls_config(self),
             ctx,
             vm.clone(),
             (rcot_send.clone(), rcot_send.clone(), rcot_send),
             rcot_recv,
         );
 
-        Self {
+        Self::Deps {
             vm,
             mpc_tls: Box::new(mpc_tls),
             keys: None,
         }
     }
 
-    async fn setup(&mut self) -> Result<(), Error> {
-        let mut keys = self.mpc_tls.alloc().map_err(|e| {
+    async fn setup(deps: &mut Self::Deps) -> Result<(), Error> {
+        let mut keys = deps.mpc_tls.alloc().map_err(|e| {
             Error::internal()
                 .with_msg("commitment protocol failed to allocate mpc-tls resources")
                 .with_source(e)
         })?;
-        let vm_lock = self.vm.try_lock().expect("VM is not locked");
+        let vm_lock = deps.vm.try_lock().expect("VM is not locked");
         translate_keys(&mut keys, &vm_lock);
-        self.keys = Some(keys);
+        deps.keys = Some(keys);
 
         drop(vm_lock);
 
         debug!("setting up mpc-tls");
-        self.mpc_tls.preprocess().await.map_err(|e| {
+        deps.mpc_tls.preprocess().await.map_err(|e| {
             Error::internal()
                 .with_msg("commitment protocol failed during mpc-tls preprocessing")
                 .with_source(e)
@@ -121,15 +121,15 @@ impl ProtocolDeps for ProverMpcDeps {
 }
 
 /// Protocol dependencies for Proxy.
-pub struct ProverProxyDeps {
+pub(crate) struct ProverProxyDeps {
     pub(crate) prover: Box<ProxyProver>,
     pub(crate) id: ThreadId,
 }
 
-impl ProtocolDeps for ProverProxyDeps {
-    type Config = ProxyTlsConfig;
+impl ProtocolDeps<Prove> for ProxyTlsConfig {
+    type Deps = ProverProxyDeps;
 
-    fn new(_config: &ProxyTlsConfig, ctx: Context) -> Self {
+    fn to_deps(&self, ctx: Context) -> Self::Deps {
         let mut rng = rand::rng();
 
         let base_ot_send = co::Sender::default();
@@ -152,17 +152,17 @@ impl ProtocolDeps for ProverProxyDeps {
         let id = ctx.id().to_owned();
         let prover = ProxyProver::new(vm, ctx);
 
-        Self {
+        Self::Deps {
             prover: Box::new(prover),
             id,
         }
     }
 
-    async fn setup(&mut self) -> Result<(), Error> {
-        self.prover.alloc()?;
+    async fn setup(deps: &mut Self::Deps) -> Result<(), Error> {
+        deps.prover.alloc()?;
 
         debug!("setting up proxy-tls");
-        self.prover.preprocess().await?;
+        deps.prover.preprocess().await?;
 
         Ok(())
     }

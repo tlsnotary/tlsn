@@ -6,7 +6,7 @@ mod verify;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Error, PROXY_STREAM_PREFIX, Result,
+    Error, PROXY_STREAM_PREFIX, Result, Verify,
     deps::{ProtocolDeps, VerifierMpcDeps, VerifierProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
@@ -158,8 +158,8 @@ impl Verifier<state::CommitStart<MpcTlsConfig>> {
                 .with_source(e)
         })?;
 
-        let mut deps = VerifierMpcDeps::new(&self.state.config, ctx);
-        deps.setup().await?;
+        let mut deps = <MpcTlsConfig as ProtocolDeps<Verify>>::to_deps(&self.state.config, ctx);
+        <MpcTlsConfig as ProtocolDeps<Verify>>::setup(&mut deps).await?;
 
         debug!("setup complete");
 
@@ -212,8 +212,8 @@ impl Verifier<state::CommitStart<ProxyTlsConfig>> {
                 .with_source(e)
         })?;
 
-        let mut deps = VerifierProxyDeps::new(&self.state.config, ctx);
-        deps.setup().await?;
+        let mut deps = <ProxyTlsConfig as ProtocolDeps<Verify>>::to_deps(&self.state.config, ctx);
+        <ProxyTlsConfig as ProtocolDeps<Verify>>::setup(&mut deps).await?;
 
         debug!("setup complete");
 

@@ -1,4 +1,4 @@
-use crate::{Error, ProtocolConfig};
+use crate::Error;
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
 use tlsn_core::config::tls_commit::mpc::{MpcTlsConfig, NetworkSetting};
@@ -11,20 +11,19 @@ mod verifier;
 pub(crate) use verifier::{VerifierMpcDeps, VerifierProxyDeps, VerifierZk};
 
 /// Trait for protocol dependencies.
-pub trait ProtocolDeps {
-    /// The associated protocol config.
-    type Config: ProtocolConfig;
+pub(crate) trait ProtocolDeps<R> {
+    /// The dependencies.
+    type Deps;
 
-    /// Creates a new protocol dependency.
+    /// Creates new protocol dependencies.
     ///
     /// # Arguments
     ///
-    /// * `config` - The protocol config.
     /// * `ctx` - The context.
-    fn new(config: &Self::Config, ctx: Context) -> Self;
+    fn to_deps(&self, ctx: Context) -> Self::Deps;
 
     /// Setup dependencies.
-    fn setup(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
+    fn setup(deps: &mut Self::Deps) -> impl Future<Output = Result<(), Error>> + Send;
 }
 
 fn build_mpc_tls_config(config: &MpcTlsConfig) -> mpc_tls::Config {

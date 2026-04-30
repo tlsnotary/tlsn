@@ -13,7 +13,7 @@ pub use future::ProverFuture;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Error, PROXY_STREAM_PREFIX, ProtocolConfig, Result, TlsOutput,
+    Error, PROXY_STREAM_PREFIX, ProtocolConfig, Prove, Result, TlsOutput,
     deps::{ProtocolDeps, ProverMpcDeps, ProverProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
@@ -94,7 +94,7 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit<P: ProtocolConfig>(
+    pub async fn commit<P: ProtocolConfig<Prove>>(
         mut self,
         config: P,
     ) -> Result<Prover<state::CommitAccepted<P>>> {
@@ -131,8 +131,8 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let mut deps = P::ProverDeps::new(&config, ctx);
-        deps.setup().await?;
+        let mut deps = <P as ProtocolDeps<Prove>>::to_deps(&config, ctx);
+        <P as ProtocolDeps<Prove>>::setup(&mut deps).await?;
 
         debug!("setup complete");
 
