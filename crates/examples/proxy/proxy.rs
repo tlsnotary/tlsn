@@ -6,25 +6,22 @@ use std::{
 
 use anyhow::Result;
 use http_body_util::Empty;
-use hyper::{body::Bytes, Request, StatusCode, Uri};
+use hyper::{Request, StatusCode, Uri, body::Bytes};
 use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 use tlsn::{
+    Session,
     config::{
-        prove::ProveConfig,
-        prover::ProverConfig,
-        tls::TlsClientConfig,
-        tls_commit::{proxy::ProxyTlsConfig, TlsCommitConfig},
-        verifier::VerifierConfig,
+        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig,
+        tls_commit::proxy::ProxyTlsConfig, verifier::VerifierConfig,
     },
     connection::{DnsName, ServerName},
     transcript::PartialTranscript,
-    verifier::{VerifierCommitAccepted, VerifierOutput},
+    verifier::{VerifierCommitStart, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
-    Session,
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -86,12 +83,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prover = handle
         .new_prover(ProverConfig::builder().build()?)?
         .commit(
-            TlsCommitConfig::builder()
-                .protocol(
-                    ProxyTlsConfig::builder()
-                        .server_name(DnsName::try_from(server_domain)?)
-                        .build()?,
-                )
+            ProxyTlsConfig::builder()
+                .server_name(DnsName::try_from(server_domain)?)
                 .build()?,
         )
         .await?;
@@ -202,8 +195,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let verifier = handle.new_verifier(verifier_config)?;
 
     // Validate the proposed configuration and then accept it.
-    let verifier = verifier.commit().await?;
-
+    //
     // We match here explicitly (although we know that in this example the prover
     // sent a protocol config for proxy mode) to demonstrate dynamic protocol
     // execution.
@@ -211,9 +203,9 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // The verifier can inspect the protocol configuration requested by the prover
     // and decide what he wants to do. Here we decide to support both, requests
     // for mpc mode and proxy mode.
-    let verifier = match verifier.accept().await? {
-        VerifierCommitAccepted::Mpc(verifier) => verifier.run().await?,
-        VerifierCommitAccepted::Proxy(verifier) => {
+    let verifier = match verifier.commit().await? {
+        VerifierCommitStart::Mpc(verifier) => verifier.accept().await?.run().await?,
+        VerifierCommitStart::Proxy(verifier) => {
             // In proxy mode, the verifier needs to connect to the server and set up
             // sockets to forward traffic between the prover and the server.
             //
@@ -221,7 +213,7 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
             // to obtain the server address, but since this is an example we use the
             // fixed `server_addr`.
             let client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
-            verifier.run(client_socket.compat()).await?
+            verifier.accept().await?.run(client_socket.compat()).await?
         }
     };
 

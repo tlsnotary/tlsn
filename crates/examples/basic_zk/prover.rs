@@ -29,7 +29,7 @@ use tlsn::{
         prove::{ProveConfig, ProveConfigBuilder},
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+        tls_commit::mpc::MpcTlsConfig,
     },
     connection::ServerName,
     hash::HashAlgId,
@@ -76,18 +76,13 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prover = handle
         .new_prover(ProverConfig::builder().build()?)?
         .commit(
-            TlsCommitConfig::builder()
-                // Select the TLS commitment protocol.
-                .protocol(
-                    MpcTlsConfig::builder()
-                        // We must configure the amount of data we expect to exchange beforehand,
-                        // which will be preprocessed prior to the
-                        // connection. Reducing these limits will improve
-                        // performance.
-                        .max_sent_data(MAX_SENT_DATA)
-                        .max_recv_data(MAX_RECV_DATA)
-                        .build()?,
-                )
+            // We must configure the amount of data we expect to exchange beforehand,
+            // which will be preprocessed prior to the
+            // connection. Reducing these limits will improve
+            // performance.
+            MpcTlsConfig::builder()
+                .max_sent_data(MAX_SENT_DATA)
+                .max_recv_data(MAX_RECV_DATA)
                 .build()?,
         )
         .await?;

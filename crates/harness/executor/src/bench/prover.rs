@@ -10,7 +10,7 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     },
     connection::{DnsName, ServerName},
     webpki::{CertificateDer, RootCertStore},
@@ -58,12 +58,8 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let downloaded_preprocess: u64;
 
     let mut prover = if config.proxy {
-        let commit_config = TlsCommitConfig::builder()
-            .protocol(
-                ProxyTlsConfig::builder()
-                    .server_name(DnsName::try_from(SERVER_DOMAIN)?)
-                    .build()?,
-            )
+        let commit_config = ProxyTlsConfig::builder()
+            .server_name(DnsName::try_from(SERVER_DOMAIN)?)
             .build()?;
         let prover = prover.commit(commit_config).await?;
 
@@ -88,21 +84,19 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
         )?;
         prover
     } else {
-        let commit_config = TlsCommitConfig::builder()
-            .protocol({
-                let mut builder = MpcTlsConfig::builder()
-                    .max_sent_data(config.upload_size)
-                    .defer_decryption_from_start(config.defer_decryption);
+        let commit_config = {
+            let mut builder = MpcTlsConfig::builder()
+                .max_sent_data(config.upload_size)
+                .defer_decryption_from_start(config.defer_decryption);
 
-                if !config.defer_decryption {
-                    builder = builder.max_recv_data_online(config.download_size + RECV_PADDING);
-                }
+            if !config.defer_decryption {
+                builder = builder.max_recv_data_online(config.download_size + RECV_PADDING);
+            }
 
-                builder
-                    .max_recv_data(config.download_size + RECV_PADDING)
-                    .build()
-            }?)
-            .build()?;
+            builder
+                .max_recv_data(config.download_size + RECV_PADDING)
+                .build()?
+        };
         let prover = prover.commit(commit_config).await?;
 
         time_preprocess = time_start.elapsed().as_millis();

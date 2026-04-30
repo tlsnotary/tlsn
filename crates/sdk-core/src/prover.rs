@@ -7,9 +7,9 @@ use tlsn::{
     config::{
         prove::ProveConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     },
-    connection::ServerName,
+    connection::{DnsName, ServerName},
     prover::{Prover, TlsConnection, state},
     webpki::{CertificateDer, PrivateKeyDer},
 };
@@ -121,14 +121,10 @@ impl SdkProver {
         let prover = handle.new_prover(prover_config)?;
 
         if self.config.mode == crate::config::ProverMode::Proxy {
-            let commit_config = TlsCommitConfig::builder()
-                .protocol(
-                    ProxyTlsConfig::builder()
-                        .server_name(
-                            DnsName::try_from(self.config.server_name.as_str())
-                                .map_err(|e| SdkError::config(e.to_string()))?,
-                        )
-                        .build()?,
+            let commit_config = ProxyTlsConfig::builder()
+                .server_name(
+                    DnsName::try_from(self.config.server_name.as_str())
+                        .map_err(|e| SdkError::config(e.to_string()))?,
                 )
                 .build()?;
 
@@ -139,31 +135,29 @@ impl SdkProver {
 
             self.state = State::CommitAcceptedProxy { prover, handle };
         } else {
-            let commit_config = TlsCommitConfig::builder()
-                .protocol({
-                    let mut builder = MpcTlsConfig::builder()
-                        .max_sent_data(self.config.max_sent_data)
-                        .max_recv_data(self.config.max_recv_data);
+            let commit_config = {
+                let mut builder = MpcTlsConfig::builder()
+                    .max_sent_data(self.config.max_sent_data)
+                    .max_recv_data(self.config.max_recv_data);
 
-                    if let Some(value) = self.config.max_recv_data_online {
-                        builder = builder.max_recv_data_online(value);
-                    }
+                if let Some(value) = self.config.max_recv_data_online {
+                    builder = builder.max_recv_data_online(value);
+                }
 
-                    if let Some(value) = self.config.max_sent_records {
-                        builder = builder.max_sent_records(value);
-                    }
+                if let Some(value) = self.config.max_sent_records {
+                    builder = builder.max_sent_records(value);
+                }
 
-                    if let Some(value) = self.config.max_recv_records_online {
-                        builder = builder.max_recv_records_online(value);
-                    }
+                if let Some(value) = self.config.max_recv_records_online {
+                    builder = builder.max_recv_records_online(value);
+                }
 
-                    if let Some(value) = self.config.defer_decryption_from_start {
-                        builder = builder.defer_decryption_from_start(value);
-                    }
+                if let Some(value) = self.config.defer_decryption_from_start {
+                    builder = builder.defer_decryption_from_start(value);
+                }
 
-                    builder.network(self.config.network.into()).build()
-                }?)
-                .build()?;
+                builder.network(self.config.network.into()).build()?
+            };
 
             let prover = prover
                 .commit(commit_config)

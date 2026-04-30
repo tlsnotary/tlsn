@@ -22,16 +22,13 @@ use tlsn::{
         signing::Secp256k1Signer,
     },
     config::{
-        prove::ProveConfig,
-        prover::ProverConfig,
-        tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
-        verifier::VerifierConfig,
+        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig,
+        tls_commit::mpc::MpcTlsConfig, verifier::VerifierConfig,
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::ProverOutput,
     transcript::{ContentType, TranscriptCommitConfig},
-    verifier::{VerifierCommitAccepted, VerifierOutput},
+    verifier::{VerifierCommitStart, VerifierOutput},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
 };
 use tlsn_examples::ExampleType;
@@ -92,18 +89,13 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let prover = handle
         .new_prover(ProverConfig::builder().build()?)?
         .commit(
-            TlsCommitConfig::builder()
-                // Select the TLS commitment protocol.
-                .protocol(
-                    MpcTlsConfig::builder()
-                        // We must configure the amount of data we expect to exchange beforehand,
-                        // which will be preprocessed prior to the
-                        // connection. Reducing these limits will improve
-                        // performance.
-                        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
-                        .max_recv_data(tlsn_examples::MAX_RECV_DATA)
-                        .build()?,
-                )
+            // We must configure the amount of data we expect to exchange beforehand,
+            // which will be preprocessed prior to the
+            // connection. Reducing these limits will improve
+            // performance.
+            MpcTlsConfig::builder()
+                .max_sent_data(tlsn_examples::MAX_SENT_DATA)
+                .max_recv_data(tlsn_examples::MAX_RECV_DATA)
                 .build()?,
         )
         .await?;
@@ -306,17 +298,13 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()
         .unwrap();
 
-    let verifier = handle.new_verifier(verifier_config)?.commit().await?;
-
-    if !matches!(verifier.request(), TlsCommitRequest::Mpc(_)) {
-        verifier.reject(Some("expecting to use MPC-TLS")).await?;
-        return Err(anyhow::anyhow!("protocol configuration rejected"));
-    }
-
-    let VerifierCommitAccepted::Mpc(verifier) = verifier.accept().await? else {
-        return Err(anyhow::anyhow!("expected MPC-TLS commitment"));
+    let verifier = match handle.new_verifier(verifier_config)?.commit().await? {
+        VerifierCommitStart::Mpc(verifier) => verifier.accept().await?.run().await?,
+        VerifierCommitStart::Proxy(verifier) => {
+            verifier.reject(Some("expecting to use MPC-TLS")).await?;
+            return Err(anyhow::anyhow!("protocol configuration rejected"));
+        }
     };
-    let verifier = verifier.run().await?;
 
     let (
         VerifierOutput {

@@ -7,14 +7,14 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
         verifier::VerifierConfig,
     },
     connection::{DnsName, ServerName},
     hash::HashAlgId,
     prover::{Prover, TlsConnection, state},
     transcript::{TranscriptCommitConfig, TranscriptCommitment, TranscriptCommitmentKind},
-    verifier::{VerifierCommitAccepted, VerifierOutput},
+    verifier::{VerifierCommitStart, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -43,15 +43,10 @@ async fn prover_mpc(provider: &IoProvider) {
 
     _ = spawn(session);
 
-    let commit_config = TlsCommitConfig::builder()
-        .protocol(
-            MpcTlsConfig::builder()
-                .max_sent_data(MAX_SENT_DATA)
-                .max_recv_data(MAX_RECV_DATA)
-                .defer_decryption_from_start(true)
-                .build()
-                .unwrap(),
-        )
+    let commit_config = MpcTlsConfig::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_recv_data(MAX_RECV_DATA)
+        .defer_decryption_from_start(true)
         .build()
         .unwrap();
 
@@ -79,13 +74,8 @@ async fn prover_proxy(provider: &IoProvider) {
 
     _ = spawn(session);
 
-    let commit_config = TlsCommitConfig::builder()
-        .protocol(
-            ProxyTlsConfig::builder()
-                .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
-                .build()
-                .unwrap(),
-        )
+    let commit_config = ProxyTlsConfig::builder()
+        .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
         .build()
         .unwrap();
 
@@ -191,13 +181,11 @@ async fn verifier(provider: &IoProvider) {
 
     _ = spawn(session);
 
-    let verifier = verifier.commit().await.unwrap();
-
-    let verifier = match verifier.accept().await.unwrap() {
-        VerifierCommitAccepted::Mpc(verifier) => verifier.run().await.unwrap(),
-        VerifierCommitAccepted::Proxy(verifier) => {
+    let verifier = match verifier.commit().await.unwrap() {
+        VerifierCommitStart::Mpc(verifier) => verifier.accept().await.unwrap().run().await.unwrap(),
+        VerifierCommitStart::Proxy(verifier) => {
             let server_io = provider.provide_server_io().await.unwrap();
-            verifier.run(server_io).await.unwrap()
+            verifier.accept().await.unwrap().run(server_io).await.unwrap()
         }
     };
 
