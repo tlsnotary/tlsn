@@ -6,35 +6,30 @@ use std::{
 
 use anyhow::Result;
 use http_body_util::Empty;
-use hyper::{Request, StatusCode, Uri, body::Bytes};
+use hyper::{body::Bytes, Request, StatusCode, Uri};
 use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
 
 use tlsn::{
-    Session,
     config::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, TlsCommitRequest, mpc::MpcTlsConfig},
+        tls_commit::{proxy::ProxyTlsConfig, TlsCommitConfig},
         verifier::VerifierConfig,
     },
-    connection::ServerName,
+    connection::{DnsName, ServerName},
     transcript::PartialTranscript,
     verifier::{VerifierCommitAccepted, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
+    Session,
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 
 const SECRET: &str = "TLSNotary's private key 🤡";
-
-// Maximum number of bytes that can be sent from prover to server.
-const MAX_SENT_DATA: usize = 1 << 12;
-// Maximum number of bytes that can be received by prover from server.
-const MAX_RECV_DATA: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
@@ -53,8 +48,9 @@ async fn main() {
 
     // Connect prover and verifier.
     let (prover_socket, verifier_socket) = tokio::io::duplex(1 << 23);
-    let prover = prover(prover_socket, &server_addr, &uri);
-    let verifier = verifier(verifier_socket);
+
+    let prover = prover(prover_socket, &uri);
+    let verifier = verifier(verifier_socket, server_addr);
     let (_, transcript) = tokio::try_join!(prover, verifier).unwrap();
 
     println!("Successfully verified {}", &uri);
@@ -71,7 +67,6 @@ async fn main() {
 #[instrument(skip(verifier_socket))]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     verifier_socket: T,
-    server_addr: &SocketAddr,
     uri: &str,
 ) -> Result<()> {
     let uri = uri.parse::<Uri>().unwrap();
@@ -86,29 +81,24 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let driver_task = tokio::spawn(driver);
 
     // Create a new prover and perform necessary setup.
+    // In proxy mode, we use ProxyTlsConfig instead of MpcTlsConfig.
+    // The server_name is required so the verifier knows which server to expect.
     let prover = handle
         .new_prover(ProverConfig::builder().build()?)?
         .commit(
             TlsCommitConfig::builder()
-                // Select the TLS commitment protocol.
                 .protocol(
-                    MpcTlsConfig::builder()
-                        // We must configure the amount of data we expect to exchange beforehand,
-                        // which will be preprocessed prior to the
-                        // connection. Reducing these limits will improve
-                        // performance.
-                        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
-                        .max_recv_data(tlsn_examples::MAX_RECV_DATA)
+                    ProxyTlsConfig::builder()
+                        .server_name(DnsName::try_from(server_domain)?)
                         .build()?,
                 )
                 .build()?,
         )
         .await?;
 
-    // Open a TCP connection to the server.
-    let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
-
-    // Bind the prover to the server connection.
+    // In proxy mode, connect TLS through the proxy instead of directly
+    // to the server via TCP. The verifier will forward traffic to the actual
+    // server.
     let (tls_connection, prover) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
@@ -119,7 +109,6 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
                 roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
             })
             .build()?,
-        client_socket.compat(),
     )?;
     let tls_connection = TokioIo::new(tls_connection.compat());
 
@@ -188,12 +177,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     Ok(())
 }
 
-#[instrument(skip(socket))]
-async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
-    socket: T,
+#[instrument(skip(prover_socket))]
+async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    prover_socket: T,
+    server_addr: SocketAddr,
 ) -> Result<PartialTranscript> {
     // Create a session with the prover.
-    let session = Session::new(socket.compat());
+    let session = Session::new(prover_socket.compat());
     let (driver, mut handle) = session.split();
 
     // Spawn the session driver to run in the background.
@@ -202,6 +192,8 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     // Create a root certificate store with the server-fixture's self-signed
     // certificate. This is only required for offline testing with the
     // server-fixture.
+    //
+    // In proxy mode, the verifier must be configured with `.proxy()`.
     let verifier_config = VerifierConfig::builder()
         .root_store(RootCertStore {
             roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
@@ -209,34 +201,29 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()?;
     let verifier = handle.new_verifier(verifier_config)?;
 
-    // Validate the proposed configuration and then run the TLS commitment protocol.
+    // Validate the proposed configuration and then accept it.
     let verifier = verifier.commit().await?;
 
-    // This is the opportunity to ensure the prover does not attempt to overload the
-    // verifier.
-    let reject = match verifier.request() {
-        TlsCommitRequest::Mpc(mpc_tls_config) => {
-            if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
-                Some("max_sent_data is too large")
-            } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
-                Some("max_recv_data is too large")
-            } else {
-                None
-            }
+    // We match here explicitly (although we know that in this example the prover
+    // sent a protocol config for proxy mode) to demonstrate dynamic protocol
+    // execution.
+    //
+    // The verifier can inspect the protocol configuration requested by the prover
+    // and decide what he wants to do. Here we decide to support both, requests
+    // for mpc mode and proxy mode.
+    let verifier = match verifier.accept().await? {
+        VerifierCommitAccepted::Mpc(verifier) => verifier.run().await?,
+        VerifierCommitAccepted::Proxy(verifier) => {
+            // In proxy mode, the verifier needs to connect to the server and set up
+            // sockets to forward traffic between the prover and the server.
+            //
+            // In a real-world scenario, the verifier would resolve the server name
+            // to obtain the server address, but since this is an example we use the
+            // fixed `server_addr`.
+            let client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
+            verifier.run(client_socket.compat()).await?
         }
-        _ => Some("expecting to use MPC-TLS"),
     };
-
-    if reject.is_some() {
-        verifier.reject(reject).await?;
-        return Err(anyhow::anyhow!("protocol configuration rejected"));
-    }
-
-    // Runs the TLS commitment protocol to completion.
-    let VerifierCommitAccepted::Mpc(verifier) = verifier.accept().await? else {
-        return Err(anyhow::anyhow!("expected MPC-TLS commitment"));
-    };
-    let verifier = verifier.run().await?;
 
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;

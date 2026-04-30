@@ -158,6 +158,18 @@ impl From<tlsn::config::tls::TlsConfigError> for SdkError {
     }
 }
 
+impl From<tlsn::config::tls_commit::proxy::ProxyTlsConfigError> for SdkError {
+    fn from(err: tlsn::config::tls_commit::proxy::ProxyTlsConfigError) -> Self {
+        Self::with_source(ErrorKind::Config, "Proxy TLS config error", err)
+    }
+}
+
+impl From<tlsn::config::verifier::VerifierConfigError> for SdkError {
+    fn from(err: tlsn::config::verifier::VerifierConfigError) -> Self {
+        Self::with_source(ErrorKind::Config, "Verifier config error", err)
+    }
+}
+
 impl From<tlsn::config::prove::ProveConfigError> for SdkError {
     fn from(err: tlsn::config::prove::ProveConfigError) -> Self {
         Self::with_source(ErrorKind::Config, "Prove config error", err)

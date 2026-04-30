@@ -13,7 +13,7 @@ use tlsn::{
     connection::ServerName,
     hash::HashAlgId,
     transcript::{Direction, PartialTranscript},
-    verifier::VerifierOutput,
+    verifier::{VerifierCommitAccepted, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
@@ -48,17 +48,17 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
 
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
-    let reject = if let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = verifier.request().protocol()
-    {
-        if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
-            Some("max_sent_data is too large")
-        } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
-            Some("max_recv_data is too large")
-        } else {
-            None
+    let reject = match verifier.request() {
+        TlsCommitRequest::Mpc(mpc_tls_config) => {
+            if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
+                Some("max_sent_data is too large")
+            } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
+                Some("max_recv_data is too large")
+            } else {
+                None
+            }
         }
-    } else {
-        Some("expecting to use MPC-TLS")
+        _ => Some("expecting to use MPC-TLS"),
     };
 
     if reject.is_some() {
@@ -67,7 +67,10 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     }
 
     // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept().await?.run().await?;
+    let VerifierCommitAccepted::Mpc(verifier) = verifier.accept().await? else {
+        return Err(anyhow::anyhow!("expected MPC-TLS commitment"));
+    };
+    let verifier = verifier.run().await?;
 
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;
