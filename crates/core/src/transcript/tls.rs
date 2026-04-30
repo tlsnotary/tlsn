@@ -305,7 +305,7 @@ impl TlsTranscript {
         &self.cf_vd
     }
 
-    /// Returns the client finished verify data record
+    /// Returns the server finished verify data record
     pub fn sf_vd(&self) -> &Record {
         &self.sf_vd
     }
@@ -1064,12 +1064,14 @@ mod tests {
         assert!(transcript.server_cert_chain().is_some());
         assert!(transcript.server_signature().is_some());
 
-        // First sent/recv records are the Finished messages (seq 0).
-        assert_eq!(transcript.sent()[0].seq, 0);
-        assert_eq!(transcript.recv()[0].seq, 0);
+        // Finished verify-data records (seq 0).
+        assert_eq!(transcript.cf_vd().seq, 0);
+        assert_eq!(transcript.sf_vd().seq, 0);
 
-        // 1 finished record, 4 app data records.
-        assert_eq!(transcript.sent().len(), 5);
-        assert_eq!(transcript.recv().len(), 5);
+        // 4 app data records each, seq 1..=4.
+        assert_eq!(transcript.sent().len(), MSG_COUNT);
+        assert_eq!(transcript.recv().len(), MSG_COUNT);
+        assert_eq!(transcript.sent()[0].seq, 1);
+        assert_eq!(transcript.recv()[0].seq, 1);
     }
 }
