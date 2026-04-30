@@ -55,7 +55,7 @@ jobs:
 
       # Checkout default branch to make bench-commit.sh available
       - name: Checkout scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: _scripts
 
@@ -67,7 +67,7 @@ jobs:
       # ===================================================================
 
       - name: Checkout tlsn at ${{ github.event.inputs.commit1 }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.commit1 }}
           path: tlsn-commit1
@@ -86,7 +86,7 @@ jobs:
       # ===================================================================
 
       - name: Checkout tlsn at ${{ github.event.inputs.commit2 }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.commit2 }}
           path: tlsn-commit2
@@ -105,14 +105,14 @@ jobs:
       # ===================================================================
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: /tmp/benchmark-results/
 
       # Analyze results
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
