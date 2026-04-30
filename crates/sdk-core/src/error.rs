@@ -140,12 +140,6 @@ impl From<tlsn::config::tls_commit::mpc::MpcTlsConfigError> for SdkError {
     }
 }
 
-impl From<tlsn::config::tls_commit::TlsCommitConfigError> for SdkError {
-    fn from(err: tlsn::config::tls_commit::TlsCommitConfigError) -> Self {
-        Self::with_source(ErrorKind::Config, "TLS commit config error", err)
-    }
-}
-
 impl From<tlsn::config::prover::ProverConfigError> for SdkError {
     fn from(err: tlsn::config::prover::ProverConfigError) -> Self {
         Self::with_source(ErrorKind::Config, "Prover config error", err)

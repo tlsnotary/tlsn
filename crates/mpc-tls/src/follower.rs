@@ -394,8 +394,7 @@ impl MpcTlsFollower {
 
         debug!("committing");
 
-        let (mut sent_records, mut recv_records) =
-            record_layer.commit(&mut self.ctx, vm).await?;
+        let (mut sent_records, mut recv_records) = record_layer.commit(&mut self.ctx, vm).await?;
 
         debug!("committed");
 
