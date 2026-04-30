@@ -14,7 +14,7 @@ workspace = true
 [features]
 default = []
 mozilla-certs = ["tlsn/mozilla-certs"]
-wasm = ["wasm-bindgen-futures"]
+wasm = ["wasm-bindgen-futures", "tlsn/web"]
 
 [dependencies]
 tlsn = { workspace = true }
