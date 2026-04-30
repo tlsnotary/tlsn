@@ -79,6 +79,17 @@ pub struct TlsTranscript {
     recv: Vec<Record>,
     cf_vd: Record,
     sf_vd: Record,
+    cf_hash: Option<Vec<u8>>,
+    session_hash: Option<Vec<u8>>,
+    sf_hash_input: Option<SfHashInput>,
+}
+
+#[derive(Debug, Clone)]
+struct SfHashInput {
+    sent_hs_bytes: Vec<u8>,
+    recv_hs_bytes: Vec<u8>,
+    sent_ch_end: usize,
+    recv_shd_end: usize,
 }
 
 impl TlsTranscript {
@@ -252,6 +263,9 @@ impl TlsTranscript {
             recv,
             cf_vd,
             sf_vd,
+            cf_hash: None,
+            session_hash: None,
+            sf_hash_input: None,
         })
     }
 
@@ -310,178 +324,35 @@ impl TlsTranscript {
         &self.sf_vd
     }
 
-    /// Computes the TLS 1.2 Extended Master Secret `session_hash`
-    /// (RFC 7627 §3) directly from the raw wire bytes.
-    ///
-    /// `session_hash` is the hash of all plaintext handshake messages
-    /// from `ClientHello` through `ClientKeyExchange`, in the order
-    /// they appear on the wire (and explicitly excluding any
-    /// `CertificateVerify`).
-    ///
-    /// SHA-256 is hard-coded as the PRF hash, matching the two
-    /// whitelisted suites in proxy mode
-    /// (`TLS_ECDHE_*_WITH_AES_128_GCM_SHA256`). If the suite list is
-    /// widened to include suites with a different PRF hash, this
-    /// function must be extended to take the cipher suite as input.
-    pub fn compute_session_hash(sent: &[u8], recv: &[u8]) -> Result<[u8; 32], TlsTranscriptError> {
-        let sent_records = parse_raw_records(sent)?;
-        let recv_records = parse_raw_records(recv)?;
-
-        let sent_hs_bytes = collect_handshake_bytes_pre_ccs(&sent_records);
-        let recv_hs_bytes = collect_handshake_bytes_pre_ccs(&recv_records);
-
-        let sent_msgs = scan_handshake_messages(&sent_hs_bytes)?;
-        let recv_msgs = scan_handshake_messages(&recv_hs_bytes)?;
-
-        // The first sent handshake message must be ClientHello.
-        let client_hello = sent_msgs.first().ok_or_else(|| {
-            TlsTranscriptError::parse("missing ClientHello in sent handshake stream")
-        })?;
-        if client_hello.typ != HandshakeType::ClientHello {
-            return Err(TlsTranscriptError::parse(
-                "first sent handshake message is not ClientHello",
-            ));
-        }
-
-        // ClientKeyExchange must be present and bounds the session_hash window.
-        let ckx = sent_msgs
-            .iter()
-            .find(|m| m.typ == HandshakeType::ClientKeyExchange)
-            .ok_or_else(|| TlsTranscriptError::parse("missing ClientKeyExchange"))?;
-
-        // Server side must contain ServerHello and ServerHelloDone.
-        if !recv_msgs
-            .iter()
-            .any(|m| m.typ == HandshakeType::ServerHello)
-        {
-            return Err(TlsTranscriptError::parse("missing ServerHello"));
-        }
-        if !recv_msgs
-            .iter()
-            .any(|m| m.typ == HandshakeType::ServerHelloDone)
-        {
-            return Err(TlsTranscriptError::parse("missing ServerHelloDone"));
-        }
-
-        // Wire order: ClientHello → server flight (ServerHello..ServerHelloDone)
-        // → client flight up to and including ClientKeyExchange. Any
-        // CertificateVerify that may follow on the sent side is excluded
-        // by stopping at ckx.end.
-        let mut hasher = Sha256::new();
-        hasher.update(&sent_hs_bytes[..client_hello.end]);
-        hasher.update(&recv_hs_bytes);
-        hasher.update(&sent_hs_bytes[client_hello.end..ckx.end]);
-
-        Ok(hasher.finalize().into())
+    /// Returns the session hash.
+    pub fn session_hash(&self) -> Option<&[u8]> {
+        self.session_hash.as_deref()
     }
 
-    /// Computes the handshake hash used as the seed for the TLS 1.2
-    /// Client Finished verify-data computation (`cf_hash`).
-    ///
-    /// This is the SHA-256 hash of every plaintext handshake message
-    /// that precedes the Client Finished message, in wire order:
-    pub fn compute_cf_hash(sent: &[u8], recv: &[u8]) -> Result<[u8; 32], TlsTranscriptError> {
-        let sent_records = parse_raw_records(sent)?;
-        let recv_records = parse_raw_records(recv)?;
-
-        let sent_hs_bytes = collect_handshake_bytes_pre_ccs(&sent_records);
-        let recv_hs_bytes = collect_handshake_bytes_pre_ccs(&recv_records);
-
-        let sent_msgs = scan_handshake_messages(&sent_hs_bytes)?;
-        let recv_msgs = scan_handshake_messages(&recv_hs_bytes)?;
-
-        let client_hello = sent_msgs.first().ok_or_else(|| {
-            TlsTranscriptError::parse("missing ClientHello in sent handshake stream")
-        })?;
-        if client_hello.typ != HandshakeType::ClientHello {
-            return Err(TlsTranscriptError::parse(
-                "first sent handshake message is not ClientHello",
-            ));
-        }
-
-        if !recv_msgs
-            .iter()
-            .any(|m| m.typ == HandshakeType::ServerHello)
-        {
-            return Err(TlsTranscriptError::parse("missing ServerHello"));
-        }
-        let shd = recv_msgs
-            .iter()
-            .find(|m| m.typ == HandshakeType::ServerHelloDone)
-            .ok_or_else(|| TlsTranscriptError::parse("missing ServerHelloDone"))?;
-
-        // Server's first flight ends at ServerHelloDone. Anything in the
-        // pre-CCS recv stream after that (notably an RFC 5077
-        // NewSessionTicket) arrives on the wire after the Client Finished
-        // and must not enter cf_hash.
-        let recv_first_flight = &recv_hs_bytes[..shd.end];
-
-        // Wire order: ClientHello → server first flight → remaining client
-        // flight (ClientKeyExchange and, when client auth is active,
-        // CertificateVerify). All pre-CCS bytes on the sent side are
-        // included.
-        let mut hasher = Sha256::new();
-        hasher.update(&sent_hs_bytes[..client_hello.end]);
-        hasher.update(recv_first_flight);
-        hasher.update(&sent_hs_bytes[client_hello.end..]);
-
-        Ok(hasher.finalize().into())
+    /// Returns the client finished hash.
+    pub fn cf_hash(&self) -> Option<&[u8]> {
+        self.cf_hash.as_deref()
     }
 
-    /// Computes the handshake hash used as the seed for the TLS 1.2
-    /// Server Finished verify-data computation (`sf_hash`).
-    ///
-    /// This equals `cf_hash` with the Client Finished handshake
-    /// message appended:
-    pub fn compute_sf_hash(
-        sent: &[u8],
-        recv: &[u8],
-        cf_vd: &[u8; 12],
-    ) -> Result<[u8; 32], TlsTranscriptError> {
-        let sent_records = parse_raw_records(sent)?;
-        let recv_records = parse_raw_records(recv)?;
-
-        let sent_hs_bytes = collect_handshake_bytes_pre_ccs(&sent_records);
-        let recv_hs_bytes = collect_handshake_bytes_pre_ccs(&recv_records);
-
-        let sent_msgs = scan_handshake_messages(&sent_hs_bytes)?;
-        let recv_msgs = scan_handshake_messages(&recv_hs_bytes)?;
-
-        let client_hello = sent_msgs.first().ok_or_else(|| {
-            TlsTranscriptError::parse("missing ClientHello in sent handshake stream")
-        })?;
-        if client_hello.typ != HandshakeType::ClientHello {
-            return Err(TlsTranscriptError::parse(
-                "first sent handshake message is not ClientHello",
-            ));
-        }
-
-        if !recv_msgs
-            .iter()
-            .any(|m| m.typ == HandshakeType::ServerHello)
-        {
-            return Err(TlsTranscriptError::parse("missing ServerHello"));
-        }
-        let shd = recv_msgs
-            .iter()
-            .find(|m| m.typ == HandshakeType::ServerHelloDone)
-            .ok_or_else(|| TlsTranscriptError::parse("missing ServerHelloDone"))?;
-
-        // Split pre-CCS recv bytes at ServerHelloDone. Anything after
-        // (notably an RFC 5077 NewSessionTicket) arrives on the wire
-        // after the Client Finished and must be hashed in that position.
-        let (recv_first_flight, recv_post_cf) = recv_hs_bytes.split_at(shd.end);
+    /// Returns the server finished hash.
+    pub fn sf_hash(&self, cf_vd: &[u8; 12]) -> Option<Vec<u8>> {
+        let SfHashInput {
+            sent_hs_bytes,
+            recv_hs_bytes,
+            sent_ch_end,
+            recv_shd_end,
+        } = self.sf_hash_input.as_ref()?;
 
         let mut hasher = Sha256::new();
-        hasher.update(&sent_hs_bytes[..client_hello.end]);
-        hasher.update(recv_first_flight);
-        hasher.update(&sent_hs_bytes[client_hello.end..]);
+        hasher.update(&sent_hs_bytes[..*sent_ch_end]);
+        hasher.update(&recv_hs_bytes[..*recv_shd_end]);
+        hasher.update(&sent_hs_bytes[*sent_ch_end..]);
         // Append the reconstructed Client Finished handshake message.
         hasher.update([0x14, 0x00, 0x00, 0x0c]);
         hasher.update(cf_vd);
-        hasher.update(recv_post_cf);
+        hasher.update(&recv_hs_bytes[*recv_shd_end..]);
 
-        Ok(hasher.finalize().into())
+        Some(hasher.finalize().to_vec())
     }
 
     /// Parses a complete TLS transcript from raw wire bytes.
@@ -503,29 +374,39 @@ impl TlsTranscript {
         let sent_records = parse_raw_records(sent)?;
         let recv_records = parse_raw_records(recv)?;
 
-        let sent_hs = assemble_handshake_messages(&sent_records)?;
-        let recv_hs = assemble_handshake_messages(&recv_records)?;
+        let (sent_hs_bytes, sent_hs) = parse_handshake_stream(&sent_records)?;
+        let (recv_hs_bytes, recv_hs) = parse_handshake_stream(&recv_records)?;
 
         let (version, handshake) = extract_handshake(&sent_hs, &recv_hs)?;
+
+        let sent_msgs = scan_handshake_messages(&sent_hs_bytes)?;
+        let recv_msgs = scan_handshake_messages(&recv_hs_bytes)?;
+        let (cf_hash, session_hash, sf_hash_input) =
+            compute_handshake_hashes(sent_hs_bytes, recv_hs_bytes, &sent_msgs, &recv_msgs)?;
 
         let sent_vd = parse_verify_data_record(&sent_records)?;
         let recv_vd = parse_verify_data_record(&recv_records)?;
 
-        let sent = parse_app_records(&sent_records, sent_app)?;
-        let recv = parse_app_records(&recv_records, recv_app)?;
+        let sent_app_records = parse_app_records(&sent_records, sent_app)?;
+        let recv_app_records = parse_app_records(&recv_records, recv_app)?;
 
-        Self::new(
+        let mut transcript = Self::new(
             time,
             version,
             Some(handshake.certs),
             Some(handshake.sig),
             handshake.binding,
             None,
-            sent,
-            recv,
+            sent_app_records,
+            recv_app_records,
             sent_vd,
             recv_vd,
-        )
+        )?;
+        transcript.cf_hash = Some(cf_hash.to_vec());
+        transcript.session_hash = Some(session_hash.to_vec());
+        transcript.sf_hash_input = Some(sf_hash_input);
+
+        Ok(transcript)
     }
 
     /// Returns the application data transcript.
@@ -632,11 +513,11 @@ fn parse_raw_records(bytes: &[u8]) -> Result<Vec<OpaqueMessage>, TlsTranscriptEr
     Ok(records)
 }
 
-/// Collect handshake record payloads (up to CCS) and parse them into
+/// Collect the pre-CCS handshake byte stream and decode it into
 /// individual handshake messages.
-fn assemble_handshake_messages(
+fn parse_handshake_stream(
     records: &[OpaqueMessage],
-) -> Result<Vec<HandshakeMessagePayload>, TlsTranscriptError> {
+) -> Result<(Vec<u8>, Vec<HandshakeMessagePayload>), TlsTranscriptError> {
     let handshake_bytes = collect_handshake_bytes_pre_ccs(records);
 
     let mut reader = Reader::init(&handshake_bytes);
@@ -646,7 +527,71 @@ fn assemble_handshake_messages(
             .ok_or_else(|| TlsTranscriptError::parse("failed to parse handshake message"))?;
         messages.push(msg);
     }
-    Ok(messages)
+    Ok((handshake_bytes, messages))
+}
+
+/// Validate handshake-message bounds and compute the two
+/// digests `cf_hash` and `session_hash`, and the cached
+/// inputs needed to derive `sf_hash` later from `cf_vd`.
+fn compute_handshake_hashes(
+    sent_hs_bytes: Vec<u8>,
+    recv_hs_bytes: Vec<u8>,
+    sent_msgs: &[HandshakeMsgInfo],
+    recv_msgs: &[HandshakeMsgInfo],
+) -> Result<([u8; 32], [u8; 32], SfHashInput), TlsTranscriptError> {
+    let client_hello = sent_msgs
+        .first()
+        .ok_or_else(|| TlsTranscriptError::parse("missing ClientHello in sent handshake stream"))?;
+    if client_hello.typ != HandshakeType::ClientHello {
+        return Err(TlsTranscriptError::parse(
+            "first sent handshake message is not ClientHello",
+        ));
+    }
+    let ckx = sent_msgs
+        .iter()
+        .find(|m| m.typ == HandshakeType::ClientKeyExchange)
+        .ok_or_else(|| TlsTranscriptError::parse("missing ClientKeyExchange"))?;
+    if !recv_msgs
+        .iter()
+        .any(|m| m.typ == HandshakeType::ServerHello)
+    {
+        return Err(TlsTranscriptError::parse("missing ServerHello"));
+    }
+    let shd = recv_msgs
+        .iter()
+        .find(|m| m.typ == HandshakeType::ServerHelloDone)
+        .ok_or_else(|| TlsTranscriptError::parse("missing ServerHelloDone"))?;
+
+    let sent_ch_end = client_hello.end;
+    let recv_shd_end = shd.end;
+
+    // session_hash: ClientHello → server flight (ServerHello..ServerHelloDone)
+    // → client flight up to and including ClientKeyExchange.
+    let mut hasher = Sha256::new();
+    hasher.update(&sent_hs_bytes[..sent_ch_end]);
+    hasher.update(&recv_hs_bytes);
+    hasher.update(&sent_hs_bytes[sent_ch_end..ckx.end]);
+    let session_hash: [u8; 32] = hasher.finalize().into();
+
+    // cf_hash: ClientHello → server first flight (..ServerHelloDone)
+    // → remaining client flight (ClientKeyExchange and, when client
+    // auth is active, CertificateVerify).
+    let mut hasher = Sha256::new();
+    hasher.update(&sent_hs_bytes[..sent_ch_end]);
+    hasher.update(&recv_hs_bytes[..recv_shd_end]);
+    hasher.update(&sent_hs_bytes[sent_ch_end..]);
+    let cf_hash: [u8; 32] = hasher.finalize().into();
+
+    Ok((
+        cf_hash,
+        session_hash,
+        SfHashInput {
+            sent_hs_bytes,
+            recv_hs_bytes,
+            sent_ch_end,
+            recv_shd_end,
+        },
+    ))
 }
 
 /// Concatenate the payload bytes of all handshake records appearing
@@ -674,9 +619,7 @@ struct HandshakeMsgInfo {
     end: usize,
 }
 
-/// Walk a concatenated handshake byte stream and return the type and
-/// end offset of each message. Each message is a 1-byte type, a
-/// 3-byte big-endian length, and a body of that length.
+/// Walk a concatenated handshake byte stream and return the [`HandshakeMsgInfo`].
 fn scan_handshake_messages(bytes: &[u8]) -> Result<Vec<HandshakeMsgInfo>, TlsTranscriptError> {
     let mut out = Vec::new();
     let mut pos = 0;

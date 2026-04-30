@@ -59,7 +59,7 @@ impl ProxyProver {
         time: u64,
         traffic: TlsBytes,
     ) -> Result<(Context, ProverZk, TlsOutput), TlsnError> {
-        let tls_transcript = tlsn_core::transcript::TlsTranscript::parse(
+        let tls_transcript = TlsTranscript::parse(
             time,
             &traffic.tls_sent,
             &traffic.tls_recv,
@@ -79,12 +79,11 @@ impl ProxyProver {
             .try_into()
             .map_err(|_| TlsnError::internal().with_msg("ms has wrong length"))?;
 
-        let cf_hash = TlsTranscript::compute_cf_hash(&traffic.tls_sent, &traffic.tls_recv)
-            .map_err(|e| {
-                TlsnError::internal()
-                    .with_msg("failed to compute cf_hash")
-                    .with_source(e)
-            })?;
+        let cf_hash: [u8; 32] = tls_transcript
+            .cf_hash()
+            .expect("cf_hash should be available")
+            .try_into()
+            .expect("cf_hash should be 32 bytes");
 
         let tlsn_core::connection::CertBinding::V1_2(binding) =
             tls_transcript.certificate_binding()
@@ -130,12 +129,11 @@ impl ProxyProver {
             .ok_or(TlsnError::internal().with_msg("unable to receive cf_vd from decoding"))?;
 
         // Now that cf_vd is known, compute sf_hash and resume the PRF.
-        let sf_hash = TlsTranscript::compute_sf_hash(&traffic.tls_sent, &traffic.tls_recv, &cf_vd)
-            .map_err(|e| {
-                TlsnError::internal()
-                    .with_msg("failed to compute sf_hash")
-                    .with_source(e)
-            })?;
+        let sf_hash: [u8; 32] = tls_transcript
+            .sf_hash(&cf_vd)
+            .expect("sf_hash should be available")
+            .try_into()
+            .expect("sf_hash should be 32 bytes");
 
         self.prf
             .set_sf_hash(sf_hash)
