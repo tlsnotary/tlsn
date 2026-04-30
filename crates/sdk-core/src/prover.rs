@@ -11,7 +11,7 @@ use tlsn::{
     },
     connection::ServerName,
     prover::{Prover, TlsConnection, state},
-    webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
+    webpki::{CertificateDer, PrivateKeyDer},
 };
 use tracing::{error, info};
 
@@ -178,7 +178,7 @@ impl SdkProver {
                     .try_into()
                     .map_err(|_| SdkError::config("invalid server name"))?,
             ))
-            .root_store(RootCertStore::mozilla());
+            .root_store(self.config.root_store.clone());
 
         if let Some(ref client_auth) = self.config.client_auth {
             let certs = client_auth
@@ -385,7 +385,9 @@ mod tests {
             .max_sent_data(4096)
             .max_recv_data(16384)
             .network(NetworkSetting::Latency)
+            .root_certs(vec![tlsn_server_fixture_certs::CA_CERT_DER.to_vec()])
             .build()
+            .unwrap()
     }
 
     #[test]
@@ -399,7 +401,9 @@ mod tests {
         let config = ProverConfig::builder("")
             .max_sent_data(4096)
             .max_recv_data(16384)
-            .build();
+            .root_certs(vec![tlsn_server_fixture_certs::CA_CERT_DER.to_vec()])
+            .build()
+            .unwrap();
         let err = SdkProver::new(config).err().expect("should fail");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert!(err.to_string().contains("server_name"));
@@ -410,7 +414,9 @@ mod tests {
         let config = ProverConfig::builder("example.com")
             .max_sent_data(0)
             .max_recv_data(16384)
-            .build();
+            .root_certs(vec![tlsn_server_fixture_certs::CA_CERT_DER.to_vec()])
+            .build()
+            .unwrap();
         let err = SdkProver::new(config).err().expect("should fail");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert!(err.to_string().contains("max_sent_data"));
@@ -421,7 +427,9 @@ mod tests {
         let config = ProverConfig::builder("example.com")
             .max_sent_data(4096)
             .max_recv_data(0)
-            .build();
+            .root_certs(vec![tlsn_server_fixture_certs::CA_CERT_DER.to_vec()])
+            .build()
+            .unwrap();
         let err = SdkProver::new(config).err().expect("should fail");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert!(err.to_string().contains("max_recv_data"));

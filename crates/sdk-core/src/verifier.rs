@@ -6,7 +6,6 @@ use tlsn::{
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
     verifier::{Verifier, state},
-    webpki::RootCertStore,
 };
 use tracing::info;
 
@@ -89,7 +88,7 @@ impl SdkVerifier {
         });
 
         let verifier_config = tlsn::config::verifier::VerifierConfig::builder()
-            .root_store(RootCertStore::mozilla())
+            .root_store(self.config.root_store.clone())
             .build()
             .map_err(|e| SdkError::config(e.to_string()))?;
         let verifier = handle
