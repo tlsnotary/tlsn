@@ -394,7 +394,8 @@ impl MpcTlsFollower {
 
         debug!("committing");
 
-        let (sent_records, recv_records) = record_layer.commit(&mut self.ctx, vm).await?;
+        let (mut sent_records, mut recv_records) =
+            record_layer.commit(&mut self.ctx, vm).await?;
 
         debug!("committed");
 
@@ -413,18 +414,25 @@ impl MpcTlsFollower {
                 .expect("only supported key scheme should have been accepted"),
         });
 
+        let verify_data = VerifyData {
+            client_finished: cf_vd.to_vec(),
+            server_finished: sf_vd.to_vec(),
+        };
+
+        let cf_vd = sent_records.remove(0);
+        let sf_vd = recv_records.remove(0);
+
         let transcript = TlsTranscript::new(
             time,
             TlsVersion::V1_2,
             None,
             None,
             handshake_data,
-            VerifyData {
-                client_finished: cf_vd.to_vec(),
-                server_finished: sf_vd.to_vec(),
-            },
+            Some(verify_data),
             sent_records,
             recv_records,
+            cf_vd,
+            sf_vd,
         )
         .map_err(MpcTlsError::other)?;
 

@@ -99,19 +99,14 @@ fn alloc_proxy_refs<V: Vm<Binary>>(
     let cf_vd = vm
         .decode(prf_output.cf_vd)
         .map_err(|e| TlsnError::internal().with_source(e))?;
-    let sf_vd = vm
+    _ = vm
         .decode(prf_output.sf_vd)
         .map_err(|e| TlsnError::internal().with_source(e))?;
 
     cf_vd_check.alloc(vm, &mut encrypt, prf_output.cf_vd)?;
     sf_vd_check.alloc(vm, &mut decrypt, prf_output.sf_vd)?;
 
-    Ok(References {
-        ms,
-        keys,
-        cf_vd,
-        sf_vd,
-    })
+    Ok(References { ms, keys, cf_vd })
 }
 
 #[derive(Debug)]
@@ -119,7 +114,6 @@ struct References {
     pub(crate) ms: Array<U8, 48>,
     pub(crate) keys: SessionKeys,
     pub(crate) cf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
-    pub(crate) sf_vd: DecodeFutureTyped<BitVec, [u8; 12]>,
 }
 
 #[derive(Debug, Clone, Default)]
