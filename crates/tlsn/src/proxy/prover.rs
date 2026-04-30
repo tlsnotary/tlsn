@@ -59,8 +59,22 @@ impl ProxyProver {
         time: u64,
         traffic: TlsBytes,
     ) -> Result<(Context, ProverZk, TlsOutput), TlsnError> {
-        let mut refs = self.refs.expect("key refs should be available");
+        let tls_transcript = tlsn_core::transcript::TlsTranscript::parse(
+            time,
+            &traffic.tls_sent,
+            &traffic.tls_recv,
+            &traffic.app_sent,
+            &traffic.app_recv,
+        )
+        .map_err(|e| {
+            TlsnError::internal()
+                .with_msg("prover could not build tls transcript")
+                .with_source(e)
+        })?;
 
+        tracing::debug!("successfully parsed transcript");
+
+        let mut refs = self.refs.expect("key refs should be available");
         let ms: [u8; 48] = ms
             .try_into()
             .map_err(|_| TlsnError::internal().with_msg("ms has wrong length"))?;
@@ -72,18 +86,9 @@ impl ProxyProver {
                     .with_source(e)
             })?;
 
-        let (_version, handshake) = tlsn_core::transcript::TlsTranscript::parse_handshake(
-            &traffic.tls_sent,
-            &traffic.tls_recv,
-        )
-        .map_err(|e| {
-            TlsnError::io()
-                .with_msg("failed to parse handshake")
-                .with_source(e)
-        })?;
-        tracing::debug!("successfully parsed handshake");
-
-        let tlsn_core::connection::CertBinding::V1_2(binding) = handshake.binding else {
+        let tlsn_core::connection::CertBinding::V1_2(binding) =
+            tls_transcript.certificate_binding()
+        else {
             return Err(
                 TlsnError::internal().with_msg("version of certificate binding is not supported")
             );
@@ -148,42 +153,15 @@ impl ProxyProver {
         }
 
         tracing::debug!("decoding server finished verify data...");
-        let sf_vd = refs
-            .sf_vd
-            .try_recv()
-            .map_err(|e| TlsnError::internal().with_source(e))?
-            .ok_or(TlsnError::internal().with_msg("unable to receive sf_vd from decoding"))?;
 
-        let tls_transcript = tlsn_core::transcript::TlsTranscript::parse(
-            time,
-            &traffic.tls_sent,
-            &traffic.tls_recv,
-            &traffic.app_sent,
-            &traffic.app_recv,
-            &cf_vd,
-            &sf_vd,
-        )
-        .map_err(|e| {
-            TlsnError::internal()
-                .with_msg("prover could not build tls transcript")
-                .with_source(e)
-        })?;
-        tracing::debug!("successfully parsed transcript");
-
-        let cf_vd_record = tls_transcript
-            .sent()
-            .first()
-            .expect("should be able to get first sent record");
+        let cf_vd_record = tls_transcript.cf_vd();
         self.cf_vd_check.assign(
             &mut self.vm,
             &cf_vd_record.explicit_nonce,
             &cf_vd_record.ciphertext,
         )?;
 
-        let sf_vd_record = tls_transcript
-            .recv()
-            .first()
-            .expect("should be able to get first recv record");
+        let sf_vd_record = tls_transcript.sf_vd();
         self.sf_vd_check.assign(
             &mut self.vm,
             &sf_vd_record.explicit_nonce,

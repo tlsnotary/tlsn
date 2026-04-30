@@ -2,7 +2,7 @@
 
 use const_oid::db::rfc5912;
 use rustls_pki_types as pki_types;
-use spki::der::{oid::ObjectIdentifier, Decode};
+use spki::der::{Decode, oid::ObjectIdentifier};
 
 use crate::{
     connection::{
@@ -77,6 +77,8 @@ pub struct TlsTranscript {
     certificate_binding: CertBinding,
     sent: Vec<Record>,
     recv: Vec<Record>,
+    cf_vd: Record,
+    sf_vd: Record,
 }
 
 impl TlsTranscript {
@@ -88,16 +90,15 @@ impl TlsTranscript {
         server_cert_chain: Option<Vec<CertificateDer>>,
         server_signature: Option<ServerSignature>,
         certificate_binding: CertBinding,
-        verify_data: VerifyData,
+        plain_verify_data: Option<VerifyData>,
         sent: Vec<Record>,
         recv: Vec<Record>,
+        cf_vd: Record,
+        sf_vd: Record,
     ) -> Result<Self, TlsTranscriptError> {
-        let mut sent_iter = sent.iter();
-        let mut recv_iter = recv.iter();
-
-        // Make sure the client finished verify data message was sent first.
-        if let Some(record) = sent_iter.next() {
-            let payload = record
+        // Check for client finished consistency if possible.
+        if let Some(verify_data) = &plain_verify_data {
+            let payload = cf_vd
                 .plaintext
                 .as_ref()
                 .ok_or(TlsTranscriptError::validation(
@@ -122,15 +123,11 @@ impl TlsTranscript {
                     "inconsistent client finished verify data",
                 ));
             }
-        } else {
-            return Err(TlsTranscriptError::validation(
-                "client finished was not sent",
-            ));
         }
 
-        // Make sure the server finished verify data message was received first.
-        if let Some(record) = recv_iter.next() {
-            let payload = record
+        // Check for server_finished finished consistency if possible.
+        if let Some(verify_data) = &plain_verify_data {
+            let payload = sf_vd
                 .plaintext
                 .as_ref()
                 .ok_or(TlsTranscriptError::validation(
@@ -155,11 +152,10 @@ impl TlsTranscript {
                     "inconsistent server finished verify data",
                 ));
             }
-        } else {
-            return Err(TlsTranscriptError::validation(
-                "server finished was not received",
-            ));
         }
+
+        let mut sent_iter = sent.iter();
+        let mut recv_iter = recv.iter();
 
         // Verify last record sent was either application data or close notify.
         if let Some(record) = sent_iter.next_back() {
@@ -254,6 +250,8 @@ impl TlsTranscript {
             certificate_binding,
             sent,
             recv,
+            cf_vd,
+            sf_vd,
         })
     }
 
@@ -302,22 +300,14 @@ impl TlsTranscript {
         &self.recv
     }
 
-    /// Parses only the TLS handshake data from raw wire bytes.
-    ///
-    /// This extracts the TLS version and handshake data (certificates,
-    /// signature, certificate binding) without requiring verify data or
-    /// plaintext.
-    pub fn parse_handshake(
-        sent: &[u8],
-        recv: &[u8],
-    ) -> Result<(TlsVersion, HandshakeData), TlsTranscriptError> {
-        let sent_records = parse_raw_records(sent)?;
-        let recv_records = parse_raw_records(recv)?;
+    /// Returns the client finished verify data record
+    pub fn cf_vd(&self) -> &Record {
+        &self.cf_vd
+    }
 
-        let sent_hs = assemble_handshake_messages(&sent_records)?;
-        let recv_hs = assemble_handshake_messages(&recv_records)?;
-
-        extract_handshake(&sent_hs, &recv_hs)
+    /// Returns the client finished verify data record
+    pub fn sf_vd(&self) -> &Record {
+        &self.sf_vd
     }
 
     /// Computes the TLS 1.2 Extended Master Secret `session_hash`
@@ -501,19 +491,14 @@ impl TlsTranscript {
     /// * `time` - UNIX timestamp of the connection.
     /// * `sent` - Raw TLS bytes sent (client → server).
     /// * `recv` - Raw TLS bytes received (server → client).
-    /// * `cf_vd` - Client finished verify data.
-    /// * `sf_vd` - Server finished verify data.
     /// * `sent_app` - Plaintext application data sent.
     /// * `recv_app` - Plaintext application data received.
-    #[allow(clippy::too_many_arguments)]
     pub fn parse(
         time: u64,
         sent: &[u8],
         recv: &[u8],
         sent_app: &[u8],
         recv_app: &[u8],
-        cf_vd: &[u8],
-        sf_vd: &[u8],
     ) -> Result<Self, TlsTranscriptError> {
         let sent_records = parse_raw_records(sent)?;
         let recv_records = parse_raw_records(recv)?;
@@ -523,19 +508,11 @@ impl TlsTranscript {
 
         let (version, handshake) = extract_handshake(&sent_hs, &recv_hs)?;
 
-        let cf_record = parse_verify_data_record(&sent_records, cf_vd)?;
-        let sf_record = parse_verify_data_record(&recv_records, sf_vd)?;
+        let sent_vd = parse_verify_data_record(&sent_records)?;
+        let recv_vd = parse_verify_data_record(&recv_records)?;
 
-        let verify_data = VerifyData {
-            client_finished: cf_vd.to_vec(),
-            server_finished: sf_vd.to_vec(),
-        };
-
-        let mut sent_recs = vec![cf_record];
-        sent_recs.extend(parse_app_records(&sent_records, sent_app)?);
-
-        let mut recv_recs = vec![sf_record];
-        recv_recs.extend(parse_app_records(&recv_records, recv_app)?);
+        let sent = parse_app_records(&sent_records, sent_app)?;
+        let recv = parse_app_records(&recv_records, recv_app)?;
 
         Self::new(
             time,
@@ -543,9 +520,11 @@ impl TlsTranscript {
             Some(handshake.certs),
             Some(handshake.sig),
             handshake.binding,
-            verify_data,
-            sent_recs,
-            recv_recs,
+            None,
+            sent,
+            recv,
+            sent_vd,
+            recv_vd,
         )
     }
 
@@ -935,12 +914,8 @@ fn extract_ec_curve_oid(certs: &[CertificateDer]) -> Result<ObjectIdentifier, Tl
         .map_err(|e| TlsTranscriptError::parse(format!("failed to decode EC curve OID: {e}")))
 }
 
-/// Build a Record for the encrypted Finished message, reconstructing its
-/// plaintext from the provided verify data.
-fn parse_verify_data_record(
-    records: &[OpaqueMessage],
-    verify_data: &[u8],
-) -> Result<Record, TlsTranscriptError> {
+/// Parses the verify data record without decrypting the plaintext.
+fn parse_verify_data_record(records: &[OpaqueMessage]) -> Result<Record, TlsTranscriptError> {
     let ccs = find_ccs(records)
         .ok_or_else(|| TlsTranscriptError::parse("missing ChangeCipherSpec record"))?;
 
@@ -948,15 +923,7 @@ fn parse_verify_data_record(
         .get(ccs + 1)
         .ok_or_else(|| TlsTranscriptError::parse("missing Finished record after CCS"))?;
 
-    let mut finished_record = split_into_record(0, &raw_finished.payload.0, raw_finished.typ)?;
-
-    // Reconstruct the Finished message plaintext:
-    // 0x14 = Finished handshake type, 0x00 0x00 0x0C = length 12
-    let mut finished_plain = vec![0x14, 0x00, 0x00, 0x0C];
-    finished_plain.extend_from_slice(verify_data);
-    finished_record.plaintext = Some(finished_plain);
-
-    Ok(finished_record)
+    split_into_record(0, &raw_finished.payload.0, raw_finished.typ)
 }
 
 /// Parse application data records after the CCS + Finished boundary.
@@ -1015,15 +982,18 @@ mod tests {
 
     #[test]
     fn test_parse_handshake() {
-        let (version, handshake) = TlsTranscript::parse_handshake(SENT, RECV).unwrap();
+        let transcript = TlsTranscript::parse(0, SENT, RECV, &[], &[]).unwrap();
 
-        assert_eq!(version, TlsVersion::V1_2);
+        assert_eq!(*transcript.version(), TlsVersion::V1_2);
 
         // Certificate chain should contain the server cert.
-        assert_eq!(handshake.certs[0].0, SERVER_CERT_DER);
+        assert_eq!(
+            transcript.server_cert_chain().unwrap()[0].0,
+            SERVER_CERT_DER
+        );
 
         // Signature algorithm should be an RSA variant.
-        let alg = &handshake.sig.alg;
+        let alg = &transcript.server_signature().unwrap().alg;
         assert!(
             matches!(
                 alg,
@@ -1039,7 +1009,7 @@ mod tests {
         );
 
         // CertBinding should be V1_2 with valid values.
-        let CertBinding::V1_2(ref binding) = handshake.binding;
+        let CertBinding::V1_2(binding) = transcript.certificate_binding();
 
         assert_ne!(binding.client_random, [0u8; 32]);
         assert_ne!(binding.server_random, [0u8; 32]);
@@ -1088,11 +1058,7 @@ mod tests {
 
     #[test]
     fn test_parse_into_transcript() {
-        let cf_vd = vec![0xAAu8; 12];
-        let sf_vd = vec![0xBBu8; 12];
-
-        let transcript =
-            TlsTranscript::parse(0, SENT, RECV, APP_SENT, APP_RECV, &cf_vd, &sf_vd).unwrap();
+        let transcript = TlsTranscript::parse(0, SENT, RECV, APP_SENT, APP_RECV).unwrap();
 
         assert_eq!(*transcript.version(), TlsVersion::V1_2);
         assert!(transcript.server_cert_chain().is_some());

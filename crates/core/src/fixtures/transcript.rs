@@ -14,7 +14,7 @@ use tls_core::msgs::{
 };
 
 use crate::{
-    connection::{TranscriptLength, VerifyData},
+    connection::TranscriptLength,
     fixtures::ConnectionFixture,
     transcript::{ContentType, Record, TlsTranscript},
 };
@@ -61,13 +61,11 @@ impl TranscriptGenerator {
         let cf_vd: [u8; 12] = rng.random();
         let sf_vd: [u8; 12] = rng.random();
 
-        let verify_data = VerifyData {
-            client_finished: cf_vd.to_vec(),
-            server_finished: sf_vd.to_vec(),
-        };
+        let cf_vd = self.gen_handshake(cf_vd);
+        let sf_vd = self.gen_handshake(sf_vd);
 
-        let sent = self.gen_records(cf_vd, sent);
-        let recv = self.gen_records(sf_vd, recv);
+        let sent = self.gen_app_records(sent);
+        let recv = self.gen_app_records(recv);
 
         TlsTranscript::new(
             time,
@@ -75,25 +73,20 @@ impl TranscriptGenerator {
             Some(server_cert_chain),
             Some(server_signature),
             cert_binding,
-            verify_data,
+            None,
             sent,
             recv,
+            cf_vd,
+            sf_vd,
         )
         .unwrap()
     }
 
-    fn gen_records(&self, vd: [u8; 12], plaintext: &[u8]) -> Vec<Record> {
-        let mut records = Vec::new();
-
-        let handshake = self.gen_handshake(vd);
-        records.push(handshake);
-
-        for (seq, msg) in (1_u64..).zip(plaintext.chunks(RECORD_SIZE)) {
-            let record = self.gen_app_data(seq, msg);
-            records.push(record);
-        }
-
-        records
+    fn gen_app_records(&self, plaintext: &[u8]) -> Vec<Record> {
+        (1_u64..)
+            .zip(plaintext.chunks(RECORD_SIZE))
+            .map(|(seq, msg)| self.gen_app_data(seq, msg))
+            .collect()
     }
 
     fn gen_app_data(&self, seq: u64, plaintext: &[u8]) -> Record {
