@@ -7,6 +7,7 @@ use hmac_sha256::Prf;
 use mpz_common::Context;
 use mpz_memory_core::MemoryExt;
 use mpz_vm_core::Execute;
+use tlsn_core::transcript::TlsTranscript;
 
 pub(crate) struct ProxyVerifier {
     ctx: Context,
@@ -64,23 +65,20 @@ impl ProxyVerifier {
         TlsnError,
     > {
         let tls_transcript =
-            tlsn_core::transcript::TlsTranscript::parse(conn_time, sent, recv, &[], &[]).map_err(
-                |e| {
-                    TlsnError::internal()
-                        .with_msg("verifier could not build tls transcript")
-                        .with_source(e)
-                },
-            )?;
+            TlsTranscript::parse(conn_time, sent, recv, &[], &[]).map_err(|e| {
+                TlsnError::internal()
+                    .with_msg("verifier could not build tls transcript")
+                    .with_source(e)
+            })?;
         tracing::debug!("successfully parsed transcript");
 
         let mut refs = self.refs.expect("key refs should be available");
 
-        let cf_hash =
-            tlsn_core::transcript::TlsTranscript::compute_cf_hash(sent, recv).map_err(|e| {
-                TlsnError::internal()
-                    .with_msg("failed to compute cf_hash")
-                    .with_source(e)
-            })?;
+        let cf_hash: [u8; 32] = tls_transcript
+            .cf_hash()
+            .expect("cf_hash should be available")
+            .try_into()
+            .expect("cf_hash should be 32 bytes");
 
         let tlsn_core::connection::CertBinding::V1_2(binding) =
             tls_transcript.certificate_binding()
@@ -123,12 +121,11 @@ impl ProxyVerifier {
             .ok_or(TlsnError::internal().with_msg("unable to receive cf_vd from decoding"))?;
 
         // Now that cf_vd is known, compute sf_hash and resume the PRF.
-        let sf_hash = tlsn_core::transcript::TlsTranscript::compute_sf_hash(sent, recv, &cf_vd)
-            .map_err(|e| {
-                TlsnError::internal()
-                    .with_msg("failed to compute sf_hash")
-                    .with_source(e)
-            })?;
+        let sf_hash: [u8; 32] = tls_transcript
+            .sf_hash(&cf_vd)
+            .expect("sf_hash should be available")
+            .try_into()
+            .expect("sf_hash should be 32 bytes");
 
         self.prf
             .set_sf_hash(sf_hash)
