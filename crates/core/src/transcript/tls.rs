@@ -619,7 +619,8 @@ struct HandshakeMsgInfo {
     end: usize,
 }
 
-/// Walk a concatenated handshake byte stream and return the [`HandshakeMsgInfo`].
+/// Walk a concatenated handshake byte stream and return the
+/// [`HandshakeMsgInfo`].
 fn scan_handshake_messages(bytes: &[u8]) -> Result<Vec<HandshakeMsgInfo>, TlsTranscriptError> {
     let mut out = Vec::new();
     let mut pos = 0;
