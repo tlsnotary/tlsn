@@ -42,34 +42,45 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod deps;
 mod error;
 pub(crate) mod ghash;
 pub(crate) mod map;
-pub(crate) mod mpz;
 pub(crate) mod msg;
 pub mod prover;
+mod proxy;
 mod session;
 pub(crate) mod tag;
 pub(crate) mod transcript_internal;
 pub mod verifier;
 
+pub use deps::ProtocolDeps;
 pub use error::Error;
 pub use rangeset;
 pub use session::{Session, SessionDriver, SessionHandle};
 pub use tlsn_attestation as attestation;
 pub use tlsn_core::{config, connection, hash, transcript, webpki};
+pub use tlsn_mux::Stream;
 
 /// Result type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-use std::sync::LazyLock;
-
+use deps::{ProverMpcDeps, ProverProxyDeps, VerifierMpcDeps, VerifierProxyDeps};
+use mpc_tls::SessionKeys;
 use semver::Version;
+use std::sync::LazyLock;
+use tlsn_core::{
+    config::tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+    transcript::TlsTranscript,
+};
 
 // Package version.
 pub(crate) static VERSION: LazyLock<Version> = LazyLock::new(|| {
     Version::parse(env!("CARGO_PKG_VERSION")).expect("cargo pkg version should be a valid semver")
 });
+
+// Prefix for the proxy stream id between prover and verifier.
+pub(crate) const PROXY_STREAM_PREFIX: &[u8] = b"proxy_stream";
 
 /// The party's role in the TLSN protocol.
 ///
@@ -80,4 +91,36 @@ pub(crate) enum Role {
     Prover,
     /// The verifier.
     Verifier,
+}
+
+/// Output of a TLS session.
+pub(crate) struct TlsOutput {
+    pub(crate) keys: SessionKeys,
+    pub(crate) tls_transcript: TlsTranscript,
+}
+
+/// Protocol variant.
+pub trait ProtocolConfig: Clone + Into<TlsCommitRequest> + sealed::Sealed {
+    /// Prover protocol dependencies.
+    type ProverDeps: ProtocolDeps<Config = Self>;
+    /// Verifier protocol dependencies.
+    type VerifierDeps: ProtocolDeps<Config = Self>;
+}
+
+impl ProtocolConfig for MpcTlsConfig {
+    type ProverDeps = ProverMpcDeps;
+    type VerifierDeps = VerifierMpcDeps;
+}
+
+impl ProtocolConfig for ProxyTlsConfig {
+    type ProverDeps = ProverProxyDeps;
+    type VerifierDeps = VerifierProxyDeps;
+}
+
+mod sealed {
+    use super::{MpcTlsConfig, ProxyTlsConfig};
+
+    pub trait Sealed {}
+    impl Sealed for MpcTlsConfig {}
+    impl Sealed for ProxyTlsConfig {}
 }

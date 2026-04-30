@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{future::IntoFuture, net::SocketAddr};
 
 use crate::types::received_commitments;
 
@@ -96,7 +96,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover.connect(
+    let (tls_connection, prover) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
             // Create a root certificate store with the server-fixture's self-signed
@@ -111,7 +111,7 @@ pub async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the Prover to run in the background.
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(prover.into_future());
 
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(tls_connection).await?;
