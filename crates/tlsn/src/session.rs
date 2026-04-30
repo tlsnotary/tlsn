@@ -41,6 +41,7 @@ const MAX_CONCURRENCY: usize = 8;
 pub struct Session<Io> {
     conn: Option<Connection<Io>>,
     mt: Multithread,
+    handle: Handle,
 }
 
 impl<Io> Session<Io>
@@ -57,11 +58,14 @@ where
 
         let conn = tlsn_mux::Connection::new(io, mux_config);
         let handle = conn.handle().expect("handle should be available");
-        let mt = build_mt_context(MuxHandle { handle });
+        let mt = build_mt_context(MuxHandle {
+            handle: handle.clone(),
+        });
 
         Self {
             conn: Some(conn),
             mt,
+            handle,
         }
     }
 
@@ -76,7 +80,7 @@ where
                 .with_source(e)
         })?;
 
-        Ok(Prover::new(ctx, config))
+        Ok(Prover::new(ctx, self.handle.clone(), config))
     }
 
     /// Creates a new verifier.
@@ -90,7 +94,7 @@ where
                 .with_source(e)
         })?;
 
-        Ok(Verifier::new(ctx, config))
+        Ok(Verifier::new(ctx, self.handle.clone(), config))
     }
 
     /// Returns `true` if the session is closed.
@@ -161,6 +165,7 @@ where
                 mt: self.mt,
                 should_close,
                 waker,
+                handle: self.handle,
             },
         )
     }
@@ -245,6 +250,7 @@ pub struct SessionHandle {
     mt: Multithread,
     should_close: Arc<AtomicBool>,
     waker: Arc<Mutex<Option<Waker>>>,
+    handle: Handle,
 }
 
 impl SessionHandle {
@@ -259,7 +265,7 @@ impl SessionHandle {
                 .with_source(e)
         })?;
 
-        Ok(Prover::new(ctx, config))
+        Ok(Prover::new(ctx, self.handle.clone(), config))
     }
 
     /// Creates a new verifier.
@@ -273,7 +279,7 @@ impl SessionHandle {
                 .with_source(e)
         })?;
 
-        Ok(Verifier::new(ctx, config))
+        Ok(Verifier::new(ctx, self.handle.clone(), config))
     }
 
     /// Signals the session to close.

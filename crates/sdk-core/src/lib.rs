@@ -32,7 +32,7 @@
 //! // Send request through server connection.
 //! let request = HttpRequest::get("/api/data")
 //!     .header("Authorization", "Bearer token");
-//! let response = prover.send_request(server_io, request).await?;
+//! let response = prover.send_request_mpc(server_io, request).await?;
 //!
 //! // Get transcript and reveal data.
 //! let transcript = prover.transcript()?;
@@ -52,7 +52,7 @@ pub mod types;
 pub mod verifier;
 
 // Re-export main types for convenience.
-pub use config::{NetworkSetting, ProverConfig, VerifierConfig};
+pub use config::{NetworkSetting, ProverConfig, ProverMode, VerifierConfig};
 pub use error::{Result, SdkError};
 pub use handler::compute_reveal;
 pub use io::{HyperIo, Io};

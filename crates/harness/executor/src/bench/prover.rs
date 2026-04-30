@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::{future::IntoFuture, sync::atomic::Ordering};
 
 use anyhow::Result;
 use futures::{AsyncReadExt, AsyncWriteExt, TryFutureExt};
@@ -10,9 +10,9 @@ use tlsn::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     },
-    connection::ServerName,
+    connection::{DnsName, ServerName},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
@@ -38,60 +38,95 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
 
     let time_start = web_time::Instant::now();
 
-    let prover = prover
-        .commit(
-            TlsCommitConfig::builder()
-                .protocol({
-                    let mut builder = MpcTlsConfig::builder()
-                        .max_sent_data(config.upload_size)
-                        .defer_decryption_from_start(config.defer_decryption);
+    let tls_client_config = TlsClientConfig::builder()
+        .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
+        .root_store(RootCertStore {
+            roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+        })
+        .build()?;
 
-                    if !config.defer_decryption {
-                        builder = builder.max_recv_data_online(config.download_size + RECV_PADDING);
-                    }
+    let request = format!(
+        "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
+        config.download_size,
+        // Subtract the 68 bytes already present in the request template.
+        String::from_utf8(vec![0x42u8; config.upload_size.saturating_sub(68)])?,
+    );
 
-                    builder
-                        .max_recv_data(config.download_size + RECV_PADDING)
-                        .build()
-                }?)
-                .build()?,
-        )
-        .await?;
+    let time_preprocess: u128;
+    let time_start_online: web_time::Instant;
+    let uploaded_preprocess: u64;
+    let downloaded_preprocess: u64;
 
-    let time_preprocess = time_start.elapsed().as_millis();
-    let time_start_online = web_time::Instant::now();
-    let uploaded_preprocess = sent.load(Ordering::Relaxed);
-    let downloaded_preprocess = recv.load(Ordering::Relaxed);
+    let mut prover = if config.proxy {
+        let commit_config = TlsCommitConfig::builder()
+            .protocol(
+                ProxyTlsConfig::builder()
+                    .server_name(DnsName::try_from(SERVER_DOMAIN)?)
+                    .build()?,
+            )
+            .build()?;
+        let prover = prover.commit(commit_config).await?;
 
-    let (mut conn, prover_fut) = prover.connect(
-        TlsClientConfig::builder()
-            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
-            .root_store(RootCertStore {
-                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-            })
-            .build()?,
-        provider.provide_server_io().await?,
-    )?;
+        time_preprocess = time_start.elapsed().as_millis();
+        time_start_online = web_time::Instant::now();
+        uploaded_preprocess = sent.load(Ordering::Relaxed);
+        downloaded_preprocess = recv.load(Ordering::Relaxed);
 
-    let (_, mut prover) = futures::try_join!(
-        async {
-            let request = format!(
-                "GET /bytes?size={} HTTP/1.1\r\nConnection: close\r\nData: {}\r\n\r\n",
-                config.download_size,
-                // Subtract the 68 bytes already present in the request template.
-                String::from_utf8(vec![0x42u8; config.upload_size.saturating_sub(68)])?,
-            );
+        let (mut conn, prover) = prover.connect(tls_client_config)?;
 
-            conn.write_all(request.as_bytes()).await?;
+        let (_, prover) = futures::try_join!(
+            async {
+                conn.write_all(request.as_bytes()).await?;
 
-            let mut response = Vec::new();
-            conn.read_to_end(&mut response).await?;
-            conn.close().await?;
+                let mut response = Vec::new();
+                conn.read_to_end(&mut response).await?;
+                conn.close().await?;
 
-            Ok(())
-        },
-        prover_fut.map_err(anyhow::Error::from)
-    )?;
+                Ok(())
+            },
+            prover.into_future().map_err(anyhow::Error::from)
+        )?;
+        prover
+    } else {
+        let commit_config = TlsCommitConfig::builder()
+            .protocol({
+                let mut builder = MpcTlsConfig::builder()
+                    .max_sent_data(config.upload_size)
+                    .defer_decryption_from_start(config.defer_decryption);
+
+                if !config.defer_decryption {
+                    builder = builder.max_recv_data_online(config.download_size + RECV_PADDING);
+                }
+
+                builder
+                    .max_recv_data(config.download_size + RECV_PADDING)
+                    .build()
+            }?)
+            .build()?;
+        let prover = prover.commit(commit_config).await?;
+
+        time_preprocess = time_start.elapsed().as_millis();
+        time_start_online = web_time::Instant::now();
+        uploaded_preprocess = sent.load(Ordering::Relaxed);
+        downloaded_preprocess = recv.load(Ordering::Relaxed);
+
+        let (mut conn, prover) =
+            prover.connect(tls_client_config, provider.provide_server_io().await?)?;
+
+        let (_, prover) = futures::try_join!(
+            async {
+                conn.write_all(request.as_bytes()).await?;
+
+                let mut response = Vec::new();
+                conn.read_to_end(&mut response).await?;
+                conn.close().await?;
+
+                Ok(())
+            },
+            prover.into_future().map_err(anyhow::Error::from)
+        )?;
+        prover
+    };
 
     let time_online = time_start_online.elapsed().as_millis();
     let uploaded_online = sent.load(Ordering::Relaxed) - uploaded_preprocess;

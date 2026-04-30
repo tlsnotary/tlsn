@@ -1,17 +1,13 @@
 //! TLS Verifier state.
 
-use std::sync::Arc;
-
-use mpc_tls::{MpcTlsFollower, SessionKeys};
+use mpc_tls::SessionKeys;
 use tlsn_core::{
-    config::{prove::ProveRequest, tls_commit::TlsCommitRequest},
+    config::prove::ProveRequest,
     connection::{HandshakeData, ServerName},
     transcript::{PartialTranscript, TlsTranscript},
 };
-use tlsn_deap::Deap;
-use tokio::sync::Mutex;
 
-use crate::mpz::{VerifierMpc, VerifierZk};
+use crate::{ProtocolConfig, deps::VerifierZk};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -22,21 +18,31 @@ pub struct Initialized;
 opaque_debug::implement!(Initialized);
 
 /// State after receiving protocol configuration from the prover.
-pub struct CommitStart {
-    pub(crate) request: TlsCommitRequest,
+pub struct CommitStart<P: ProtocolConfig> {
+    pub(crate) config: P,
 }
 
-opaque_debug::implement!(CommitStart);
+impl<P: ProtocolConfig> std::fmt::Debug for CommitStart<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommitAccepted")
+            .field("deps", &"{{ }}")
+            .finish()
+    }
+}
 
 /// State after accepting the proposed TLS commitment protocol configuration and
 /// performing preprocessing.
-pub struct CommitAccepted {
-    pub(crate) mpc_tls: MpcTlsFollower,
-    pub(crate) keys: SessionKeys,
-    pub(crate) vm: Arc<Mutex<Deap<VerifierMpc, VerifierZk>>>,
+pub struct CommitAccepted<P: ProtocolConfig> {
+    pub(crate) deps: <P as ProtocolConfig>::VerifierDeps,
 }
 
-opaque_debug::implement!(CommitAccepted);
+impl<P: ProtocolConfig> std::fmt::Debug for CommitAccepted<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommitAccepted")
+            .field("deps", &"{{ }}")
+            .finish()
+    }
+}
 
 /// State after the TLS transcript has been committed.
 pub struct Committed {
@@ -60,16 +66,18 @@ pub struct Verify {
 opaque_debug::implement!(Verify);
 
 impl VerifierState for Initialized {}
-impl VerifierState for CommitStart {}
-impl VerifierState for CommitAccepted {}
+impl<P: ProtocolConfig> VerifierState for CommitStart<P> {}
+impl<P: ProtocolConfig> VerifierState for CommitAccepted<P> {}
 impl VerifierState for Committed {}
 impl VerifierState for Verify {}
 
 mod sealed {
+    use crate::ProtocolConfig;
+
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl Sealed for super::CommitStart {}
-    impl Sealed for super::CommitAccepted {}
+    impl<P: ProtocolConfig> Sealed for super::CommitStart<P> {}
+    impl<P: ProtocolConfig> Sealed for super::CommitAccepted<P> {}
     impl Sealed for super::Committed {}
     impl Sealed for super::Verify {}
 }

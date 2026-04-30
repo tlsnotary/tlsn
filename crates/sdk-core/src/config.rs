@@ -2,11 +2,23 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Protocol mode for the prover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ProverMode {
+    /// MPC (Multi-Party Computation) mode.
+    #[default]
+    Mpc,
+    /// Proxy mode.
+    Proxy,
+}
+
 /// Configuration for the Prover.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProverConfig {
     /// The server name (domain) to connect to.
     pub server_name: String,
+    /// Protocol mode.
+    pub mode: ProverMode,
     /// Maximum bytes that can be sent.
     pub max_sent_data: usize,
     /// Maximum number of sent records.
@@ -36,6 +48,7 @@ impl ProverConfig {
 #[derive(Debug, Clone)]
 pub struct ProverConfigBuilder {
     server_name: String,
+    mode: ProverMode,
     max_sent_data: usize,
     max_sent_records: Option<usize>,
     max_recv_data_online: Option<usize>,
@@ -51,6 +64,7 @@ impl ProverConfigBuilder {
     pub fn new(server_name: impl Into<String>) -> Self {
         Self {
             server_name: server_name.into(),
+            mode: ProverMode::default(),
             max_sent_data: 4096,
             max_sent_records: None,
             max_recv_data_online: None,
@@ -60,6 +74,12 @@ impl ProverConfigBuilder {
             network: NetworkSetting::Latency,
             client_auth: None,
         }
+    }
+
+    /// Sets the protocol mode.
+    pub fn mode(mut self, mode: ProverMode) -> Self {
+        self.mode = mode;
+        self
     }
 
     /// Sets the maximum bytes that can be sent.
@@ -114,6 +134,7 @@ impl ProverConfigBuilder {
     pub fn build(self) -> ProverConfig {
         ProverConfig {
             server_name: self.server_name,
+            mode: self.mode,
             max_sent_data: self.max_sent_data,
             max_sent_records: self.max_sent_records,
             max_recv_data_online: self.max_recv_data_online,

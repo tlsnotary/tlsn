@@ -140,11 +140,13 @@ regex = { version = "1.10" }
 ring = { version = "0.17" }
 rs_merkle = { git = "https://github.com/tlsnotary/rs-merkle.git", rev = "85f3e82" }
 rstest = { version = "0.17" }
-rustls = { version = "0.21" }
+rustls = { version = "0.23", default-features = false }
 rustls-pemfile = { version = "1.0" }
 rustls-webpki = { version = "0.103" }
 rustls-pki-types = { version = "1.12" }
 sct = { version = "0.7" }
+spki = { version = "0.8", features = ["std"] }
+const-oid = { version = "0.10", features = ["db"] }
 semver = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
