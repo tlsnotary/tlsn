@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/wasm/src/prover/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="tlsn_wasm" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0-nightly (37d85e592 2026-04-28)" data-channel="nightly" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-aa4d37ac.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">tlsn_wasm/prover/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! WASM Prover bindings.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/wasm/src/prover/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="tlsn_wasm" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0-nightly (c935696dd 2026-04-29)" data-channel="nightly" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-aa4d37ac.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">tlsn_wasm/prover/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! WASM Prover bindings.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">mod </span>config;
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -31,7 +31,7 @@
 <a href=#31 id=31 data-nosnippet>31</a>    <span class="doccomment">/// Creates a new Prover with the given configuration.
 <a href=#32 id=32 data-nosnippet>32</a>    </span><span class="attr">#[wasm_bindgen(constructor)]
 <a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">pub fn </span>new(config: ProverConfig) -&gt; <span class="prelude-ty">Result</span>&lt;JsProver&gt; {
-<a href=#34 id=34 data-nosnippet>34</a>        <span class="kw">let </span>core_config = convert_prover_config(config);
+<a href=#34 id=34 data-nosnippet>34</a>        <span class="kw">let </span>core_config = convert_prover_config(config)<span class="question-mark">?</span>;
 <a href=#35 id=35 data-nosnippet>35</a>        <span class="kw">let </span>inner = SdkProver::new(core_config).map_err(|e| JsError::new(<span class="kw-2">&amp;</span>e.to_string()))<span class="question-mark">?</span>;
 <a href=#36 id=36 data-nosnippet>36</a>        <span class="prelude-val">Ok</span>(JsProver {
 <a href=#37 id=37 data-nosnippet>37</a>            inner,
@@ -153,7 +153,7 @@
 <a href=#153 id=153 data-nosnippet>153</a>
 <a href=#154 id=154 data-nosnippet>154</a><span class="comment">// Conversion functions between WASM types and sdk-core types.
 <a href=#155 id=155 data-nosnippet>155</a>
-<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">fn </span>convert_prover_config(config: ProverConfig) -&gt; CoreProverConfig {
+<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">fn </span>convert_prover_config(config: ProverConfig) -&gt; <span class="prelude-ty">Result</span>&lt;CoreProverConfig&gt; {
 <a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">let </span><span class="kw-2">mut </span>builder = CoreProverConfig::builder(<span class="kw-2">&amp;</span>config.server_name)
 <a href=#158 id=158 data-nosnippet>158</a>        .max_sent_data(config.max_sent_data)
 <a href=#159 id=159 data-nosnippet>159</a>        .max_recv_data(config.max_recv_data)
@@ -182,83 +182,87 @@
 <a href=#182 id=182 data-nosnippet>182</a>        builder = builder.client_auth(certs, key);
 <a href=#183 id=183 data-nosnippet>183</a>    }
 <a href=#184 id=184 data-nosnippet>184</a>
-<a href=#185 id=185 data-nosnippet>185</a>    builder.build()
-<a href=#186 id=186 data-nosnippet>186</a>}
-<a href=#187 id=187 data-nosnippet>187</a>
-<a href=#188 id=188 data-nosnippet>188</a><span class="kw">fn </span>convert_http_request(request: HttpRequest) -&gt; tlsn_sdk_core::HttpRequest {
-<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">let </span>method = <span class="kw">match </span>request.method {
-<a href=#190 id=190 data-nosnippet>190</a>        Method::GET =&gt; tlsn_sdk_core::Method::GET,
-<a href=#191 id=191 data-nosnippet>191</a>        Method::POST =&gt; tlsn_sdk_core::Method::POST,
-<a href=#192 id=192 data-nosnippet>192</a>        Method::PUT =&gt; tlsn_sdk_core::Method::PUT,
-<a href=#193 id=193 data-nosnippet>193</a>        Method::DELETE =&gt; tlsn_sdk_core::Method::DELETE,
-<a href=#194 id=194 data-nosnippet>194</a>    };
-<a href=#195 id=195 data-nosnippet>195</a>
-<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">let </span><span class="kw-2">mut </span>core_request = tlsn_sdk_core::HttpRequest::new(method, <span class="kw-2">&amp;</span>request.uri);
-<a href=#197 id=197 data-nosnippet>197</a>
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">for </span>(name, value) <span class="kw">in </span>request.headers {
-<a href=#199 id=199 data-nosnippet>199</a>        core_request = core_request.header(name, value);
-<a href=#200 id=200 data-nosnippet>200</a>    }
+<a href=#185 id=185 data-nosnippet>185</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(root_certs) = config.root_certs {
+<a href=#186 id=186 data-nosnippet>186</a>        builder = builder.root_certs(root_certs);
+<a href=#187 id=187 data-nosnippet>187</a>    }
+<a href=#188 id=188 data-nosnippet>188</a>
+<a href=#189 id=189 data-nosnippet>189</a>    builder.build().map_err(|e| JsError::new(<span class="kw-2">&amp;</span>e.to_string()))
+<a href=#190 id=190 data-nosnippet>190</a>}
+<a href=#191 id=191 data-nosnippet>191</a>
+<a href=#192 id=192 data-nosnippet>192</a><span class="kw">fn </span>convert_http_request(request: HttpRequest) -&gt; tlsn_sdk_core::HttpRequest {
+<a href=#193 id=193 data-nosnippet>193</a>    <span class="kw">let </span>method = <span class="kw">match </span>request.method {
+<a href=#194 id=194 data-nosnippet>194</a>        Method::GET =&gt; tlsn_sdk_core::Method::GET,
+<a href=#195 id=195 data-nosnippet>195</a>        Method::POST =&gt; tlsn_sdk_core::Method::POST,
+<a href=#196 id=196 data-nosnippet>196</a>        Method::PUT =&gt; tlsn_sdk_core::Method::PUT,
+<a href=#197 id=197 data-nosnippet>197</a>        Method::DELETE =&gt; tlsn_sdk_core::Method::DELETE,
+<a href=#198 id=198 data-nosnippet>198</a>    };
+<a href=#199 id=199 data-nosnippet>199</a>
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">let </span><span class="kw-2">mut </span>core_request = tlsn_sdk_core::HttpRequest::new(method, <span class="kw-2">&amp;</span>request.uri);
 <a href=#201 id=201 data-nosnippet>201</a>
-<a href=#202 id=202 data-nosnippet>202</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = request.body {
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">let </span>core_body = <span class="kw">match </span>body {
-<a href=#204 id=204 data-nosnippet>204</a>            Body::Json(value) =&gt; tlsn_sdk_core::Body::Json(value),
-<a href=#205 id=205 data-nosnippet>205</a>        };
-<a href=#206 id=206 data-nosnippet>206</a>        core_request = core_request.body(core_body);
-<a href=#207 id=207 data-nosnippet>207</a>    }
-<a href=#208 id=208 data-nosnippet>208</a>
-<a href=#209 id=209 data-nosnippet>209</a>    core_request
-<a href=#210 id=210 data-nosnippet>210</a>}
-<a href=#211 id=211 data-nosnippet>211</a>
-<a href=#212 id=212 data-nosnippet>212</a><span class="kw">fn </span>convert_http_response(response: tlsn_sdk_core::HttpResponse) -&gt; HttpResponse {
-<a href=#213 id=213 data-nosnippet>213</a>    HttpResponse {
-<a href=#214 id=214 data-nosnippet>214</a>        status: response.status,
-<a href=#215 id=215 data-nosnippet>215</a>        headers: response.headers,
-<a href=#216 id=216 data-nosnippet>216</a>    }
-<a href=#217 id=217 data-nosnippet>217</a>}
-<a href=#218 id=218 data-nosnippet>218</a>
-<a href=#219 id=219 data-nosnippet>219</a><span class="kw">fn </span>convert_transcript(transcript: tlsn_sdk_core::Transcript) -&gt; Transcript {
-<a href=#220 id=220 data-nosnippet>220</a>    Transcript {
-<a href=#221 id=221 data-nosnippet>221</a>        sent: transcript.sent,
-<a href=#222 id=222 data-nosnippet>222</a>        recv: transcript.recv,
-<a href=#223 id=223 data-nosnippet>223</a>    }
-<a href=#224 id=224 data-nosnippet>224</a>}
-<a href=#225 id=225 data-nosnippet>225</a>
-<a href=#226 id=226 data-nosnippet>226</a><span class="kw">fn </span>convert_hash_algorithm(alg: HashAlgorithm) -&gt; tlsn_sdk_core::HashAlgorithm {
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">match </span>alg {
-<a href=#228 id=228 data-nosnippet>228</a>        HashAlgorithm::BLAKE3 =&gt; tlsn_sdk_core::HashAlgorithm::Blake3,
-<a href=#229 id=229 data-nosnippet>229</a>        HashAlgorithm::SHA256 =&gt; tlsn_sdk_core::HashAlgorithm::Sha256,
-<a href=#230 id=230 data-nosnippet>230</a>        HashAlgorithm::KECCAK256 =&gt; tlsn_sdk_core::HashAlgorithm::Keccak256,
-<a href=#231 id=231 data-nosnippet>231</a>    }
-<a href=#232 id=232 data-nosnippet>232</a>}
-<a href=#233 id=233 data-nosnippet>233</a>
-<a href=#234 id=234 data-nosnippet>234</a><span class="kw">fn </span>convert_commit_range(cr: CommitRange) -&gt; tlsn_sdk_core::CommitRange {
-<a href=#235 id=235 data-nosnippet>235</a>    tlsn_sdk_core::CommitRange {
-<a href=#236 id=236 data-nosnippet>236</a>        start: cr.start,
-<a href=#237 id=237 data-nosnippet>237</a>        end: cr.end,
-<a href=#238 id=238 data-nosnippet>238</a>        algorithm: convert_hash_algorithm(cr.algorithm),
-<a href=#239 id=239 data-nosnippet>239</a>    }
-<a href=#240 id=240 data-nosnippet>240</a>}
-<a href=#241 id=241 data-nosnippet>241</a>
-<a href=#242 id=242 data-nosnippet>242</a><span class="kw">fn </span>convert_commit(commit: Commit) -&gt; tlsn_sdk_core::Commit {
-<a href=#243 id=243 data-nosnippet>243</a>    tlsn_sdk_core::Commit {
-<a href=#244 id=244 data-nosnippet>244</a>        sent: commit.sent.into_iter().map(convert_commit_range).collect(),
-<a href=#245 id=245 data-nosnippet>245</a>        recv: commit.recv.into_iter().map(convert_commit_range).collect(),
-<a href=#246 id=246 data-nosnippet>246</a>    }
-<a href=#247 id=247 data-nosnippet>247</a>}
-<a href=#248 id=248 data-nosnippet>248</a>
-<a href=#249 id=249 data-nosnippet>249</a><span class="kw">fn </span>convert_reveal(reveal: Reveal) -&gt; tlsn_sdk_core::Reveal {
-<a href=#250 id=250 data-nosnippet>250</a>    <span class="kw">let </span><span class="kw-2">mut </span>core_reveal = tlsn_sdk_core::Reveal::new();
-<a href=#251 id=251 data-nosnippet>251</a>
-<a href=#252 id=252 data-nosnippet>252</a>    <span class="kw">for </span>range <span class="kw">in </span>reveal.sent {
-<a href=#253 id=253 data-nosnippet>253</a>        core_reveal = core_reveal.sent(range);
-<a href=#254 id=254 data-nosnippet>254</a>    }
+<a href=#202 id=202 data-nosnippet>202</a>    <span class="kw">for </span>(name, value) <span class="kw">in </span>request.headers {
+<a href=#203 id=203 data-nosnippet>203</a>        core_request = core_request.header(name, value);
+<a href=#204 id=204 data-nosnippet>204</a>    }
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = request.body {
+<a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">let </span>core_body = <span class="kw">match </span>body {
+<a href=#208 id=208 data-nosnippet>208</a>            Body::Json(value) =&gt; tlsn_sdk_core::Body::Json(value),
+<a href=#209 id=209 data-nosnippet>209</a>        };
+<a href=#210 id=210 data-nosnippet>210</a>        core_request = core_request.body(core_body);
+<a href=#211 id=211 data-nosnippet>211</a>    }
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>    core_request
+<a href=#214 id=214 data-nosnippet>214</a>}
+<a href=#215 id=215 data-nosnippet>215</a>
+<a href=#216 id=216 data-nosnippet>216</a><span class="kw">fn </span>convert_http_response(response: tlsn_sdk_core::HttpResponse) -&gt; HttpResponse {
+<a href=#217 id=217 data-nosnippet>217</a>    HttpResponse {
+<a href=#218 id=218 data-nosnippet>218</a>        status: response.status,
+<a href=#219 id=219 data-nosnippet>219</a>        headers: response.headers,
+<a href=#220 id=220 data-nosnippet>220</a>    }
+<a href=#221 id=221 data-nosnippet>221</a>}
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a><span class="kw">fn </span>convert_transcript(transcript: tlsn_sdk_core::Transcript) -&gt; Transcript {
+<a href=#224 id=224 data-nosnippet>224</a>    Transcript {
+<a href=#225 id=225 data-nosnippet>225</a>        sent: transcript.sent,
+<a href=#226 id=226 data-nosnippet>226</a>        recv: transcript.recv,
+<a href=#227 id=227 data-nosnippet>227</a>    }
+<a href=#228 id=228 data-nosnippet>228</a>}
+<a href=#229 id=229 data-nosnippet>229</a>
+<a href=#230 id=230 data-nosnippet>230</a><span class="kw">fn </span>convert_hash_algorithm(alg: HashAlgorithm) -&gt; tlsn_sdk_core::HashAlgorithm {
+<a href=#231 id=231 data-nosnippet>231</a>    <span class="kw">match </span>alg {
+<a href=#232 id=232 data-nosnippet>232</a>        HashAlgorithm::BLAKE3 =&gt; tlsn_sdk_core::HashAlgorithm::Blake3,
+<a href=#233 id=233 data-nosnippet>233</a>        HashAlgorithm::SHA256 =&gt; tlsn_sdk_core::HashAlgorithm::Sha256,
+<a href=#234 id=234 data-nosnippet>234</a>        HashAlgorithm::KECCAK256 =&gt; tlsn_sdk_core::HashAlgorithm::Keccak256,
+<a href=#235 id=235 data-nosnippet>235</a>    }
+<a href=#236 id=236 data-nosnippet>236</a>}
+<a href=#237 id=237 data-nosnippet>237</a>
+<a href=#238 id=238 data-nosnippet>238</a><span class="kw">fn </span>convert_commit_range(cr: CommitRange) -&gt; tlsn_sdk_core::CommitRange {
+<a href=#239 id=239 data-nosnippet>239</a>    tlsn_sdk_core::CommitRange {
+<a href=#240 id=240 data-nosnippet>240</a>        start: cr.start,
+<a href=#241 id=241 data-nosnippet>241</a>        end: cr.end,
+<a href=#242 id=242 data-nosnippet>242</a>        algorithm: convert_hash_algorithm(cr.algorithm),
+<a href=#243 id=243 data-nosnippet>243</a>    }
+<a href=#244 id=244 data-nosnippet>244</a>}
+<a href=#245 id=245 data-nosnippet>245</a>
+<a href=#246 id=246 data-nosnippet>246</a><span class="kw">fn </span>convert_commit(commit: Commit) -&gt; tlsn_sdk_core::Commit {
+<a href=#247 id=247 data-nosnippet>247</a>    tlsn_sdk_core::Commit {
+<a href=#248 id=248 data-nosnippet>248</a>        sent: commit.sent.into_iter().map(convert_commit_range).collect(),
+<a href=#249 id=249 data-nosnippet>249</a>        recv: commit.recv.into_iter().map(convert_commit_range).collect(),
+<a href=#250 id=250 data-nosnippet>250</a>    }
+<a href=#251 id=251 data-nosnippet>251</a>}
+<a href=#252 id=252 data-nosnippet>252</a>
+<a href=#253 id=253 data-nosnippet>253</a><span class="kw">fn </span>convert_reveal(reveal: Reveal) -&gt; tlsn_sdk_core::Reveal {
+<a href=#254 id=254 data-nosnippet>254</a>    <span class="kw">let </span><span class="kw-2">mut </span>core_reveal = tlsn_sdk_core::Reveal::new();
 <a href=#255 id=255 data-nosnippet>255</a>
-<a href=#256 id=256 data-nosnippet>256</a>    <span class="kw">for </span>range <span class="kw">in </span>reveal.recv {
-<a href=#257 id=257 data-nosnippet>257</a>        core_reveal = core_reveal.recv(range);
+<a href=#256 id=256 data-nosnippet>256</a>    <span class="kw">for </span>range <span class="kw">in </span>reveal.sent {
+<a href=#257 id=257 data-nosnippet>257</a>        core_reveal = core_reveal.sent(range);
 <a href=#258 id=258 data-nosnippet>258</a>    }
 <a href=#259 id=259 data-nosnippet>259</a>
-<a href=#260 id=260 data-nosnippet>260</a>    core_reveal = core_reveal.server_identity(reveal.server_identity);
-<a href=#261 id=261 data-nosnippet>261</a>
-<a href=#262 id=262 data-nosnippet>262</a>    core_reveal
-<a href=#263 id=263 data-nosnippet>263</a>}
+<a href=#260 id=260 data-nosnippet>260</a>    <span class="kw">for </span>range <span class="kw">in </span>reveal.recv {
+<a href=#261 id=261 data-nosnippet>261</a>        core_reveal = core_reveal.recv(range);
+<a href=#262 id=262 data-nosnippet>262</a>    }
+<a href=#263 id=263 data-nosnippet>263</a>
+<a href=#264 id=264 data-nosnippet>264</a>    core_reveal = core_reveal.server_identity(reveal.server_identity);
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a>    core_reveal
+<a href=#267 id=267 data-nosnippet>267</a>}
 </code></pre></div></section></main></body></html>
