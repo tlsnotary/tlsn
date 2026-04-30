@@ -3,7 +3,7 @@ use tlsn::{
     Session,
     config::{
         prover::ProverConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
         verifier::VerifierConfig,
     },
     connection::{DnsName, ServerName},
@@ -34,16 +34,11 @@ async fn test_mpc() {
     // Maximum number of application records received by prover from server
     const MAX_RECV_RECORDS: usize = 6;
 
-    let config = TlsCommitConfig::builder()
-        .protocol(
-            MpcTlsConfig::builder()
-                .max_sent_data(MAX_SENT_DATA)
-                .max_sent_records(MAX_SENT_RECORDS)
-                .max_recv_data(MAX_RECV_DATA)
-                .max_recv_records_online(MAX_RECV_RECORDS)
-                .build()
-                .unwrap(),
-        )
+    let config = MpcTlsConfig::builder()
+        .max_sent_data(MAX_SENT_DATA)
+        .max_sent_records(MAX_SENT_RECORDS)
+        .max_recv_data(MAX_RECV_DATA)
+        .max_recv_records_online(MAX_RECV_RECORDS)
         .build()
         .unwrap();
 
@@ -109,13 +104,8 @@ async fn test_proxy() {
         Err(_) => warn!("tracing subscriber already set up"),
     };
 
-    let config = TlsCommitConfig::builder()
-        .protocol(
-            ProxyTlsConfig::builder()
-                .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
-                .build()
-                .unwrap(),
-        )
+    let config = ProxyTlsConfig::builder()
+        .server_name(DnsName::try_from(SERVER_DOMAIN).unwrap())
         .build()
         .unwrap();
 

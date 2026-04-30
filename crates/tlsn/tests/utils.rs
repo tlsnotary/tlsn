@@ -5,7 +5,7 @@ use tlsn::{
     config::{
         prove::ProveConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     },
     connection::ServerName,
     hash::HashAlgId,
@@ -19,7 +19,7 @@ use tlsn_server_fixture_certs::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub async fn run_prover_mpc(
-    config: TlsCommitConfig<MpcTlsConfig>,
+    config: MpcTlsConfig,
     prover: Prover,
     server_socket: Option<tokio::io::DuplexStream>,
 ) -> Prover<tlsn::prover::state::Committed> {
@@ -53,7 +53,7 @@ pub async fn run_prover_mpc(
 }
 
 pub async fn run_prover_proxy(
-    config: TlsCommitConfig<ProxyTlsConfig>,
+    config: ProxyTlsConfig,
     prover: Prover,
 ) -> Prover<tlsn::prover::state::Committed> {
     let prover = prover.commit(config).await.unwrap();
