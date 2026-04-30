@@ -3068,7 +3068,7 @@ dependencies = [
 [[package]]
 name = "futures-plex"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dd419bf#dd419bf872e5f1ee1e2a569fa0add4fdac4beee9"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
 dependencies = [
  "futures",
 ]
@@ -6777,7 +6777,7 @@ dependencies = [
 [[package]]
 name = "spansy"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dd419bf#dd419bf872e5f1ee1e2a569fa0add4fdac4beee9"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
 dependencies = [
  "bytes",
  "httparse",
@@ -7392,7 +7392,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-spawn",
- "web-sys",
  "web-time 0.2.4",
  "ws_stream_wasm",
 ]
@@ -7536,7 +7535,7 @@ dependencies = [
 [[package]]
 name = "tlsn-mux"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dd419bf#dd419bf872e5f1ee1e2a569fa0add4fdac4beee9"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
 dependencies = [
  "blake3",
  "futures",
@@ -8394,9 +8393,8 @@ dependencies = [
 
 [[package]]
 name = "web-spawn"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81aa4e191851788bbf25b06490e2800a3ca4f4da98d2da1b8a612af98526bbb1"
+version = "0.3.0"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
 dependencies = [
  "crossbeam-channel",
  "futures",
@@ -8467,7 +8465,7 @@ dependencies = [
 [[package]]
 name = "websocket-relay"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=dd419bf#dd419bf872e5f1ee1e2a569fa0add4fdac4beee9"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
 dependencies = [
  "anyhow",
  "form_urlencoded",

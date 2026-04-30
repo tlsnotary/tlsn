@@ -43,9 +43,6 @@ tlsn-sdk-core = { workspace = true, features = ["wasm"] }
 js-sys = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 web-spawn = { workspace = true, features = ["no-bundler"] }
-# TODO: remove once web-spawn 0.2.2 lands (tlsnotary/tlsn-utils#102) — declares
-# the missing web-sys/Worker feature; keep this defensive enable until then.
-web-sys = { version = "0.3", features = ["Worker"] }
 ws_stream_wasm = { workspace = true }
 gloo-utils = { version = "0.2", features = ["serde"] }
 getrandom = { version = "0.2", features = ["js"] }
