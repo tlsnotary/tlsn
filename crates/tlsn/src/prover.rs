@@ -35,7 +35,7 @@ use tlsn_core::{
         prove::ProveConfig,
         prover::ProverConfig,
         tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
@@ -96,7 +96,7 @@ impl Prover<state::Initialized> {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     pub async fn commit<P: ProtocolConfig>(
         mut self,
-        config: TlsCommitConfig<P>,
+        config: P,
     ) -> Result<Prover<state::CommitAccepted<P>>> {
         let mut ctx = self
             .ctx
@@ -106,7 +106,7 @@ impl Prover<state::Initialized> {
         // Sends protocol configuration to verifier for compatibility check.
         ctx.io_mut()
             .send(TlsCommitRequestMsg {
-                request: config.protocol().clone().into(),
+                request: config.clone().into(),
                 version: crate::VERSION.clone(),
             })
             .await
@@ -131,7 +131,7 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let mut deps = P::ProverDeps::new(config.protocol(), ctx);
+        let mut deps = P::ProverDeps::new(&config, ctx);
         deps.setup().await?;
 
         debug!("setup complete");
