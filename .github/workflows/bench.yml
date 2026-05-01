@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Build Docker Image
       run: |
@@ -31,7 +31,7 @@ jobs:
       run: |
         docker run -v ./crates/harness/:/benches tlsn-bench bash -c "tlsn-harness-plot /benches/bench.toml /benches/metrics.csv --min-max-band --prover-kind  ${{ github.event.inputs.bench_type }}"
     - name: Upload graphs
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: benchmark_graphs
         path: |
