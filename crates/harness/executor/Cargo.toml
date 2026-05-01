@@ -39,6 +39,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"], optional = t
 tracing = { workspace = true }
 wasm-bindgen = { workspace = true }
 tlsn-wasm = { workspace = true }
+tlsn-sdk-core = { workspace = true, features = ["wasm"] }
 js-sys = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 web-spawn = { workspace = true, features = ["no-bundler"] }

@@ -19,6 +19,12 @@ unsafe extern "C" {
     fn __wasm_call_ctors();
 }
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn error(s: &str);
+}
+
 #[wasm_bindgen(start)]
 pub fn main() {
     unsafe { __wasm_call_ctors() };
@@ -92,6 +98,8 @@ impl WasmExecutor {
         };
 
         std::panic::set_hook(Box::new(move |info| {
+            error(&format!("{}", info));
+
             PANIC_CB.with(|callback| {
                 if let Some(callback) = callback.borrow().as_ref() {
                     let _ = callback.call1(

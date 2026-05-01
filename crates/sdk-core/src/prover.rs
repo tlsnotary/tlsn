@@ -140,10 +140,7 @@ impl SdkProver {
         let prover_config = tlsn::config::prover::ProverConfig::builder().build()?;
         let prover = handle.new_prover(prover_config)?;
 
-        let prover = prover
-            .commit(tls_commit_config)
-            .await
-            .map_err(|e| SdkError::protocol(e.to_string()))?;
+        let prover = prover.commit(tls_commit_config).await?;
 
         self.state = State::CommitAccepted { prover, handle };
 
