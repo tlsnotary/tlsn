@@ -57,3 +57,25 @@ To add or modify benchmarks, see the [`bench.toml`](bench.toml) file.
 ## Browser
 
 The harness supports running tests and benches in the browser by setting the `--target browser` flag in the cli.
+
+## Troubleshooting
+
+### Browser harness hangs with no progress
+
+If the harness hangs when using `--target browser`, it is likely a firewall issue. In browser mode, Chrome connects to WebSocket proxies bound to the host's bridge IP. This traffic hits the host's INPUT chain, where firewalls with a default-drop policy silently block it. Native mode is unaffected because it connects directly between namespaces (FORWARD chain).
+
+Fix: allow traffic on the bridge interface before running the harness:
+
+```sh
+sudo iptables -I INPUT -i tlsn-br -j ACCEPT
+```
+
+Or temporarily stop the firewall:
+
+```sh
+# systemd-based (NixOS, Fedora, etc.)
+sudo systemctl stop firewall.service
+
+# ufw (Ubuntu, Debian)
+sudo ufw disable
+```
