@@ -19,8 +19,8 @@ type Framed = serio::Framed<
     serio::codec::Bincode,
 >;
 
-const RETRY_DELAY: usize = 50;
-const MAX_RETRIES: usize = 10;
+const RETRY_DELAY: usize = 100;
+const MAX_RETRIES: usize = 100;
 
 pub(crate) struct Rpc(Inner);
 
