@@ -105,10 +105,10 @@ jobs:
           toolchain: nightly
           components: rust-src
 
-      - name: Install chromedriver
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-chromedriver
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
 
       - name: Install wasm-pack
         # we need 0.14.0+ which supports custom profiles
