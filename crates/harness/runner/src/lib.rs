@@ -343,6 +343,7 @@ pub async fn main() -> Result<()> {
                     .expect("valid template")
                     .progress_chars("█▓▒░ "),
             );
+            pb.enable_steady_tick(Duration::from_millis(250));
 
             // Collect measurements for stats
             let mut measurements_by_config: HashMap<String, Vec<u64>> = HashMap::new();
