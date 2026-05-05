@@ -6,8 +6,8 @@ mod verify;
 pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 
 use crate::{
-    Error, PROXY_STREAM_PREFIX, Result, Verify,
-    deps::{ProtocolDeps, VerifierMpcDeps, VerifierProxyDeps},
+    Error, Mpc, PROXY_STREAM_PREFIX, Proxy, Result,
+    deps::{VerifierDeps, VerifierMpcDeps, VerifierProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
     tag::verify_tags,
@@ -16,11 +16,11 @@ use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use mpz_common::Context;
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 use tlsn_core::{
     config::{
         prove::ProveRequest,
-        tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
         verifier::VerifierConfig,
     },
     connection::{ConnectionInfo, ServerName},
@@ -78,7 +78,7 @@ impl Verifier<state::Initialized> {
             .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
 
         // Receives protocol configuration from prover to perform compatibility check.
-        let TlsCommitRequestMsg { request, version } =
+        let TlsCommitRequestMsg { config, version } =
             ctx.io_mut().expect_next().await.map_err(|e| {
                 Error::io()
                     .with_msg("commitment protocol failed to receive request")
@@ -102,27 +102,27 @@ impl Verifier<state::Initialized> {
             return Err(Error::config().with_msg(msg));
         }
 
-        let verifier = match request {
-            TlsCommitRequest::Mpc(config) => {
-                let verifier = Verifier {
-                    config: self.config,
-                    span: self.span,
-                    ctx: Some(ctx),
-                    mux_handle: self.mux_handle,
-                    state: state::CommitStart { config },
-                };
-                VerifierCommitStart::Mpc(verifier)
-            }
-            TlsCommitRequest::Proxy(config) => {
-                let verifier = Verifier {
-                    config: self.config,
-                    span: self.span,
-                    ctx: Some(ctx),
-                    mux_handle: self.mux_handle,
-                    state: state::CommitStart { config },
-                };
-                VerifierCommitStart::Proxy(verifier)
-            }
+        let verifier = match &config {
+            TlsCommitConfig::Mpc(_) => VerifierCommitStart::Mpc(Verifier {
+                config: self.config,
+                span: self.span,
+                ctx: Some(ctx),
+                mux_handle: self.mux_handle,
+                state: state::CommitStart {
+                    config,
+                    _pd: PhantomData,
+                },
+            }),
+            TlsCommitConfig::Proxy(_) => VerifierCommitStart::Proxy(Verifier {
+                config: self.config,
+                span: self.span,
+                ctx: Some(ctx),
+                mux_handle: self.mux_handle,
+                state: state::CommitStart {
+                    config,
+                    _pd: PhantomData,
+                },
+            }),
             _ => return Err(Error::config().with_msg("unknown protocol requested")),
         };
 
@@ -133,126 +133,92 @@ impl Verifier<state::Initialized> {
 /// Commit started verifiers for different protocols.
 pub enum VerifierCommitStart {
     /// Verifier for MPC protocol.
-    Mpc(Verifier<state::CommitStart<MpcTlsConfig>>),
+    Mpc(Verifier<state::CommitStart<Mpc>>),
     /// Verifier for Proxy protocol.
-    Proxy(Verifier<state::CommitStart<ProxyTlsConfig>>),
+    Proxy(Verifier<state::CommitStart<Proxy>>),
 }
 
-impl Verifier<state::CommitStart<MpcTlsConfig>> {
+impl<P> Verifier<state::CommitStart<P>> {
+    /// Accepts the proposed protocol configuration.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn accept(mut self) -> Result<Verifier<state::CommitAccepted<P>>> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
+
+        ctx.io_mut().send(Response::ok()).await.map_err(|e| {
+            Error::io()
+                .with_msg("commitment protocol failed to send acceptance")
+                .with_source(e)
+        })?;
+
+        let mut deps = VerifierDeps::new(&self.state.config, ctx);
+        deps.setup().await?;
+
+        debug!("setup complete");
+
+        let verifier = Verifier {
+            config: self.config,
+            span: self.span,
+            ctx: None,
+            mux_handle: self.mux_handle,
+            state: state::CommitAccepted {
+                deps,
+                _pd: PhantomData,
+            },
+        };
+
+        Ok(verifier)
+    }
+
+    /// Rejects the proposed protocol configuration.
+    #[instrument(parent = &self.span, level = "info", skip_all, err)]
+    pub async fn reject(mut self, msg: Option<&str>) -> Result<()> {
+        let mut ctx = self
+            .ctx
+            .take()
+            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
+
+        ctx.io_mut().send(Response::err(msg)).await.map_err(|e| {
+            Error::io()
+                .with_msg("commitment protocol failed to send rejection")
+                .with_source(e)
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Verifier<state::CommitStart<Mpc>> {
     /// Returns the commit config.
     pub fn config(&self) -> &MpcTlsConfig {
-        &self.state.config
-    }
-
-    /// Accepts the proposed protocol configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept(mut self) -> Result<Verifier<state::CommitAccepted<MpcTlsConfig>>> {
-        let mut ctx = self
-            .ctx
-            .take()
-            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
-
-        ctx.io_mut().send(Response::ok()).await.map_err(|e| {
-            Error::io()
-                .with_msg("commitment protocol failed to send acceptance")
-                .with_source(e)
-        })?;
-
-        let mut deps = <MpcTlsConfig as ProtocolDeps<Verify>>::to_deps(&self.state.config, ctx);
-        <MpcTlsConfig as ProtocolDeps<Verify>>::setup(&mut deps).await?;
-
-        debug!("setup complete");
-
-        let verifier = Verifier {
-            config: self.config,
-            span: self.span,
-            ctx: None,
-            mux_handle: self.mux_handle,
-            state: state::CommitAccepted { deps },
+        let TlsCommitConfig::Mpc(config) = &self.state.config else {
+            unreachable!("mpc-tls received incorrect config")
         };
-
-        Ok(verifier)
-    }
-
-    /// Rejects the proposed protocol configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn reject(mut self, msg: Option<&str>) -> Result<()> {
-        let mut ctx = self
-            .ctx
-            .take()
-            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
-
-        ctx.io_mut().send(Response::err(msg)).await.map_err(|e| {
-            Error::io()
-                .with_msg("commitment protocol failed to send rejection")
-                .with_source(e)
-        })?;
-
-        Ok(())
+        config
     }
 }
 
-impl Verifier<state::CommitStart<ProxyTlsConfig>> {
+impl Verifier<state::CommitStart<Proxy>> {
     /// Returns the commit config.
     pub fn config(&self) -> &ProxyTlsConfig {
-        &self.state.config
-    }
-
-    /// Accepts the proposed protocol configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn accept(mut self) -> Result<Verifier<state::CommitAccepted<ProxyTlsConfig>>> {
-        let mut ctx = self
-            .ctx
-            .take()
-            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
-
-        ctx.io_mut().send(Response::ok()).await.map_err(|e| {
-            Error::io()
-                .with_msg("commitment protocol failed to send acceptance")
-                .with_source(e)
-        })?;
-
-        let mut deps = <ProxyTlsConfig as ProtocolDeps<Verify>>::to_deps(&self.state.config, ctx);
-        <ProxyTlsConfig as ProtocolDeps<Verify>>::setup(&mut deps).await?;
-
-        debug!("setup complete");
-
-        let verifier = Verifier {
-            config: self.config,
-            span: self.span,
-            ctx: None,
-            mux_handle: self.mux_handle,
-            state: state::CommitAccepted { deps },
+        let TlsCommitConfig::Proxy(config) = &self.state.config else {
+            unreachable!("proxy-tls received incorrect config")
         };
-
-        Ok(verifier)
-    }
-
-    /// Rejects the proposed protocol configuration.
-    #[instrument(parent = &self.span, level = "info", skip_all, err)]
-    pub async fn reject(mut self, msg: Option<&str>) -> Result<()> {
-        let mut ctx = self
-            .ctx
-            .take()
-            .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
-
-        ctx.io_mut().send(Response::err(msg)).await.map_err(|e| {
-            Error::io()
-                .with_msg("commitment protocol failed to send rejection")
-                .with_source(e)
-        })?;
-
-        Ok(())
+        config
     }
 }
 
-impl Verifier<state::CommitAccepted<MpcTlsConfig>> {
+impl Verifier<state::CommitAccepted<Mpc>> {
     /// Runs the verifier until the TLS connection is closed.
     ///
     /// This method is used for MPC mode only.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Committed>> {
-        let VerifierMpcDeps { vm, mpc_tls, keys } = self.state.deps;
+        let VerifierDeps::Mpc(VerifierMpcDeps { vm, mpc_tls, keys }) = self.state.deps else {
+            unreachable!("mpc-tls received incorrect deps")
+        };
 
         info!("starting MPC-TLS");
         let (mut ctx, tls_transcript) = mpc_tls.run().await.map_err(|e| {
@@ -330,7 +296,7 @@ impl Verifier<state::CommitAccepted<MpcTlsConfig>> {
     }
 }
 
-impl Verifier<state::CommitAccepted<ProxyTlsConfig>> {
+impl Verifier<state::CommitAccepted<Proxy>> {
     /// Runs the verifier until the TLS connection is closed.
     ///
     /// This method is used for proxy mode only.
@@ -343,7 +309,9 @@ impl Verifier<state::CommitAccepted<ProxyTlsConfig>> {
     where
         T: AsyncRead + AsyncWrite + Send + Unpin,
     {
-        let VerifierProxyDeps { verifier, id } = self.state.deps;
+        let VerifierDeps::Proxy(VerifierProxyDeps { verifier, id }) = self.state.deps else {
+            unreachable!("proxy-tls received incorrect deps")
+        };
 
         let mut sent_buf = Vec::new();
         let mut recv_buf = Vec::new();

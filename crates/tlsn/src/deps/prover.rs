@@ -10,6 +10,7 @@ use mpz_ot::{
     chou_orlandi as co, ferret, kos,
     rcot::shared::{SharedRCOTReceiver, SharedRCOTSender},
 };
+#[cfg(not(tlsn_insecure))]
 use mpz_zk::Prover;
 #[cfg(not(tlsn_insecure))]
 use rand::Rng;
@@ -20,8 +21,8 @@ use tokio::sync::Mutex;
 use tracing::debug;
 
 use crate::{
-    Error, Prove,
-    deps::{ProtocolDeps, build_mpc_tls_config, translate_keys},
+    Error,
+    deps::{build_mpc_tls_config, translate_keys},
     proxy::ProxyProver,
 };
 
@@ -44,10 +45,14 @@ pub(crate) struct ProverMpcDeps {
     pub(crate) keys: Option<SessionKeys>,
 }
 
-impl ProtocolDeps<Prove> for MpcTlsConfig {
-    type Deps = ProverMpcDeps;
+impl std::fmt::Debug for ProverMpcDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProverMpcDeps").finish_non_exhaustive()
+    }
+}
 
-    fn to_deps(&self, ctx: Context) -> Self::Deps {
+impl ProverMpcDeps {
+    pub(crate) fn new(config: &MpcTlsConfig, ctx: Context) -> Self {
         let mut rng = rand::rng();
         let delta = Delta::new(Block::random(&mut rng));
 
@@ -83,34 +88,34 @@ impl ProtocolDeps<Prove> for MpcTlsConfig {
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
         let mpc_tls = MpcTlsLeader::new(
-            build_mpc_tls_config(self),
+            build_mpc_tls_config(config),
             ctx,
             vm.clone(),
             (rcot_send.clone(), rcot_send.clone(), rcot_send),
             rcot_recv,
         );
 
-        Self::Deps {
+        Self {
             vm,
             mpc_tls: Box::new(mpc_tls),
             keys: None,
         }
     }
 
-    async fn setup(deps: &mut Self::Deps) -> Result<(), Error> {
-        let mut keys = deps.mpc_tls.alloc().map_err(|e| {
+    pub(crate) async fn setup(&mut self) -> Result<(), Error> {
+        let mut keys = self.mpc_tls.alloc().map_err(|e| {
             Error::internal()
                 .with_msg("commitment protocol failed to allocate mpc-tls resources")
                 .with_source(e)
         })?;
-        let vm_lock = deps.vm.try_lock().expect("VM is not locked");
+        let vm_lock = self.vm.try_lock().expect("VM is not locked");
         translate_keys(&mut keys, &vm_lock);
-        deps.keys = Some(keys);
+        self.keys = Some(keys);
 
         drop(vm_lock);
 
         debug!("setting up mpc-tls");
-        deps.mpc_tls.preprocess().await.map_err(|e| {
+        self.mpc_tls.preprocess().await.map_err(|e| {
             Error::internal()
                 .with_msg("commitment protocol failed during mpc-tls preprocessing")
                 .with_source(e)
@@ -126,10 +131,14 @@ pub(crate) struct ProverProxyDeps {
     pub(crate) id: ThreadId,
 }
 
-impl ProtocolDeps<Prove> for ProxyTlsConfig {
-    type Deps = ProverProxyDeps;
+impl std::fmt::Debug for ProverProxyDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProverProxyDeps").finish_non_exhaustive()
+    }
+}
 
-    fn to_deps(&self, ctx: Context) -> Self::Deps {
+impl ProverProxyDeps {
+    pub(crate) fn new(_config: &ProxyTlsConfig, ctx: Context) -> Self {
         let mut rng = rand::rng();
 
         let base_ot_send = co::Sender::default();
@@ -142,27 +151,31 @@ impl ProtocolDeps<Prove> for ProxyTlsConfig {
             Block::random(&mut rng),
             rcot_recv,
         );
-        let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
-
-        #[cfg(not(tlsn_insecure))]
-        let vm = ProverZk::new(Default::default(), rcot_recv.clone());
-        #[cfg(tlsn_insecure)]
-        let vm = mpz_ideal_vm::IdealVm::new();
+        let vm = cfg_select! {
+            not(tlsn_insecure) => {{
+                let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
+                ProverZk::new(Default::default(), rcot_recv)
+            }}
+            _ => {{
+                let _ = rcot_recv;
+                mpz_ideal_vm::IdealVm::new()
+            }}
+        };
 
         let id = ctx.id().to_owned();
         let prover = ProxyProver::new(vm, ctx);
 
-        Self::Deps {
+        Self {
             prover: Box::new(prover),
             id,
         }
     }
 
-    async fn setup(deps: &mut Self::Deps) -> Result<(), Error> {
-        deps.prover.alloc()?;
+    pub(crate) async fn setup(&mut self) -> Result<(), Error> {
+        self.prover.alloc()?;
 
         debug!("setting up proxy-tls");
-        deps.prover.preprocess().await?;
+        self.prover.preprocess().await?;
 
         Ok(())
     }

@@ -13,8 +13,8 @@ pub use future::ProverFuture;
 pub use tlsn_core::ProverOutput;
 
 use crate::{
-    Error, PROXY_STREAM_PREFIX, ProtocolConfig, Prove, Result, TlsOutput,
-    deps::{ProtocolDeps, ProverMpcDeps, ProverProxyDeps},
+    Error, Mpc, PROXY_STREAM_PREFIX, ProtocolConfig, Proxy, Result, TlsOutput,
+    deps::{ProverDeps, ProverMpcDeps, ProverProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
         client::{MpcTlsClient, ProxyTlsClient, TlsClient},
@@ -28,14 +28,11 @@ use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
 use mpz_vm_core::Execute;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::{fmt::Debug, pin::Pin, task::Poll};
+use std::{fmt::Debug, marker::PhantomData, pin::Pin, task::Poll};
 use tls_client::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
-        prove::ProveConfig,
-        prover::ProverConfig,
-        tls::TlsClientConfig,
-        tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig, tls_commit::TlsCommitConfig,
     },
     connection::{HandshakeData, ServerName},
     transcript::{TlsTranscript, Transcript},
@@ -94,10 +91,10 @@ impl Prover<state::Initialized> {
     ///
     /// * `config` - The TLS commitment configuration.
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
-    pub async fn commit<P: ProtocolConfig<Prove>>(
+    pub async fn commit<P: ProtocolConfig>(
         mut self,
         config: P,
-    ) -> Result<Prover<state::CommitAccepted<P>>> {
+    ) -> Result<Prover<state::CommitAccepted<P::Commit>>> {
         let mut ctx = self
             .ctx
             .take()
@@ -106,7 +103,7 @@ impl Prover<state::Initialized> {
         // Sends protocol configuration to verifier for compatibility check.
         ctx.io_mut()
             .send(TlsCommitRequestMsg {
-                request: config.clone().into(),
+                config: config.clone().into(),
                 version: crate::VERSION.clone(),
             })
             .await
@@ -131,8 +128,9 @@ impl Prover<state::Initialized> {
                     .with_source(e)
             })?;
 
-        let mut deps = <P as ProtocolDeps<Prove>>::to_deps(&config, ctx);
-        <P as ProtocolDeps<Prove>>::setup(&mut deps).await?;
+        let commit_config: TlsCommitConfig = config.into();
+        let mut deps = ProverDeps::new(commit_config, ctx);
+        deps.setup().await?;
 
         debug!("setup complete");
 
@@ -141,12 +139,15 @@ impl Prover<state::Initialized> {
             span: self.span,
             ctx: None,
             mux_handle: self.mux_handle,
-            state: state::CommitAccepted { deps },
+            state: state::CommitAccepted {
+                deps,
+                _pd: PhantomData,
+            },
         })
     }
 }
 
-impl Prover<state::CommitAccepted<MpcTlsConfig>> {
+impl Prover<state::CommitAccepted<Mpc>> {
     /// Connects to the server via MPC-TLS.
     ///
     /// This method is used for MPC mode only.
@@ -166,7 +167,9 @@ impl Prover<state::CommitAccepted<MpcTlsConfig>> {
         config: TlsClientConfig,
         server_socket: S,
     ) -> Result<(TlsConnection, Prover<state::Connected<S>>)> {
-        let ProverMpcDeps { vm, mpc_tls, keys } = self.state.deps;
+        let ProverDeps::Mpc(ProverMpcDeps { vm, mpc_tls, keys }) = self.state.deps else {
+            unreachable!("mpc-tls received incorrect deps")
+        };
 
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =
@@ -209,7 +212,7 @@ impl Prover<state::CommitAccepted<MpcTlsConfig>> {
     }
 }
 
-impl Prover<state::CommitAccepted<ProxyTlsConfig>> {
+impl Prover<state::CommitAccepted<Proxy>> {
     /// Connects to the proxy.
     ///
     /// This method is used for proxy mode only. The proxy stream through the
@@ -228,10 +231,13 @@ impl Prover<state::CommitAccepted<ProxyTlsConfig>> {
         self,
         config: TlsClientConfig,
     ) -> Result<(TlsConnection, Prover<state::Connected<Stream>>)> {
-        let ProverProxyDeps {
+        let ProverDeps::Proxy(ProverProxyDeps {
             prover: proxy_prover,
             id,
-        } = self.state.deps;
+        }) = self.state.deps
+        else {
+            unreachable!("proxy-tls received incorrect deps")
+        };
 
         let mut proxy_id = PROXY_STREAM_PREFIX.to_vec();
         proxy_id.extend_from_slice(id.as_bytes());

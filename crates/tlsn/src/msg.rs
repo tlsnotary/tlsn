@@ -4,14 +4,14 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
-    config::{prove::ProveRequest, tls_commit::TlsCommitRequest},
+    config::{prove::ProveRequest, tls_commit::TlsCommitConfig},
     connection::{HandshakeData, ServerName},
     transcript::PartialTranscript,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TlsCommitRequestMsg {
-    pub(crate) request: TlsCommitRequest,
+    pub(crate) config: TlsCommitConfig,
     pub(crate) version: Version,
 }
 

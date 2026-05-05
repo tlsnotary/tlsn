@@ -1,7 +1,10 @@
 use crate::Error;
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
-use tlsn_core::config::tls_commit::mpc::{MpcTlsConfig, NetworkSetting};
+use tlsn_core::config::tls_commit::{
+    TlsCommitConfig,
+    mpc::{MpcTlsConfig, NetworkSetting},
+};
 use tlsn_deap::Deap;
 
 mod prover;
@@ -10,20 +13,50 @@ pub(crate) use prover::{ProverMpc, ProverMpcDeps, ProverProxyDeps, ProverZk};
 mod verifier;
 pub(crate) use verifier::{VerifierMpcDeps, VerifierProxyDeps, VerifierZk};
 
-/// Trait for protocol dependencies.
-pub(crate) trait ProtocolDeps<R> {
-    /// The dependencies.
-    type Deps;
+#[derive(Debug)]
+pub(crate) enum ProverDeps {
+    Mpc(ProverMpcDeps),
+    Proxy(ProverProxyDeps),
+}
 
-    /// Creates new protocol dependencies.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - The context.
-    fn to_deps(&self, ctx: Context) -> Self::Deps;
+impl ProverDeps {
+    pub(crate) fn new(config: TlsCommitConfig, ctx: Context) -> Self {
+        match config {
+            TlsCommitConfig::Mpc(config) => Self::Mpc(ProverMpcDeps::new(&config, ctx)),
+            TlsCommitConfig::Proxy(config) => Self::Proxy(ProverProxyDeps::new(&config, ctx)),
+            _ => unreachable!("unknown TLS commit config variant"),
+        }
+    }
 
-    /// Setup dependencies.
-    fn setup(deps: &mut Self::Deps) -> impl Future<Output = Result<(), Error>> + Send;
+    pub(crate) async fn setup(&mut self) -> Result<(), Error> {
+        match self {
+            Self::Mpc(deps) => deps.setup().await,
+            Self::Proxy(deps) => deps.setup().await,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum VerifierDeps {
+    Mpc(VerifierMpcDeps),
+    Proxy(VerifierProxyDeps),
+}
+
+impl VerifierDeps {
+    pub(crate) fn new(config: &TlsCommitConfig, ctx: Context) -> Self {
+        match config {
+            TlsCommitConfig::Mpc(config) => Self::Mpc(VerifierMpcDeps::new(config, ctx)),
+            TlsCommitConfig::Proxy(config) => Self::Proxy(VerifierProxyDeps::new(config, ctx)),
+            _ => unreachable!("unknown TLS commit config variant"),
+        }
+    }
+
+    pub(crate) async fn setup(&mut self) -> Result<(), Error> {
+        match self {
+            Self::Mpc(deps) => deps.setup().await,
+            Self::Proxy(deps) => deps.setup().await,
+        }
+    }
 }
 
 fn build_mpc_tls_config(config: &MpcTlsConfig) -> mpc_tls::Config {

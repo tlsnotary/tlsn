@@ -64,12 +64,13 @@ pub use tlsn_mux::Stream;
 /// Result type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-use crate::deps::ProtocolDeps;
 use mpc_tls::SessionKeys;
 use semver::Version;
 use std::sync::LazyLock;
 use tlsn_core::{
-    config::tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+    config::tls_commit::{
+        TlsCommitConfig, TlsCommitKind, mpc::MpcTlsConfig, proxy::ProxyTlsConfig,
+    },
     transcript::TlsTranscript,
 };
 
@@ -99,32 +100,50 @@ pub(crate) struct TlsOutput {
 }
 
 /// Protocol variant.
-// Sealed via `sealed::Sealed`; `ProtocolDeps<R>` is an intentionally crate-private
-// supertrait kept here so internal `T: ProtocolConfig<R>` bounds get `to_deps`/`setup`
-// for free.
-#[allow(private_bounds)]
-pub trait ProtocolConfig<R>:
-    Clone + Into<TlsCommitRequest> + ProtocolDeps<R> + sealed::Sealed
-{
+pub trait ProtocolConfig: Clone + Into<TlsCommitConfig> + sealed::Sealed {
+    /// TLS commitment protocol.
+    type Commit: TlsCommitmentProtocol;
 }
 
-impl ProtocolConfig<Prove> for MpcTlsConfig {}
-impl ProtocolConfig<Verify> for MpcTlsConfig {}
+impl ProtocolConfig for MpcTlsConfig {
+    type Commit = Mpc;
+}
 
-impl ProtocolConfig<Prove> for ProxyTlsConfig {}
-impl ProtocolConfig<Verify> for ProxyTlsConfig {}
+impl ProtocolConfig for ProxyTlsConfig {
+    type Commit = Proxy;
+}
 
-/// Marker type for prover.
-#[derive(Debug, Clone, Copy)]
-pub struct Prove;
+/// TLS commitment protocol.
+pub trait TlsCommitmentProtocol: sealed::Sealed {
+    /// Returns the kind of TLS commitment protocol.
+    fn kind(&self) -> TlsCommitKind;
+}
 
-/// Marker type for verifier.
-#[derive(Debug, Clone, Copy)]
-pub struct Verify;
+/// MPC-TLS commitment protocol.
+#[derive(Debug)]
+pub struct Mpc {}
+
+impl TlsCommitmentProtocol for Mpc {
+    fn kind(&self) -> TlsCommitKind {
+        TlsCommitKind::Mpc
+    }
+}
+
+/// Proxy-TLS commitment protocol.
+#[derive(Debug)]
+pub struct Proxy {}
+
+impl TlsCommitmentProtocol for Proxy {
+    fn kind(&self) -> TlsCommitKind {
+        TlsCommitKind::Proxy
+    }
+}
 
 mod sealed {
     pub trait Sealed {}
 
     impl Sealed for super::MpcTlsConfig {}
     impl Sealed for super::ProxyTlsConfig {}
+    impl Sealed for super::Mpc {}
+    impl Sealed for super::Proxy {}
 }
