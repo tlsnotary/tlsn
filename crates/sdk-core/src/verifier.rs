@@ -1,8 +1,7 @@
 //! SDK Verifier implementation.
 
 use tlsn::{
-    Session, SessionHandle,
-    config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+    Mpc, Proxy, Session, SessionHandle,
     connection::{ConnectionInfo, ServerName, TranscriptLength},
     transcript::ContentType,
     verifier::{Verifier, VerifierCommitStart, state},
@@ -35,11 +34,11 @@ enum State {
         handle: SessionHandle,
     },
     AcceptedMpc {
-        verifier: Verifier<state::CommitAccepted<MpcTlsConfig>>,
+        verifier: Verifier<state::CommitAccepted<Mpc>>,
         handle: SessionHandle,
     },
     AcceptedProxy {
-        verifier: Verifier<state::CommitAccepted<ProxyTlsConfig>>,
+        verifier: Verifier<state::CommitAccepted<Proxy>>,
         handle: SessionHandle,
         server_socket: Option<Box<dyn Io>>,
     },
