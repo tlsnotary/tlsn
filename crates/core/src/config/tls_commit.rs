@@ -27,12 +27,3 @@ impl From<ProxyTlsConfig> for TlsCommitConfig {
         Self::Proxy(value)
     }
 }
-
-/// TLS commitment protocol kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TlsCommitKind {
-    /// MPC-TLS.
-    Mpc,
-    /// Proxy-TLS.
-    Proxy,
-}

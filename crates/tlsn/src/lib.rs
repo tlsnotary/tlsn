@@ -68,9 +68,7 @@ use mpc_tls::SessionKeys;
 use semver::Version;
 use std::sync::LazyLock;
 use tlsn_core::{
-    config::tls_commit::{
-        TlsCommitConfig, TlsCommitKind, mpc::MpcTlsConfig, proxy::ProxyTlsConfig,
-    },
+    config::tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     transcript::TlsTranscript,
 };
 
@@ -102,7 +100,7 @@ pub(crate) struct TlsOutput {
 /// Protocol variant.
 pub trait ProtocolConfig: Clone + Into<TlsCommitConfig> + sealed::Sealed {
     /// TLS commitment protocol.
-    type Commit: TlsCommitmentProtocol;
+    type Commit;
 }
 
 impl ProtocolConfig for MpcTlsConfig {
@@ -113,37 +111,17 @@ impl ProtocolConfig for ProxyTlsConfig {
     type Commit = Proxy;
 }
 
-/// TLS commitment protocol.
-pub trait TlsCommitmentProtocol: sealed::Sealed {
-    /// Returns the kind of TLS commitment protocol.
-    fn kind(&self) -> TlsCommitKind;
-}
-
 /// MPC-TLS commitment protocol.
 #[derive(Debug)]
 pub struct Mpc {}
 
-impl TlsCommitmentProtocol for Mpc {
-    fn kind(&self) -> TlsCommitKind {
-        TlsCommitKind::Mpc
-    }
-}
-
 /// Proxy-TLS commitment protocol.
 #[derive(Debug)]
 pub struct Proxy {}
-
-impl TlsCommitmentProtocol for Proxy {
-    fn kind(&self) -> TlsCommitKind {
-        TlsCommitKind::Proxy
-    }
-}
 
 mod sealed {
     pub trait Sealed {}
 
     impl Sealed for super::MpcTlsConfig {}
     impl Sealed for super::ProxyTlsConfig {}
-    impl Sealed for super::Mpc {}
-    impl Sealed for super::Proxy {}
 }
