@@ -1,19 +1,11 @@
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use mpz_common::{Context, ThreadId};
 use mpz_core::Block;
-#[cfg(not(tlsn_insecure))]
-use mpz_garble::protocol::semihonest::Garbler;
 use mpz_garble_core::Delta;
-#[cfg(not(tlsn_insecure))]
-use mpz_ot::cot::DerandCOTSender;
 use mpz_ot::{
     chou_orlandi as co, ferret, kos,
     rcot::shared::{SharedRCOTReceiver, SharedRCOTSender},
 };
-#[cfg(not(tlsn_insecure))]
-use mpz_zk::Prover;
-#[cfg(not(tlsn_insecure))]
-use rand::Rng;
 use std::sync::Arc;
 use tlsn_core::config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig};
 use tlsn_deap::Deap;
@@ -26,17 +18,23 @@ use crate::{
     proxy::ProxyProver,
 };
 
-#[cfg(not(tlsn_insecure))]
-pub(crate) type ProverMpc =
-    Garbler<DerandCOTSender<SharedRCOTSender<kos::Sender<co::Receiver>, Block>>>;
-#[cfg(tlsn_insecure)]
-pub(crate) type ProverMpc = mpz_ideal_vm::IdealVm;
+cfg_select! {
+    tlsn_insecure => {
+        pub(crate) type ProverMpc = mpz_ideal_vm::IdealVm;
+        pub(crate) type ProverZk = mpz_ideal_vm::IdealVm;
+    }
+    _ => {
+        use mpz_garble::protocol::semihonest::Garbler;
+        use mpz_ot::cot::DerandCOTSender;
+        use mpz_zk::Prover;
+        use rand::Rng;
 
-#[cfg(not(tlsn_insecure))]
-pub(crate) type ProverZk =
-    Prover<SharedRCOTReceiver<ferret::Receiver<kos::Receiver<co::Sender>>, bool, Block>>;
-#[cfg(tlsn_insecure)]
-pub(crate) type ProverZk = mpz_ideal_vm::IdealVm;
+        pub(crate) type ProverMpc =
+            Garbler<DerandCOTSender<SharedRCOTSender<kos::Sender<co::Receiver>, Block>>>;
+        pub(crate) type ProverZk =
+            Prover<SharedRCOTReceiver<ferret::Receiver<kos::Receiver<co::Sender>>, bool, Block>>;
+    }
+}
 
 /// Protocol dependencies for MPC.
 pub(crate) struct ProverMpcDeps {
@@ -76,15 +74,17 @@ impl ProverMpcDeps {
         let rcot_send = SharedRCOTSender::new(rcot_send);
         let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
 
-        #[cfg(not(tlsn_insecure))]
-        let mpc = ProverMpc::new(DerandCOTSender::new(rcot_send.clone()), rng.random(), delta);
-        #[cfg(tlsn_insecure)]
-        let mpc = mpz_ideal_vm::IdealVm::new();
+        let mpc = cfg_select! {
+            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
+            _ => {
+                ProverMpc::new(DerandCOTSender::new(rcot_send.clone()), rng.random(), delta)
+            }
+        };
 
-        #[cfg(not(tlsn_insecure))]
-        let zk = ProverZk::new(Default::default(), rcot_recv.clone());
-        #[cfg(tlsn_insecure)]
-        let zk = mpz_ideal_vm::IdealVm::new();
+        let zk = cfg_select! {
+            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
+            _ => { ProverZk::new(Default::default(), rcot_recv.clone()) }
+        };
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
         let mpc_tls = MpcTlsLeader::new(
@@ -139,26 +139,23 @@ impl std::fmt::Debug for ProverProxyDeps {
 
 impl ProverProxyDeps {
     pub(crate) fn new(_config: &ProxyTlsConfig, ctx: Context) -> Self {
-        let mut rng = rand::rng();
-
-        let base_ot_send = co::Sender::default();
-        let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
-        let rcot_recv = ferret::Receiver::new(
-            ferret::FerretConfig::builder()
-                .lpn_type(ferret::LpnType::Regular)
-                .build()
-                .expect("ferret config is valid"),
-            Block::random(&mut rng),
-            rcot_recv,
-        );
         let vm = cfg_select! {
-            not(tlsn_insecure) => {{
+            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
+            _ => {{
+                let mut rng = rand::rng();
+
+                let base_ot_send = co::Sender::default();
+                let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
+                let rcot_recv = ferret::Receiver::new(
+                    ferret::FerretConfig::builder()
+                        .lpn_type(ferret::LpnType::Regular)
+                        .build()
+                        .expect("ferret config is valid"),
+                    Block::random(&mut rng),
+                    rcot_recv,
+                );
                 let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
                 ProverZk::new(Default::default(), rcot_recv)
-            }}
-            _ => {{
-                let _ = rcot_recv;
-                mpz_ideal_vm::IdealVm::new()
             }}
         };
 
