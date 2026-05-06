@@ -1,18 +1,11 @@
 use mpc_tls::{MpcTlsLeader, SessionKeys};
 use mpz_common::{Context, ThreadId};
 use mpz_core::Block;
-#[cfg(not(tlsn_insecure))]
-use mpz_garble::protocol::semihonest::Garbler;
 use mpz_garble_core::Delta;
-#[cfg(not(tlsn_insecure))]
-use mpz_ot::cot::DerandCOTSender;
 use mpz_ot::{
     chou_orlandi as co, ferret, kos,
     rcot::shared::{SharedRCOTReceiver, SharedRCOTSender},
 };
-use mpz_zk::Prover;
-#[cfg(not(tlsn_insecure))]
-use rand::Rng;
 use std::sync::Arc;
 use tlsn_core::config::tls_commit::{mpc::MpcTlsConfig, proxy::ProxyTlsConfig};
 use tlsn_deap::Deap;
@@ -20,22 +13,28 @@ use tokio::sync::Mutex;
 use tracing::debug;
 
 use crate::{
-    Error, Prove,
-    deps::{ProtocolDeps, build_mpc_tls_config, translate_keys},
+    Error,
+    deps::{build_mpc_tls_config, translate_keys},
     proxy::ProxyProver,
 };
 
-#[cfg(not(tlsn_insecure))]
-pub(crate) type ProverMpc =
-    Garbler<DerandCOTSender<SharedRCOTSender<kos::Sender<co::Receiver>, Block>>>;
-#[cfg(tlsn_insecure)]
-pub(crate) type ProverMpc = mpz_ideal_vm::IdealVm;
+cfg_select! {
+    tlsn_insecure => {
+        pub(crate) type ProverMpc = mpz_ideal_vm::IdealVm;
+        pub(crate) type ProverZk = mpz_ideal_vm::IdealVm;
+    }
+    _ => {
+        use mpz_garble::protocol::semihonest::Garbler;
+        use mpz_ot::cot::DerandCOTSender;
+        use mpz_zk::Prover;
+        use rand::Rng;
 
-#[cfg(not(tlsn_insecure))]
-pub(crate) type ProverZk =
-    Prover<SharedRCOTReceiver<ferret::Receiver<kos::Receiver<co::Sender>>, bool, Block>>;
-#[cfg(tlsn_insecure)]
-pub(crate) type ProverZk = mpz_ideal_vm::IdealVm;
+        pub(crate) type ProverMpc =
+            Garbler<DerandCOTSender<SharedRCOTSender<kos::Sender<co::Receiver>, Block>>>;
+        pub(crate) type ProverZk =
+            Prover<SharedRCOTReceiver<ferret::Receiver<kos::Receiver<co::Sender>>, bool, Block>>;
+    }
+}
 
 /// Protocol dependencies for MPC.
 pub(crate) struct ProverMpcDeps {
@@ -44,10 +43,14 @@ pub(crate) struct ProverMpcDeps {
     pub(crate) keys: Option<SessionKeys>,
 }
 
-impl ProtocolDeps<Prove> for MpcTlsConfig {
-    type Deps = ProverMpcDeps;
+impl std::fmt::Debug for ProverMpcDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProverMpcDeps").finish_non_exhaustive()
+    }
+}
 
-    fn to_deps(&self, ctx: Context) -> Self::Deps {
+impl ProverMpcDeps {
+    pub(crate) fn new(config: &MpcTlsConfig, ctx: Context) -> Self {
         let mut rng = rand::rng();
         let delta = Delta::new(Block::random(&mut rng));
 
@@ -71,46 +74,48 @@ impl ProtocolDeps<Prove> for MpcTlsConfig {
         let rcot_send = SharedRCOTSender::new(rcot_send);
         let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
 
-        #[cfg(not(tlsn_insecure))]
-        let mpc = ProverMpc::new(DerandCOTSender::new(rcot_send.clone()), rng.random(), delta);
-        #[cfg(tlsn_insecure)]
-        let mpc = mpz_ideal_vm::IdealVm::new();
+        let mpc = cfg_select! {
+            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
+            _ => {
+                ProverMpc::new(DerandCOTSender::new(rcot_send.clone()), rng.random(), delta)
+            }
+        };
 
-        #[cfg(not(tlsn_insecure))]
-        let zk = ProverZk::new(Default::default(), rcot_recv.clone());
-        #[cfg(tlsn_insecure)]
-        let zk = mpz_ideal_vm::IdealVm::new();
+        let zk = cfg_select! {
+            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
+            _ => { ProverZk::new(Default::default(), rcot_recv.clone()) }
+        };
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
         let mpc_tls = MpcTlsLeader::new(
-            build_mpc_tls_config(self),
+            build_mpc_tls_config(config),
             ctx,
             vm.clone(),
             (rcot_send.clone(), rcot_send.clone(), rcot_send),
             rcot_recv,
         );
 
-        Self::Deps {
+        Self {
             vm,
             mpc_tls: Box::new(mpc_tls),
             keys: None,
         }
     }
 
-    async fn setup(deps: &mut Self::Deps) -> Result<(), Error> {
-        let mut keys = deps.mpc_tls.alloc().map_err(|e| {
+    pub(crate) async fn setup(&mut self) -> Result<(), Error> {
+        let mut keys = self.mpc_tls.alloc().map_err(|e| {
             Error::internal()
                 .with_msg("commitment protocol failed to allocate mpc-tls resources")
                 .with_source(e)
         })?;
-        let vm_lock = deps.vm.try_lock().expect("VM is not locked");
+        let vm_lock = self.vm.try_lock().expect("VM is not locked");
         translate_keys(&mut keys, &vm_lock);
-        deps.keys = Some(keys);
+        self.keys = Some(keys);
 
         drop(vm_lock);
 
         debug!("setting up mpc-tls");
-        deps.mpc_tls.preprocess().await.map_err(|e| {
+        self.mpc_tls.preprocess().await.map_err(|e| {
             Error::internal()
                 .with_msg("commitment protocol failed during mpc-tls preprocessing")
                 .with_source(e)
@@ -126,43 +131,48 @@ pub(crate) struct ProverProxyDeps {
     pub(crate) id: ThreadId,
 }
 
-impl ProtocolDeps<Prove> for ProxyTlsConfig {
-    type Deps = ProverProxyDeps;
+impl std::fmt::Debug for ProverProxyDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProverProxyDeps").finish_non_exhaustive()
+    }
+}
 
-    fn to_deps(&self, ctx: Context) -> Self::Deps {
-        let mut rng = rand::rng();
+impl ProverProxyDeps {
+    pub(crate) fn new(_config: &ProxyTlsConfig, ctx: Context) -> Self {
+        let vm = cfg_select! {
+            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
+            _ => {{
+                let mut rng = rand::rng();
 
-        let base_ot_send = co::Sender::default();
-        let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
-        let rcot_recv = ferret::Receiver::new(
-            ferret::FerretConfig::builder()
-                .lpn_type(ferret::LpnType::Regular)
-                .build()
-                .expect("ferret config is valid"),
-            Block::random(&mut rng),
-            rcot_recv,
-        );
-        let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
-
-        #[cfg(not(tlsn_insecure))]
-        let vm = ProverZk::new(Default::default(), rcot_recv.clone());
-        #[cfg(tlsn_insecure)]
-        let vm = mpz_ideal_vm::IdealVm::new();
+                let base_ot_send = co::Sender::default();
+                let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
+                let rcot_recv = ferret::Receiver::new(
+                    ferret::FerretConfig::builder()
+                        .lpn_type(ferret::LpnType::Regular)
+                        .build()
+                        .expect("ferret config is valid"),
+                    Block::random(&mut rng),
+                    rcot_recv,
+                );
+                let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
+                ProverZk::new(Default::default(), rcot_recv)
+            }}
+        };
 
         let id = ctx.id().to_owned();
         let prover = ProxyProver::new(vm, ctx);
 
-        Self::Deps {
+        Self {
             prover: Box::new(prover),
             id,
         }
     }
 
-    async fn setup(deps: &mut Self::Deps) -> Result<(), Error> {
-        deps.prover.alloc()?;
+    pub(crate) async fn setup(&mut self) -> Result<(), Error> {
+        self.prover.alloc()?;
 
         debug!("setting up proxy-tls");
-        deps.prover.preprocess().await?;
+        self.prover.preprocess().await?;
 
         Ok(())
     }

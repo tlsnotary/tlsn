@@ -3,7 +3,7 @@
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use tlsn::{
-    Session, SessionHandle,
+    Mpc, Proxy, Session, SessionHandle,
     config::{
         prove::ProveConfig,
         tls::TlsClientConfig,
@@ -35,11 +35,11 @@ pub struct SdkProver {
 enum State {
     Initialized,
     CommitAcceptedMpc {
-        prover: Prover<state::CommitAccepted<MpcTlsConfig>>,
+        prover: Prover<state::CommitAccepted<Mpc>>,
         handle: SessionHandle,
     },
     CommitAcceptedProxy {
-        prover: Prover<state::CommitAccepted<ProxyTlsConfig>>,
+        prover: Prover<state::CommitAccepted<Proxy>>,
         handle: SessionHandle,
     },
     Committed {

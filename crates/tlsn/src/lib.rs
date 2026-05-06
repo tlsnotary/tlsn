@@ -64,12 +64,11 @@ pub use tlsn_mux::Stream;
 /// Result type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-use crate::deps::ProtocolDeps;
 use mpc_tls::SessionKeys;
 use semver::Version;
 use std::sync::LazyLock;
 use tlsn_core::{
-    config::tls_commit::{TlsCommitRequest, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
+    config::tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig, proxy::ProxyTlsConfig},
     transcript::TlsTranscript,
 };
 
@@ -99,28 +98,26 @@ pub(crate) struct TlsOutput {
 }
 
 /// Protocol variant.
-// Sealed via `sealed::Sealed`; `ProtocolDeps<R>` is an intentionally crate-private
-// supertrait kept here so internal `T: ProtocolConfig<R>` bounds get `to_deps`/`setup`
-// for free.
-#[allow(private_bounds)]
-pub trait ProtocolConfig<R>:
-    Clone + Into<TlsCommitRequest> + ProtocolDeps<R> + sealed::Sealed
-{
+pub trait ProtocolConfig: Clone + Into<TlsCommitConfig> + sealed::Sealed {
+    /// TLS commitment protocol.
+    type Commit;
 }
 
-impl ProtocolConfig<Prove> for MpcTlsConfig {}
-impl ProtocolConfig<Verify> for MpcTlsConfig {}
+impl ProtocolConfig for MpcTlsConfig {
+    type Commit = Mpc;
+}
 
-impl ProtocolConfig<Prove> for ProxyTlsConfig {}
-impl ProtocolConfig<Verify> for ProxyTlsConfig {}
+impl ProtocolConfig for ProxyTlsConfig {
+    type Commit = Proxy;
+}
 
-/// Marker type for prover.
-#[derive(Debug, Clone, Copy)]
-pub struct Prove;
+/// MPC-TLS commitment protocol.
+#[derive(Debug)]
+pub struct Mpc {}
 
-/// Marker type for verifier.
-#[derive(Debug, Clone, Copy)]
-pub struct Verify;
+/// Proxy-TLS commitment protocol.
+#[derive(Debug)]
+pub struct Proxy {}
 
 mod sealed {
     pub trait Sealed {}

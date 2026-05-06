@@ -1,5 +1,7 @@
 //! TLS prover states.
 
+use std::marker::PhantomData;
+
 use futures_plex::DuplexStream;
 use mpc_tls::SessionKeys;
 use mpz_common::Context;
@@ -9,8 +11,8 @@ use tlsn_core::{
 };
 
 use crate::{
-    Error, ProtocolConfig, Prove, TlsOutput,
-    deps::{ProtocolDeps, ProverZk},
+    Error, TlsOutput,
+    deps::{ProverDeps, ProverZk},
     prover::{ProverControl, client::TlsClient},
 };
 
@@ -21,16 +23,10 @@ opaque_debug::implement!(Initialized);
 
 /// State after the verifier has accepted the proposed TLS commitment protocol
 /// configuration and preprocessing has completed.
-pub struct CommitAccepted<P: ProtocolConfig<Prove>> {
-    pub(crate) deps: <P as ProtocolDeps<Prove>>::Deps,
-}
-
-impl<P: ProtocolConfig<Prove>> std::fmt::Debug for CommitAccepted<P> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CommitAccepted")
-            .field("deps", &"{{ }}")
-            .finish()
-    }
+#[derive(Debug)]
+pub struct CommitAccepted<P> {
+    pub(crate) deps: ProverDeps,
+    pub(crate) _pd: PhantomData<P>,
 }
 
 pin_project_lite::pin_project! {
@@ -71,16 +67,14 @@ opaque_debug::implement!(Committed);
 pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
-impl<P: ProtocolConfig<Prove>> ProverState for CommitAccepted<P> {}
+impl<P> ProverState for CommitAccepted<P> {}
 impl<S> ProverState for Connected<S> {}
 impl ProverState for Committed {}
 
 mod sealed {
-    use crate::{ProtocolConfig, Prove};
-
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl<P: ProtocolConfig<Prove>> Sealed for super::CommitAccepted<P> {}
+    impl<P> Sealed for super::CommitAccepted<P> {}
     impl<S> Sealed for super::Connected<S> {}
     impl Sealed for super::Committed {}
 }
