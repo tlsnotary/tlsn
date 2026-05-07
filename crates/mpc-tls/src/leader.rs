@@ -295,7 +295,8 @@ impl MpcTlsLeader {
 
         debug!("committing to transcript");
 
-        let (sent_records, recv_records) = record_layer.commit(&mut ctx, vm.clone()).await?;
+        let (mut sent_records, mut recv_records) =
+            record_layer.commit(&mut ctx, vm.clone()).await?;
 
         debug!("committed to transcript");
 
@@ -345,18 +346,25 @@ impl MpcTlsLeader {
                 .expect("only supported key scheme should have been accepted"),
         });
 
+        let verify_data = VerifyData {
+            client_finished: cf_vd.to_vec(),
+            server_finished: sf_vd.to_vec(),
+        };
+
+        let cf_vd = sent_records.remove(0);
+        let sf_vd = recv_records.remove(0);
+
         let transcript = TlsTranscript::new(
             time,
             version,
             Some(server_cert_chain),
             Some(server_signature),
             handshake_data,
-            VerifyData {
-                client_finished: cf_vd.to_vec(),
-                server_finished: sf_vd.to_vec(),
-            },
+            Some(verify_data),
             sent_records,
             recv_records,
+            cf_vd,
+            sf_vd,
         )
         .map_err(MpcTlsError::other)?;
 

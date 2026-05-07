@@ -2,7 +2,7 @@
 // an HTTP request sent to a server fixture. The attestation and secrets are
 // saved to disk.
 
-use std::env;
+use std::{env, future::IntoFuture};
 
 use anyhow::Result;
 use clap::Parser;
@@ -22,16 +22,13 @@ use tlsn::{
         signing::Secp256k1Signer,
     },
     config::{
-        prove::ProveConfig,
-        prover::ProverConfig,
-        tls::TlsClientConfig,
-        tls_commit::{TlsCommitConfig, mpc::MpcTlsConfig},
-        verifier::VerifierConfig,
+        prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig,
+        tls_commit::mpc::MpcTlsConfig, verifier::VerifierConfig,
     },
     connection::{ConnectionInfo, HandshakeData, ServerName, TranscriptLength},
     prover::ProverOutput,
     transcript::{ContentType, TranscriptCommitConfig},
-    verifier::VerifierOutput,
+    verifier::{VerifierCommitStart, VerifierOutput},
     webpki::{CertificateDer, PrivateKeyDer, RootCertStore},
 };
 use tlsn_examples::ExampleType;
@@ -92,18 +89,13 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let prover = handle
         .new_prover(ProverConfig::builder().build()?)?
         .commit(
-            TlsCommitConfig::builder()
-                // Select the TLS commitment protocol.
-                .protocol(
-                    MpcTlsConfig::builder()
-                        // We must configure the amount of data we expect to exchange beforehand,
-                        // which will be preprocessed prior to the
-                        // connection. Reducing these limits will improve
-                        // performance.
-                        .max_sent_data(tlsn_examples::MAX_SENT_DATA)
-                        .max_recv_data(tlsn_examples::MAX_RECV_DATA)
-                        .build()?,
-                )
+            // We must configure the amount of data we expect to exchange beforehand,
+            // which will be preprocessed prior to the
+            // connection. Reducing these limits will improve
+            // performance.
+            MpcTlsConfig::builder()
+                .max_sent_data(tlsn_examples::MAX_SENT_DATA)
+                .max_recv_data(tlsn_examples::MAX_RECV_DATA)
                 .build()?,
         )
         .await?;
@@ -112,7 +104,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let client_socket = tokio::net::TcpStream::connect((server_host, server_port)).await?;
 
     // Bind the prover to the server connection.
-    let (tls_connection, prover_fut) = prover.connect(
+    let (tls_connection, prover) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
             // Create a root certificate store with the server-fixture's self-signed
@@ -132,7 +124,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
     let tls_connection = TokioIo::new(tls_connection.compat());
 
     // Spawn the prover task to be run concurrently in the background.
-    let prover_task = tokio::spawn(prover_fut);
+    let prover_task = tokio::spawn(prover.into_future());
 
     // Attach the hyper HTTP client to the connection.
     let (mut request_sender, connection) =
@@ -306,14 +298,13 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()
         .unwrap();
 
-    let verifier = handle
-        .new_verifier(verifier_config)?
-        .commit()
-        .await?
-        .accept()
-        .await?
-        .run()
-        .await?;
+    let verifier = match handle.new_verifier(verifier_config)?.commit().await? {
+        VerifierCommitStart::Mpc(verifier) => verifier.accept().await?.run().await?,
+        VerifierCommitStart::Proxy(verifier) => {
+            verifier.reject(Some("expecting to use MPC-TLS")).await?;
+            return Err(anyhow::anyhow!("protocol configuration rejected"));
+        }
+    };
 
     let (
         VerifierOutput {

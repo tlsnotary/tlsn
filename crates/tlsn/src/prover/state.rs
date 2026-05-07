@@ -1,20 +1,19 @@
 //! TLS prover states.
 
-use std::sync::Arc;
+use std::marker::PhantomData;
 
 use futures_plex::DuplexStream;
-use mpc_tls::{MpcTlsLeader, SessionKeys};
+use mpc_tls::SessionKeys;
+use mpz_common::Context;
 use tlsn_core::{
     connection::ServerName,
     transcript::{TlsTranscript, Transcript},
 };
-use tlsn_deap::Deap;
-use tokio::sync::Mutex;
 
 use crate::{
-    Error,
-    mpz::{ProverMpc, ProverZk},
-    prover::client::{TlsClient, TlsOutput},
+    Error, TlsOutput,
+    deps::{ProverDeps, ProverZk},
+    prover::{ProverControl, client::TlsClient},
 };
 
 /// Entry state
@@ -24,13 +23,11 @@ opaque_debug::implement!(Initialized);
 
 /// State after the verifier has accepted the proposed TLS commitment protocol
 /// configuration and preprocessing has completed.
-pub struct CommitAccepted {
-    pub(crate) mpc_tls: MpcTlsLeader,
-    pub(crate) keys: SessionKeys,
-    pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
+#[derive(Debug)]
+pub struct CommitAccepted<P> {
+    pub(crate) deps: ProverDeps,
+    pub(crate) _pd: PhantomData<P>,
 }
-
-opaque_debug::implement!(CommitAccepted);
 
 pin_project_lite::pin_project! {
     /// State during the MPC-TLS connection.
@@ -38,9 +35,10 @@ pin_project_lite::pin_project! {
     pub struct Connected<S> {
         pub(crate) server_name: ServerName,
         pub(crate) tls_client: Box<dyn TlsClient<Error = Error> + Send>,
+        pub(crate) control: ProverControl,
         #[pin]
         pub(crate) client_io: DuplexStream,
-        pub(crate) output: Option<TlsOutput>,
+        pub(crate) output: Option<(Context, ProverZk, TlsOutput)>,
         #[pin]
         pub(crate) server_socket: S,
         #[pin]
@@ -69,14 +67,14 @@ opaque_debug::implement!(Committed);
 pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
-impl ProverState for CommitAccepted {}
+impl<P> ProverState for CommitAccepted<P> {}
 impl<S> ProverState for Connected<S> {}
 impl ProverState for Committed {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl Sealed for super::CommitAccepted {}
+    impl<P> Sealed for super::CommitAccepted<P> {}
     impl<S> Sealed for super::Connected<S> {}
     impl Sealed for super::Committed {}
 }

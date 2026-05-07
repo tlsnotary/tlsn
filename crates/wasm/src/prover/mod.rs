@@ -5,7 +5,7 @@ mod config;
 pub use config::ProverConfig;
 
 use tlsn_sdk_core::{
-    NetworkSetting as CoreNetworkSetting, ProverConfig as CoreProverConfig, SdkProver,
+    NetworkSetting as CoreNetworkSetting, ProverConfig as CoreProverConfig, ProverMode, SdkProver,
 };
 use wasm_bindgen::{JsError, prelude::*};
 
@@ -77,12 +77,13 @@ impl JsProver {
     ///
     /// # Arguments
     ///
-    /// * `server_io` - A JavaScript object implementing the IoChannel
-    ///   interface, connected to the server (typically via a WebSocket proxy).
+    /// * `server_io` - An IoChannel connected to the server. Must be provided
+    ///   in MPC mode. Must be `None` in proxy mode, where the connection is
+    ///   routed through the verifier.
     /// * `request` - The HTTP request to send.
     pub async fn send_request(
         &mut self,
-        server_io: JsIo,
+        server_io: Option<JsIo>,
         request: HttpRequest,
     ) -> Result<HttpResponse> {
         self.emit_progress(
@@ -91,16 +92,25 @@ impl JsProver {
             "Connecting to application server...",
         );
 
-        let adapter = JsIoAdapter::new(server_io);
         let core_request = convert_http_request(request);
 
         self.emit_progress("SENDING_REQUEST", 0.4, "Sending request...");
 
-        let core_response = self
-            .inner
-            .send_request(adapter, core_request)
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))?;
+        let core_response = match (self.inner.mode(), server_io) {
+            (ProverMode::Mpc, Some(server_io)) => {
+                self.inner
+                    .send_request_mpc(JsIoAdapter::new(server_io), core_request)
+                    .await
+            }
+            (ProverMode::Mpc, None) => {
+                return Err(JsError::new("server_io is required in MPC mode"));
+            }
+            (ProverMode::Proxy, None) => self.inner.send_request_proxy(core_request).await,
+            (ProverMode::Proxy, Some(_)) => {
+                return Err(JsError::new("server_io must not be provided in proxy mode"));
+            }
+        }
+        .map_err(|e| JsError::new(&e.to_string()))?;
 
         self.emit_progress("REQUEST_COMPLETE", 0.5, "Response received");
 
@@ -161,6 +171,11 @@ fn convert_prover_config(config: ProverConfig) -> Result<CoreProverConfig> {
             NetworkSetting::Bandwidth => CoreNetworkSetting::Bandwidth,
             NetworkSetting::Latency => CoreNetworkSetting::Latency,
         });
+
+    builder = builder.mode(match config.mode {
+        crate::prover::config::ProverMode::Mpc => tlsn_sdk_core::ProverMode::Mpc,
+        crate::prover::config::ProverMode::Proxy => tlsn_sdk_core::ProverMode::Proxy,
+    });
 
     if let Some(value) = config.max_sent_records {
         builder = builder.max_sent_records(value);

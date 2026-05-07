@@ -36,7 +36,12 @@ async fn prover(provider: &IoProvider) {
     .header("Host", SERVER_DOMAIN)
     .header("Connection", "close");
 
-    let response = prover.send_request(server_io, request).await.unwrap();
+    let response = match prover.mode() {
+        tlsn_sdk_core::ProverMode::Mpc => {
+            prover.send_request_mpc(server_io, request).await.unwrap()
+        }
+        tlsn_sdk_core::ProverMode::Proxy => prover.send_request_proxy(request).await.unwrap(),
+    };
     assert_eq!(response.status, 200);
 
     let transcript = prover.transcript().unwrap();

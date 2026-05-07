@@ -59,6 +59,11 @@ impl ServerName {
 
         r
     }
+
+    /// Converts the server name into the pki-type server name.
+    pub fn into_pki_server_name(self) -> pki_types::ServerName<'static> {
+        self.0
+    }
 }
 
 /// Attempt to make a ServerName from a string by parsing

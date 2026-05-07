@@ -9,11 +9,11 @@ use serde_json::Value;
 use tls_server_fixture::CA_CERT_DER;
 use tlsn::{
     Session,
-    config::{tls_commit::TlsCommitProtocolConfig, verifier::VerifierConfig},
+    config::verifier::VerifierConfig,
     connection::ServerName,
     hash::HashAlgId,
     transcript::{Direction, PartialTranscript},
-    verifier::VerifierOutput,
+    verifier::{VerifierCommitStart, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
 use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
@@ -44,30 +44,31 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     let verifier = handle.new_verifier(verifier_config)?;
 
     // Validate the proposed configuration and then run the TLS commitment protocol.
-    let verifier = verifier.commit().await?;
-
     // This is the opportunity to ensure the prover does not attempt to overload the
     // verifier.
-    let reject = if let TlsCommitProtocolConfig::Mpc(mpc_tls_config) = verifier.request().protocol()
-    {
-        if mpc_tls_config.max_sent_data() > MAX_SENT_DATA {
-            Some("max_sent_data is too large")
-        } else if mpc_tls_config.max_recv_data() > MAX_RECV_DATA {
-            Some("max_recv_data is too large")
-        } else {
-            None
+    let verifier = match verifier.commit().await? {
+        VerifierCommitStart::Mpc(verifier) => {
+            let cfg = verifier.config();
+            let reject = if cfg.max_sent_data() > MAX_SENT_DATA {
+                Some("max_sent_data is too large")
+            } else if cfg.max_recv_data() > MAX_RECV_DATA {
+                Some("max_recv_data is too large")
+            } else {
+                None
+            };
+
+            if let Some(msg) = reject {
+                verifier.reject(Some(msg)).await?;
+                return Err(anyhow::anyhow!("protocol configuration rejected"));
+            }
+
+            verifier.accept().await?.run().await?
         }
-    } else {
-        Some("expecting to use MPC-TLS")
+        VerifierCommitStart::Proxy(verifier) => {
+            verifier.reject(Some("expecting to use MPC-TLS")).await?;
+            return Err(anyhow::anyhow!("protocol configuration rejected"));
+        }
     };
-
-    if reject.is_some() {
-        verifier.reject(reject).await?;
-        return Err(anyhow::anyhow!("protocol configuration rejected"));
-    }
-
-    // Runs the TLS commitment protocol to completion.
-    let verifier = verifier.accept().await?.run().await?;
 
     // Validate the proving request and then verify.
     let verifier = verifier.verify().await?;
