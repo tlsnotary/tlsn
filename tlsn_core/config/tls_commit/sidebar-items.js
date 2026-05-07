@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["TlsCommitProtocolConfig"],"mod":["mpc"],"struct":["TlsCommitConfig","TlsCommitConfigBuilder","TlsCommitConfigError","TlsCommitRequest"]};
+window.SIDEBAR_ITEMS = {"enum":["TlsCommitConfig"],"mod":["mpc","proxy"]};
