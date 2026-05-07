@@ -181,12 +181,3 @@ pub enum NetworkSetting {
     /// Prefers a latency-heavy protocol.
     Latency,
 }
-
-impl From<NetworkSetting> for tlsn::config::tls_commit::mpc::NetworkSetting {
-    fn from(value: NetworkSetting) -> Self {
-        match value {
-            NetworkSetting::Bandwidth => Self::Bandwidth,
-            NetworkSetting::Latency => Self::Latency,
-        }
-    }
-}
