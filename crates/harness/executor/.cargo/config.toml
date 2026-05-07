@@ -9,6 +9,7 @@ rustflags = [
     "-Clink-arg=--export=__tls_size",
     "-Clink-arg=--export=__tls_align",
     "-Clink-arg=--export=__tls_base",
+    "-Clink-arg=--export=__heap_base",
     "--cfg",
     'getrandom_backend="wasm_js"',
 ]
