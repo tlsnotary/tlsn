@@ -84,7 +84,7 @@ mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", rev = "3c78547" }
 mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", rev = "3c78547" }
 mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", rev = "3c78547" }
 mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "3c78547" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "3c78547" }
+mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "3c78547", default-features = false }
 mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "3c78547" }
 
 futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }

@@ -11,10 +11,12 @@ edition = "2024"
 workspace = true
 
 [features]
-default = ["rayon"]
+default = ["rayon", "hash-blake3"]
 mozilla-certs = ["tlsn-core/mozilla-certs"]
 rayon = ["mpz-zk/rayon", "mpz-garble/rayon"]
 web = ["dep:web-spawn"]
+hash-keccak256 = ["mpz-hash/keccak256"]
+hash-blake3 = ["mpz-hash/blake3"]
 
 [dependencies]
 tlsn-attestation = { workspace = true }
@@ -36,7 +38,7 @@ mpz-common = { workspace = true }
 mpz-core = { workspace = true }
 mpz-garble = { workspace = true }
 mpz-garble-core = { workspace = true }
-mpz-hash = { workspace = true }
+mpz-hash = { workspace = true, features = ["sha256"] }
 mpz-memory-core = { workspace = true }
 mpz-ole = { workspace = true }
 mpz-ot = { workspace = true }
