@@ -75,6 +75,12 @@ async fn verifier(provider: &IoProvider) {
     let proto_io = provider.provide_proto_io().await.unwrap();
     verifier.connect(proto_io).await.unwrap();
 
+    if verifier.setup().await.unwrap().is_some() {
+        let server_io = provider.provide_server_io().await.unwrap();
+        verifier.set_server_socket(server_io).unwrap();
+    }
+    verifier.run().await.unwrap();
+
     let output = verifier.verify().await.unwrap();
 
     assert_eq!(output.server_name.as_deref(), Some(SERVER_DOMAIN));
