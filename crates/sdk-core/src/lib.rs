@@ -59,7 +59,7 @@ pub use io::{HyperIo, Io};
 pub use prover::SdkProver;
 pub use types::{
     Body, Commit, CommitRange, ConnectionInfo, Handler, HandlerAction, HandlerParams, HandlerPart,
-    HandlerType, HashAlgorithm, HttpRequest, HttpResponse, Method, PartialTranscript, Reveal,
-    TlsVersion, Transcript, TranscriptLength, VerifierOutput,
+    HandlerType, HashAlgorithm, HashOpening, HttpRequest, HttpResponse, Method, PartialTranscript,
+    Reveal, RevealOutput, TlsVersion, Transcript, TranscriptLength, VerifierOutput,
 };
 pub use verifier::SdkVerifier;

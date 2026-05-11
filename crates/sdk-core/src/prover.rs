@@ -13,6 +13,10 @@ use tlsn::{
     prover::{Prover, TlsConnection, state},
     webpki::{CertificateDer, PrivateKeyDer},
 };
+use tlsn_core::{
+    ProverOutput,
+    transcript::{Direction, TranscriptCommitment, TranscriptSecret},
+};
 use tracing::{error, info};
 
 use crate::{
@@ -346,7 +350,16 @@ impl SdkProver {
     /// Optionally accepts a [`Commit`] with ranges to hash-commit (blinded,
     /// not revealed as plaintext). The commit ranges are processed via the
     /// TLSNotary hash-commitment path (`prove_hash`).
-    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<()> {
+    ///
+    /// Returns a [`RevealOutput`] containing one [`CommitmentOpening`] per
+    /// hash-committed range (in the same order as the input [`Commit`] —
+    /// sent ranges first, then recv). When `commit` is `None`, the
+    /// `commitments` vector is empty.
+    pub async fn reveal(
+        &mut self,
+        reveal: Reveal,
+        commit: Option<Commit>,
+    ) -> Result<RevealOutput> {
         let State::Committed { mut prover, handle } = self.state.take() else {
             return Err(SdkError::invalid_state("prover is not in committed state"));
         };
@@ -394,7 +407,7 @@ impl SdkProver {
 
         let config = builder.build()?;
 
-        prover
+        let prover_output = prover
             .prove(&config)
             .await
             .map_err(|e| SdkError::protocol(e.to_string()))?;
@@ -409,13 +422,59 @@ impl SdkProver {
 
         self.state = State::Complete;
 
-        Ok(())
+        build_reveal_output(prover_output)
     }
 
     /// Returns true if the prover has completed the protocol.
     pub fn is_complete(&self) -> bool {
         matches!(self.state, State::Complete)
     }
+}
+
+fn build_reveal_output(output: ProverOutput) -> Result<RevealOutput> {
+    let ProverOutput {
+        transcript_commitments,
+        transcript_secrets,
+    } = output;
+
+    if transcript_commitments.len() != transcript_secrets.len() {
+        return Err(SdkError::protocol(format!(
+            "prover output mismatch: {} commitments vs {} secrets",
+            transcript_commitments.len(),
+            transcript_secrets.len()
+        )));
+    }
+
+    let mut sent = Vec::new();
+    let mut recv = Vec::new();
+    for (commitment, secret) in transcript_commitments.into_iter().zip(transcript_secrets) {
+        let (commitment, secret) = match (commitment, secret) {
+            (TranscriptCommitment::Hash(c), TranscriptSecret::Hash(s)) => (c, s),
+            _ => {
+                return Err(SdkError::protocol(
+                    "prover output contained an unsupported commitment kind",
+                ));
+            }
+        };
+
+        if commitment.direction != secret.direction || commitment.idx != secret.idx {
+            return Err(SdkError::protocol(
+                "prover output mismatch: commitment/secret direction or range disagree",
+            ));
+        }
+
+        let opening = HashOpening {
+            hash: commitment.hash.value.as_bytes().to_vec(),
+            blinder: secret.blinder.as_bytes().to_vec(),
+        };
+
+        match commitment.direction {
+            Direction::Sent => sent.push(opening),
+            Direction::Received => recv.push(opening),
+        }
+    }
+
+    Ok(RevealOutput { sent, recv })
 }
 
 async fn send_request(conn: TlsConnection, request: HttpRequest) -> Result<HttpResponse> {

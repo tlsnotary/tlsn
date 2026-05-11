@@ -368,6 +368,35 @@ impl From<HashAlgorithm> for tlsn_core::hash::HashAlgId {
     }
 }
 
+/// Opening for a single hash-committed range.
+///
+/// Pairs the commitment hash digest with the blinder used to produce it, so
+/// the holder can later prove `H(plaintext || blinder) == hash` to a third
+/// party without re-running the MPC-TLS protocol. The committed range and
+/// algorithm come from the input [`CommitRange`] at the same index.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HashOpening {
+    /// The commitment hash digest.
+    pub hash: Vec<u8>,
+    /// The blinder (16 bytes) used to compute the commitment.
+    pub blinder: Vec<u8>,
+}
+
+/// Output of [`SdkProver::reveal`].
+///
+/// Mirrors the shape of the input [`Commit`]: `sent[i]` opens `commit.sent[i]`
+/// and likewise for `recv`. Both vectors are empty when no commit was
+/// supplied.
+///
+/// [`SdkProver::reveal`]: crate::prover::SdkProver::reveal
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RevealOutput {
+    /// Openings for `commit.sent`, in input order.
+    pub sent: Vec<HashOpening>,
+    /// Openings for `commit.recv`, in input order.
+    pub recv: Vec<HashOpening>,
+}
+
 /// What action to take with the matched ranges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "UPPERCASE")]

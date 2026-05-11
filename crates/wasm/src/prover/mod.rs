@@ -130,20 +130,30 @@ impl JsProver {
     ///
     /// Optionally accepts a `Commit` object with ranges to hash-commit.
     /// Pass `undefined` or omit the second argument for reveal-only proofs.
-    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<()> {
+    ///
+    /// Returns a `RevealOutput` with one `CommitmentOpening` per
+    /// hash-committed range (`{ direction, ranges, algorithm, hash, blinder }`),
+    /// in the same order as the input `Commit`. The `commitments` array is
+    /// empty when no commit was supplied.
+    pub async fn reveal(
+        &mut self,
+        reveal: Reveal,
+        commit: Option<Commit>,
+    ) -> Result<RevealOutput> {
         self.emit_progress("REVEAL", 0.7, "Proving and revealing data...");
 
         let core_reveal = convert_reveal(reveal);
         let core_commit = commit.map(convert_commit);
 
-        self.inner
+        let output = self
+            .inner
             .reveal(core_reveal, core_commit)
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         self.emit_progress("FINALIZED", 0.95, "Protocol finalized");
 
-        Ok(())
+        Ok(convert_reveal_output(output))
     }
 }
 
@@ -262,6 +272,20 @@ fn convert_commit(commit: Commit) -> tlsn_sdk_core::Commit {
     tlsn_sdk_core::Commit {
         sent: commit.sent.into_iter().map(convert_commit_range).collect(),
         recv: commit.recv.into_iter().map(convert_commit_range).collect(),
+    }
+}
+
+fn convert_reveal_output(output: tlsn_sdk_core::RevealOutput) -> RevealOutput {
+    RevealOutput {
+        sent: output.sent.into_iter().map(convert_hash_opening).collect(),
+        recv: output.recv.into_iter().map(convert_hash_opening).collect(),
+    }
+}
+
+fn convert_hash_opening(opening: tlsn_sdk_core::HashOpening) -> HashOpening {
+    HashOpening {
+        hash: opening.hash,
+        blinder: opening.blinder,
     }
 }
 

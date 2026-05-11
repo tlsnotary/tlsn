@@ -160,6 +160,34 @@ pub struct Reveal {
     pub server_identity: bool,
 }
 
+/// Opening for a single hash-committed range.
+///
+/// Pairs the commitment hash with the blinder used to produce it, so the
+/// caller can later prove `H(plaintext || blinder) == hash` without rerunning
+/// MPC-TLS. Range and algorithm are not repeated — they live on the input
+/// `CommitRange` at the same index.
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct HashOpening {
+    /// The commitment hash digest.
+    pub hash: Vec<u8>,
+    /// The blinder (16 bytes) used to compute the commitment.
+    pub blinder: Vec<u8>,
+}
+
+/// Output of `Prover.reveal()`.
+///
+/// Mirrors the input `Commit`: `sent[i]` opens `commit.sent[i]`, likewise for
+/// `recv`. Both arrays are empty when no commit was supplied.
+#[derive(Debug, Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+pub struct RevealOutput {
+    /// Openings for `commit.sent`, in input order.
+    pub sent: Vec<HashOpening>,
+    /// Openings for `commit.recv`, in input order.
+    pub recv: Vec<HashOpening>,
+}
+
 /// Output from the verifier.
 #[derive(Debug, Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
