@@ -54,7 +54,7 @@ async fn main() {
     let verifier = verifier(verifier_socket);
     let (_, transcript) = tokio::try_join!(prover, verifier).unwrap();
 
-    println!("Successfully verified {}", &uri);
+    println!("Successfully verified {}", uri);
     println!(
         "Verified sent data:\n{}",
         bytes_to_redacted_string(transcript.sent_unsafe())
