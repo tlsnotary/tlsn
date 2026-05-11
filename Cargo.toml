@@ -23,6 +23,12 @@ members = [
     "crates/harness/plot",
     "crates/tlsn",
 ]
+# `crates/examples-zk` is intentionally excluded from the workspace. It pulls
+# in `noir-rs`, which transitively depends on the `noir-lang/noir` monorepo via
+# git. Cargo would clone ~1 GB during dependency resolution for any build in
+# this workspace, even when the ZK example is not built. Users run that example
+# from its own directory.
+exclude = ["crates/examples-zk"]
 resolver = "2"
 
 [workspace.lints.rust]

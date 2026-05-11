@@ -67,19 +67,24 @@ Everything else remains private.
 
 ## 🏃 Run the Example
 
+This example lives in its own crate, **outside the main workspace**, so that the
+heavy `noir-rs` git dependency (~1 GB clone) does not affect builds of the rest
+of the project. That means you run it from this directory, not the repo root.
+
 1. **Start the test server** (from repository root):
    ```bash
    RUST_LOG=info PORT=4000 cargo run --bin tlsn-server-fixture
    ```
 
-2. **Run the age verification** (in a new terminal):
+2. **Run the age verification** (in a new terminal, from `crates/examples-zk/`):
    ```bash
-   SERVER_PORT=4000 cargo run --release --example basic_zk
+   cd crates/examples-zk
+   SERVER_PORT=4000 cargo run --release
    ```
 
 3. **For detailed logs**:
    ```bash
-   RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release --example basic_zk
+   RUST_LOG=debug,yamux=info,uid_mux=info SERVER_PORT=4000 cargo run --release
    ```
 
 ### Expected Output
@@ -106,16 +111,17 @@ Verified received data:
 ### Project Structure
 
 ```
-basic_zk/
+examples-zk/
+├── Cargo.toml                  # Standalone crate (excluded from main workspace)
+├── basic_zk.rs                 # Main example runner
 ├── prover.rs                   # Prover implementation
 ├── verifier.rs                 # Verifier implementation
 ├── types.rs                    # Shared types
-└── basic_zk.rs                 # Main example runner
 ├── noir/                       # Zero-knowledge circuit
-│   ├── src/main.n              # Noir circuit code
+│   ├── src/main.nr             # Noir circuit code
 │   ├── target/                 # Compiled circuit artifacts
-│   └── Nargo.toml              # Noir project config
-│   └── Prover.toml             # Example input for `nargo execute`
+│   ├── Nargo.toml              # Noir project config
+│   ├── Prover.toml             # Example input for `nargo execute`
 │   └── generate_test_data.rs   # Rust script to generate Noir test data
 └── README.md
 ```

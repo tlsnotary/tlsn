@@ -12,6 +12,9 @@ use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
 use verifier::verifier;
 
+pub const MAX_SENT_DATA: usize = 1 << 12;
+pub const MAX_RECV_DATA: usize = 1 << 14;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();

@@ -1,0 +1,50 @@
+[package]
+edition = "2024"
+name = "tlsn-examples-zk"
+publish = false
+version = "0.0.0"
+
+# This crate is intentionally excluded from the root workspace.
+# It pulls in `noir-rs`, which transitively depends on the `noir-lang/noir`
+# monorepo via git. Cargo would clone ~1 GB of sources during dependency
+# resolution for any build in the workspace, even when this example is not
+# built. Excluding the crate keeps that cost off the default `cargo` flow;
+# users opt in by `cd`-ing here (or using `--manifest-path`) before running.
+[workspace]
+
+[dependencies]
+tlsn = { path = "../tlsn" }
+tls-server-fixture = { path = "../tls/server-fixture" }
+tlsn-server-fixture = { path = "../server-fixture/server" }
+tlsn-server-fixture-certs = { path = "../server-fixture/certs" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
+
+anyhow = "1.0"
+bincode = "1.3"
+chrono = "0.4"
+futures = "0.3"
+hex = "0.4"
+http-body-util = "0.1"
+hyper = { version = "1.1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["full"] }
+k256 = { version = "0.13", features = ["ecdsa"] }
+noir = { git = "https://github.com/zkmopro/noir-rs", tag = "v1.0.0-beta.19", features = [
+  "barretenberg",
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.38", features = [
+  "rt",
+  "rt-multi-thread",
+  "macros",
+  "net",
+  "io-std",
+  "fs",
+] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[[bin]]
+name = "basic_zk"
+path = "basic_zk.rs"

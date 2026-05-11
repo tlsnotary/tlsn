@@ -16,8 +16,9 @@ use tlsn::{
     verifier::{VerifierCommitStart, VerifierOutput},
     webpki::{CertificateDer, RootCertStore},
 };
-use tlsn_examples::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
+
+use crate::{MAX_RECV_DATA, MAX_SENT_DATA};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
