@@ -82,6 +82,10 @@ jobs:
       - name: Build
         run: cargo build --all-targets --locked
 
+      - name: Build basic_zk example (out-of-workspace crate)
+        working-directory: crates/examples-zk
+        run: cargo build --release --locked
+
       - name: Test
         run: cargo test --no-fail-fast --locked
 
