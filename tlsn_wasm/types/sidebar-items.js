@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Body","HashAlgorithm","Method","NetworkSetting","TlsVersion"],"struct":["Commit","CommitRange","ConnectionInfo","HttpRequest","HttpResponse","PartialTranscript","Reveal","Transcript","TranscriptLength","VerifierOutput"]};
+window.SIDEBAR_ITEMS = {"enum":["Body","HashAlgorithm","Method","NetworkSetting","TlsVersion"],"struct":["Commit","CommitRange","ConnectionInfo","HashOpening","HttpRequest","HttpResponse","PartialTranscript","Reveal","RevealOutput","Transcript","TranscriptLength","VerifierOutput"]};
