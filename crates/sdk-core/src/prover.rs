@@ -355,11 +355,7 @@ impl SdkProver {
     /// hash-committed range (in the same order as the input [`Commit`] —
     /// sent ranges first, then recv). When `commit` is `None`, the
     /// `commitments` vector is empty.
-    pub async fn reveal(
-        &mut self,
-        reveal: Reveal,
-        commit: Option<Commit>,
-    ) -> Result<RevealOutput> {
+    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<RevealOutput> {
         let State::Committed { mut prover, handle } = self.state.take() else {
             return Err(SdkError::invalid_state("prover is not in committed state"));
         };

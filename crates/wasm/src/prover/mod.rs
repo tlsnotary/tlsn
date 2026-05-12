@@ -132,14 +132,10 @@ impl JsProver {
     /// Pass `undefined` or omit the second argument for reveal-only proofs.
     ///
     /// Returns a `RevealOutput` with one `CommitmentOpening` per
-    /// hash-committed range (`{ direction, ranges, algorithm, hash, blinder }`),
-    /// in the same order as the input `Commit`. The `commitments` array is
-    /// empty when no commit was supplied.
-    pub async fn reveal(
-        &mut self,
-        reveal: Reveal,
-        commit: Option<Commit>,
-    ) -> Result<RevealOutput> {
+    /// hash-committed range (`{ direction, ranges, algorithm, hash, blinder
+    /// }`), in the same order as the input `Commit`. The `commitments`
+    /// array is empty when no commit was supplied.
+    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<RevealOutput> {
         self.emit_progress("REVEAL", 0.7, "Proving and revealing data...");
 
         let core_reveal = convert_reveal(reveal);
