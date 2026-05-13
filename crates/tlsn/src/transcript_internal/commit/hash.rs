@@ -3,11 +3,7 @@
 use std::collections::HashMap;
 
 use mpz_core::bitvec::BitVec;
-#[cfg(feature = "hash-blake3")]
-use mpz_hash::blake3::Blake3;
-#[cfg(feature = "hash-keccak256")]
-use mpz_hash::keccak256::Keccak256;
-use mpz_hash::sha256::Sha256;
+use mpz_hash::{blake3::Blake3, keccak256::Keccak256, poseidon::Poseidon2, sha256::Sha256};
 use mpz_memory_core::{
     DecodeFutureTyped, MemoryExt, Vector,
     binary::{Binary, U8},
@@ -214,6 +210,23 @@ fn hash_commit_inner(
                         .map_err(HashCommitError::hasher)?;
                 }
 
+                hasher
+                    .update(vm, &blinder)
+                    .map_err(HashCommitError::hasher)?;
+                hasher.finalize(vm).map_err(HashCommitError::hasher)?
+            }
+            HashAlgId::POSEIDON2 => {
+                let refs = match direction {
+                    Direction::Sent => &refs.sent,
+                    Direction::Received => &refs.recv,
+                };
+
+                let mut hasher = Poseidon2::new();
+                for range in idx.iter() {
+                    hasher
+                        .update(vm, &refs.get(range).expect("plaintext refs are valid"))
+                        .map_err(HashCommitError::hasher)?;
+                }
                 hasher
                     .update(vm, &blinder)
                     .map_err(HashCommitError::hasher)?;

@@ -4448,6 +4448,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
 
 [[package]]
+name = "poseidon-m31"
+version = "0.1.0"
+source = "git+https://github.com/anhelinakruk/poseidon-m31?branch=main#40f3c534c06560ce42a6da8bf298bedfb9bab481"
+
+[[package]]
 name = "potential_utf"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6058,6 +6063,7 @@ dependencies = [
  "hex",
  "itybity 0.2.1",
  "opaque-debug",
+ "poseidon-m31",
  "rand 0.9.4",
  "rand_chacha 0.9.0",
  "rand_core 0.9.5",

@@ -135,6 +135,7 @@ log = { version = "0.4" }
 once_cell = { version = "1.19" }
 opaque-debug = { version = "0.3" }
 p256 = { version = "0.13" }
+poseidon-m31 = { git = "https://github.com/anhelinakruk/poseidon-m31", branch = "main" }
 pin-project-lite = { version = "0.2" }
 pollster = { version = "0.4" }
 rand = { version = "0.9" }

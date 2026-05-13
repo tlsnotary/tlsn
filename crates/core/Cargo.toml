@@ -52,6 +52,7 @@ webpki-root-certs = { workspace = true, optional = true }
 rustls-webpki = { workspace = true, features = ["ring"] }
 rustls-pki-types = { workspace = true }
 itybity = { workspace = true }
+poseidon-m31 = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive"] }
 
 [dev-dependencies]
