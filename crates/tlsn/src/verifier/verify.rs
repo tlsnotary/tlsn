@@ -63,11 +63,18 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
     };
 
     let server_name = if let Some((name, cert_data)) = handshake {
+        let tlsn_core::connection::CertBinding::V1_2(binding) =
+            tls_transcript.certificate_binding()
+        else {
+            return Err(
+                Error::internal().with_msg("verification failed: unsupported cert binding version")
+            );
+        };
         cert_data
             .verify(
                 cert_verifier,
                 tls_transcript.time(),
-                tls_transcript.server_ephemeral_key(),
+                &binding.server_ephemeral_key,
                 &name,
             )
             .map_err(|e| {

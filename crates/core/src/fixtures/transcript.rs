@@ -54,32 +54,31 @@ impl TranscriptGenerator {
 
         let time = tlsn.connection_info.time;
         let version = tlsn.connection_info.version;
-        let server_cert_chain = tlsn.server_cert_data.certs;
-        let server_signature = tlsn.server_cert_data.sig;
-        let cert_binding = tlsn.server_cert_data.binding;
 
         let cf_vd: [u8; 12] = rng.random();
         let sf_vd: [u8; 12] = rng.random();
 
-        let cf_vd = self.gen_handshake(cf_vd);
-        let sf_vd = self.gen_handshake(sf_vd);
+        let client_finished = self.gen_finished_record(cf_vd);
+        let server_finished = self.gen_finished_record(sf_vd);
 
-        let sent = self.gen_app_records(sent);
-        let recv = self.gen_app_records(recv);
+        let mut sent = self.gen_app_records(sent);
+        let mut recv = self.gen_app_records(recv);
 
-        TlsTranscript::new(
+        sent.insert(0, client_finished);
+        recv.insert(0, server_finished);
+
+        TlsTranscript {
             time,
             version,
-            Some(server_cert_chain),
-            Some(server_signature),
-            cert_binding,
-            None,
+            server_signature: Some(tlsn.server_cert_data.sig),
+            server_cert_chain: Some(tlsn.server_cert_data.certs),
+            certificate_binding: tlsn.server_cert_data.binding,
+            cf_hash: None,
+            session_hash: None,
+            sf_hash: None,
             sent,
             recv,
-            cf_vd,
-            sf_vd,
-        )
-        .unwrap()
+        }
     }
 
     fn gen_app_records(&self, plaintext: &[u8]) -> Vec<Record> {
@@ -117,7 +116,7 @@ impl TranscriptGenerator {
         }
     }
 
-    fn gen_handshake(&self, vd: [u8; 12]) -> Record {
+    fn gen_finished_record(&self, vd: [u8; 12]) -> Record {
         let seq = 0_u64;
         let explicit_nonce = seq.to_be_bytes();
 
@@ -143,7 +142,7 @@ impl TranscriptGenerator {
         let tag = ciphertext.split_off(ciphertext.len() - 16);
 
         Record {
-            seq,
+            seq: 0,
             typ: ContentType::Handshake,
             plaintext: Some(plaintext),
             explicit_nonce: explicit_nonce.to_vec(),

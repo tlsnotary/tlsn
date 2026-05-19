@@ -2,6 +2,7 @@ use crate::{
     Config, MpcTlsError, Role, SessionKeys, Vm,
     msg::{Message, StartHandshake},
     record_layer::{RecordLayer, aead::MpcAesGcm},
+    utils::check_close_notify,
 };
 use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
@@ -22,9 +23,10 @@ use serio::stream::IoStreamExt;
 use std::mem;
 use tls_core::msgs::enums::NamedGroup;
 use tlsn_core::{
-    connection::{CertBinding, CertBindingV1_2, TlsVersion, VerifyData},
+    connection::{CertBinding, CertBindingV1_2, TlsVersion},
     transcript::TlsTranscript,
 };
+
 use tracing::{debug, instrument};
 
 // Maximum handshake time difference in seconds.
@@ -233,8 +235,8 @@ impl MpcTlsFollower {
         let mut client_random = None;
         let mut server_random = None;
         let mut server_key = None;
-        let mut cf_vd = None;
-        let mut sf_vd = None;
+        let mut expected_cf_vd = None;
+        let mut expected_sf_vd = None;
         loop {
             let msg: Message = self.ctx.io_mut().expect_next().await?;
             match msg {
@@ -305,7 +307,7 @@ impl MpcTlsFollower {
                     record_layer.setup(&mut self.ctx).await?;
                 }
                 Message::ClientFinishedVd(vd) => {
-                    if cf_vd.is_some() {
+                    if expected_cf_vd.is_some() {
                         return Err(MpcTlsError::hs("client finished VD already computed"));
                     }
 
@@ -322,7 +324,7 @@ impl MpcTlsFollower {
                             .map_err(MpcTlsError::hs)?;
                     }
 
-                    cf_vd = Some(
+                    expected_cf_vd = Some(
                         cf_vd_fut
                             .try_recv()
                             .map_err(MpcTlsError::hs)?
@@ -330,7 +332,7 @@ impl MpcTlsFollower {
                     );
                 }
                 Message::ServerFinishedVd(vd) => {
-                    if sf_vd.is_some() {
+                    if expected_sf_vd.is_some() {
                         return Err(MpcTlsError::hs("server finished VD already computed"));
                     }
 
@@ -347,7 +349,7 @@ impl MpcTlsFollower {
                             .map_err(MpcTlsError::hs)?;
                     }
 
-                    sf_vd = Some(
+                    expected_sf_vd = Some(
                         sf_vd_fut
                             .try_recv()
                             .map_err(MpcTlsError::hs)?
@@ -394,7 +396,7 @@ impl MpcTlsFollower {
 
         debug!("committing");
 
-        let (mut sent_records, mut recv_records) = record_layer.commit(&mut self.ctx, vm).await?;
+        let (sent_records, recv_records) = record_layer.commit(&mut self.ctx, vm).await?;
 
         debug!("committed");
 
@@ -402,10 +404,12 @@ impl MpcTlsFollower {
         let server_key = server_key.ok_or(MpcTlsError::hs("server key not set"))?;
         let client_random = client_random.ok_or(MpcTlsError::hs("client random not set"))?;
         let server_random = server_random.ok_or(MpcTlsError::hs("client random not set"))?;
-        let cf_vd = cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
-        let sf_vd = sf_vd.ok_or(MpcTlsError::hs("server finished VD not computed"))?;
+        let expected_cf_vd =
+            expected_cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
+        let expected_sf_vd =
+            expected_sf_vd.ok_or(MpcTlsError::hs("server finished VD not computed"))?;
 
-        let handshake_data = CertBinding::V1_2(CertBindingV1_2 {
+        let binding = CertBinding::V1_2(CertBindingV1_2 {
             client_random,
             server_random,
             server_ephemeral_key: server_key
@@ -413,27 +417,32 @@ impl MpcTlsFollower {
                 .expect("only supported key scheme should have been accepted"),
         });
 
-        let verify_data = VerifyData {
-            client_finished: cf_vd.to_vec(),
-            server_finished: sf_vd.to_vec(),
-        };
+        let transcript = TlsTranscript::builder()
+            .time(time)
+            .version(TlsVersion::V1_2)
+            .certificate_binding(binding)
+            .records_sent(sent_records)
+            .records_recv(recv_records)
+            .build()
+            .map_err(MpcTlsError::other)?;
 
-        let cf_vd = sent_records.remove(0);
-        let sf_vd = recv_records.remove(0);
+        let cf_vd = transcript
+            .cf_vd()
+            .expect("client finished verify data should be available");
 
-        let transcript = TlsTranscript::new(
-            time,
-            TlsVersion::V1_2,
-            None,
-            None,
-            handshake_data,
-            Some(verify_data),
-            sent_records,
-            recv_records,
-            cf_vd,
-            sf_vd,
-        )
-        .map_err(MpcTlsError::other)?;
+        if cf_vd != expected_cf_vd {
+            return Err(MpcTlsError::peer("client verify data is incorrect"));
+        }
+
+        let sf_vd = transcript
+            .sf_vd()
+            .expect("server finished verify data should be available");
+        if sf_vd != expected_sf_vd {
+            return Err(MpcTlsError::peer("server verify data is incorrect"));
+        }
+
+        check_close_notify(transcript.sent())?;
+        check_close_notify(transcript.recv())?;
 
         Ok((self.ctx, transcript))
     }
