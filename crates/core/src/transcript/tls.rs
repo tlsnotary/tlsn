@@ -112,6 +112,10 @@ impl TlsTranscript {
     }
 
     /// Returns the session hash.
+    ///
+    /// The session hash is the SHA-256 digest over the handshake messages
+    /// from ClientHello up to and including ClientKeyExchange (RFC 7627).
+    /// It is used to derive the extended master secret.
     pub fn session_hash(&self) -> Option<[u8; 32]> {
         self.session_hash.as_ref().copied()
     }
