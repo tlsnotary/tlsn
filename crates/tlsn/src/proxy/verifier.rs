@@ -64,8 +64,12 @@ impl ProxyVerifier {
         ),
         TlsnError,
     > {
-        let tls_transcript =
-            TlsTranscript::parse(conn_time, sent, recv, &[], &[]).map_err(|e| {
+        let tls_transcript = TlsTranscript::builder()
+            .time(conn_time)
+            .tls_sent(sent)
+            .tls_recv(recv)
+            .build()
+            .map_err(|e| {
                 TlsnError::internal()
                     .with_msg("verifier could not build tls transcript")
                     .with_source(e)
@@ -76,9 +80,7 @@ impl ProxyVerifier {
 
         let cf_hash: [u8; 32] = tls_transcript
             .cf_hash()
-            .expect("cf_hash should be available")
-            .try_into()
-            .expect("cf_hash should be 32 bytes");
+            .expect("client finished hash should be available");
 
         let tlsn_core::connection::CertBinding::V1_2(binding) =
             tls_transcript.certificate_binding()
@@ -123,9 +125,7 @@ impl ProxyVerifier {
         // Now that cf_vd is known, compute sf_hash and resume the PRF.
         let sf_hash: [u8; 32] = tls_transcript
             .sf_hash(&cf_vd)
-            .expect("sf_hash should be available")
-            .try_into()
-            .expect("sf_hash should be 32 bytes");
+            .expect("server finished hash should be available");
 
         self.prf
             .set_sf_hash(sf_hash)
@@ -144,18 +144,18 @@ impl ProxyVerifier {
 
         tracing::debug!("decoding server finished verify data...");
 
-        let cf_vd_record = tls_transcript.cf_vd();
+        let cf_record = tls_transcript.client_finished();
         self.cf_vd_check.assign(
             &mut self.vm,
-            &cf_vd_record.explicit_nonce,
-            &cf_vd_record.ciphertext,
+            &cf_record.explicit_nonce,
+            &cf_record.ciphertext,
         )?;
 
-        let sf_vd_record = tls_transcript.sf_vd();
+        let sf_record = tls_transcript.server_finished();
         self.sf_vd_check.assign(
             &mut self.vm,
-            &sf_vd_record.explicit_nonce,
-            &sf_vd_record.ciphertext,
+            &sf_record.explicit_nonce,
+            &sf_record.ciphertext,
         )?;
 
         tracing::info!("Proxy-TLS done");

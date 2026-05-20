@@ -6,7 +6,7 @@ use crate::{
         SetServerKey, SetServerRandom, StartHandshake,
     },
     record_layer::{DecryptMode, EncryptMode, RecordLayer, aead::MpcAesGcm},
-    utils::opaque_into_parts,
+    utils::{check_close_notify, opaque_into_parts},
 };
 use async_trait::async_trait;
 use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
@@ -41,10 +41,11 @@ use tls_core::{
     verify::verify_sig_determine_alg,
 };
 use tlsn_core::{
-    connection::{CertBinding, CertBindingV1_2, ServerSignature, TlsVersion, VerifyData},
+    connection::{CertBinding, CertBindingV1_2, ServerSignature, TlsVersion},
     transcript::TlsTranscript,
     webpki::CertificateDer,
 };
+
 use tracing::{debug, instrument, trace, warn};
 
 /// MPC-TLS leader.
@@ -272,8 +273,8 @@ impl MpcTlsLeader {
             mut ctx,
             vm,
             mut record_layer,
-            cf_vd,
-            sf_vd,
+            cf_vd: expected_cf_vd,
+            sf_vd: expected_sf_vd,
             time,
             protocol_version,
             client_random,
@@ -295,8 +296,7 @@ impl MpcTlsLeader {
 
         debug!("committing to transcript");
 
-        let (mut sent_records, mut recv_records) =
-            record_layer.commit(&mut ctx, vm.clone()).await?;
+        let (sent_records, recv_records) = record_layer.commit(&mut ctx, vm.clone()).await?;
 
         debug!("committed to transcript");
 
@@ -305,8 +305,10 @@ impl MpcTlsLeader {
             self.notifier.set();
         }
 
-        let cf_vd = cf_vd.ok_or(MpcTlsError::state("client finished verify data not set"))?;
-        let sf_vd = sf_vd.ok_or(MpcTlsError::state("server finished verify data not set"))?;
+        let expected_cf_vd =
+            expected_cf_vd.ok_or(MpcTlsError::state("client finished verify data not set"))?;
+        let expected_sf_vd =
+            expected_sf_vd.ok_or(MpcTlsError::state("server finished verify data not set"))?;
 
         let version = match protocol_version {
             ProtocolVersion::TLSv1_2 => TlsVersion::V1_2,
@@ -338,7 +340,7 @@ impl MpcTlsLeader {
             sig: server_kx_details.kx_sig().sig.0.clone(),
         };
 
-        let handshake_data = CertBinding::V1_2(CertBindingV1_2 {
+        let binding = CertBinding::V1_2(CertBindingV1_2 {
             client_random: client_random.0,
             server_random: server_random.0,
             server_ephemeral_key: server_key
@@ -346,27 +348,33 @@ impl MpcTlsLeader {
                 .expect("only supported key scheme should have been accepted"),
         });
 
-        let verify_data = VerifyData {
-            client_finished: cf_vd.to_vec(),
-            server_finished: sf_vd.to_vec(),
-        };
+        let transcript = TlsTranscript::builder()
+            .time(time)
+            .version(version)
+            .server_signature(server_signature)
+            .server_cert_chain(server_cert_chain)
+            .certificate_binding(binding)
+            .records_sent(sent_records)
+            .records_recv(recv_records)
+            .build()
+            .map_err(MpcTlsError::other)?;
 
-        let cf_vd = sent_records.remove(0);
-        let sf_vd = recv_records.remove(0);
+        let cf_vd = transcript
+            .cf_vd()
+            .expect("client finished verify data should be available");
+        if cf_vd != expected_cf_vd {
+            return Err(MpcTlsError::peer("client verify data is incorrect"));
+        }
 
-        let transcript = TlsTranscript::new(
-            time,
-            version,
-            Some(server_cert_chain),
-            Some(server_signature),
-            handshake_data,
-            Some(verify_data),
-            sent_records,
-            recv_records,
-            cf_vd,
-            sf_vd,
-        )
-        .map_err(MpcTlsError::other)?;
+        let sf_vd = transcript
+            .sf_vd()
+            .expect("server finished verify data should be available");
+        if sf_vd != expected_sf_vd {
+            return Err(MpcTlsError::peer("server verify data is incorrect"));
+        }
+
+        check_close_notify(transcript.sent())?;
+        check_close_notify(transcript.recv())?;
 
         self.state = State::Closed {
             ctx,

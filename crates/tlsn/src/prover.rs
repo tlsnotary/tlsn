@@ -354,7 +354,7 @@ where
             &mut vm,
             (keys.server_write_key, keys.server_write_iv),
             keys.server_write_mac_key,
-            *tls_transcript.version(),
+            tls_transcript.version(),
             tls_transcript.recv().to_vec(),
         )
         .map_err(|err| {

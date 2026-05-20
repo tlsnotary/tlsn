@@ -264,7 +264,7 @@ impl SdkVerifier {
 
         let connection_info = ConnectionInfo {
             time: verifier.tls_transcript().time(),
-            version: *verifier.tls_transcript().version(),
+            version: verifier.tls_transcript().version(),
             transcript_length: TranscriptLength {
                 sent: sent as u32,
                 received: received as u32,
