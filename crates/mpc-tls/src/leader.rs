@@ -210,27 +210,33 @@ impl MpcTlsLeader {
 
         let (ke, record_layer, _) = ctx
             .try_join3(
-                async move |ctx| {
-                    ke.setup(ctx)
-                        .await
-                        .map(|_| ke)
-                        .map_err(MpcTlsError::preprocess)
+                move |ctx| {
+                    Box::pin(async move {
+                        ke.setup(ctx)
+                            .await
+                            .map(|_| ke)
+                            .map_err(MpcTlsError::preprocess)
+                    })
                 },
-                async move |ctx| {
-                    record_layer
-                        .preprocess(ctx)
-                        .await
-                        .map(|_| record_layer)
-                        .map_err(MpcTlsError::preprocess)
+                move |ctx| {
+                    Box::pin(async move {
+                        record_layer
+                            .preprocess(ctx)
+                            .await
+                            .map(|_| record_layer)
+                            .map_err(MpcTlsError::preprocess)
+                    })
                 },
-                async move |ctx| {
-                    vm_lock
-                        .preprocess(ctx)
-                        .await
-                        .map_err(MpcTlsError::preprocess)?;
-                    vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                move |ctx| {
+                    Box::pin(async move {
+                        vm_lock
+                            .preprocess(ctx)
+                            .await
+                            .map_err(MpcTlsError::preprocess)?;
+                        vm_lock.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
-                    Ok::<_, MpcTlsError>(())
+                        Ok::<_, MpcTlsError>(())
+                    })
                 },
             )
             .await

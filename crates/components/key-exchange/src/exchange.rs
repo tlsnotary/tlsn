@@ -252,26 +252,32 @@ where
 
         let (follower_key, _, _) = ctx
             .try_join3(
-                async move |ctx| {
-                    Ok(match role {
-                        Role::Leader => ctx.io_mut().expect_next().await?,
-                        Role::Follower => {
-                            ctx.io_mut().send(public_key).await?;
-                            public_key
-                        }
+                move |ctx| {
+                    Box::pin(async move {
+                        Ok::<_, KeyExchangeError>(match role {
+                            Role::Leader => ctx.io_mut().expect_next().await?,
+                            Role::Follower => {
+                                ctx.io_mut().send(public_key).await?;
+                                public_key
+                            }
+                        })
                     })
                 },
-                async move |ctx| {
-                    converter_0
-                        .flush(ctx)
-                        .await
-                        .map_err(KeyExchangeError::share_conversion)
+                move |ctx| {
+                    Box::pin(async move {
+                        converter_0
+                            .flush(ctx)
+                            .await
+                            .map_err(KeyExchangeError::share_conversion)
+                    })
                 },
-                async move |ctx| {
-                    converter_1
-                        .flush(ctx)
-                        .await
-                        .map_err(KeyExchangeError::share_conversion)
+                move |ctx| {
+                    Box::pin(async move {
+                        converter_1
+                            .flush(ctx)
+                            .await
+                            .map_err(KeyExchangeError::share_conversion)
+                    })
                 },
             )
             .await??;
@@ -440,11 +446,15 @@ where
     let mut converter_1 = converter_1.try_lock_owned().unwrap();
     let (pms_share_0, pms_share_1) = ctx
         .try_join(
-            async move |ctx| {
-                derive_x_coord_share(ctx, role, &mut *converter_0, encoded_point).await
+            move |ctx| {
+                Box::pin(async move {
+                    derive_x_coord_share(ctx, role, &mut *converter_0, encoded_point).await
+                })
             },
-            async move |ctx| {
-                derive_x_coord_share(ctx, role, &mut *converter_1, encoded_point).await
+            move |ctx| {
+                Box::pin(async move {
+                    derive_x_coord_share(ctx, role, &mut *converter_1, encoded_point).await
+                })
             },
         )
         .await??;

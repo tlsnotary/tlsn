@@ -1,5 +1,5 @@
 use mpc_tls::{MpcTlsLeader, SessionKeys};
-use mpz_common::{Context, ThreadId};
+use mpz_common::{Context, ContextId};
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_ot::{
@@ -128,7 +128,7 @@ impl ProverMpcDeps {
 /// Protocol dependencies for Proxy.
 pub(crate) struct ProverProxyDeps {
     pub(crate) prover: Box<ProxyProver>,
-    pub(crate) id: ThreadId,
+    pub(crate) id: ContextId,
 }
 
 impl std::fmt::Debug for ProverProxyDeps {
