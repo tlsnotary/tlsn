@@ -3,7 +3,11 @@
 use std::collections::HashMap;
 
 use mpz_core::bitvec::BitVec;
-use mpz_hash::{blake3::Blake3, keccak256::Keccak256, sha256::Sha256};
+#[cfg(feature = "hash-blake3")]
+use mpz_hash::blake3::Blake3;
+#[cfg(feature = "hash-keccak256")]
+use mpz_hash::keccak256::Keccak256;
+use mpz_hash::sha256::Sha256;
 use mpz_memory_core::{
     DecodeFutureTyped, MemoryExt, Vector,
     binary::{Binary, U8},
@@ -22,7 +26,6 @@ use crate::{Role, transcript_internal::TranscriptRefs};
 
 /// Future which will resolve to the committed hash values.
 #[derive(Debug)]
-
 pub(crate) struct HashCommitFuture {
     #[allow(clippy::type_complexity)]
     futs: Vec<(
@@ -110,7 +113,9 @@ pub(crate) fn verify_hash(
 #[derive(Clone)]
 enum Hasher {
     Sha256(Sha256),
+    #[cfg(feature = "hash-blake3")]
     Blake3(Blake3),
+    #[cfg(feature = "hash-keccak256")]
     Keccak256(Keccak256),
 }
 
@@ -162,6 +167,7 @@ fn hash_commit_inner(
                 hasher.update(&blinder);
                 hasher.finalize(vm).map_err(HashCommitError::hasher)?
             }
+            #[cfg(feature = "hash-blake3")]
             HashAlgId::BLAKE3 => {
                 let mut hasher = if let Some(Hasher::Blake3(hasher)) = hashers.get(&alg).cloned() {
                     hasher
@@ -186,6 +192,7 @@ fn hash_commit_inner(
                     .map_err(HashCommitError::hasher)?;
                 hasher.finalize(vm).map_err(HashCommitError::hasher)?
             }
+            #[cfg(feature = "hash-keccak256")]
             HashAlgId::KECCAK256 => {
                 let mut hasher = if let Some(Hasher::Keccak256(hasher)) = hashers.get(&alg).cloned()
                 {
