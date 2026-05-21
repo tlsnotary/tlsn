@@ -1,6 +1,6 @@
 use hmac_sha256::{MSMode, NetworkMode, Prf, PrfConfig};
 use mpc_tls::{MpcTlsFollower, SessionKeys};
-use mpz_common::{Context, ThreadId};
+use mpz_common::{Context, ContextId};
 use mpz_core::Block;
 use mpz_garble_core::Delta;
 use mpz_ot::{
@@ -126,7 +126,7 @@ impl VerifierMpcDeps {
 /// Protocol dependencies for Proxy.
 pub(crate) struct VerifierProxyDeps {
     pub(crate) verifier: Box<ProxyVerifier>,
-    pub(crate) id: ThreadId,
+    pub(crate) id: ContextId,
 }
 
 impl std::fmt::Debug for VerifierProxyDeps {

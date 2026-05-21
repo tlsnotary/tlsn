@@ -179,24 +179,30 @@ impl MpcTlsFollower {
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?;
             self.ctx
                 .try_join3(
-                    async move |ctx| {
-                        ke.setup(ctx)
-                            .await
-                            .map(|_| ke)
-                            .map_err(MpcTlsError::preprocess)
+                    move |ctx| {
+                        Box::pin(async move {
+                            ke.setup(ctx)
+                                .await
+                                .map(|_| ke)
+                                .map_err(MpcTlsError::preprocess)
+                        })
                     },
-                    async move |ctx| {
-                        record_layer
-                            .preprocess(ctx)
-                            .await
-                            .map(|_| record_layer)
-                            .map_err(MpcTlsError::preprocess)
+                    move |ctx| {
+                        Box::pin(async move {
+                            record_layer
+                                .preprocess(ctx)
+                                .await
+                                .map(|_| record_layer)
+                                .map_err(MpcTlsError::preprocess)
+                        })
                     },
-                    async move |ctx| {
-                        vm.preprocess(ctx).await.map_err(MpcTlsError::preprocess)?;
-                        vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
+                    move |ctx| {
+                        Box::pin(async move {
+                            vm.preprocess(ctx).await.map_err(MpcTlsError::preprocess)?;
+                            vm.flush(ctx).await.map_err(MpcTlsError::preprocess)?;
 
-                        Ok::<_, MpcTlsError>(())
+                            Ok::<_, MpcTlsError>(())
+                        })
                     },
                 )
                 .await

@@ -335,8 +335,8 @@ where
         let mut zk = self.zk.clone().try_lock_owned().unwrap();
         let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
         ctx.try_join(
-            async move |ctx| zk.flush(ctx).await,
-            async move |ctx| mpc.flush(ctx).await,
+            move |ctx| Box::pin(async move { zk.flush(ctx).await }),
+            move |ctx| Box::pin(async move { mpc.flush(ctx).await }),
         )
         .await
         .map_err(VmError::execute)??;
@@ -353,8 +353,8 @@ where
         let mut zk = self.zk.clone().try_lock_owned().unwrap();
         let mut mpc = self.mpc.clone().try_lock_owned().unwrap();
         ctx.try_join(
-            async move |ctx| zk.preprocess(ctx).await,
-            async move |ctx| mpc.preprocess(ctx).await,
+            move |ctx| Box::pin(async move { zk.preprocess(ctx).await }),
+            move |ctx| Box::pin(async move { mpc.preprocess(ctx).await }),
         )
         .await
         .map_err(VmError::execute)??;

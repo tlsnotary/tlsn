@@ -206,8 +206,8 @@ impl RecordLayer {
 
         // Preprocesses GHASH keys in parallel.
         ctx.try_join(
-            async move |ctx| encrypt.preprocess(ctx).await,
-            async move |ctx| decrypt.preprocess(ctx).await,
+            move |ctx| Box::pin(async move { encrypt.preprocess(ctx).await }),
+            move |ctx| Box::pin(async move { decrypt.preprocess(ctx).await }),
         )
         .await
         .map_err(MpcTlsError::record_layer)?
@@ -257,8 +257,8 @@ impl RecordLayer {
 
         // Computes GHASH keys in parallel.
         ctx.try_join(
-            async move |ctx| encrypt.setup(ctx).await,
-            async move |ctx| decrypt.setup(ctx).await,
+            move |ctx| Box::pin(async move { encrypt.setup(ctx).await }),
+            move |ctx| Box::pin(async move { decrypt.setup(ctx).await }),
         )
         .await
         .map_err(MpcTlsError::record_layer)?
@@ -454,18 +454,24 @@ impl RecordLayer {
         // Run tag computation and VM in parallel.
         let (mut tags, _) = ctx
             .try_join(
-                async move |ctx| {
-                    verify_tags
-                        .run(ctx)
-                        .map_err(MpcTlsError::record_layer)
-                        .await?;
+                move |ctx| {
+                    Box::pin(async move {
+                        verify_tags
+                            .run(ctx)
+                            .map_err(MpcTlsError::record_layer)
+                            .await?;
 
-                    compute_tags
-                        .run(ctx)
-                        .map_err(MpcTlsError::record_layer)
-                        .await
+                        compute_tags
+                            .run(ctx)
+                            .map_err(MpcTlsError::record_layer)
+                            .await
+                    })
                 },
-                async move |ctx| vm.execute_all(ctx).map_err(MpcTlsError::record_layer).await,
+                move |ctx| {
+                    Box::pin(
+                        async move { vm.execute_all(ctx).map_err(MpcTlsError::record_layer).await },
+                    )
+                },
             )
             .await
             .map_err(MpcTlsError::record_layer)??;

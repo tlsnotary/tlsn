@@ -9,7 +9,7 @@ use std::{
 };
 
 use futures::{AsyncRead, AsyncWrite};
-use mpz_common::{ThreadId, context::Multithread, io::Io, mux::Mux};
+use mpz_common::{Executor, io::Io, mux::Mux};
 use tlsn_core::config::{prover::ProverConfig, verifier::VerifierConfig};
 use tlsn_mux::{Connection, Handle};
 
@@ -18,9 +18,6 @@ use crate::{
     prover::{Prover, state as prover_state},
     verifier::{Verifier, state as verifier_state},
 };
-
-/// Maximum concurrency for multi-threaded context.
-const MAX_CONCURRENCY: usize = 8;
 
 /// A TLSNotary session over a communication channel.
 ///
@@ -40,7 +37,7 @@ const MAX_CONCURRENCY: usize = 8;
 #[must_use = "session must be polled continuously to make progress, including during closing."]
 pub struct Session<Io> {
     conn: Option<Connection<Io>>,
-    mt: Multithread,
+    executor: Executor,
     handle: Handle,
 }
 
@@ -52,19 +49,18 @@ where
     pub fn new(io: Io) -> Self {
         let mut mux_config = tlsn_mux::Config::default();
 
-        mux_config.set_max_num_streams(36);
         mux_config.set_keep_alive(true);
         mux_config.set_close_sync(true);
 
         let conn = tlsn_mux::Connection::new(io, mux_config);
         let handle = conn.handle().expect("handle should be available");
-        let mt = build_mt_context(MuxHandle {
+        let executor = build_executor(MuxHandle {
             handle: handle.clone(),
         });
 
         Self {
             conn: Some(conn),
-            mt,
+            executor,
             handle,
         }
     }
@@ -74,7 +70,7 @@ where
         &mut self,
         config: ProverConfig,
     ) -> Result<Prover<prover_state::Initialized>> {
-        let ctx = self.mt.new_context().map_err(|e| {
+        let ctx = self.executor.new_context().map_err(|e| {
             Error::internal()
                 .with_msg("failed to create new prover")
                 .with_source(e)
@@ -88,7 +84,7 @@ where
         &mut self,
         config: VerifierConfig,
     ) -> Result<Verifier<verifier_state::Initialized>> {
-        let ctx = self.mt.new_context().map_err(|e| {
+        let ctx = self.executor.new_context().map_err(|e| {
             Error::internal()
                 .with_msg("failed to create new verifier")
                 .with_source(e)
@@ -162,7 +158,7 @@ where
                 waker: waker.clone(),
             },
             SessionHandle {
-                mt: self.mt,
+                executor: self.executor,
                 should_close,
                 waker,
                 handle: self.handle,
@@ -247,7 +243,7 @@ where
 ///
 /// Used to create provers/verifiers and control the session lifecycle.
 pub struct SessionHandle {
-    mt: Multithread,
+    executor: Executor,
     should_close: Arc<AtomicBool>,
     waker: Arc<Mutex<Option<Waker>>>,
     handle: Handle,
@@ -259,7 +255,7 @@ impl SessionHandle {
         &mut self,
         config: ProverConfig,
     ) -> Result<Prover<prover_state::Initialized>> {
-        let ctx = self.mt.new_context().map_err(|e| {
+        let ctx = self.executor.new_context().map_err(|e| {
             Error::internal()
                 .with_msg("failed to create new prover")
                 .with_source(e)
@@ -273,7 +269,7 @@ impl SessionHandle {
         &mut self,
         config: VerifierConfig,
     ) -> Result<Verifier<verifier_state::Initialized>> {
-        let ctx = self.mt.new_context().map_err(|e| {
+        let ctx = self.executor.new_context().map_err(|e| {
             Error::internal()
                 .with_msg("failed to create new verifier")
                 .with_source(e)
@@ -305,28 +301,29 @@ impl std::fmt::Debug for MuxHandle {
 }
 
 impl Mux for MuxHandle {
-    fn open(&self, id: ThreadId) -> Result<Io, std::io::Error> {
-        let stream = self
-            .handle
-            .new_stream(id.as_ref())
-            .map_err(std::io::Error::other)?;
+    fn open(&self, id: &[u8]) -> Result<Io, std::io::Error> {
+        let stream = self.handle.new_stream(id).map_err(std::io::Error::other)?;
         let io = Io::from_io(stream);
 
         Ok(io)
     }
 }
 
-/// Builds a multi-threaded context with the given muxer.
-fn build_mt_context(mux: MuxHandle) -> Multithread {
-    let builder = Multithread::builder()
-        .mux(Box::new(mux) as Box<_>)
-        .concurrency(MAX_CONCURRENCY);
+/// Builds a work-stealing executor with the given muxer.
+fn build_executor(mux: MuxHandle) -> Executor {
+    #[cfg(all(feature = "web", target_arch = "wasm32"))]
+    let cores = web_spawn::available_parallelism().map(|n| n.get());
+
+    #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+    let cores = std::thread::available_parallelism().map(|n| n.get());
+
+    let builder = Executor::builder().num_threads(cores.unwrap_or(8));
 
     #[cfg(all(feature = "web", target_arch = "wasm32"))]
-    let builder = builder.spawn_handler(|f| {
+    let builder = builder.spawn(|f| {
         let _ = web_spawn::spawn(f);
         Ok(())
     });
 
-    builder.build().unwrap()
+    builder.build(mux)
 }

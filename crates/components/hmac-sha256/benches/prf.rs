@@ -44,7 +44,7 @@ async fn prf(config: PrfConfig) {
     let server_random: [u8; 32] = [96u8; 32];
     let session_hash = [55u8; 32];
 
-    let (mut leader_exec, mut follower_exec) = test_mt_context(8);
+    let (leader_exec, follower_exec) = test_mt_context(8);
     let mut leader_ctx = leader_exec.new_context().unwrap();
     let mut follower_ctx = follower_exec.new_context().unwrap();
 
