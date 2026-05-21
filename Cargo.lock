@@ -7131,8 +7131,9 @@ dependencies = [
 
 [[package]]
 name = "web-spawn"
-version = "0.3.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=5efe2f0#5efe2f00ee476541529b15508274c65a077e7c6b"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a78095800f07cfef735e751ab04b502eebb0c4363c6d84477438c00aed52a2bb"
 dependencies = [
  "crossbeam-channel",
  "futures",
