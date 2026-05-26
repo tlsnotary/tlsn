@@ -10,7 +10,7 @@ use crate::{KeyExchangeError, Role};
 use mpz_common::{Context, Flush};
 use mpz_fields::{Field, p256::P256};
 use mpz_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConvert};
-use p256::EncodedPoint;
+use p256::Sec1Point as EncodedPoint;
 
 /// Derives the x-coordinate share of an elliptic curve point.
 pub(crate) async fn derive_x_coord_share<C>(
@@ -103,10 +103,10 @@ mod tests {
     use mpz_fields::{Field, p256::P256};
     use mpz_share_conversion::ideal::ideal_share_convert;
     use p256::{
-        EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
-        elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
+        Sec1Point as EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
+        elliptic_curve::sec1::{FromSec1Point, ToSec1Point},
     };
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_point_addition() {
@@ -154,13 +154,13 @@ mod tests {
     fn curve_point_from_be_bytes(bytes: [u8; 32]) -> EncodedPoint {
         let scalar = NonZeroScalar::from_repr(bytes.into()).unwrap();
         let pk = PublicKey::from_secret_scalar(&scalar);
-        pk.to_encoded_point(false)
+        pk.to_sec1_point(false)
     }
 
     fn add_curve_points(p1: &EncodedPoint, p2: &EncodedPoint) -> EncodedPoint {
-        let p1 = ProjectivePoint::from_encoded_point(p1).unwrap();
-        let p2 = ProjectivePoint::from_encoded_point(p2).unwrap();
+        let p1 = ProjectivePoint::from_sec1_point(p1).unwrap();
+        let p2 = ProjectivePoint::from_sec1_point(p2).unwrap();
         let p = p1 + p2;
-        p.to_encoded_point(false)
+        p.to_sec1_point(false)
     }
 }

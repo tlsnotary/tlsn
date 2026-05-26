@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, fmt::Display};
 
-use rand::{distr::StandardUniform, prelude::Distribution};
+use rand::{distr::StandardUniform, prelude::Distribution, RngExt};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Maximum length of a hash value.

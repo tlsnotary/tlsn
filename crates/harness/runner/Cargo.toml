@@ -13,7 +13,6 @@ debug = []
 
 [dependencies]
 tlsn-harness-core = { workspace = true }
-tlsn-server-fixture = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

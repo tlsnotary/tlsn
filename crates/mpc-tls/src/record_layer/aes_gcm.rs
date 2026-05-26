@@ -1,11 +1,11 @@
-use aes_gcm::{Aes128Gcm, NewAead, aead::AeadMutInPlace};
+use aes_gcm::{Aes128Gcm, KeyInit, aead::AeadInPlace};
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{
     Array, DecodeFutureTyped,
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, prelude::*};
-use rand::RngCore;
+use rand::Rng;
 
 use crate::{MpcTlsError, Role};
 
@@ -211,7 +211,7 @@ impl AesGcm {
                 (&full_iv).into(),
                 &aad,
                 &mut ciphertext,
-                tag.as_slice().into(),
+                tag.as_slice().try_into().map_err(|_| MpcTlsError::record_layer("invalid tag length"))?,
             )
             .map_err(|_| MpcTlsError::record_layer("tag verification failed"))?;
 
@@ -222,7 +222,7 @@ impl AesGcm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aes_gcm::{Aes128Gcm, NewAead, aead::AeadMutInPlace};
+    use aes_gcm::{Aes128Gcm, KeyInit, aead::AeadInPlace};
 
     #[test]
     fn test_aes_gcm_local() {

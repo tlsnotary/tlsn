@@ -12,8 +12,6 @@ mpz-common = { workspace = true }
 mpz-vm-core = { workspace = true }
 rangeset = { workspace = true }
 thiserror = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serio = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }

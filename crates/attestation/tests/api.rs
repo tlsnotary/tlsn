@@ -1,4 +1,4 @@
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use rangeset::set::RangeSet;
 use tlsn_attestation::{
     Attestation, AttestationConfig, CryptoProvider,

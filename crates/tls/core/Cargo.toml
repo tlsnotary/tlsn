@@ -28,7 +28,6 @@ futures = { workspace = true }
 hmac = { workspace = true, optional = true }
 rand = { workspace = true }
 ring = { workspace = true }
-rustls-pemfile = { workspace = true }
 sct = { workspace = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 sha2 = { workspace = true, optional = true }

@@ -24,7 +24,6 @@ tlsn-sdk-core = { workspace = true, features = ["wasm", "mozilla-certs"] }
 console_error_panic_hook = { version = "0.1" }
 futures = { workspace = true }
 js-sys = { version = "0.3" }
-parking_lot = { version = "0.12", features = ["nightly"] }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1.0" }
@@ -39,7 +38,7 @@ web-spawn = { workspace = true }
 # ws_stream_wasm removed - IO now injected from JavaScript
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { workspace = true, features = ["js"] }
 getrandom_03 = { package = "getrandom", version = "0.3", features = [
     "wasm_js",
 ] }

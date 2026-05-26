@@ -1,10 +1,8 @@
 //! Transcript fixtures for testing.
 
 use aead::Payload as AeadPayload;
-use aes_gcm::{Aes128Gcm, NewAead, aead::Aead};
-#[allow(deprecated)]
-use generic_array::GenericArray;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use aes_gcm::{Aes128Gcm, KeyInit, aead::Aead, aead::array::Array as GenericArray};
+use rand::{Rng, RngExt, SeedableRng, rngs::StdRng};
 use tls_core::msgs::{
     base::Payload,
     codec::Codec,
@@ -173,7 +171,6 @@ fn aes_gcm_encrypt(
     let mut nonce = [0u8; 12];
     nonce[..4].copy_from_slice(&iv);
     nonce[4..].copy_from_slice(&explicit_nonce);
-    #[allow(deprecated)]
     let nonce = GenericArray::from_slice(&nonce);
     let cipher = Aes128Gcm::new_from_slice(&key).unwrap();
 

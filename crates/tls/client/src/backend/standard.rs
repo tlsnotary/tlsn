@@ -2,15 +2,14 @@ use super::{Backend, BackendError};
 use crate::{DecryptMode, EncryptMode, Error};
 #[allow(deprecated)]
 use aes_gcm::{
-    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
-    Aes128Gcm,
+    aead::{Aead, Payload, array::Array as GenericArray},
+    Aes128Gcm, KeyInit,
 };
 use async_trait::async_trait;
-use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
-use rand::{rng, rngs::OsRng, Rng};
+use p256::{ecdh::EphemeralSecret, Sec1Point as EncodedPoint, PublicKey as ECDHPublicKey};
+use rand::{rng, Rng, RngExt};
 
 use digest::Digest;
-use rand06_compat::Rand0_6CompatExt;
 use std::{any::Any, collections::VecDeque, convert::TryInto, mem::take};
 use tls_core::{
     cert::ServerCertDetails,
@@ -288,7 +287,7 @@ impl Backend for RustCryptoBackend {
     async fn get_client_key_share(&mut self) -> Result<PublicKey, BackendError> {
         // TODO make sure this and other methods are not called twice/out of order
         // generate our ECDH keypair
-        let sk = EphemeralSecret::random(&mut rng().compat());
+        let sk = EphemeralSecret::random(&mut rng());
         let pk_bytes = EncodedPoint::from(sk.public_key()).to_bytes().to_vec();
         self.ecdh_pubkey = Some(pk_bytes.clone());
         self.ecdh_secret = Some(sk);

@@ -81,7 +81,7 @@ mod tests {
         Execute,
         memory::{Array, MemoryExt, ViewExt, binary::U8},
     };
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{Rng, RngExt, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_prf_reduced() {

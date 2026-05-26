@@ -71,21 +71,21 @@ tlsn-sdk-core = { path = "crates/sdk-core" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-circuits-data = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-common = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6", default-features = false }
-mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
+mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-circuits-data = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-common = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
+mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4", default-features = false }
+mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "ff4dbb4" }
 
 futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
 rangeset = { version = "0.4" }
@@ -93,9 +93,9 @@ serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
 websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
 
-aead = { version = "0.4" }
-aes = { version = "0.8" }
-aes-gcm = { version = "0.9" }
+aead = { version = "0.6.0-rc.10" }
+aes = { version = "0.9.0-rc.1" }
+aes-gcm = { version = "0.11.0-rc.3" }
 anyhow = { version = "1.0" }
 async_io_stream = { version = "0.3" }
 async-trait = { version = "0.1" }
@@ -108,18 +108,19 @@ bytes = { version = "1.4" }
 cfg-if = { version = "1" }
 chromiumoxide = { version = "0.9.1" }
 chrono = { version = "0.4" }
-cipher = { version = "0.4" }
+cipher = { version = "0.5.0-rc.1" }
 clap = { version = "4.5" }
 criterion = { version = "0.5" }
-ctr = { version = "0.9" }
+ctr = { version = "0.10.0-rc.3" }
 derive_builder = { version = "0.12" }
 digest = { version = "0.10" }
-elliptic-curve = { version = "0.13" }
+elliptic-curve = { version = "0.14.0-rc.32" }
 enum-try-as-inner = { version = "0.1" }
 env_logger = { version = "0.10" }
 futures = { version = "0.3" }
 futures-rustls = { version = "0.25" }
 generic-array = { version = "0.14" }
+getrandom = { version = "0.2" }
 ghash = { version = "0.5" }
 hex = { version = "0.4" }
 hmac = { version = "0.12" }
@@ -128,18 +129,18 @@ hyper = { version = "1.1" }
 hyper-util = { version = "0.1" }
 ipnet = { version = "2.11" }
 inventory = { version = "0.3" }
-itybity = { version = "0.2" }
+itertools = { version = "0.14" }
 js-sys = { version = "0.3" }
-k256 = { version = "0.13" }
+k256 = { version = "0.14.0-rc.9" }
 log = { version = "0.4" }
 once_cell = { version = "1.19" }
 opaque-debug = { version = "0.3" }
-p256 = { version = "0.13" }
+p256 = { version = "0.14.0-rc.9" }
 pin-project-lite = { version = "0.2" }
 pollster = { version = "0.4" }
-rand = { version = "0.9" }
-rand_chacha = { version = "0.9" }
-rand_core = { version = "0.9" }
+rand = { version = "0.10" }
+rand_chacha = { version = "0.10" }
+rand_core = { version = "0.10" }
 rand06-compat = { version = "0.1" }
 rayon = { version = "1.10" }
 regex = { version = "1.10" }
@@ -157,14 +158,14 @@ semver = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 sha2 = { version = "0.10" }
-signature = { version = "2.2" }
+signature = { version = "3.0" }
 thiserror = { version = "1.0" }
 tiny-keccak = { version = "2.0" }
 tokio = { version = "1.38" }
 tokio-util = { version = "0.7" }
 toml = { version = "0.8" }
 tower = { version = "0.5" }
-tower-http = { version = "0.5" }
+tower-http = { version = "0.6" }
 tower-service = { version = "0.3" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }

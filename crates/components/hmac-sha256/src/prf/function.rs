@@ -160,7 +160,7 @@ mod tests {
         Execute,
         memory::{Array, MemoryExt, ViewExt, binary::U8},
     };
-    use rand::{Rng, rngs::ThreadRng};
+    use rand::{Rng, RngExt, rngs::ThreadRng};
 
     const IPAD: [u8; 64] = [0x36; 64];
     const OPAD: [u8; 64] = [0x5c; 64];

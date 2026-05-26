@@ -31,7 +31,6 @@ p256 = { workspace = true, features = ["ecdh", "serde"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 serio = { workspace = true }
-derive_builder = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
 rand06-compat = { workspace = true }

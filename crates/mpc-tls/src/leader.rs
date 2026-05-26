@@ -455,7 +455,7 @@ impl Backend for MpcTlsLeader {
 
         Ok(PublicKey::new(
             NamedGroup::secp256r1,
-            &p256::EncodedPoint::from(pk).to_bytes(),
+            &p256::Sec1Point::from(pk).to_bytes(),
         ))
     }
 

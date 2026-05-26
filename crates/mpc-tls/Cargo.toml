@@ -38,14 +38,12 @@ serio = { workspace = true }
 
 async-trait = { workspace = true }
 derive_builder = { workspace = true }
-enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
 p256 = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
-opaque-debug = { workspace = true }
 aes = { workspace = true }
 aes-gcm = { workspace = true }
 ctr = { workspace = true }
@@ -59,14 +57,6 @@ mpz-common = { workspace = true, features = ["test-utils"] }
 mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-ideal-vm = { workspace = true }
 
-cipher-crate = { package = "cipher", version = "0.4" }
-generic-array = { workspace = true }
-rand_chacha = { workspace = true }
 rstest = { workspace = true }
-tls-server-fixture = { workspace = true }
-tlsn-mux =  { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
-tokio-util = { workspace = true, features = ["compat"] }
-tracing-subscriber = { workspace = true }
-rustls-pki-types = { workspace = true }
 rustls-webpki = { workspace = true }

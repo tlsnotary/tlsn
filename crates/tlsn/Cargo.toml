@@ -40,7 +40,6 @@ mpz-garble = { workspace = true }
 mpz-garble-core = { workspace = true }
 mpz-hash = { workspace = true, features = ["sha256"] }
 mpz-memory-core = { workspace = true }
-mpz-ole = { workspace = true }
 mpz-ot = { workspace = true }
 mpz-vm-core = { workspace = true }
 mpz-zk = { workspace = true }
@@ -61,9 +60,7 @@ serde = { workspace = true, features = ["derive"] }
 ghash = { workspace = true }
 rustls = { workspace = true, features = ["std", "tls12", "ring"] }
 semver = { workspace = true, features = ["serde"] }
-once_cell = { workspace = true }
 rangeset = { workspace = true }
-webpki-roots = { workspace = true }
 web-time = { workspace = true }
 
 [dev-dependencies]
@@ -75,6 +72,4 @@ tlsn-server-fixture-certs = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tls-server-fixture = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
-hyper = { workspace = true, features = ["client"] }
-http-body-util = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

@@ -451,8 +451,8 @@ fn assign_j0(
 mod tests {
     use super::*;
     use aes_gcm::{
-        Aes128Gcm,
-        aead::{AeadInPlace, NewAead},
+        Aes128Gcm, KeyInit,
+        aead::AeadInPlace,
     };
     use mpz_common::context::test_st_context;
     use mpz_core::Block;

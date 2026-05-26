@@ -10,7 +10,7 @@ tlsn-harness-core = { workspace = true }
 charming = { version = "0.5.1", features = ["ssr"] }
 csv = "1.3.0"
 clap = { workspace = true, features = ["derive", "env"] }
-itertools = "0.14.0"
+itertools = { workspace = true }
 toml = { workspace = true }
 
 

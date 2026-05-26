@@ -388,7 +388,7 @@ mod tests {
 
     fn aes128(key: [u8; 16], msg: [u8; 16]) -> [u8; 16] {
         use ::aes::Aes128 as TestAes128;
-        use ::cipher::{BlockEncrypt, KeyInit};
+        use ::cipher::{BlockCipherEncrypt, KeyInit};
 
         let mut msg = msg.into();
         let cipher = TestAes128::new(&key.into());

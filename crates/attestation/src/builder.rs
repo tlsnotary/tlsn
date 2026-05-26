@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use rand::{Rng, rng};
+use rand::{Rng, RngExt, rng};
 
 use tlsn_core::{
     connection::{ConnectionInfo, ServerEphemKey},

@@ -259,7 +259,7 @@ mod secp256k1 {
 
     use k256::ecdsa::{
         Signature as Secp256K1Signature, SigningKey,
-        signature::{SignerMut, Verifier},
+        signature::{Signer as _, Verifier},
     };
 
     use super::*;
@@ -335,7 +335,7 @@ mod secp256r1 {
 
     use p256::ecdsa::{
         Signature as Secp256R1Signature, SigningKey,
-        signature::{SignerMut, Verifier},
+        signature::{Signer as _, Verifier},
     };
 
     use super::*;
@@ -524,7 +524,6 @@ mod test {
     use alloy_primitives::utils::eip191_message;
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
-    use rand06_compat::Rand0_6CompatExt;
     use rstest::{fixture, rstest};
 
     use super::*;
@@ -532,7 +531,7 @@ mod test {
     #[fixture]
     #[once]
     fn secp256k1_pair() -> (Box<dyn Signer>, Box<dyn SignatureVerifier>) {
-        let signing_key = k256::ecdsa::SigningKey::random(&mut rand::rng().compat());
+        let signing_key = k256::ecdsa::SigningKey::random(&mut rand::rng());
         (
             Box::new(Secp256k1Signer::new(&signing_key.to_bytes()).unwrap()),
             Box::new(Secp256k1Verifier {}),
@@ -542,7 +541,7 @@ mod test {
     #[fixture]
     #[once]
     fn secp256r1_pair() -> (Box<dyn Signer>, Box<dyn SignatureVerifier>) {
-        let signing_key = p256::ecdsa::SigningKey::random(&mut rand::rng().compat());
+        let signing_key = p256::ecdsa::SigningKey::random(&mut rand::rng());
         (
             Box::new(Secp256r1Signer::new(&signing_key.to_bytes()).unwrap()),
             Box::new(Secp256r1Verifier {}),
@@ -552,7 +551,7 @@ mod test {
     #[fixture]
     #[once]
     fn secp256k1eth_pair() -> (Box<dyn Signer>, Box<dyn SignatureVerifier>) {
-        let signing_key = k256::ecdsa::SigningKey::random(&mut rand::rng().compat());
+        let signing_key = k256::ecdsa::SigningKey::random(&mut rand::rng());
         (
             Box::new(Secp256k1EthSigner::new(&signing_key.to_bytes()).unwrap()),
             Box::new(Secp256k1EthVerifier {}),

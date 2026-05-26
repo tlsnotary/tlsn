@@ -45,7 +45,7 @@ wasm-bindgen-futures = { workspace = true }
 web-spawn = { workspace = true, features = ["no-bundler"] }
 ws_stream_wasm = { workspace = true }
 gloo-utils = { version = "0.2", features = ["serde"] }
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { workspace = true, features = ["js"] }
 getrandom_03 = { package = "getrandom", version = "0.3", features = [
     "wasm_js",
 ] }

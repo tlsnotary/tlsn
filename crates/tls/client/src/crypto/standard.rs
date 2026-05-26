@@ -4,9 +4,8 @@ use crate::{DecryptMode, EncryptMode, Error};
 use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead, Payload};
 use aes_gcm::Aes128Gcm;
 use async_trait::async_trait;
-use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
-use rand::rngs::OsRng;
-use rand::{thread_rng, Rng};
+use p256::{ecdh::EphemeralSecret, Sec1Point as EncodedPoint, PublicKey as ECDHPublicKey};
+use rand::{rng, thread_rng, Rng, RngExt};
 
 use tls_core::key::PublicKey;
 use tls_core::msgs::base::Payload as TLSPayload;
@@ -339,7 +338,7 @@ impl Crypto for StandardCrypto {
         // TODO make sure this and other methods are not called twice/out of order
         println!("IN client_key_share");
         // generate our ECDH keypair
-        let sk = EphemeralSecret::random(&mut OsRng);
+        let sk = EphemeralSecret::random(&mut rng());
         let pk_bytes = EncodedPoint::from(sk.public_key()).to_bytes().to_vec();
         self.ecdh_pubkey = Some(pk_bytes.clone());
         self.ecdh_secret = Some(sk);

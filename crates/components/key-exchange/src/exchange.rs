@@ -3,8 +3,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use p256::{EncodedPoint, PublicKey, SecretKey};
-use rand06_compat::Rand0_6CompatExt;
+use p256::{Sec1Point as EncodedPoint, PublicKey, SecretKey};
 use serio::{sink::SinkExt, stream::IoStreamExt};
 use tokio::sync::Mutex;
 use tracing::instrument;
@@ -98,7 +97,7 @@ impl<C0, C1> MpcKeyExchange<C0, C1> {
     /// * `converter_0` - Share conversion protocol instance 0.
     /// * `converter_1` - Share conversion protocol instance 1.
     pub fn new(role: Role, converter_0: C0, converter_1: C1) -> Self {
-        let private_key = SecretKey::random(&mut rand::rng().compat());
+        let private_key = SecretKey::random(&mut rand::rng());
 
         Self {
             converter_0: Arc::new(Mutex::new(converter_0)),
@@ -490,7 +489,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_key_exchange() {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = StdRng::seed_from_u64(0);
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
@@ -563,7 +562,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_compute_ec_shares() {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = StdRng::seed_from_u64(0);
         let (mut ctx_leader, mut ctx_follower) = test_st_context(8);
         let (leader_converter_0, follower_converter_0) = ideal_share_convert(Block::ZERO);
         let (follower_converter_1, leader_converter_1) = ideal_share_convert(Block::ZERO);
@@ -637,10 +636,10 @@ mod tests {
         let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
 
-        let leader_private_key = SecretKey::random(&mut rng.compat_by_ref());
-        let follower_private_key = SecretKey::random(&mut rng.compat_by_ref());
+        let leader_private_key = SecretKey::random(&mut rng);
+        let follower_private_key = SecretKey::random(&mut rng);
         let server_public_key =
-            PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng.compat_by_ref()));
+            PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng));
         let expected_client_public_key = PublicKey::from_affine(
             (leader_private_key.public_key().to_projective()
                 + follower_private_key.public_key().to_projective())
