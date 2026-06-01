@@ -51,6 +51,13 @@ where
 
         mux_config.set_keep_alive(true);
         mux_config.set_close_sync(true);
+        // The threading design opens roughly ~24 streams per TLS record during
+        // preprocessing; a max_recv of 70000 was measured to peak at 555
+        // concurrent streams, exceeding the mux default of 512. Raise the limit
+        // to 2048 for headroom (~3.7x the measured peak) while keeping a 512 MiB
+        // auto-tuning pool within the default 1 GiB connection receive window
+        // (the window must stay >= 256 KiB * max_num_streams).
+        mux_config.set_max_num_streams(2048);
 
         let conn = tlsn_mux::Connection::new(io, mux_config);
         let handle = conn.handle().expect("handle should be available");
@@ -326,4 +333,36 @@ fn build_executor(mux: MuxHandle) -> Executor {
     });
 
     builder.build(mux)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio_util::compat::TokioAsyncReadCompatExt;
+
+    /// Regression test: the threading design opens many more concurrent streams
+    /// than the mux default limit of 512. A session's mux must be configured to
+    /// allow significantly more, otherwise preprocessing fails with
+    /// `TooManyStreams`.
+    #[test]
+    fn test_session_allows_many_concurrent_streams() {
+        // Keep the peer half alive; `Session::new` does not touch the IO.
+        let (io, _peer) = tokio::io::duplex(1 << 16);
+        let session = Session::new(io.compat());
+
+        // Open more streams than the previous default limit of 512, holding
+        // each one open so it counts against the connection's stream limit.
+        const NUM_STREAMS: usize = 1024;
+        let mut streams = Vec::with_capacity(NUM_STREAMS);
+        for i in 0..NUM_STREAMS {
+            let id = format!("stream-{i}");
+            let stream = session
+                .handle
+                .new_stream(id.as_bytes())
+                .unwrap_or_else(|e| panic!("failed to open stream {i}: {e}"));
+            streams.push(stream);
+        }
+
+        assert_eq!(streams.len(), NUM_STREAMS);
+    }
 }
