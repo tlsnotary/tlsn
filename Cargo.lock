@@ -1592,7 +1592,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "clmul"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -3612,7 +3612,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matrix-transpose"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "thiserror 1.0.69",
 ]
@@ -3668,7 +3668,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "mpz-circuits-core",
  "mpz-circuits-data",
@@ -3677,7 +3677,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "bincode",
  "itybity 0.3.2",
@@ -3692,17 +3692,20 @@ dependencies = [
 [[package]]
 name = "mpz-circuits-data"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "bincode",
+ "flate2",
+ "js-sys",
  "mpz-circuits-core",
  "once_cell",
+ "wasm-bindgen",
 ]
 
 [[package]]
 name = "mpz-cointoss"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "futures",
  "mpz-cointoss-core",
@@ -3715,7 +3718,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "mpz-core",
  "opaque-debug",
@@ -3726,7 +3729,7 @@ dependencies = [
 [[package]]
 name = "mpz-common"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-task",
  "async-trait",
@@ -3748,7 +3751,7 @@ dependencies = [
 [[package]]
 name = "mpz-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "aes 0.9.0",
  "bcs",
@@ -3774,7 +3777,7 @@ dependencies = [
 [[package]]
 name = "mpz-fields"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-secp256r1",
@@ -3794,7 +3797,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-trait",
  "derive_builder 0.11.2",
@@ -3820,7 +3823,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "aes 0.9.0",
  "bitvec",
@@ -3851,7 +3854,7 @@ dependencies = [
 [[package]]
 name = "mpz-hash"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "blake3",
  "itybity 0.3.2",
@@ -3864,7 +3867,7 @@ dependencies = [
 [[package]]
 name = "mpz-ideal-vm"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-trait",
  "futures",
@@ -3881,7 +3884,7 @@ dependencies = [
 [[package]]
 name = "mpz-memory-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "blake3",
  "futures",
@@ -3896,7 +3899,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-trait",
  "futures",
@@ -3914,7 +3917,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "hybrid-array",
  "itybity 0.3.2",
@@ -3930,7 +3933,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -3954,7 +3957,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "aes 0.9.0",
  "blake3",
@@ -3985,7 +3988,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-trait",
  "mpz-common",
@@ -4001,7 +4004,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "mpz-common",
  "mpz-core",
@@ -4015,7 +4018,7 @@ dependencies = [
 [[package]]
 name = "mpz-vm-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-trait",
  "futures",
@@ -4028,7 +4031,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4046,7 +4049,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk-core"
 version = "0.1.0-alpha.5"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=ed4b6a71d1eb1a7d23d31b100a520a57787808e4#ed4b6a71d1eb1a7d23d31b100a520a57787808e4"
+source = "git+https://github.com/privacy-ethereum/mpz?rev=2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8#2ca532f3bf1d8da5ffb8f88dcb4258efc4a305a8"
 dependencies = [
  "blake3",
  "cfg-if",
