@@ -253,6 +253,7 @@ fn convert_hash_algorithm(alg: HashAlgorithm) -> tlsn_sdk_core::HashAlgorithm {
         HashAlgorithm::BLAKE3 => tlsn_sdk_core::HashAlgorithm::Blake3,
         HashAlgorithm::SHA256 => tlsn_sdk_core::HashAlgorithm::Sha256,
         HashAlgorithm::KECCAK256 => tlsn_sdk_core::HashAlgorithm::Keccak256,
+        HashAlgorithm::POSEIDON2 => tlsn_sdk_core::HashAlgorithm::Poseidon2,
     }
 }
 

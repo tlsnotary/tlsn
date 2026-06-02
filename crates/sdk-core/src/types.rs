@@ -356,6 +356,8 @@ pub enum HashAlgorithm {
     Sha256,
     /// Keccak-256 hash algorithm.
     Keccak256,
+    /// Poseidon2 hash algorithm.
+    Poseidon2,
 }
 
 impl From<HashAlgorithm> for tlsn_core::hash::HashAlgId {
@@ -364,6 +366,7 @@ impl From<HashAlgorithm> for tlsn_core::hash::HashAlgId {
             HashAlgorithm::Blake3 => tlsn_core::hash::HashAlgId::BLAKE3,
             HashAlgorithm::Sha256 => tlsn_core::hash::HashAlgId::SHA256,
             HashAlgorithm::Keccak256 => tlsn_core::hash::HashAlgId::KECCAK256,
+            HashAlgorithm::Poseidon2 => tlsn_core::hash::HashAlgId::POSEIDON2,
         }
     }
 }

@@ -120,6 +120,8 @@ pub enum HashAlgorithm {
     SHA256,
     /// Keccak-256 hash algorithm.
     KECCAK256,
+    /// Poseidon2 hash algorithm (ZK-friendly, for STARK proofs).
+    POSEIDON2,
 }
 
 /// A byte range paired with a hash algorithm for commitment.
