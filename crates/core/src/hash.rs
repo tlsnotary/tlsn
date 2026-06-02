@@ -254,7 +254,7 @@ impl Blinder {
 impl Distribution<Blinder> for StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Blinder {
         let mut blinder = [0; 16];
-        rng.fill(&mut blinder);
+        rng.fill_bytes(&mut blinder);
         Blinder(blinder)
     }
 }

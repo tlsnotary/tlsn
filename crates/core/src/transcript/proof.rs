@@ -493,7 +493,7 @@ impl fmt::Display for TranscriptProofBuilderError {
 #[allow(clippy::single_range_in_vec_init)]
 #[cfg(test)]
 mod tests {
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rangeset::prelude::*;
     use rstest::rstest;
     use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
@@ -692,7 +692,7 @@ mod tests {
         #[case] reveal_recv_rangeset: RangeSet<usize>,
         #[case] success: bool,
     ) {
-        use rand::{Rng, SeedableRng};
+        use rand::{RngExt, SeedableRng};
 
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
@@ -763,7 +763,7 @@ mod tests {
         #[case] uncovered_sent_rangeset: RangeSet<usize>,
         #[case] uncovered_recv_rangeset: RangeSet<usize>,
     ) {
-        use rand::{Rng, SeedableRng};
+        use rand::{RngExt, SeedableRng};
 
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
         let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);

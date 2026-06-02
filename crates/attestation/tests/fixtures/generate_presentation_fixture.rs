@@ -25,7 +25,7 @@ tlsn-data-fixtures = { path = "../../../data-fixtures" }
 
 use std::fs;
 
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tlsn_attestation::{
     Attestation, AttestationConfig, CryptoProvider,
     request::{Request, RequestConfig},

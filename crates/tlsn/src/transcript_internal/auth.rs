@@ -474,7 +474,7 @@ mod tests {
     use mpz_common::context::test_st_context;
     use mpz_ideal_vm::IdealVm;
     use mpz_vm_core::prelude::*;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
     use rstest::*;
     use std::ops::Range;
 

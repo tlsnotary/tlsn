@@ -4,7 +4,6 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use p256::{EncodedPoint, PublicKey, SecretKey};
-use rand06_compat::Rand0_6CompatExt;
 use serio::{sink::SinkExt, stream::IoStreamExt};
 use tokio::sync::Mutex;
 use tracing::instrument;
@@ -23,6 +22,38 @@ use crate::{
     KeyExchange, KeyExchangeError, Pms, Role, circuit::build_pms_circuit,
     point_addition::derive_x_coord_share,
 };
+
+/// Bridges a `rand_core` 0.10 RNG to the `rand_core` 0.6 interface required by
+/// `p256` (`SecretKey::random`, `NonZeroScalar::random`, ...). Replaces the
+/// `rand06-compat` crate, which only bridges `rand_core` 0.6 <-> 0.9.
+///
+/// A single impl covers both an owned RNG and a `&mut` borrow, since
+/// `rand_core` 0.10 blanket-implements `Rng` for `&mut R`.
+struct Compat<R>(R);
+
+impl<R: rand::Rng> p256::elliptic_curve::rand_core::RngCore for Compat<R> {
+    fn next_u32(&mut self) -> u32 {
+        self.0.next_u32()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill_bytes(dest)
+    }
+
+    fn try_fill_bytes(
+        &mut self,
+        dest: &mut [u8],
+    ) -> Result<(), p256::elliptic_curve::rand_core::Error> {
+        self.0.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+impl<R: rand::CryptoRng> p256::elliptic_curve::rand_core::CryptoRng for Compat<R> {}
 
 /// NIST P-256 prime big-endian.
 static P: [u8; 32] = [
@@ -98,7 +129,7 @@ impl<C0, C1> MpcKeyExchange<C0, C1> {
     /// * `converter_0` - Share conversion protocol instance 0.
     /// * `converter_1` - Share conversion protocol instance 1.
     pub fn new(role: Role, converter_0: C0, converter_1: C1) -> Self {
-        let private_key = SecretKey::random(&mut rand::rng().compat());
+        let private_key = SecretKey::random(&mut Compat(rand::rng()));
 
         Self {
             converter_0: Arc::new(Mutex::new(converter_0)),
@@ -490,7 +521,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_key_exchange() {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = Compat(StdRng::seed_from_u64(0));
         let (mut ctx_a, mut ctx_b) = test_st_context(8);
         let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
@@ -563,7 +594,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_compute_ec_shares() {
-        let mut rng = StdRng::seed_from_u64(0).compat();
+        let mut rng = Compat(StdRng::seed_from_u64(0));
         let (mut ctx_leader, mut ctx_follower) = test_st_context(8);
         let (leader_converter_0, follower_converter_0) = ideal_share_convert(Block::ZERO);
         let (follower_converter_1, leader_converter_1) = ideal_share_convert(Block::ZERO);
@@ -637,10 +668,10 @@ mod tests {
         let mut gen_vm = IdealVm::new();
         let mut ev = IdealVm::new();
 
-        let leader_private_key = SecretKey::random(&mut rng.compat_by_ref());
-        let follower_private_key = SecretKey::random(&mut rng.compat_by_ref());
+        let leader_private_key = SecretKey::random(&mut Compat(&mut rng));
+        let follower_private_key = SecretKey::random(&mut Compat(&mut rng));
         let server_public_key =
-            PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng.compat_by_ref()));
+            PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut Compat(&mut rng)));
         let expected_client_public_key = PublicKey::from_affine(
             (leader_private_key.public_key().to_projective()
                 + follower_private_key.public_key().to_projective())

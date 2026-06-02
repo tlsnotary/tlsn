@@ -302,6 +302,7 @@ mod error;
 mod hash_hs;
 mod limited_cache;
 mod rand;
+mod rand_compat;
 mod record_layer;
 //mod stream;
 mod vecbuf;
