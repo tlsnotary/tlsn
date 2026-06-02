@@ -18,6 +18,7 @@ p256 = { workspace = true, features = ["serde"] }
 k256 = { workspace = true }
 opaque-debug = { workspace = true }
 rand = { workspace = true }
+rand06-compat = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
