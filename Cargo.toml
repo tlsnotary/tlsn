@@ -140,7 +140,6 @@ pollster = { version = "0.4" }
 rand = { version = "0.10" }
 rand_chacha = { version = "0.10" }
 rand_core = { version = "0.10" }
-rand06-compat = { version = "0.1" }
 rayon = { version = "1.10" }
 regex = { version = "1.10" }
 ring = { version = "0.17" }
