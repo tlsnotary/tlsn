@@ -37,6 +37,34 @@
 //!    exchanges data to obtain a commitment to the TLS transcript.
 //! 5. (Optional) Perform selective disclosure: the prover provably reveals
 //!    selected data to the verifier.
+//!
+//! # Performance
+//!
+//! The MPC-TLS protocol is highly interactive: prover and verifier exchange
+//! many small messages, and each one is on the critical path. On such traffic,
+//! Nagle's algorithm — enabled by default on TCP sockets — coalesces small
+//! writes and waits for outstanding ACKs before sending, adding a round-trip's
+//! worth of delay to each exchange and significantly slowing the protocol.
+//!
+//! For this reason you should **disable Nagle's algorithm** by enabling
+//! `TCP_NODELAY` on every TCP socket you hand to this crate, namely:
+//!
+//! - the prover ↔ verifier channel passed to [`Session::new`];
+//! - the connection to the TLS server passed to
+//!   [`Prover::connect`](prover::Prover::connect) (MPC mode);
+//! - the connection to the TLS server passed to
+//!   [`Verifier::run`](verifier::Verifier::run) (proxy mode).
+//!
+//! With [`tokio`](https://docs.rs/tokio) this is done via
+//! [`TcpStream::set_nodelay`](https://docs.rs/tokio/latest/tokio/net/struct.TcpStream.html#method.set_nodelay):
+//!
+//! ```ignore
+//! let socket = tokio::net::TcpStream::connect(addr).await?;
+//! socket.set_nodelay(true)?;
+//! ```
+//!
+//! This setting has no effect on non-TCP transports (e.g. WebSocket relays or
+//! in-memory duplex streams).
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]

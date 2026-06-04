@@ -99,6 +99,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Open a TCP connection to the server.
     let client_socket = tokio::net::TcpStream::connect(server_addr).await?;
+    // Disable Nagle's algorithm to reduce protocol latency. See the `tlsn`
+    // crate's performance notes for details.
+    client_socket.set_nodelay(true)?;
 
     // Bind the prover to the server connection.
     let (tls_connection, prover) = prover.connect(
