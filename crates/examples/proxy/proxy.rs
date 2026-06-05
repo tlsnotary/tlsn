@@ -213,6 +213,9 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
             // to obtain the server address, but since this is an example we use the
             // fixed `server_addr`.
             let client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
+            // Disable Nagle's algorithm to reduce protocol latency. See the
+            // `tlsn` crate's performance notes for details.
+            client_socket.set_nodelay(true).unwrap();
             verifier.accept().await?.run(client_socket.compat()).await?
         }
     };

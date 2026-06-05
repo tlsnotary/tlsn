@@ -155,7 +155,8 @@ impl Prover<state::CommitAccepted<Mpc>> {
     /// # Arguments
     ///
     /// * `config` - The TLS client configuration.
-    /// * `server_socket` - The connection to the server.
+    /// * `server_socket` - The connection to the server. On TCP transports,
+    ///   disable Nagle's algorithm; see [Performance](crate#performance).
     ///
     /// # Returns
     ///

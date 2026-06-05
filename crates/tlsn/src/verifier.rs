@@ -303,7 +303,8 @@ impl Verifier<state::CommitAccepted<Proxy>> {
     ///
     /// # Arguments
     ///
-    /// * `server_socket` - The connection to the server.
+    /// * `server_socket` - The connection to the server. On TCP transports,
+    ///   disable Nagle's algorithm; see [Performance](crate#performance).
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run<T>(self, server_socket: T) -> Result<Verifier<state::Committed>>
     where

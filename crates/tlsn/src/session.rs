@@ -45,7 +45,10 @@ impl<Io> Session<Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin,
 {
-    /// Creates a new session.
+    /// Creates a new session over `io`, the prover ↔ verifier channel.
+    ///
+    /// On TCP transports, disable Nagle's algorithm; see
+    /// [Performance](crate#performance).
     pub fn new(io: Io) -> Self {
         let mut mux_config = tlsn_mux::Config::default();
 
