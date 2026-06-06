@@ -58,7 +58,7 @@ tlsn-formats = { path = "crates/formats" }
 tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
-tlsn-mux = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "606011312f3ac969565866a98022581af1733689" }
+tlsn-mux = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e99c00d" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-client = { path = "crates/tls/client" }
@@ -87,11 +87,11 @@ mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "3acfac364ec55
 mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "3acfac364ec559a117999c10c782e2b28e83eddf", default-features = false }
 mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "3acfac364ec559a117999c10c782e2b28e83eddf" }
 
-futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "606011312f3ac969565866a98022581af1733689" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e99c00d" }
 rangeset = { version = "0.4" }
 serio = { version = "0.2" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "606011312f3ac969565866a98022581af1733689" }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "606011312f3ac969565866a98022581af1733689" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e99c00d" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e99c00d" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }
@@ -140,7 +140,7 @@ pollster = { version = "0.4" }
 rand = { version = "0.10" }
 rand_chacha = { version = "0.10" }
 rand_core = { version = "0.10" }
-rand06-compat = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "606011312f3ac969565866a98022581af1733689" }
+rand06-compat = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e99c00d" }
 rayon = { version = "1.10" }
 regex = { version = "1.10" }
 ring = { version = "0.17" }
