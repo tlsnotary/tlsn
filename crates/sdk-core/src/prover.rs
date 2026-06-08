@@ -241,6 +241,7 @@ impl SdkProver {
         info!("response received, prover transitioning to Committed state");
 
         self.state = State::Committed { prover, handle };
+        self.log_transcript_usage();
 
         Ok(response)
     }
@@ -301,8 +302,26 @@ impl SdkProver {
         info!("response received, prover transitioning to Committed state");
 
         self.state = State::Committed { prover, handle };
+        self.log_transcript_usage();
 
         Ok(response)
+    }
+
+    /// Logs how much transcript data was actually sent/received versus the
+    /// configured `max_sent_data` / `max_recv_data`, to help tune the limits
+    /// to be just large enough.
+    fn log_transcript_usage(&self) {
+        let State::Committed { prover, .. } = &self.state else {
+            return;
+        };
+
+        let transcript = prover.transcript();
+        crate::logging::log_transcript_size(
+            transcript.sent().len(),
+            self.config.max_sent_data,
+            transcript.received().len(),
+            self.config.max_recv_data,
+        );
     }
 
     fn build_tls_config(&self) -> Result<TlsClientConfig> {

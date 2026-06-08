@@ -262,6 +262,13 @@ impl SdkVerifier {
             .map(|record| record.ciphertext.len())
             .sum::<usize>();
 
+        crate::logging::log_transcript_size(
+            sent,
+            self.config.max_sent_data,
+            received,
+            self.config.max_recv_data,
+        );
+
         let connection_info = ConnectionInfo {
             time: verifier.tls_transcript().time(),
             version: verifier.tls_transcript().version(),
