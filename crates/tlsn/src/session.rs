@@ -9,7 +9,7 @@ use std::{
 };
 
 use futures::{AsyncRead, AsyncWrite};
-use mpz_common::{Executor, io::Io, mux::Mux};
+use mpz_common::{Session as MpzSession, ThreadPool, io::Io, mux::Mux};
 use tlsn_core::config::{prover::ProverConfig, verifier::VerifierConfig};
 use tlsn_mux::{Connection, Handle};
 
@@ -37,7 +37,7 @@ use crate::{
 #[must_use = "session must be polled continuously to make progress, including during closing."]
 pub struct Session<Io> {
     conn: Option<Connection<Io>>,
-    executor: Executor,
+    executor: MpzSession,
     handle: Handle,
 }
 
@@ -246,7 +246,7 @@ where
 ///
 /// Used to create provers/verifiers and control the session lifecycle.
 pub struct SessionHandle {
-    executor: Executor,
+    executor: MpzSession,
     should_close: Arc<AtomicBool>,
     waker: Arc<Mutex<Option<Waker>>>,
     handle: Handle,
@@ -312,21 +312,26 @@ impl Mux for MuxHandle {
     }
 }
 
-/// Builds a work-stealing executor with the given muxer.
-fn build_executor(mux: MuxHandle) -> Executor {
+/// Builds a session backed by a thread pool with the given muxer.
+fn build_executor(mux: MuxHandle) -> MpzSession {
     #[cfg(all(feature = "web", target_arch = "wasm32"))]
     let cores = web_spawn::available_parallelism().map(|n| n.get());
 
     #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
     let cores = std::thread::available_parallelism().map(|n| n.get());
 
-    let builder = Executor::builder().num_threads(cores.unwrap_or(8));
+    let pool_builder = ThreadPool::builder().num_threads(cores.unwrap_or(8));
 
     #[cfg(all(feature = "web", target_arch = "wasm32"))]
-    let builder = builder.spawn(|f| {
+    let pool_builder = pool_builder.spawn(|f| {
         let _ = web_spawn::spawn(f);
         Ok(())
     });
 
-    builder.build(mux)
+    let pool = pool_builder.build().expect("thread pool should build");
+
+    MpzSession::builder()
+        .pool(pool)
+        .build(mux)
+        .expect("session should build")
 }

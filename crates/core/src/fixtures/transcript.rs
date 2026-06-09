@@ -4,7 +4,7 @@ use aead::Payload as AeadPayload;
 use aes_gcm::{Aes128Gcm, NewAead, aead::Aead};
 #[allow(deprecated)]
 use generic_array::GenericArray;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tls_core::msgs::{
     base::Payload,
     codec::Codec,

@@ -5,8 +5,8 @@ use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead, Payload};
 use aes_gcm::Aes128Gcm;
 use async_trait::async_trait;
 use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
-use rand::rngs::OsRng;
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
+use rand06_compat::Rand0_6CompatExt;
 
 use tls_core::key::PublicKey;
 use tls_core::msgs::base::Payload as TLSPayload;
@@ -330,7 +330,7 @@ impl Crypto for StandardCrypto {
     }
     async fn client_random(&mut self) -> Result<Random, Error> {
         // generate client random and store it
-        let r = Random(thread_rng().gen());
+        let r = Random(rng().random());
         self.client_random = Some(r);
         println!("IN client_random {:?}", self.client_random);
         Ok(r)
@@ -339,7 +339,7 @@ impl Crypto for StandardCrypto {
         // TODO make sure this and other methods are not called twice/out of order
         println!("IN client_key_share");
         // generate our ECDH keypair
-        let sk = EphemeralSecret::random(&mut OsRng);
+        let sk = EphemeralSecret::random(&mut rng().compat());
         let pk_bytes = EncodedPoint::from(sk.public_key()).to_bytes().to_vec();
         self.ecdh_pubkey = Some(pk_bytes.clone());
         self.ecdh_secret = Some(sk);
@@ -501,7 +501,7 @@ impl Crypto for StandardCrypto {
                                 explicit_nonce = [0, 0, 0, 0, 0, 0, 0, 1];
                             }
                             ContentType::ApplicationData => {
-                                explicit_nonce = thread_rng().gen();
+                                explicit_nonce = rng().random();
                             }
                             _ => {
                                 return Err(Error::General(

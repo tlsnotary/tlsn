@@ -13,7 +13,7 @@ use mpz_memory_core::{
 };
 use mpz_vm_core::{Vm, VmError, prelude::*};
 use pin_project_lite::pin_project;
-use rand::Rng;
+use rand::RngExt;
 
 pin_project! {
     /// Supports decoding into additive shares.

@@ -15,7 +15,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::Vm as VmTrait;
-use rand::RngCore;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tls_core::{
     cipher::make_tls12_aad,

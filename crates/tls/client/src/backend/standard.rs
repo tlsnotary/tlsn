@@ -7,7 +7,7 @@ use aes_gcm::{
 };
 use async_trait::async_trait;
 use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
-use rand::{rng, rngs::OsRng, Rng};
+use rand::{rng, RngExt};
 
 use digest::Digest;
 use rand06_compat::Rand0_6CompatExt;
