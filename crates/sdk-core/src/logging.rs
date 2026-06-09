@@ -126,3 +126,24 @@ pub fn filter(config: LoggingConfig) -> impl Fn(&Metadata) -> bool {
         meta.level() <= &Level::from(logging_level)
     }
 }
+
+/// Logs the transcript size against the configured maxima, including the
+/// percentage of each limit used.
+///
+/// Emitted at the end of a session (by both prover and verifier) to help tune
+/// `max_sent_data` / `max_recv_data` to be just large enough.
+pub(crate) fn log_transcript_size(sent: usize, max_sent: usize, recv: usize, max_recv: usize) {
+    let pct = |used: usize, max: usize| {
+        if max == 0 {
+            0.0
+        } else {
+            used as f64 / max as f64 * 100.0
+        }
+    };
+
+    tracing::info!(
+        "transcript size: sent {sent}/{max_sent} bytes ({:.1}%), recv {recv}/{max_recv} bytes ({:.1}%)",
+        pct(sent, max_sent),
+        pct(recv, max_recv),
+    );
+}
