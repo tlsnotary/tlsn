@@ -1,26 +1,22 @@
-use crate::client::bs_debug;
 use tracing::{debug, trace};
 use crate::client::{
     check::inappropriate_handshake_message,
     conn::{CommonState, ConnectionRandoms, State},
     error::Error,
     hash_hs::HandshakeHashBuffer,
-    ticketer::TimeBase,
 };
 use tls_core::{
     key::PublicKey,
     msgs::{
-        base::Payload,
-        codec::{Codec, Reader},
         enums::{
             AlertDescription, CipherSuite, Compression, ContentType, ECPointFormat, ExtensionType,
-            HandshakeType, PSKKeyExchangeMode, ProtocolVersion,
+            HandshakeType, NamedGroup, PSKKeyExchangeMode, ProtocolVersion, SignatureScheme,
         },
         handshake::{
-            CertificateStatusRequest, ClientExtension, ClientHelloPayload, ClientSessionTicket,
-            ConvertProtocolNameList, ECPointFormatList, HandshakeMessagePayload, HandshakePayload,
+            CertificateStatusRequest, ClientExtension, ClientHelloPayload, ConvertProtocolNameList,
+            DistinguishedNames, ECPointFormatList, HandshakeMessagePayload, HandshakePayload,
             HasServerExtensions, HelloRetryRequest, ProtocolNameList, Random, SCTList, SessionID,
-            SupportedPointFormats,
+            ServerExtension, SupportedPointFormats,
         },
         message::{Message, MessagePayload},
     },
@@ -28,62 +24,37 @@ use tls_core::{
 };
 
 use super::tls12;
-use crate::client::client::{
-    client_conn::ClientConnectionData, common::ClientHelloDetails, tls13, ClientConfig, ServerName,
-};
+use crate::client::{ClientConfig, ResolvesClientCert, ServerName, sign, tls13};
 use async_trait::async_trait;
 use std::sync::Arc;
 
-pub(super) type NextState = Box<dyn State<ClientConnectionData>>;
+pub(super) type NextState = Box<dyn State>;
 pub(super) type NextStateOrError = Result<NextState, Error>;
-pub(super) type ClientContext<'a> = crate::client::conn::Context<'a>;
 
 pub(super) async fn start_handshake(
     server_name: ServerName,
-    extra_exts: Vec<ClientExtension>,
     config: Arc<ClientConfig>,
-    cx: &mut ClientContext<'_>,
+    cx: &mut CommonState,
 ) -> NextStateOrError {
     let mut transcript_buffer = HandshakeHashBuffer::new();
     if config.client_auth_cert_resolver.has_certs() {
         transcript_buffer.set_client_auth_enabled();
     }
 
-    let mut session_id: Option<SessionID> = None;
+    // Session resumption is not supported: the master secret is secret-shared
+    // inside the MPC backend, so there is nothing the client could store.
+    // A random session id is sent for middlebox compatibility.
+    // https://tools.ietf.org/html/rfc8446#appendix-D.4
+    let session_id = SessionID::random()?;
 
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
     let key_share = if support_tls13 {
-        Some(cx.common.backend.get_client_key_share().await?)
+        Some(cx.backend.client_key_share()?)
     } else {
         None
     };
 
-    // For now we do not support session resumption
-    //
-    // let mut resuming_session = find_session(&server_name, &config);
-    // if let Some(_resuming) = &mut resuming_session {
-    //     #[cfg(feature = "tls12")]
-    //     if let persist::ClientSessionValue::Tls12(inner) = &mut _resuming.value {
-    //         // If we have a ticket, we use the sessionid as a signal that
-    //         // we're  doing an abbreviated handshake.  See section 3.4 in
-    //         // RFC5077.
-    //         if !inner.ticket().is_empty() {
-    //             inner.session_id = SessionID::random()?;
-    //         }
-    //         session_id = Some(inner.session_id);
-    //     }
-
-    //     debug!("Resuming session");
-    // } else {
-    //     debug!("Not resuming any session");
-    // }
-
-    // https://tools.ietf.org/html/rfc8446#appendix-D.4
-    if session_id.is_none() {
-        session_id = Some(SessionID::random()?);
-    }
-
-    let random = cx.common.backend.get_client_random().await?;
+    let random = cx.backend.client_random()?;
     let hello_details = ClientHelloDetails::new();
     let sent_tls13_fake_ccs = false;
     let may_send_sct_list = config.verifier.request_scts();
@@ -91,7 +62,6 @@ pub(super) async fn start_handshake(
         config,
         cx,
         random,
-        false,
         transcript_buffer,
         sent_tls13_fake_ccs,
         hello_details,
@@ -99,7 +69,6 @@ pub(super) async fn start_handshake(
         None,
         server_name,
         key_share,
-        extra_exts,
         may_send_sct_list,
         None,
     )
@@ -110,7 +79,6 @@ struct ExpectServerHello {
     config: Arc<ClientConfig>,
     server_name: ServerName,
     random: Random,
-    using_ems: bool,
     transcript_buffer: HandshakeHashBuffer,
     hello: ClientHelloDetails,
     offered_key_share: Option<PublicKey>,
@@ -121,22 +89,20 @@ struct ExpectServerHello {
 
 struct ExpectServerHelloOrHelloRetryRequest {
     next: ExpectServerHello,
-    extra_exts: Vec<ClientExtension>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn emit_client_hello_for_retry(
     config: Arc<ClientConfig>,
-    cx: &mut ClientContext<'_>,
+    cx: &mut CommonState,
     random: Random,
-    using_ems: bool,
     mut transcript_buffer: HandshakeHashBuffer,
     mut sent_tls13_fake_ccs: bool,
     mut hello: ClientHelloDetails,
-    session_id: Option<SessionID>,
+    session_id: SessionID,
     retryreq: Option<&HelloRetryRequest>,
     server_name: ServerName,
     key_share: Option<PublicKey>,
-    extra_exts: Vec<ClientExtension>,
     may_send_sct_list: bool,
     suite: Option<SupportedCipherSuite>,
 ) -> Result<NextState, Error> {
@@ -158,7 +124,8 @@ async fn emit_client_hello_for_retry(
     let mut exts = vec![
         ClientExtension::SupportedVersions(supported_versions),
         ClientExtension::ECPointFormats(ECPointFormatList::supported()),
-        ClientExtension::NamedGroups(config.kx_groups.iter().map(|skxg| skxg.name).collect()),
+        // The MPC backend only supports P-256.
+        ClientExtension::NamedGroups(vec![NamedGroup::secp256r1]),
         ClientExtension::SignatureAlgorithms(config.verifier.supported_verify_schemes()),
         //ClientExtension::ExtendedMasterSecretRequest,
         ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp()),
@@ -181,7 +148,7 @@ async fn emit_client_hello_for_retry(
         exts.push(ClientExtension::Cookie(cookie.clone()));
     }
 
-    if support_tls13 && config.enable_tickets {
+    if support_tls13 {
         // We could support PSK_KE here too. Such connections don't
         // have forward secrecy, and are similar to TLS1.2 resumption.
         let psk_modes = vec![PSKKeyExchangeMode::PSK_DHE_KE];
@@ -198,13 +165,9 @@ async fn emit_client_hello_for_retry(
         )));
     }
 
-    // Extra extensions must be placed before the PSK extension
-    exts.extend(extra_exts.iter().cloned());
-
     // Note what extensions we sent.
     hello.sent_extensions = exts.iter().map(ClientExtension::get_type).collect();
 
-    let session_id = session_id.unwrap_or_else(SessionID::empty);
     let mut cipher_suites: Vec<_> = config.cipher_suites.iter().map(|cs| cs.suite()).collect();
     // We don't do renegotiation at all, in fact.
     cipher_suites.push(CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV);
@@ -243,19 +206,18 @@ async fn emit_client_hello_for_retry(
     if retryreq.is_some() {
         // send dummy CCS to fool middleboxes prior
         // to second client hello
-        tls13::emit_fake_ccs(&mut sent_tls13_fake_ccs, cx.common).await?;
+        tls13::emit_fake_ccs(&mut sent_tls13_fake_ccs, cx).await?;
     }
 
     trace!("Sending ClientHello {:#?}", ch);
 
     transcript_buffer.add_message(&ch);
-    cx.common.send_msg(ch, false).await?;
+    cx.send_msg(ch, false).await?;
 
     let next = ExpectServerHello {
         config,
         server_name,
         random,
-        using_ems,
         transcript_buffer,
         hello,
         offered_key_share: key_share,
@@ -265,10 +227,7 @@ async fn emit_client_hello_for_retry(
     };
 
     if support_tls13 && retryreq.is_none() {
-        Ok(Box::new(ExpectServerHelloOrHelloRetryRequest {
-            next,
-            extra_exts,
-        }))
+        Ok(Box::new(ExpectServerHelloOrHelloRetryRequest { next }))
     } else {
         Ok(Box::new(next))
     }
@@ -281,17 +240,20 @@ pub(super) async fn process_alpn_protocol(
 ) -> Result<(), Error> {
     common.alpn_protocol = proto.map(ToOwned::to_owned);
 
-    if let Some(alpn_protocol) = &common.alpn_protocol {
-        if !config.alpn_protocols.contains(alpn_protocol) {
-            return Err(common
-                .illegal_param("server sent non-offered ALPN protocol")
-                .await?);
-        }
+    if let Some(alpn_protocol) = &common.alpn_protocol
+        && !config.alpn_protocols.contains(alpn_protocol)
+    {
+        return Err(common
+            .illegal_param("server sent non-offered ALPN protocol")
+            .await?);
     }
 
     debug!(
         "ALPN protocol is {:?}",
-        common.alpn_protocol.as_ref().map(|v| bs_debug::BsDebug(v))
+        common
+            .alpn_protocol
+            .as_ref()
+            .map(|v| String::from_utf8_lossy(v))
     );
     Ok(())
 }
@@ -301,17 +263,17 @@ pub(super) fn sct_list_is_invalid(scts: &SCTList) -> bool {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectServerHello {
+impl State for ExpectServerHello {
     async fn handle(
         mut self: Box<Self>,
-        cx: &mut ClientContext<'_>,
+        cx: &mut CommonState,
         m: Message,
     ) -> NextStateOrError {
         let server_hello =
             require_handshake_msg!(m, HandshakeType::ServerHello, HandshakePayload::ServerHello)?;
         trace!("We got ServerHello {:#?}", server_hello);
 
-        use crate::client::ProtocolVersion::{TLSv1_2, TLSv1_3};
+        use tls_core::msgs::enums::ProtocolVersion::{TLSv1_2, TLSv1_3};
         let tls13_supported = self.config.supports_version(TLSv1_3);
 
         let server_version = if server_hello.legacy_version == TLSv1_2 {
@@ -325,17 +287,8 @@ impl State<ClientConnectionData> for ExpectServerHello {
         let version = match server_version {
             TLSv1_3 if tls13_supported => TLSv1_3,
             TLSv1_2 if self.config.supports_version(TLSv1_2) => {
-                if cx.data.early_data.is_enabled() && cx.common.early_traffic {
-                    // The client must fail with a dedicated error code if the server
-                    // responds with TLS 1.2 when offering 0-RTT.
-                    return Err(Error::PeerMisbehavedError(
-                        "server chose v1.2 when offering 0-rtt".to_string(),
-                    ));
-                }
-
                 if server_hello.get_supported_versions().is_some() {
                     return Err(cx
-                        .common
                         .illegal_param("server chose v1.2 using v1.3 extension")
                         .await?);
                 }
@@ -343,7 +296,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
                 TLSv1_2
             }
             _ => {
-                cx.common
+                cx
                     .send_fatal_alert(AlertDescription::ProtocolVersion)
                     .await?;
                 let msg = match server_version {
@@ -354,17 +307,14 @@ impl State<ClientConnectionData> for ExpectServerHello {
             }
         };
 
-        cx.common.backend.set_protocol_version(version).await?;
-
         if server_hello.compression_method != Compression::Null {
             return Err(cx
-                .common
                 .illegal_param("server chose non-Null compression")
                 .await?);
         }
 
         if server_hello.has_duplicate_extension() {
-            cx.common
+            cx
                 .send_fatal_alert(AlertDescription::DecodeError)
                 .await?;
             return Err(Error::PeerMisbehavedError(
@@ -377,7 +327,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
             .hello
             .server_sent_unsolicited_extensions(&server_hello.extensions, &allowed_unsolicited)
         {
-            cx.common
+            cx
                 .send_fatal_alert(AlertDescription::UnsupportedExtension)
                 .await?;
             return Err(Error::PeerMisbehavedError(
@@ -385,31 +335,30 @@ impl State<ClientConnectionData> for ExpectServerHello {
             ));
         }
 
-        cx.common.negotiated_version = Some(version);
+        cx.negotiated_version = Some(version);
 
         // Extract ALPN protocol
-        if !cx.common.is_tls13() {
-            process_alpn_protocol(cx.common, &self.config, server_hello.get_alpn_protocol())
+        if !cx.is_tls13() {
+            process_alpn_protocol(cx, &self.config, server_hello.get_alpn_protocol())
                 .await?;
         }
 
         // If ECPointFormats extension is supplied by the server, it must contain
         // Uncompressed.  But it's allowed to be omitted.
-        if let Some(point_fmts) = server_hello.get_ecpoints_extension() {
-            if !point_fmts.contains(&ECPointFormat::Uncompressed) {
-                cx.common
-                    .send_fatal_alert(AlertDescription::HandshakeFailure)
-                    .await?;
-                return Err(Error::PeerMisbehavedError(
-                    "server does not support uncompressed points".to_string(),
-                ));
-            }
+        if let Some(point_fmts) = server_hello.get_ecpoints_extension()
+            && !point_fmts.contains(&ECPointFormat::Uncompressed)
+        {
+            cx.send_fatal_alert(AlertDescription::HandshakeFailure)
+                .await?;
+            return Err(Error::PeerMisbehavedError(
+                "server does not support uncompressed points".to_string(),
+            ));
         }
 
         let suite = match self.config.find_cipher_suite(server_hello.cipher_suite) {
             Some(suite) => suite,
             None => {
-                cx.common
+                cx
                     .send_fatal_alert(AlertDescription::HandshakeFailure)
                     .await?;
                 return Err(Error::PeerMisbehavedError(
@@ -420,7 +369,6 @@ impl State<ClientConnectionData> for ExpectServerHello {
 
         if version != suite.version().version {
             return Err(cx
-                .common
                 .illegal_param("server chose unusable ciphersuite for version")
                 .await?);
         }
@@ -428,15 +376,13 @@ impl State<ClientConnectionData> for ExpectServerHello {
         match self.suite {
             Some(prev_suite) if prev_suite != suite => {
                 return Err(cx
-                    .common
                     .illegal_param("server varied selected ciphersuite")
                     .await?);
             }
             _ => {
                 debug!("Using ciphersuite {:?}", suite);
                 self.suite = Some(suite);
-                cx.common.suite = Some(suite);
-                cx.common.backend.set_cipher_suite(suite).await?;
+                cx.suite = Some(suite);
             }
         }
 
@@ -445,21 +391,15 @@ impl State<ClientConnectionData> for ExpectServerHello {
         transcript.add_message(&m);
 
         let randoms = ConnectionRandoms::new(self.random, server_hello.random);
-        cx.common
-            .backend
-            .set_server_random(server_hello.random)
-            .await?;
         // For TLS1.3, start message encryption using
         // handshake_traffic_secret.
         match suite {
-            SupportedCipherSuite::Tls13(suite) => {
+            SupportedCipherSuite::Tls13(_) => {
                 tls13::handle_server_hello(
                     self.config,
                     cx,
                     server_hello,
                     self.server_name,
-                    randoms,
-                    suite,
                     transcript,
                     self.hello,
                     // We always send a key share when TLS 1.3 is enabled.
@@ -473,7 +413,6 @@ impl State<ClientConnectionData> for ExpectServerHello {
                     config: self.config,
                     server_name: self.server_name,
                     randoms,
-                    using_ems: self.using_ems,
                     transcript,
                 }
                 .handle_server_hello(cx, suite, server_hello, tls13_supported)
@@ -490,7 +429,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
 
     async fn handle_hello_retry_request(
         self,
-        cx: &mut ClientContext<'_>,
+        cx: &mut CommonState,
         m: Message,
     ) -> NextStateOrError {
         let hrr = require_handshake_msg!(
@@ -500,7 +439,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         )?;
         trace!("Got HRR {:?}", hrr);
 
-        cx.common.check_aligned_handshake().await?;
+        cx.check_aligned_handshake().await?;
 
         let cookie = hrr.get_cookie();
         let req_group = hrr.get_requested_key_share_group();
@@ -512,24 +451,22 @@ impl ExpectServerHelloOrHelloRetryRequest {
         // retry of a group we already sent.
         if cookie.is_none() && req_group == Some(offered_key_share.group) {
             return Err(cx
-                .common
                 .illegal_param("server requested hrr with our group")
                 .await?);
         }
 
         // Or has an empty cookie.
-        if let Some(cookie) = cookie {
-            if cookie.0.is_empty() {
-                return Err(cx
-                    .common
-                    .illegal_param("server requested hrr with empty cookie")
-                    .await?);
-            }
+        if let Some(cookie) = cookie
+            && cookie.0.is_empty()
+        {
+            return Err(cx
+                .illegal_param("server requested hrr with empty cookie")
+                .await?);
         }
 
         // Or has something unrecognised
         if hrr.has_unknown_extension() {
-            cx.common
+            cx
                 .send_fatal_alert(AlertDescription::UnsupportedExtension)
                 .await?;
             return Err(Error::PeerIncompatibleError(
@@ -540,7 +477,6 @@ impl ExpectServerHelloOrHelloRetryRequest {
         // Or has the same extensions more than once
         if hrr.has_duplicate_extension() {
             return Err(cx
-                .common
                 .illegal_param("server send duplicate hrr extensions")
                 .await?);
         }
@@ -548,7 +484,6 @@ impl ExpectServerHelloOrHelloRetryRequest {
         // Or asks us to change nothing.
         if cookie.is_none() && req_group.is_none() {
             return Err(cx
-                .common
                 .illegal_param("server requested hrr with no changes")
                 .await?);
         }
@@ -556,11 +491,10 @@ impl ExpectServerHelloOrHelloRetryRequest {
         // Or asks us to talk a protocol we didn't offer, or doesn't support HRR at all.
         match hrr.get_supported_versions() {
             Some(ProtocolVersion::TLSv1_3) => {
-                cx.common.negotiated_version = Some(ProtocolVersion::TLSv1_3);
+                cx.negotiated_version = Some(ProtocolVersion::TLSv1_3);
             }
             _ => {
                 return Err(cx
-                    .common
                     .illegal_param("server requested unsupported version in hrr")
                     .await?);
             }
@@ -572,24 +506,18 @@ impl ExpectServerHelloOrHelloRetryRequest {
             Some(cs) => cs,
             None => {
                 return Err(cx
-                    .common
                     .illegal_param("server requested unsupported cs in hrr")
                     .await?);
             }
         };
 
         // HRR selects the ciphersuite.
-        cx.common.suite = Some(cs);
+        cx.suite = Some(cs);
 
         // This is the draft19 change where the transcript became a tree
         let transcript = self.next.transcript_buffer.start_hash(cs.hash_algorithm());
         let mut transcript_buffer = transcript.into_hrr_buffer();
         transcript_buffer.add_message(&m);
-
-        // Early data is not allowed after HelloRetryrequest
-        if cx.data.early_data.is_enabled() {
-            cx.data.early_data.rejected();
-        }
 
         let may_send_sct_list = self.next.hello.server_may_send_sct_list();
 
@@ -597,7 +525,6 @@ impl ExpectServerHelloOrHelloRetryRequest {
             Some(group) if group != offered_key_share.group => {
                 // For now we do not support changing group after starting hs
                 return Err(cx
-                    .common
                     .illegal_param("server requested hrr with bad group")
                     .await?);
             }
@@ -608,15 +535,13 @@ impl ExpectServerHelloOrHelloRetryRequest {
             self.next.config,
             cx,
             self.next.random,
-            self.next.using_ems,
             transcript_buffer,
             self.next.sent_tls13_fake_ccs,
             self.next.hello,
-            Some(self.next.session_id),
+            self.next.session_id,
             Some(hrr),
             self.next.server_name,
             Some(key_share),
-            self.extra_exts,
             may_send_sct_list,
             Some(cs),
         )
@@ -625,8 +550,8 @@ impl ExpectServerHelloOrHelloRetryRequest {
 }
 
 #[async_trait]
-impl State<ClientConnectionData> for ExpectServerHelloOrHelloRetryRequest {
-    async fn handle(self: Box<Self>, cx: &mut ClientContext<'_>, m: Message) -> NextStateOrError {
+impl State for ExpectServerHelloOrHelloRetryRequest {
+    async fn handle(self: Box<Self>, cx: &mut CommonState, m: Message) -> NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHello(..),
@@ -650,11 +575,6 @@ pub(super) async fn send_cert_error_alert(
     err: Error,
 ) -> Result<Error, Error> {
     match err {
-        Error::InvalidCertificateEncoding => {
-            common
-                .send_fatal_alert(AlertDescription::DecodeError)
-                .await?;
-        }
         Error::PeerMisbehavedError(_) => {
             common
                 .send_fatal_alert(AlertDescription::IllegalParameter)
@@ -668,4 +588,82 @@ pub(super) async fn send_cert_error_alert(
     };
 
     Ok(err)
+}
+
+// --- Handshake details (formerly common.rs) ---
+
+pub(crate) use tls_core::cert::ServerCertDetails;
+
+pub(super) struct ClientHelloDetails {
+    pub(super) sent_extensions: Vec<ExtensionType>,
+}
+
+impl ClientHelloDetails {
+    pub(super) fn new() -> Self {
+        Self {
+            sent_extensions: Vec::new(),
+        }
+    }
+
+    pub(super) fn server_may_send_sct_list(&self) -> bool {
+        self.sent_extensions.contains(&ExtensionType::SCT)
+    }
+
+    pub(super) fn server_sent_unsolicited_extensions(
+        &self,
+        received_exts: &[ServerExtension],
+        allowed_unsolicited: &[ExtensionType],
+    ) -> bool {
+        for ext in received_exts {
+            let ext_type = ext.get_type();
+            if !self.sent_extensions.contains(&ext_type) && !allowed_unsolicited.contains(&ext_type)
+            {
+                trace!("Unsolicited extension {:?}", ext_type);
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+pub(super) enum ClientAuthDetails {
+    /// Send an empty `Certificate` and no `CertificateVerify`.
+    Empty { auth_context_tls13: Option<Vec<u8>> },
+    /// Send a non-empty `Certificate` and a `CertificateVerify`.
+    Verify {
+        certkey: Arc<sign::CertifiedKey>,
+        signer: Box<dyn sign::Signer>,
+        auth_context_tls13: Option<Vec<u8>>,
+    },
+}
+
+impl ClientAuthDetails {
+    pub(super) fn resolve(
+        resolver: &dyn ResolvesClientCert,
+        canames: Option<&DistinguishedNames>,
+        sigschemes: &[SignatureScheme],
+        auth_context_tls13: Option<Vec<u8>>,
+    ) -> Self {
+        let acceptable_issuers = canames
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .map(|p| p.0.as_slice())
+            .collect::<Vec<&[u8]>>();
+
+        if let Some(certkey) = resolver.resolve(&acceptable_issuers, sigschemes)
+            && let Some(signer) = certkey.key.choose_scheme(sigschemes)
+        {
+            debug!("Attempting client auth");
+            return Self::Verify {
+                certkey,
+                signer,
+                auth_context_tls13,
+            };
+        }
+
+        debug!("Client auth requested but no cert/sigscheme available");
+        Self::Empty { auth_context_tls13 }
+    }
 }

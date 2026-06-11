@@ -15,14 +15,14 @@ pub(crate) use verifier::{VerifierMpcDeps, VerifierProxyDeps, VerifierZk};
 
 #[derive(Debug)]
 pub(crate) enum ProverDeps {
-    Mpc(ProverMpcDeps),
+    Mpc(Box<ProverMpcDeps>),
     Proxy(ProverProxyDeps),
 }
 
 impl ProverDeps {
     pub(crate) fn new(config: TlsCommitConfig, ctx: Context) -> Self {
         match config {
-            TlsCommitConfig::Mpc(config) => Self::Mpc(ProverMpcDeps::new(&config, ctx)),
+            TlsCommitConfig::Mpc(config) => Self::Mpc(Box::new(ProverMpcDeps::new(&config, ctx))),
             TlsCommitConfig::Proxy(config) => Self::Proxy(ProverProxyDeps::new(&config, ctx)),
             _ => unreachable!("unknown TLS commit config variant"),
         }

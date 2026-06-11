@@ -4,13 +4,6 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-#[allow(
-    dead_code,
-    unused_imports,
-    unreachable_pub,
-    unused_qualifications,
-    clippy::all
-)]
 pub mod client;
 mod config;
 mod decode;
@@ -26,7 +19,7 @@ pub use error::MpcTlsError;
 pub use follower::MpcTlsFollower;
 pub use leader::MpcTlsLeader;
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
 use mpz_memory_core::{
     Array,
@@ -36,7 +29,6 @@ use mpz_vm_core::Vm as VmTrait;
 
 use tokio::sync::Mutex;
 
-pub(crate) type BoxFut<T> = Pin<Box<dyn Future<Output = T> + Send + Sync + 'static>>;
 /// Virtual machine type.
 pub type Vm = Arc<Mutex<dyn VmTrait<Binary> + Send + Sync + 'static>>;
 

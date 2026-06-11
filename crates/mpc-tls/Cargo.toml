@@ -37,18 +37,13 @@ serio = { workspace = true }
 
 async-trait = { workspace = true }
 derive_builder = { workspace = true }
-digest = { workspace = true }
-enum-try-as-inner = { workspace = true }
 futures = { workspace = true }
 p256 = { workspace = true }
 ring = { workspace = true }
-rustls-pki-types = { workspace = true }
-sct = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
-opaque-debug = { workspace = true }
 aes = { workspace = true }
 aes-gcm = { workspace = true }
 ctr = { workspace = true }

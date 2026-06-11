@@ -59,7 +59,7 @@ enum State {
         sent_records: Vec<Record>,
         recv_records: Vec<Record>,
     },
-    Complete {},
+    Complete,
     Error,
 }
 
@@ -289,7 +289,6 @@ impl RecordLayer {
         version: ProtocolVersion,
         len: usize,
         plaintext: Option<Vec<u8>>,
-        mode: EncryptMode,
     ) -> Result<(), MpcTlsError> {
         if self.encrypt_buffer.len() >= MAX_BUFFER_SIZE {
             return Err(MpcTlsError::peer("encrypt buffer is full"));
@@ -299,6 +298,19 @@ impl RecordLayer {
                 self.sent, len, self.max_sent
             )));
         }
+
+        // Only the contents of application data records is private, everything
+        // else is public so both parties can follow the connection state.
+        // The content type is asserted by the leader, which is safe because
+        // mislabeling can only hurt the leader itself: claiming
+        // `ApplicationData` for a protocol record hides nothing from the
+        // follower that the protocol depends on (the transcript still commits
+        // to it, and `check_close_notify` rejects a hidden closing alert),
+        // while the converse reveals the leader's own data.
+        let mode = match typ {
+            ContentType::ApplicationData => EncryptMode::Private,
+            _ => EncryptMode::Public,
+        };
 
         let (seq, explicit_nonce, aad) = self.next_write(typ, version, len);
         self.sent += len;
@@ -323,7 +335,6 @@ impl RecordLayer {
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
         tag: Vec<u8>,
-        mode: DecryptMode,
     ) -> Result<(), MpcTlsError> {
         if self.decrypt_buffer.len() >= MAX_BUFFER_SIZE {
             return Err(MpcTlsError::peer("decrypt buffer is full"));
@@ -335,6 +346,13 @@ impl RecordLayer {
                 self.max_recv
             )));
         }
+
+        // See `push_encrypt` for why deriving the mode from the leader-asserted
+        // content type is safe.
+        let mode = match typ {
+            ContentType::ApplicationData => DecryptMode::Private,
+            _ => DecryptMode::Public,
+        };
 
         let (seq, aad) = self.next_read(typ, version, ciphertext.len());
         self.recv += ciphertext.len();
@@ -594,7 +612,7 @@ impl RecordLayer {
             });
         }
 
-        self.state = State::Complete {};
+        self.state = State::Complete;
 
         Ok((sent_records, recv_records))
     }

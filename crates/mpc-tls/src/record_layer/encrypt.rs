@@ -5,13 +5,17 @@ use mpz_vm_core::{Vm, prelude::*};
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 
+use std::{future::Future, pin::Pin};
+
 use crate::{
-    BoxFut, MpcTlsError,
+    MpcTlsError,
     record_layer::{
         TagData,
         aead::{AeadError, ComputeTags, MpcAesGcm},
     },
 };
+
+pub(crate) type BoxFut<T> = Pin<Box<dyn Future<Output = T> + Send + Sync + 'static>>;
 
 #[allow(clippy::type_complexity)]
 fn private(
