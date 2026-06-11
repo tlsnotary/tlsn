@@ -6,7 +6,7 @@ use crate::{
     prover::client::{DecryptState, TlsClient, TlsOutput},
 };
 use futures::{Future, FutureExt};
-use mpc_tls::{MpcTlsLeader, SessionKeys};
+use mpc_tls::{MpcTlsLeader, SessionKeys, client::ClientConnection};
 use mpz_common::Context;
 use rustls_pki_types::CertificateDer;
 use std::{
@@ -14,7 +14,6 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
     task::Poll,
 };
-use tls_client::ClientConnection;
 use tls_core::dns::ServerName;
 use tlsn_core::{config::tls::TlsClientConfig, transcript::TlsTranscript};
 use tlsn_deap::Deap;
@@ -228,11 +227,7 @@ impl TlsClient for MpcTlsClient {
                             fut: Box::pin(inner.client_close()),
                         };
                     } else if decrypt != inner.decrypt {
-                        inner
-                            .tls
-                            .backend_mut()
-                            .enable_decryption(decrypt)
-                            .map_err(|err| TlsnError::internal().with_source(err))?;
+                        inner.tls.enable_decryption(decrypt);
 
                         inner.decrypt = decrypt;
                         self.state = State::Busy {
@@ -277,11 +272,8 @@ impl TlsClient for MpcTlsClient {
 
                 match fut.as_mut().poll(cx)? {
                     Poll::Ready(mut inner) if inner.is_record_layer_empty() => {
-                        let (ctx, transcript) = inner
-                            .tls
-                            .backend_mut()
-                            .finish()
-                            .expect("connection should be closed");
+                        let (ctx, transcript) =
+                            inner.tls.finish().expect("connection should be closed");
                         self.state = State::Finalizing {
                             fut: Box::pin(inner.finalize(ctx, transcript)),
                         };
@@ -429,8 +421,10 @@ impl InnerState {
     }
 }
 
-fn create_client_config(config: &TlsClientConfig) -> Result<tls_client::ClientConfig, TlsnError> {
-    let root_store = tls_client::RootCertStore {
+fn create_client_config(
+    config: &TlsClientConfig,
+) -> Result<mpc_tls::client::ClientConfig, TlsnError> {
+    let root_store = mpc_tls::client::RootCertStore {
         roots: config
             .root_store()
             .roots
@@ -448,7 +442,7 @@ fn create_client_config(config: &TlsClientConfig) -> Result<tls_client::ClientCo
             .collect::<Result<Vec<_>, _>>()?,
     };
 
-    let rustls_config = tls_client::ClientConfig::builder()
+    let rustls_config = mpc_tls::client::ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_store);
 
@@ -456,9 +450,9 @@ fn create_client_config(config: &TlsClientConfig) -> Result<tls_client::ClientCo
         rustls_config
             .with_single_cert(
                 cert.iter()
-                    .map(|cert| tls_client::Certificate(cert.0.clone()))
+                    .map(|cert| mpc_tls::client::Certificate(cert.0.clone()))
                     .collect(),
-                tls_client::PrivateKey(key.0.clone()),
+                mpc_tls::client::PrivateKey(key.0.clone()),
             )
             .map_err(|e| {
                 TlsnError::config()

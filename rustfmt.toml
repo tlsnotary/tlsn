@@ -1,4 +1,4 @@
-ignore = ["crates/tls/core", "crates/tls/client"]
+ignore = ["crates/tls-core", "crates/mpc-tls/src/client"]
 
 imports_granularity = "Crate"
 wrap_comments = true

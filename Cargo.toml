@@ -11,10 +11,9 @@ members = [
     "crates/formats",
     "crates/server-fixture/certs",
     "crates/server-fixture/server",
-    "crates/tls/client",
-    "crates/tls/core",
+    "crates/tls-core",
     "crates/mpc-tls",
-    "crates/tls/server-fixture",
+    "crates/tls-server-fixture",
     "crates/sdk-core",
     "crates/wasm",
     "crates/harness/core",
@@ -48,7 +47,7 @@ panic = "abort"
 codegen-units = 1
 
 [workspace.dependencies]
-tls-server-fixture = { path = "crates/tls/server-fixture" }
+tls-server-fixture = { path = "crates/tls-server-fixture" }
 tlsn-attestation = { path = "crates/attestation" }
 tlsn-cipher = { path = "crates/components/cipher" }
 tlsn-core = { path = "crates/core" }
@@ -61,9 +60,7 @@ tlsn-mpc-tls = { path = "crates/mpc-tls" }
 tlsn-mux = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
-tlsn-tls-client = { path = "crates/tls/client" }
-tlsn-tls-client-async = { path = "crates/tls/client-async" }
-tlsn-tls-core = { path = "crates/tls/core" }
+tlsn-tls-core = { path = "crates/tls-core" }
 tlsn-harness-core = { path = "crates/harness/core" }
 tlsn-harness-executor = { path = "crates/harness/executor" }
 tlsn-harness-runner = { path = "crates/harness/runner" }

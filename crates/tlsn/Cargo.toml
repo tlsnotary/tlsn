@@ -26,7 +26,6 @@ tlsn-deap = { workspace = true }
 tlsn-hmac-sha256 = { workspace = true }
 tlsn-mpc-tls = { workspace = true }
 tlsn-mux = { workspace = true }
-tlsn-tls-client = { workspace = true }
 tlsn-tls-core = { workspace = true }
 
 futures-plex = { workspace = true }

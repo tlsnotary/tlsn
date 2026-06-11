@@ -5,7 +5,7 @@ comment: false
 ignore:
   - "crates/harness/**"
   - "crates/server-fixture/**"
-  - "crates/tls/server-fixture/**"
+  - "crates/tls-server-fixture/**"
   - "crates/data-fixtures/**"
   - "crates/examples/**"
 

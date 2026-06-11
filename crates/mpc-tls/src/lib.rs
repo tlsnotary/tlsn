@@ -4,6 +4,14 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+#[allow(
+    dead_code,
+    unused_imports,
+    unreachable_pub,
+    unused_qualifications,
+    clippy::all
+)]
+pub mod client;
 mod config;
 mod decode;
 mod error;
