@@ -1,5 +1,6 @@
 use crate::{
     Config, Role, SessionKeys, Vm,
+    client::{DecryptMode as TlsDecryptMode, EncryptMode as TlsEncryptMode},
     error::MpcTlsError,
     msg::{
         ClientFinishedVd, Decrypt, Encrypt, Message, ServerFinishedVd, SetClientRandom,
@@ -8,7 +9,6 @@ use crate::{
     record_layer::{DecryptMode, EncryptMode, RecordLayer, aead::MpcAesGcm},
     utils::{check_close_notify, opaque_into_parts},
 };
-use async_trait::async_trait;
 use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
@@ -26,7 +26,6 @@ use mpz_ot::{
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use mpz_vm_core::prelude::*;
 use serio::SinkExt;
-use tls_client::{Backend, BackendError, BackendNotifier, BackendNotify};
 use tls_core::{
     cert::ServerCertDetails,
     ke::ServerKxDetails,
@@ -54,9 +53,6 @@ pub struct MpcTlsLeader {
     config: Config,
     state: State,
 
-    /// When set, notifies the backend that there are TLS messages which need to
-    /// be decrypted.
-    notifier: BackendNotifier,
     /// Whether the record layer is decrypting application data.
     is_decrypting: bool,
 }
@@ -116,7 +112,6 @@ impl MpcTlsLeader {
                 prf,
                 record_layer,
             },
-            notifier: BackendNotifier::new(),
             is_decrypting,
         }
     }
@@ -306,11 +301,6 @@ impl MpcTlsLeader {
 
         debug!("committed to transcript");
 
-        if !record_layer.is_empty() {
-            debug!("notifying client to process remaining messages");
-            self.notifier.set();
-        }
-
         let expected_cf_vd =
             expected_cf_vd.ok_or(MpcTlsError::state("client finished verify data not set"))?;
         let expected_sf_vd =
@@ -398,16 +388,18 @@ impl MpcTlsLeader {
     }
 }
 
-#[async_trait]
-impl Backend for MpcTlsLeader {
-    async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
+impl MpcTlsLeader {
+    pub(crate) async fn set_protocol_version(
+        &mut self,
+        version: ProtocolVersion,
+    ) -> Result<(), MpcTlsError> {
         let State::Handshake {
             protocol_version, ..
         } = &mut self.state
         else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to set protocol version").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to set protocol version",
+            ));
         };
 
         trace!("setting protocol version: {:?}", version);
@@ -417,11 +409,14 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    async fn set_cipher_suite(&mut self, suite: SupportedCipherSuite) -> Result<(), BackendError> {
+    pub(crate) async fn set_cipher_suite(
+        &mut self,
+        suite: SupportedCipherSuite,
+    ) -> Result<(), MpcTlsError> {
         let State::Handshake { cipher_suite, .. } = &mut self.state else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to set cipher suite").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to set cipher suite",
+            ));
         };
 
         trace!("setting cipher suite: {:?}", suite);
@@ -431,27 +426,27 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    async fn get_client_random(&mut self) -> Result<Random, BackendError> {
+    pub(crate) async fn get_client_random(&mut self) -> Result<Random, MpcTlsError> {
         let State::Handshake { client_random, .. } = &self.state else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to get client random").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to get client random",
+            ));
         };
 
         Ok(*client_random)
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn get_client_key_share(&mut self) -> Result<PublicKey, BackendError> {
+    pub(crate) async fn get_client_key_share(&mut self) -> Result<PublicKey, MpcTlsError> {
         let State::Handshake { ke, .. } = &self.state else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to get client key share").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to get client key share",
+            ));
         };
 
         let pk = ke
             .client_key()
-            .map_err(|err| BackendError::InvalidState(err.to_string()))?;
+            .map_err(|err| MpcTlsError::state(err.to_string()))?;
 
         Ok(PublicKey::new(
             NamedGroup::secp256r1,
@@ -459,7 +454,7 @@ impl Backend for MpcTlsLeader {
         ))
     }
 
-    async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError> {
+    pub(crate) async fn set_server_random(&mut self, random: Random) -> Result<(), MpcTlsError> {
         let State::Handshake {
             ctx,
             prf,
@@ -468,9 +463,9 @@ impl Backend for MpcTlsLeader {
             ..
         } = &mut self.state
         else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to set server random").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to set server random",
+            ));
         };
 
         let now = web_time::UNIX_EPOCH
@@ -499,18 +494,18 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError> {
+    pub(crate) async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), MpcTlsError> {
         let State::Handshake {
             ctx, server_key, ..
         } = &mut self.state
         else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to set server key share").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to set server key share",
+            ));
         };
 
         if key.group != NamedGroup::secp256r1 {
-            return Err(BackendError::InvalidServerKey);
+            return Err(MpcTlsError::hs("invalid server public keyshare"));
         }
 
         ctx.io_mut()
@@ -523,10 +518,10 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    async fn set_server_cert_details(
+    pub(crate) async fn set_server_cert_details(
         &mut self,
         cert_details: ServerCertDetails,
-    ) -> Result<(), BackendError> {
+    ) -> Result<(), MpcTlsError> {
         let State::Handshake {
             server_cert_details,
             ..
@@ -534,8 +529,7 @@ impl Backend for MpcTlsLeader {
         else {
             return Err(MpcTlsError::state(
                 "must be in handshake state to set server cert details",
-            )
-            .into());
+            ));
         };
 
         *server_cert_details = Some(cert_details);
@@ -543,17 +537,17 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    async fn set_server_kx_details(
+    pub(crate) async fn set_server_kx_details(
         &mut self,
         kx_details: ServerKxDetails,
-    ) -> Result<(), BackendError> {
+    ) -> Result<(), MpcTlsError> {
         let State::Handshake {
             server_kx_details, ..
         } = &mut self.state
         else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to set server kx details").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to set server kx details",
+            ));
         };
 
         *server_kx_details = Some(kx_details);
@@ -561,19 +555,25 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    async fn set_hs_hash_client_key_exchange(
+    pub(crate) async fn set_hs_hash_client_key_exchange(
         &mut self,
         _hash: Vec<u8>,
-    ) -> Result<(), BackendError> {
+    ) -> Result<(), MpcTlsError> {
         Ok(())
     }
 
-    async fn set_hs_hash_server_hello(&mut self, _hash: Vec<u8>) -> Result<(), BackendError> {
+    pub(crate) async fn set_hs_hash_server_hello(
+        &mut self,
+        _hash: Vec<u8>,
+    ) -> Result<(), MpcTlsError> {
         Ok(())
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn get_server_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
+    pub(crate) async fn get_server_finished_vd(
+        &mut self,
+        hash: Vec<u8>,
+    ) -> Result<Vec<u8>, MpcTlsError> {
         let State::Active {
             ctx,
             vm,
@@ -583,9 +583,9 @@ impl Backend for MpcTlsLeader {
             ..
         } = &mut self.state
         else {
-            return Err(
-                MpcTlsError::state("must be in active state to get server finished vd").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in active state to get server finished vd",
+            ));
         };
 
         debug!("computing server finished verify data");
@@ -622,7 +622,10 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
+    pub(crate) async fn get_client_finished_vd(
+        &mut self,
+        hash: Vec<u8>,
+    ) -> Result<Vec<u8>, MpcTlsError> {
         let State::Active {
             ctx,
             vm,
@@ -632,9 +635,9 @@ impl Backend for MpcTlsLeader {
             ..
         } = &mut self.state
         else {
-            return Err(
-                MpcTlsError::state("must be in active state to get client finished vd").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in active state to get client finished vd",
+            ));
         };
 
         debug!("computing client finished verify data");
@@ -671,7 +674,7 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn prepare_encryption(&mut self) -> Result<(), BackendError> {
+    pub(crate) async fn prepare_encryption(&mut self) -> Result<(), MpcTlsError> {
         let State::Handshake {
             mut ctx,
             vm,
@@ -690,9 +693,9 @@ impl Backend for MpcTlsLeader {
             ..
         } = self.state.take()
         else {
-            return Err(
-                MpcTlsError::state("must be in handshake state to prepare encryption").into(),
-            );
+            return Err(MpcTlsError::state(
+                "must be in handshake state to prepare encryption",
+            ));
         };
 
         debug!("preparing encryption");
@@ -711,7 +714,7 @@ impl Backend for MpcTlsLeader {
         ke.set_server_key(
             p256::PublicKey::from_sec1_bytes(&server_key.key).map_err(MpcTlsError::hs)?,
         )
-        .map_err(|err| BackendError::InvalidState(err.to_string()))?;
+        .map_err(|err| MpcTlsError::state(err.to_string()))?;
 
         ke.compute_shares(&mut ctx).await.map_err(MpcTlsError::hs)?;
 
@@ -759,7 +762,7 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
+    pub(crate) async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), MpcTlsError> {
         let (ctx, record_layer) = match &mut self.state {
             State::Handshake {
                 ctx, record_layer, ..
@@ -771,8 +774,7 @@ impl Backend for MpcTlsLeader {
                 return Err(MpcTlsError::state(format!(
                     "can not push incoming message in state: {}",
                     self.state
-                ))
-                .into());
+                )));
             }
         };
 
@@ -819,7 +821,7 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, BackendError> {
+    pub(crate) async fn next_incoming(&mut self) -> Result<Option<PlainMessage>, MpcTlsError> {
         let record_layer = match &mut self.state {
             State::Handshake { record_layer, .. } => record_layer,
             State::Active { record_layer, .. } => record_layer,
@@ -828,8 +830,7 @@ impl Backend for MpcTlsLeader {
                 return Err(MpcTlsError::state(format!(
                     "can not pull next incoming message in state: {}",
                     self.state
-                ))
-                .into());
+                )));
             }
         };
 
@@ -855,7 +856,7 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), BackendError> {
+    pub(crate) async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), MpcTlsError> {
         let (ctx, record_layer) = match &mut self.state {
             State::Handshake {
                 ctx, record_layer, ..
@@ -867,8 +868,7 @@ impl Backend for MpcTlsLeader {
                 return Err(MpcTlsError::state(format!(
                     "can not push outgoing message in state: {}",
                     self.state
-                ))
-                .into());
+                )));
             }
         };
 
@@ -910,7 +910,7 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
+    pub(crate) async fn next_outgoing(&mut self) -> Result<Option<OpaqueMessage>, MpcTlsError> {
         let record_layer = match &mut self.state {
             State::Handshake { record_layer, .. } => record_layer,
             State::Active { record_layer, .. } => record_layer,
@@ -919,8 +919,7 @@ impl Backend for MpcTlsLeader {
                 return Err(MpcTlsError::state(format!(
                     "can not pull next outgoing message in state: {}",
                     self.state
-                ))
-                .into());
+                )));
             }
         };
 
@@ -946,7 +945,7 @@ impl Backend for MpcTlsLeader {
         Ok(record)
     }
 
-    async fn start_traffic(&mut self) -> Result<(), BackendError> {
+    pub(crate) async fn start_traffic(&mut self) -> Result<(), MpcTlsError> {
         match &mut self.state {
             State::Active {
                 ctx, record_layer, ..
@@ -961,8 +960,7 @@ impl Backend for MpcTlsLeader {
                 return Err(MpcTlsError::state(format!(
                     "can not start traffic in state: {}",
                     self.state
-                ))
-                .into());
+                )));
             }
         }
 
@@ -970,7 +968,7 @@ impl Backend for MpcTlsLeader {
     }
 
     #[instrument(level = "debug", skip_all, err)]
-    async fn flush(&mut self) -> Result<(), BackendError> {
+    pub(crate) async fn flush(&mut self) -> Result<(), MpcTlsError> {
         let (ctx, vm, record_layer) = match &mut self.state {
             State::Handshake { .. } => {
                 warn!("record layer is not ready, skipping flush");
@@ -992,8 +990,7 @@ impl Backend for MpcTlsLeader {
                 return Err(MpcTlsError::state(format!(
                     "can not flush record layer in state: {}",
                     self.state
-                ))
-                .into());
+                )));
             }
         };
 
@@ -1014,14 +1011,9 @@ impl Backend for MpcTlsLeader {
         record_layer
             .flush(ctx, vm.clone(), self.is_decrypting)
             .await
-            .map_err(BackendError::from)
     }
 
-    async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
-        Ok(self.notifier.get())
-    }
-
-    fn is_empty(&self) -> Result<bool, BackendError> {
+    pub(crate) fn is_empty(&self) -> Result<bool, MpcTlsError> {
         let is_empty = match &self.state {
             State::Active { record_layer, .. } => record_layer.is_empty(),
             State::Closed { record_layer, .. } => record_layer.is_empty(),
@@ -1031,23 +1023,15 @@ impl Backend for MpcTlsLeader {
         Ok(is_empty)
     }
 
-    async fn server_closed(&mut self) -> Result<(), BackendError> {
-        self.close_connection().await.map_err(BackendError::from)
+    pub(crate) async fn server_closed(&mut self) -> Result<(), MpcTlsError> {
+        self.close_connection().await
     }
 
-    fn enable_decryption(&mut self, enable: bool) -> Result<(), BackendError> {
+    pub(crate) fn enable_decryption(&mut self, enable: bool) {
         self.is_decrypting = enable;
-
-        if enable {
-            self.notifier.set();
-        } else {
-            self.notifier.clear();
-        }
-
-        Ok(())
     }
 
-    fn finish(&mut self) -> Option<(Context, TlsTranscript)> {
+    pub(crate) fn finish(&mut self) -> Option<(Context, TlsTranscript)> {
         match self.state.take() {
             State::Closed {
                 ctx, transcript, ..
@@ -1057,6 +1041,22 @@ impl Backend for MpcTlsLeader {
                 None
             }
         }
+    }
+
+    /// Sets the encryption mode. Only used by the TLS 1.3 handshake, which
+    /// the MPC backend does not support.
+    pub(crate) async fn set_encrypt(&mut self, _mode: TlsEncryptMode) -> Result<(), MpcTlsError> {
+        Err(MpcTlsError::state(
+            "TLS 1.3 is not supported by the MPC backend",
+        ))
+    }
+
+    /// Sets the decryption mode. Only used by the TLS 1.3 handshake, which
+    /// the MPC backend does not support.
+    pub(crate) async fn set_decrypt(&mut self, _mode: TlsDecryptMode) -> Result<(), MpcTlsError> {
+        Err(MpcTlsError::state(
+            "TLS 1.3 is not supported by the MPC backend",
+        ))
     }
 }
 

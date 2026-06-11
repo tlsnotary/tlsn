@@ -14,7 +14,7 @@ version = "0.0.0"
 
 [dependencies]
 tlsn = { path = "../tlsn" }
-tls-server-fixture = { path = "../tls/server-fixture" }
+tls-server-fixture = { path = "../tls-server-fixture" }
 tlsn-server-fixture = { path = "../server-fixture/server" }
 tlsn-server-fixture-certs = { path = "../server-fixture/certs" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }

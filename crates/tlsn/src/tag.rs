@@ -9,8 +9,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, prelude::*};
-use tls_client::ProtocolVersion;
-use tls_core::cipher::make_tls12_aad;
+use tls_core::{cipher::make_tls12_aad, msgs::enums::ProtocolVersion};
 use tlsn_core::{connection::TlsVersion, transcript::Record};
 
 /// Proves the verification of tags of the given `records`,

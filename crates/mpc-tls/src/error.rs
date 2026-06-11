@@ -1,6 +1,5 @@
 use hmac_sha256::PrfError;
 use key_exchange::KeyExchangeError;
-use tls_client::BackendError;
 
 /// MPC-TLS error.
 #[derive(Debug, thiserror::Error)]
@@ -82,12 +81,6 @@ enum ErrorRepr {
 impl From<std::io::Error> for MpcTlsError {
     fn from(value: std::io::Error) -> Self {
         MpcTlsError(ErrorRepr::Io(value))
-    }
-}
-
-impl From<MpcTlsError> for BackendError {
-    fn from(value: MpcTlsError) -> Self {
-        BackendError::InternalError(value.to_string())
     }
 }
 

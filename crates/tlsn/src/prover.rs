@@ -29,7 +29,7 @@ use mpz_common::Context;
 use mpz_vm_core::Execute;
 use serio::{SinkExt, stream::IoStreamExt};
 use std::{fmt::Debug, marker::PhantomData, pin::Pin, task::Poll};
-use tls_client::ServerName as TlsServerName;
+use tls_core::dns::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
         prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig, tls_commit::TlsCommitConfig,
