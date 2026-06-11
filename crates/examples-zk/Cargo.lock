@@ -4847,7 +4847,6 @@ dependencies = [
  "tlsn-hmac-sha256",
  "tlsn-mpc-tls",
  "tlsn-mux",
- "tlsn-tls-client",
  "tlsn-tls-core",
  "tokio",
  "tracing",
@@ -4999,6 +4998,7 @@ dependencies = [
  "async-trait",
  "ctr 0.9.2",
  "derive_builder 0.12.0",
+ "digest 0.10.7",
  "enum-try-as-inner",
  "futures",
  "ghash 0.5.1",
@@ -5014,6 +5014,9 @@ dependencies = [
  "p256 0.13.2",
  "pin-project-lite",
  "rand 0.9.4",
+ "ring",
+ "rustls-pki-types",
+ "sct",
  "serde",
  "serio",
  "thiserror 1.0.69",
@@ -5021,7 +5024,6 @@ dependencies = [
  "tlsn-core",
  "tlsn-hmac-sha256",
  "tlsn-key-exchange",
- "tlsn-tls-client",
  "tlsn-tls-core",
  "tokio",
  "tracing",
@@ -5067,31 +5069,6 @@ dependencies = [
 [[package]]
 name = "tlsn-server-fixture-certs"
 version = "0.0.0"
-
-[[package]]
-name = "tlsn-tls-client"
-version = "0.1.0-alpha.16-pre"
-dependencies = [
- "aes-gcm",
- "async-trait",
- "digest 0.10.7",
- "futures",
- "hmac 0.12.1",
- "log",
- "mpz-common",
- "p256 0.13.2",
- "rand 0.9.4",
- "rand06-compat",
- "ring",
- "rustls-pki-types",
- "rustls-webpki 0.103.13",
- "sct",
- "sha2 0.10.9",
- "thiserror 1.0.69",
- "tlsn-core",
- "tlsn-tls-core",
- "web-time 0.2.4",
-]
 
 [[package]]
 name = "tlsn-tls-core"
