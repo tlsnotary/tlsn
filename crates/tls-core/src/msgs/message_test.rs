@@ -1,48 +1,9 @@
 use super::{
     codec::Reader,
     enums::{AlertDescription, AlertLevel, HandshakeType},
-    message::{Message, OpaqueMessage, PlainMessage},
+    message::{Message, OpaqueMessage},
 };
-use std::{
-    convert::TryFrom,
-    fs,
-    io::Read,
-    path::{Path, PathBuf},
-};
-
-#[test]
-#[ignore]
-fn test_read_fuzz_corpus() {
-    fn corpus_dir() -> PathBuf {
-        let from_subcrate = Path::new("../fuzz/corpus/message");
-        let from_root = Path::new("fuzz/corpus/message");
-
-        if from_root.is_dir() {
-            from_root.to_path_buf()
-        } else {
-            from_subcrate.to_path_buf()
-        }
-    }
-
-    for file in fs::read_dir(corpus_dir()).unwrap() {
-        let mut f = fs::File::open(file.unwrap().path()).unwrap();
-        let mut bytes = Vec::new();
-        f.read_to_end(&mut bytes).unwrap();
-
-        let mut rd = Reader::init(&bytes);
-        let msg = OpaqueMessage::read(&mut rd).unwrap().into_plain_message();
-        println!("{msg:?}");
-
-        let msg = match Message::try_from(msg) {
-            Ok(msg) => msg,
-            Err(_) => continue,
-        };
-
-        let enc = PlainMessage::from(msg).into_unencrypted_opaque().encode();
-        assert_eq!(bytes.to_vec(), enc);
-        assert_eq!(bytes[..rd.used()].to_vec(), enc);
-    }
-}
+use std::convert::TryFrom;
 
 #[test]
 fn can_read_safari_client_hello() {

@@ -19,7 +19,6 @@ use tlsn::{
 };
 use tokio::io::DuplexStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
-use tracing::{info, warn};
 
 type TestError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -28,13 +27,26 @@ const MAX_SENT_RECORDS: usize = 4;
 const MAX_RECV_DATA: usize = 1 << 14;
 const MAX_RECV_RECORDS: usize = 6;
 
-/// The server sends close_notify and closes the socket. The connection
-/// closes cleanly and MPC-TLS finalization succeeds on both sides.
+/// Exercises the TLS connection-closure scenarios in MPC mode.
+///
+/// The scenarios run sequentially inside this single test, and thus on a
+/// single tokio runtime. They are deliberately *not* split into separate
+/// `#[test]` functions: the default harness would then run them in parallel,
+/// and several concurrent MPC sessions in one process deadlock contending for
+/// the MPC backend's process-global resources (most notably the shared
+/// `rayon` thread pool). Running them one at a time avoids that.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
-async fn test_mpc_server_close_notify() {
-    init_tracing();
+async fn test_mpc_connection_closure() {
+    server_close_notify().await;
+    server_closes_uncleanly().await;
+    server_closes_uncleanly_no_data().await;
+    server_alert().await;
+}
 
+/// The server sends close_notify and closes the socket. The connection
+/// closes cleanly and MPC-TLS finalization succeeds on both sides.
+async fn server_close_notify() {
     let setup = Setup::new().await;
     let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
 
@@ -60,11 +72,7 @@ async fn test_mpc_server_close_notify() {
 /// after having sent application data. The transcripts end with application
 /// records, which the record-layer closure check accepts, so finalization
 /// still succeeds.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore]
-async fn test_mpc_server_closes_uncleanly() {
-    init_tracing();
-
+async fn server_closes_uncleanly() {
     let setup = Setup::new().await;
     let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
 
@@ -89,11 +97,7 @@ async fn test_mpc_server_closes_uncleanly() {
 /// The server closes the socket abruptly right after the handshake, without
 /// any application data. The received transcript then ends with a handshake
 /// record, which both the leader and the follower must reject.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore]
-async fn test_mpc_server_closes_uncleanly_no_data() {
-    init_tracing();
-
+async fn server_closes_uncleanly_no_data() {
     let setup = Setup::new().await;
     let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
 
@@ -124,11 +128,7 @@ async fn test_mpc_server_closes_uncleanly_no_data() {
 /// The server sends a fatal alert. The transcript ends with an alert that
 /// is not close_notify, which neither the leader nor the follower must
 /// accept.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore]
-async fn test_mpc_server_alert() {
-    init_tracing();
-
+async fn server_alert() {
     let setup = Setup::new().await;
     let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
 
@@ -156,13 +156,6 @@ async fn test_mpc_server_alert() {
     verifier_result.expect_err("verifier must not finalize after a fatal alert");
 
     server_task.abort();
-}
-
-fn init_tracing() {
-    match tracing_subscriber::fmt::try_init() {
-        Ok(_) => info!("set up tracing subscriber"),
-        Err(_) => warn!("tracing subscriber already set up"),
-    };
 }
 
 struct Setup {
