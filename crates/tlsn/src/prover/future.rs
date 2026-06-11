@@ -1,6 +1,6 @@
 //! Future used by the [Prover].
 
-use futures::{AsyncRead, AsyncWrite, Future, FutureExt, future::FusedFuture};
+use futures::{AsyncRead, AsyncWrite, AsyncWriteExt, Future, FutureExt, future::FusedFuture};
 use std::{pin::Pin, task::Poll};
 
 use crate::{
@@ -34,10 +34,31 @@ where
         let state = std::mem::replace(&mut self.state, FutureState::Error);
 
         match state {
-            FutureState::Connected { mut prover } => match prover.poll(cx)? {
-                Poll::Ready(_) => {
+            FutureState::Connected { mut prover } => match prover.poll(cx) {
+                Poll::Ready(Ok(_)) => {
                     self.state = FutureState::Finishing {
                         fut: Box::pin(prover.finish()),
+                    };
+                    self.poll(cx)
+                }
+                // Close the connection handles before yielding the error, so
+                // that readers of the `TlsConnection` and the server socket
+                // observe closure instead of waiting indefinitely. Closing is
+                // best-effort: close errors are ignored in favor of the
+                // original error.
+                Poll::Ready(Err(error)) => {
+                    let state::Connected {
+                        mut client_io,
+                        mut server_socket,
+                        ..
+                    } = prover.state;
+
+                    self.state = FutureState::Finishing {
+                        fut: Box::pin(async move {
+                            let _ = client_io.close().await;
+                            let _ = server_socket.close().await;
+                            Err(error)
+                        }),
                     };
                     self.poll(cx)
                 }

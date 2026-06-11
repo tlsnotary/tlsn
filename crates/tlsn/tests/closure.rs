@@ -245,7 +245,7 @@ async fn run_prover(
             .unwrap(),
         client_socket.compat(),
     )?;
-    let mut prover_task = tokio::spawn(prover.into_future());
+    let prover_task = tokio::spawn(prover.into_future());
 
     if scenario.echo_first {
         // Any unrecognized payload makes the server respond with "hello".
@@ -263,14 +263,21 @@ async fn run_prover(
         tls_connection.close().await?;
     }
 
-    // Drain the connection while driving the prover. If MPC-TLS fails, the
-    // prover future errors without closing the connection handle, so the
-    // read may never resolve: race the two.
+    // Drain the connection while the prover drives it. The read must
+    // terminate on its own: on success the prover closes the connection
+    // handle after finalizing, and on error it closes the handle while
+    // surfacing the error. Either way the read observes EOF instead of
+    // hanging, so a regression that drops the handle without closing it
+    // would trip this timeout.
     let mut buf = Vec::new();
-    let prover = tokio::select! {
-        res = &mut prover_task => res.unwrap()?,
-        _ = tls_connection.read_to_end(&mut buf) => prover_task.await.unwrap()?,
-    };
+    tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        tls_connection.read_to_end(&mut buf),
+    )
+    .await
+    .expect("connection read should terminate once the prover closes the handle")?;
+
+    let prover = prover_task.await.unwrap()?;
     prover.close().await?;
 
     Ok(())
