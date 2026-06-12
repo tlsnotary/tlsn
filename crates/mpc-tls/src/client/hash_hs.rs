@@ -1,5 +1,4 @@
 use ring::digest;
-use std::mem;
 use tls_core::{
     msgs::{
         codec::Codec,
@@ -54,18 +53,6 @@ impl HandshakeHashBuffer {
     #[cfg(test)]
     fn update_raw(&mut self, buf: &[u8]) {
         self.buffer.extend_from_slice(buf);
-    }
-
-    /// Get the hash value if we were to hash `extra` too.
-    pub(crate) fn get_hash_given(
-        &self,
-        hash: &'static HashAlgorithm,
-        extra: &[u8],
-    ) -> digest::Digest {
-        let mut ctx = digest::Context::new(map_algorithm(hash));
-        ctx.update(&self.buffer);
-        ctx.update(extra);
-        ctx.finish()
     }
 
     /// We now know what hash function the verify_data will use.
@@ -124,14 +111,6 @@ impl HandshakeHash {
         self
     }
 
-    /// Get the hash value if we were to hash `extra` too,
-    /// using hash function `hash`.
-    pub(crate) fn get_hash_given(&self, extra: &[u8]) -> digest::Digest {
-        let mut ctx = self.ctx.clone();
-        ctx.update(extra);
-        ctx.finish()
-    }
-
     pub(crate) fn into_hrr_buffer(self) -> HandshakeHashBuffer {
         let old_hash = self.ctx.finish();
         let old_handshake_hash_msg =
@@ -141,20 +120,6 @@ impl HandshakeHash {
             client_auth_enabled: self.client_auth.is_some(),
             buffer: old_handshake_hash_msg.get_encoding(),
         }
-    }
-
-    /// Take the current hash value, and encapsulate it in a
-    /// 'handshake_hash' handshake message.  Start this hash
-    /// again, with that message at the front.
-    pub(crate) fn rollup_for_hrr(&mut self) {
-        let ctx = &mut self.ctx;
-
-        let old_ctx = mem::replace(ctx, digest::Context::new(ctx.algorithm()));
-        let old_hash = old_ctx.finish();
-        let old_handshake_hash_msg =
-            HandshakeMessagePayload::build_handshake_hash(old_hash.as_ref());
-
-        self.update_raw(&old_handshake_hash_msg.get_encoding());
     }
 
     /// Get the current hash value.
@@ -169,10 +134,6 @@ impl HandshakeHash {
         self.client_auth.take()
     }
 
-    /// The digest algorithm
-    pub(crate) fn algorithm(&self) -> &'static digest::Algorithm {
-        self.ctx.algorithm()
-    }
 }
 
 #[cfg(test)]

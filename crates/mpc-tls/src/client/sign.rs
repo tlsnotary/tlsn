@@ -6,8 +6,7 @@ use ring::{
     io::der,
     signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair},
 };
-use rustls_pki_types as pki_types;
-use std::{convert::TryFrom, error::Error as StdError, fmt, sync::Arc};
+use std::{error::Error as StdError, fmt, sync::Arc};
 use tls_core::{
     key,
     msgs::enums::{SignatureAlgorithm, SignatureScheme},
@@ -122,9 +121,6 @@ pub fn any_eddsa_type(der: &key::PrivateKey) -> Result<Arc<dyn SigningKey>, Sign
 }
 
 /// A `SigningKey` for RSA-PKCS1 or RSA-PSS.
-///
-/// This is used by the test suite, so it must be `pub`, but it isn't part of
-/// the public, stable, API.
 #[doc(hidden)]
 pub struct RsaSigningKey {
     key: Arc<RsaKeyPair>,
@@ -155,18 +151,13 @@ impl SigningKey for RsaSigningKey {
         ALL_RSA_SCHEMES
             .iter()
             .find(|scheme| offered.contains(scheme))
-            .map(|scheme| RsaSigner::new(Arc::clone(&self.key), *scheme))
+            .map(|scheme| RsaSigner::new_boxed(Arc::clone(&self.key), *scheme))
     }
 
     fn algorithm(&self) -> SignatureAlgorithm {
         SignatureAlgorithm::RSA
     }
 }
-
-#[allow(clippy::upper_case_acronyms)]
-#[doc(hidden)]
-#[deprecated(since = "0.20.0", note = "Use RsaSigningKey")]
-pub type RSASigningKey = RsaSigningKey;
 
 struct RsaSigner {
     key: Arc<RsaKeyPair>,
@@ -175,7 +166,7 @@ struct RsaSigner {
 }
 
 impl RsaSigner {
-    fn new(key: Arc<RsaKeyPair>, scheme: SignatureScheme) -> Box<dyn Signer> {
+    fn new_boxed(key: Arc<RsaKeyPair>, scheme: SignatureScheme) -> Box<dyn Signer> {
         let encoding: &dyn signature::RsaEncoding = match scheme {
             SignatureScheme::RSA_PKCS1_SHA256 => &signature::RSA_PKCS1_SHA256,
             SignatureScheme::RSA_PKCS1_SHA384 => &signature::RSA_PKCS1_SHA384,

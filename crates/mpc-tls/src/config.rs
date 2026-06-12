@@ -58,7 +58,6 @@ pub struct Config {
     /// decrypted for free.
     pub(crate) max_recv_online: usize,
     /// Maximum number of received bytes.
-    #[allow(unused)]
     pub(crate) max_recv: usize,
     /// Network mode for the PRF.
     #[builder(setter(custom))]

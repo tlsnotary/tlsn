@@ -168,9 +168,10 @@ impl Prover<state::CommitAccepted<Mpc>> {
         config: TlsClientConfig,
         server_socket: S,
     ) -> Result<(TlsConnection, Prover<state::Connected<S>>)> {
-        let ProverDeps::Mpc(ProverMpcDeps { vm, mpc_tls, keys }) = self.state.deps else {
+        let ProverDeps::Mpc(deps) = self.state.deps else {
             unreachable!("mpc-tls received incorrect deps")
         };
+        let ProverMpcDeps { vm, mpc_tls, keys } = *deps;
 
         let ServerName::Dns(server_name) = config.server_name();
         let server_name =

@@ -1,7 +1,6 @@
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{DecodeFutureTyped, binary::Binary};
 use mpz_vm_core::{Vm, prelude::*};
-use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 
 use crate::{
@@ -199,7 +198,7 @@ impl DecryptOp {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum DecryptMode {
     /// The plaintext is private.
     Private,

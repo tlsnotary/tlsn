@@ -61,7 +61,7 @@ impl MpcTlsClient {
         span: Span,
         config: &TlsClientConfig,
         server_name: ServerName,
-        mpc_tls: Box<MpcTlsLeader>,
+        mpc_tls: MpcTlsLeader,
     ) -> Result<Self, TlsnError> {
         let config = create_client_config(config)?;
         let decrypt = DecryptState {
@@ -417,7 +417,7 @@ impl InnerState {
     }
 
     fn is_record_layer_empty(&self) -> bool {
-        self.tls.plaintext_is_empty() && self.tls.is_empty().unwrap_or(false)
+        self.tls.plaintext_is_empty() && self.tls.is_empty()
     }
 }
 
@@ -442,26 +442,22 @@ fn create_client_config(
             .collect::<Result<Vec<_>, _>>()?,
     };
 
-    let rustls_config = mpc_tls::client::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_store);
-
-    let rustls_config = if let Some((cert, key)) = config.client_auth() {
-        rustls_config
-            .with_single_cert(
-                cert.iter()
-                    .map(|cert| mpc_tls::client::Certificate(cert.0.clone()))
-                    .collect(),
-                mpc_tls::client::PrivateKey(key.0.clone()),
-            )
-            .map_err(|e| {
-                TlsnError::config()
-                    .with_msg("failed to configure client authentication")
-                    .with_source(e)
-            })?
+    let client_config = if let Some((cert, key)) = config.client_auth() {
+        mpc_tls::client::ClientConfig::new_with_client_auth(
+            root_store,
+            cert.iter()
+                .map(|cert| mpc_tls::client::Certificate(cert.0.clone()))
+                .collect(),
+            mpc_tls::client::PrivateKey(key.0.clone()),
+        )
+        .map_err(|e| {
+            TlsnError::config()
+                .with_msg("failed to configure client authentication")
+                .with_source(e)
+        })?
     } else {
-        rustls_config.with_no_client_auth()
+        mpc_tls::client::ClientConfig::new(root_store)
     };
 
-    Ok(rustls_config)
+    Ok(client_config)
 }

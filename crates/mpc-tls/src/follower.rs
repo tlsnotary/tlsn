@@ -1,15 +1,15 @@
 use crate::{
     Config, MpcTlsError, Role, SessionKeys, Vm,
-    msg::{Message, StartHandshake},
+    msg::{Message, ServerHello},
     record_layer::{RecordLayer, aead::MpcAesGcm},
-    utils::check_close_notify,
+    utils::{alloc_session, flush_prf, verify_transcript},
 };
-use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
+use hmac_sha256::{MSMode, Prf, PrfConfig};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
 use mpz_core::{Block, bitvec::BitVec};
-use mpz_memory_core::{DecodeFutureTyped, MemoryExt};
+use mpz_memory_core::DecodeFutureTyped;
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
 use mpz_ot::{
     rcot::{RCOTReceiver, RCOTSender},
@@ -107,41 +107,18 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in init state to allocate"));
         };
 
-        let (keys, cf_vd, sf_vd, sw_mac_key) = {
-            let vm = &mut (*vm
+        let (keys, cf_vd, sf_vd) = {
+            let mut vm = vm
                 .try_lock()
-                .map_err(|_| MpcTlsError::other("VM lock is held"))?);
+                .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-            let pms = ke.alloc(vm)?;
-            let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc_pms(vm, pms)?;
-            record_layer.set_keys(
-                keys.client_write_key,
-                keys.client_iv,
-                keys.server_write_key,
-                keys.server_iv,
-            )?;
-
-            let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
-            let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
-
-            let server_write_mac_key = record_layer.alloc(
-                vm,
-                self.config.max_sent_records,
-                self.config.max_recv_records_online,
-                self.config.max_sent,
-                self.config.max_recv_online,
-                self.config.max_recv,
-            )?;
-
-            (keys, cf_vd, sf_vd, server_write_mac_key)
-        };
-
-        let keys: SessionKeys = SessionKeys {
-            client_write_key: keys.client_write_key,
-            client_write_iv: keys.client_iv,
-            server_write_key: keys.server_write_key,
-            server_write_iv: keys.server_iv,
-            server_write_mac_key: sw_mac_key,
+            alloc_session(
+                &mut *vm,
+                &self.config,
+                &mut *ke,
+                &mut prf,
+                &mut record_layer,
+            )?
         };
 
         self.state = State::Setup {
@@ -166,7 +143,6 @@ impl MpcTlsFollower {
             mut record_layer,
             cf_vd,
             sf_vd,
-            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("must be in setup state to preprocess"));
@@ -206,7 +182,7 @@ impl MpcTlsFollower {
                     },
                 )
                 .await
-                .map_err(MpcTlsError::hs)??
+                .map_err(MpcTlsError::preprocess)??
         };
 
         self.state = State::Ready {
@@ -231,16 +207,13 @@ impl MpcTlsFollower {
             mut record_layer,
             cf_vd: mut cf_vd_fut,
             sf_vd: mut sf_vd_fut,
-            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("must be in ready state to run"));
         };
 
-        let mut time = None;
         let mut client_random = None;
-        let mut server_random = None;
-        let mut server_key = None;
+        let mut server_hello: Option<ServerHello> = None;
         let mut expected_cf_vd = None;
         let mut expected_sf_vd = None;
         loop {
@@ -251,12 +224,12 @@ impl MpcTlsFollower {
                         return Err(MpcTlsError::hs("client random already set"));
                     }
 
-                    prf.set_client_random(random.random);
-                    client_random = Some(random.random);
+                    prf.set_client_random(random);
+                    client_random = Some(random);
                 }
-                Message::StartHandshake(StartHandshake { time: prover_time }) => {
-                    if time.is_some() {
-                        return Err(MpcTlsError::hs("time already set"));
+                Message::ServerHello(hello) => {
+                    if server_hello.is_some() {
+                        return Err(MpcTlsError::hs("server hello already set"));
                     }
 
                     let this_time = web_time::UNIX_EPOCH
@@ -264,36 +237,20 @@ impl MpcTlsFollower {
                         .expect("system time is available")
                         .as_secs();
 
-                    if prover_time.abs_diff(this_time) > MAX_TIME_DIFF {
+                    if hello.time.abs_diff(this_time) > MAX_TIME_DIFF {
                         return Err(MpcTlsError::hs("handshake time difference exceeds limit"));
                     }
 
-                    time = Some(prover_time);
-                }
-                Message::SetServerRandom(random) => {
-                    if server_random.is_some() {
-                        return Err(MpcTlsError::hs("server random already set"));
-                    }
+                    prf.set_server_random(hello.random)?;
 
-                    prf.set_server_random(random.random)?;
-                    server_random = Some(random.random);
-                }
-                Message::SetServerKey(key) => {
-                    if server_key.is_some() {
-                        return Err(MpcTlsError::hs("server key already set"));
-                    }
-
-                    let key = key.key;
-                    let NamedGroup::secp256r1 = key.group else {
+                    let NamedGroup::secp256r1 = hello.key.group else {
                         return Err(MpcTlsError::hs("unsupported server key group"));
                     };
 
                     ke.set_server_key(
-                        p256::PublicKey::from_sec1_bytes(&key.key)
+                        p256::PublicKey::from_sec1_bytes(&hello.key.key)
                             .map_err(|_| MpcTlsError::hs("failed to parse server key"))?,
                     )?;
-
-                    server_key = Some(key);
 
                     let mut vm = vm
                         .try_lock()
@@ -302,17 +259,14 @@ impl MpcTlsFollower {
                     ke.compute_shares(&mut self.ctx).await?;
                     ke.assign(&mut (*vm))?;
 
-                    while prf.wants_flush() {
-                        prf.flush(&mut *vm)?;
-                        vm.execute_all(&mut self.ctx)
-                            .await
-                            .map_err(MpcTlsError::hs)?;
-                    }
+                    flush_prf(&mut prf, &mut *vm, &mut self.ctx).await?;
 
                     ke.finalize().await?;
                     record_layer.setup(&mut self.ctx).await?;
+
+                    server_hello = Some(hello);
                 }
-                Message::ClientFinishedVd(vd) => {
+                Message::ClientFinishedVd(handshake_hash) => {
                     if expected_cf_vd.is_some() {
                         return Err(MpcTlsError::hs("client finished VD already computed"));
                     }
@@ -321,14 +275,8 @@ impl MpcTlsFollower {
                         .try_lock()
                         .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-                    prf.set_cf_hash(vd.handshake_hash)?;
-
-                    while prf.wants_flush() {
-                        prf.flush(&mut *vm)?;
-                        vm.execute_all(&mut self.ctx)
-                            .await
-                            .map_err(MpcTlsError::hs)?;
-                    }
+                    prf.set_cf_hash(handshake_hash)?;
+                    flush_prf(&mut prf, &mut *vm, &mut self.ctx).await?;
 
                     expected_cf_vd = Some(
                         cf_vd_fut
@@ -337,7 +285,7 @@ impl MpcTlsFollower {
                             .ok_or(MpcTlsError::hs("client finished VD not computed"))?,
                     );
                 }
-                Message::ServerFinishedVd(vd) => {
+                Message::ServerFinishedVd(handshake_hash) => {
                     if expected_sf_vd.is_some() {
                         return Err(MpcTlsError::hs("server finished VD already computed"));
                     }
@@ -346,14 +294,8 @@ impl MpcTlsFollower {
                         .try_lock()
                         .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-                    prf.set_sf_hash(vd.handshake_hash)?;
-
-                    while prf.wants_flush() {
-                        prf.flush(&mut *vm)?;
-                        vm.execute_all(&mut self.ctx)
-                            .await
-                            .map_err(MpcTlsError::hs)?;
-                    }
+                    prf.set_sf_hash(handshake_hash)?;
+                    flush_prf(&mut prf, &mut *vm, &mut self.ctx).await?;
 
                     expected_sf_vd = Some(
                         sf_vd_fut
@@ -363,27 +305,21 @@ impl MpcTlsFollower {
                     );
                 }
                 Message::Encrypt(encrypt) => {
-                    record_layer
-                        .push_encrypt(
-                            encrypt.typ,
-                            encrypt.version,
-                            encrypt.len,
-                            encrypt.plaintext,
-                            encrypt.mode,
-                        )
-                        .map_err(MpcTlsError::record_layer)?;
+                    record_layer.push_encrypt(
+                        encrypt.typ,
+                        encrypt.version,
+                        encrypt.len,
+                        encrypt.plaintext,
+                    )?;
                 }
                 Message::Decrypt(decrypt) => {
-                    record_layer
-                        .push_decrypt(
-                            decrypt.typ,
-                            decrypt.version,
-                            decrypt.explicit_nonce,
-                            decrypt.ciphertext,
-                            decrypt.tag,
-                            decrypt.mode,
-                        )
-                        .map_err(MpcTlsError::record_layer)?;
+                    record_layer.push_decrypt(
+                        decrypt.typ,
+                        decrypt.version,
+                        decrypt.explicit_nonce,
+                        decrypt.ciphertext,
+                        decrypt.tag,
+                    )?;
                 }
                 Message::StartTraffic => {
                     record_layer.start_traffic();
@@ -406,10 +342,8 @@ impl MpcTlsFollower {
 
         debug!("committed");
 
-        let time = time.ok_or(MpcTlsError::hs("time was not set"))?;
-        let server_key = server_key.ok_or(MpcTlsError::hs("server key not set"))?;
+        let server_hello = server_hello.ok_or(MpcTlsError::hs("server hello not set"))?;
         let client_random = client_random.ok_or(MpcTlsError::hs("client random not set"))?;
-        let server_random = server_random.ok_or(MpcTlsError::hs("client random not set"))?;
         let expected_cf_vd =
             expected_cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
         let expected_sf_vd =
@@ -417,14 +351,15 @@ impl MpcTlsFollower {
 
         let binding = CertBinding::V1_2(CertBindingV1_2 {
             client_random,
-            server_random,
-            server_ephemeral_key: server_key
+            server_random: server_hello.random,
+            server_ephemeral_key: server_hello
+                .key
                 .try_into()
                 .expect("only supported key scheme should have been accepted"),
         });
 
         let transcript = TlsTranscript::builder()
-            .time(time)
+            .time(server_hello.time)
             .version(TlsVersion::V1_2)
             .certificate_binding(binding)
             .records_sent(sent_records)
@@ -432,23 +367,7 @@ impl MpcTlsFollower {
             .build()
             .map_err(MpcTlsError::other)?;
 
-        let cf_vd = transcript
-            .cf_vd()
-            .expect("client finished verify data should be available");
-
-        if cf_vd != expected_cf_vd {
-            return Err(MpcTlsError::peer("client verify data is incorrect"));
-        }
-
-        let sf_vd = transcript
-            .sf_vd()
-            .expect("server finished verify data should be available");
-        if sf_vd != expected_sf_vd {
-            return Err(MpcTlsError::peer("server verify data is incorrect"));
-        }
-
-        check_close_notify(transcript.sent())?;
-        check_close_notify(transcript.recv())?;
+        verify_transcript(&transcript, expected_cf_vd, expected_sf_vd)?;
 
         Ok((self.ctx, transcript))
     }
@@ -488,11 +407,11 @@ impl State {
 
 impl std::fmt::Debug for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Init { .. } => f.debug_struct("Init").finish_non_exhaustive(),
-            Self::Setup { .. } => f.debug_struct("Setup").finish_non_exhaustive(),
-            Self::Ready { .. } => f.debug_struct("Ready").finish_non_exhaustive(),
-            Self::Error => write!(f, "Error"),
-        }
+        f.write_str(match self {
+            Self::Init { .. } => "Init",
+            Self::Setup { .. } => "Setup",
+            Self::Ready { .. } => "Ready",
+            Self::Error => "Error",
+        })
     }
 }

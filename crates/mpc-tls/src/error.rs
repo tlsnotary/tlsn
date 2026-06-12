@@ -60,7 +60,7 @@ impl MpcTlsError {
 #[derive(Debug, thiserror::Error)]
 #[error("mpc-tls error: {0}")]
 enum ErrorRepr {
-    #[error("peer misbehaved")]
+    #[error("peer misbehaved: {0}")]
     Peer(Box<dyn std::error::Error + Send + Sync>),
     #[error("I/O error: {0}")]
     Io(std::io::Error),

@@ -4,41 +4,41 @@ use tls_core::{
     msgs::enums::{ContentType, ProtocolVersion},
 };
 
-use crate::record_layer::{DecryptMode, EncryptMode};
-
 /// MPC-TLS protocol message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Message {
-    SetClientRandom(SetClientRandom),
-    StartHandshake(StartHandshake),
-    SetServerRandom(SetServerRandom),
-    SetServerKey(SetServerKey),
-    ClientFinishedVd(ClientFinishedVd),
-    ServerFinishedVd(ServerFinishedVd),
+    /// The client random of the TLS connection.
+    SetClientRandom([u8; 32]),
+    /// The server parameters of the TLS handshake.
+    ServerHello(ServerHello),
+    /// The handshake hash for computing the client Finished verify data.
+    ClientFinishedVd([u8; 32]),
+    /// The handshake hash for computing the server Finished verify data.
+    ServerFinishedVd([u8; 32]),
+    /// An outgoing record to encrypt.
     Encrypt(Encrypt),
+    /// An incoming record to decrypt.
     Decrypt(Decrypt),
+    /// Starts processing of application data.
     StartTraffic,
-    Flush { is_decrypting: bool },
+    /// Flushes the record layer.
+    Flush {
+        /// Whether application data is decrypted while the connection is
+        /// active.
+        is_decrypting: bool,
+    },
+    /// Closes the connection.
     CloseConnection,
 }
 
+/// Server parameters of the TLS handshake.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct SetClientRandom {
-    pub(crate) random: [u8; 32],
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct StartHandshake {
+pub(crate) struct ServerHello {
+    /// The time of the handshake as unix timestamp in seconds.
     pub(crate) time: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct SetServerRandom {
+    /// The server random.
     pub(crate) random: [u8; 32],
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct SetServerKey {
+    /// The server ephemeral public key.
     pub(crate) key: PublicKey,
 }
 
@@ -49,7 +49,6 @@ pub(crate) struct Decrypt {
     pub(crate) explicit_nonce: Vec<u8>,
     pub(crate) ciphertext: Vec<u8>,
     pub(crate) tag: Vec<u8>,
-    pub(crate) mode: DecryptMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,20 +56,6 @@ pub(crate) struct Encrypt {
     pub(crate) typ: ContentType,
     pub(crate) version: ProtocolVersion,
     pub(crate) len: usize,
+    /// The plaintext of the record, if it is public.
     pub(crate) plaintext: Option<Vec<u8>>,
-    pub(crate) mode: EncryptMode,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct ClientFinishedVd {
-    pub handshake_hash: [u8; 32],
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct ServerFinishedVd {
-    pub handshake_hash: [u8; 32],
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub(crate) struct CloseConnection;

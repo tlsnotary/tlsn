@@ -7,7 +7,7 @@ use tls_core::msgs::{
 
 /// For a Message $m, and a HandshakePayload enum member $payload_type,
 /// return Ok(payload) if $m is both a handshake message and one that
-/// has the given $payload_type.  If not, return Err(rustls::Error) quoting
+/// has the given $payload_type.  If not, return Err(crate::client::Error) quoting
 /// $handshake_type as the expected handshake type.
 macro_rules! require_handshake_msg(
   ( $m:expr_2021, $handshake_type:path, $payload_type:path ) => (

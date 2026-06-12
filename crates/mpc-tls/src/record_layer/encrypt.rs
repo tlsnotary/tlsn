@@ -2,16 +2,19 @@ use futures::TryFutureExt as _;
 use mpz_core::bitvec::BitVec;
 use mpz_memory_core::{DecodeFutureTyped, binary::Binary};
 use mpz_vm_core::{Vm, prelude::*};
-use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 
+use std::{future::Future, pin::Pin};
+
 use crate::{
-    BoxFut, MpcTlsError,
+    MpcTlsError,
     record_layer::{
         TagData,
         aead::{AeadError, ComputeTags, MpcAesGcm},
     },
 };
+
+pub(crate) type BoxFut<T> = Pin<Box<dyn Future<Output = T> + Send + Sync + 'static>>;
 
 #[allow(clippy::type_complexity)]
 fn private(
@@ -173,7 +176,7 @@ impl EncryptOp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EncryptMode {
     /// The encrypted plaintext is private.
     Private,

@@ -39,7 +39,7 @@ cfg_select! {
 /// Protocol dependencies for MPC.
 pub(crate) struct ProverMpcDeps {
     pub(crate) vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
-    pub(crate) mpc_tls: Box<MpcTlsLeader>,
+    pub(crate) mpc_tls: MpcTlsLeader,
     pub(crate) keys: Option<SessionKeys>,
 }
 
@@ -97,7 +97,7 @@ impl ProverMpcDeps {
 
         Self {
             vm,
-            mpc_tls: Box::new(mpc_tls),
+            mpc_tls,
             keys: None,
         }
     }
