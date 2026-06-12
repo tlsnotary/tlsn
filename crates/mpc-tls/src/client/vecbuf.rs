@@ -18,9 +18,6 @@ impl ChunkVecBuffer {
         }
     }
 
-    /// Sets the upper limit on how many bytes this
-    /// object can store.
-    ///
     /// If we're empty
     pub(crate) fn is_empty(&self) -> bool {
         self.chunks.is_empty()

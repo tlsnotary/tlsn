@@ -75,7 +75,7 @@ pub(crate) struct RecordLayer {
     write_seq: u64,
     read_seq: u64,
     encrypter: Arc<Mutex<MpcAesGcm>>,
-    decrypt: Arc<Mutex<MpcAesGcm>>,
+    decrypter: Arc<Mutex<MpcAesGcm>>,
     aes_gcm: AesGcm,
     state: State,
     /// Whether the record layer has started processing application data.
@@ -101,13 +101,13 @@ pub(crate) struct RecordLayer {
 
 impl RecordLayer {
     /// Creates a new record layer.
-    pub(crate) fn new(role: Role, encrypt: MpcAesGcm, decrypt: MpcAesGcm) -> Self {
+    pub(crate) fn new(role: Role, encrypter: MpcAesGcm, decrypter: MpcAesGcm) -> Self {
         Self {
             role,
             write_seq: 0,
             read_seq: 0,
-            encrypter: Arc::new(Mutex::new(encrypt)),
-            decrypt: Arc::new(Mutex::new(decrypt)),
+            encrypter: Arc::new(Mutex::new(encrypter)),
+            decrypter: Arc::new(Mutex::new(decrypter)),
             aes_gcm: AesGcm::new(role),
             state: State::Init,
             started: false,
@@ -155,7 +155,7 @@ impl RecordLayer {
             .map_err(|_| MpcTlsError::other("encrypt lock is held"))?;
 
         let mut decrypt = self
-            .decrypt
+            .decrypter
             .try_lock()
             .map_err(|_| MpcTlsError::other("decrypt lock is held"))?;
 
@@ -199,7 +199,7 @@ impl RecordLayer {
             .try_lock_owned()
             .map_err(|_| MpcTlsError::other("encrypt lock is held"))?;
         let mut decrypt = self
-            .decrypt
+            .decrypter
             .clone()
             .try_lock_owned()
             .map_err(|_| MpcTlsError::other("decrypt lock is held"))?;
@@ -229,7 +229,7 @@ impl RecordLayer {
             .try_lock()
             .map_err(|_| MpcTlsError::other("encrypt lock is held"))?;
         let mut decrypt = self
-            .decrypt
+            .decrypter
             .try_lock()
             .map_err(|_| MpcTlsError::other("decrypt lock is held"))?;
 
@@ -250,7 +250,7 @@ impl RecordLayer {
             .try_lock_owned()
             .map_err(|_| MpcTlsError::other("encrypt lock is held"))?;
         let mut decrypt = self
-            .decrypt
+            .decrypter
             .clone()
             .try_lock_owned()
             .map_err(|_| MpcTlsError::other("decrypt lock is held"))?;
@@ -421,7 +421,7 @@ impl RecordLayer {
             .map_err(|_| MpcTlsError::record_layer("encrypt lock is held"))?;
 
         let mut decrypter = self
-            .decrypt
+            .decrypter
             .try_lock()
             .map_err(|_| MpcTlsError::record_layer("decrypt lock is held"))?;
 
@@ -571,7 +571,7 @@ impl RecordLayer {
             .map_err(|_| MpcTlsError::record_layer("VM lock is held"))?;
 
         let mut decrypter = self
-            .decrypt
+            .decrypter
             .try_lock()
             .map_err(|_| MpcTlsError::record_layer("decrypt lock is held"))?;
 

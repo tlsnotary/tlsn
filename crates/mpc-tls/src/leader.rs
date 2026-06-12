@@ -3,9 +3,9 @@ use crate::{
     error::MpcTlsError,
     msg::{Decrypt, Encrypt, Message, ServerHello},
     record_layer::{RecordLayer, aead::MpcAesGcm},
-    utils::{flush_prf, opaque_into_parts, verify_transcript},
+    utils::{alloc_session, flush_prf, opaque_into_parts, verify_transcript},
 };
-use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
+use hmac_sha256::{MSMode, Prf, PrfConfig};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
@@ -20,7 +20,6 @@ use mpz_ot::{
     },
 };
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
-use mpz_vm_core::prelude::*;
 use serio::SinkExt;
 use tls_core::{
     cert::ServerCertDetails,
@@ -121,43 +120,21 @@ impl MpcTlsLeader {
 
         let client_random = Random::new().expect("rng is available");
 
-        let mut vm = core
-            .vm
-            .clone()
-            .try_lock_owned()
-            .map_err(|_| MpcTlsError::other("VM lock is held"))?;
+        let (keys, cf_vd_fut, sf_vd_fut) = {
+            let mut vm = core
+                .vm
+                .try_lock()
+                .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-        // Allocate.
-        let pms = core.ke.alloc(&mut (*vm))?;
-        let PrfOutput { keys, cf_vd, sf_vd } = core.prf.alloc_pms(&mut (*vm), pms)?;
-        core.record_layer.set_keys(
-            keys.client_write_key,
-            keys.client_iv,
-            keys.server_write_key,
-            keys.server_iv,
-        )?;
-
-        let cf_vd_fut = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
-        let sf_vd_fut = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
-
-        let server_write_mac_key = core.record_layer.alloc(
-            &mut (*vm),
-            self.config.max_sent_records,
-            self.config.max_recv_records_online,
-            self.config.max_sent,
-            self.config.max_recv_online,
-            self.config.max_recv,
-        )?;
-
-        let keys = SessionKeys {
-            client_write_key: keys.client_write_key,
-            client_write_iv: keys.client_iv,
-            server_write_key: keys.server_write_key,
-            server_write_iv: keys.server_iv,
-            server_write_mac_key,
+            alloc_session(
+                &mut *vm,
+                &self.config,
+                &mut *core.ke,
+                &mut core.prf,
+                &mut core.record_layer,
+            )?
         };
 
-        drop(vm);
         self.state = State::Setup {
             core,
             client_random,
@@ -231,8 +208,7 @@ impl MpcTlsLeader {
 
         ctx.io_mut()
             .send(Message::SetClientRandom(client_random.0))
-            .await
-            .map_err(MpcTlsError::from)?;
+            .await?;
 
         prf.set_client_random(client_random.0);
 
@@ -278,10 +254,7 @@ impl MpcTlsLeader {
             ));
         };
 
-        let pk = core
-            .ke
-            .client_key()
-            .map_err(|err| MpcTlsError::state(err.to_string()))?;
+        let pk = core.ke.client_key()?;
 
         Ok(PublicKey::new(
             NamedGroup::secp256r1,
@@ -332,28 +305,25 @@ impl MpcTlsLeader {
                 random: hs.server_random.0,
                 key: hs.server_key.clone(),
             }))
-            .await
-            .map_err(MpcTlsError::from)?;
+            .await?;
 
-        prf.set_server_random(hs.server_random.0)
-            .map_err(MpcTlsError::hs)?;
+        prf.set_server_random(hs.server_random.0)?;
 
         ke.set_server_key(
             p256::PublicKey::from_sec1_bytes(&hs.server_key.key).map_err(MpcTlsError::hs)?,
-        )
-        .map_err(|err| MpcTlsError::state(err.to_string()))?;
+        )?;
 
-        ke.compute_shares(&mut ctx).await.map_err(MpcTlsError::hs)?;
+        ke.compute_shares(&mut ctx).await?;
 
         {
             let mut vm = vm
                 .try_lock()
                 .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-            ke.assign(&mut (*vm)).map_err(MpcTlsError::hs)?;
+            ke.assign(&mut (*vm))?;
             flush_prf(&mut prf, &mut *vm, &mut ctx).await?;
 
-            ke.finalize().await.map_err(MpcTlsError::hs)?;
+            ke.finalize().await?;
             record_layer.setup(&mut ctx).await?;
         }
 
@@ -405,14 +375,13 @@ impl MpcTlsLeader {
         core.ctx
             .io_mut()
             .send(Message::ClientFinishedVd(hash))
-            .await
-            .map_err(MpcTlsError::hs)?;
+            .await?;
 
         let mut vm = core
             .vm
             .try_lock()
             .map_err(|_| MpcTlsError::other("VM lock is held"))?;
-        core.prf.set_cf_hash(hash).map_err(MpcTlsError::hs)?;
+        core.prf.set_cf_hash(hash)?;
         flush_prf(&mut core.prf, &mut *vm, &mut core.ctx).await?;
 
         let vd = cf_vd_fut
@@ -451,14 +420,13 @@ impl MpcTlsLeader {
         core.ctx
             .io_mut()
             .send(Message::ServerFinishedVd(hash))
-            .await
-            .map_err(MpcTlsError::from)?;
+            .await?;
 
         let mut vm = core
             .vm
             .try_lock()
             .map_err(|_| MpcTlsError::other("VM lock is held"))?;
-        core.prf.set_sf_hash(hash).map_err(MpcTlsError::hs)?;
+        core.prf.set_sf_hash(hash)?;
         flush_prf(&mut core.prf, &mut *vm, &mut core.ctx).await?;
 
         let vd = sf_vd_fut
@@ -510,8 +478,7 @@ impl MpcTlsLeader {
                 ciphertext,
                 tag,
             }))
-            .await
-            .map_err(MpcTlsError::from)?;
+            .await?;
 
         Ok(())
     }
@@ -569,6 +536,7 @@ impl MpcTlsLeader {
             payload,
         } = msg;
         let plaintext = payload.0;
+        let len = plaintext.len();
 
         // Only the contents of application data is hidden from the follower.
         let public_plaintext = match typ {
@@ -577,18 +545,17 @@ impl MpcTlsLeader {
         };
 
         core.record_layer
-            .push_encrypt(typ, version, plaintext.len(), Some(plaintext.clone()))?;
+            .push_encrypt(typ, version, len, Some(plaintext))?;
 
         core.ctx
             .io_mut()
             .send(Message::Encrypt(Encrypt {
                 typ,
                 version,
-                len: plaintext.len(),
+                len,
                 plaintext: public_plaintext,
             }))
-            .await
-            .map_err(MpcTlsError::from)?;
+            .await?;
 
         Ok(())
     }
@@ -635,11 +602,7 @@ impl MpcTlsLeader {
         };
 
         core.record_layer.start_traffic();
-        core.ctx
-            .io_mut()
-            .send(Message::StartTraffic)
-            .await
-            .map_err(MpcTlsError::from)?;
+        core.ctx.io_mut().send(Message::StartTraffic).await?;
 
         Ok(())
     }
@@ -648,7 +611,7 @@ impl MpcTlsLeader {
     pub(crate) async fn flush(&mut self) -> Result<(), MpcTlsError> {
         let core = match &mut self.state {
             State::Ready { .. } => {
-                debug!("record layer is not ready, skipping flush");
+                debug!("handshake is not complete, skipping flush");
                 return Ok(());
             }
             State::Active { core, .. } => core,
@@ -674,8 +637,7 @@ impl MpcTlsLeader {
             .send(Message::Flush {
                 is_decrypting: self.is_decrypting,
             })
-            .await
-            .map_err(MpcTlsError::from)?;
+            .await?;
 
         core.record_layer
             .flush(&mut core.ctx, core.vm.clone(), self.is_decrypting)

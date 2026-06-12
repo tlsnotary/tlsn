@@ -44,10 +44,7 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
-aes = { workspace = true }
 aes-gcm = { workspace = true }
-ctr = { workspace = true }
-ghash_rc = { package = "ghash", version = "0.5" }
 tokio = { workspace = true, features = ["sync"] }
 pin-project-lite = { workspace = true }
 web-time = { workspace = true }
@@ -55,11 +52,12 @@ web-time = { workspace = true }
 [dev-dependencies]
 mpz-common = { workspace = true, features = ["test-utils"] }
 mpz-ot = { workspace = true, features = ["ideal"] }
+mpz-share-conversion = { workspace = true, features = ["test-utils"] }
 mpz-ideal-vm = { workspace = true }
+ghash_rc = { package = "ghash", version = "0.5" }
 
 rstest = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
-tracing-subscriber = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 ring = { workspace = true, features = ["wasm32_unknown_unknown_js"] }

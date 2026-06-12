@@ -117,6 +117,15 @@ impl ClientConfig {
         Ok(Self::new_inner(root_store, Arc::new(resolver)))
     }
 
+    /// Creates a new config like [`ClientConfig::new`], with a custom client
+    /// certificate resolver.
+    pub fn new_with_cert_resolver(
+        root_store: RootCertStore,
+        resolver: Arc<dyn ResolvesClientCert>,
+    ) -> Self {
+        Self::new_inner(root_store, resolver)
+    }
+
     fn new_inner(root_store: RootCertStore, resolver: Arc<dyn ResolvesClientCert>) -> Self {
         Self {
             cipher_suites: DEFAULT_CIPHER_SUITES.to_vec(),

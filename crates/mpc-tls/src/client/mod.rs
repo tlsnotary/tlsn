@@ -29,7 +29,7 @@ pub(crate) use tls_core::{anchors, verify, x509};
 // The public interface is:
 pub use crate::client::{
     anchors::RootCertStore,
-    config::{ClientConfig, InvalidDnsNameError, ResolvesClientCert, ServerName},
+    config::{ClientConfig, ResolvesClientCert, ServerName},
     conn::{ClientConnection, CommonState, IoState},
     error::Error,
 };

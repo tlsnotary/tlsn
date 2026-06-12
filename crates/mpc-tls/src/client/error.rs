@@ -5,7 +5,7 @@ use tls_core::{
     msgs::enums::{AlertDescription, ContentType, HandshakeType},
 };
 
-/// rustls reports protocol errors using this type.
+/// TLS protocol errors are reported using this type.
 #[derive(Debug, Clone)]
 pub enum Error {
     /// Error propagated from tls-core library

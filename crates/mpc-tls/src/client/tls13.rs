@@ -84,32 +84,6 @@ pub(super) async fn handle_server_hello(
         return Err(cx.illegal_param("wrong group for key share").await?);
     }
 
-    // if let Some(ref resuming) = resuming_session {
-    //     let resuming_suite = match suite.can_resume_from(resuming.suite()) {
-    //         Some(resuming) => resuming,
-    //         None => {
-    //             return Err(cx
-    //                 .common
-    //                 .illegal_param("server resuming incompatible suite")
-    //                 .await);
-    //         }
-    //     };
-
-    //     if server_hello.get_psk_index() != Some(0) {
-    //         return Err(cx.illegal_param("server selected invalid
-    // psk").await);     }
-
-    //     debug!("Resuming using PSK");
-    //     // The key schedule has been initialized and set in fill_in_psk_binder()
-    // } else {
-    //     return Err(Error::PeerMisbehavedError(
-    //         "server selected unoffered psk".to_string(),
-    //     ));
-    // }
-
-    // // Remember what KX group the server liked for next time.
-    // save_kx_hint(&config, &server_name, their_key_share.group);
-
     // If we change keying when a subsequent handshake message is being joined,
     // the two halves will have different record layer protections.  Disallow this.
     cx.check_aligned_handshake().await?;

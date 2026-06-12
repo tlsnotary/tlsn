@@ -1,6 +1,8 @@
-use hmac_sha256::Prf;
+use hmac_sha256::{Prf, PrfOutput};
+use key_exchange::KeyExchange;
 use mpz_common::Context;
-use mpz_memory_core::binary::Binary;
+use mpz_core::bitvec::BitVec;
+use mpz_memory_core::{DecodeFutureTyped, MemoryExt, binary::Binary};
 use mpz_vm_core::Vm;
 use tls_core::msgs::{
     alert::AlertMessagePayload,
@@ -9,7 +11,7 @@ use tls_core::msgs::{
 };
 use tlsn_core::transcript::{ContentType, Record, TlsTranscript};
 
-use crate::MpcTlsError;
+use crate::{Config, MpcTlsError, SessionKeys, record_layer::RecordLayer};
 
 /// Length of the explicit nonce prefixing every AES-GCM record.
 const EXPLICIT_NONCE_LEN: usize = 8;
@@ -24,7 +26,7 @@ pub(crate) fn opaque_into_parts(
     mut msg: Vec<u8>,
 ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), MpcTlsError> {
     if msg.len() < EXPLICIT_NONCE_LEN + TAG_LEN {
-        return Err(MpcTlsError::peer("ciphertext record is too short"));
+        return Err(MpcTlsError::record_layer("ciphertext record is too short"));
     }
 
     let tag = msg.split_off(msg.len() - TAG_LEN);
@@ -32,6 +34,58 @@ pub(crate) fn opaque_into_parts(
     let explicit_nonce = msg;
 
     Ok((explicit_nonce, ciphertext, tag))
+}
+
+/// Allocates the MPC resources for a connection: the key exchange, the PRF
+/// and the record layer.
+///
+/// Returns the session keys and the decode futures for the client and server
+/// Finished verify data.
+#[allow(clippy::type_complexity)]
+pub(crate) fn alloc_session(
+    vm: &mut (dyn Vm<Binary> + Send + Sync),
+    config: &Config,
+    ke: &mut (dyn KeyExchange + Send + Sync),
+    prf: &mut Prf,
+    record_layer: &mut RecordLayer,
+) -> Result<
+    (
+        SessionKeys,
+        DecodeFutureTyped<BitVec, [u8; 12]>,
+        DecodeFutureTyped<BitVec, [u8; 12]>,
+    ),
+    MpcTlsError,
+> {
+    let pms = ke.alloc(&mut *vm)?;
+    let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc_pms(&mut *vm, pms)?;
+    record_layer.set_keys(
+        keys.client_write_key,
+        keys.client_iv,
+        keys.server_write_key,
+        keys.server_iv,
+    )?;
+
+    let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
+    let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
+
+    let server_write_mac_key = record_layer.alloc(
+        &mut *vm,
+        config.max_sent_records,
+        config.max_recv_records_online,
+        config.max_sent,
+        config.max_recv_online,
+        config.max_recv,
+    )?;
+
+    let keys = SessionKeys {
+        client_write_key: keys.client_write_key,
+        client_write_iv: keys.client_iv,
+        server_write_key: keys.server_write_key,
+        server_write_iv: keys.server_iv,
+        server_write_mac_key,
+    };
+
+    Ok((keys, cf_vd, sf_vd))
 }
 
 /// Flushes the PRF, executing the VM until the PRF has no more work.
@@ -127,6 +181,8 @@ mod tests {
         for len in 0..24 {
             assert!(opaque_into_parts(vec![0; len]).is_err());
         }
+        // An empty ciphertext is the acceptance boundary.
+        assert!(opaque_into_parts(vec![0; 24]).is_ok());
     }
 
     #[test]

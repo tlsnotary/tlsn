@@ -118,7 +118,7 @@ async fn emit_client_hello_for_retry(
         supported_versions.push(ProtocolVersion::TLSv1_2);
     }
 
-    // should be unreachable thanks to config builder
+    // Unreachable: the versions are fixed in `ClientConfig::new`.
     assert!(!supported_versions.is_empty());
 
     let mut exts = vec![
@@ -127,7 +127,8 @@ async fn emit_client_hello_for_retry(
         // The MPC backend only supports P-256.
         ClientExtension::NamedGroups(vec![NamedGroup::secp256r1]),
         ClientExtension::SignatureAlgorithms(config.verifier.supported_verify_schemes()),
-        //ClientExtension::ExtendedMasterSecretRequest,
+        // The extended master secret extension is not supported by the MPC
+        // backend.
         ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp()),
     ];
 
@@ -183,13 +184,6 @@ async fn emit_client_hello_for_retry(
             extensions: exts,
         }),
     };
-
-    // let early_key_schedule = if let Some(resuming) = fill_in_binder {
-    //     let schedule = tls13::fill_in_psk_binder(&resuming, &transcript_buffer,
-    // &mut chp);     Some((resuming.suite(), schedule))
-    // } else {
-    //     None
-    // };
 
     let ch = Message {
         // "This value MUST be set to 0x0303 for all records generated

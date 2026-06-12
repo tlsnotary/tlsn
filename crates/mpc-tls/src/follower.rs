@@ -2,14 +2,14 @@ use crate::{
     Config, MpcTlsError, Role, SessionKeys, Vm,
     msg::{Message, ServerHello},
     record_layer::{RecordLayer, aead::MpcAesGcm},
-    utils::{flush_prf, verify_transcript},
+    utils::{alloc_session, flush_prf, verify_transcript},
 };
-use hmac_sha256::{MSMode, Prf, PrfConfig, PrfOutput};
+use hmac_sha256::{MSMode, Prf, PrfConfig};
 use ke::KeyExchange;
 use key_exchange::{self as ke, MpcKeyExchange};
 use mpz_common::{Context, Flush};
 use mpz_core::{Block, bitvec::BitVec};
-use mpz_memory_core::{DecodeFutureTyped, MemoryExt};
+use mpz_memory_core::DecodeFutureTyped;
 use mpz_ole::{Receiver as OLEReceiver, Sender as OLESender};
 use mpz_ot::{
     rcot::{RCOTReceiver, RCOTSender},
@@ -107,41 +107,18 @@ impl MpcTlsFollower {
             return Err(MpcTlsError::state("must be in init state to allocate"));
         };
 
-        let (keys, cf_vd, sf_vd, sw_mac_key) = {
-            let vm = &mut (*vm
+        let (keys, cf_vd, sf_vd) = {
+            let mut vm = vm
                 .try_lock()
-                .map_err(|_| MpcTlsError::other("VM lock is held"))?);
+                .map_err(|_| MpcTlsError::other("VM lock is held"))?;
 
-            let pms = ke.alloc(vm)?;
-            let PrfOutput { keys, cf_vd, sf_vd } = prf.alloc_pms(vm, pms)?;
-            record_layer.set_keys(
-                keys.client_write_key,
-                keys.client_iv,
-                keys.server_write_key,
-                keys.server_iv,
-            )?;
-
-            let cf_vd = vm.decode(cf_vd).map_err(MpcTlsError::alloc)?;
-            let sf_vd = vm.decode(sf_vd).map_err(MpcTlsError::alloc)?;
-
-            let server_write_mac_key = record_layer.alloc(
-                vm,
-                self.config.max_sent_records,
-                self.config.max_recv_records_online,
-                self.config.max_sent,
-                self.config.max_recv_online,
-                self.config.max_recv,
-            )?;
-
-            (keys, cf_vd, sf_vd, server_write_mac_key)
-        };
-
-        let keys: SessionKeys = SessionKeys {
-            client_write_key: keys.client_write_key,
-            client_write_iv: keys.client_iv,
-            server_write_key: keys.server_write_key,
-            server_write_iv: keys.server_iv,
-            server_write_mac_key: sw_mac_key,
+            alloc_session(
+                &mut *vm,
+                &self.config,
+                &mut *ke,
+                &mut prf,
+                &mut record_layer,
+            )?
         };
 
         self.state = State::Setup {
@@ -166,7 +143,6 @@ impl MpcTlsFollower {
             mut record_layer,
             cf_vd,
             sf_vd,
-            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("must be in setup state to preprocess"));
@@ -231,7 +207,6 @@ impl MpcTlsFollower {
             mut record_layer,
             cf_vd: mut cf_vd_fut,
             sf_vd: mut sf_vd_fut,
-            ..
         } = self.state.take()
         else {
             return Err(MpcTlsError::state("must be in ready state to run"));
@@ -330,20 +305,21 @@ impl MpcTlsFollower {
                     );
                 }
                 Message::Encrypt(encrypt) => {
-                    record_layer
-                        .push_encrypt(encrypt.typ, encrypt.version, encrypt.len, encrypt.plaintext)
-                        .map_err(MpcTlsError::record_layer)?;
+                    record_layer.push_encrypt(
+                        encrypt.typ,
+                        encrypt.version,
+                        encrypt.len,
+                        encrypt.plaintext,
+                    )?;
                 }
                 Message::Decrypt(decrypt) => {
-                    record_layer
-                        .push_decrypt(
-                            decrypt.typ,
-                            decrypt.version,
-                            decrypt.explicit_nonce,
-                            decrypt.ciphertext,
-                            decrypt.tag,
-                        )
-                        .map_err(MpcTlsError::record_layer)?;
+                    record_layer.push_decrypt(
+                        decrypt.typ,
+                        decrypt.version,
+                        decrypt.explicit_nonce,
+                        decrypt.ciphertext,
+                        decrypt.tag,
+                    )?;
                 }
                 Message::StartTraffic => {
                     record_layer.start_traffic();

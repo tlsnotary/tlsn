@@ -25,7 +25,7 @@ use tls_core::{
 };
 
 /// Values of this structure are returned from
-/// [`Connection::process_new_packets`] and tell the caller the current I/O
+/// [`ClientConnection::process_new_packets`] and tell the caller the current I/O
 /// state of the TLS connection.
 #[derive(Debug, PartialEq)]
 pub struct IoState {
@@ -41,22 +41,22 @@ impl IoState {
     }
 
     /// How many plaintext bytes could be obtained via
-    /// [`ConnectionCommon::read_plaintext`] without further I/O.
+    /// [`ClientConnection::read_plaintext`] without further I/O.
     pub fn plaintext_bytes_to_read(&self) -> usize {
         self.plaintext_bytes_to_read
     }
-}
-
-#[derive(Debug)]
-pub(crate) struct ConnectionRandoms {
-    pub(crate) client: [u8; 32],
-    pub(crate) server: [u8; 32],
 }
 
 /// How many ChangeCipherSpec messages we accept and drop in TLS1.3 handshakes.
 /// The spec says 1, but implementations (namely the boringssl test suite) get
 /// this wrong.  BoringSSL itself accepts up to 32.
 static TLS13_MAX_DROPPED_CCS: u8 = 2u8;
+
+#[derive(Debug)]
+pub(crate) struct ConnectionRandoms {
+    pub(crate) client: [u8; 32],
+    pub(crate) server: [u8; 32],
+}
 
 impl ConnectionRandoms {
     pub(crate) fn new(client: Random, server: Random) -> Self {
@@ -76,7 +76,7 @@ fn is_valid_ccs(msg: &OpaqueMessage) -> bool {
 /// This represents a single TLS client connection.
 pub struct ClientConnection {
     state: Result<Box<dyn State>, Error>,
-    pub(crate) common_state: CommonState,
+    common_state: CommonState,
     message_deframer: MessageDeframer,
     handshake_joiner: HandshakeJoiner,
 }
@@ -103,7 +103,7 @@ impl ClientConnection {
         self.common_state.received_plaintext.read(buf)
     }
 
-    /// Returns whether there are buffered data.
+    /// Returns whether the MPC record layer has no buffered records.
     pub fn is_empty(&self) -> bool {
         self.common_state.backend.is_empty()
     }
@@ -198,7 +198,7 @@ impl ClientConnection {
     }
 
     /// Processes any new packets read by a previous call to
-    /// [`Connection::read_tls`].
+    /// [`ClientConnection::read_tls`].
     ///
     /// Errors from this function relate to TLS protocol errors, and
     /// are fatal to the connection.  Future calls after an error will do
@@ -213,8 +213,8 @@ impl ClientConnection {
     /// Success from this function comes with some sundry state data
     /// about the connection.
     ///
-    /// [`read_tls`]: Connection::read_tls
-    /// [`process_new_packets`]: Connection::process_new_packets
+    /// [`read_tls`]: ClientConnection::read_tls
+    /// [`process_new_packets`]: ClientConnection::process_new_packets
     pub async fn process_new_packets(&mut self) -> Result<IoState, Error> {
         let mut state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
             Ok(state) => state,
@@ -305,7 +305,7 @@ impl ClientConnection {
     /// so.  This typically happens when a socket is cleanly closed,
     /// or a file is at EOF.
     ///
-    /// [`process_new_packets`]: Connection::process_new_packets
+    /// [`process_new_packets`]: ClientConnection::process_new_packets
     pub fn read_tls(&mut self, rd: &mut dyn io::Read) -> Result<usize, io::Error> {
         self.message_deframer.read(rd)
     }
@@ -396,7 +396,7 @@ impl CommonState {
     /// handshake.
     ///
     /// During this time plaintext written to the connection is buffered in
-    /// memory. After [`Connection::process_new_packets`] has been called,
+    /// memory. After [`ClientConnection::process_new_packets`] has been called,
     /// this might start to return `false` while the final handshake packets
     /// still need to be extracted from the connection's buffers.
     pub fn is_handshaking(&self) -> bool {
@@ -637,12 +637,13 @@ impl CommonState {
         self.send_msg(m, self.encrypting).await
     }
 
-    /// Returns true if the caller should call [`Connection::read_tls`] as soon
+    /// Returns true if the caller should call [`ClientConnection::read_tls`] as soon
     /// as possible.
     ///
-    /// If there is pending plaintext data to read with [`Connection::reader`],
-    /// this returns false.  If your application respects this mechanism,
-    /// only one full TLS message will be buffered by rustls.
+    /// If there is pending plaintext data to read with
+    /// [`ClientConnection::read_plaintext`], this returns false.  If the
+    /// application respects this mechanism, only one full TLS message will
+    /// be buffered.
     pub fn wants_read(&self) -> bool {
         // We want to read more data all the time, except when we have unprocessed
         // plaintext. This provides back-pressure to the TCP buffers. We also

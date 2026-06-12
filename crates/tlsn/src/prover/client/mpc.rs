@@ -442,7 +442,7 @@ fn create_client_config(
             .collect::<Result<Vec<_>, _>>()?,
     };
 
-    let rustls_config = if let Some((cert, key)) = config.client_auth() {
+    let client_config = if let Some((cert, key)) = config.client_auth() {
         mpc_tls::client::ClientConfig::new_with_client_auth(
             root_store,
             cert.iter()
@@ -459,5 +459,5 @@ fn create_client_config(
         mpc_tls::client::ClientConfig::new(root_store)
     };
 
-    Ok(rustls_config)
+    Ok(client_config)
 }

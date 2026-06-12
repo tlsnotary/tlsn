@@ -121,9 +121,6 @@ pub fn any_eddsa_type(der: &key::PrivateKey) -> Result<Arc<dyn SigningKey>, Sign
 }
 
 /// A `SigningKey` for RSA-PKCS1 or RSA-PSS.
-///
-/// This is used by the test suite, so it must be `pub`, but it isn't part of
-/// the public, stable, API.
 #[doc(hidden)]
 pub struct RsaSigningKey {
     key: Arc<RsaKeyPair>,
@@ -161,11 +158,6 @@ impl SigningKey for RsaSigningKey {
         SignatureAlgorithm::RSA
     }
 }
-
-#[allow(clippy::upper_case_acronyms)]
-#[doc(hidden)]
-#[deprecated(since = "0.20.0", note = "Use RsaSigningKey")]
-pub type RSASigningKey = RsaSigningKey;
 
 struct RsaSigner {
     key: Arc<RsaKeyPair>,
