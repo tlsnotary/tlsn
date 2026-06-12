@@ -1,9 +1,9 @@
 //! MPC-TLS follower.
 //!
-//! The follower is the verifier-side peer of the [`MpcTlsLeader`](crate::MpcTlsLeader).
-//! It runs no TLS protocol logic of its own: it embeds an [`MpcSession`] and
-//! mirrors the leader's decisions, which arrive as [`Message`]s, by running the
-//! same MPC operations on its session.
+//! The follower is the verifier-side peer of the
+//! [`MpcTlsLeader`](crate::MpcTlsLeader). It runs no TLS protocol logic of its
+//! own: it embeds an [`MpcSession`] and mirrors the leader's decisions, which
+//! arrive as [`Message`]s, by running the same MPC operations on its session.
 
 use hmac_sha256::{MSMode, Prf, PrfConfig};
 use ke::KeyExchange;

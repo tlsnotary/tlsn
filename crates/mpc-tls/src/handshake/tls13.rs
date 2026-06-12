@@ -1,4 +1,5 @@
 use crate::{
+    conn::Conn,
     handshake::{
         ClientConfig, ServerName,
         check::inappropriate_handshake_message,
@@ -8,7 +9,6 @@ use crate::{
         sign::{self, CertifiedKey, Signer},
         verify,
     },
-    conn::Conn,
 };
 #[allow(deprecated)]
 use ring::constant_time;
@@ -564,14 +564,16 @@ impl ExpectFinished {
             .await?;
 
         #[allow(deprecated)]
-        let fin =
-            match constant_time::verify_slices_are_equal(expect_verify_data.as_ref(), &finished.0) {
-                Ok(()) => verify::FinishedMessageVerified::assertion(),
-                Err(_) => {
-                    cx.send_fatal_alert(AlertDescription::DecryptError).await?;
-                    return Err(Error::DecryptError);
-                }
-            };
+        let fin = match constant_time::verify_slices_are_equal(
+            expect_verify_data.as_ref(),
+            &finished.0,
+        ) {
+            Ok(()) => verify::FinishedMessageVerified::assertion(),
+            Err(_) => {
+                cx.send_fatal_alert(AlertDescription::DecryptError).await?;
+                return Err(Error::DecryptError);
+            }
+        };
 
         st.transcript.add_message(&m);
 

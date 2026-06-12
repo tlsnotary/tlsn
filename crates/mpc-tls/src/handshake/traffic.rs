@@ -5,8 +5,8 @@
 //! messages that may legitimately arrive during application-data transfer.
 
 use crate::{
-    handshake::{check::inappropriate_message, error::Error},
     conn::Conn,
+    handshake::{check::inappropriate_message, error::Error},
 };
 use tls_core::msgs::{
     enums::{AlertDescription, ContentType, HandshakeType},

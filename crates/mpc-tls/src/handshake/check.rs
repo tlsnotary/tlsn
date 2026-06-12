@@ -1,14 +1,14 @@
 use crate::handshake::error::Error;
-use tracing::warn;
 use tls_core::msgs::{
     enums::{ContentType, HandshakeType},
     message::MessagePayload,
 };
+use tracing::warn;
 
 /// For a Message $m, and a HandshakePayload enum member $payload_type,
 /// return Ok(payload) if $m is both a handshake message and one that
-/// has the given $payload_type.  If not, return Err(crate::handshake::Error) quoting
-/// $handshake_type as the expected handshake type.
+/// has the given $payload_type.  If not, return Err(crate::handshake::Error)
+/// quoting $handshake_type as the expected handshake type.
 macro_rules! require_handshake_msg(
   ( $m:expr_2021, $handshake_type:path, $payload_type:path ) => (
     match &$m.payload {

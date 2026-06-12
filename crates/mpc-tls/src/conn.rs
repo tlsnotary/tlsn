@@ -264,8 +264,8 @@ impl TlsIo {
         self.handshake_joiner.take_message(msg).map(|_| ())
     }
 
-    /// Marks whether the handshake flight just joined was aligned, returning the
-    /// next reassembled handshake message if any.
+    /// Marks whether the handshake flight just joined was aligned, returning
+    /// the next reassembled handshake message if any.
     pub(crate) fn mark_aligned_handshake(&mut self) {
         self.aligned_handshake = self.handshake_joiner.is_empty();
     }
@@ -322,7 +322,8 @@ impl Conn {
         }
     }
 
-    /// Whether the session keys have been derived and the record layer prepared.
+    /// Whether the session keys have been derived and the record layer
+    /// prepared.
     pub(crate) fn encryption_prepared(&self) -> bool {
         self.server_params.is_some()
     }
@@ -365,7 +366,9 @@ impl Conn {
 
         let server_key =
             p256::PublicKey::from_sec1_bytes(&hs.server_key.key).map_err(MpcTlsError::hs)?;
-        self.session.compute_keys(hs.server_random.0, server_key).await?;
+        self.session
+            .compute_keys(hs.server_random.0, server_key)
+            .await?;
 
         self.server_params = Some(hs);
         self.time = Some(time);
@@ -385,7 +388,8 @@ impl Conn {
             .try_into()
             .map_err(|_| MpcTlsError::hs("client finished handshake hash is not 32 bytes"))?;
 
-        self.send_message(MpcMessage::ClientFinishedVd(hash)).await?;
+        self.send_message(MpcMessage::ClientFinishedVd(hash))
+            .await?;
         let vd = self.session.compute_cf_vd(hash).await?;
 
         Ok(vd.to_vec())
@@ -401,7 +405,8 @@ impl Conn {
             .try_into()
             .map_err(|_| MpcTlsError::hs("server finished handshake hash is not 32 bytes"))?;
 
-        self.send_message(MpcMessage::ServerFinishedVd(hash)).await?;
+        self.send_message(MpcMessage::ServerFinishedVd(hash))
+            .await?;
         let vd = self.session.compute_sf_vd(hash).await?;
 
         Ok(vd.to_vec())
@@ -482,7 +487,8 @@ impl Conn {
             _ => Some(plaintext.clone()),
         };
 
-        self.session.push_encrypt(typ, version, len, Some(plaintext))?;
+        self.session
+            .push_encrypt(typ, version, len, Some(plaintext))?;
 
         self.send_message(MpcMessage::Encrypt(Encrypt {
             typ,
@@ -590,7 +596,8 @@ impl Conn {
         }
 
         debug!("flushing record layer");
-        self.send_message(MpcMessage::Flush { is_decrypting }).await?;
+        self.send_message(MpcMessage::Flush { is_decrypting })
+            .await?;
         self.session.flush(is_decrypting).await?;
 
         Ok(())

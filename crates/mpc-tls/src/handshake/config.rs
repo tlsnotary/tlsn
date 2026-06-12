@@ -43,8 +43,10 @@ pub trait ResolvesClientCert: Send + Sync {
 ///
 /// # Defaults
 ///
-/// * [`ClientConfig::max_fragment_size`]: the default is `None`: TLS packets are not fragmented to a specific size.
-/// * [`ClientConfig::alpn_protocols`]: the default is empty -- no ALPN protocol is negotiated.
+/// * [`ClientConfig::max_fragment_size`]: the default is `None`: TLS packets
+///   are not fragmented to a specific size.
+/// * [`ClientConfig::alpn_protocols`]: the default is empty -- no ALPN protocol
+///   is negotiated.
 #[derive(Clone)]
 pub struct ClientConfig {
     /// List of ciphersuites, in preference order.
@@ -60,7 +62,8 @@ pub struct ClientConfig {
     /// rustls enforces an arbitrary minimum of 32 bytes for this field.
     /// Out of range values are reported as errors from ClientConnection::new.
     ///
-    /// Setting this value to the TCP MSS may improve latency for stream-y workloads.
+    /// Setting this value to the TCP MSS may improve latency for stream-y
+    /// workloads.
     pub max_fragment_size: Option<usize>,
 
     /// How to decide what client auth certificate/keys to use.
@@ -166,10 +169,7 @@ impl ResolvesClientCert for FailResolveClientCert {
 struct AlwaysResolvesClientCert(Arc<sign::CertifiedKey>);
 
 impl AlwaysResolvesClientCert {
-    fn new(
-        chain: Vec<key::Certificate>,
-        priv_key: &key::PrivateKey,
-    ) -> Result<Self, Error> {
+    fn new(chain: Vec<key::Certificate>, priv_key: &key::PrivateKey) -> Result<Self, Error> {
         let key = sign::any_supported_type(priv_key)
             .map_err(|_| Error::General("invalid private key".into()))?;
         Ok(Self(Arc::new(sign::CertifiedKey::new(chain, key))))

@@ -1,4 +1,5 @@
 use crate::{
+    conn::{Conn, ConnectionRandoms, HandshakeData},
     handshake::{
         ClientConfig, ServerName,
         check::{inappropriate_handshake_message, inappropriate_message},
@@ -8,7 +9,6 @@ use crate::{
         sign::Signer,
         verify,
     },
-    conn::{Conn, ConnectionRandoms, HandshakeData},
 };
 #[allow(deprecated)]
 use ring::constant_time;
@@ -505,16 +505,18 @@ impl ExpectCertificateRequest {
             NO_CONTEXT,
         );
 
-        Ok(Handshake::Tls12ExpectServerDone(Box::new(ExpectServerDone {
-            config: self.config,
-            server_name: self.server_name,
-            randoms: self.randoms,
-            transcript: self.transcript,
-            suite: self.suite,
-            server_cert: self.server_cert,
-            server_kx: self.server_kx,
-            client_auth: Some(client_auth),
-        })))
+        Ok(Handshake::Tls12ExpectServerDone(Box::new(
+            ExpectServerDone {
+                config: self.config,
+                server_name: self.server_name,
+                randoms: self.randoms,
+                transcript: self.transcript,
+                suite: self.suite,
+                server_cert: self.server_cert,
+                server_kx: self.server_kx,
+                client_auth: Some(client_auth),
+            },
+        )))
     }
 }
 
@@ -604,7 +606,8 @@ impl ExpectServerDone {
 
             // Check the signature is compatible with the ciphersuite.
             let sig = st.server_kx.kx_sig();
-            if !SupportedCipherSuite::from(suite).usable_for_signature_algorithm(sig.scheme.sign()) {
+            if !SupportedCipherSuite::from(suite).usable_for_signature_algorithm(sig.scheme.sign())
+            {
                 let error_message = format!(
                     "peer signed kx with wrong algorithm (got {:?} expect {:?})",
                     sig.scheme.sign(),

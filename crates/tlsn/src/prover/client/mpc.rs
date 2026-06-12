@@ -421,9 +421,7 @@ impl InnerState {
     }
 }
 
-fn create_client_config(
-    config: &TlsClientConfig,
-) -> Result<mpc_tls::ClientConfig, TlsnError> {
+fn create_client_config(config: &TlsClientConfig) -> Result<mpc_tls::ClientConfig, TlsnError> {
     let root_store = mpc_tls::RootCertStore {
         roots: config
             .root_store()

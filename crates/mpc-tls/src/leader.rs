@@ -18,9 +18,9 @@
 //!   [`Phase::Handshaking`] (the handshake state machine and its inputs) or
 //!   [`Phase::Online`] (application-data transfer). The phase flips in place
 //!   when the handshake completes, so a single `process_new_packets` call can
-//!   finish the handshake and process the first application records that follow.
-//!   The `Live` remains in place after the connection closes so buffered
-//!   plaintext can be drained before [`MpcTlsLeader::finish`].
+//!   finish the handshake and process the first application records that
+//!   follow. The `Live` remains in place after the connection closes so
+//!   buffered plaintext can be drained before [`MpcTlsLeader::finish`].
 
 use std::{io, mem, sync::Arc};
 
@@ -432,8 +432,8 @@ impl Live {
     /// Initiates the TLS protocol by emitting the ClientHello.
     ///
     /// On failure the error is latched into the handshake state so subsequent
-    /// `process_new_packets` calls surface it rather than driving a half-started
-    /// connection.
+    /// `process_new_packets` calls surface it rather than driving a
+    /// half-started connection.
     async fn start_handshake(&mut self) -> Result<(), Error> {
         let (config, server_name) = match &self.phase {
             Phase::Handshaking(hs) => (hs.client_config.clone(), hs.server_name.clone()),
@@ -582,7 +582,8 @@ impl Live {
             && self.is_handshaking()
             && self.conn.io.is_tls13()
         {
-            if !is_valid_ccs(&msg) || self.conn.io.received_middlebox_ccs() > TLS13_MAX_DROPPED_CCS {
+            if !is_valid_ccs(&msg) || self.conn.io.received_middlebox_ccs() > TLS13_MAX_DROPPED_CCS
+            {
                 self.conn
                     .send_fatal_alert(AlertDescription::UnexpectedMessage)
                     .await?;
@@ -638,8 +639,8 @@ impl Live {
         }
     }
 
-    /// Steps the handshake state machine with `msg`, transitioning to the online
-    /// phase if the handshake completes.
+    /// Steps the handshake state machine with `msg`, transitioning to the
+    /// online phase if the handshake completes.
     async fn step_handshake(&mut self, msg: Message) -> Result<(), Error> {
         let handshake = match &mut self.phase {
             Phase::Handshaking(hs) => {

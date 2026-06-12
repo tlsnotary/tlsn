@@ -1,12 +1,9 @@
 use crate::{
-    handshake::{
-        ClientConfig, ResolvesClientCert, ServerName,
-        check::inappropriate_handshake_message,
-        error::Error,
-        hash_hs::HandshakeHashBuffer,
-        sign, tls12, tls13,
-    },
     conn::{Conn, ConnectionRandoms},
+    handshake::{
+        ClientConfig, ResolvesClientCert, ServerName, check::inappropriate_handshake_message,
+        error::Error, hash_hs::HandshakeHashBuffer, sign, tls12, tls13,
+    },
 };
 use std::sync::Arc;
 use tls_core::{
@@ -19,8 +16,8 @@ use tls_core::{
         handshake::{
             CertificateStatusRequest, ClientExtension, ClientHelloPayload, ConvertProtocolNameList,
             DistinguishedNames, ECPointFormatList, HandshakeMessagePayload, HandshakePayload,
-            HasServerExtensions, HelloRetryRequest, ProtocolNameList, Random, SCTList, SessionID,
-            ServerExtension, SupportedPointFormats,
+            HasServerExtensions, HelloRetryRequest, ProtocolNameList, Random, SCTList,
+            ServerExtension, SessionID, SupportedPointFormats,
         },
         message::{Message, MessagePayload},
     },

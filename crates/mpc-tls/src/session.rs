@@ -354,7 +354,9 @@ impl MpcSession {
 
     /// Commits to the record layer, returning the sent and received records.
     pub(crate) async fn commit(&mut self) -> Result<(Vec<Record>, Vec<Record>), MpcTlsError> {
-        self.record_layer.commit(&mut self.ctx, self.vm.clone()).await
+        self.record_layer
+            .commit(&mut self.ctx, self.vm.clone())
+            .await
     }
 
     /// Verifies the Finished verify data in `transcript` against the values
