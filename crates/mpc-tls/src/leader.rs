@@ -61,7 +61,6 @@ use crate::{
         ClientConfig, ServerName,
         error::Error,
         hs::{self, Handshake},
-        traffic,
     },
     msg::Message as MpcMessage,
     record_layer::{RecordLayer, aead::MpcAesGcm},
@@ -635,7 +634,7 @@ impl Live {
     async fn process_message(&mut self, msg: Message) -> Result<(), Error> {
         match &self.phase {
             Phase::Handshaking(_) => self.step_handshake(msg).await,
-            Phase::Online => traffic::process_online(&mut self.conn, msg).await,
+            Phase::Online => self.conn.process_online(msg).await,
         }
     }
 
