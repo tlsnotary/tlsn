@@ -1,4 +1,4 @@
-use crate::client::{anchors::RootCertStore, error::Error, sign, verify};
+use crate::handshake::{anchors::RootCertStore, error::Error, sign, verify};
 use std::sync::Arc;
 pub use tls_core::dns::*;
 use tls_core::{

@@ -4,20 +4,30 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod client;
 mod config;
+mod conn;
 mod decode;
 mod error;
 pub(crate) mod follower;
+pub(crate) mod handshake;
 pub(crate) mod leader;
 mod msg;
 mod record_layer;
 mod session;
+mod vecbuf;
 
 pub use config::{Config, ConfigBuilder, ConfigBuilderError};
+pub use conn::IoState;
 pub use error::MpcTlsError;
 pub use follower::MpcTlsFollower;
-pub use leader::{IoState, MpcTlsLeader};
+pub use leader::MpcTlsLeader;
+
+// TLS-client policy types. The handshake module is internal; these are the
+// public surface for configuring the client and verifying the server.
+pub use handshake::{
+    Certificate, ClientConfig, Error as TlsError, PrivateKey, ResolvesClientCert, RootCertStore,
+    ServerName, sign,
+};
 
 use std::sync::Arc;
 

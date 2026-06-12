@@ -4,21 +4,25 @@
 //! cryptographic operations itself: the key exchange, the PRF and record
 //! encryption/decryption are delegated to an [`MpcSession`], which executes
 //! them jointly with the follower using MPC. This module drives the TLS
-//! protocol itself — message framing, the handshake flow, alerts and connection
+//! protocol — message framing, the handshake flow, alerts and connection
 //! closure — directly against that session, with no intermediate "backend"
 //! abstraction.
 //!
-//! [`MpcTlsLeader`] is the single public type. It has two phases, modelled by
-//! the private [`State`] enum:
+//! [`MpcTlsLeader`] is the single public type. Its lifecycle is the private
+//! [`State`] enum:
 //!
-//! * [`State::Setup`] — the connection is being allocated and preprocessed
-//!   before the TLS handshake begins.
-//! * [`State::Live`] — the TLS connection is being driven. The [`Live`] value
-//!   owns the [`MpcSession`] together with all TLS framing state and the
-//!   handshake state machine, and remains in place after the connection closes
-//!   so buffered plaintext can be drained before [`MpcTlsLeader::finish`].
+//! * [`State::Setup`] — MPC resources are allocated and preprocessed before the
+//!   handshake begins.
+//! * [`State::Live`] — the connection is driven. A [`Live`] owns the connection
+//!   I/O and MPC session ([`Conn`]) plus a [`Phase`] that is either
+//!   [`Phase::Handshaking`] (the handshake state machine and its inputs) or
+//!   [`Phase::Online`] (application-data transfer). The phase flips in place
+//!   when the handshake completes, so a single `process_new_packets` call can
+//!   finish the handshake and process the first application records that follow.
+//!   The `Live` remains in place after the connection closes so buffered
+//!   plaintext can be drained before [`MpcTlsLeader::finish`].
 
-use std::{collections::VecDeque, convert::TryFrom, io, mem, sync::Arc};
+use std::{io, mem, sync::Arc};
 
 use hmac_sha256::{MSMode, Prf, PrfConfig};
 use ke::KeyExchange;
@@ -36,20 +40,11 @@ use mpz_ot::{
 use mpz_share_conversion::{ShareConversionReceiver, ShareConversionSender};
 use serio::SinkExt;
 use tls_core::{
-    cert::ServerCertDetails,
-    ke::ServerKxDetails,
-    key::PublicKey,
     msgs::{
-        alert::AlertMessagePayload,
-        base::Payload,
-        deframer::MessageDeframer,
-        enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
-        fragmenter::MessageFragmenter,
+        enums::{AlertDescription, ContentType},
         handshake::Random,
-        hsjoiner::HandshakeJoiner,
         message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
     },
-    suites::SupportedCipherSuite,
     verify::verify_sig_determine_alg,
 };
 use tlsn_core::{
@@ -57,27 +52,21 @@ use tlsn_core::{
     transcript::TlsTranscript,
     webpki::CertificateDer,
 };
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, instrument, trace};
 
 use crate::{
     Config, MpcTlsError, Role, SessionKeys, Vm,
-    client::{
+    conn::{Conn, IoState, TLS13_MAX_DROPPED_CCS, TlsIo, is_valid_ccs},
+    handshake::{
         ClientConfig, ServerName,
         error::Error,
         hs::{self, Handshake},
-        vecbuf::ChunkVecBuffer,
+        traffic,
     },
-    msg::{Decrypt, Encrypt, Message as MpcMessage, ServerHello},
+    msg::Message as MpcMessage,
     record_layer::{RecordLayer, aead::MpcAesGcm},
-    session::{MpcSession, opaque_into_parts},
+    session::MpcSession,
 };
-
-/// How many ChangeCipherSpec messages we accept and drop in TLS1.3 handshakes.
-/// The spec says 1, but implementations (namely the boringssl test suite) get
-/// this wrong. BoringSSL itself accepts up to 32.
-static TLS13_MAX_DROPPED_CCS: u8 = 2u8;
-
-const DEFAULT_BUFFER_LIMIT: usize = 64 * 1024;
 
 /// MPC-TLS leader: the unified TLS-over-MPC client.
 pub struct MpcTlsLeader {
@@ -246,6 +235,10 @@ impl MpcTlsLeader {
         client_config: Arc<ClientConfig>,
         server_name: ServerName,
     ) -> Result<(), Error> {
+        // Build the framing first: this validates the configured fragment size,
+        // so a bad configuration is reported without tearing down the session.
+        let io = TlsIo::new(client_config.max_fragment_size)?;
+
         let State::Setup(setup) = self.state.take() else {
             return Err(Error::General(
                 "must be in setup state to start the connection".to_string(),
@@ -257,14 +250,9 @@ impl MpcTlsLeader {
             ..
         } = *setup;
 
-        let mut live = Live::new(
-            session,
-            client_config,
-            server_name,
-            client_random,
-            self.is_decrypting,
-        );
-        let result = live.start().await;
+        let conn = Conn::new(io, session, client_random);
+        let mut live = Live::new(conn, client_config, server_name, self.is_decrypting);
+        let result = live.start_handshake().await;
         self.state = State::Live(Box::new(live));
         result
     }
@@ -277,7 +265,7 @@ impl MpcTlsLeader {
     /// Reads out buffered plaintext received from the peer.
     pub fn read_plaintext(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match &mut self.state {
-            State::Live(live) => live.read_plaintext(buf),
+            State::Live(live) => live.conn.io.read_plaintext(buf),
             _ => Ok(0),
         }
     }
@@ -285,7 +273,7 @@ impl MpcTlsLeader {
     /// Buffers plaintext to be encrypted and sent to the peer.
     pub fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
         match &mut self.state {
-            State::Live(live) => Ok(live.write_plaintext(buf)),
+            State::Live(live) => Ok(live.conn.io.write_plaintext(buf)),
             _ => Ok(0),
         }
     }
@@ -293,7 +281,7 @@ impl MpcTlsLeader {
     /// Reads TLS records from `rd` into the internal buffer.
     pub fn read_tls(&mut self, rd: &mut dyn io::Read) -> io::Result<usize> {
         match &mut self.state {
-            State::Live(live) => live.read_tls(rd),
+            State::Live(live) => live.conn.io.read_tls(rd),
             _ => Ok(0),
         }
     }
@@ -301,7 +289,7 @@ impl MpcTlsLeader {
     /// Writes buffered TLS records to `wr`.
     pub fn write_tls(&mut self, wr: &mut dyn io::Write) -> io::Result<usize> {
         match &mut self.state {
-            State::Live(live) => live.write_tls(wr),
+            State::Live(live) => live.conn.io.write_tls(wr),
             _ => Ok(0),
         }
     }
@@ -313,13 +301,13 @@ impl MpcTlsLeader {
 
     /// Returns whether the caller should write buffered TLS data.
     pub fn wants_write(&self) -> bool {
-        matches!(&self.state, State::Live(live) if live.wants_write())
+        matches!(&self.state, State::Live(live) if live.conn.io.wants_write())
     }
 
     /// Returns whether there is no plaintext available to read immediately.
     pub fn plaintext_is_empty(&self) -> bool {
         match &self.state {
-            State::Live(live) => live.plaintext_is_empty(),
+            State::Live(live) => live.conn.io.plaintext_is_empty(),
             _ => true,
         }
     }
@@ -327,7 +315,7 @@ impl MpcTlsLeader {
     /// Returns whether the sendable plaintext buffer is full.
     pub fn sendable_plaintext_is_full(&self) -> bool {
         match &self.state {
-            State::Live(live) => live.sendable_plaintext_is_full(),
+            State::Live(live) => live.conn.io.sendable_plaintext_is_full(),
             _ => false,
         }
     }
@@ -343,14 +331,14 @@ impl MpcTlsLeader {
     /// Returns whether the record layer has no buffered records.
     pub fn is_empty(&self) -> bool {
         match &self.state {
-            State::Live(live) => live.is_empty(),
+            State::Live(live) => live.conn.session.record_layer_is_empty(),
             _ => true,
         }
     }
 
     /// Queues a close_notify alert to be sent to the peer.
     pub async fn send_close_notify(&mut self) -> Result<(), Error> {
-        self.live_mut()?.send_close_notify().await
+        self.live_mut()?.conn.send_close_notify().await
     }
 
     /// Signals that the server has closed the connection, committing the
@@ -386,439 +374,139 @@ impl MpcTlsLeader {
     }
 }
 
-/// Values returned from [`MpcTlsLeader::process_new_packets`] describing the
-/// current I/O state of the connection.
-#[derive(Debug, PartialEq)]
-pub struct IoState {
-    tls_bytes_to_write: usize,
-    plaintext_bytes_to_read: usize,
-}
-
-impl IoState {
-    /// How many bytes could be written by [`MpcTlsLeader::write_tls`] right now.
-    pub fn tls_bytes_to_write(&self) -> usize {
-        self.tls_bytes_to_write
-    }
-
-    /// How many plaintext bytes could be read via
-    /// [`MpcTlsLeader::read_plaintext`] without further I/O.
-    pub fn plaintext_bytes_to_read(&self) -> usize {
-        self.plaintext_bytes_to_read
-    }
-}
-
-/// The client and server randoms of a connection.
-#[derive(Debug)]
-pub(crate) struct ConnectionRandoms {
-    pub(crate) client: [u8; 32],
-    pub(crate) server: [u8; 32],
-}
-
-impl ConnectionRandoms {
-    pub(crate) fn new(client: Random, server: Random) -> Self {
-        Self {
-            client: client.0,
-            server: server.0,
-        }
-    }
-}
-
-/// Server parameters of the TLS handshake, collected by the client during the
-/// handshake and used to build the transcript at close.
-#[derive(Debug)]
-pub(crate) struct HandshakeData {
-    /// The server random.
-    pub(crate) server_random: Random,
-    /// The server ephemeral public key.
-    pub(crate) server_key: PublicKey,
-    /// The server certificate chain and certificate metadata.
-    pub(crate) server_cert_details: ServerCertDetails,
-    /// The server key exchange parameters and signature.
-    pub(crate) server_kx_details: ServerKxDetails,
-}
-
-fn is_valid_ccs(msg: &OpaqueMessage) -> bool {
-    // nb. this is prior to the record layer, so is unencrypted. see
-    // third paragraph of section 5 in RFC8446.
-    msg.typ == ContentType::ChangeCipherSpec && msg.payload.0 == [0x01]
-}
-
 /// The live TLS-over-MPC connection.
 ///
-/// This fuses what upstream rustls splits across `ClientConnection` and
-/// `CommonState` with the leader's MPC machinery: it owns the [`MpcSession`]
-/// directly and drives the TLS protocol against it. The handshake state machine
-/// ([`Handshake`]) operates on `&mut Live`, reaching both the framing state and
-/// the MPC session through inherent methods.
+/// A thin lifecycle/phase driver over [`Conn`]: it pumps records through the
+/// connection and dispatches them to the current [`Phase`]. The handshake state
+/// machine and the online router operate directly on `&mut Conn`, not on
+/// `Live`, so there is no forwarding layer here.
 pub(crate) struct Live {
-    /// The MPC machinery shared with the follower.
-    session: MpcSession,
-    /// TLS client configuration.
-    client_config: Arc<ClientConfig>,
-    /// The server we are connecting to.
-    server_name: ServerName,
-    /// The client random, generated during setup.
-    client_random: Random,
-    /// The handshake state machine, or a latched fatal error.
-    handshake: Result<Handshake, Error>,
+    conn: Conn,
+    phase: Phase,
     /// Whether incoming application data is decrypted while active.
     is_decrypting: bool,
-
-    /// The negotiated protocol version.
-    pub(crate) negotiated_version: Option<ProtocolVersion>,
-    /// The negotiated cipher suite.
-    pub(crate) suite: Option<SupportedCipherSuite>,
-    /// The negotiated ALPN protocol.
-    pub(crate) alpn_protocol: Option<Vec<u8>>,
-
-    /// Whether outgoing records are encrypted, activated by the CCS we send.
-    encrypting: bool,
-    /// Whether incoming records are decrypted, activated by the server's CCS.
-    decrypting: bool,
-    may_send_application_data: bool,
-    may_receive_application_data: bool,
-    aligned_handshake: bool,
-    sent_fatal_alert: bool,
-    has_received_close_notify: bool,
-    received_middlebox_ccs: u8,
-
-    message_fragmenter: MessageFragmenter,
-    message_deframer: MessageDeframer,
-    handshake_joiner: HandshakeJoiner,
-    received_plaintext: ChunkVecBuffer,
-    sendable_plaintext: ChunkVecBuffer,
-    sendable_tls: ChunkVecBuffer,
-
-    /// Server handshake parameters, collected during the handshake and used to
-    /// build the transcript at close.
-    server_params: Option<HandshakeData>,
-    /// The handshake time, set when encryption is prepared.
-    time: Option<u64>,
     /// The committed transcript, set once the connection is closed.
     transcript: Option<TlsTranscript>,
 }
 
+/// Which phase of the connection is active.
+enum Phase {
+    /// The handshake is in progress; holds the handshake state machine and its
+    /// inputs.
+    Handshaking(Box<Handshaking>),
+    /// The handshake is complete; application data flows. No handshake state is
+    /// retained.
+    Online,
+}
+
+/// Handshake-phase-only state.
+struct Handshaking {
+    /// The handshake state machine, or a latched fatal error.
+    handshake: Result<Handshake, Error>,
+    client_config: Arc<ClientConfig>,
+    server_name: ServerName,
+}
+
 impl Live {
     fn new(
-        session: MpcSession,
+        conn: Conn,
         client_config: Arc<ClientConfig>,
         server_name: ServerName,
-        client_random: Random,
         is_decrypting: bool,
     ) -> Self {
-        let max_fragment_size = client_config.max_fragment_size;
         Self {
-            session,
-            client_config,
-            server_name,
-            client_random,
-            handshake: Ok(Handshake::Invalid),
+            conn,
+            phase: Phase::Handshaking(Box::new(Handshaking {
+                // The handshake state is installed by `start_handshake`; until
+                // then any attempt to drive the connection reports
+                // `HandshakeNotComplete`.
+                handshake: Err(Error::HandshakeNotComplete),
+                client_config,
+                server_name,
+            })),
             is_decrypting,
-            negotiated_version: None,
-            suite: None,
-            alpn_protocol: None,
-            encrypting: false,
-            decrypting: false,
-            may_send_application_data: false,
-            may_receive_application_data: false,
-            aligned_handshake: true,
-            sent_fatal_alert: false,
-            has_received_close_notify: false,
-            received_middlebox_ccs: 0,
-            message_fragmenter: MessageFragmenter::new(max_fragment_size)
-                .expect("max_fragment_size was validated by ClientConfig"),
-            message_deframer: MessageDeframer::new(),
-            handshake_joiner: HandshakeJoiner::new(),
-            received_plaintext: ChunkVecBuffer::new(Some(0)),
-            sendable_plaintext: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
-            sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
-            server_params: None,
-            time: None,
             transcript: None,
         }
     }
 
     /// Initiates the TLS protocol by emitting the ClientHello.
-    async fn start(&mut self) -> Result<(), Error> {
-        let config = self.client_config.clone();
-        let server_name = self.server_name.clone();
-        self.handshake = match hs::start_handshake(server_name, config, self).await {
-            Ok(handshake) => Ok(handshake),
-            Err(e) => return Err(e),
+    ///
+    /// On failure the error is latched into the handshake state so subsequent
+    /// `process_new_packets` calls surface it rather than driving a half-started
+    /// connection.
+    async fn start_handshake(&mut self) -> Result<(), Error> {
+        let (config, server_name) = match &self.phase {
+            Phase::Handshaking(hs) => (hs.client_config.clone(), hs.server_name.clone()),
+            Phase::Online => {
+                return Err(Error::General("connection already started".to_string()));
+            }
         };
-        Ok(())
+
+        let result = hs::start_handshake(server_name, config, &mut self.conn).await;
+
+        match &mut self.phase {
+            Phase::Handshaking(hs) => match result {
+                Ok(handshake) => {
+                    hs.handshake = Ok(handshake);
+                    Ok(())
+                }
+                Err(e) => {
+                    hs.handshake = Err(e.clone());
+                    Err(e)
+                }
+            },
+            Phase::Online => Err(Error::General("connection already started".to_string())),
+        }
+    }
+
+    fn is_handshaking(&self) -> bool {
+        matches!(self.phase, Phase::Handshaking(_))
+    }
+
+    fn is_online(&self) -> bool {
+        matches!(self.phase, Phase::Online)
     }
 
     fn is_closed(&self) -> bool {
         self.transcript.is_some()
     }
 
-    fn encryption_prepared(&self) -> bool {
-        self.server_params.is_some()
-    }
-
-    // --- Consumer-facing I/O ---
-
-    fn read_plaintext(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.received_plaintext.read(buf)
-    }
-
-    fn write_plaintext(&mut self, buf: &[u8]) -> usize {
-        if buf.is_empty() {
-            // Don't send empty fragments.
-            return 0;
-        }
-        self.sendable_plaintext.append_limited_copy(buf)
-    }
-
-    fn read_tls(&mut self, rd: &mut dyn io::Read) -> io::Result<usize> {
-        self.message_deframer.read(rd)
-    }
-
-    fn write_tls(&mut self, wr: &mut dyn io::Write) -> io::Result<usize> {
-        self.sendable_tls.write_to(wr)
-    }
-
     fn wants_read(&self) -> bool {
         // We want to read more data all the time, except when we have
-        // unprocessed plaintext. This provides back-pressure to the TCP
-        // buffers. We also don't want to read more after the peer has sent us a
-        // close notification.
-        self.received_plaintext.is_empty()
-            && !self.has_received_close_notify
-            && (self.may_send_application_data || self.sendable_tls.is_empty())
+        // unprocessed plaintext (back-pressure) or the peer has sent a
+        // close_notify. During the handshake we also don't read while we still
+        // have TLS data queued to send.
+        self.conn.io.plaintext_is_empty()
+            && !self.conn.io.has_received_close_notify()
+            && (self.is_online() || self.conn.io.sendable_tls_is_empty())
     }
 
-    fn wants_write(&self) -> bool {
-        !self.sendable_tls.is_empty()
+    /// Signals that the handshake is complete: starts application traffic and
+    /// transitions to the online phase.
+    async fn enter_online(&mut self) -> Result<(), Error> {
+        self.conn.start_traffic().await?;
+        self.phase = Phase::Online;
+        // Now that we may send application data, flush any plaintext that was
+        // buffered while the handshake was in progress.
+        self.flush_plaintext().await
     }
 
-    fn plaintext_is_empty(&self) -> bool {
-        self.received_plaintext.is_empty()
-    }
-
-    fn sendable_plaintext_is_full(&self) -> bool {
-        self.sendable_plaintext.is_full()
-    }
-
-    fn is_handshaking(&self) -> bool {
-        !(self.may_send_application_data && self.may_receive_application_data)
-    }
-
-    fn is_empty(&self) -> bool {
-        self.session.record_layer_is_empty()
-    }
-
-    pub(crate) fn is_tls13(&self) -> bool {
-        matches!(self.negotiated_version, Some(ProtocolVersion::TLSv1_3))
-    }
-
-    fn current_io_state(&self) -> IoState {
-        IoState {
-            tls_bytes_to_write: self.sendable_tls.len(),
-            plaintext_bytes_to_read: self.received_plaintext.len(),
+    /// Sends and encrypts any buffered plaintext. Does nothing during the
+    /// handshake.
+    async fn flush_plaintext(&mut self) -> Result<(), Error> {
+        if !self.is_online() {
+            return Ok(());
         }
-    }
-
-    // --- MPC session accessors used by the handshake ---
-
-    pub(crate) fn client_random(&self) -> Random {
-        self.client_random
-    }
-
-    pub(crate) fn client_key_share(&self) -> Result<PublicKey, MpcTlsError> {
-        self.session.client_key_share()
-    }
-
-    /// Sends a protocol message to the follower.
-    async fn send_message(&mut self, msg: MpcMessage) -> Result<(), MpcTlsError> {
-        self.session.ctx_mut().io_mut().send(msg).await?;
+        while let Some(buf) = self.conn.io.next_sendable_plaintext() {
+            self.conn.send_appdata_encrypt(&buf).await?;
+        }
         Ok(())
     }
 
-    /// Computes the session keys from the handshake data collected by the
-    /// client, preparing the record layer for encryption.
-    #[instrument(level = "debug", skip_all, err)]
-    pub(crate) async fn prepare_encryption(&mut self, hs: HandshakeData) -> Result<(), MpcTlsError> {
-        debug!("preparing encryption");
-
-        if hs.server_key.group != tls_core::msgs::enums::NamedGroup::secp256r1 {
-            return Err(MpcTlsError::hs("invalid server public keyshare"));
-        }
-
-        let time = web_time::UNIX_EPOCH
-            .elapsed()
-            .expect("system time is available")
-            .as_secs();
-
-        self.send_message(MpcMessage::ServerHello(ServerHello {
-            time,
-            random: hs.server_random.0,
-            key: hs.server_key.clone(),
-        }))
-        .await?;
-
-        let server_key =
-            p256::PublicKey::from_sec1_bytes(&hs.server_key.key).map_err(MpcTlsError::hs)?;
-        self.session.compute_keys(hs.server_random.0, server_key).await?;
-
-        self.server_params = Some(hs);
-        self.time = Some(time);
-
-        debug!("encryption prepared");
-
-        Ok(())
-    }
-
-    #[instrument(level = "debug", skip_all, err)]
-    pub(crate) async fn get_client_finished_vd(
-        &mut self,
-        hash: Vec<u8>,
-    ) -> Result<Vec<u8>, MpcTlsError> {
-        debug!("computing client finished verify data");
-        let hash: [u8; 32] = hash
-            .try_into()
-            .map_err(|_| MpcTlsError::hs("client finished handshake hash is not 32 bytes"))?;
-
-        self.send_message(MpcMessage::ClientFinishedVd(hash)).await?;
-        let vd = self.session.compute_cf_vd(hash).await?;
-
-        Ok(vd.to_vec())
-    }
-
-    #[instrument(level = "debug", skip_all, err)]
-    pub(crate) async fn get_server_finished_vd(
-        &mut self,
-        hash: Vec<u8>,
-    ) -> Result<Vec<u8>, MpcTlsError> {
-        debug!("computing server finished verify data");
-        let hash: [u8; 32] = hash
-            .try_into()
-            .map_err(|_| MpcTlsError::hs("server finished handshake hash is not 32 bytes"))?;
-
-        self.send_message(MpcMessage::ServerFinishedVd(hash)).await?;
-        let vd = self.session.compute_sf_vd(hash).await?;
-
-        Ok(vd.to_vec())
-    }
-
-    // --- Record layer plumbing ---
-
-    async fn push_incoming(&mut self, msg: OpaqueMessage) -> Result<(), MpcTlsError> {
-        let OpaqueMessage {
-            typ,
-            version,
-            payload,
-        } = msg;
-        let (explicit_nonce, ciphertext, tag) = opaque_into_parts(payload.0)?;
-
-        debug!(
-            "received incoming message, type: {:?}, len: {}",
-            typ,
-            ciphertext.len()
-        );
-
-        self.session.push_decrypt(
-            typ,
-            version,
-            explicit_nonce.clone(),
-            ciphertext.clone(),
-            tag.clone(),
-        )?;
-
-        self.send_message(MpcMessage::Decrypt(Decrypt {
-            typ,
-            version,
-            explicit_nonce,
-            ciphertext,
-            tag,
-        }))
-        .await
-    }
-
-    fn next_incoming(&mut self) -> Option<PlainMessage> {
-        let record = self.session.next_decrypted().map(|record| PlainMessage {
-            typ: record.typ,
-            version: record.version,
-            payload: Payload::new(
-                record
-                    .plaintext
-                    .expect("leader should always know plaintext"),
-            ),
-        });
-
-        if let Some(record) = &record {
-            debug!(
-                "processing incoming message, type: {:?}, len: {}",
-                record.typ,
-                record.payload.0.len()
-            );
-        }
-
-        record
-    }
-
-    #[instrument(level = "debug", skip_all, err)]
-    async fn push_outgoing(&mut self, msg: PlainMessage) -> Result<(), MpcTlsError> {
-        debug!(
-            "encrypting outgoing message, type: {:?}, len: {}",
-            msg.typ,
-            msg.payload.0.len()
-        );
-
-        let PlainMessage {
-            typ,
-            version,
-            payload,
-        } = msg;
-        let plaintext = payload.0;
-        let len = plaintext.len();
-
-        // Only the contents of application data is hidden from the follower.
-        let public_plaintext = match typ {
-            ContentType::ApplicationData => None,
-            _ => Some(plaintext.clone()),
-        };
-
-        self.session.push_encrypt(typ, version, len, Some(plaintext))?;
-
-        self.send_message(MpcMessage::Encrypt(Encrypt {
-            typ,
-            version,
-            len,
-            plaintext: public_plaintext,
-        }))
-        .await
-    }
-
-    fn next_outgoing(&mut self) -> Option<OpaqueMessage> {
-        let record = self.session.next_encrypted().map(|record| {
-            let mut payload = record.explicit_nonce;
-            payload.extend_from_slice(&record.ciphertext);
-            payload.extend_from_slice(&record.tag.expect("leader should always know tag"));
-            OpaqueMessage {
-                typ: record.typ,
-                version: record.version,
-                payload: Payload::new(payload),
-            }
-        });
-
-        if let Some(record) = &record {
-            debug!(
-                "sending outgoing message, type: {:?}, len: {}",
-                record.typ,
-                record.payload.0.len()
-            );
-        }
-
-        record
-    }
-
-    /// Flushes the record layer if there is buffered work and the connection is
-    /// in a state where flushing is meaningful.
-    #[instrument(level = "debug", skip_all, err)]
+    /// Flushes the record layer if the connection is in a state where flushing
+    /// is meaningful.
     async fn flush_records(&mut self) -> Result<(), Error> {
-        if !self.encryption_prepared() {
+        if !self.conn.encryption_prepared() {
             debug!("handshake is not complete, skipping flush");
             return Ok(());
         }
@@ -827,340 +515,162 @@ impl Live {
         if self.is_closed() {
             return Ok(());
         }
-        if !self.session.wants_flush() {
-            debug!("record layer is empty, skipping flush");
-            return Ok(());
-        }
-
-        debug!("flushing record layer");
-        let is_decrypting = self.is_decrypting;
-        self.send_message(MpcMessage::Flush { is_decrypting }).await?;
-        self.session.flush(is_decrypting).await?;
-
-        Ok(())
+        self.conn.flush_records(self.is_decrypting).await
     }
 
     // --- Connection driving ---
 
-    /// Processes any new packets read by a previous call to
-    /// [`Live::read_tls`].
+    /// Processes any new packets read by a previous call to `read_tls`.
     pub(crate) async fn process_new_packets(&mut self) -> Result<IoState, Error> {
-        let mut handshake = match mem::replace(&mut self.handshake, Err(Error::HandshakeNotComplete))
+        if let Phase::Handshaking(hs) = &self.phase
+            && let Err(e) = &hs.handshake
         {
-            Ok(handshake) => handshake,
-            Err(e) => {
-                self.handshake = Err(e.clone());
-                return Err(e);
-            }
-        };
+            return Err(e.clone());
+        }
 
-        if self.message_deframer.desynced {
+        if self.conn.io.deframer_desynced() {
             return Err(Error::CorruptMessage);
         }
 
         // Process outgoing plaintext buffer and encrypt messages.
         self.flush_plaintext().await?;
 
-        // Process new messages.
-        while let Some(msg) = self.message_deframer.frames.pop_front() {
-            if let Some(plain) = self.process_incoming_opaque(msg).await? {
-                match self.process_incoming_plain(plain, handshake).await {
-                    Ok(new) => handshake = new,
-                    Err(e) => {
-                        self.handshake = Err(e.clone());
-                        return Err(e);
-                    }
-                }
+        // Process newly deframed records.
+        while let Some(msg) = self.conn.io.next_received_frame() {
+            let plain = match self.process_incoming_opaque(msg).await {
+                Ok(plain) => plain,
+                Err(e) => return Err(self.latch(e)),
+            };
+            if let Some(plain) = plain
+                && let Err(e) = self.process_incoming_plain(plain).await
+            {
+                return Err(self.latch(e));
             }
         }
 
         self.flush_records().await?;
 
         // Process pending decrypted messages.
-        while let Some(msg) = self.next_incoming() {
-            match self.process_incoming_plain(msg, handshake).await {
-                Ok(new) => handshake = new,
-                Err(e) => {
-                    self.handshake = Err(e.clone());
-                    return Err(e);
-                }
+        while let Some(msg) = self.conn.next_incoming() {
+            if let Err(e) = self.process_incoming_plain(msg).await {
+                return Err(self.latch(e));
             }
         }
 
-        while let Some(msg) = self.next_outgoing() {
-            self.queue_tls_message(msg);
+        while let Some(msg) = self.conn.next_outgoing() {
+            self.conn.io.queue_tls_message(msg);
         }
 
-        self.handshake = Ok(handshake);
+        Ok(self.conn.io.current_io_state())
+    }
 
-        Ok(self.current_io_state())
+    /// Latches a fatal error into the handshake state (so it is returned by
+    /// future calls) and returns it.
+    fn latch(&mut self, e: Error) -> Error {
+        if let Phase::Handshaking(hs) = &mut self.phase {
+            hs.handshake = Err(e.clone());
+        }
+        e
     }
 
     async fn process_incoming_opaque(
         &mut self,
         msg: OpaqueMessage,
     ) -> Result<Option<PlainMessage>, Error> {
-        // Drop CCS messages during handshake in TLS1.3.
+        // Drop CCS messages during the TLS1.3 handshake.
         if msg.typ == ContentType::ChangeCipherSpec
-            && !self.may_receive_application_data
-            && self.is_tls13()
+            && self.is_handshaking()
+            && self.conn.io.is_tls13()
         {
-            if !is_valid_ccs(&msg) || self.received_middlebox_ccs > TLS13_MAX_DROPPED_CCS {
-                self.send_fatal_alert(AlertDescription::UnexpectedMessage)
+            if !is_valid_ccs(&msg) || self.conn.io.received_middlebox_ccs() > TLS13_MAX_DROPPED_CCS {
+                self.conn
+                    .send_fatal_alert(AlertDescription::UnexpectedMessage)
                     .await?;
                 return Err(Error::PeerMisbehavedError(
                     "illegal middlebox CCS received".into(),
                 ));
             } else {
-                self.received_middlebox_ccs += 1;
+                self.conn.io.inc_received_middlebox_ccs();
                 trace!("Dropping CCS");
                 return Ok(None);
             }
         }
 
-        if self.decrypting {
-            self.push_incoming(msg).await?;
+        if self.conn.io.decrypting() {
+            self.conn.push_incoming(msg).await?;
             Ok(None)
         } else {
             Ok(Some(msg.into_plain_message()))
         }
     }
 
-    async fn process_incoming_plain(
-        &mut self,
-        msg: PlainMessage,
-        handshake: Handshake,
-    ) -> Result<Handshake, Error> {
-        // For handshake messages, we need to join them before parsing and
-        // processing.
-        if self.handshake_joiner.want_message(&msg) {
-            match self.handshake_joiner.take_message(msg) {
-                Some(_) => {}
-                None => {
-                    self.send_fatal_alert(AlertDescription::DecodeError).await?;
-                    return Err(Error::CorruptMessagePayload(ContentType::Handshake));
-                }
+    async fn process_incoming_plain(&mut self, msg: PlainMessage) -> Result<(), Error> {
+        // Handshake messages must be reassembled before processing.
+        if self.conn.io.joiner_wants(&msg) {
+            if self.conn.io.join(msg).is_none() {
+                self.conn
+                    .send_fatal_alert(AlertDescription::DecodeError)
+                    .await?;
+                return Err(Error::CorruptMessagePayload(ContentType::Handshake));
             }
-            return self.process_new_handshake_messages(handshake).await;
+            self.conn.io.mark_aligned_handshake();
+            while let Some(msg) = self.conn.io.next_joined_message() {
+                self.process_message(msg).await?;
+            }
+            return Ok(());
         }
 
         let msg = Message::try_from(msg)?;
 
         if let MessagePayload::Alert(alert) = &msg.payload {
-            self.process_alert(alert).await?;
-            return Ok(handshake);
+            self.conn.process_alert(alert).await?;
+            return Ok(());
         }
 
-        self.process_main_protocol(msg, handshake).await
+        self.process_message(msg).await
     }
 
-    async fn process_new_handshake_messages(
-        &mut self,
-        mut handshake: Handshake,
-    ) -> Result<Handshake, Error> {
-        self.aligned_handshake = self.handshake_joiner.is_empty();
-        while let Some(msg) = self.handshake_joiner.frames.pop_front() {
-            handshake = self.process_main_protocol(msg, handshake).await?;
+    /// Dispatches a fully-parsed TLS message according to the current phase.
+    async fn process_message(&mut self, msg: Message) -> Result<(), Error> {
+        match &self.phase {
+            Phase::Handshaking(_) => self.step_handshake(msg).await,
+            Phase::Online => traffic::process_online(&mut self.conn, msg).await,
         }
-        Ok(handshake)
     }
 
-    async fn process_main_protocol(
-        &mut self,
-        msg: Message,
-        handshake: Handshake,
-    ) -> Result<Handshake, Error> {
-        // For TLS1.2, outside of the handshake, send rejection alerts for
-        // renegotiation requests. These can occur any time.
-        if self.may_receive_application_data
-            && !self.is_tls13()
-            && msg.is_handshake_type(HandshakeType::HelloRequest)
-        {
-            self.send_warning_alert(AlertDescription::NoRenegotiation)
-                .await?;
-            return Ok(handshake);
-        }
+    /// Steps the handshake state machine with `msg`, transitioning to the online
+    /// phase if the handshake completes.
+    async fn step_handshake(&mut self, msg: Message) -> Result<(), Error> {
+        let handshake = match &mut self.phase {
+            Phase::Handshaking(hs) => {
+                match mem::replace(&mut hs.handshake, Err(Error::HandshakeNotComplete)) {
+                    Ok(handshake) => handshake,
+                    Err(e) => return Err(e),
+                }
+            }
+            Phase::Online => return Err(Error::General("not in handshaking phase".to_string())),
+        };
 
-        match handshake.handle(self, msg).await {
-            Ok(next) => Ok(next),
+        let next = match handshake.handle(&mut self.conn, msg).await {
+            Ok(next) => next,
             Err(e @ Error::InappropriateMessage { .. })
             | Err(e @ Error::InappropriateHandshakeMessage { .. }) => {
-                self.send_fatal_alert(AlertDescription::UnexpectedMessage)
+                self.conn
+                    .send_fatal_alert(AlertDescription::UnexpectedMessage)
                     .await?;
-                Err(e)
+                return Err(e);
             }
-            Err(e) => Err(e),
-        }
-    }
+            Err(e) => return Err(e),
+        };
 
-    // --- Framing / alerts (formerly CommonState) ---
-
-    pub(crate) async fn check_aligned_handshake(&mut self) -> Result<(), Error> {
-        if !self.aligned_handshake {
-            self.send_fatal_alert(AlertDescription::UnexpectedMessage)
-                .await?;
-            Err(Error::PeerMisbehavedError(
-                "key epoch or handshake flight with pending fragment".to_string(),
-            ))
+        if matches!(next, Handshake::Complete) {
+            self.enter_online().await
         } else {
+            if let Phase::Handshaking(hs) = &mut self.phase {
+                hs.handshake = Ok(next);
+            }
             Ok(())
         }
-    }
-
-    pub(crate) async fn illegal_param(&mut self, why: &str) -> Result<Error, Error> {
-        self.send_fatal_alert(AlertDescription::IllegalParameter)
-            .await?;
-        Ok(Error::PeerMisbehavedError(why.to_string()))
-    }
-
-    /// Starts encrypting outgoing records. Called when we send our CCS.
-    pub(crate) fn start_encrypting(&mut self) {
-        self.encrypting = true;
-    }
-
-    /// Starts decrypting incoming records. Called when the server's CCS is
-    /// received.
-    pub(crate) fn start_decrypting(&mut self) {
-        self.decrypting = true;
-    }
-
-    /// Fragments `m`, encrypts the fragments, and queues them for sending.
-    ///
-    /// Unlike upstream rustls there is no sequence-space exhaustion guard: the
-    /// MPC record layer enforces the configured traffic limits, which bound the
-    /// number of records far below the sequence space.
-    async fn send_msg_encrypt(&mut self, m: PlainMessage) -> Result<(), Error> {
-        let mut plain_messages = VecDeque::new();
-        self.message_fragmenter.fragment(m, &mut plain_messages);
-
-        for m in plain_messages {
-            self.send_single_fragment(m).await?;
-        }
-        Ok(())
-    }
-
-    async fn send_appdata_encrypt(&mut self, payload: &[u8]) -> Result<usize, Error> {
-        let mut plain_messages = VecDeque::new();
-        self.message_fragmenter.fragment(
-            PlainMessage {
-                typ: ContentType::ApplicationData,
-                version: ProtocolVersion::TLSv1_2,
-                payload: Payload::new(payload),
-            },
-            &mut plain_messages,
-        );
-
-        for m in plain_messages {
-            self.send_single_fragment(m).await?;
-        }
-
-        Ok(payload.len())
-    }
-
-    async fn send_single_fragment(&mut self, m: PlainMessage) -> Result<(), Error> {
-        debug_assert!(self.encrypting);
-        self.push_outgoing(m).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn start_outgoing_traffic(&mut self) -> Result<(), Error> {
-        self.may_send_application_data = true;
-        self.flush_plaintext().await
-    }
-
-    pub(crate) async fn start_traffic(&mut self) -> Result<(), Error> {
-        self.may_receive_application_data = true;
-        self.session.start_traffic();
-        self.send_message(MpcMessage::StartTraffic).await?;
-        self.start_outgoing_traffic().await
-    }
-
-    /// Sends and encrypts any buffered plaintext. Does nothing during the
-    /// handshake.
-    pub(crate) async fn flush_plaintext(&mut self) -> Result<(), Error> {
-        if !self.may_send_application_data {
-            return Ok(());
-        }
-
-        while let Some(buf) = self.sendable_plaintext.pop() {
-            self.send_appdata_encrypt(&buf).await?;
-        }
-
-        Ok(())
-    }
-
-    fn queue_tls_message(&mut self, m: OpaqueMessage) {
-        self.sendable_tls.append(m.encode());
-    }
-
-    pub(crate) async fn send_msg(&mut self, m: Message, must_encrypt: bool) -> Result<(), Error> {
-        if !must_encrypt {
-            let mut to_send = VecDeque::new();
-            self.message_fragmenter.fragment(m.into(), &mut to_send);
-            for mm in to_send {
-                self.queue_tls_message(mm.into_unencrypted_opaque());
-            }
-            Ok(())
-        } else {
-            self.send_msg_encrypt(m.into()).await
-        }
-    }
-
-    pub(crate) fn take_received_plaintext(&mut self, bytes: Payload) {
-        self.received_plaintext.append(bytes.0);
-    }
-
-    async fn send_warning_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
-        warn!("Sending warning alert {:?}", desc);
-        self.send_warning_alert_no_log(desc).await
-    }
-
-    async fn process_alert(&mut self, alert: &AlertMessagePayload) -> Result<(), Error> {
-        if let AlertLevel::Unknown(_) = alert.level {
-            self.send_fatal_alert(AlertDescription::IllegalParameter)
-                .await?;
-        }
-
-        if alert.description == AlertDescription::CloseNotify {
-            self.has_received_close_notify = true;
-            return Ok(());
-        }
-
-        if alert.level == AlertLevel::Warning {
-            if self.is_tls13() && alert.description != AlertDescription::UserCanceled {
-                self.send_fatal_alert(AlertDescription::DecodeError).await?;
-            } else {
-                warn!("TLS alert warning received: {:#?}", alert);
-                return Ok(());
-            }
-        }
-
-        error!("TLS alert received: {:#?}", alert);
-        Err(Error::AlertReceived(alert.description))
-    }
-
-    pub(crate) async fn send_fatal_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
-        warn!("Sending fatal alert {:?}", desc);
-        debug_assert!(!self.sent_fatal_alert);
-        let m = Message::build_alert(AlertLevel::Fatal, desc);
-        let must_encrypt = self.encrypting;
-        self.send_msg(m, must_encrypt).await?;
-        self.sent_fatal_alert = true;
-        Ok(())
-    }
-
-    /// Queues a close_notify warning alert to be sent in the next
-    /// [`Live::write_tls`] call.
-    async fn send_close_notify(&mut self) -> Result<(), Error> {
-        debug!("Sending warning alert {:?}", AlertDescription::CloseNotify);
-        self.send_warning_alert_no_log(AlertDescription::CloseNotify)
-            .await
-    }
-
-    async fn send_warning_alert_no_log(&mut self, desc: AlertDescription) -> Result<(), Error> {
-        let m = Message::build_alert(AlertLevel::Warning, desc);
-        let must_encrypt = self.encrypting;
-        self.send_msg(m, must_encrypt).await
     }
 
     // --- Connection closure ---
@@ -1172,19 +682,26 @@ impl Live {
         if self.is_closed() {
             return Ok(());
         }
+        if !self.conn.encryption_prepared() {
+            return Err(MpcTlsError::state(
+                "cannot close connection before encryption is prepared",
+            ));
+        }
 
         debug!("closing connection");
-        self.send_message(MpcMessage::CloseConnection).await?;
+        self.conn.send_message(MpcMessage::CloseConnection).await?;
 
         debug!("committing to transcript");
-        let (sent_records, recv_records) = self.session.commit().await?;
+        let (sent_records, recv_records) = self.conn.session.commit().await?;
         debug!("committed to transcript");
 
         let hs = self
+            .conn
             .server_params
             .as_ref()
             .ok_or_else(|| MpcTlsError::state("server parameters not set"))?;
         let time = self
+            .conn
             .time
             .ok_or_else(|| MpcTlsError::state("handshake time not set"))?;
 
@@ -1196,7 +713,7 @@ impl Live {
             .collect();
 
         let mut sig_msg = Vec::new();
-        sig_msg.extend_from_slice(&self.client_random.0);
+        sig_msg.extend_from_slice(&self.conn.client_random.0);
         sig_msg.extend_from_slice(&hs.server_random.0);
         sig_msg.extend_from_slice(hs.server_kx_details.kx_params());
 
@@ -1213,7 +730,7 @@ impl Live {
         };
 
         let binding = CertBinding::V1_2(CertBindingV1_2 {
-            client_random: self.client_random.0,
+            client_random: self.conn.client_random.0,
             server_random: hs.server_random.0,
             server_ephemeral_key: hs
                 .server_key
@@ -1233,7 +750,7 @@ impl Live {
             .build()
             .map_err(MpcTlsError::other)?;
 
-        self.session.verify_transcript(&transcript)?;
+        self.conn.session.verify_transcript(&transcript)?;
 
         self.transcript = Some(transcript);
 
@@ -1245,7 +762,7 @@ impl Live {
     fn into_finished(mut self: Box<Self>) -> Result<(Context, TlsTranscript), Box<Self>> {
         match self.transcript.take() {
             Some(transcript) => {
-                let (ctx, _record_layer) = self.session.into_closed();
+                let (ctx, _record_layer) = self.conn.session.into_closed();
                 Ok((ctx, transcript))
             }
             None => Err(self),

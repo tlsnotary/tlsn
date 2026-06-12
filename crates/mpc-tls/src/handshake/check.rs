@@ -1,4 +1,4 @@
-use crate::client::error::Error;
+use crate::handshake::error::Error;
 use tracing::warn;
 use tls_core::msgs::{
     enums::{ContentType, HandshakeType},
@@ -7,7 +7,7 @@ use tls_core::msgs::{
 
 /// For a Message $m, and a HandshakePayload enum member $payload_type,
 /// return Ok(payload) if $m is both a handshake message and one that
-/// has the given $payload_type.  If not, return Err(crate::client::Error) quoting
+/// has the given $payload_type.  If not, return Err(crate::handshake::Error) quoting
 /// $handshake_type as the expected handshake type.
 macro_rules! require_handshake_msg(
   ( $m:expr_2021, $handshake_type:path, $payload_type:path ) => (
@@ -16,7 +16,7 @@ macro_rules! require_handshake_msg(
             payload: $payload_type(hm),
             ..
         }) => Ok(hm),
-        payload => Err($crate::client::check::inappropriate_handshake_message(
+        payload => Err($crate::handshake::check::inappropriate_handshake_message(
             payload,
             &[::tls_core::msgs::enums::ContentType::Handshake],
             &[$handshake_type]))
@@ -33,7 +33,7 @@ macro_rules! require_handshake_msg_move(
             ..
         }) => Ok(hm),
         payload =>
-            Err($crate::client::check::inappropriate_handshake_message(
+            Err($crate::handshake::check::inappropriate_handshake_message(
                 &payload,
                 &[::tls_core::msgs::enums::ContentType::Handshake],
                 &[$handshake_type]))

@@ -1,5 +1,5 @@
 use crate::{
-    client::{
+    handshake::{
         ClientConfig, ServerName,
         check::inappropriate_handshake_message,
         error::Error,
@@ -8,7 +8,7 @@ use crate::{
         sign::{self, CertifiedKey, Signer},
         verify,
     },
-    leader::Live,
+    conn::Conn,
 };
 #[allow(deprecated)]
 use ring::constant_time;
@@ -19,13 +19,12 @@ use tls_core::{
         base::{Payload, PayloadU8},
         ccs::ChangeCipherSpecPayload,
         enums::{
-            AlertDescription, ContentType, ExtensionType, HandshakeType, KeyUpdateRequest,
-            ProtocolVersion, SignatureScheme,
+            AlertDescription, ContentType, ExtensionType, HandshakeType, ProtocolVersion,
+            SignatureScheme,
         },
         handshake::{
             CertificateEntry, CertificatePayloadTLS13, DigitallySignedStruct, EncryptedExtensions,
-            HandshakeMessagePayload, HandshakePayload, HasServerExtensions,
-            NewSessionTicketPayloadTLS13, ServerHelloPayload,
+            HandshakeMessagePayload, HandshakePayload, HasServerExtensions, ServerHelloPayload,
         },
         message::{Message, MessagePayload},
     },
@@ -60,7 +59,7 @@ fn unsupported() -> Result<(), Error> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn handle_server_hello(
     config: Arc<ClientConfig>,
-    cx: &mut Live,
+    cx: &mut Conn,
     server_hello: &ServerHelloPayload,
     server_name: ServerName,
     transcript: HandshakeHash,
@@ -104,7 +103,7 @@ pub(crate) async fn handle_server_hello(
 }
 
 async fn validate_server_hello(
-    common: &mut Live,
+    common: &mut Conn,
     server_hello: &ServerHelloPayload,
 ) -> Result<(), Error> {
     for ext in &server_hello.extensions {
@@ -123,7 +122,7 @@ async fn validate_server_hello(
 
 pub(crate) async fn emit_fake_ccs(
     sent_tls13_fake_ccs: &mut bool,
-    common: &mut Live,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     if std::mem::replace(sent_tls13_fake_ccs, true) {
         return Ok(());
@@ -137,7 +136,7 @@ pub(crate) async fn emit_fake_ccs(
 }
 
 async fn validate_encrypted_extensions(
-    common: &mut Live,
+    common: &mut Conn,
     hello: &ClientHelloDetails,
     exts: &EncryptedExtensions,
 ) -> Result<(), Error> {
@@ -183,7 +182,7 @@ pub(crate) struct ExpectEncryptedExtensions {
 impl ExpectEncryptedExtensions {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut Live,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let exts = require_handshake_msg!(
@@ -221,7 +220,7 @@ pub(crate) struct ExpectCertificateOrCertReq {
 }
 
 impl ExpectCertificateOrCertReq {
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> hs::NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::CertificateTLS13(..),
@@ -275,7 +274,7 @@ pub(crate) struct ExpectCertificateRequest {
 impl ExpectCertificateRequest {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut Live,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let certreq = &require_handshake_msg!(
@@ -344,7 +343,7 @@ pub(crate) struct ExpectCertificate {
 impl ExpectCertificate {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut Live,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let cert_chain = require_handshake_msg!(
@@ -414,7 +413,7 @@ pub(crate) struct ExpectCertificateVerify {
 impl ExpectCertificateVerify {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut Live,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let cert_verify = require_handshake_msg!(
@@ -476,7 +475,7 @@ async fn emit_certificate_tls13(
     transcript: &mut HandshakeHash,
     certkey: Option<&CertifiedKey>,
     auth_context: Option<Vec<u8>>,
-    common: &mut Live,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let context = auth_context.unwrap_or_default();
 
@@ -507,7 +506,7 @@ async fn emit_certificate_tls13(
 async fn emit_certverify_tls13(
     transcript: &mut HandshakeHash,
     signer: &dyn Signer,
-    common: &mut Live,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let message = verify::construct_tls13_client_verify_message(&transcript.get_current_hash());
 
@@ -530,7 +529,7 @@ async fn emit_certverify_tls13(
 async fn emit_finished_tls13(
     verify_data: &[u8],
     transcript: &mut HandshakeHash,
-    common: &mut Live,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let verify_data_payload = Payload::new(verify_data);
 
@@ -554,7 +553,7 @@ pub(crate) struct ExpectFinished {
 }
 
 impl ExpectFinished {
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> hs::NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         let mut st = *self;
         let finished =
             require_handshake_msg!(m, HandshakeType::Finished, HandshakePayload::Finished)?;
@@ -610,85 +609,12 @@ impl ExpectFinished {
         // MPC backend.
         unsupported()?;
 
-        cx.start_traffic().await?;
+        // The proof tokens are not threaded further now that the handshake
+        // ends; the connection driver moves to the online phase on `Complete`,
+        // where post-handshake messages (tickets, key updates) are routed by
+        // `crate::handshake::traffic`.
+        let _ = (st.cert_verified, st.sig_verified, fin);
 
-        Ok(Handshake::Tls13ExpectTraffic(Box::new(ExpectTraffic {
-            _cert_verified: st.cert_verified,
-            _sig_verified: st.sig_verified,
-            _fin_verified: fin,
-        })))
-    }
-}
-
-// -- Traffic transit state (TLS1.3) --
-// In this state we can be sent tickets, key updates,
-// and application data.
-pub(crate) struct ExpectTraffic {
-    _cert_verified: verify::ServerCertVerified,
-    _sig_verified: verify::HandshakeSignatureValid,
-    _fin_verified: verify::FinishedMessageVerified,
-}
-
-impl ExpectTraffic {
-    #[allow(clippy::unnecessary_wraps)]
-    async fn handle_new_ticket_tls13(
-        &mut self,
-        cx: &mut Live,
-        nst: &NewSessionTicketPayloadTLS13,
-    ) -> Result<(), Error> {
-        if nst.has_duplicate_extension() {
-            cx.send_fatal_alert(AlertDescription::IllegalParameter)
-                .await?;
-            return Err(Error::PeerMisbehavedError(
-                "peer sent duplicate NewSessionTicket extensions".into(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    async fn handle_key_update(
-        &mut self,
-        common: &mut Live,
-        _kur: &KeyUpdateRequest,
-    ) -> Result<(), Error> {
-        // Mustn't be interleaved with other handshake messages.
-        common.check_aligned_handshake().await?;
-
-        // Client does not support key updates
-        common
-            .send_fatal_alert(AlertDescription::InternalError)
-            .await?;
-
-        Err(Error::General(
-            "received unsupported key update request from peer".to_string(),
-        ))
-    }
-
-    pub(crate) async fn handle(
-        mut self: Box<Self>,
-        cx: &mut Live,
-        m: Message,
-    ) -> hs::NextStateOrError {
-        match m.payload {
-            MessagePayload::ApplicationData(payload) => cx.take_received_plaintext(payload),
-            MessagePayload::Handshake(HandshakeMessagePayload {
-                payload: HandshakePayload::NewSessionTicketTLS13(ref new_ticket),
-                ..
-            }) => self.handle_new_ticket_tls13(cx, new_ticket).await?,
-            MessagePayload::Handshake(HandshakeMessagePayload {
-                payload: HandshakePayload::KeyUpdate(ref key_update),
-                ..
-            }) => self.handle_key_update(cx, key_update).await?,
-            payload => {
-                return Err(inappropriate_handshake_message(
-                    &payload,
-                    &[ContentType::ApplicationData, ContentType::Handshake],
-                    &[HandshakeType::NewSessionTicket, HandshakeType::KeyUpdate],
-                ));
-            }
-        }
-
-        Ok(Handshake::Tls13ExpectTraffic(self))
+        Ok(Handshake::Complete)
     }
 }

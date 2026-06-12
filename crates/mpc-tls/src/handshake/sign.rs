@@ -1,4 +1,4 @@
-use crate::client::{
+use crate::handshake::{
     error::Error,
     x509::{wrap_in_asn1_len, wrap_in_sequence},
 };

@@ -6,7 +6,7 @@ use crate::{
     prover::client::{DecryptState, TlsClient, TlsOutput},
 };
 use futures::{Future, FutureExt};
-use mpc_tls::{MpcTlsLeader, SessionKeys, client::ClientConfig};
+use mpc_tls::{ClientConfig, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use rustls_pki_types::CertificateDer;
 use std::{
@@ -423,8 +423,8 @@ impl InnerState {
 
 fn create_client_config(
     config: &TlsClientConfig,
-) -> Result<mpc_tls::client::ClientConfig, TlsnError> {
-    let root_store = mpc_tls::client::RootCertStore {
+) -> Result<mpc_tls::ClientConfig, TlsnError> {
+    let root_store = mpc_tls::RootCertStore {
         roots: config
             .root_store()
             .roots
@@ -443,12 +443,12 @@ fn create_client_config(
     };
 
     let client_config = if let Some((cert, key)) = config.client_auth() {
-        mpc_tls::client::ClientConfig::new_with_client_auth(
+        mpc_tls::ClientConfig::new_with_client_auth(
             root_store,
             cert.iter()
-                .map(|cert| mpc_tls::client::Certificate(cert.0.clone()))
+                .map(|cert| mpc_tls::Certificate(cert.0.clone()))
                 .collect(),
-            mpc_tls::client::PrivateKey(key.0.clone()),
+            mpc_tls::PrivateKey(key.0.clone()),
         )
         .map_err(|e| {
             TlsnError::config()
@@ -456,7 +456,7 @@ fn create_client_config(
                 .with_source(e)
         })?
     } else {
-        mpc_tls::client::ClientConfig::new(root_store)
+        mpc_tls::ClientConfig::new(root_store)
     };
 
     Ok(client_config)

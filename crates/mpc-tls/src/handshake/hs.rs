@@ -1,12 +1,12 @@
 use crate::{
-    client::{
+    handshake::{
         ClientConfig, ResolvesClientCert, ServerName,
         check::inappropriate_handshake_message,
         error::Error,
         hash_hs::HandshakeHashBuffer,
         sign, tls12, tls13,
     },
-    leader::{ConnectionRandoms, Live},
+    conn::{Conn, ConnectionRandoms},
 };
 use std::sync::Arc;
 use tls_core::{
@@ -48,21 +48,21 @@ pub(crate) enum Handshake {
     Tls12ExpectServerDone(Box<tls12::ExpectServerDone>),
     Tls12ExpectCcs(Box<tls12::ExpectCcs>),
     Tls12ExpectFinished(Box<tls12::ExpectFinished>),
-    Tls12ExpectTraffic(Box<tls12::ExpectTraffic>),
     Tls13ExpectEncryptedExtensions(Box<tls13::ExpectEncryptedExtensions>),
     Tls13ExpectCertificateOrCertReq(Box<tls13::ExpectCertificateOrCertReq>),
     Tls13ExpectCertificate(Box<tls13::ExpectCertificate>),
     Tls13ExpectCertificateVerify(Box<tls13::ExpectCertificateVerify>),
     Tls13ExpectFinished(Box<tls13::ExpectFinished>),
-    Tls13ExpectTraffic(Box<tls13::ExpectTraffic>),
-    /// Transient poison used while a state is being stepped.
-    Invalid,
+    /// Terminal signal: the handshake is complete. The connection driver
+    /// transitions to the online phase on seeing this; it is never dispatched a
+    /// message.
+    Complete,
 }
 
 impl Handshake {
     /// Dispatches an incoming TLS message to the current handshake state,
     /// returning the next state.
-    pub(crate) async fn handle(self, cx: &mut Live, m: Message) -> Result<Handshake, Error> {
+    pub(crate) async fn handle(self, cx: &mut Conn, m: Message) -> Result<Handshake, Error> {
         match self {
             Handshake::ExpectServerHello(s) => s.handle(cx, m).await,
             Handshake::ExpectServerHelloOrHelloRetryRequest(s) => s.handle(cx, m).await,
@@ -73,14 +73,14 @@ impl Handshake {
             Handshake::Tls12ExpectServerDone(s) => s.handle(cx, m).await,
             Handshake::Tls12ExpectCcs(s) => s.handle(cx, m).await,
             Handshake::Tls12ExpectFinished(s) => s.handle(cx, m).await,
-            Handshake::Tls12ExpectTraffic(s) => s.handle(cx, m).await,
             Handshake::Tls13ExpectEncryptedExtensions(s) => s.handle(cx, m).await,
             Handshake::Tls13ExpectCertificateOrCertReq(s) => s.handle(cx, m).await,
             Handshake::Tls13ExpectCertificate(s) => s.handle(cx, m).await,
             Handshake::Tls13ExpectCertificateVerify(s) => s.handle(cx, m).await,
             Handshake::Tls13ExpectFinished(s) => s.handle(cx, m).await,
-            Handshake::Tls13ExpectTraffic(s) => s.handle(cx, m).await,
-            Handshake::Invalid => panic!("handshake state machine in invalid state"),
+            Handshake::Complete => Err(Error::General(
+                "handshake state machine stepped after completion".to_string(),
+            )),
         }
     }
 }
@@ -93,7 +93,7 @@ pub(crate) type NextStateOrError = Result<Handshake, Error>;
 pub(crate) async fn start_handshake(
     server_name: ServerName,
     config: Arc<ClientConfig>,
-    cx: &mut Live,
+    cx: &mut Conn,
 ) -> NextStateOrError {
     let mut transcript_buffer = HandshakeHashBuffer::new();
     if config.client_auth_cert_resolver.has_certs() {
@@ -113,7 +113,7 @@ pub(crate) async fn start_handshake(
         None
     };
 
-    let random = cx.client_random();
+    let random = cx.client_random;
     let hello_details = ClientHelloDetails::new();
     let sent_tls13_fake_ccs = false;
     let may_send_sct_list = config.verifier.request_scts();
@@ -153,7 +153,7 @@ pub(crate) struct ExpectServerHelloOrHelloRetryRequest {
 #[allow(clippy::too_many_arguments)]
 async fn emit_client_hello_for_retry(
     config: Arc<ClientConfig>,
-    cx: &mut Live,
+    cx: &mut Conn,
     random: Random,
     mut transcript_buffer: HandshakeHashBuffer,
     mut sent_tls13_fake_ccs: bool,
@@ -289,13 +289,13 @@ async fn emit_client_hello_for_retry(
 }
 
 pub(crate) async fn process_alpn_protocol(
-    common: &mut Live,
+    common: &mut Conn,
     config: &ClientConfig,
     proto: Option<&[u8]>,
 ) -> Result<(), Error> {
-    common.alpn_protocol = proto.map(ToOwned::to_owned);
+    common.io.alpn_protocol = proto.map(ToOwned::to_owned);
 
-    if let Some(alpn_protocol) = &common.alpn_protocol
+    if let Some(alpn_protocol) = &common.io.alpn_protocol
         && !config.alpn_protocols.contains(alpn_protocol)
     {
         return Err(common
@@ -306,6 +306,7 @@ pub(crate) async fn process_alpn_protocol(
     debug!(
         "ALPN protocol is {:?}",
         common
+            .io
             .alpn_protocol
             .as_ref()
             .map(|v| String::from_utf8_lossy(v))
@@ -318,7 +319,7 @@ pub(crate) fn sct_list_is_invalid(scts: &SCTList) -> bool {
 }
 
 impl ExpectServerHello {
-    pub(crate) async fn handle(mut self: Box<Self>, cx: &mut Live, m: Message) -> NextStateOrError {
+    pub(crate) async fn handle(mut self: Box<Self>, cx: &mut Conn, m: Message) -> NextStateOrError {
         let server_hello =
             require_handshake_msg!(m, HandshakeType::ServerHello, HandshakePayload::ServerHello)?;
         trace!("We got ServerHello {:#?}", server_hello);
@@ -381,10 +382,10 @@ impl ExpectServerHello {
             ));
         }
 
-        cx.negotiated_version = Some(version);
+        cx.io.negotiated_version = Some(version);
 
         // Extract ALPN protocol
-        if !cx.is_tls13() {
+        if !cx.io.is_tls13() {
             process_alpn_protocol(cx, &self.config, server_hello.get_alpn_protocol()).await?;
         }
 
@@ -426,7 +427,7 @@ impl ExpectServerHello {
             _ => {
                 debug!("Using ciphersuite {:?}", suite);
                 self.suite = Some(suite);
-                cx.suite = Some(suite);
+                cx.io.suite = Some(suite);
             }
         }
 
@@ -471,7 +472,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         Box::new(self.next)
     }
 
-    async fn handle_hello_retry_request(self, cx: &mut Live, m: Message) -> NextStateOrError {
+    async fn handle_hello_retry_request(self, cx: &mut Conn, m: Message) -> NextStateOrError {
         let hrr = require_handshake_msg!(
             m,
             HandshakeType::HelloRetryRequest,
@@ -530,7 +531,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         // Or asks us to talk a protocol we didn't offer, or doesn't support HRR at all.
         match hrr.get_supported_versions() {
             Some(ProtocolVersion::TLSv1_3) => {
-                cx.negotiated_version = Some(ProtocolVersion::TLSv1_3);
+                cx.io.negotiated_version = Some(ProtocolVersion::TLSv1_3);
             }
             _ => {
                 return Err(cx
@@ -551,7 +552,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         };
 
         // HRR selects the ciphersuite.
-        cx.suite = Some(cs);
+        cx.io.suite = Some(cs);
 
         // This is the draft19 change where the transcript became a tree
         let transcript = self.next.transcript_buffer.start_hash(cs.hash_algorithm());
@@ -587,7 +588,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         .await
     }
 
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHello(..),
@@ -606,7 +607,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
     }
 }
 
-pub(crate) async fn send_cert_error_alert(common: &mut Live, err: Error) -> Result<Error, Error> {
+pub(crate) async fn send_cert_error_alert(common: &mut Conn, err: Error) -> Result<Error, Error> {
     match err {
         Error::PeerMisbehavedError(_) => {
             common

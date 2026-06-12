@@ -1,5 +1,5 @@
 use crate::{
-    client::{
+    handshake::{
         ClientConfig, ServerName,
         check::{inappropriate_handshake_message, inappropriate_message},
         error::Error,
@@ -8,7 +8,7 @@ use crate::{
         sign::Signer,
         verify,
     },
-    leader::{ConnectionRandoms, HandshakeData, Live},
+    conn::{Conn, ConnectionRandoms, HandshakeData},
 };
 #[allow(deprecated)]
 use ring::constant_time;
@@ -51,7 +51,7 @@ mod server_hello {
     impl CompleteServerHelloHandling {
         pub(crate) async fn handle_server_hello(
             mut self,
-            cx: &mut Live,
+            cx: &mut Conn,
             suite: &'static Tls12CipherSuite,
             server_hello: &ServerHelloPayload,
             tls13_supported: bool,
@@ -118,7 +118,7 @@ pub(crate) struct ExpectCertificate {
 impl ExpectCertificate {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        _cx: &mut Live,
+        _cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         self.transcript.add_message(&m);
@@ -167,7 +167,7 @@ pub(crate) struct ExpectCertificateStatusOrServerKx {
 }
 
 impl ExpectCertificateStatusOrServerKx {
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> hs::NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerKeyExchange(..),
@@ -231,7 +231,7 @@ pub(crate) struct ExpectCertificateStatus {
 impl ExpectCertificateStatus {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        _cx: &mut Live,
+        _cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         self.transcript.add_message(&m);
@@ -276,7 +276,7 @@ pub(crate) struct ExpectServerKx {
 impl ExpectServerKx {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut Live,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let opaque_kx = require_handshake_msg!(
@@ -321,7 +321,7 @@ impl ExpectServerKx {
 async fn emit_certificate(
     transcript: &mut HandshakeHash,
     cert_chain: CertificatePayload,
-    common: &mut Live,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let cert = Message {
         version: ProtocolVersion::TLSv1_2,
@@ -337,7 +337,7 @@ async fn emit_certificate(
 
 async fn emit_clientkx(
     transcript: &mut HandshakeHash,
-    common: &mut Live,
+    common: &mut Conn,
     pubkey: &PublicKey,
 ) -> Result<(), Error> {
     let ecpoint = PayloadU8::new(pubkey.key.clone());
@@ -361,7 +361,7 @@ async fn emit_clientkx(
 async fn emit_certverify(
     transcript: &mut HandshakeHash,
     signer: &dyn Signer,
-    common: &mut Live,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let message = transcript
         .take_handshake_buf()
@@ -383,7 +383,7 @@ async fn emit_certverify(
     common.send_msg(m, false).await
 }
 
-async fn emit_ccs(common: &mut Live) -> Result<(), Error> {
+async fn emit_ccs(common: &mut Conn) -> Result<(), Error> {
     let ccs = Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
@@ -395,7 +395,7 @@ async fn emit_ccs(common: &mut Live) -> Result<(), Error> {
 async fn emit_finished(
     verify_data: &[u8],
     transcript: &mut HandshakeHash,
-    common: &mut Live,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let verify_data_payload = Payload::new(verify_data);
 
@@ -427,7 +427,7 @@ pub(crate) struct ExpectServerDoneOrCertReq {
 impl ExpectServerDoneOrCertReq {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut Live,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         if matches!(
@@ -480,7 +480,7 @@ pub(crate) struct ExpectCertificateRequest {
 impl ExpectCertificateRequest {
     pub(crate) async fn handle(
         mut self: Box<Self>,
-        _cx: &mut Live,
+        _cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let certreq = require_handshake_msg!(
@@ -530,7 +530,7 @@ pub(crate) struct ExpectServerDone {
 }
 
 impl ExpectServerDone {
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> hs::NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHelloDone,
@@ -671,7 +671,7 @@ impl ExpectServerDone {
             server_kx_details: st.server_kx,
         })
         .await?;
-        cx.start_encrypting();
+        cx.io.start_encrypting();
 
         // 6.
         let hs = transcript.get_current_hash();
@@ -694,7 +694,7 @@ pub(crate) struct ExpectCcs {
 }
 
 impl ExpectCcs {
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> hs::NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         match m.payload {
             MessagePayload::ChangeCipherSpec(..) => {}
             payload => {
@@ -709,7 +709,7 @@ impl ExpectCcs {
         cx.check_aligned_handshake().await?;
 
         // nb. msgs layer validates trivial contents of CCS
-        cx.start_decrypting();
+        cx.io.start_decrypting();
 
         Ok(Handshake::Tls12ExpectFinished(Box::new(ExpectFinished {
             transcript: self.transcript,
@@ -726,7 +726,7 @@ pub(crate) struct ExpectFinished {
 }
 
 impl ExpectFinished {
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> hs::NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         let mut st = *self;
         let finished =
             require_handshake_msg!(m, HandshakeType::Finished, HandshakePayload::Finished)?;
@@ -752,33 +752,11 @@ impl ExpectFinished {
         // Hash this message too.
         st.transcript.add_message(&m);
 
-        cx.start_traffic().await?;
-        Ok(Handshake::Tls12ExpectTraffic(Box::new(ExpectTraffic {
-            _cert_verified: st.cert_verified,
-            _sig_verified: st.sig_verified,
-            _fin_verified,
-        })))
-    }
-}
+        // The certificate, signature and Finished verifications are complete.
+        // Their proof tokens are not threaded further now that the handshake
+        // ends; the connection driver moves to the online phase on `Complete`.
+        let _ = (st.cert_verified, st.sig_verified, _fin_verified);
 
-// -- Traffic transit state --
-pub(crate) struct ExpectTraffic {
-    _cert_verified: verify::ServerCertVerified,
-    _sig_verified: verify::HandshakeSignatureValid,
-    _fin_verified: verify::FinishedMessageVerified,
-}
-
-impl ExpectTraffic {
-    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> hs::NextStateOrError {
-        match m.payload {
-            MessagePayload::ApplicationData(payload) => cx.take_received_plaintext(payload),
-            payload => {
-                return Err(inappropriate_message(
-                    &payload,
-                    &[ContentType::ApplicationData],
-                ));
-            }
-        }
-        Ok(Handshake::Tls12ExpectTraffic(self))
+        Ok(Handshake::Complete)
     }
 }
