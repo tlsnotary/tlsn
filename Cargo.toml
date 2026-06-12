@@ -14,6 +14,7 @@ members = [
     "crates/tls-core",
     "crates/mpc-tls",
     "crates/tls-server-fixture",
+    "crates/tls-conformance",
     "crates/sdk-core",
     "crates/wasm",
     "crates/harness/core",

@@ -6320,6 +6320,19 @@ name = "tlsn-server-fixture-certs"
 version = "0.0.0"
 
 [[package]]
+name = "tlsn-tls-conformance"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "rustls-pemfile",
+ "tlsn",
+ "tokio",
+ "tokio-util",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tlsn-tls-core"
 version = "0.1.0-alpha.16-pre"
 dependencies = [

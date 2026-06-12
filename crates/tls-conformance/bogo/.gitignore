@@ -1,0 +1,6 @@
+# Cloned BoringSSL/BoGo runner sources and the compiled runner binary.
+/boringssl/
+*.test
+
+# config.json is needed; override the workspace-wide `*.json` ignore rule.
+!config.json
