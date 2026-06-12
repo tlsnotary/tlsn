@@ -26,7 +26,9 @@ use tls_core::{
         alert::AlertMessagePayload,
         base::Payload,
         deframer::MessageDeframer,
-        enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, NamedGroup, ProtocolVersion},
+        enums::{
+            AlertDescription, AlertLevel, ContentType, HandshakeType, NamedGroup, ProtocolVersion,
+        },
         fragmenter::MessageFragmenter,
         handshake::{HandshakeMessagePayload, HandshakePayload, Random},
         hsjoiner::HandshakeJoiner,
@@ -683,8 +685,8 @@ impl Conn {
     /// Alerts are handled by the caller before dispatch; this handles
     /// application data, TLS 1.2 renegotiation rejection, and the TLS 1.3
     /// post-handshake messages (the latter dormant: the MPC backend never
-    /// completes a TLS 1.3 handshake, so the connection never reaches this point
-    /// under TLS 1.3).
+    /// completes a TLS 1.3 handshake, so the connection never reaches this
+    /// point under TLS 1.3).
     pub(crate) async fn process_online(&mut self, msg: Message) -> Result<(), Error> {
         // TLS 1.2 renegotiation requests are rejected outside the handshake.
         // These can occur at any time.

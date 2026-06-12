@@ -7,8 +7,8 @@
 //! verification and message signing. Unlike upstream rustls the client performs
 //! no cryptographic operations itself — the key exchange, the PRF and record
 //! encryption/decryption are delegated to the MPC session owned by the leader.
-//! The state machine operates directly on the live connection ([`crate::conn`]'s
-//! `Conn`). Post-handshake (online) message routing lives on
+//! The state machine operates directly on the live connection
+//! ([`crate::conn`]'s `Conn`). Post-handshake (online) message routing lives on
 //! [`Conn`](crate::conn::Conn), not here.
 //!
 //! Only TLS 1.2 cipher suites are currently enabled. The TLS 1.3 message
