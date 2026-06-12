@@ -1,21 +1,9 @@
-use async_trait::async_trait;
-
-use crate::client::hs;
-use crate::MpcTlsLeader;
-use crate::client::{
-    anchors::RootCertStore,
-    conn::{ClientConnection, CommonState, State},
-    error::Error,
-    sign, verify,
-};
+use crate::client::{anchors::RootCertStore, error::Error, sign, verify};
 use std::sync::Arc;
 pub use tls_core::dns::*;
 use tls_core::{
     key,
-    msgs::{
-        enums::{CipherSuite, ProtocolVersion, SignatureScheme},
-        message::Message,
-    },
+    msgs::enums::{CipherSuite, ProtocolVersion, SignatureScheme},
     suites::{DEFAULT_CIPHER_SUITES, SupportedCipherSuite},
     versions,
 };
@@ -154,45 +142,6 @@ impl ClientConfig {
             .iter()
             .copied()
             .find(|&scs| scs.suite() == suite)
-    }
-}
-
-struct Initialized {
-    server_name: ServerName,
-    config: Arc<ClientConfig>,
-}
-
-#[async_trait]
-impl State for Initialized {
-    async fn start(self: Box<Self>, cx: &mut CommonState) -> Result<Box<dyn State>, Error> {
-        hs::start_handshake(self.server_name, self.config, cx).await
-    }
-
-    async fn handle(
-        self: Box<Self>,
-        _cx: &mut CommonState,
-        _message: Message,
-    ) -> Result<Box<dyn State>, Error> {
-        unreachable!()
-    }
-}
-
-impl ClientConnection {
-    /// Make a new ClientConnection.  `config` controls how
-    /// we behave in the TLS protocol, `name` is the
-    /// name of the server we want to talk to.
-    pub fn new(
-        config: Arc<ClientConfig>,
-        backend: MpcTlsLeader,
-        name: ServerName,
-    ) -> Result<Self, Error> {
-        let common_state = CommonState::new(config.max_fragment_size, backend)?;
-        let state = Box::new(Initialized {
-            server_name: name,
-            config,
-        });
-
-        Ok(Self::new_inner(state, common_state))
     }
 }
 

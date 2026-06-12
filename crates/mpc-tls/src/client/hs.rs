@@ -1,10 +1,14 @@
-use tracing::{debug, trace};
-use crate::client::{
-    check::inappropriate_handshake_message,
-    conn::{CommonState, ConnectionRandoms, State},
-    error::Error,
-    hash_hs::HandshakeHashBuffer,
+use crate::{
+    client::{
+        ClientConfig, ResolvesClientCert, ServerName,
+        check::inappropriate_handshake_message,
+        error::Error,
+        hash_hs::HandshakeHashBuffer,
+        sign, tls12, tls13,
+    },
+    leader::{ConnectionRandoms, Live},
 };
+use std::sync::Arc;
 use tls_core::{
     key::PublicKey,
     msgs::{
@@ -22,19 +26,74 @@ use tls_core::{
     },
     suites::SupportedCipherSuite,
 };
+use tracing::{debug, trace};
 
-use super::tls12;
-use crate::client::{ClientConfig, ResolvesClientCert, ServerName, sign, tls13};
-use async_trait::async_trait;
-use std::sync::Arc;
+pub(crate) use tls_core::cert::ServerCertDetails;
 
-pub(super) type NextState = Box<dyn State>;
-pub(super) type NextStateOrError = Result<NextState, Error>;
+/// The TLS handshake state machine.
+///
+/// This replaces the boxed-trait-object state machine of upstream rustls with a
+/// closed enum. Each variant carries the typed state for one step of the
+/// handshake; [`Handshake::handle`] dispatches an incoming TLS message to the
+/// current state, which returns the next state. Handlers operate directly on
+/// the live connection ([`Live`]), reaching both the TLS framing state and the
+/// MPC session through its inherent methods.
+pub(crate) enum Handshake {
+    ExpectServerHello(Box<ExpectServerHello>),
+    ExpectServerHelloOrHelloRetryRequest(Box<ExpectServerHelloOrHelloRetryRequest>),
+    Tls12ExpectCertificate(Box<tls12::ExpectCertificate>),
+    Tls12ExpectCertificateStatusOrServerKx(Box<tls12::ExpectCertificateStatusOrServerKx>),
+    Tls12ExpectServerKx(Box<tls12::ExpectServerKx>),
+    Tls12ExpectServerDoneOrCertReq(Box<tls12::ExpectServerDoneOrCertReq>),
+    Tls12ExpectServerDone(Box<tls12::ExpectServerDone>),
+    Tls12ExpectCcs(Box<tls12::ExpectCcs>),
+    Tls12ExpectFinished(Box<tls12::ExpectFinished>),
+    Tls12ExpectTraffic(Box<tls12::ExpectTraffic>),
+    Tls13ExpectEncryptedExtensions(Box<tls13::ExpectEncryptedExtensions>),
+    Tls13ExpectCertificateOrCertReq(Box<tls13::ExpectCertificateOrCertReq>),
+    Tls13ExpectCertificate(Box<tls13::ExpectCertificate>),
+    Tls13ExpectCertificateVerify(Box<tls13::ExpectCertificateVerify>),
+    Tls13ExpectFinished(Box<tls13::ExpectFinished>),
+    Tls13ExpectTraffic(Box<tls13::ExpectTraffic>),
+    /// Transient poison used while a state is being stepped.
+    Invalid,
+}
 
-pub(super) async fn start_handshake(
+impl Handshake {
+    /// Dispatches an incoming TLS message to the current handshake state,
+    /// returning the next state.
+    pub(crate) async fn handle(self, cx: &mut Live, m: Message) -> Result<Handshake, Error> {
+        match self {
+            Handshake::ExpectServerHello(s) => s.handle(cx, m).await,
+            Handshake::ExpectServerHelloOrHelloRetryRequest(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectCertificate(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectCertificateStatusOrServerKx(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectServerKx(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectServerDoneOrCertReq(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectServerDone(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectCcs(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectFinished(s) => s.handle(cx, m).await,
+            Handshake::Tls12ExpectTraffic(s) => s.handle(cx, m).await,
+            Handshake::Tls13ExpectEncryptedExtensions(s) => s.handle(cx, m).await,
+            Handshake::Tls13ExpectCertificateOrCertReq(s) => s.handle(cx, m).await,
+            Handshake::Tls13ExpectCertificate(s) => s.handle(cx, m).await,
+            Handshake::Tls13ExpectCertificateVerify(s) => s.handle(cx, m).await,
+            Handshake::Tls13ExpectFinished(s) => s.handle(cx, m).await,
+            Handshake::Tls13ExpectTraffic(s) => s.handle(cx, m).await,
+            Handshake::Invalid => panic!("handshake state machine in invalid state"),
+        }
+    }
+}
+
+/// The next handshake state.
+pub(crate) type NextState = Handshake;
+/// The next handshake state, or a fatal error.
+pub(crate) type NextStateOrError = Result<Handshake, Error>;
+
+pub(crate) async fn start_handshake(
     server_name: ServerName,
     config: Arc<ClientConfig>,
-    cx: &mut CommonState,
+    cx: &mut Live,
 ) -> NextStateOrError {
     let mut transcript_buffer = HandshakeHashBuffer::new();
     if config.client_auth_cert_resolver.has_certs() {
@@ -49,12 +108,12 @@ pub(super) async fn start_handshake(
 
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
     let key_share = if support_tls13 {
-        Some(cx.backend.client_key_share()?)
+        Some(cx.client_key_share()?)
     } else {
         None
     };
 
-    let random = cx.backend.client_random()?;
+    let random = cx.client_random();
     let hello_details = ClientHelloDetails::new();
     let sent_tls13_fake_ccs = false;
     let may_send_sct_list = config.verifier.request_scts();
@@ -75,7 +134,7 @@ pub(super) async fn start_handshake(
     .await
 }
 
-struct ExpectServerHello {
+pub(crate) struct ExpectServerHello {
     config: Arc<ClientConfig>,
     server_name: ServerName,
     random: Random,
@@ -87,14 +146,14 @@ struct ExpectServerHello {
     suite: Option<SupportedCipherSuite>,
 }
 
-struct ExpectServerHelloOrHelloRetryRequest {
+pub(crate) struct ExpectServerHelloOrHelloRetryRequest {
     next: ExpectServerHello,
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn emit_client_hello_for_retry(
     config: Arc<ClientConfig>,
-    cx: &mut CommonState,
+    cx: &mut Live,
     random: Random,
     mut transcript_buffer: HandshakeHashBuffer,
     mut sent_tls13_fake_ccs: bool,
@@ -221,14 +280,16 @@ async fn emit_client_hello_for_retry(
     };
 
     if support_tls13 && retryreq.is_none() {
-        Ok(Box::new(ExpectServerHelloOrHelloRetryRequest { next }))
+        Ok(Handshake::ExpectServerHelloOrHelloRetryRequest(Box::new(
+            ExpectServerHelloOrHelloRetryRequest { next },
+        )))
     } else {
-        Ok(Box::new(next))
+        Ok(Handshake::ExpectServerHello(Box::new(next)))
     }
 }
 
-pub(super) async fn process_alpn_protocol(
-    common: &mut CommonState,
+pub(crate) async fn process_alpn_protocol(
+    common: &mut Live,
     config: &ClientConfig,
     proto: Option<&[u8]>,
 ) -> Result<(), Error> {
@@ -252,17 +313,12 @@ pub(super) async fn process_alpn_protocol(
     Ok(())
 }
 
-pub(super) fn sct_list_is_invalid(scts: &SCTList) -> bool {
+pub(crate) fn sct_list_is_invalid(scts: &SCTList) -> bool {
     scts.is_empty() || scts.iter().any(|sct| sct.0.is_empty())
 }
 
-#[async_trait]
-impl State for ExpectServerHello {
-    async fn handle(
-        mut self: Box<Self>,
-        cx: &mut CommonState,
-        m: Message,
-    ) -> NextStateOrError {
+impl ExpectServerHello {
+    pub(crate) async fn handle(mut self: Box<Self>, cx: &mut Live, m: Message) -> NextStateOrError {
         let server_hello =
             require_handshake_msg!(m, HandshakeType::ServerHello, HandshakePayload::ServerHello)?;
         trace!("We got ServerHello {:#?}", server_hello);
@@ -290,8 +346,7 @@ impl State for ExpectServerHello {
                 TLSv1_2
             }
             _ => {
-                cx
-                    .send_fatal_alert(AlertDescription::ProtocolVersion)
+                cx.send_fatal_alert(AlertDescription::ProtocolVersion)
                     .await?;
                 let msg = match server_version {
                     TLSv1_2 | TLSv1_3 => "server's TLS version is disabled in client",
@@ -308,9 +363,7 @@ impl State for ExpectServerHello {
         }
 
         if server_hello.has_duplicate_extension() {
-            cx
-                .send_fatal_alert(AlertDescription::DecodeError)
-                .await?;
+            cx.send_fatal_alert(AlertDescription::DecodeError).await?;
             return Err(Error::PeerMisbehavedError(
                 "server sent duplicate extensions".to_string(),
             ));
@@ -321,8 +374,7 @@ impl State for ExpectServerHello {
             .hello
             .server_sent_unsolicited_extensions(&server_hello.extensions, &allowed_unsolicited)
         {
-            cx
-                .send_fatal_alert(AlertDescription::UnsupportedExtension)
+            cx.send_fatal_alert(AlertDescription::UnsupportedExtension)
                 .await?;
             return Err(Error::PeerMisbehavedError(
                 "server sent unsolicited extension".to_string(),
@@ -333,8 +385,7 @@ impl State for ExpectServerHello {
 
         // Extract ALPN protocol
         if !cx.is_tls13() {
-            process_alpn_protocol(cx, &self.config, server_hello.get_alpn_protocol())
-                .await?;
+            process_alpn_protocol(cx, &self.config, server_hello.get_alpn_protocol()).await?;
         }
 
         // If ECPointFormats extension is supplied by the server, it must contain
@@ -352,8 +403,7 @@ impl State for ExpectServerHello {
         let suite = match self.config.find_cipher_suite(server_hello.cipher_suite) {
             Some(suite) => suite,
             None => {
-                cx
-                    .send_fatal_alert(AlertDescription::HandshakeFailure)
+                cx.send_fatal_alert(AlertDescription::HandshakeFailure)
                     .await?;
                 return Err(Error::PeerMisbehavedError(
                     "server chose non-offered ciphersuite".to_string(),
@@ -417,15 +467,11 @@ impl State for ExpectServerHello {
 }
 
 impl ExpectServerHelloOrHelloRetryRequest {
-    fn into_expect_server_hello(self) -> NextState {
+    fn into_expect_server_hello(self) -> Box<ExpectServerHello> {
         Box::new(self.next)
     }
 
-    async fn handle_hello_retry_request(
-        self,
-        cx: &mut CommonState,
-        m: Message,
-    ) -> NextStateOrError {
+    async fn handle_hello_retry_request(self, cx: &mut Live, m: Message) -> NextStateOrError {
         let hrr = require_handshake_msg!(
             m,
             HandshakeType::HelloRetryRequest,
@@ -460,8 +506,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
 
         // Or has something unrecognised
         if hrr.has_unknown_extension() {
-            cx
-                .send_fatal_alert(AlertDescription::UnsupportedExtension)
+            cx.send_fatal_alert(AlertDescription::UnsupportedExtension)
                 .await?;
             return Err(Error::PeerIncompatibleError(
                 "server sent hrr with unhandled extension".to_string(),
@@ -541,11 +586,8 @@ impl ExpectServerHelloOrHelloRetryRequest {
         )
         .await
     }
-}
 
-#[async_trait]
-impl State for ExpectServerHelloOrHelloRetryRequest {
-    async fn handle(self: Box<Self>, cx: &mut CommonState, m: Message) -> NextStateOrError {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Live, m: Message) -> NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHello(..),
@@ -564,10 +606,7 @@ impl State for ExpectServerHelloOrHelloRetryRequest {
     }
 }
 
-pub(super) async fn send_cert_error_alert(
-    common: &mut CommonState,
-    err: Error,
-) -> Result<Error, Error> {
+pub(crate) async fn send_cert_error_alert(common: &mut Live, err: Error) -> Result<Error, Error> {
     match err {
         Error::PeerMisbehavedError(_) => {
             common
@@ -586,24 +625,22 @@ pub(super) async fn send_cert_error_alert(
 
 // --- Handshake details (formerly common.rs) ---
 
-pub(crate) use tls_core::cert::ServerCertDetails;
-
-pub(super) struct ClientHelloDetails {
-    pub(super) sent_extensions: Vec<ExtensionType>,
+pub(crate) struct ClientHelloDetails {
+    pub(crate) sent_extensions: Vec<ExtensionType>,
 }
 
 impl ClientHelloDetails {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             sent_extensions: Vec::new(),
         }
     }
 
-    pub(super) fn server_may_send_sct_list(&self) -> bool {
+    pub(crate) fn server_may_send_sct_list(&self) -> bool {
         self.sent_extensions.contains(&ExtensionType::SCT)
     }
 
-    pub(super) fn server_sent_unsolicited_extensions(
+    pub(crate) fn server_sent_unsolicited_extensions(
         &self,
         received_exts: &[ServerExtension],
         allowed_unsolicited: &[ExtensionType],
@@ -621,7 +658,7 @@ impl ClientHelloDetails {
     }
 }
 
-pub(super) enum ClientAuthDetails {
+pub(crate) enum ClientAuthDetails {
     /// Send an empty `Certificate` and no `CertificateVerify`.
     Empty { auth_context_tls13: Option<Vec<u8>> },
     /// Send a non-empty `Certificate` and a `CertificateVerify`.
@@ -633,7 +670,7 @@ pub(super) enum ClientAuthDetails {
 }
 
 impl ClientAuthDetails {
-    pub(super) fn resolve(
+    pub(crate) fn resolve(
         resolver: &dyn ResolvesClientCert,
         canames: Option<&DistinguishedNames>,
         sigschemes: &[SignatureScheme],

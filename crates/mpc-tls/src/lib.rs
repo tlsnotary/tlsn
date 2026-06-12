@@ -12,12 +12,12 @@ pub(crate) mod follower;
 pub(crate) mod leader;
 mod msg;
 mod record_layer;
-pub(crate) mod utils;
+mod session;
 
 pub use config::{Config, ConfigBuilder, ConfigBuilderError};
 pub use error::MpcTlsError;
 pub use follower::MpcTlsFollower;
-pub use leader::MpcTlsLeader;
+pub use leader::{IoState, MpcTlsLeader};
 
 use std::sync::Arc;
 
