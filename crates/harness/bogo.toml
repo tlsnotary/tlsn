@@ -1,0 +1,15 @@
+# TLSN profiles for the BoGo conformance suite. Reuses the bench.toml schema:
+# each `[[bench]]` entry is one profile, and the whole BoGo suite is run once
+# per profile. Network/size fields are ignored here (BoGo controls the bytes);
+# the knobs that matter are `proxy` and `defer-decryption`.
+
+group = []
+
+[[bench]]
+name = "mpc"
+proxy = false
+"defer-decryption" = true
+
+[[bench]]
+name = "proxy"
+proxy = true

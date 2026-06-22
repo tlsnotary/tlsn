@@ -14,6 +14,7 @@ fi
 cargo build --release \
     --package tlsn-harness-runner $RUNNER_FEATURES \
     --package tlsn-harness-executor $EXECUTOR_FEATURES \
+    --package tlsn-harness-bogo \
     --package tlsn-server-fixture \
     --package tlsn-harness-plot
 
@@ -21,6 +22,7 @@ mkdir -p bin
 
 cp ../../target/release/tlsn-harness-runner bin/runner
 cp ../../target/release/tlsn-harness-executor-native bin/executor-native
+cp ../../target/release/bogo_shim bin/bogo_shim
 cp ../../target/release/tlsn-server-fixture bin/server-fixture
 cp ../../target/release/tlsn-harness-wasm-server bin/wasm-server
 cp ../../target/release/tlsn-harness-plot bin/tlsn-harness-plot

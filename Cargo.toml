@@ -20,6 +20,7 @@ members = [
     "crates/harness/executor",
     "crates/harness/runner",
     "crates/harness/plot",
+    "crates/harness/bogo",
     "crates/tlsn",
 ]
 # `crates/examples-zk` is intentionally excluded from the workspace. It pulls

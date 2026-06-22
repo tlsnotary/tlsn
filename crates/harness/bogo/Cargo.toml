@@ -1,0 +1,25 @@
+[package]
+name = "tlsn-harness-bogo"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# The BoGo (BoringSSL) test shim. BoGo's Go runner spawns this binary once per
+# test case, passing test parameters as command-line flags. Because TLSN's TLS
+# client only exists as one half of a 2-party MPC computation, the shim runs a
+# full prover+verifier pair in-process and exposes a single TLS socket to BoGo.
+[[bin]]
+name = "bogo_shim"
+path = "src/main.rs"
+
+[dependencies]
+tlsn = { workspace = true }
+tlsn-harness-core = { workspace = true }
+tlsn-harness-executor = { workspace = true }
+
+anyhow = { workspace = true }
+futures = { workspace = true }
+rustls-pemfile = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["compat"] }

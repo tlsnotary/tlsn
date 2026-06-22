@@ -6084,6 +6084,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tlsn-harness-bogo"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "rustls-pemfile",
+ "serde_json",
+ "tlsn",
+ "tlsn-harness-core",
+ "tlsn-harness-executor",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "tlsn-harness-core"
 version = "0.1.0"
 dependencies = [

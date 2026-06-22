@@ -1,3 +1,4 @@
+mod bogo;
 pub mod cli;
 mod executor;
 mod log;
@@ -216,6 +217,15 @@ pub async fn main() -> Result<()> {
     // Validate --headed requires --target browser
     if cli.headed && cli.target != Target::Browser {
         anyhow::bail!("--headed can only be used with --target browser");
+    }
+
+    // BoGo runs a self-contained shim and needs none of the harness network /
+    // executor machinery, so handle it before constructing the runner.
+    if matches!(cli.command, Command::Bogo { .. }) {
+        if let Command::Bogo { command } = cli.command {
+            return bogo::main(command).await;
+        }
+        unreachable!();
     }
 
     let mut runner = Runner::new(&cli)?;
@@ -467,6 +477,7 @@ pub async fn main() -> Result<()> {
 
             print_bench_summary(&all_stats);
         }
+        Command::Bogo { .. } => unreachable!("handled before runner construction"),
         Command::Serve {} => {
             runner.start_services().await?;
             tokio::signal::ctrl_c().await?;

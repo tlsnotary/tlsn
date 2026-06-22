@@ -56,6 +56,11 @@ pub enum Command {
         #[arg(long)]
         skip_warmup: bool,
     },
+    /// runs the BoGo (BoringSSL) TLS client conformance suite.
+    Bogo {
+        #[command(subcommand)]
+        command: BogoCommand,
+    },
     /// serves runner utilities such as the application server fixture, WASM
     /// server and WS proxy.
     Serve {},
@@ -73,6 +78,21 @@ pub enum Command {
         bandwidth: usize,
         /// The latency to set.
         latency: usize,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BogoCommand {
+    /// fetches BoringSSL at the pinned revision and builds the BoGo runner.
+    Install {},
+    /// runs the BoGo suite against the TLSN shim, once per configured profile.
+    Run {
+        /// Configuration path defining the TLSN profiles to run.
+        #[arg(short, long, default_value = "bogo.toml")]
+        config: PathBuf,
+        /// Test name prefix filter passed through to the BoGo runner.
+        #[arg(long)]
+        test: Option<String>,
     },
 }
 
