@@ -1,36 +1,35 @@
-use tracing::{debug, trace, warn};
-use crate::client::{
-    ClientConfig, ServerName,
-    check::inappropriate_handshake_message,
-    conn::{CommonState, State},
-    error::Error,
-    hash_hs::HandshakeHash,
-    hs::{self, ClientAuthDetails, ClientHelloDetails, ServerCertDetails},
-    sign, verify,
+use crate::{
+    conn::Conn,
+    handshake::{
+        ClientConfig, ServerName,
+        check::inappropriate_handshake_message,
+        error::Error,
+        hash_hs::HandshakeHash,
+        hs::{self, ClientAuthDetails, ClientHelloDetails, Handshake, ServerCertDetails},
+        sign::{self, CertifiedKey, Signer},
+        verify,
+    },
 };
 #[allow(deprecated)]
 use ring::constant_time;
+use std::sync::Arc;
 use tls_core::{
     key::PublicKey,
     msgs::{
         base::{Payload, PayloadU8},
         ccs::ChangeCipherSpecPayload,
         enums::{
-            AlertDescription, ContentType, ExtensionType, HandshakeType, KeyUpdateRequest,
-            ProtocolVersion, SignatureScheme,
+            AlertDescription, ContentType, ExtensionType, HandshakeType, ProtocolVersion,
+            SignatureScheme,
         },
         handshake::{
             CertificateEntry, CertificatePayloadTLS13, DigitallySignedStruct, EncryptedExtensions,
-            HandshakeMessagePayload, HandshakePayload, HasServerExtensions,
-            NewSessionTicketPayloadTLS13, ServerHelloPayload,
+            HandshakeMessagePayload, HandshakePayload, HasServerExtensions, ServerHelloPayload,
         },
         message::{Message, MessagePayload},
     },
 };
-
-use crate::client::sign::{CertifiedKey, Signer};
-use async_trait::async_trait;
-use std::sync::Arc;
+use tracing::{debug, trace, warn};
 
 // Extensions we expect in plaintext in the ServerHello.
 static ALLOWED_PLAINTEXT_EXTS: &[ExtensionType] = &[
@@ -58,9 +57,9 @@ fn unsupported() -> Result<(), Error> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn handle_server_hello(
+pub(crate) async fn handle_server_hello(
     config: Arc<ClientConfig>,
-    cx: &mut CommonState,
+    cx: &mut Conn,
     server_hello: &ServerHelloPayload,
     server_name: ServerName,
     transcript: HandshakeHash,
@@ -73,8 +72,7 @@ pub(super) async fn handle_server_hello(
     let their_key_share = match server_hello.get_key_share() {
         Some(ks) => ks,
         None => {
-            cx
-                .send_fatal_alert(AlertDescription::MissingExtension)
+            cx.send_fatal_alert(AlertDescription::MissingExtension)
                 .await?;
             return Err(Error::PeerMisbehavedError("missing key share".to_string()));
         }
@@ -94,16 +92,18 @@ pub(super) async fn handle_server_hello(
 
     emit_fake_ccs(&mut sent_tls13_fake_ccs, cx).await?;
 
-    Ok(Box::new(ExpectEncryptedExtensions {
-        config,
-        server_name,
-        transcript,
-        hello,
-    }))
+    Ok(Handshake::Tls13ExpectEncryptedExtensions(Box::new(
+        ExpectEncryptedExtensions {
+            config,
+            server_name,
+            transcript,
+            hello,
+        },
+    )))
 }
 
 async fn validate_server_hello(
-    common: &mut CommonState,
+    common: &mut Conn,
     server_hello: &ServerHelloPayload,
 ) -> Result<(), Error> {
     for ext in &server_hello.extensions {
@@ -120,9 +120,9 @@ async fn validate_server_hello(
     Ok(())
 }
 
-pub(super) async fn emit_fake_ccs(
+pub(crate) async fn emit_fake_ccs(
     sent_tls13_fake_ccs: &mut bool,
-    common: &mut CommonState,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     if std::mem::replace(sent_tls13_fake_ccs, true) {
         return Ok(());
@@ -136,7 +136,7 @@ pub(super) async fn emit_fake_ccs(
 }
 
 async fn validate_encrypted_extensions(
-    common: &mut CommonState,
+    common: &mut Conn,
     hello: &ClientHelloDetails,
     exts: &EncryptedExtensions,
 ) -> Result<(), Error> {
@@ -172,18 +172,17 @@ async fn validate_encrypted_extensions(
     Ok(())
 }
 
-struct ExpectEncryptedExtensions {
+pub(crate) struct ExpectEncryptedExtensions {
     config: Arc<ClientConfig>,
     server_name: ServerName,
     transcript: HandshakeHash,
     hello: ClientHelloDetails,
 }
 
-#[async_trait]
-impl State for ExpectEncryptedExtensions {
-    async fn handle(
+impl ExpectEncryptedExtensions {
+    pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut CommonState,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let exts = require_handshake_msg!(
@@ -202,29 +201,26 @@ impl State for ExpectEncryptedExtensions {
             return Err(Error::PeerMisbehavedError(msg));
         }
 
-        Ok(Box::new(ExpectCertificateOrCertReq {
-            config: self.config,
-            server_name: self.server_name,
-            transcript: self.transcript,
-            may_send_sct_list: self.hello.server_may_send_sct_list(),
-        }))
+        Ok(Handshake::Tls13ExpectCertificateOrCertReq(Box::new(
+            ExpectCertificateOrCertReq {
+                config: self.config,
+                server_name: self.server_name,
+                transcript: self.transcript,
+                may_send_sct_list: self.hello.server_may_send_sct_list(),
+            },
+        )))
     }
 }
 
-struct ExpectCertificateOrCertReq {
+pub(crate) struct ExpectCertificateOrCertReq {
     config: Arc<ClientConfig>,
     server_name: ServerName,
     transcript: HandshakeHash,
     may_send_sct_list: bool,
 }
 
-#[async_trait]
-impl State for ExpectCertificateOrCertReq {
-    async fn handle(
-        self: Box<Self>,
-        cx: &mut CommonState,
-        m: Message,
-    ) -> hs::NextStateOrError {
+impl ExpectCertificateOrCertReq {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::CertificateTLS13(..),
@@ -268,18 +264,17 @@ impl State for ExpectCertificateOrCertReq {
 // TLS1.3 version of CertificateRequest handling.  We then move to expecting the
 // server Certificate. Unfortunately the CertificateRequest type changed in an
 // annoying way in TLS1.3.
-struct ExpectCertificateRequest {
+pub(crate) struct ExpectCertificateRequest {
     config: Arc<ClientConfig>,
     server_name: ServerName,
     transcript: HandshakeHash,
     may_send_sct_list: bool,
 }
 
-#[async_trait]
-impl State for ExpectCertificateRequest {
-    async fn handle(
+impl ExpectCertificateRequest {
+    pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut CommonState,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let certreq = &require_handshake_msg!(
@@ -296,9 +291,7 @@ impl State for ExpectCertificateRequest {
         // Must be empty during handshake.
         if !certreq.context.0.is_empty() {
             warn!("Server sent non-empty certreq context");
-            cx
-                .send_fatal_alert(AlertDescription::DecodeError)
-                .await?;
+            cx.send_fatal_alert(AlertDescription::DecodeError).await?;
             return Err(Error::CorruptMessagePayload(ContentType::Handshake));
         }
 
@@ -313,8 +306,7 @@ impl State for ExpectCertificateRequest {
             .collect::<Vec<SignatureScheme>>();
 
         if compat_sigschemes.is_empty() {
-            cx
-                .send_fatal_alert(AlertDescription::HandshakeFailure)
+            cx.send_fatal_alert(AlertDescription::HandshakeFailure)
                 .await?;
             return Err(Error::PeerIncompatibleError(
                 "server sent bad certreq schemes".to_string(),
@@ -328,17 +320,19 @@ impl State for ExpectCertificateRequest {
             Some(certreq.context.0.clone()),
         );
 
-        Ok(Box::new(ExpectCertificate {
-            config: self.config,
-            server_name: self.server_name,
-            transcript: self.transcript,
-            may_send_sct_list: self.may_send_sct_list,
-            client_auth: Some(client_auth),
-        }))
+        Ok(Handshake::Tls13ExpectCertificate(Box::new(
+            ExpectCertificate {
+                config: self.config,
+                server_name: self.server_name,
+                transcript: self.transcript,
+                may_send_sct_list: self.may_send_sct_list,
+                client_auth: Some(client_auth),
+            },
+        )))
     }
 }
 
-struct ExpectCertificate {
+pub(crate) struct ExpectCertificate {
     config: Arc<ClientConfig>,
     server_name: ServerName,
     transcript: HandshakeHash,
@@ -346,11 +340,10 @@ struct ExpectCertificate {
     client_auth: Option<ClientAuthDetails>,
 }
 
-#[async_trait]
-impl State for ExpectCertificate {
-    async fn handle(
+impl ExpectCertificate {
+    pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut CommonState,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let cert_chain = require_handshake_msg!(
@@ -363,9 +356,7 @@ impl State for ExpectCertificate {
         // This is only non-empty for client auth.
         if !cert_chain.context.0.is_empty() {
             warn!("certificate with non-empty context during handshake");
-            cx
-                .send_fatal_alert(AlertDescription::DecodeError)
-                .await?;
+            cx.send_fatal_alert(AlertDescription::DecodeError).await?;
             return Err(Error::CorruptMessagePayload(ContentType::Handshake));
         }
 
@@ -373,8 +364,7 @@ impl State for ExpectCertificate {
             || cert_chain.any_entry_has_unknown_extension()
         {
             warn!("certificate chain contains unsolicited/unknown extension");
-            cx
-                .send_fatal_alert(AlertDescription::UnsupportedExtension)
+            cx.send_fatal_alert(AlertDescription::UnsupportedExtension)
                 .await?;
             return Err(Error::PeerMisbehavedError(
                 "bad cert chain extensions".to_string(),
@@ -399,18 +389,20 @@ impl State for ExpectCertificate {
             }
         }
 
-        Ok(Box::new(ExpectCertificateVerify {
-            config: self.config,
-            server_name: self.server_name,
-            transcript: self.transcript,
-            server_cert,
-            client_auth: self.client_auth,
-        }))
+        Ok(Handshake::Tls13ExpectCertificateVerify(Box::new(
+            ExpectCertificateVerify {
+                config: self.config,
+                server_name: self.server_name,
+                transcript: self.transcript,
+                server_cert,
+                client_auth: self.client_auth,
+            },
+        )))
     }
 }
 
 // --- TLS1.3 CertificateVerify ---
-struct ExpectCertificateVerify {
+pub(crate) struct ExpectCertificateVerify {
     config: Arc<ClientConfig>,
     server_name: ServerName,
     transcript: HandshakeHash,
@@ -418,11 +410,10 @@ struct ExpectCertificateVerify {
     client_auth: Option<ClientAuthDetails>,
 }
 
-#[async_trait]
-impl State for ExpectCertificateVerify {
-    async fn handle(
+impl ExpectCertificateVerify {
+    pub(crate) async fn handle(
         mut self: Box<Self>,
-        cx: &mut CommonState,
+        cx: &mut Conn,
         m: Message,
     ) -> hs::NextStateOrError {
         let cert_verify = require_handshake_msg!(
@@ -471,12 +462,12 @@ impl State for ExpectCertificateVerify {
 
         self.transcript.add_message(&m);
 
-        Ok(Box::new(ExpectFinished {
+        Ok(Handshake::Tls13ExpectFinished(Box::new(ExpectFinished {
             transcript: self.transcript,
             client_auth: self.client_auth,
             cert_verified,
             sig_verified,
-        }))
+        })))
     }
 }
 
@@ -484,7 +475,7 @@ async fn emit_certificate_tls13(
     transcript: &mut HandshakeHash,
     certkey: Option<&CertifiedKey>,
     auth_context: Option<Vec<u8>>,
-    common: &mut CommonState,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let context = auth_context.unwrap_or_default();
 
@@ -515,7 +506,7 @@ async fn emit_certificate_tls13(
 async fn emit_certverify_tls13(
     transcript: &mut HandshakeHash,
     signer: &dyn Signer,
-    common: &mut CommonState,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let message = verify::construct_tls13_client_verify_message(&transcript.get_current_hash());
 
@@ -538,7 +529,7 @@ async fn emit_certverify_tls13(
 async fn emit_finished_tls13(
     verify_data: &[u8],
     transcript: &mut HandshakeHash,
-    common: &mut CommonState,
+    common: &mut Conn,
 ) -> Result<(), Error> {
     let verify_data_payload = Payload::new(verify_data);
 
@@ -554,27 +545,21 @@ async fn emit_finished_tls13(
     common.send_msg(m, true).await
 }
 
-struct ExpectFinished {
+pub(crate) struct ExpectFinished {
     transcript: HandshakeHash,
     client_auth: Option<ClientAuthDetails>,
     cert_verified: verify::ServerCertVerified,
     sig_verified: verify::HandshakeSignatureValid,
 }
 
-#[async_trait]
-impl State for ExpectFinished {
-    async fn handle(
-        self: Box<Self>,
-        cx: &mut CommonState,
-        m: Message,
-    ) -> hs::NextStateOrError {
+impl ExpectFinished {
+    pub(crate) async fn handle(self: Box<Self>, cx: &mut Conn, m: Message) -> hs::NextStateOrError {
         let mut st = *self;
         let finished =
             require_handshake_msg!(m, HandshakeType::Finished, HandshakePayload::Finished)?;
 
         let handshake_hash = st.transcript.get_current_hash();
         let expect_verify_data = cx
-            .backend
             .get_server_finished_vd(handshake_hash.as_ref().to_vec())
             .await?;
 
@@ -585,9 +570,7 @@ impl State for ExpectFinished {
         ) {
             Ok(()) => verify::FinishedMessageVerified::assertion(),
             Err(_) => {
-                cx
-                    .send_fatal_alert(AlertDescription::DecryptError)
-                    .await?;
+                cx.send_fatal_alert(AlertDescription::DecryptError).await?;
                 return Err(Error::DecryptError);
             }
         };
@@ -601,21 +584,15 @@ impl State for ExpectFinished {
                 ClientAuthDetails::Empty {
                     auth_context_tls13: auth_context,
                 } => {
-                    emit_certificate_tls13(&mut st.transcript, None, auth_context, cx)
-                        .await?;
+                    emit_certificate_tls13(&mut st.transcript, None, auth_context, cx).await?;
                 }
                 ClientAuthDetails::Verify {
                     certkey,
                     signer,
                     auth_context_tls13: auth_context,
                 } => {
-                    emit_certificate_tls13(
-                        &mut st.transcript,
-                        Some(&certkey),
-                        auth_context,
-                        cx,
-                    )
-                    .await?;
+                    emit_certificate_tls13(&mut st.transcript, Some(&certkey), auth_context, cx)
+                        .await?;
                     emit_certverify_tls13(&mut st.transcript, signer.as_ref(), cx).await?;
                 }
             }
@@ -623,7 +600,6 @@ impl State for ExpectFinished {
 
         let handshake_hash = st.transcript.get_current_hash();
         let client_finished = cx
-            .backend
             .get_client_finished_vd(handshake_hash.as_ref().to_vec())
             .await?;
         emit_finished_tls13(&client_finished, &mut st.transcript, cx).await?;
@@ -635,91 +611,12 @@ impl State for ExpectFinished {
         // MPC backend.
         unsupported()?;
 
-        cx.start_traffic().await?;
+        // The proof tokens are not threaded further now that the handshake
+        // ends; the connection driver moves to the online phase on `Complete`,
+        // where post-handshake messages (tickets, key updates) are routed by
+        // `crate::handshake::traffic`.
+        let _ = (st.cert_verified, st.sig_verified, fin);
 
-        let st = ExpectTraffic {
-            _cert_verified: st.cert_verified,
-            _sig_verified: st.sig_verified,
-            _fin_verified: fin,
-        };
-
-        Ok(Box::new(st))
-    }
-}
-
-// -- Traffic transit state (TLS1.3) --
-// In this state we can be sent tickets, key updates,
-// and application data.
-struct ExpectTraffic {
-    _cert_verified: verify::ServerCertVerified,
-    _sig_verified: verify::HandshakeSignatureValid,
-    _fin_verified: verify::FinishedMessageVerified,
-}
-
-impl ExpectTraffic {
-    #[allow(clippy::unnecessary_wraps)]
-    async fn handle_new_ticket_tls13(
-        &mut self,
-        cx: &mut CommonState,
-        nst: &NewSessionTicketPayloadTLS13,
-    ) -> Result<(), Error> {
-        if nst.has_duplicate_extension() {
-            cx
-                .send_fatal_alert(AlertDescription::IllegalParameter)
-                .await?;
-            return Err(Error::PeerMisbehavedError(
-                "peer sent duplicate NewSessionTicket extensions".into(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    async fn handle_key_update(
-        &mut self,
-        common: &mut CommonState,
-        _kur: &KeyUpdateRequest,
-    ) -> Result<(), Error> {
-        // Mustn't be interleaved with other handshake messages.
-        common.check_aligned_handshake().await?;
-
-        // Client does not support key updates
-        common
-            .send_fatal_alert(AlertDescription::InternalError)
-            .await?;
-
-        Err(Error::General(
-            "received unsupported key update request from peer".to_string(),
-        ))
-    }
-}
-
-#[async_trait]
-impl State for ExpectTraffic {
-    async fn handle(
-        mut self: Box<Self>,
-        cx: &mut CommonState,
-        m: Message,
-    ) -> hs::NextStateOrError {
-        match m.payload {
-            MessagePayload::ApplicationData(payload) => cx.take_received_plaintext(payload),
-            MessagePayload::Handshake(HandshakeMessagePayload {
-                payload: HandshakePayload::NewSessionTicketTLS13(ref new_ticket),
-                ..
-            }) => self.handle_new_ticket_tls13(cx, new_ticket).await?,
-            MessagePayload::Handshake(HandshakeMessagePayload {
-                payload: HandshakePayload::KeyUpdate(ref key_update),
-                ..
-            }) => self.handle_key_update(cx, key_update).await?,
-            payload => {
-                return Err(inappropriate_handshake_message(
-                    &payload,
-                    &[ContentType::ApplicationData, ContentType::Handshake],
-                    &[HandshakeType::NewSessionTicket, HandshakeType::KeyUpdate],
-                ));
-            }
-        }
-
-        Ok(self)
+        Ok(Handshake::Complete)
     }
 }

@@ -1,6 +1,5 @@
 use std::{cmp, collections::VecDeque, io, io::Read};
 
-
 /// This is a byte buffer that is built from a vector
 /// of byte vectors.  This avoids extra copies when
 /// appending a new byte vector, at the expense of

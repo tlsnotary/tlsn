@@ -6,7 +6,7 @@ use crate::{
     prover::client::{DecryptState, TlsClient, TlsOutput},
 };
 use futures::{Future, FutureExt};
-use mpc_tls::{MpcTlsLeader, SessionKeys, client::ClientConnection};
+use mpc_tls::{ClientConfig, MpcTlsLeader, SessionKeys};
 use mpz_common::Context;
 use rustls_pki_types::CertificateDer;
 use std::{
@@ -63,20 +63,16 @@ impl MpcTlsClient {
         server_name: ServerName,
         mpc_tls: MpcTlsLeader,
     ) -> Result<Self, TlsnError> {
-        let config = create_client_config(config)?;
+        let client_config = Arc::new(create_client_config(config)?);
         let decrypt = DecryptState {
             decrypt: AtomicBool::new(mpc_tls.is_decrypting()),
         };
 
-        let tls = ClientConnection::new(Arc::new(config), mpc_tls, server_name).map_err(|e| {
-            TlsnError::config()
-                .with_msg("failed to create tls client connection")
-                .with_source(e)
-        })?;
-
         let inner = InnerState {
             span,
-            tls,
+            tls: mpc_tls,
+            client_config,
+            server_name,
             vm,
             keys,
             decrypt: decrypt.is_decrypting(),
@@ -95,7 +91,7 @@ impl MpcTlsClient {
         Ok(client)
     }
 
-    fn inner_client_mut(&mut self) -> Option<&mut ClientConnection> {
+    fn inner_client_mut(&mut self) -> Option<&mut MpcTlsLeader> {
         if let State::Active { inner } | State::CloseActive { inner } = &mut self.state {
             Some(&mut inner.tls)
         } else {
@@ -103,7 +99,7 @@ impl MpcTlsClient {
         }
     }
 
-    fn inner_client(&self) -> Option<&ClientConnection> {
+    fn inner_client(&self) -> Option<&MpcTlsLeader> {
         if let State::Active { inner } | State::CloseActive { inner } = &self.state {
             Some(&inner.tls)
         } else {
@@ -325,7 +321,9 @@ impl TlsClient for MpcTlsClient {
 
 struct InnerState {
     span: Span,
-    tls: ClientConnection,
+    tls: MpcTlsLeader,
+    client_config: Arc<ClientConfig>,
+    server_name: ServerName,
     vm: Arc<Mutex<Deap<ProverMpc, ProverZk>>>,
     keys: SessionKeys,
     decrypt: bool,
@@ -335,8 +333,10 @@ struct InnerState {
 impl InnerState {
     #[instrument(parent = &self.span, level = "debug", skip_all, err)]
     async fn start(mut self: Box<Self>) -> Result<Box<Self>, TlsnError> {
+        let client_config = self.client_config.clone();
+        let server_name = self.server_name.clone();
         self.tls
-            .start()
+            .start(client_config, server_name)
             .await
             .map_err(|err| TlsnError::internal().with_source(err))?;
         Ok(self)
@@ -421,10 +421,8 @@ impl InnerState {
     }
 }
 
-fn create_client_config(
-    config: &TlsClientConfig,
-) -> Result<mpc_tls::client::ClientConfig, TlsnError> {
-    let root_store = mpc_tls::client::RootCertStore {
+fn create_client_config(config: &TlsClientConfig) -> Result<mpc_tls::ClientConfig, TlsnError> {
+    let root_store = mpc_tls::RootCertStore {
         roots: config
             .root_store()
             .roots
@@ -443,12 +441,12 @@ fn create_client_config(
     };
 
     let client_config = if let Some((cert, key)) = config.client_auth() {
-        mpc_tls::client::ClientConfig::new_with_client_auth(
+        mpc_tls::ClientConfig::new_with_client_auth(
             root_store,
             cert.iter()
-                .map(|cert| mpc_tls::client::Certificate(cert.0.clone()))
+                .map(|cert| mpc_tls::Certificate(cert.0.clone()))
                 .collect(),
-            mpc_tls::client::PrivateKey(key.0.clone()),
+            mpc_tls::PrivateKey(key.0.clone()),
         )
         .map_err(|e| {
             TlsnError::config()
@@ -456,7 +454,7 @@ fn create_client_config(
                 .with_source(e)
         })?
     } else {
-        mpc_tls::client::ClientConfig::new(root_store)
+        mpc_tls::ClientConfig::new(root_store)
     };
 
     Ok(client_config)
