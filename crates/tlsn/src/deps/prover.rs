@@ -58,16 +58,21 @@ impl ProverMpcDeps {
         // RCOT only flushes once all its clones reach the flush barrier, but the
         // preprocess branches (ke / record_layer / vm) don't all flush together, so a
         // shared instance deadlocks. All senders use the same global delta.
-        let new_send = || {
+        let id = |n: u128| Block::new(n.to_le_bytes());
+        let new_send = |instance_id: Block| {
             SharedRCOTSender::new(kos::Sender::new(
                 kos::SenderConfig::default(),
                 delta.into_inner(),
+                instance_id,
                 co::Receiver::default(),
             ))
         };
-        let new_recv = |rng: &mut rand::rngs::ThreadRng| {
-            let rcot_recv =
-                kos::Receiver::new(kos::ReceiverConfig::default(), co::Sender::default());
+        let new_recv = |rng: &mut rand::rngs::ThreadRng, instance_id: Block| {
+            let rcot_recv = kos::Receiver::new(
+                kos::ReceiverConfig::default(),
+                instance_id,
+                co::Sender::default(),
+            );
             let rcot_recv = ferret::Receiver::new(
                 ferret::FerretConfig::builder()
                     .lpn_type(ferret::LpnType::Regular)
@@ -82,13 +87,13 @@ impl ProverMpcDeps {
         let mpc = cfg_select! {
             tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
             _ => {
-                ProverMpc::new(DerandCOTSender::new(new_send()), rng.random(), delta)
+                ProverMpc::new(DerandCOTSender::new(new_send(id(0))), rng.random(), delta)
             }
         };
 
         let zk = cfg_select! {
             tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
-            _ => { ProverZk::new(Default::default(), new_recv(&mut rng)) }
+            _ => { ProverZk::new(Default::default(), new_recv(&mut rng, id(1))) }
         };
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
@@ -96,8 +101,8 @@ impl ProverMpcDeps {
             build_mpc_tls_config(config),
             ctx,
             vm.clone(),
-            (new_send(), new_send(), new_send()),
-            new_recv(&mut rng),
+            (new_send(id(2)), new_send(id(3)), new_send(id(4))),
+            new_recv(&mut rng, id(5)),
         );
 
         Self {
@@ -150,7 +155,11 @@ impl ProverProxyDeps {
                 let mut rng = rand::rng();
 
                 let base_ot_send = co::Sender::default();
-                let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
+                let rcot_recv = kos::Receiver::new(
+                    kos::ReceiverConfig::default(),
+                    Block::ZERO,
+                    base_ot_send,
+                );
                 let rcot_recv = ferret::Receiver::new(
                     ferret::FerretConfig::builder()
                         .lpn_type(ferret::LpnType::Regular)

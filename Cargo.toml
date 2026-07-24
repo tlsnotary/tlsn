@@ -173,3 +173,30 @@ webpki-roots = { version = "1.0" }
 webpki-root-certs = { version = "1.0" }
 ws_stream_wasm = { version = "0.7.5" }
 zeroize = { version = "1.8" }
+
+# Patch mpz to the fork carrying the per-instance KOS domain-separation change.
+[patch."https://github.com/privacy-ethereum/mpz"]
+clmul = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+matrix-transpose = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-circuits = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-circuits-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-circuits-data = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-cointoss = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-cointoss-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-common = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-fields = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-garble = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-garble-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-hash = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-ideal-vm = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-memory-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-ole = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-ole-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-ot = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-ot-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-share-conversion = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-share-conversion-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-vm-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-zk = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }
+mpz-zk-core = { git = "https://github.com/AdamDawidKrol/mpz", rev = "c0379ef" }

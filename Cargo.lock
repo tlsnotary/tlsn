@@ -1592,7 +1592,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "clmul"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -2504,7 +2504,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3373,7 +3373,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3593,7 +3593,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matrix-transpose"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "thiserror 1.0.69",
 ]
@@ -3649,7 +3649,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "mpz-circuits-core",
  "mpz-circuits-data",
@@ -3658,7 +3658,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "bincode",
  "itybity 0.3.2",
@@ -3673,7 +3673,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits-data"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "bincode",
  "mpz-circuits-core",
@@ -3683,7 +3683,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "futures",
  "mpz-cointoss-core",
@@ -3696,7 +3696,7 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "mpz-core",
  "opaque-debug",
@@ -3707,7 +3707,7 @@ dependencies = [
 [[package]]
 name = "mpz-common"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-task",
  "async-trait",
@@ -3729,7 +3729,7 @@ dependencies = [
 [[package]]
 name = "mpz-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "aes 0.9.0",
  "bcs",
@@ -3755,7 +3755,7 @@ dependencies = [
 [[package]]
 name = "mpz-fields"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-secp256r1",
@@ -3776,7 +3776,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-trait",
  "derive_builder 0.11.2",
@@ -3802,7 +3802,7 @@ dependencies = [
 [[package]]
 name = "mpz-garble-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "aes 0.9.0",
  "bitvec",
@@ -3833,7 +3833,7 @@ dependencies = [
 [[package]]
 name = "mpz-hash"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "blake3",
  "itybity 0.3.2",
@@ -3846,7 +3846,7 @@ dependencies = [
 [[package]]
 name = "mpz-ideal-vm"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-trait",
  "futures",
@@ -3863,7 +3863,7 @@ dependencies = [
 [[package]]
 name = "mpz-memory-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "blake3",
  "futures",
@@ -3878,7 +3878,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-trait",
  "futures",
@@ -3896,7 +3896,7 @@ dependencies = [
 [[package]]
 name = "mpz-ole-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "hybrid-array",
  "itybity 0.3.2",
@@ -3912,7 +3912,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -3936,7 +3936,7 @@ dependencies = [
 [[package]]
 name = "mpz-ot-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "aes 0.9.0",
  "blake3",
@@ -3967,7 +3967,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-trait",
  "mpz-common",
@@ -3983,7 +3983,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "mpz-common",
  "mpz-core",
@@ -3997,7 +3997,7 @@ dependencies = [
 [[package]]
 name = "mpz-vm-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-trait",
  "futures",
@@ -4010,7 +4010,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4028,7 +4028,7 @@ dependencies = [
 [[package]]
 name = "mpz-zk-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/AdamDawidKrol/mpz?rev=c0379ef#c0379efa81cad70c21c922f65a6094da6f10c630"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -4067,7 +4067,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4182,7 +4182,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4996,7 +4996,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5749,7 +5749,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7138,7 +7138,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
