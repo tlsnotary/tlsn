@@ -97,7 +97,11 @@ impl MpcAesGcm {
         vm.assign(zero_block, [0u8; 16])?;
         vm.commit(zero_block)?;
 
-        ghash.alloc()?;
+        // Size GHASH preprocessing to the largest single record this
+        // allocation admits instead of always paying for a maximum-size TLS
+        // record. `powers_for_len` clamps to the old bound, so a caller that
+        // provisions more than one full record is unchanged.
+        ghash.alloc(super::ghash::powers_for_len(len))?;
         let ghash_key = self.aes.alloc_block(vm, zero_block)?;
         let ghash_key_share = OneTimePadShared::<[u8; 16]>::new(self.role, ghash_key, vm)?;
 
