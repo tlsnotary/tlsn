@@ -245,6 +245,17 @@ pub struct Blinder([u8; 16]);
 opaque_debug::implement!(Blinder);
 
 impl Blinder {
+    /// Creates a blinder from caller-supplied randomness.
+    ///
+    /// A prover that chooses its own blinder can derive the commitment value
+    /// locally and start dependent work before the proving phase. The blinder
+    /// only hides the prover's own pre-image from the verifier, so choosing
+    /// it early adds no verifier-side assumption; it must still come from a
+    /// cryptographically secure source and be used for exactly one commitment.
+    pub fn new(blinder: [u8; 16]) -> Self {
+        Self(blinder)
+    }
+
     /// Returns the blinder as a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0

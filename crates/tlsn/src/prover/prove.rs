@@ -84,9 +84,10 @@ pub(crate) async fn prove<T: Vm<Binary> + Send + Sync>(
             prove_hash(
                 vm,
                 &transcript_refs,
-                commit_config
-                    .iter_hash()
-                    .map(|((dir, idx), alg)| (*dir, idx.clone(), *alg)),
+                commit_config.iter_hash().map(|((dir, idx), alg)| {
+                    let blinder = config.hash_blinder(*dir, idx, *alg).cloned();
+                    (*dir, idx.clone(), *alg, blinder)
+                }),
             )
             .map_err(|e| {
                 Error::internal()

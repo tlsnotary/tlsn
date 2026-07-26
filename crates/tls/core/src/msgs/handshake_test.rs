@@ -1,8 +1,8 @@
 use rustls_pki_types as pki_types;
 
 use super::{
-    base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-    codec::{put_u16, Codec, Reader},
+    base::{Payload, PayloadU8, PayloadU16, PayloadU24},
+    codec::{Codec, Reader, put_u16},
     enums::*,
     handshake::*,
 };
@@ -999,11 +999,13 @@ fn can_detect_truncation_of_all_tls12_handshake_payloads() {
                 _ => {}
             };
 
-            assert!(HandshakeMessagePayload::read_version(
-                &mut Reader::init(&enc),
-                ProtocolVersion::TLSv1_2
-            )
-            .is_none());
+            assert!(
+                HandshakeMessagePayload::read_version(
+                    &mut Reader::init(&enc),
+                    ProtocolVersion::TLSv1_2
+                )
+                .is_none()
+            );
             assert!(HandshakeMessagePayload::read_bytes(&enc).is_none());
         }
     }
@@ -1146,11 +1148,13 @@ fn can_detect_truncation_of_all_tls13_handshake_payloads() {
                 _ => {}
             };
 
-            assert!(HandshakeMessagePayload::read_version(
-                &mut Reader::init(&enc),
-                ProtocolVersion::TLSv1_3
-            )
-            .is_none());
+            assert!(
+                HandshakeMessagePayload::read_version(
+                    &mut Reader::init(&enc),
+                    ProtocolVersion::TLSv1_3
+                )
+                .is_none()
+            );
         }
     }
 }

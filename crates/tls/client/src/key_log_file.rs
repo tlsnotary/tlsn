@@ -1,6 +1,6 @@
+use crate::KeyLog;
 #[cfg(feature = "logging")]
 use crate::log::warn;
-use crate::KeyLog;
 use std::{
     env,
     fs::{File, OpenOptions},

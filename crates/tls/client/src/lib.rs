@@ -332,7 +332,7 @@ pub use crate::{
     error::Error,
     key_log::{KeyLog, NoKeyLog},
     key_log_file::KeyLogFile,
-    kx::{SupportedKxGroup, ALL_KX_GROUPS},
+    kx::{ALL_KX_GROUPS, SupportedKxGroup},
 };
 pub use backend::{
     Backend, BackendError, BackendNotifier, BackendNotify, DecryptMode, EncryptMode,
@@ -345,8 +345,8 @@ pub use tls_core::{
         enums::{CipherSuite, ProtocolVersion, SignatureScheme},
         handshake::DistinguishedNames,
     },
-    suites::{SupportedCipherSuite, ALL_CIPHER_SUITES},
-    versions::{SupportedProtocolVersion, ALL_VERSIONS},
+    suites::{ALL_CIPHER_SUITES, SupportedCipherSuite},
+    versions::{ALL_VERSIONS, SupportedProtocolVersion},
 };
 
 /// Items for use in a client.

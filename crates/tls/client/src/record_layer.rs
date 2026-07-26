@@ -1,4 +1,4 @@
-use crate::{error::Error, Backend};
+use crate::{Backend, error::Error};
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
 static SEQ_SOFT_LIMIT: u64 = 0xffff_ffff_ffff_0000u64;

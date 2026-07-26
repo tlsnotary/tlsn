@@ -2,12 +2,12 @@ use super::{Backend, BackendError};
 use crate::{DecryptMode, EncryptMode, Error};
 #[allow(deprecated)]
 use aes_gcm::{
-    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
     Aes128Gcm,
+    aead::{Aead, NewAead, Payload, generic_array::GenericArray},
 };
 use async_trait::async_trait;
-use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
-use rand::{rng, rngs::OsRng, Rng};
+use p256::{EncodedPoint, PublicKey as ECDHPublicKey, ecdh::EphemeralSecret};
+use rand::{Rng, rng, rngs::OsRng};
 
 use digest::Digest;
 use rand06_compat::Rand0_6CompatExt;
@@ -336,7 +336,7 @@ impl Backend for RustCryptoBackend {
             _ => {
                 return Err(BackendError::InvalidState(
                     "Client_random and/or server_random not set".to_string(),
-                ))
+                ));
             }
         };
 

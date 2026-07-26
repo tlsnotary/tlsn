@@ -1,8 +1,8 @@
 use web_time::SystemTime;
 
 use crate::{
-    cert::ServerCertDetails, dns::ServerName, ke::ServerKxDetails, msgs::handshake::Random,
-    verify::ServerCertVerifier, Error,
+    Error, cert::ServerCertDetails, dns::ServerName, ke::ServerKxDetails, msgs::handshake::Random,
+    verify::ServerCertVerifier,
 };
 
 #[derive(Debug, Clone)]

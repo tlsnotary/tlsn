@@ -2,7 +2,7 @@ use crate::msgs::{
     codec,
     message::{MessageError, OpaqueMessage},
 };
-use futures::{io::AsyncRead, AsyncReadExt};
+use futures::{AsyncReadExt, io::AsyncRead};
 use std::{collections::VecDeque, io};
 
 /// This deframer works to reconstruct TLS messages

@@ -1,9 +1,9 @@
 use rustls_pki_types as pki_types;
 
 use crate::{
-    key,
+    Error, key,
     msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+        base::{Payload, PayloadU8, PayloadU16, PayloadU24},
         codec,
         codec::{Codec, Reader},
         enums::{
@@ -13,7 +13,7 @@ use crate::{
             SignatureScheme,
         },
     },
-    rand, Error,
+    rand,
 };
 
 #[cfg(feature = "logging")]
@@ -689,11 +689,7 @@ impl Codec for ClientExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -833,11 +829,7 @@ impl Codec for ServerExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1094,11 +1086,7 @@ impl Codec for HelloRetryExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1230,11 +1218,7 @@ impl Codec for ServerHelloPayload {
             extensions,
         };
 
-        if r.any_left() {
-            None
-        } else {
-            Some(ret)
-        }
+        if r.any_left() { None } else { Some(ret) }
     }
 }
 
@@ -1376,11 +1360,7 @@ impl Codec for CertificateExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1849,11 +1829,7 @@ impl Codec for CertReqExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 
@@ -1977,11 +1953,7 @@ impl Codec for NewSessionTicketExtension {
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
-        if sub.any_left() {
-            None
-        } else {
-            Some(ext)
-        }
+        if sub.any_left() { None } else { Some(ext) }
     }
 }
 

@@ -2,16 +2,18 @@ use super::{client_conn::ClientConnectionData, hs::ClientContext};
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace, warn};
 use crate::{
+    KeyLog,
     backend::{DecryptMode, EncryptMode},
     check::inappropriate_handshake_message,
     client::{
+        ClientConfig, ServerName, StoresClientSessions,
         common::{ClientAuthDetails, ClientHelloDetails, ServerCertDetails},
-        hs, ClientConfig, ServerName, StoresClientSessions,
+        hs,
     },
     conn::{CommonState, ConnectionRandoms, State},
     error::Error,
     hash_hs::{HandshakeHash, HandshakeHashBuffer},
-    sign, verify, KeyLog,
+    sign, verify,
 };
 #[allow(deprecated)]
 use ring::constant_time;

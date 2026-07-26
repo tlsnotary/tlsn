@@ -64,14 +64,25 @@ impl HashCommitFuture {
 pub(crate) fn prove_hash(
     vm: &mut dyn Vm<Binary>,
     refs: &TranscriptRefs,
-    idxs: impl IntoIterator<Item = (Direction, RangeSet<usize>, HashAlgId)>,
+    idxs: impl IntoIterator<Item = (Direction, RangeSet<usize>, HashAlgId, Option<Blinder>)>,
 ) -> Result<(HashCommitFuture, Vec<PlaintextHashSecret>), HashCommitError> {
     let mut futs = Vec::new();
     let mut secrets = Vec::new();
-    for (direction, idx, alg, hash_ref, blinder_ref) in
+    let (idxs, supplied): (Vec<_>, Vec<_>) = idxs
+        .into_iter()
+        .map(|(direction, idx, alg, blinder)| ((direction, idx, alg), blinder))
+        .unzip();
+    for ((direction, idx, alg, hash_ref, blinder_ref), supplied) in
         hash_commit_inner(vm, Role::Prover, refs, idxs)?
+            .into_iter()
+            .zip(supplied)
     {
-        let blinder: Blinder = rand::random();
+        // A prover may pre-select its own blinder so it can derive the
+        // commitment value before this phase and start dependent work early.
+        // The blinder hides only the prover's own pre-image, so its origin
+        // adds no verifier-side assumption; the verifier still learns the
+        // commitment solely from this VM computation.
+        let blinder: Blinder = supplied.unwrap_or_else(rand::random);
 
         vm.assign(blinder_ref, blinder.as_bytes().to_vec())?;
         vm.commit(blinder_ref)?;

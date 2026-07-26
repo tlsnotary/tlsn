@@ -6,7 +6,10 @@ use rangeset::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitRequest};
+use crate::{
+    hash::{Blinder, HashAlgId},
+    transcript::{Direction, Transcript, TranscriptCommitConfig, TranscriptCommitRequest},
+};
 
 /// Configuration to prove information to the verifier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,6 +17,11 @@ pub struct ProveConfig {
     server_identity: bool,
     reveal: Option<(RangeSet<usize>, RangeSet<usize>)>,
     transcript_commit: Option<TranscriptCommitConfig>,
+    /// Prover-local blinders for hash commitments. Never serialized: the
+    /// verifier learns commitment values from the proving computation, never
+    /// from the prover's configuration.
+    #[serde(skip)]
+    hash_blinders: Vec<(Direction, RangeSet<usize>, HashAlgId, Blinder)>,
 }
 
 impl ProveConfig {
@@ -38,7 +46,22 @@ impl ProveConfig {
         self.transcript_commit.as_ref()
     }
 
+    /// Returns the prover-selected blinder for one hash commitment, if any.
+    pub fn hash_blinder(
+        &self,
+        direction: Direction,
+        idx: &RangeSet<usize>,
+        alg: HashAlgId,
+    ) -> Option<&Blinder> {
+        self.hash_blinders
+            .iter()
+            .find(|(d, i, a, _)| *d == direction && i == idx && *a == alg)
+            .map(|(_, _, _, blinder)| blinder)
+    }
+
     /// Returns a request.
+    ///
+    /// Hash blinders stay prover-local and never appear in the request.
     pub fn to_request(&self) -> ProveRequest {
         ProveRequest {
             server_identity: self.server_identity,
@@ -58,6 +81,7 @@ pub struct ProveConfigBuilder<'a> {
     server_identity: bool,
     reveal: Option<(RangeSet<usize>, RangeSet<usize>)>,
     transcript_commit: Option<TranscriptCommitConfig>,
+    hash_blinders: Vec<(Direction, RangeSet<usize>, HashAlgId, Blinder)>,
 }
 
 impl<'a> ProveConfigBuilder<'a> {
@@ -68,6 +92,7 @@ impl<'a> ProveConfigBuilder<'a> {
             server_identity: false,
             reveal: None,
             transcript_commit: None,
+            hash_blinders: Vec::new(),
         }
     }
 
@@ -80,6 +105,26 @@ impl<'a> ProveConfigBuilder<'a> {
     /// Configures transcript commitments.
     pub fn transcript_commit(&mut self, transcript_commit: TranscriptCommitConfig) -> &mut Self {
         self.transcript_commit = Some(transcript_commit);
+        self
+    }
+
+    /// Uses a caller-supplied blinder for one hash commitment instead of
+    /// sampling one during proving.
+    ///
+    /// The prover can then derive the commitment value locally and start
+    /// dependent work before the proving phase. The blinder must come from a
+    /// cryptographically secure source and be used for exactly one
+    /// commitment. It never leaves the prover: the verifier learns the
+    /// commitment from the proving computation alone.
+    pub fn hash_blinder(
+        &mut self,
+        direction: Direction,
+        ranges: impl IntoRangeIterator<usize>,
+        alg: HashAlgId,
+        blinder: Blinder,
+    ) -> &mut Self {
+        self.hash_blinders
+            .push((direction, RangeSet::from_range_iter(ranges), alg, blinder));
         self
     }
 
@@ -152,6 +197,7 @@ impl<'a> ProveConfigBuilder<'a> {
             server_identity: self.server_identity,
             reveal: self.reveal,
             transcript_commit: self.transcript_commit,
+            hash_blinders: self.hash_blinders,
         })
     }
 }
