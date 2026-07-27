@@ -471,16 +471,7 @@ where
         }
 
         // buf -> server_socket
-        match state
-            .server_to_client
-            .poll_read_to(cx, state.server_socket.as_mut())
-        {
-            // do not attempt to write into closed sockets
-            Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::BrokenPipe) => {}
-            Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::ConnectionReset) => {}
-            Poll::Ready(Err(err)) => return Err(Error::from(err)),
-            _ => {}
-        }
+        poll_proxy_drain(cx, &state.server_to_client, state.server_socket.as_mut())?;
 
         // tls_client -> tls_conn
         // Always poll to register wakers, then check wants_read()
@@ -505,6 +496,29 @@ where
 
         Ok(())
     }
+}
+
+fn poll_proxy_drain<S>(
+    cx: &mut std::task::Context<'_>,
+    server_to_client: &futures_plex::DuplexStream,
+    server_socket: S,
+) -> Result<(), Error>
+where
+    S: AsyncWrite + Unpin,
+{
+    match server_to_client.poll_read_to(cx, server_socket) {
+        // A mux stream may accept only one frame per poll. Schedule the next
+        // drain immediately so queued TLS records do not wait for unrelated
+        // I/O to wake this prover.
+        Poll::Ready(Ok(written)) if written > 0 => cx.waker().wake_by_ref(),
+        // Do not attempt to write into closed sockets.
+        Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::BrokenPipe) => {}
+        Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::ConnectionReset) => {}
+        Poll::Ready(Err(err)) => return Err(Error::from(err)),
+        _ => {}
+    }
+
+    Ok(())
 }
 
 impl Prover<state::Committed> {
@@ -594,5 +608,75 @@ impl Prover<state::Committed> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::{
+        AsyncWriteExt,
+        task::{ArcWake, waker},
+    };
+    use std::{
+        io,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        task::Context,
+    };
+
+    struct PartialWriter {
+        max_write: usize,
+        written: usize,
+    }
+
+    impl AsyncWrite for PartialWriter {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            let written = self.max_write.min(buf.len());
+            self.written += written;
+            Poll::Ready(Ok(written))
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    struct WakeCounter(AtomicUsize);
+
+    impl ArcWake for WakeCounter {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            arc_self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[test]
+    fn proxy_drain_wakes_after_partial_write() {
+        const FRAME_SIZE: usize = 16 * 1024;
+        let (mut sender, receiver) = futures_plex::duplex(FRAME_SIZE * 2);
+        futures::executor::block_on(sender.write_all(&[0; FRAME_SIZE * 2])).unwrap();
+
+        let wake_counter = Arc::new(WakeCounter(AtomicUsize::new(0)));
+        let waker = waker(wake_counter.clone());
+        let mut cx = Context::from_waker(&waker);
+        let mut writer = PartialWriter {
+            max_write: FRAME_SIZE,
+            written: 0,
+        };
+
+        poll_proxy_drain(&mut cx, &receiver, &mut writer).unwrap();
+
+        assert_eq!(writer.written, FRAME_SIZE);
+        assert_eq!(wake_counter.0.load(Ordering::Relaxed), 1);
     }
 }
