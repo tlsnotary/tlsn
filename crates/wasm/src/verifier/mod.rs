@@ -101,6 +101,18 @@ impl JsVerifier {
             .into_ts()
             .map_err(|e| JsError::new(&e.to_string()))
     }
+
+    /// Waits until TLSNotary has released the injected prover IO.
+    ///
+    /// After this resolves, JavaScript may safely reuse the original
+    /// `IoChannel` for an application-level protocol.
+    pub async fn finish(&mut self) -> Result<()> {
+        self.inner
+            .finish()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(())
+    }
 }
 
 // Conversion functions between WASM types and sdk-core types.
