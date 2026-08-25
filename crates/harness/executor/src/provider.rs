@@ -83,9 +83,28 @@ mod wasm {
     use crate::io::Io;
     use anyhow::{Result, anyhow};
     use std::time::Duration;
+    use wasm_bindgen::prelude::*;
+    use wasm_bindgen_futures::JsFuture;
 
     const CHECK_WS_OPEN_DELAY_MS: usize = 50;
     const MAX_RETRIES: usize = 50;
+
+    #[wasm_bindgen]
+    extern "C" {
+        type JsIoChannel;
+
+        #[wasm_bindgen(js_namespace = globalThis, js_name = connectIoChannel)]
+        fn connect_io_channel(url: String) -> js_sys::Promise;
+
+        #[wasm_bindgen(method, js_name = isOpen)]
+        fn is_open(this: &JsIoChannel) -> bool;
+    }
+
+    async fn connect_js_io(url: String) -> Result<JsValue> {
+        JsFuture::from(connect_io_channel(url))
+            .await
+            .map_err(|error| anyhow!("failed to connect JS IO: {error:?}"))
+    }
 
     impl IoProvider {
         /// Provides a connection to the server.
@@ -100,6 +119,18 @@ mod wasm {
             let (_, io) = ws_stream_wasm::WsMeta::connect(url, None).await?;
 
             Ok(io.into_io())
+        }
+
+        /// Provides a JavaScript `IoChannel` backed by a real WebSocket.
+        pub async fn provide_server_js_io(&self) -> Result<JsValue> {
+            connect_js_io(format!(
+                "ws://{}:{}/tcp?addr={}%3A{}",
+                &self.config.app_proxy.0,
+                self.config.app_proxy.1,
+                &self.config.app.0,
+                self.config.app.1,
+            ))
+            .await
         }
 
         /// Provides a connection to the verifier.
@@ -134,6 +165,31 @@ mod wasm {
             };
 
             Ok(io.into_io())
+        }
+
+        /// Provides a JavaScript `IoChannel` backed by the protocol WebSocket.
+        pub async fn provide_proto_js_io(&self) -> Result<JsValue> {
+            let url = format!(
+                "ws://{}:{}/tcp?addr={}%3A{}",
+                &self.config.proto_proxy.0,
+                self.config.proto_proxy.1,
+                &self.config.proto_1.0,
+                self.config.proto_1.1,
+            );
+            let mut retries = 0;
+
+            loop {
+                let io = connect_js_io(url.clone()).await?;
+                std::thread::sleep(Duration::from_millis(CHECK_WS_OPEN_DELAY_MS as u64));
+                if io.unchecked_ref::<JsIoChannel>().is_open() {
+                    return Ok(io);
+                }
+
+                retries += 1;
+                if retries > MAX_RETRIES {
+                    return Err(anyhow!("verifier did not accept connection"));
+                }
+            }
         }
     }
 }
