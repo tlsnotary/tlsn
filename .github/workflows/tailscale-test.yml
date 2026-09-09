@@ -1,0 +1,47 @@
+name: Tailscale SSH Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted-ghr, size-l-x64]
+    timeout-minutes: 15
+
+    steps:
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+      - name: Print Tailscale Connection Info
+        run: |
+          TAILSCALE_IP=$(tailscale ip -4)
+          echo "=========================================="
+          echo "✅ Tailscale SSH Test Running"
+          echo "=========================================="
+          echo ""
+          echo "🔗 Tailscale IP: $TAILSCALE_IP"
+          echo ""
+          echo "📋 SSH Command:"
+          echo "   ssh -o StrictHostKeyChecking=no ubuntu@$TAILSCALE_IP"
+          echo ""
+          echo "🏠 Available directories:"
+          echo "   /home/ubuntu (home)"
+          echo "   /tmp (temp, for debug logs)"
+          echo ""
+          echo "⏱️  Holding for 10 minutes (until $(date -u -d '+10 minutes' '+%H:%M:%S UTC'))"
+          echo "=========================================="
+          echo ""
+
+      - name: Hold for SSH access
+        run: |
+          echo "Runner is ready. You can now SSH in using the command above."
+          sleep 600
+          echo "Timeout reached. Exiting."
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Test complete. Runner shutting down."
+          tailscale logout || true
