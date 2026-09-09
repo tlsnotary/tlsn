@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tlsn_core::{
     config::{prove::ProveRequest, tls_commit::TlsCommitConfig},
     connection::{HandshakeData, ServerName},
-    transcript::PartialTranscript,
+    transcript::TranscriptReveal,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,7 +19,7 @@ pub(crate) struct TlsCommitRequestMsg {
 pub(crate) struct ProveRequestMsg {
     pub(crate) request: ProveRequest,
     pub(crate) handshake: Option<(ServerName, HandshakeData)>,
-    pub(crate) transcript: Option<PartialTranscript>,
+    pub(crate) transcript: Option<TranscriptReveal>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

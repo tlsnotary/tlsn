@@ -247,6 +247,88 @@ impl From<CompressedPartialTranscript> for PartialTranscript {
     }
 }
 
+/// The data a prover reveals from a transcript.
+///
+/// Unlike [`PartialTranscript`], this does not carry the length of either
+/// direction. The receiver supplies the lengths it recorded when converting
+/// with [`TranscriptReveal::into_partial`], so a peer cannot influence the size
+/// of the allocation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
+#[serde(try_from = "validation::TranscriptRevealUnchecked")]
+pub struct TranscriptReveal {
+    /// Sent data which has been authenticated.
+    sent_authed: Vec<u8>,
+    /// Received data which has been authenticated.
+    received_authed: Vec<u8>,
+    /// Index of `sent_authed`.
+    sent_idx: RangeSet<usize>,
+    /// Index of `received_authed`.
+    recv_idx: RangeSet<usize>,
+}
+
+impl TranscriptReveal {
+    /// Returns the index of sent data which have been authenticated.
+    pub fn sent_authed(&self) -> &RangeSet<usize> {
+        &self.sent_idx
+    }
+
+    /// Returns the index of received data which have been authenticated.
+    pub fn received_authed(&self) -> &RangeSet<usize> {
+        &self.recv_idx
+    }
+
+    /// Converts into a partial transcript of the given lengths.
+    ///
+    /// The lengths are the receiver's own, so the transcript is sized by what
+    /// the receiver recorded rather than by anything the reveal declares.
+    ///
+    /// # Arguments
+    ///
+    /// * `sent_len` - The length of the sent data.
+    /// * `recv_len` - The length of the received data.
+    pub fn into_partial(
+        self,
+        sent_len: usize,
+        recv_len: usize,
+    ) -> Result<PartialTranscript, InvalidTranscriptReveal> {
+        if self.sent_idx.end().unwrap_or(0) > sent_len
+            || self.recv_idx.end().unwrap_or(0) > recv_len
+        {
+            return Err(InvalidTranscriptReveal(
+                "revealed ranges do not fit the transcript",
+            ));
+        }
+
+        Ok(CompressedPartialTranscript {
+            sent_authed: self.sent_authed,
+            received_authed: self.received_authed,
+            sent_idx: self.sent_idx,
+            recv_idx: self.recv_idx,
+            sent_total: sent_len,
+            recv_total: recv_len,
+        }
+        .into())
+    }
+}
+
+impl From<PartialTranscript> for TranscriptReveal {
+    fn from(uncompressed: PartialTranscript) -> Self {
+        let compressed = CompressedPartialTranscript::from(uncompressed);
+        Self {
+            sent_authed: compressed.sent_authed,
+            received_authed: compressed.received_authed,
+            sent_idx: compressed.sent_idx,
+            recv_idx: compressed.recv_idx,
+        }
+    }
+}
+
+/// Invalid transcript reveal error.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid transcript reveal: {0}")]
+pub struct InvalidTranscriptReveal(&'static str);
+
 impl PartialTranscript {
     /// Creates a new partial transcript initalized to all 0s.
     ///
@@ -578,6 +660,38 @@ mod validation {
         }
     }
 
+    #[derive(Debug, Deserialize)]
+    #[cfg_attr(test, derive(Serialize))]
+    pub(super) struct TranscriptRevealUnchecked {
+        sent_authed: Vec<u8>,
+        received_authed: Vec<u8>,
+        sent_idx: RangeSet<usize>,
+        recv_idx: RangeSet<usize>,
+    }
+
+    impl TryFrom<TranscriptRevealUnchecked> for TranscriptReveal {
+        type Error = InvalidTranscriptReveal;
+
+        fn try_from(unchecked: TranscriptRevealUnchecked) -> Result<Self, Self::Error> {
+            // Whether the ranges fit the session is checked in `into_partial`,
+            // by the party that recorded it.
+            if unchecked.sent_authed.len() != unchecked.sent_idx.len()
+                || unchecked.received_authed.len() != unchecked.recv_idx.len()
+            {
+                return Err(InvalidTranscriptReveal(
+                    "lengths of index and data don't match",
+                ));
+            }
+
+            Ok(Self {
+                sent_authed: unchecked.sent_authed,
+                received_authed: unchecked.received_authed,
+                sent_idx: unchecked.sent_idx,
+                recv_idx: unchecked.recv_idx,
+            })
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use rstest::{fixture, rstest};
@@ -636,6 +750,37 @@ mod validation {
                 bincode::deserialize(&bytes);
             assert!(transcript.is_err());
         }
+
+        #[fixture]
+        fn transcript_reveal() -> TranscriptRevealUnchecked {
+            TranscriptRevealUnchecked {
+                received_authed: vec![1, 2, 3, 11, 12, 13],
+                sent_authed: vec![4, 5, 6, 14, 15, 16],
+                recv_idx: RangeSet::from([1..4, 11..14]),
+                sent_idx: RangeSet::from([4..7, 14..17]),
+            }
+        }
+
+        #[rstest]
+        fn test_transcript_reveal_valid(transcript_reveal: TranscriptRevealUnchecked) {
+            let bytes = bincode::serialize(&transcript_reveal).unwrap();
+            let reveal: Result<TranscriptReveal, Box<bincode::ErrorKind>> =
+                bincode::deserialize(&bytes);
+            assert!(reveal.is_ok());
+        }
+
+        #[rstest]
+        // Expect to fail since the index and data lengths do not match.
+        fn test_transcript_reveal_invalid_lengths(
+            mut transcript_reveal: TranscriptRevealUnchecked,
+        ) {
+            transcript_reveal.sent_authed.extend([1]);
+
+            let bytes = bincode::serialize(&transcript_reveal).unwrap();
+            let reveal: Result<TranscriptReveal, Box<bincode::ErrorKind>> =
+                bincode::deserialize(&bytes);
+            assert!(reveal.is_err());
+        }
     }
 }
 
@@ -682,6 +827,39 @@ mod tests {
         let bytes = bincode::serialize(&partial_transcript).unwrap();
         let deserialized_transcript: PartialTranscript = bincode::deserialize(&bytes).unwrap();
         assert_eq!(partial_transcript, deserialized_transcript);
+    }
+
+    #[rstest]
+    // A reveal rebuilds the transcript it came from, given the recorded lengths.
+    fn test_transcript_reveal_round_trip(partial_transcript: PartialTranscript) {
+        let sent_len = partial_transcript.len_sent();
+        let recv_len = partial_transcript.len_received();
+        let reveal = TranscriptReveal::from(partial_transcript.clone());
+        let rebuilt = reveal.into_partial(sent_len, recv_len).unwrap();
+        assert_eq!(rebuilt, partial_transcript);
+    }
+
+    #[rstest]
+    // The reveal carries no length, so the same disclosure serializes
+    // identically regardless of how long the transcript was.
+    fn test_transcript_reveal_serialization_length_independent() {
+        let reveal_of = |len: usize| {
+            let mut sent = vec![0xffu8; len];
+            sent[1..4].copy_from_slice(&[1, 2, 3]);
+            let transcript = Transcript::new(sent, vec![0xeeu8; len]);
+            let partial = transcript.to_partial(RangeSet::from(1..4), RangeSet::default());
+            bincode::serialize(&TranscriptReveal::from(partial)).unwrap()
+        };
+        assert_eq!(reveal_of(16), reveal_of(4096));
+    }
+
+    #[rstest]
+    // Expect an error since the reveal does not fit the recorded length.
+    fn test_transcript_reveal_into_partial_out_of_bounds(partial_transcript: PartialTranscript) {
+        let recv_len = partial_transcript.len_received();
+        let reveal = TranscriptReveal::from(partial_transcript);
+        let short = reveal.sent_authed().end().unwrap() - 1;
+        assert!(reveal.into_partial(short, recv_len).is_err());
     }
 
     #[rstest]
