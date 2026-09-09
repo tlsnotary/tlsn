@@ -9,6 +9,7 @@ use tlsn_core::{
     connection::{HandshakeData, ServerName},
     transcript::{
         ContentType, Direction, PartialTranscript, Record, TlsTranscript, TranscriptCommitment,
+        TranscriptReveal,
     },
     webpki::ServerCertVerifier,
 };
@@ -27,37 +28,36 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
     tls_transcript: &TlsTranscript,
     request: ProveRequest,
     handshake: Option<(ServerName, HandshakeData)>,
-    transcript: Option<PartialTranscript>,
+    transcript: Option<TranscriptReveal>,
 ) -> Result<VerifierOutput> {
     let ciphertext_sent = collect_ciphertext(tls_transcript.sent());
     let ciphertext_recv = collect_ciphertext(tls_transcript.recv());
 
     let transcript = if let Some((auth_sent, auth_recv)) = request.reveal() {
-        let Some(transcript) = transcript else {
+        let Some(reveal) = transcript else {
             return Err(Error::internal().with_msg(
                 "verification failed: prover requested to reveal data but did not send transcript",
             ));
         };
 
-        if transcript.len_sent() != ciphertext_sent.len()
-            || transcript.len_received() != ciphertext_recv.len()
-        {
-            return Err(
-                Error::internal().with_msg("verification failed: transcript length mismatch")
-            );
-        }
-
-        if transcript.sent_authed() != auth_sent {
+        if reveal.sent_authed() != auth_sent {
             return Err(Error::internal().with_msg("verification failed: sent auth data mismatch"));
         }
 
-        if transcript.received_authed() != auth_recv {
+        if reveal.received_authed() != auth_recv {
             return Err(
                 Error::internal().with_msg("verification failed: received auth data mismatch")
             );
         }
 
-        transcript
+        // Sized by the lengths this party recorded.
+        reveal
+            .into_partial(ciphertext_sent.len(), ciphertext_recv.len())
+            .map_err(|e| {
+                Error::internal()
+                    .with_msg("verification failed: transcript reveal does not fit the session")
+                    .with_source(e)
+            })?
     } else {
         PartialTranscript::new(ciphertext_sent.len(), ciphertext_recv.len())
     };
