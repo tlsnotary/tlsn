@@ -500,7 +500,8 @@ pub async fn main() -> Result<()> {
     }
 
     // Shut down the executors before exiting.
-    if tokio::time::timeout(Duration::from_secs(5), async move {
+    // Allow up to 15 seconds (each executor has 10s timeout, so 15s gives safety margin)
+    if tokio::time::timeout(Duration::from_secs(15), async move {
         _ = tokio::join!(runner.exec_p.shutdown(), runner.exec_v.shutdown());
     })
     .await
