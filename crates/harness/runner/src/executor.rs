@@ -374,14 +374,28 @@ impl Executor {
             };
 
             if let Some(mut browser) = browser {
-                browser.close().await?;
+                // Gracefully close browser with timeout
+                let _ = tokio::time::timeout(
+                    Duration::from_secs(5),
+                    browser.close(),
+                )
+                .await;
             };
 
-            tokio::task::spawn_blocking(move || {
+            // Kill and wait for process with timeout to prevent hanging
+            let shutdown_task = tokio::task::spawn_blocking(move || {
                 _ = process.kill();
                 _ = process.wait();
-            })
-            .await?;
+            });
+
+            if let Err(_) = tokio::time::timeout(
+                Duration::from_secs(10),
+                shutdown_task,
+            )
+            .await
+            {
+                return Err(anyhow!("executor shutdown timed out"));
+            }
 
             Ok(())
         }
