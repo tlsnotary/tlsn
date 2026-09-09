@@ -170,6 +170,14 @@ impl Network {
             ("127.0.0.1", PORT_BROWSER),
         )?;
 
+        // The verifier may also run in the browser; forward its debugger port
+        // the same way.
+        ip_forward(
+            &self.ns_1,
+            (self.config.rpc_1.0, PORT_BROWSER),
+            ("127.0.0.1", PORT_BROWSER),
+        )?;
+
         Ok(())
     }
 

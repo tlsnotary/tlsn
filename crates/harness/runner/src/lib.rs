@@ -133,10 +133,21 @@ impl Runner {
     fn new(cli: &Cli) -> Result<Self> {
         let Cli {
             target,
+            prover_target,
+            verifier_target,
             subnet,
             headed,
             ..
         } = cli;
+        // Per-role target overrides the shared `target` flag.
+        let prover_target = prover_target.unwrap_or(*target);
+        let verifier_target = verifier_target.unwrap_or(*target);
+        // Validate --headed requires all targets to be browser.
+        if *headed
+            && (prover_target != Target::Browser || verifier_target != Target::Browser)
+        {
+            anyhow::bail!("--headed requires --target browser for both prover and verifier");
+        }
         let current_path = std::env::current_exe().unwrap();
         let fixture_path = current_path.parent().unwrap().join("server-fixture");
         let network_config = NetworkConfig::new(*subnet);
@@ -166,7 +177,7 @@ impl Runner {
                 .io_mode(IoMode::Client)
                 .network_config(network_config.clone())
                 .build(),
-            *target,
+            prover_target,
             display_env.clone(),
         );
         let exec_v = Executor::new(
@@ -176,8 +187,8 @@ impl Runner {
                 .io_mode(IoMode::Server)
                 .network_config(network_config.clone())
                 .build(),
-            Target::Native,
-            Vec::new(), // Verifier doesn't need display env
+            verifier_target,
+            display_env.clone(), // Verifier may also need display env in browser mode
         );
 
         Ok(Self {
@@ -212,11 +223,6 @@ pub async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
-
-    // Validate --headed requires --target browser
-    if cli.headed && cli.target != Target::Browser {
-        anyhow::bail!("--headed can only be used with --target browser");
-    }
 
     let mut runner = Runner::new(&cli)?;
 

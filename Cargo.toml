@@ -21,6 +21,7 @@ members = [
     "crates/harness/runner",
     "crates/harness/plot",
     "crates/tlsn",
+    "crates/tests-mux",
 ]
 # `crates/examples-zk` is intentionally excluded from the workspace. It pulls
 # in `noir-rs`, which transitively depends on the `noir-lang/noir` monorepo via
@@ -57,7 +58,7 @@ tlsn-formats = { path = "crates/formats" }
 tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
-tlsn-mux = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
+tlsn-mux = { git = "https://github.com/themighty1/tlsn-utils", branch = "feat/mux-syn-opener" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-core = { path = "crates/tls-core" }
@@ -84,11 +85,11 @@ mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.
 mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6", default-features = false }
 mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
 
-futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
+futures-plex = { git = "https://github.com/themighty1/tlsn-utils", branch = "feat/mux-syn-opener" }
 rangeset = { version = "0.4" }
 serio = { version = "0.2" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
+spansy = { git = "https://github.com/themighty1/tlsn-utils", branch = "feat/mux-syn-opener" }
+websocket-relay = { git = "https://github.com/themighty1/tlsn-utils", branch = "feat/mux-syn-opener" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }

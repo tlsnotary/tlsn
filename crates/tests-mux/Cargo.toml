@@ -1,0 +1,25 @@
+[package]
+name = "tests-mux"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+tlsn = { workspace = true }
+tlsn-mux = { workspace = true }
+futures-plex = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["compat"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[dev-dependencies]
+tlsn-core = { workspace = true, features = ["fixtures"] }
+tlsn-server-fixture = { workspace = true }
+tlsn-server-fixture-certs = { workspace = true }
+tls-server-fixture = { workspace = true }
+rstest = { workspace = true }

@@ -2674,7 +2674,7 @@ dependencies = [
 [[package]]
 name = "futures-plex"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
+source = "git+https://github.com/themighty1/tlsn-utils?branch=feat%2Fmux-syn-opener#f7780bf2d85ee5a501b31f6a158ec72999746dab"
 dependencies = [
  "futures",
 ]
@@ -5551,7 +5551,7 @@ dependencies = [
 [[package]]
 name = "spansy"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
+source = "git+https://github.com/themighty1/tlsn-utils?branch=feat%2Fmux-syn-opener#f7780bf2d85ee5a501b31f6a158ec72999746dab"
 dependencies = [
  "bytes",
  "httparse",
@@ -5750,6 +5750,25 @@ dependencies = [
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tests-mux"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "futures-plex",
+ "rstest",
+ "tls-server-fixture",
+ "tlsn",
+ "tlsn-core",
+ "tlsn-mux",
+ "tlsn-server-fixture",
+ "tlsn-server-fixture-certs",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6112,6 +6131,7 @@ dependencies = [
  "serio",
  "tlsn",
  "tlsn-harness-core",
+ "tlsn-mux",
  "tlsn-sdk-core",
  "tlsn-server-fixture-certs",
  "tlsn-wasm",
@@ -6252,7 +6272,7 @@ dependencies = [
 [[package]]
 name = "tlsn-mux"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
+source = "git+https://github.com/themighty1/tlsn-utils?branch=feat%2Fmux-syn-opener#f7780bf2d85ee5a501b31f6a158ec72999746dab"
 dependencies = [
  "blake3",
  "futures",
@@ -7083,7 +7103,7 @@ dependencies = [
 [[package]]
 name = "websocket-relay"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
+source = "git+https://github.com/themighty1/tlsn-utils?branch=feat%2Fmux-syn-opener#f7780bf2d85ee5a501b31f6a158ec72999746dab"
 dependencies = [
  "anyhow",
  "form_urlencoded",

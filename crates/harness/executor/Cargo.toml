@@ -19,6 +19,7 @@ tlsn-harness-core = { workspace = true }
 tlsn = { workspace = true }
 tlsn-sdk-core = { workspace = true }
 tlsn-server-fixture-certs = { workspace = true }
+tlsn-mux = { workspace = true }
 
 inventory = { workspace = true }
 pin-project-lite = { workspace = true }

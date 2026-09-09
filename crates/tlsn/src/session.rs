@@ -55,6 +55,13 @@ where
         mux_config.set_keep_alive(true);
         mux_config.set_close_sync(true);
 
+        Self::with_config(io, mux_config)
+    }
+
+    /// Creates a new session over `io` with a custom mux configuration.
+    ///
+    /// THROWAWAY test hook for mux stress testing. Not for upstream.
+    pub fn with_config(io: Io, mux_config: tlsn_mux::Config) -> Self {
         let conn = tlsn_mux::Connection::new(io, mux_config);
         let handle = conn.handle().expect("handle should be available");
         let executor = build_executor(MuxHandle {

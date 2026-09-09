@@ -10,9 +10,15 @@ use crate::Target;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
-    /// Target platform.
+    /// Target platform for both prover and verifier.
     #[arg(long, default_value = "native")]
     pub target: Target,
+    /// Target platform for the prover. Overrides `target`.
+    #[arg(long)]
+    pub prover_target: Option<Target>,
+    /// Target platform for the verifier. Overrides `target`.
+    #[arg(long)]
+    pub verifier_target: Option<Target>,
     /// Subnet to assign harness network interfaces.
     #[arg(long, default_value = "10.250.0.0/24", env = "SUBNET")]
     pub subnet: Ipv4Net,
