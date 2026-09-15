@@ -137,10 +137,11 @@ impl std::fmt::Debug for VerifierProxyDeps {
 }
 
 impl VerifierProxyDeps {
+    #[rustfmt::skip]
     pub(crate) fn new(_config: &ProxyTlsConfig, ctx: Context) -> Self {
         let vm = cfg_select! {
-            tlsn_insecure => mpz_ideal_vm::IdealVm::new(),
-            _ => {
+            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
+            _ => {{
                 let mut rng = rand::rng();
                 let delta = Delta::random(&mut rng);
 
@@ -160,7 +161,7 @@ impl VerifierProxyDeps {
                 );
                 let rcot_send = SharedRCOTSender::new(rcot_send);
                 VerifierZk::new(Default::default(), delta, rcot_send)
-            }
+            }}
         };
 
         let prf_config = PrfConfig::new(NetworkMode::Normal, MSMode::Direct);
