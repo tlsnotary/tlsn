@@ -346,7 +346,7 @@ mod tests {
     use mpz_share_conversion::ideal::{
         IdealShareConvertReceiver, IdealShareConvertSender, ideal_share_convert,
     };
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     fn create_pair() -> (
         MpcGhash<IdealShareConvertSender<Gf2_128>>,

@@ -5,7 +5,7 @@ use mpz_memory_core::{
     binary::{Binary, U8},
 };
 use mpz_vm_core::{Vm, prelude::*};
-use rand::RngCore;
+use rand::Rng;
 
 use crate::{MpcTlsError, Role};
 
