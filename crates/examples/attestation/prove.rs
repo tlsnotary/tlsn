@@ -195,8 +195,8 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     builder.transcript_commit(transcript_commit);
 
-    // Optionally, add an extension to the attestation if the notary supports it.
-    // builder.extension(Extension {
+    // Optionally, add an extension to the attestation if the notary supports
+    // it. builder.extension(Extension {
     //     id: b"example.name".to_vec(),
     //     value: b"Bobert".to_vec(),
     // });
@@ -243,7 +243,8 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
 
     let (request, secrets) = builder.build(&CryptoProvider::default())?;
 
-    // Close the session and wait for the driver to complete, reclaiming the socket.
+    // Close the session and wait for the driver to complete, reclaiming the
+    // socket.
     handle.close();
     let mut socket = driver_task.await??;
 
@@ -345,7 +346,8 @@ async fn notary<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         })
         .sum::<usize>();
 
-    // Close the session and wait for the driver to complete, reclaiming the socket.
+    // Close the session and wait for the driver to complete, reclaiming the
+    // socket.
     handle.close();
     let mut socket = driver_task.await??;
 

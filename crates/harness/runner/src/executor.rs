@@ -140,8 +140,9 @@ impl Executor {
                 ];
 
                 if headed {
-                    // For headed mode: drop back to the current user and pass display env vars
-                    // This allows the browser to connect to X11/Wayland while in the namespace
+                    // For headed mode: drop back to the current user and pass
+                    // display env vars This allows the
+                    // browser to connect to X11/Wayland while in the namespace
                     let user =
                         std::env::var("USER").context("USER environment variable not set")?;
                     args.extend(["sudo".into(), "-E".into(), "-u".into(), user, "env".into()]);
@@ -152,7 +153,8 @@ impl Executor {
                 args.push(format!("--remote-debugging-port={PORT_BROWSER}"));
 
                 if headed {
-                    // Headed mode: no headless, add flags to suppress first-run dialogs
+                    // Headed mode: no headless, add flags to suppress first-run
+                    // dialogs
                     args.extend(["--no-first-run".into(), "--no-default-browser-check".into()]);
                 } else {
                     // Headless mode: original flags

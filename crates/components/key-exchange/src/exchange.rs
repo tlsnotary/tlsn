@@ -432,9 +432,10 @@ where
 {
     // Compute the leader's/follower's share of the pre-master secret.
     //
-    // We need to mimic the [diffie-hellman](p256::ecdh::diffie_hellman) function
-    // without the [SharedSecret](p256::ecdh::SharedSecret) wrapper, because
-    // this makes it harder to get the result as an EC curve point.
+    // We need to mimic the [diffie-hellman](p256::ecdh::diffie_hellman)
+    // function without the [SharedSecret](p256::ecdh::SharedSecret)
+    // wrapper, because this makes it harder to get the result as an EC
+    // curve point.
     let shared_secret = {
         let public_projective = server_key.to_projective();
         (public_projective * private_key.to_nonzero_scalar().as_ref()).to_affine()

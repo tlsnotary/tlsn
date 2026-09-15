@@ -196,22 +196,23 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     // Validate the proposed configuration and then accept it.
     //
-    // We match here explicitly (although we know that in this example the prover
-    // sent a protocol config for proxy mode) to demonstrate dynamic protocol
-    // execution.
+    // We match here explicitly (although we know that in this example the
+    // prover sent a protocol config for proxy mode) to demonstrate dynamic
+    // protocol execution.
     //
-    // The verifier can inspect the protocol configuration requested by the prover
-    // and decide what he wants to do. Here we decide to support both, requests
-    // for mpc mode and proxy mode.
+    // The verifier can inspect the protocol configuration requested by the
+    // prover and decide what he wants to do. Here we decide to support
+    // both, requests for mpc mode and proxy mode.
     let verifier = match verifier.commit().await? {
         VerifierCommitStart::Mpc(verifier) => verifier.accept().await?.run().await?,
         VerifierCommitStart::Proxy(verifier) => {
-            // In proxy mode, the verifier needs to connect to the server and set up
-            // sockets to forward traffic between the prover and the server.
+            // In proxy mode, the verifier needs to connect to the server and
+            // set up sockets to forward traffic between the prover
+            // and the server.
             //
-            // In a real-world scenario, the verifier would resolve the server name
-            // to obtain the server address, but since this is an example we use the
-            // fixed `server_addr`.
+            // In a real-world scenario, the verifier would resolve the server
+            // name to obtain the server address, but since this is
+            // an example we use the fixed `server_addr`.
             let client_socket = tokio::net::TcpStream::connect(server_addr).await.unwrap();
             // Disable Nagle's algorithm to reduce protocol latency. See the
             // `tlsn` crate's performance notes for details.

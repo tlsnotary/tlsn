@@ -605,8 +605,8 @@ mod validation {
         }
 
         #[rstest]
-        // Expect to fail since the length of data and the length of the index do not
-        // match.
+        // Expect to fail since the length of data and the length of the index
+        // do not match.
         fn test_partial_transcript_invalid_lengths(
             mut partial_transcript: CompressedPartialTranscriptUnchecked,
         ) {

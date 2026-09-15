@@ -450,7 +450,8 @@ mod secp256k1eth {
             let mut sig = signature.to_vec();
             let recid = recid.to_byte();
 
-            // Based on Ethereum Yellow Paper Appendix F, only values 0 and 1 are valid.
+            // Based on Ethereum Yellow Paper Appendix F, only values 0 and 1
+            // are valid.
             if recid > 1 {
                 return Err(SignatureError(format!(
                     "expected recovery id 0 or 1, got {recid:?}"
@@ -497,8 +498,8 @@ mod secp256k1eth {
             let key = k256::ecdsa::VerifyingKey::from_sec1_bytes(&key.data)
                 .map_err(|_| SignatureError("invalid k256 key".to_string()))?;
 
-            // `sig` is a concatenation of `r || s || v`. We ignore `v` since it is only
-            // useful when recovering the verifying key.
+            // `sig` is a concatenation of `r || s || v`. We ignore `v` since it
+            // is only useful when recovering the verifying key.
             let sig = Secp256K1Signature::from_slice(&sig[..64])
                 .map_err(|_| SignatureError("invalid secp256k1 signature".to_string()))?;
 
@@ -636,7 +637,8 @@ mod test {
         // Testing multiple signatures.
         for i in 0..10 {
             msg.push(i);
-            // Convert to EIP-191 since the reference signer can't sign raw bytes.
+            // Convert to EIP-191 since the reference signer can't sign raw
+            // bytes.
             let sig = signer.sign(&eip191_message(&msg)).unwrap().data;
 
             assert_eq!(sig, reference_eth_signature(&sk, &msg));

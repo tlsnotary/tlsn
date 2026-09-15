@@ -155,8 +155,8 @@ pub trait JsonCommit {
                 })?;
         }
 
-        // TODO: Commit each value separately, but we need a strategy for handling
-        // separators.
+        // TODO: Commit each value separately, but we need a strategy for
+        // handling separators.
 
         Ok(())
     }

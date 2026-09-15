@@ -88,8 +88,8 @@ pub(crate) struct BodyProof {
 
 impl BodyProof {
     /// Returns a new body proof.
-    // TODO: Support creating a proof for a subset of fields instead of the entire
-    // body.
+    // TODO: Support creating a proof for a subset of fields instead of the
+    // entire body.
     pub(crate) fn new(
         hasher: &dyn HashAlgorithm,
         body: Body,

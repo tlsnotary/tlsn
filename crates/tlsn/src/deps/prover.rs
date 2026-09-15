@@ -74,16 +74,15 @@ impl ProverMpcDeps {
         let rcot_send = SharedRCOTSender::new(rcot_send);
         let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
 
-        let mpc = cfg_select! {
-            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
-            _ => {
-                ProverMpc::new(DerandCOTSender::new(rcot_send.clone()), rng.random(), delta)
-            }
-        };
+        let mpc =
+            cfg_select! {
+                tlsn_insecure => mpz_ideal_vm::IdealVm::new(),
+                _ => ProverMpc::new(DerandCOTSender::new(rcot_send.clone()), rng.random(), delta),
+            };
 
         let zk = cfg_select! {
-            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
-            _ => { ProverZk::new(Default::default(), rcot_recv.clone()) }
+            tlsn_insecure => mpz_ideal_vm::IdealVm::new(),
+            _ => ProverZk::new(Default::default(), rcot_recv.clone()),
         };
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
@@ -140,8 +139,8 @@ impl std::fmt::Debug for ProverProxyDeps {
 impl ProverProxyDeps {
     pub(crate) fn new(_config: &ProxyTlsConfig, ctx: Context) -> Self {
         let vm = cfg_select! {
-            tlsn_insecure => { mpz_ideal_vm::IdealVm::new() }
-            _ => {{
+            tlsn_insecure => mpz_ideal_vm::IdealVm::new(),
+            _ => {
                 let mut rng = rand::rng();
 
                 let base_ot_send = co::Sender::default();
@@ -156,7 +155,7 @@ impl ProverProxyDeps {
                 );
                 let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
                 ProverZk::new(Default::default(), rcot_recv)
-            }}
+            }
         };
 
         let id = ctx.id().to_owned();

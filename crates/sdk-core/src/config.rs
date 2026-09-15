@@ -302,8 +302,9 @@ fn build_root_store(root_certs: Option<Vec<Vec<u8>>>) -> Result<RootCertStore> {
                 .into_iter()
                 .enumerate()
                 .map(|(i, cert)| {
-                    // Validate early so callers get a clear error at build time.
-                    // The bytes will be re-parsed downstream by ServerCertVerifier.
+                    // Validate early so callers get a clear error at build
+                    // time. The bytes will be re-parsed
+                    // downstream by ServerCertVerifier.
                     let der = rustls_pki_types::CertificateDer::from(cert.as_slice());
                     webpki::anchor_from_trusted_cert(&der).map_err(|e| {
                         SdkError::config(format!("invalid root certificate at index {i}: {e}"))
