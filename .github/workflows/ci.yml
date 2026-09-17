@@ -91,7 +91,11 @@ jobs:
 
   wasm:
     name: Build and Test wasm
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted-ghr, size-s-x64]
+    env:
+      # $HOME isn't writable by the runner user on this self-hosted image;
+      # wasm-pack needs a writable cache dir.
+      XDG_CACHE_HOME: ${{ runner.temp }}/.cache
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -108,6 +112,12 @@ jobs:
           targets: wasm32-unknown-unknown,x86_64-unknown-linux-gnu
           toolchain: nightly
           components: rust-src
+
+      - name: Install clang (missing on self-hosted image, needed by cc-rs)
+        run: sudo apt-get install -y clang
+
+      - name: Install Chrome runtime deps
+        run: sudo apt-get install -y unzip libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libasound2t64 libgbm1 libcairo2 libpango-1.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libatspi2.0-0t64
 
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v2
