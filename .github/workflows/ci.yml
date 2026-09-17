@@ -92,13 +92,14 @@ jobs:
   wasm:
     name: Build and Test wasm
     runs-on: [self-hosted-ghr, size-s-x64]
-    env:
-      # $HOME isn't writable by the runner user on this self-hosted image;
-      # wasm-pack needs a writable cache dir.
-      XDG_CACHE_HOME: ${{ runner.temp }}/.cache
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Set XDG_CACHE_HOME
+        # $HOME isn't writable by the runner user on this self-hosted image;
+        # wasm-pack needs a writable cache dir.
+        run: echo "XDG_CACHE_HOME=${RUNNER_TEMP}/.cache" >> "$GITHUB_ENV"
 
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
