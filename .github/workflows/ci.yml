@@ -129,6 +129,11 @@ jobs:
         # we need 0.14.0+ which supports custom profiles
         run: cargo install wasm-pack
 
+      - name: Install node (missing on self-hosted image, needed for npm publish)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Use caching
         uses: Swatinem/rust-cache@v2.9.1
 
