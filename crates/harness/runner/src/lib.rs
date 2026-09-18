@@ -245,7 +245,8 @@ pub async fn main() -> Result<()> {
             } else {
                 tests
             };
-            // Workaround for a wedge observed in CI: run `mpc` first, if present.
+            // Workaround for a wedge observed in CI: run `mpc` first, if
+            // present.
             let tests: Vec<String> = {
                 let mut tests = tests;
                 if let Some(pos) = tests.iter().position(|t| t == "mpc") {
