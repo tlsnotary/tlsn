@@ -43,6 +43,11 @@ getrandom = { version = "0.2", features = ["js"] }
 getrandom_03 = { package = "getrandom", version = "0.3", features = [
     "wasm_js",
 ] }
+# rand 0.10 (via mpz-1) pulls in getrandom 0.4, a third major version
+# alongside the two above; it needs the same wasm_js opt-in.
+getrandom_04 = { package = "getrandom", version = "0.4", features = [
+    "wasm_js",
+] }
 rustls-pki-types = { workspace = true, features = ["web"] }
 # web-spawn 0.2.1 uses `web_sys::Worker` without enabling the `Worker` feature.
 # Enabled here so feature unification activates it across the graph.
