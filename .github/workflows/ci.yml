@@ -91,10 +91,15 @@ jobs:
 
   wasm:
     name: Build and Test wasm
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted-ghr, size-s-x64]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Set XDG_CACHE_HOME
+        # $HOME isn't writable by the runner user on this self-hosted image;
+        # wasm-pack needs a writable cache dir.
+        run: echo "XDG_CACHE_HOME=${RUNNER_TEMP}/.cache" >> "$GITHUB_ENV"
 
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -109,6 +114,12 @@ jobs:
           toolchain: nightly
           components: rust-src
 
+      - name: Install clang (missing on self-hosted image, needed by cc-rs)
+        run: sudo apt-get install -y clang
+
+      - name: Install Chrome runtime deps
+        run: sudo apt-get install -y unzip libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libasound2t64 libgbm1 libcairo2 libpango-1.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libatspi2.0-0t64
+
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v2
         with:
@@ -117,6 +128,11 @@ jobs:
       - name: Install wasm-pack
         # we need 0.14.0+ which supports custom profiles
         run: cargo install wasm-pack
+
+      - name: Install node (missing on self-hosted image, needed for npm publish)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.9.1
