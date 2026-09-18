@@ -52,8 +52,9 @@ fn public(
     encrypter: &mut MpcAesGcm,
     op: &EncryptOp,
 ) -> Result<(EncryptOutput, BoxFut<Result<Vec<u8>, AeadError>>), MpcTlsError> {
-    // Instead of computing the ciphertext in MPC, we only compute the keystream and
-    // decode it for both parties. Each party then locally computes the ciphertext.
+    // Instead of computing the ciphertext in MPC, we only compute the keystream
+    // and decode it for both parties. Each party then locally computes the
+    // ciphertext.
 
     let Some(plaintext) = op.plaintext.clone() else {
         return Err(MpcTlsError::record_layer(

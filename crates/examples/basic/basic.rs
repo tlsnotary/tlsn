@@ -204,9 +204,9 @@ async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
         .build()?;
     let verifier = handle.new_verifier(verifier_config)?;
 
-    // Validate the proposed configuration and then run the TLS commitment protocol.
-    // This is the opportunity to ensure the prover does not attempt to overload the
-    // verifier.
+    // Validate the proposed configuration and then run the TLS commitment
+    // protocol. This is the opportunity to ensure the prover does not
+    // attempt to overload the verifier.
     let verifier = match verifier.commit().await? {
         VerifierCommitStart::Mpc(verifier) => {
             let cfg = verifier.config();

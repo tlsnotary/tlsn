@@ -93,8 +93,8 @@ pub async fn bind_test_server<
         let mut read_buf = vec![0u8; APP_RECORD_LENGTH];
         if conn.read_exact(&mut read_buf).await.is_err() {
             // EOF reached because client closed its tx part of the socket.
-            // The client's rx part of the socket is still open and waiting for a clean
-            // server shutdown.
+            // The client's rx part of the socket is still open and waiting for
+            // a clean server shutdown.
             if must_delay_when_closing {
                 // delay closing the socket
                 tokio::time::sleep(std::time::Duration::from_millis(CLOSE_DELAY)).await;
@@ -116,9 +116,11 @@ pub async fn bind_test_server<
 
                 let (socket, mut tls) = conn.into_inner();
 
-                // spawning because SyncIoBridge must be used on a separate thread
+                // spawning because SyncIoBridge must be used on a separate
+                // thread
                 tokio::task::spawn_blocking(move || {
-                    // give the client some time (e.g. to send their close_notify)
+                    // give the client some time (e.g. to send their
+                    // close_notify)
                     std::thread::sleep(std::time::Duration::from_millis(10));
 
                     // wrap in `SyncIoBridge` since `socket` must be `io::Write`
@@ -136,9 +138,11 @@ pub async fn bind_test_server<
 
                 let (socket, mut tls) = conn.into_inner();
 
-                // spawning because SyncIoBridge must be used on a separate thread
+                // spawning because SyncIoBridge must be used on a separate
+                // thread
                 tokio::task::spawn_blocking(move || {
-                    // give the client some time (e.g. to send their close_notify)
+                    // give the client some time (e.g. to send their
+                    // close_notify)
                     std::thread::sleep(std::time::Duration::from_millis(10));
 
                     // wrap in `SyncIoBridge` since `socket` must be `io::Write`
@@ -165,7 +169,8 @@ pub async fn bind_test_server<
 
                 let (socket, _tls) = conn.into_inner();
 
-                // spawning because SyncIoBridge must be used on a separate thread
+                // spawning because SyncIoBridge must be used on a separate
+                // thread
                 tokio::task::spawn_blocking(move || {
                     // wrap in `SyncIoBridge` since `socket` must be `io::Write`
                     let mut socket = SyncIoBridge::new(socket.into_inner());
@@ -179,12 +184,13 @@ pub async fn bind_test_server<
                 break;
             }
             "send_record_with_bad_mac" => {
-                // send a record which a bad MAC which will trigger the `bad_record_mac` alert
-                // on the client side
+                // send a record which a bad MAC which will trigger the
+                // `bad_record_mac` alert on the client side
 
                 let (socket, _tls) = conn.into_inner();
 
-                // spawning because `SyncIoBridge` must be used on a separate thread
+                // spawning because `SyncIoBridge` must be used on a separate
+                // thread
                 tokio::task::spawn_blocking(move || {
                     // wrap in `SyncIoBridge` since `socket` must be `io::Write`
                     let mut socket = SyncIoBridge::new(socket.into_inner());
@@ -205,15 +211,18 @@ pub async fn bind_test_server<
 
                 let (socket, mut tls) = conn.into_inner();
 
-                // spawning because SyncIoBridge must be used on a separate thread
+                // spawning because SyncIoBridge must be used on a separate
+                // thread
                 tokio::task::spawn_blocking(move || {
-                    // create a record with a bad MAC and feed to the server's TLS connection
+                    // create a record with a bad MAC and feed to the server's
+                    // TLS connection
                     let mut record = Vec::new();
                     record.extend(vec![0x17, 0x03, 0x03, 0, 30]);
                     record.extend(vec![1u8; 30]);
                     tls.read_tls(&mut record.as_slice()).unwrap();
 
-                    // ignore the error due to the bad MAC. An alert message will be created
+                    // ignore the error due to the bad MAC. An alert message
+                    // will be created
                     assert!(tls.process_new_packets().is_err());
 
                     // wrap in `SyncIoBridge` since `socket` must be `io::Write`
@@ -228,7 +237,8 @@ pub async fn bind_test_server<
                 break;
             }
             _ => {
-                // for any other request, just send back "hello" and keep looping
+                // for any other request, just send back "hello" and keep
+                // looping
                 conn.write_all("hello".as_bytes()).await.unwrap();
                 conn.flush().await.unwrap();
             }

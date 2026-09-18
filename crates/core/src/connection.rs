@@ -334,7 +334,8 @@ impl HandshakeData {
             .verify_server_cert(end_entity, intermediates, server_name, time)
             .map_err(HandshakeVerificationError::ServerCert)?;
 
-        // Verify the signature matches the certificate and key exchange parameters.
+        // Verify the signature matches the certificate and key exchange
+        // parameters.
         let mut message = Vec::new();
         message.extend_from_slice(client_random);
         message.extend_from_slice(server_random);

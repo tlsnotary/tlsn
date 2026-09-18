@@ -243,8 +243,8 @@ impl MpcAesGcm {
         // Assign zeroes to the padding.
         if padding_len > 0 {
             let padding = input.split_off(input.len() - padding_len);
-            // To simplify the impl, we don't mark the padding as public, that's why only
-            // the prover assigns it.
+            // To simplify the impl, we don't mark the padding as public, that's
+            // why only the prover assigns it.
             if let Role::Leader = self.role {
                 vm.assign(padding, vec![0; padding_len])?;
             }

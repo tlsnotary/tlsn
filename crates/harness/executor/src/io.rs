@@ -74,8 +74,8 @@ where
         cx: &mut Context<'_>,
         mut buf: hyper::rt::ReadBufCursor<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
-        // Safety: buf_slice should only be written to, so it's safe to convert `&mut
-        // [MaybeUninit<u8>]` to `&mut [u8]`.
+        // Safety: buf_slice should only be written to, so it's safe to convert
+        // `&mut [MaybeUninit<u8>]` to `&mut [u8]`.
         let buf_slice = unsafe {
             slice::from_raw_parts_mut(buf.as_mut().as_mut_ptr() as *mut u8, buf.as_mut().len())
         };

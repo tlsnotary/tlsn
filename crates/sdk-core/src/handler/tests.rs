@@ -523,7 +523,8 @@ fn test_handler_serde_all_parts() {
 
 #[test]
 fn test_hash_action_splits_ranges() {
-    // Mix of REVEAL and HASH handlers: HASH ranges go to commit, REVEAL to reveal.
+    // Mix of REVEAL and HASH handlers: HASH ranges go to commit, REVEAL to
+    // reveal.
     let handlers = vec![
         Handler {
             handler_type: HandlerType::Sent,

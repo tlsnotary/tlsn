@@ -131,7 +131,8 @@ pub async fn bench_prover(provider: &IoProvider, config: &Bench) -> Result<Prove
     let mut builder = ProveConfig::builder(prover.transcript());
 
     // When reveal_all is false (the default), we exclude 1 byte to avoid the
-    // reveal-all optimization and benchmark the realistic ZK authentication path.
+    // reveal-all optimization and benchmark the realistic ZK authentication
+    // path.
     let reveal_sent_range = if config.reveal_all {
         0..sent_len
     } else {

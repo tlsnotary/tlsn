@@ -77,7 +77,8 @@ impl Verifier<state::Initialized> {
             .take()
             .ok_or_else(|| Error::internal().with_msg("commitment protocol context was dropped"))?;
 
-        // Receives protocol configuration from prover to perform compatibility check.
+        // Receives protocol configuration from prover to perform compatibility
+        // check.
         let TlsCommitRequestMsg { config, version } =
             ctx.io_mut().expect_next().await.map_err(|e| {
                 Error::io()

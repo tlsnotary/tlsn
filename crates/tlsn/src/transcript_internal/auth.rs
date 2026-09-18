@@ -31,7 +31,8 @@ pub(crate) fn prove_plaintext<'a>(
     let alloc_ranges = if is_reveal_all {
         commit.clone()
     } else {
-        // The plaintext is only partially revealed, so we need to authenticate in ZK.
+        // The plaintext is only partially revealed, so we need to authenticate
+        // in ZK.
         commit.union(reveal).into_set()
     };
 
@@ -97,7 +98,8 @@ pub(crate) fn verify_plaintext<'a>(
     let alloc_ranges = if is_reveal_all {
         commit.clone()
     } else {
-        // The plaintext is only partially revealed, so we need to authenticate in ZK.
+        // The plaintext is only partially revealed, so we need to authenticate
+        // in ZK.
         commit.union(reveal).into_set()
     };
 

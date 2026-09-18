@@ -45,7 +45,8 @@ mod native {
         pub async fn provide_proto_io(&self) -> Result<impl Io> {
             match self.mode {
                 IoMode::Client => {
-                    // It might take a bit for the peer to start up, so we retry a few times.
+                    // It might take a bit for the peer to start up, so we retry
+                    // a few times.
                     let mut retries = 0;
                     loop {
                         match TcpStream::connect(self.config.proto_1)

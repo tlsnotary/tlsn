@@ -260,14 +260,14 @@ fn extract_json_body<S: Store>(
         // only
     }
 
-    // Return the value's ranges directly (full key-value pair for objects, or just
-    // the value).
+    // Return the value's ranges directly (full key-value pair for objects, or
+    // just the value).
     let value = doc
         .get(path)
         .ok_or_else(|| SdkError::handler(format!("JSON path '{path}' not found")))?;
 
-    // If no hide options and this is an object field, return the whole key-value
-    // pair.
+    // If no hide options and this is an object field, return the whole
+    // key-value pair.
     if !hide_key
         && !hide_value
         && let Some((parent_path, key)) = split_json_path(path)

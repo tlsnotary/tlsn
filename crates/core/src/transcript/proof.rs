@@ -368,8 +368,8 @@ impl<'a> TranscriptProofBuilder<'a> {
 
         // Tries to cover the query ranges with committed ranges.
         while !uncovered_query_idx.is_empty() {
-            // Committed ranges of different kinds are checked in order of preference set in
-            // self.commitment_kinds.
+            // Committed ranges of different kinds are checked in order of
+            // preference set in self.commitment_kinds.
             if let Some(kind) = commitment_kinds_iter.next() {
                 match kind {
                     TranscriptCommitmentKind::Hash { alg } => {
@@ -379,8 +379,9 @@ impl<'a> TranscriptProofBuilder<'a> {
                             }),
                             |hash| &hash.idx,
                         );
-                        // Uncovered ranges will be checked with ranges of the next
-                        // preferred commitment kind.
+                        // Uncovered ranges will be checked with ranges of the
+                        // next preferred commitment
+                        // kind.
                         uncovered_query_idx.sent = sent_uncovered;
 
                         let (recv_hashes, recv_uncovered) = uncovered_query_idx.recv.cover_by(
@@ -411,13 +412,14 @@ impl<'a> TranscriptProofBuilder<'a> {
                     }
                 }
             } else {
-                // Stops the set cover check if there are no more commitment kinds left.
+                // Stops the set cover check if there are no more commitment
+                // kinds left.
                 break;
             }
         }
 
-        // If there are still uncovered ranges, it means that query ranges cannot be
-        // covered by committed ranges of any kind.
+        // If there are still uncovered ranges, it means that query ranges
+        // cannot be covered by committed ranges of any kind.
         if !uncovered_query_idx.is_empty() {
             return Err(TranscriptProofBuilderError::cover(
                 uncovered_query_idx,

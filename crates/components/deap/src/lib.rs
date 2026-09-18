@@ -113,10 +113,10 @@ where
         //
         // # Security
         //
-        // This assumes that the decoding process is authenticated from the leader's
-        // perspective. In the case of garbled circuits, the leader should be the
-        // generator such that the follower proves their inputs using their committed
-        // MACs.
+        // This assumes that the decoding process is authenticated from the
+        // leader's perspective. In the case of garbled circuits, the
+        // leader should be the generator such that the follower proves
+        // their inputs using their committed MACs.
         let input_futs = self
             .follower_inputs
             .iter()
@@ -147,10 +147,12 @@ where
         // Follower verifies the outputs are consistent.
         if let Role::Follower = self.role {
             for (output, mut value) in mem::take(&mut self.outputs) {
-                // If the output is not available in the MPC VM, we did not execute and decode
-                // it. Therefore, we do not need to check for equality.
+                // If the output is not available in the MPC VM, we did not
+                // execute and decode it. Therefore, we do not
+                // need to check for equality.
                 //
-                // This can occur if some function was preprocessed but ultimately not used.
+                // This can occur if some function was preprocessed but
+                // ultimately not used.
                 if let Some(mpc_output) = mpc.get_raw(output)? {
                     let zk_output = value
                         .try_recv()
@@ -212,7 +214,8 @@ where
     fn commit_raw(&mut self, slice: Slice) -> Result<(), VmError> {
         let slice_range = slice.to_range();
 
-        // Follower's private inputs are not committed in the ZK VM until finalization.
+        // Follower's private inputs are not committed in the ZK VM until
+        // finalization.
         let input_minus_follower = slice_range.difference(&self.follower_input_ranges);
         let mut zk = self.zk.try_lock().unwrap();
         for input in input_minus_follower {
@@ -266,7 +269,8 @@ where
             }
             Role::Follower => {
                 mpc.mark_private_raw(slice)?;
-                // Follower's private inputs will become public during finalization.
+                // Follower's private inputs will become public during
+                // finalization.
                 zk.mark_public_raw(self.memory_map.try_get(slice)?)?;
                 self.follower_input_ranges.union_mut(slice.to_range());
                 self.follower_inputs.push(slice);
@@ -282,7 +286,8 @@ where
         match self.role {
             Role::Leader => {
                 mpc.mark_blind_raw(slice)?;
-                // Follower's private inputs will become public during finalization.
+                // Follower's private inputs will become public during
+                // finalization.
                 zk.mark_public_raw(self.memory_map.try_get(slice)?)?;
                 self.follower_input_ranges.union_mut(slice.to_range());
                 self.follower_inputs.push(slice);

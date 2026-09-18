@@ -55,8 +55,9 @@ pub(crate) fn public(
     decrypter: &mut MpcAesGcm,
     op: &DecryptOp,
 ) -> Result<DecryptOutput, MpcTlsError> {
-    // Instead of computing the plaintext in MPC, we only compute the keystream and
-    // decode it for both parties. Each party then locally computes the plaintext.
+    // Instead of computing the plaintext in MPC, we only compute the keystream
+    // and decode it for both parties. Each party then locally computes the
+    // plaintext.
 
     let keystream = decrypter
         .take_keystream(vm, op.explicit_nonce.clone(), op.ciphertext.len())
@@ -244,8 +245,8 @@ impl DecryptPrivate {
             return Ok(None);
         };
 
-        // Recover the plaintext by removing the OTP from the masked keystream and
-        // applying the ciphertext.
+        // Recover the plaintext by removing the OTP from the masked keystream
+        // and applying the ciphertext.
         let mut plaintext = self.ciphertext;
         plaintext
             .iter_mut()
