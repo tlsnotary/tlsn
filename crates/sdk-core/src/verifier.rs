@@ -23,6 +23,7 @@ use crate::{
 pub struct SdkVerifier {
     config: VerifierConfig,
     state: State,
+    driver_task: Option<crate::spawn::DriverTask>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -75,6 +76,7 @@ impl SdkVerifier {
         SdkVerifier {
             state: State::Initialized,
             config,
+            driver_task: None,
         }
     }
 
@@ -92,15 +94,9 @@ impl SdkVerifier {
 
         info!("connecting to prover");
 
-        let session = Session::new(prover_io);
+        let session = Session::new(Box::new(prover_io) as crate::spawn::BoxIo);
         let (driver, mut handle) = session.split();
-
-        crate::spawn::spawn(async move {
-            match driver.await {
-                Ok(_io) => tracing::warn!("session driver completed (mux closed)"),
-                Err(e) => tracing::error!("session driver error: {e}"),
-            }
-        });
+        self.driver_task = Some(crate::spawn::DriverTask::spawn(driver));
 
         let verifier_config = tlsn::config::verifier::VerifierConfig::builder()
             .root_store(self.config.root_store.clone())
@@ -309,5 +305,22 @@ impl SdkVerifier {
     /// Returns true if the verifier has completed the protocol.
     pub fn is_complete(&self) -> bool {
         matches!(self.state, State::Complete)
+    }
+
+    /// Waits for the session driver to stop and returns the underlying IO.
+    ///
+    /// This must be called after [`verify`](Self::verify). The returned stream
+    /// is no longer read from or written to by TLSNotary and can be reused by
+    /// the application.
+    pub async fn finish(&mut self) -> Result<Box<dyn Io>> {
+        if !self.is_complete() {
+            return Err(SdkError::invalid_state("verifier is not complete"));
+        }
+
+        self.driver_task
+            .take()
+            .ok_or_else(|| SdkError::invalid_state("verifier session already finished"))?
+            .finish()
+            .await
     }
 }
