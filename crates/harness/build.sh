@@ -3,17 +3,9 @@
 # Ensure the script runs in the folder that contains this script
 cd "$(dirname "$0")"
 
-RUNNER_FEATURES=""
-EXECUTOR_FEATURES=""
-
-if [ "$1" = "debug" ]; then
-    RUNNER_FEATURES="--features debug"
-    EXECUTOR_FEATURES="--no-default-features --features debug"
-fi
-
 cargo build --release \
-    --package tlsn-harness-runner $RUNNER_FEATURES \
-    --package tlsn-harness-executor $EXECUTOR_FEATURES \
+    --package tlsn-harness-runner \
+    --package tlsn-harness-executor \
     --package tlsn-server-fixture \
     --package tlsn-harness-plot
 
@@ -25,8 +17,4 @@ cp ../../target/release/tlsn-server-fixture bin/server-fixture
 cp ../../target/release/tlsn-harness-wasm-server bin/wasm-server
 cp ../../target/release/tlsn-harness-plot bin/tlsn-harness-plot
 
-if [ "$1" = "debug" ]; then
-    ./build.wasm.sh debug
-else
-    ./build.wasm.sh
-fi
+./build.wasm.sh

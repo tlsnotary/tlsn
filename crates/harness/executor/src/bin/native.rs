@@ -6,7 +6,6 @@ use tokio_util::codec::LengthDelimitedCodec;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
-    #[cfg(feature = "debug")]
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();

@@ -4,12 +4,6 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
-[features]
-# Disable tracing events as a workaround for issue 959. 
-default = ["tracing/release_max_level_off"]
-# Used to debug the executor itself.
-debug = ["tracing-subscriber"]
-
 [lib]
 name = "harness_executor"
 crate-type = ["cdylib", "rlib"]
@@ -33,7 +27,7 @@ hyper = { workspace = true, features = ["client", "http1"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat"] }
-tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tracing = { workspace = true }

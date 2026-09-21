@@ -3,14 +3,18 @@ use std::time::Duration;
 use anyhow::{Context, Result, anyhow};
 
 use chromiumoxide::{
-    Browser,
-    cdp::browser_protocol::{
-        network::{EnableParams, SetCacheDisabledParams},
-        page::ReloadParams,
+    Browser, Page,
+    cdp::{
+        browser_protocol::{
+            log::{EventEntryAdded, LogEntryLevel},
+            network::{EnableParams, SetCacheDisabledParams},
+            page::ReloadParams,
+        },
+        js_protocol::runtime::EventExceptionThrown,
     },
     handler::HandlerConfig,
 };
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use harness_core::{
     ExecutorConfig, Id,
     bench::BenchOutput,
@@ -18,11 +22,9 @@ use harness_core::{
     rpc::{BenchCmd, TestCmd},
     test::{TestOutput, TestStatus},
 };
+use tracing::{debug, error};
 
 use crate::{Target, log::parse_rust_log, network::Namespace, rpc::Rpc};
-
-#[cfg(feature = "debug")]
-use crate::debug_prelude::*;
 
 pub struct Executor {
     ns: Namespace,
@@ -87,25 +89,15 @@ impl Executor {
                     format!("CONFIG={}", serde_json::to_string(&self.config)?),
                 ];
 
-                if cfg!(feature = "debug") {
-                    let level = &std::env::var("RUST_LOG").unwrap_or("debug".to_string());
-                    args.push("env".into());
-                    args.push(format!("RUST_LOG={}", level));
-                };
+                let level = &std::env::var("RUST_LOG").unwrap_or("debug".to_string());
+                args.push("env".into());
+                args.push(format!("RUST_LOG={}", level));
 
                 args.push(executor_path.to_str().expect("valid path").into());
 
                 let process = duct::cmd("sudo", args);
 
-                let process = if !cfg!(feature = "debug") {
-                    process
-                        .stdout_capture()
-                        .stderr_capture()
-                        .unchecked()
-                        .start()?
-                } else {
-                    process.unchecked().start()?
-                };
+                let process = process.unchecked().start()?;
 
                 let rpc = Rpc::new_native(rpc_addr).await?;
 
@@ -175,11 +167,7 @@ impl Executor {
 
                 let process = duct::cmd("sudo", &args);
 
-                let process = if !cfg!(feature = "debug") {
-                    process.stderr_capture().stdout_capture().start()?
-                } else {
-                    process.start()?
-                };
+                let process = process.start()?;
 
                 const TIMEOUT: usize = 10000;
                 const DELAY: usize = 100;
@@ -228,10 +216,8 @@ impl Executor {
                     .new_page(&format!("http://{wasm_addr}:{wasm_port}/index.html"))
                     .await?;
 
-                #[cfg(feature = "debug")]
                 tokio::spawn(register_listeners(page.clone()).await?);
 
-                #[cfg(feature = "debug")]
                 async fn register_listeners(page: Page) -> Result<impl Future<Output = ()>> {
                     let mut logs = page.event_listener::<EventEntryAdded>().await?.fuse();
                     let mut exceptions =
@@ -271,14 +257,9 @@ impl Executor {
                 page.bring_to_front().await?;
 
                 // Build logging config from RUST_LOG environment variable
-                let logging_config_js = if cfg!(feature = "debug") {
-                    let rust_log =
-                        std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
-                    let logging_config = parse_rust_log(&rust_log);
-                    serde_json::to_string(&logging_config)?
-                } else {
-                    "null".to_string()
-                };
+                let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
+                let logging_config = parse_rust_log(&rust_log);
+                let logging_config_js = serde_json::to_string(&logging_config)?;
 
                 page.evaluate(format!(
                     r#"
