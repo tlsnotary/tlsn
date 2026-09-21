@@ -89,7 +89,7 @@ impl Executor {
                     format!("CONFIG={}", serde_json::to_string(&self.config)?),
                 ];
 
-                let level = &std::env::var("RUST_LOG").unwrap_or("debug".to_string());
+                let level = &std::env::var("RUST_LOG").unwrap_or("info".to_string());
                 args.push("env".into());
                 args.push(format!("RUST_LOG={}", level));
 
@@ -257,7 +257,7 @@ impl Executor {
                 page.bring_to_front().await?;
 
                 // Build logging config from RUST_LOG environment variable
-                let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
+                let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
                 let logging_config = parse_rust_log(&rust_log);
                 let logging_config_js = serde_json::to_string(&logging_config)?;
 
