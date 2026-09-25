@@ -173,3 +173,7 @@ webpki-roots = { version = "1.0" }
 webpki-root-certs = { version = "1.0" }
 ws_stream_wasm = { version = "0.7.5" }
 zeroize = { version = "1.8" }
+
+# Fix for messages arriving between handshake and WsStream construction being dropped.
+[patch.crates-io]
+ws_stream_wasm = { git = "https://github.com/tlsnotary/ws_stream_wasm", rev = "08808cc5e9667e9fc3678898b14e7eddc1d0f940" }

@@ -7509,8 +7509,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 [[package]]
 name = "ws_stream_wasm"
 version = "0.7.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c173014acad22e83f16403ee360115b38846fe754e735c5d9d3803fe70c6abc"
+source = "git+https://github.com/tlsnotary/ws_stream_wasm?rev=08808cc5e9667e9fc3678898b14e7eddc1d0f940#08808cc5e9667e9fc3678898b14e7eddc1d0f940"
 dependencies = [
  "async_io_stream",
  "futures",
