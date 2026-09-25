@@ -6,7 +6,7 @@ use mpc_tls::SessionKeys;
 use tlsn_core::{
     config::prove::ProveRequest,
     connection::{HandshakeData, ServerName},
-    transcript::{PartialTranscript, TlsTranscript},
+    transcript::{TlsTranscript, TranscriptReveal},
 };
 
 use tlsn_core::config::tls_commit::TlsCommitConfig;
@@ -62,7 +62,7 @@ pub struct Verify {
     pub(crate) tls_transcript: TlsTranscript,
     pub(crate) request: ProveRequest,
     pub(crate) handshake: Option<(ServerName, HandshakeData)>,
-    pub(crate) transcript: Option<PartialTranscript>,
+    pub(crate) transcript: Option<TranscriptReveal>,
 }
 
 opaque_debug::implement!(Verify);

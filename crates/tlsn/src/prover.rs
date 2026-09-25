@@ -35,7 +35,7 @@ use tlsn_core::{
         prove::ProveConfig, prover::ProverConfig, tls::TlsClientConfig, tls_commit::TlsCommitConfig,
     },
     connection::{HandshakeData, ServerName},
-    transcript::{TlsTranscript, Transcript},
+    transcript::{TlsTranscript, Transcript, TranscriptReveal},
 };
 use tlsn_mux::{Handle, Stream};
 use tracing::{Span, debug, info_span, instrument};
@@ -555,14 +555,14 @@ impl Prover<state::Committed> {
             )
         });
 
-        let partial_transcript = config
-            .reveal()
-            .map(|(sent, recv)| transcript.to_partial(sent.clone(), recv.clone()));
+        let reveal = config.reveal().map(|(sent, recv)| {
+            TranscriptReveal::from(transcript.to_partial(sent.clone(), recv.clone()))
+        });
 
         let msg = ProveRequestMsg {
             request: config.to_request(),
             handshake,
-            transcript: partial_transcript,
+            transcript: reveal,
         };
 
         ctx.io_mut().send(msg).await.map_err(|e| {
