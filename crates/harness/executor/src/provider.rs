@@ -2,19 +2,54 @@
 
 use std::net::Ipv4Addr;
 
+use anyhow::{Result, bail};
+use futures::{AsyncReadExt, AsyncWriteExt};
 use harness_core::{IoMode, network::NetworkConfig};
+
+use crate::io::Io;
 
 const MAX_RETRIES: usize = 50;
 const RETRY_DELAY_MS: usize = 50;
 
-/// Byte the verifier writes immediately after accepting a genuine protocol
-/// connection. On wasm, the prover connects through a WS<->TCP relay that
-/// completes the WS handshake with the prover before it has even attempted
-/// its downstream TCP connect to the verifier, so an open WS alone does not
-/// mean the verifier accepted anything. Waiting for this sentinel (which the
-/// relay forwards through transparently once written) gives the prover a
-/// real confirmation instead of guessing based on elapsed time.
+/// Deadline for a native protocol-connection handshake. Keeps a half-open
+/// connection (one accepted into the listener backlog while the peer app
+/// never reaches `provide_proto_io`) from stalling setup indefinitely.
+const CONNECT_HANDSHAKE_TIMEOUT_MS: u64 = 2000;
+
+/// Magic byte exchanged in both directions by the protocol peers on connect.
+/// See [`connect_handshake`].
 const CONNECT_SENTINEL: u8 = 0x51;
+
+/// Symmetric handshake for the prover<->verifier ("protocol") connection.
+///
+/// Both peers write the sentinel and then read and verify the peer's. A
+/// one-way confirmation (listener writes, dialer reads) is enough to close
+/// the original ambiguity, but it hard-codes which side listens and which
+/// dials. A byte *from* the peer proves the whole path is live -- a bare
+/// `connect()` can sit in a listener's backlog before the peer app accepts,
+/// and a wasm peer's WS<->TCP relay completes the WS handshake before it has
+/// even attempted its downstream dial -- and doing it in both directions
+/// keeps the handshake independent of prover/verifier role and of the
+/// native/wasm transport, so the two halves can never drift apart.
+///
+/// Both peers write before reading, so neither can stall a peer that is
+/// itself waiting to write first. Callers run this from `provide_proto_io`,
+/// before the stream is wrapped for metering and before any bench timer
+/// starts, so it does not affect measured results.
+async fn connect_handshake<I: Io>(mut io: I) -> Result<I> {
+    io.write_all(&[CONNECT_SENTINEL]).await?;
+    io.flush().await?;
+
+    let mut peer = [0u8; 1];
+    io.read_exact(&mut peer).await?;
+    if peer[0] != CONNECT_SENTINEL {
+        bail!(
+            "unexpected protocol connect handshake byte: {:#04x}",
+            peer[0]
+        );
+    }
+    Ok(io)
+}
 
 pub struct IoProvider {
     mode: IoMode,
@@ -33,14 +68,16 @@ impl IoProvider {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
-    use super::{CONNECT_SENTINEL, IoProvider, MAX_RETRIES, RETRY_DELAY_MS};
+    use super::{
+        CONNECT_HANDSHAKE_TIMEOUT_MS, IoProvider, MAX_RETRIES, RETRY_DELAY_MS, connect_handshake,
+    };
     use crate::io::Io;
     use anyhow::Result;
     use harness_core::IoMode;
     use std::{io::ErrorKind, time::Duration};
     use tokio::{
-        io::AsyncWriteExt,
         net::{TcpListener, TcpStream},
+        time::timeout,
     };
     use tokio_util::compat::TokioAsyncReadCompatExt;
 
@@ -55,6 +92,7 @@ mod native {
 
         /// Provides a connection to the peer.
         pub async fn provide_proto_io(&self) -> Result<impl Io> {
+            let handshake_timeout = Duration::from_millis(CONNECT_HANDSHAKE_TIMEOUT_MS);
             match self.mode {
                 IoMode::Client => {
                     // It might take a bit for the peer to start up, so we retry
@@ -66,7 +104,13 @@ mod native {
                             .inspect(|io| io.set_nodelay(true).unwrap())
                             .map(|io| io.compat())
                         {
-                            Ok(io) => return Ok(io),
+                            Ok(io) => {
+                                return timeout(handshake_timeout, connect_handshake(io))
+                                    .await
+                                    .map_err(|_| {
+                                        anyhow::anyhow!("protocol connect handshake timed out")
+                                    })?;
+                            }
                             Err(e) if e.kind() == ErrorKind::ConnectionRefused => {
                                 tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS as u64))
                                     .await;
@@ -81,12 +125,11 @@ mod native {
                 }
                 IoMode::Server => {
                     let listener = TcpListener::bind(self.config.proto_1).await?;
-                    let (mut io, _) = listener.accept().await?;
+                    let (io, _) = listener.accept().await?;
                     io.set_nodelay(true).unwrap();
-                    // Confirm to the peer that this is a genuine connection
-                    // (see CONNECT_SENTINEL doc comment).
-                    io.write_all(&[CONNECT_SENTINEL]).await?;
-                    Ok(io.compat())
+                    timeout(handshake_timeout, connect_handshake(io.compat()))
+                        .await
+                        .map_err(|_| anyhow::anyhow!("protocol connect handshake timed out"))?
                 }
             }
         }
@@ -95,10 +138,9 @@ mod native {
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
-    use super::{CONNECT_SENTINEL, IoProvider};
+    use super::{IoProvider, connect_handshake};
     use crate::io::Io;
     use anyhow::{Result, anyhow};
-    use futures::AsyncReadExt;
     use std::time::Duration;
     use web_time::Instant;
 
@@ -138,16 +180,16 @@ mod wasm {
                 // downstream TCP connect to the verifier, so it is not a
                 // signal that the verifier is reachable.
                 let (_, ws) = ws_stream_wasm::WsMeta::connect(url.clone(), None).await?;
-                let mut io = ws.into_io();
+                let io = ws.into_io();
 
-                // Wait for the verifier's connect sentinel, which the relay
-                // forwards through transparently once written. If the
-                // relay's downstream connect instead fails, it closes this
-                // WS and the read below errors out.
-                let mut sentinel = [0u8; 1];
-                match io.read_exact(&mut sentinel).await {
-                    Ok(()) if sentinel[0] == CONNECT_SENTINEL => break io,
-                    _ => {
+                // The symmetric handshake writes our sentinel (forwarded to
+                // the verifier) and waits for the verifier's, which the relay
+                // forwards through transparently. If the relay's downstream
+                // connect instead fails, it closes this WS and the read
+                // errors out, so we retry.
+                match connect_handshake(io).await {
+                    Ok(io) => break io,
+                    Err(_) => {
                         if Instant::now() >= deadline {
                             return Err(anyhow!(
                                 "verifier did not accept connection within {CONNECT_TIMEOUT_MS}ms"
@@ -163,5 +205,30 @@ mod wasm {
 
             Ok(io)
         }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::connect_handshake;
+    use futures::{AsyncReadExt, AsyncWriteExt};
+    use tokio_util::compat::TokioAsyncReadCompatExt;
+
+    #[tokio::test]
+    async fn connect_handshake_is_symmetric_and_byte_clean() {
+        let (a, b) = tokio::io::duplex(64);
+        let (a, b) = (a.compat(), b.compat());
+
+        // Both peers run the identical handshake concurrently, as in a real
+        // session. Each writes before reading, so neither waits on the other.
+        let (a, b) = futures::join!(connect_handshake(a), connect_handshake(b));
+        let (mut a, mut b) = (a.unwrap(), b.unwrap());
+
+        // The handshake must consume exactly the sentinel bytes and leave
+        // nothing behind: a normal message passes through intact.
+        a.write_all(b"hello").await.unwrap();
+        let mut buf = [0u8; 5];
+        b.read_exact(&mut buf).await.unwrap();
+        assert_eq!(&buf, b"hello");
     }
 }

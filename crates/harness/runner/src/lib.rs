@@ -7,9 +7,6 @@ mod server_fixture;
 pub mod wasm_server;
 mod ws_proxy;
 
-#[cfg(feature = "debug")]
-mod debug_prelude;
-
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
@@ -24,13 +21,11 @@ use harness_core::{
     test::TestStatus,
 };
 use indicatif::{ProgressBar, ProgressStyle};
+use tracing::debug;
 
 use cli::{Cli, Command};
 use executor::Executor;
 use server_fixture::ServerFixture;
-
-#[cfg(feature = "debug")]
-use crate::debug_prelude::*;
 
 use crate::{cli::Route, network::Network, wasm_server::WasmServer, ws_proxy::WsProxy};
 
@@ -208,8 +203,12 @@ impl Runner {
 }
 
 pub async fn main() -> Result<()> {
-    #[cfg(feature = "debug")]
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
 
     let cli = Cli::parse();
 
@@ -388,7 +387,6 @@ pub async fn main() -> Result<()> {
                 // Wait for the network to stabilize
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
-                #[cfg(feature = "debug")]
                 debug!("Starting bench in group {:?}", config.group);
 
                 let (output, _) = tokio::try_join!(
