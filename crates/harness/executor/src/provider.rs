@@ -2,7 +2,7 @@
 
 use std::net::Ipv4Addr;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use futures::{AsyncReadExt, AsyncWriteExt};
 use harness_core::{IoMode, network::NetworkConfig};
 
