@@ -57,7 +57,7 @@ tlsn-formats = { path = "crates/formats" }
 tlsn-hmac-sha256 = { path = "crates/components/hmac-sha256" }
 tlsn-key-exchange = { path = "crates/components/key-exchange" }
 tlsn-mpc-tls = { path = "crates/mpc-tls" }
-tlsn-mux = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
+tlsn-mux = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "67aab0bced6950530f960d89d866405e4557bd02" }
 tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-core = { path = "crates/tls-core" }
@@ -68,27 +68,27 @@ tlsn-sdk-core = { path = "crates/sdk-core" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-circuits-data = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-memory-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-common = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-vm-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-garble = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-garble-core = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-ole = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-ot = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-share-conversion = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-fields = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-zk = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
-mpz-hash = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6", default-features = false }
-mpz-ideal-vm = { git = "https://github.com/privacy-ethereum/mpz", rev = "v0.1.0-alpha.6" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-circuits-data = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-memory-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-common = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-vm-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-garble-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-ole = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-ot = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-fields = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-zk = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-hash = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141", default-features = false }
+mpz-ideal-vm = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
 
-futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "67aab0bced6950530f960d89d866405e4557bd02" }
 rangeset = { version = "0.4" }
 serio = { version = "0.2" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
-websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "64722f7" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "67aab0bced6950530f960d89d866405e4557bd02" }
+websocket-relay = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "67aab0bced6950530f960d89d866405e4557bd02" }
 
 aead = { version = "0.4" }
 aes = { version = "0.8" }
