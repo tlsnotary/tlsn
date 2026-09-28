@@ -29,8 +29,8 @@ version = "1.0.0-beta.19"
 source = "git+https://github.com/noir-lang/noir.git?rev=v1.0.0-beta.19#74d6be658e1ad252f87943292ba09bdd4da80bd4"
 dependencies = [
  "ark-bn254",
- "ark-ff 0.5.0",
- "ark-std 0.5.0",
+ "ark-ff",
+ "ark-std",
  "cfg-if",
  "hex",
  "num-bigint",
@@ -231,26 +231,9 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d69eab57e8d2663efa5c63135b2af4f396d66424f88954c21104125ab6b3e6bc"
 dependencies = [
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-std 0.5.0",
-]
-
-[[package]]
-name = "ark-ec"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "defd9a439d56ac24968cca0571f598a61bc8c55f71d50a89cda591cb750670ba"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-poly 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "derivative",
- "hashbrown 0.13.2",
- "itertools 0.10.5",
- "num-traits",
- "zeroize",
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
 ]
 
 [[package]]
@@ -260,37 +243,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43d68f2d516162846c1238e755a7c4d131b892b70cc70c471a8e3ca3ed818fce"
 dependencies = [
  "ahash",
- "ark-ff 0.5.0",
- "ark-poly 0.5.0",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
+ "ark-ff",
+ "ark-poly",
+ "ark-serialize",
+ "ark-std",
  "educe",
  "fnv",
  "hashbrown 0.15.5",
- "itertools 0.13.0",
+ "itertools",
  "num-bigint",
  "num-integer",
  "num-traits",
- "zeroize",
-]
-
-[[package]]
-name = "ark-ff"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec847af850f44ad29048935519032c33da8aa03340876d351dfab5660d2966ba"
-dependencies = [
- "ark-ff-asm 0.4.2",
- "ark-ff-macros 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "derivative",
- "digest 0.10.7",
- "itertools 0.10.5",
- "num-bigint",
- "num-traits",
- "paste",
- "rustc_version",
  "zeroize",
 ]
 
@@ -300,28 +263,18 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a177aba0ed1e0fbb62aa9f6d0502e9b46dad8c2eab04c14258a1212d2557ea70"
 dependencies = [
- "ark-ff-asm 0.5.0",
- "ark-ff-macros 0.5.0",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
+ "ark-ff-asm",
+ "ark-ff-macros",
+ "ark-serialize",
+ "ark-std",
  "arrayvec",
  "digest 0.10.7",
  "educe",
- "itertools 0.13.0",
+ "itertools",
  "num-bigint",
  "num-traits",
  "paste",
  "zeroize",
-]
-
-[[package]]
-name = "ark-ff-asm"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ed4aa4fe255d0bc6d79373f7e31d2ea147bcf486cba1be5ba7ea85abdb92348"
-dependencies = [
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -332,19 +285,6 @@ checksum = "62945a2f7e6de02a31fe400aa489f0e0f5b2502e69f95f853adb82a96c7a6b60"
 dependencies = [
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "ark-ff-macros"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7abe79b0e4288889c4574159ab790824d0033b9fdcb2a112a3182fac2e514565"
-dependencies = [
- "num-bigint",
- "num-traits",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -367,22 +307,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef677b59f5aff4123207c4dceb1c0ec8fdde2d4af7886f48be42ad864bfa0352"
 dependencies = [
  "ark-bn254",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-std 0.5.0",
-]
-
-[[package]]
-name = "ark-poly"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d320bfc44ee185d899ccbadfa8bc31aab923ce1558716e1997a1e74057fe86bf"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "derivative",
- "hashbrown 0.13.2",
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
 ]
 
 [[package]]
@@ -392,35 +319,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "579305839da207f02b89cd1679e50e67b4331e2f9294a57693e5051b7703fe27"
 dependencies = [
  "ahash",
- "ark-ff 0.5.0",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
+ "ark-ff",
+ "ark-serialize",
+ "ark-std",
  "educe",
  "fnv",
  "hashbrown 0.15.5",
-]
-
-[[package]]
-name = "ark-secp256r1"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3975a01b0a6e3eae0f72ec7ca8598a6620fc72fa5981f6f5cca33b7cd788f633"
-dependencies = [
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-std 0.4.0",
-]
-
-[[package]]
-name = "ark-serialize"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adb7b85a02b83d2f22f89bd5cac66c9c89474240cb6207cb1efc16d098e822a5"
-dependencies = [
- "ark-serialize-derive 0.4.2",
- "ark-std 0.4.0",
- "digest 0.10.7",
- "num-bigint",
 ]
 
 [[package]]
@@ -429,22 +333,11 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f4d068aaf107ebcd7dfb52bc748f8030e0fc930ac8e360146ca54c1203088f7"
 dependencies = [
- "ark-serialize-derive 0.5.0",
- "ark-std 0.5.0",
+ "ark-serialize-derive",
+ "ark-std",
  "arrayvec",
  "digest 0.10.7",
  "num-bigint",
-]
-
-[[package]]
-name = "ark-serialize-derive"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae3281bc6d0fd7e549af32b52511e1302185bd688fd3359fa36423346ff682ea"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -456,16 +349,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "ark-std"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94893f1e0c6eeab764ade8dc4c0db24caf4fe7cbbaafc0eba0a9030f447b5185"
-dependencies = [
- "num-traits",
- "rand 0.8.6",
 ]
 
 [[package]]
@@ -627,6 +510,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bcs"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "350f2b5fa7b76b498158ec1079dc0ea842c5b622b6b3f675005fddd889f2c9a7"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
 name = "bimap"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -753,8 +645,8 @@ dependencies = [
  "acir",
  "acvm_blackbox_solver",
  "ark-bn254",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-ec",
+ "ark-ff",
  "ark-grumpkin",
  "hex",
 ]
@@ -873,6 +765,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chacha20"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+ "rand_core 0.10.1",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -911,6 +814,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8cf2a2c93cd704877c0858356ed03480ff301ee950b43f1cbe4573b088bfa6c"
 dependencies = [
+ "block-buffer 0.12.0",
  "crypto-common 0.2.2",
  "inout 0.2.2",
 ]
@@ -958,11 +862,11 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "clmul"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "bytemuck",
  "cfg-if",
- "cpufeatures 0.2.17",
+ "cpufeatures 0.3.0",
 ]
 
 [[package]]
@@ -1173,6 +1077,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctr"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baaca1c4b237092596f64d571e9db6ce4109c4ef9742e27590f1709594461f21"
+dependencies = [
+ "cipher 0.5.2",
+]
+
+[[package]]
 name = "ctutils"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1184,15 +1097,16 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.3"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
+checksum = "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23"
 dependencies = [
  "cfg-if",
- "cpufeatures 0.2.17",
+ "cpufeatures 0.3.0",
  "curve25519-dalek-derive",
+ "digest 0.11.3",
  "fiat-crypto",
- "rand_core 0.6.4",
+ "rand_core 0.10.1",
  "rustc_version",
  "serde",
  "subtle",
@@ -1222,6 +1136,16 @@ dependencies = [
 
 [[package]]
 name = "darling"
+version = "0.20.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc7f46116c46ff9ab3eb1597a45688b6715c6e628b5c133e288e709a29bcb4ee"
+dependencies = [
+ "darling_core 0.20.11",
+ "darling_macro 0.20.11",
+]
+
+[[package]]
+name = "darling"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
@@ -1246,6 +1170,20 @@ dependencies = [
 
 [[package]]
 name = "darling_core"
+version = "0.20.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d00b9596d185e565c2207a0b01f8bd1a135483d02d9b7b0a54b11da8d53412e"
+dependencies = [
+ "fnv",
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "strsim 0.11.1",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "darling_core"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0"
@@ -1266,6 +1204,17 @@ dependencies = [
  "darling_core 0.14.4",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "darling_macro"
+version = "0.20.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
+dependencies = [
+ "darling_core 0.20.11",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1312,26 +1261,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derivative"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_builder"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d07adf7be193b71cc36b193d0f5fe60b918a3a9db4dad0449f57bcfd519704a3"
-dependencies = [
- "derive_builder_macro 0.11.2",
-]
-
-[[package]]
 name = "derive_builder"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1341,15 +1270,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_builder_core"
-version = "0.11.2"
+name = "derive_builder"
+version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f91d4cfa921f1c05904dc3c57b4a32c38aed3340cce209f3a6fd1478babafc4"
+checksum = "507dfb09ea8b7fa618fcf76e953f4f5e192547945816d5358edffe39f6f94947"
 dependencies = [
- "darling 0.14.4",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
+ "derive_builder_macro 0.20.2",
 ]
 
 [[package]]
@@ -1365,13 +1291,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_builder_macro"
-version = "0.11.2"
+name = "derive_builder_core"
+version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f0314b72bed045f3a68671b3c86328386762c93f82d98c65c3cb5e5f573dd68"
+checksum = "2d5bcf7b024d6835cfb3d473887cd966994907effbe9227e8c8219824d06c4e8"
 dependencies = [
- "derive_builder_core 0.11.2",
- "syn 1.0.109",
+ "darling 0.20.11",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1382,6 +1310,16 @@ checksum = "ebcda35c7a396850a55ffeac740804b40ffec779b98fffbb1738f4033f0ee79e"
 dependencies = [
  "derive_builder_core 0.12.0",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "derive_builder_macro"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab63b0e2bf4d5928aff72e83a7dace85d7bba5fe12dcc3c5a572d78caffd3f3c"
+dependencies = [
+ "derive_builder_core 0.20.2",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1583,9 +1521,9 @@ dependencies = [
 
 [[package]]
 name = "fiat-crypto"
-version = "0.2.9"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
 name = "find-msvc-tools"
@@ -1630,6 +1568,12 @@ name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+
+[[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "form_urlencoded"
@@ -1708,7 +1652,7 @@ dependencies = [
 [[package]]
 name = "futures-plex"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=67aab0bced6950530f960d89d866405e4557bd02#67aab0bced6950530f960d89d866405e4557bd02"
 dependencies = [
  "futures",
 ]
@@ -1863,31 +1807,12 @@ checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "hashbrown"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
-dependencies = [
- "ahash",
-]
-
-[[package]]
-name = "hashbrown"
-version = "0.14.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-dependencies = [
- "ahash",
- "allocator-api2",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
- "foldhash",
+ "foldhash 0.1.5",
 ]
 
 [[package]]
@@ -1895,6 +1820,11 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "heck"
@@ -2286,15 +2216,6 @@ source = "git+https://github.com/noir-lang/noir.git?rev=v1.0.0-beta.19#74d6be658
 
 [[package]]
 name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
@@ -2471,9 +2392,9 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matrix-transpose"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2512,7 +2433,7 @@ dependencies = [
 [[package]]
 name = "mpz-circuits"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "mpz-circuits-core",
  "mpz-circuits-data",
@@ -2521,22 +2442,22 @@ dependencies = [
 [[package]]
 name = "mpz-circuits-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "bincode",
  "itybity 0.3.3",
  "once_cell",
- "rand 0.9.4",
+ "rand 0.10.3",
  "regex",
  "serde",
  "serde_arrays",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-circuits-data"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "bincode",
  "mpz-circuits-core",
@@ -2546,31 +2467,31 @@ dependencies = [
 [[package]]
 name = "mpz-cointoss"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "futures",
  "mpz-cointoss-core",
  "mpz-common",
  "mpz-core",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-cointoss-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "mpz-core",
  "opaque-debug",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-common"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-task",
  "async-trait",
@@ -2584,7 +2505,7 @@ dependencies = [
  "pollster",
  "serde",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
 ]
@@ -2592,10 +2513,10 @@ dependencies = [
 [[package]]
 name = "mpz-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "aes 0.9.0",
- "bcs",
+ "bcs 0.2.1",
  "bitvec",
  "blake3",
  "bytemuck",
@@ -2606,32 +2527,27 @@ dependencies = [
  "itybity 0.3.3",
  "once_cell",
  "opaque-debug",
- "rand 0.9.4",
- "rand_chacha 0.9.0",
- "rand_core 0.6.4",
- "rand_core 0.9.5",
+ "rand 0.10.3",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
  "rayon",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-fields"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
- "ark-ff 0.4.2",
- "ark-secp256r1",
- "ark-serialize 0.4.2",
+ "crypto-bigint 0.7.3",
  "hybrid-array",
  "itybity 0.3.3",
  "mpz-core",
- "num-bigint",
  "opaque-debug",
- "rand 0.8.6",
- "rand 0.9.4",
+ "rand 0.10.3",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "typenum",
  "zerocopy",
 ]
@@ -2639,12 +2555,12 @@ dependencies = [
 [[package]]
 name = "mpz-garble"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-trait",
- "derive_builder 0.11.2",
+ "derive_builder 0.20.2",
  "futures",
- "hashbrown 0.14.5",
+ "hashbrown 0.17.1",
  "mpz-circuits",
  "mpz-common",
  "mpz-core",
@@ -2653,11 +2569,11 @@ dependencies = [
  "mpz-ot",
  "mpz-vm-core",
  "opaque-debug",
- "rand 0.9.4",
+ "rand 0.10.3",
  "rangeset",
  "serde",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
 ]
@@ -2665,14 +2581,14 @@ dependencies = [
 [[package]]
 name = "mpz-garble-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "aes 0.9.0",
  "bitvec",
  "blake3",
  "cfg-if",
  "cipher 0.5.2",
- "derive_builder 0.11.2",
+ "derive_builder 0.20.2",
  "itybity 0.3.3",
  "mpz-circuits",
  "mpz-common",
@@ -2682,34 +2598,34 @@ dependencies = [
  "mpz-vm-core",
  "once_cell",
  "opaque-debug",
- "rand 0.9.4",
- "rand_chacha 0.9.0",
- "rand_core 0.9.5",
+ "rand 0.10.3",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
  "rangeset",
  "rayon",
  "serde",
  "serde_arrays",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
 [[package]]
 name = "mpz-hash"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "blake3",
  "itybity 0.3.3",
  "mpz-circuits",
  "mpz-core",
  "mpz-vm-core",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-ideal-vm"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-trait",
  "futures",
@@ -2720,28 +2636,28 @@ dependencies = [
  "rangeset",
  "serde",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-memory-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "blake3",
  "futures",
  "itybity 0.3.3",
  "mpz-core",
- "rand 0.9.4",
+ "rand 0.10.3",
  "rangeset",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-ole"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-trait",
  "futures",
@@ -2751,15 +2667,15 @@ dependencies = [
  "mpz-fields",
  "mpz-ole-core",
  "mpz-ot",
- "rand 0.9.4",
+ "rand 0.10.3",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-ole-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "hybrid-array",
  "itybity 0.3.3",
@@ -2767,15 +2683,15 @@ dependencies = [
  "mpz-core",
  "mpz-fields",
  "mpz-ot-core",
- "rand 0.9.4",
+ "rand 0.10.3",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-ot"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -2787,18 +2703,18 @@ dependencies = [
  "mpz-core",
  "mpz-ot-core",
  "opaque-debug",
- "rand 0.9.4",
- "rand_chacha 0.9.0",
- "rand_core 0.9.5",
+ "rand 0.10.3",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
 [[package]]
 name = "mpz-ot-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "aes 0.9.0",
  "blake3",
@@ -2806,9 +2722,9 @@ dependencies = [
  "cfg-if",
  "cipher 0.5.2",
  "clmul",
- "ctr 0.9.2",
+ "ctr 0.10.1",
  "curve25519-dalek",
- "derive_builder 0.11.2",
+ "derive_builder 0.20.2",
  "enum-try-as-inner",
  "futures",
  "itybity 0.3.3",
@@ -2816,12 +2732,12 @@ dependencies = [
  "mpz-common",
  "mpz-core",
  "opaque-debug",
- "rand 0.9.4",
- "rand_chacha 0.9.0",
- "rand_core 0.9.5",
+ "rand 0.10.3",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
  "rayon",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "zerocopy",
 ]
@@ -2829,7 +2745,7 @@ dependencies = [
 [[package]]
 name = "mpz-share-conversion"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-trait",
  "mpz-common",
@@ -2837,46 +2753,46 @@ dependencies = [
  "mpz-fields",
  "mpz-ole",
  "mpz-share-conversion-core",
- "rand 0.9.4",
+ "rand 0.10.3",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-share-conversion-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "mpz-common",
  "mpz-core",
  "mpz-fields",
  "mpz-ole-core",
- "rand 0.9.4",
+ "rand 0.10.3",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-vm-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-trait",
  "futures",
  "mpz-circuits",
  "mpz-common",
  "mpz-memory-core",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-zk"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "async-trait",
  "blake3",
- "derive_builder 0.11.2",
+ "derive_builder 0.20.2",
  "futures",
  "mpz-common",
  "mpz-core",
@@ -2884,13 +2800,13 @@ dependencies = [
  "mpz-vm-core",
  "mpz-zk-core",
  "serio",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "mpz-zk-core"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/privacy-ethereum/mpz?rev=v0.1.0-alpha.6#6ebfe619490c3155a589fc6a3be83b0976de19dc"
+source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -2899,11 +2815,11 @@ dependencies = [
  "mpz-core",
  "mpz-memory-core",
  "mpz-vm-core",
- "rand_chacha 0.9.0",
+ "rand_chacha 0.10.0",
  "rangeset",
  "rayon",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "zerocopy",
 ]
 
@@ -3404,9 +3320,9 @@ dependencies = [
 
 [[package]]
 name = "pollster"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
+checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "polyval"
@@ -3622,7 +3538,6 @@ version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
- "libc",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
 ]
@@ -3638,13 +3553,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "rand06-compat"
-version = "0.1.0"
+name = "rand"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0372da64e922a0b6979b115eb60d3c4ca7b2ef2b7565f039e3c6ee13bf6d5d38"
+checksum = "65c9fb96cbc91e3478eaae79a69fcd3f1ae4ad052e471fe6732fff548984b4af"
 dependencies = [
+ "chacha20",
+ "getrandom 0.4.2",
+ "rand_core 0.10.1",
+]
+
+[[package]]
+name = "rand06-compat"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7ba8dcd6404c86011f79817ca671b05982c794d56320f5a1cce1358dd4c984d"
+dependencies = [
+ "rand_core 0.10.1",
  "rand_core 0.6.4",
- "rand_core 0.9.5",
 ]
 
 [[package]]
@@ -3665,6 +3591,16 @@ checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
 dependencies = [
  "ppv-lite86",
  "rand_core 0.9.5",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e6af7f3e25ded52c41df4e0b1af2d047e45896c2f3281792ed68a1c243daedb"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.10.1",
 ]
 
 [[package]]
@@ -4238,9 +4174,9 @@ dependencies = [
 
 [[package]]
 name = "serde_arrays"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38636132857f68ec3d5f3eb121166d2af33cb55174c4d5ff645db6165cbef0fd"
+checksum = "94a16b99c5ea4fe3daccd14853ad260ec00ea043b2708d1fd1da3106dcd8d9df"
 dependencies = [
  "serde",
 ]
@@ -4831,7 +4767,7 @@ dependencies = [
  "once_cell",
  "opaque-debug",
  "pin-project-lite",
- "rand 0.9.4",
+ "rand 0.10.3",
  "rangeset",
  "rustls 0.23.40",
  "rustls-pki-types",
@@ -4858,12 +4794,12 @@ dependencies = [
 name = "tlsn-attestation"
 version = "0.1.0-alpha.16-pre"
 dependencies = [
- "bcs",
+ "bcs 0.1.6",
  "blake3",
  "k256 0.13.4",
  "opaque-debug",
  "p256 0.13.2",
- "rand 0.9.4",
+ "rand 0.10.3",
  "serde",
  "thiserror 1.0.69",
  "tiny-keccak",
@@ -4892,9 +4828,9 @@ dependencies = [
  "const-oid 0.10.2",
  "itybity 0.2.1",
  "opaque-debug",
- "rand 0.9.4",
- "rand_chacha 0.9.0",
- "rand_core 0.9.5",
+ "rand 0.10.3",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
  "rangeset",
  "rs_merkle",
  "rustls-pki-types",
@@ -4981,7 +4917,7 @@ dependencies = [
  "mpz-share-conversion",
  "mpz-vm-core",
  "p256 0.13.2",
- "rand 0.9.4",
+ "rand 0.10.3",
  "rand06-compat",
  "serio",
  "thiserror 1.0.69",
@@ -5007,7 +4943,7 @@ dependencies = [
  "mpz-vm-core",
  "p256 0.13.2",
  "pin-project-lite",
- "rand 0.9.4",
+ "rand 0.10.3",
  "ring",
  "serde",
  "serio",
@@ -5025,7 +4961,7 @@ dependencies = [
 [[package]]
 name = "tlsn-mux"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=64722f7#64722f7de999cbd41c0cab7312dade306d50ea5f"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=67aab0bced6950530f960d89d866405e4557bd02#67aab0bced6950530f960d89d866405e4557bd02"
 dependencies = [
  "blake3",
  "futures",
@@ -5033,7 +4969,7 @@ dependencies = [
  "nohash-hasher",
  "parking_lot",
  "pin-project",
- "rand 0.9.4",
+ "rand 0.10.3",
  "static_assertions",
  "web-time 1.1.0",
 ]
@@ -5068,7 +5004,7 @@ version = "0.1.0-alpha.16-pre"
 dependencies = [
  "futures",
  "hmac 0.12.1",
- "rand 0.9.4",
+ "rand 0.10.3",
  "ring",
  "rustls-pemfile",
  "rustls-pki-types",

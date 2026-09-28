@@ -27,7 +27,7 @@ cfg_select! {
         use mpz_garble::protocol::semihonest::Garbler;
         use mpz_ot::cot::DerandCOTSender;
         use mpz_zk::Prover;
-        use rand::Rng;
+        use rand::RngExt;
 
         pub(crate) type ProverMpc =
             Garbler<DerandCOTSender<SharedRCOTSender<kos::Sender<co::Receiver>, Block>>>;

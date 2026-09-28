@@ -106,7 +106,7 @@ mod tests {
         EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
         elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
     };
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_point_addition() {
