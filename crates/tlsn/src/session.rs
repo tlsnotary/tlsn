@@ -19,19 +19,10 @@ use crate::{
     verifier::{Verifier, state as verifier_state},
 };
 
-/// Default maximum number of concurrent streams per session.
-const DEFAULT_MAX_NUM_STREAMS: usize = 512;
-
-/// Default maximum receive window shared across all streams of a session.
-///
-/// Must be at least `max_num_streams * tlsn_mux::DEFAULT_CREDIT`, so the
-/// default window caps the stream limit at 4096.
-const DEFAULT_MAX_CONNECTION_RECEIVE_WINDOW: usize = 1024 * 1024 * 1024;
-
 /// Configuration for a [`Session`].
 #[derive(Debug, Clone)]
 pub struct SessionConfig {
-    max_num_streams: usize,
+    mux: tlsn_mux::Config,
 }
 
 impl SessionConfig {
@@ -40,28 +31,36 @@ impl SessionConfig {
         SessionConfigBuilder::default()
     }
 
-    /// Returns the maximum number of concurrent streams per session.
-    pub fn max_num_streams(&self) -> usize {
-        self.max_num_streams
-    }
-
-    /// Builds the underlying [`tlsn_mux::Config`].
+    /// Returns the underlying [`tlsn_mux::Config`].
     fn to_mux_config(&self) -> tlsn_mux::Config {
-        let mut mux_config = tlsn_mux::Config::default();
-        mux_config.set_keep_alive(true);
-        mux_config.set_close_sync(true);
-        mux_config.set_max_num_streams(self.max_num_streams);
-
-        mux_config
+        self.mux.clone()
     }
 }
 
 impl Default for SessionConfig {
     fn default() -> Self {
         Self {
-            max_num_streams: DEFAULT_MAX_NUM_STREAMS,
+            mux: session_mux_config(None).expect("default mux config is valid"),
         }
     }
+}
+
+/// Builds a [`tlsn_mux::Config`] with the session's fixed settings applied.
+///
+/// All mux-specific invariants (e.g. the receive window / stream limit
+/// coupling) are validated by [`tlsn_mux::ConfigBuilder`].
+fn session_mux_config(
+    max_num_streams: Option<usize>,
+) -> Result<tlsn_mux::Config, tlsn_mux::ConfigError> {
+    let mut builder = tlsn_mux::Config::builder()
+        .keep_alive(true)
+        .close_sync(true);
+
+    if let Some(max_num_streams) = max_num_streams {
+        builder = builder.max_num_streams(max_num_streams);
+    }
+
+    builder.build()
 }
 
 /// Builder for [`SessionConfig`].
@@ -73,9 +72,9 @@ pub struct SessionConfigBuilder {
 impl SessionConfigBuilder {
     /// Sets the maximum number of concurrent streams per session.
     ///
-    /// Defaults to 512 when unset. The limit is bounded by the session's
-    /// receive window (1 GiB by default), which allows at most 4096 streams;
-    /// higher values are rejected by [`build`](Self::build).
+    /// Defaults to the mux default (512) when unset. The limit is bounded by
+    /// the session's receive window (1 GiB by default); higher values are
+    /// rejected by [`build`](Self::build).
     pub fn max_num_streams(mut self, max_num_streams: usize) -> Self {
         self.max_num_streams = Some(max_num_streams);
         self
@@ -83,36 +82,19 @@ impl SessionConfigBuilder {
 
     /// Builds the configuration.
     ///
-    /// Returns an error if the requested stream limit exceeds the number
-    /// supported by the session's receive window.
+    /// Returns an error if the requested stream limit exceeds what the
+    /// session's receive window supports.
     pub fn build(self) -> Result<SessionConfig, SessionConfigError> {
-        let max_num_streams = self.max_num_streams.unwrap_or(DEFAULT_MAX_NUM_STREAMS);
-        let max_supported =
-            DEFAULT_MAX_CONNECTION_RECEIVE_WINDOW / tlsn_mux::DEFAULT_CREDIT as usize;
-
-        if max_num_streams > max_supported {
-            return Err(SessionConfigError::TooManyStreams {
-                requested: max_num_streams,
-                max: max_supported,
-            });
-        }
-
-        Ok(SessionConfig { max_num_streams })
+        Ok(SessionConfig {
+            mux: session_mux_config(self.max_num_streams)?,
+        })
     }
 }
 
 /// Error for [`SessionConfig`].
 #[derive(Debug, thiserror::Error)]
-pub enum SessionConfigError {
-    /// The requested stream limit exceeds what the receive window supports.
-    #[error("max_num_streams ({requested}) exceeds the maximum of {max} supported by the receive window")]
-    TooManyStreams {
-        /// The requested maximum number of streams.
-        requested: usize,
-        /// The maximum number of streams supported by the receive window.
-        max: usize,
-    },
-}
+#[error(transparent)]
+pub struct SessionConfigError(#[from] tlsn_mux::ConfigError);
 
 /// A TLSNotary session over a communication channel.
 ///
@@ -448,19 +430,16 @@ mod tests {
 
     #[test]
     fn default_config_is_valid() {
-        let config = SessionConfig::builder().build().unwrap();
-        assert_eq!(config.max_num_streams(), DEFAULT_MAX_NUM_STREAMS);
+        assert!(SessionConfig::builder().build().is_ok());
     }
 
     #[test]
     fn max_num_streams_within_window_is_valid() {
-        let config = SessionConfig::builder().max_num_streams(4096).build().unwrap();
-        assert_eq!(config.max_num_streams(), 4096);
+        assert!(SessionConfig::builder().max_num_streams(4096).build().is_ok());
     }
 
     #[test]
     fn max_num_streams_beyond_window_is_rejected() {
-        let err = SessionConfig::builder().max_num_streams(4097).build().unwrap_err();
-        assert!(matches!(err, SessionConfigError::TooManyStreams { .. }));
+        assert!(SessionConfig::builder().max_num_streams(4097).build().is_err());
     }
 }
