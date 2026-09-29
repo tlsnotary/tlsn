@@ -7,6 +7,7 @@ pub use config::ProverConfig;
 use tlsn_sdk_core::{
     NetworkSetting as CoreNetworkSetting, ProverConfig as CoreProverConfig, ProverMode, SdkProver,
 };
+use tsify::{Ts, Tsify};
 use wasm_bindgen::{JsError, prelude::*};
 
 use crate::{
@@ -30,7 +31,8 @@ pub struct JsProver {
 impl JsProver {
     /// Creates a new Prover with the given configuration.
     #[wasm_bindgen(constructor)]
-    pub fn new(config: ProverConfig) -> Result<JsProver> {
+    pub fn new(config: Ts<ProverConfig>) -> Result<JsProver> {
+        let config = crate::strict::from_wasm_strict(config.js_value())?;
         let core_config = convert_prover_config(config)?;
         let inner = SdkProver::new(core_config).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(JsProver {
@@ -84,14 +86,17 @@ impl JsProver {
     pub async fn send_request(
         &mut self,
         server_io: Option<JsIo>,
-        request: HttpRequest,
-    ) -> Result<HttpResponse> {
+        request: Ts<HttpRequest>,
+    ) -> Result<Ts<HttpResponse>> {
         self.emit_progress(
             "CONNECTING_TO_SERVER",
             0.3,
             "Connecting to application server...",
         );
 
+        let request = request
+            .to_rust()
+            .map_err(|e| JsError::new(&e.to_string()))?;
         let core_request = convert_http_request(request);
 
         self.emit_progress("SENDING_REQUEST", 0.4, "Sending request...");
@@ -114,16 +119,20 @@ impl JsProver {
 
         self.emit_progress("REQUEST_COMPLETE", 0.5, "Response received");
 
-        Ok(convert_http_response(core_response))
+        convert_http_response(core_response)
+            .into_ts()
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
     /// Returns the transcript of the TLS session.
-    pub fn transcript(&self) -> Result<Transcript> {
+    pub fn transcript(&self) -> Result<Ts<Transcript>> {
         let core_transcript = self
             .inner
             .transcript()
             .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(convert_transcript(core_transcript))
+        convert_transcript(core_transcript)
+            .into_ts()
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
     /// Reveals data to the verifier and finalizes the protocol.
@@ -135,8 +144,19 @@ impl JsProver {
     /// hash-committed range (`{ direction, ranges, algorithm, hash, blinder
     /// }`), in the same order as the input `Commit`. The `commitments`
     /// array is empty when no commit was supplied.
-    pub async fn reveal(&mut self, reveal: Reveal, commit: Option<Commit>) -> Result<RevealOutput> {
+    pub async fn reveal(
+        &mut self,
+        reveal: Ts<Reveal>,
+        commit: Option<Ts<Commit>>,
+    ) -> Result<Ts<RevealOutput>> {
         self.emit_progress("REVEAL", 0.7, "Proving and revealing data...");
+
+        let reveal = reveal
+            .to_rust()
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        let commit = commit
+            .map(|commit| commit.to_rust().map_err(|e| JsError::new(&e.to_string())))
+            .transpose()?;
 
         let core_reveal = convert_reveal(reveal);
         let core_commit = commit.map(convert_commit);
@@ -149,7 +169,9 @@ impl JsProver {
 
         self.emit_progress("FINALIZED", 0.95, "Protocol finalized");
 
-        Ok(convert_reveal_output(output))
+        convert_reveal_output(output)
+            .into_ts()
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 }
 

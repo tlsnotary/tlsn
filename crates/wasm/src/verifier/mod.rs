@@ -5,6 +5,7 @@ mod config;
 pub use config::VerifierConfig;
 
 use tlsn_sdk_core::{SdkVerifier, VerifierConfig as CoreVerifierConfig};
+use tsify::{Ts, Tsify};
 use wasm_bindgen::prelude::*;
 
 use crate::{
@@ -28,7 +29,8 @@ pub struct JsVerifier {
 impl JsVerifier {
     /// Creates a new Verifier with the given configuration.
     #[wasm_bindgen(constructor)]
-    pub fn new(config: VerifierConfig) -> Result<JsVerifier> {
+    pub fn new(config: Ts<VerifierConfig>) -> Result<JsVerifier> {
+        let config = crate::strict::from_wasm_strict(config.js_value())?;
         let core_config = convert_verifier_config(config)?;
         let inner = SdkVerifier::new(core_config);
         Ok(JsVerifier { inner })
@@ -86,13 +88,15 @@ impl JsVerifier {
     }
 
     /// Verifies the connection and finalizes the protocol.
-    pub async fn verify(&mut self) -> Result<VerifierOutput> {
+    pub async fn verify(&mut self) -> Result<Ts<VerifierOutput>> {
         let core_output = self
             .inner
             .verify()
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(convert_verifier_output(core_output))
+        convert_verifier_output(core_output)
+            .into_ts()
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 }
 

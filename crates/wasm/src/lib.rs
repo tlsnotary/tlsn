@@ -8,23 +8,34 @@ pub mod handler;
 pub(crate) mod io;
 mod log;
 pub mod prover;
+mod strict;
 pub mod types;
 pub mod verifier;
 
 pub use log::{LoggingConfig, LoggingLevel};
 
+use tsify::Ts;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 /// Initializes the module.
 #[wasm_bindgen]
 pub async fn initialize(
-    logging_config: Option<LoggingConfig>,
+    logging_config: Option<Ts<LoggingConfig>>,
     thread_count: usize,
-) -> Result<(), JsValue> {
+) -> Result<(), JsError> {
+    let logging_config = logging_config
+        .map(|config| {
+            config
+                .to_rust()
+                .map_err(|err| JsError::new(&err.to_string()))
+        })
+        .transpose()?;
     log::init_logging(logging_config);
 
-    JsFuture::from(web_spawn::start_spawner()).await?;
+    JsFuture::from(web_spawn::start_spawner())
+        .await
+        .map_err(|err| JsError::new(&format!("failed to start spawner: {err:?}")))?;
 
     // Initialize rayon global thread pool.
     rayon::ThreadPoolBuilder::new()

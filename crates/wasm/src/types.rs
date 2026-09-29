@@ -4,11 +4,10 @@ use std::{collections::HashMap, ops::Range};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use tsify_next::Tsify;
+use tsify::Tsify;
 
 /// HTTP request body.
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 #[serde(untagged)]
 #[non_exhaustive]
 pub enum Body {
@@ -18,7 +17,6 @@ pub enum Body {
 
 /// HTTP method.
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub enum Method {
     /// HTTP GET method.
     GET,
@@ -32,7 +30,6 @@ pub enum Method {
 
 /// HTTP request.
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct HttpRequest {
     /// Request URI.
     pub uri: String,
@@ -46,7 +43,6 @@ pub struct HttpRequest {
 
 /// HTTP response.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct HttpResponse {
     /// HTTP status code.
     pub status: u16,
@@ -56,7 +52,6 @@ pub struct HttpResponse {
 
 /// TLS version.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub enum TlsVersion {
     /// TLS 1.2.
     V1_2,
@@ -66,7 +61,6 @@ pub enum TlsVersion {
 
 /// Transcript length information.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct TranscriptLength {
     /// Bytes sent.
     pub sent: usize,
@@ -76,7 +70,6 @@ pub struct TranscriptLength {
 
 /// Connection information.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct ConnectionInfo {
     /// Unix timestamp of the connection.
     pub time: u64,
@@ -88,7 +81,6 @@ pub struct ConnectionInfo {
 
 /// Full transcript of sent and received data.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct Transcript {
     /// Data sent to the server.
     pub sent: Vec<u8>,
@@ -98,7 +90,6 @@ pub struct Transcript {
 
 /// Partial transcript with authenticated ranges.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct PartialTranscript {
     /// Data sent to the server.
     pub sent: Vec<u8>,
@@ -112,7 +103,6 @@ pub struct PartialTranscript {
 
 /// Hash algorithm for hash-commitment actions.
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub enum HashAlgorithm {
     /// BLAKE3 hash algorithm.
     BLAKE3,
@@ -128,7 +118,6 @@ pub enum HashAlgorithm {
 /// clean JS/TS interop via tsify. Converted to the sdk-core `CommitRange`
 /// (which uses `Range<usize>`) in [`super::prover::convert_commit_range`].
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct CommitRange {
     /// Start of the byte range (inclusive).
     pub start: usize,
@@ -140,7 +129,6 @@ pub struct CommitRange {
 
 /// Ranges of data to hash-commit.
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct Commit {
     /// Ranges of sent data to commit, each with its own algorithm.
     pub sent: Vec<CommitRange>,
@@ -150,7 +138,6 @@ pub struct Commit {
 
 /// Ranges of data to reveal.
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct Reveal {
     /// Ranges of sent data to reveal.
     pub sent: Vec<Range<usize>>,
@@ -167,7 +154,6 @@ pub struct Reveal {
 /// MPC-TLS. Range and algorithm are not repeated — they live on the input
 /// `CommitRange` at the same index.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct HashOpening {
     /// The commitment hash digest.
     pub hash: Vec<u8>,
@@ -180,7 +166,6 @@ pub struct HashOpening {
 /// Mirrors the input `Commit`: `sent[i]` opens `commit.sent[i]`, likewise for
 /// `recv`. Both arrays are empty when no commit was supplied.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct RevealOutput {
     /// Openings for `commit.sent`, in input order.
     pub sent: Vec<HashOpening>,
@@ -190,7 +175,6 @@ pub struct RevealOutput {
 
 /// Output from the verifier.
 #[derive(Debug, Tsify, Serialize)]
-#[tsify(into_wasm_abi)]
 pub struct VerifierOutput {
     /// Server name (if revealed).
     pub server_name: Option<String>,
@@ -202,7 +186,6 @@ pub struct VerifierOutput {
 
 /// Network setting for protocol optimization.
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub enum NetworkSetting {
     /// Prefers a bandwidth-heavy protocol.
     Bandwidth,

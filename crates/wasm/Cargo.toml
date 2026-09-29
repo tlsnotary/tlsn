@@ -32,7 +32,7 @@ serde-wasm-bindgen = { version = "0.6" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 wasm-tracing = { version = "0.1" }
-tsify-next = { version = "0.5", default-features = false, features = ["js"] }
+tsify = { version = "0.5.8", default-features = false, features = ["js"] }
 wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
 web-spawn = { workspace = true }

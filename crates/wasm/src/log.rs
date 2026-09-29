@@ -7,7 +7,7 @@
 use serde::Deserialize;
 use tracing::Level;
 use tracing_subscriber::{filter::FilterFn, layer::SubscriberExt, util::SubscriberInitExt};
-use tsify_next::Tsify;
+use tsify::Tsify;
 use wasm_tracing::{WASMLayer, WASMLayerConfigBuilder};
 
 // ---------------------------------------------------------------------------
@@ -15,7 +15,6 @@ use wasm_tracing::{WASMLayer, WASMLayerConfigBuilder};
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Default, Clone, Copy, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub enum LoggingLevel {
     Off,
     Trace,
@@ -27,7 +26,6 @@ pub enum LoggingLevel {
 }
 
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub enum SpanEvent {
     New,
     Close,
@@ -35,7 +33,6 @@ pub enum SpanEvent {
 }
 
 #[derive(Debug, Default, Clone, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct LoggingConfig {
     pub level: Option<LoggingLevel>,
     pub crate_filters: Option<Vec<CrateLogFilter>>,
@@ -43,7 +40,6 @@ pub struct LoggingConfig {
 }
 
 #[derive(Debug, Clone, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct CrateLogFilter {
     pub level: LoggingLevel,
     pub name: String,
