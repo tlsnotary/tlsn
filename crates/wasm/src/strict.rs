@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 use serde::de::{DeserializeOwned, Error as _, IgnoredAny};
-use wasm_bindgen::{JsError, JsValue};
+use wasm_bindgen::JsValue;
 
 #[derive(Deserialize)]
 struct Wrap<T> {
@@ -60,13 +60,11 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Strict<T> {
 /// Deserialization happens here inside the function body rather than at the
 /// wasm-bindgen ABI boundary (see [`Ts`](tsify::Ts)), so a failure is a normal
 /// `Result` instead of a `wasm_bindgen::throw_str` that skips destructors.
-pub(crate) fn from_wasm_strict<T>(value: JsValue) -> Result<T, JsError>
+pub(crate) fn from_wasm_strict<T>(value: JsValue) -> Result<T, serde_wasm_bindgen::Error>
 where
     T: DeserializeOwned,
 {
-    serde_wasm_bindgen::from_value::<Strict<T>>(value)
-        .map(|strict| strict.0)
-        .map_err(|err| JsError::new(&err.to_string()))
+    serde_wasm_bindgen::from_value::<Strict<T>>(value).map(|strict| strict.0)
 }
 
 #[cfg(test)]
@@ -74,7 +72,9 @@ mod tests {
     use super::*;
     use crate::prover::ProverConfig;
     use wasm_bindgen::JsCast;
-    use wasm_bindgen_test::wasm_bindgen_test;
+    use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+
+    wasm_bindgen_test_configure!(run_in_browser);
 
     fn valid_prover_config() -> JsValue {
         let obj = js_sys::Object::new();

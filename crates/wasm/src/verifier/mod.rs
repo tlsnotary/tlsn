@@ -30,7 +30,8 @@ impl JsVerifier {
     /// Creates a new Verifier with the given configuration.
     #[wasm_bindgen(constructor)]
     pub fn new(config: Ts<VerifierConfig>) -> Result<JsVerifier> {
-        let config = crate::strict::from_wasm_strict(config.js_value())?;
+        let config = crate::strict::from_wasm_strict(config.js_value())
+            .map_err(|e| JsError::new(&e.to_string()))?;
         let core_config = convert_verifier_config(config)?;
         let inner = SdkVerifier::new(core_config);
         Ok(JsVerifier { inner })

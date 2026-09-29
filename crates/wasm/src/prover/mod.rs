@@ -32,7 +32,8 @@ impl JsProver {
     /// Creates a new Prover with the given configuration.
     #[wasm_bindgen(constructor)]
     pub fn new(config: Ts<ProverConfig>) -> Result<JsProver> {
-        let config = crate::strict::from_wasm_strict(config.js_value())?;
+        let config = crate::strict::from_wasm_strict(config.js_value())
+            .map_err(|e| JsError::new(&e.to_string()))?;
         let core_config = convert_prover_config(config)?;
         let inner = SdkProver::new(core_config).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(JsProver {
