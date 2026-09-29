@@ -69,6 +69,19 @@ where
     serde_wasm_bindgen::from_value::<Strict<T>>(value).map(|strict| strict.0)
 }
 
+/// `deserialize_with` helper for nested config objects.
+///
+/// Use on a field so that objects nested inside a config are checked for
+/// unknown fields too, e.g.
+/// `#[serde(default, deserialize_with = "crate::strict::deserialize_strict")]`.
+pub(crate) fn deserialize_strict<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Strict::<T>::deserialize(deserializer)?.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

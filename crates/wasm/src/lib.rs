@@ -8,11 +8,13 @@ pub mod handler;
 pub(crate) mod io;
 mod log;
 pub mod prover;
+pub mod session;
 mod strict;
 pub mod types;
 pub mod verifier;
 
 pub use log::{LoggingConfig, LoggingLevel};
+pub use session::SessionOptions;
 
 use tsify::Ts;
 use wasm_bindgen::prelude::*;

@@ -1,3 +1,4 @@
+use crate::session::SessionOptions;
 use crate::types::NetworkSetting;
 use serde::Deserialize;
 use tsify::Tsify;
@@ -27,4 +28,7 @@ pub struct ProverConfig {
     ///
     /// If not provided, Mozilla root certificates are used.
     pub root_certs: Option<Vec<Vec<u8>>>,
+    /// Options for the mux session with the verifier.
+    #[serde(default, deserialize_with = "crate::strict::deserialize_strict")]
+    pub session: SessionOptions,
 }

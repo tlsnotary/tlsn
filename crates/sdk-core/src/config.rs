@@ -15,6 +15,18 @@ pub enum ProverMode {
     Proxy,
 }
 
+/// Options for the mux session shared by the prover and verifier.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SessionOptions {
+    /// Maximum number of concurrent mux streams per session.
+    ///
+    /// Defaults to 512 when unset. The session receive window (1 GiB) caps this
+    /// at 4096. Both peers must configure the same limit, as it is not
+    /// negotiated.
+    #[serde(default)]
+    pub max_num_streams: Option<usize>,
+}
+
 /// Configuration for the Prover.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProverConfig {
@@ -40,6 +52,9 @@ pub struct ProverConfig {
     pub client_auth: Option<ClientAuth>,
     /// Root certificate store for TLS server verification.
     pub root_store: RootCertStore,
+    /// Options for the mux session with the verifier.
+    #[serde(default)]
+    pub session: SessionOptions,
 }
 
 impl ProverConfig {
@@ -63,6 +78,7 @@ pub struct ProverConfigBuilder {
     network: NetworkSetting,
     client_auth: Option<ClientAuth>,
     root_certs: Option<Vec<Vec<u8>>>,
+    session: SessionOptions,
 }
 
 impl ProverConfigBuilder {
@@ -80,6 +96,7 @@ impl ProverConfigBuilder {
             network: NetworkSetting::Latency,
             client_auth: None,
             root_certs: None,
+            session: SessionOptions::default(),
         }
     }
 
@@ -145,6 +162,20 @@ impl ProverConfigBuilder {
         self
     }
 
+    /// Sets the mux session options.
+    pub fn session(mut self, session: SessionOptions) -> Self {
+        self.session = session;
+        self
+    }
+
+    /// Sets the maximum number of concurrent mux streams per session.
+    ///
+    /// Shorthand for setting [`SessionOptions::max_num_streams`].
+    pub fn max_num_streams(mut self, value: usize) -> Self {
+        self.session.max_num_streams = Some(value);
+        self
+    }
+
     /// Builds the ProverConfig.
     ///
     /// Returns an error if custom root certificates are invalid or if no root
@@ -164,6 +195,7 @@ impl ProverConfigBuilder {
             network: self.network,
             client_auth: self.client_auth,
             root_store,
+            session: self.session,
         })
     }
 }
@@ -181,6 +213,9 @@ pub struct VerifierConfig {
     pub max_recv_records_online: Option<usize>,
     /// Root certificate store for TLS server verification.
     pub root_store: RootCertStore,
+    /// Options for the mux session with the prover.
+    #[serde(default)]
+    pub session: SessionOptions,
 }
 
 impl VerifierConfig {
@@ -198,6 +233,7 @@ pub struct VerifierConfigBuilder {
     max_sent_records: Option<usize>,
     max_recv_records_online: Option<usize>,
     root_certs: Option<Vec<Vec<u8>>>,
+    session: SessionOptions,
 }
 
 impl Default for VerifierConfigBuilder {
@@ -208,6 +244,7 @@ impl Default for VerifierConfigBuilder {
             max_sent_records: None,
             max_recv_records_online: None,
             root_certs: None,
+            session: SessionOptions::default(),
         }
     }
 }
@@ -245,6 +282,20 @@ impl VerifierConfigBuilder {
         self
     }
 
+    /// Sets the mux session options.
+    pub fn session(mut self, session: SessionOptions) -> Self {
+        self.session = session;
+        self
+    }
+
+    /// Sets the maximum number of concurrent mux streams per session.
+    ///
+    /// Shorthand for setting [`SessionOptions::max_num_streams`].
+    pub fn max_num_streams(mut self, value: usize) -> Self {
+        self.session.max_num_streams = Some(value);
+        self
+    }
+
     /// Builds the VerifierConfig.
     ///
     /// Returns an error if custom root certificates are invalid or if no root
@@ -258,8 +309,18 @@ impl VerifierConfigBuilder {
             max_sent_records: self.max_sent_records,
             max_recv_records_online: self.max_recv_records_online,
             root_store,
+            session: self.session,
         })
     }
+}
+
+/// Builds a [`tlsn::SessionConfig`] from the given session options.
+pub(crate) fn session_config(session: &SessionOptions) -> Result<tlsn::SessionConfig> {
+    let mut builder = tlsn::SessionConfig::builder();
+    if let Some(max_num_streams) = session.max_num_streams {
+        builder = builder.max_num_streams(max_num_streams);
+    }
+    builder.build().map_err(|e| SdkError::config(e.to_string()))
 }
 
 /// Network optimization setting.

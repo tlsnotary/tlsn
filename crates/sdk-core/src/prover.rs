@@ -111,7 +111,10 @@ impl SdkProver {
 
         info!("connecting to verifier");
 
-        let session = Session::new(verifier_io);
+        let session = Session::new_with_config(
+            verifier_io,
+            crate::config::session_config(&self.config.session)?,
+        );
         let (driver, mut handle) = session.split();
 
         crate::spawn::spawn(async move {
