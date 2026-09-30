@@ -19,9 +19,9 @@ impl DriverTask {
         let (sender, receiver) = oneshot::channel();
         spawn(async move {
             let result = driver.await;
-            match &result {
-                Ok(_) => tracing::warn!("session driver completed (mux closed)"),
-                Err(error) => tracing::error!("session driver error: {error}"),
+            // A graceful close is the normal path; only surface real errors.
+            if let Err(error) = &result {
+                tracing::error!("session driver error: {error}");
             }
             let _ = sender.send(result);
         });
@@ -29,10 +29,14 @@ impl DriverTask {
     }
 
     pub(crate) async fn finish(self) -> Result<BoxIo> {
-        self.0
-            .await
-            .map_err(|_| SdkError::internal("session driver task dropped"))?
-            .map_err(Into::into)
+        let result = self.0.await.map_err(|_| {
+            SdkError::internal(
+                "session driver task ended without reporting a result \
+                 (it likely panicked or the runtime shut down)",
+            )
+        })?;
+
+        result.map_err(Into::into)
     }
 }
 

@@ -80,12 +80,14 @@ async fn prover_core(provider: &IoProvider) {
 
 #[cfg(target_arch = "wasm32")]
 async fn prover_wasm(provider: &IoProvider) {
+    use gloo_utils::format::JsValueSerdeExt;
     use js_sys::{Promise, Uint8Array};
     use std::collections::HashMap;
     use tlsn_wasm::{
         prover::{JsProver, ProverConfig},
         types::{HttpRequest, Method, Reveal},
     };
+    use tsify::{Ts, Tsify};
     use wasm_bindgen::{JsCast, prelude::*};
     use wasm_bindgen_futures::JsFuture;
 
@@ -100,7 +102,9 @@ async fn prover_wasm(provider: &IoProvider) {
         fn write(this: &TestIoChannel, data: &Uint8Array) -> Promise;
     }
 
-    let config: ProverConfig = serde_json::from_value(serde_json::json!({
+    // `JsProver::new` takes the raw JS config so it can reject unknown fields
+    // before deserializing; build the object here and wrap it in `Ts`.
+    let config_value = serde_json::json!({
         "server_name": SERVER_DOMAIN,
         "mode": "Mpc",
         "max_sent_data": MAX_SENT_DATA,
@@ -112,8 +116,8 @@ async fn prover_wasm(provider: &IoProvider) {
         "network": "Latency",
         "client_auth": null,
         "root_certs": [CA_CERT_DER],
-    }))
-    .unwrap();
+    });
+    let config: Ts<ProverConfig> = Ts::new_unchecked(JsValue::from_serde(&config_value).unwrap());
     let mut prover = JsProver::new(config).unwrap();
 
     let proto_io = provider.provide_proto_js_io().await.unwrap();
@@ -139,20 +143,26 @@ async fn prover_wasm(provider: &IoProvider) {
                     ("Connection".to_string(), b"close".to_vec()),
                 ]),
                 body: None,
-            },
+            }
+            .into_ts()
+            .unwrap(),
         )
         .await
+        .unwrap()
+        .to_rust()
         .unwrap();
     assert_eq!(response.status, 200);
 
-    let transcript = prover.transcript().unwrap();
+    let transcript = prover.transcript().unwrap().to_rust().unwrap();
     prover
         .reveal(
             Reveal {
                 sent: vec![0..transcript.sent.len() - 1],
                 recv: vec![2..transcript.recv.len()],
                 server_identity: true,
-            },
+            }
+            .into_ts()
+            .unwrap(),
             None,
         )
         .await

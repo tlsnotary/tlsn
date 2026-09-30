@@ -41,6 +41,10 @@ class WebSocketIoChannel {
         return new Promise((resolve, reject) => { this.reader = { resolve, reject }; });
     }
 
+    unread(data) {
+        this.queue.unshift(data);
+    }
+
     write(data) {
         this.socket.send(data);
         return Promise.resolve();

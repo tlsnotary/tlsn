@@ -113,7 +113,10 @@ impl SdkProver {
 
         info!("connecting to verifier");
 
-        let session = Session::new(Box::new(verifier_io) as crate::spawn::BoxIo);
+        let session = Session::new_with_config(
+            Box::new(verifier_io) as crate::spawn::BoxIo,
+            crate::config::session_config(&self.config.session)?,
+        );
         let (driver, mut handle) = session.split();
         self.driver_task = Some(crate::spawn::DriverTask::spawn(driver));
 

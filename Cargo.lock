@@ -6123,6 +6123,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "tsify",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-spawn",
