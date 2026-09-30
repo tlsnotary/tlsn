@@ -27,6 +27,24 @@ const result = { ok: false, checks: {}, error: null };
         result.checks.proverConstruct = !!new Prover(proverConfig());
         result.checks.verifierConstruct = !!new Verifier(verifierConfig());
 
+        // Unknown config fields must be rejected at runtime, not silently
+        // ignored, through the shipped package.
+        let rejectedProver = false;
+        try {
+            new Prover({ ...proverConfig(), unknownOption: 4096 });
+        } catch {
+            rejectedProver = true;
+        }
+        result.checks.proverRejectsUnknown = rejectedProver;
+
+        let rejectedVerifier = false;
+        try {
+            new Verifier({ ...verifierConfig(), unknownOption: 4096 });
+        } catch {
+            rejectedVerifier = true;
+        }
+        result.checks.verifierRejectsUnknown = rejectedVerifier;
+
         const sent = new TextEncoder().encode(
             "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n",
         );

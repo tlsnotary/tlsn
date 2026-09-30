@@ -1,10 +1,9 @@
 use crate::types::NetworkSetting;
 use serde::Deserialize;
-use tsify_next::Tsify;
+use tsify::Tsify;
 
 /// Protocol mode for the prover.
 #[derive(Debug, Clone, Copy, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub enum ProverMode {
     /// MPC (Multi-Party Computation) mode.
     Mpc,
@@ -13,7 +12,6 @@ pub enum ProverMode {
 }
 
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct ProverConfig {
     pub server_name: String,
     pub mode: ProverMode,

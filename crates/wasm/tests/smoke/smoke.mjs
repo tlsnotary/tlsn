@@ -2,8 +2,8 @@
 //
 // Serves pkg/ with the cross-origin isolation headers the shared-memory module
 // needs, loads it in a real (headless) Chrome, and asserts the public API works:
-// construct Prover/Verifier, and run compute_reveal. Run `./build.sh` first
-// (or use `./test-package.sh`).
+// construct Prover/Verifier (and reject unknown fields), and run
+// compute_reveal. Run `./build.sh` first (or use `./test-package.sh`).
 
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";

@@ -1,8 +1,7 @@
 use serde::Deserialize;
-use tsify_next::Tsify;
+use tsify::Tsify;
 
 #[derive(Debug, Tsify, Deserialize)]
-#[tsify(from_wasm_abi)]
 pub struct VerifierConfig {
     pub max_sent_data: usize,
     pub max_recv_data: usize,
