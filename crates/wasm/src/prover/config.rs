@@ -1,5 +1,4 @@
-use crate::session::SessionOptions;
-use crate::types::NetworkSetting;
+use crate::{session::SessionOptions, types::NetworkSetting};
 use serde::Deserialize;
 use tsify::Tsify;
 

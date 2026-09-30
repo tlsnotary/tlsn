@@ -1652,7 +1652,7 @@ dependencies = [
 [[package]]
 name = "futures-plex"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=67aab0bced6950530f960d89d866405e4557bd02#67aab0bced6950530f960d89d866405e4557bd02"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=e2f31e6a30bc5d1641ed6407fb1a38a595e523ce#e2f31e6a30bc5d1641ed6407fb1a38a595e523ce"
 dependencies = [
  "futures",
 ]
@@ -4961,7 +4961,7 @@ dependencies = [
 [[package]]
 name = "tlsn-mux"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=67aab0bced6950530f960d89d866405e4557bd02#67aab0bced6950530f960d89d866405e4557bd02"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=e2f31e6a30bc5d1641ed6407fb1a38a595e523ce#e2f31e6a30bc5d1641ed6407fb1a38a595e523ce"
 dependencies = [
  "blake3",
  "futures",
