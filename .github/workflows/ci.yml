@@ -152,6 +152,14 @@ jobs:
         working-directory: crates/wasm
         run: ./build.sh
 
+      - name: Run wasm unit tests
+        working-directory: crates/wasm
+        run: wasm-pack test --headless --chrome
+
+      - name: Check packaged artifact contract
+        working-directory: crates/wasm
+        run: ./test-package.sh --no-build
+
       - name: Dry Run NPM Publish
         working-directory: crates/wasm/pkg
         run: npm publish --dry-run
