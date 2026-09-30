@@ -434,12 +434,14 @@ mod tests {
     }
 
     #[test]
-    fn max_num_streams_within_window_is_valid() {
-        assert!(SessionConfig::builder().max_num_streams(4096).build().is_ok());
-    }
-
-    #[test]
-    fn max_num_streams_beyond_window_is_rejected() {
-        assert!(SessionConfig::builder().max_num_streams(4097).build().is_err());
+    fn oversized_max_num_streams_is_rejected() {
+        let err = SessionConfig::builder()
+            .max_num_streams(usize::MAX)
+            .build()
+            .unwrap_err();
+        assert!(matches!(
+            err.0,
+            tlsn_mux::ConfigError::ReceiveWindowTooSmall { .. }
+        ));
     }
 }
