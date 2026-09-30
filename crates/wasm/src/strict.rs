@@ -126,6 +126,35 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    fn accepts_nested_session() {
+        let value = valid_prover_config();
+        let obj = value.unchecked_ref::<js_sys::Object>();
+        let session = js_sys::Object::new();
+        js_sys::Reflect::set(&session, &"max_num_streams".into(), &4096u32.into()).unwrap();
+        js_sys::Reflect::set(obj, &"session".into(), &session.into()).unwrap();
+
+        let config = from_wasm_strict::<ProverConfig>(value).unwrap();
+        assert_eq!(config.session.max_num_streams, Some(4096));
+    }
+
+    #[wasm_bindgen_test]
+    fn rejects_unknown_nested_field() {
+        // An unknown key nested inside `session` must not be silently dropped.
+        let value = valid_prover_config();
+        let obj = value.unchecked_ref::<js_sys::Object>();
+        let session = js_sys::Object::new();
+        js_sys::Reflect::set(&session, &"max_num_streams".into(), &4096u32.into()).unwrap();
+        js_sys::Reflect::set(&session, &"maxNumStreams".into(), &1u32.into()).unwrap();
+        js_sys::Reflect::set(obj, &"session".into(), &session.into()).unwrap();
+
+        let err = from_wasm_strict::<ProverConfig>(value).unwrap_err();
+        assert!(
+            err.to_string().contains("maxNumStreams"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[wasm_bindgen_test]
     fn rejects_misspelled_field() {
         let value = valid_prover_config();
         let obj = value.unchecked_ref::<js_sys::Object>();

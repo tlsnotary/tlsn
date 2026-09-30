@@ -45,6 +45,37 @@ const result = { ok: false, checks: {}, error: null };
         }
         result.checks.verifierRejectsUnknown = rejectedVerifier;
 
+        // Nested session options must be accepted...
+        let acceptedNestedSession = false;
+        try {
+            new Prover({ ...proverConfig(), session: { max_num_streams: 4096 } });
+            acceptedNestedSession = true;
+        } catch {}
+        result.checks.proverAcceptsNestedSession = acceptedNestedSession;
+
+        // ...but unknown keys nested inside `session` must be rejected too.
+        let rejectedNestedProver = false;
+        try {
+            new Prover({
+                ...proverConfig(),
+                session: { max_num_streams: 4096, maxNumStreams: 1 },
+            });
+        } catch {
+            rejectedNestedProver = true;
+        }
+        result.checks.proverRejectsUnknownNested = rejectedNestedProver;
+
+        let rejectedNestedVerifier = false;
+        try {
+            new Verifier({
+                ...verifierConfig(),
+                session: { max_num_streams: 4096, maxNumStreams: 1 },
+            });
+        } catch {
+            rejectedNestedVerifier = true;
+        }
+        result.checks.verifierRejectsUnknownNested = rejectedNestedVerifier;
+
         const sent = new TextEncoder().encode(
             "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n",
         );
