@@ -21,6 +21,11 @@ target/
 # transcript
 *.json
 
+# package manifests for the wasm package-contract test harness
+!/crates/wasm/tests/contract/package.json
+!/crates/wasm/tests/contract/package-lock.json
+!/crates/wasm/tests/contract/tsconfig.json
+
 # env var
 *.env
 
