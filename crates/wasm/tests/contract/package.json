@@ -1,0 +1,12 @@
+{
+    "name": "tlsn-wasm-contract",
+    "private": true,
+    "description": "Type-level contract test for the packaged tlsn-wasm API.",
+    "scripts": {
+        "test": "tsc -p tsconfig.json"
+    },
+    "devDependencies": {
+        "publint": "^0.3.24",
+        "typescript": "^5.6.0"
+    }
+}

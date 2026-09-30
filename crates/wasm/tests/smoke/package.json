@@ -1,0 +1,12 @@
+{
+    "name": "tlsn-wasm-smoke",
+    "private": true,
+    "type": "module",
+    "description": "Runtime smoke test for the packaged tlsn-wasm artifact.",
+    "scripts": {
+        "test": "node smoke.mjs"
+    },
+    "devDependencies": {
+        "puppeteer-core": "^24.0.0"
+    }
+}
