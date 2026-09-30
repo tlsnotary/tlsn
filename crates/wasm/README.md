@@ -12,6 +12,16 @@ For browser usage, check the [`tlsn-extension`](https://github.com/tlsnotary/tls
 cargo install wasm-pack
 ```
 
+## Testing
+
+```sh
+# unit tests (browser; --node fails on the web-spawn ESM snippet)
+wasm-pack test --headless --chrome --release
+
+# packaged artifact checks: build pkg/, then publint + tsc + browser smoke
+./test-package.sh          # or --no-build to reuse an existing pkg/
+```
+
 ## Releasing to npm
 
 Releases are published manually. CI builds and uploads a `tlsn-wasm` package
