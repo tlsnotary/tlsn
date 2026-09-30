@@ -43,4 +43,14 @@ fi
 npx publint ../../pkg
 npx tsc -p tsconfig.json
 
-echo "package contract OK"
+# Runtime smoke test: load the built package in a real browser and exercise
+# the public API (construct, compute_reveal).
+cd ../smoke
+if [ -f package-lock.json ]; then
+    npm ci
+else
+    npm install
+fi
+node smoke.mjs
+
+echo "package checks OK"

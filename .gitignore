@@ -25,6 +25,8 @@ target/
 !/crates/wasm/tests/contract/package.json
 !/crates/wasm/tests/contract/package-lock.json
 !/crates/wasm/tests/contract/tsconfig.json
+!/crates/wasm/tests/smoke/package.json
+!/crates/wasm/tests/smoke/package-lock.json
 
 # env var
 *.env
