@@ -12,8 +12,10 @@
 
 use std::collections::HashMap;
 
-use serde::Deserialize;
-use serde::de::{DeserializeOwned, Error as _, IgnoredAny};
+use serde::{
+    Deserialize,
+    de::{DeserializeOwned, Error as _, IgnoredAny},
+};
 use wasm_bindgen::JsValue;
 
 #[derive(Deserialize)]

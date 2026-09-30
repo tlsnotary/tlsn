@@ -152,9 +152,7 @@ impl JsProver {
     ) -> Result<Ts<RevealOutput>> {
         self.emit_progress("REVEAL", 0.7, "Proving and revealing data...");
 
-        let reveal = reveal
-            .to_rust()
-            .map_err(|e| JsError::new(&e.to_string()))?;
+        let reveal = reveal.to_rust().map_err(|e| JsError::new(&e.to_string()))?;
         let commit = commit
             .map(|commit| commit.to_rust().map_err(|e| JsError::new(&e.to_string())))
             .transpose()?;
