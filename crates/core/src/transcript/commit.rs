@@ -1,6 +1,6 @@
 //! Transcript commitments.
 
-use std::{collections::HashSet, fmt};
+use std::fmt;
 
 use rangeset::iter::{FromRangeIterator, IntoRangeIterator};
 use serde::{Deserialize, Serialize};
@@ -68,6 +68,8 @@ impl TranscriptCommitConfig {
     }
 
     /// Returns an iterator over the hash commitment indices.
+    ///
+    /// Commitments are returned in the order they were added to the builder.
     pub fn iter_hash(&self) -> impl Iterator<Item = (&(Direction, RangeSet<usize>), &HashAlgId)> {
         self.commits.iter().map(|(idx, kind)| match kind {
             TranscriptCommitmentKind::Hash { alg } => (idx, alg),
@@ -90,7 +92,7 @@ impl TranscriptCommitConfig {
 pub struct TranscriptCommitConfigBuilder<'a> {
     transcript: &'a Transcript,
     default_kind: TranscriptCommitmentKind,
-    commits: HashSet<((Direction, RangeSet<usize>), TranscriptCommitmentKind)>,
+    commits: Vec<((Direction, RangeSet<usize>), TranscriptCommitmentKind)>,
 }
 
 impl<'a> TranscriptCommitConfigBuilder<'a> {
@@ -101,7 +103,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
             default_kind: TranscriptCommitmentKind::Hash {
                 alg: HashAlgId::BLAKE3,
             },
-            commits: HashSet::default(),
+            commits: Vec::default(),
         }
     }
 
@@ -145,7 +147,10 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
             ));
         }
 
-        self.commits.insert(((direction, idx), kind));
+        let commit = ((direction, idx), kind);
+        if !self.commits.contains(&commit) {
+            self.commits.push(commit);
+        }
 
         Ok(self)
     }
@@ -203,7 +208,7 @@ impl<'a> TranscriptCommitConfigBuilder<'a> {
     /// Builds the configuration.
     pub fn build(self) -> Result<TranscriptCommitConfig, TranscriptCommitConfigBuilderError> {
         Ok(TranscriptCommitConfig {
-            commits: Vec::from_iter(self.commits),
+            commits: self.commits,
         })
     }
 }
@@ -278,5 +283,35 @@ mod tests {
 
         assert!(builder.commit_sent(&(10..15)).is_err());
         assert!(builder.commit_recv(&(10..15)).is_err());
+    }
+
+    #[test]
+    fn test_commitment_order_matches_insertion_order() {
+        let transcript = Transcript::new([0; 12], [0; 12]);
+        let mut builder = TranscriptCommitConfigBuilder::new(&transcript);
+
+        builder.commit_recv(&(8..10)).unwrap();
+        builder.commit_sent(&(1..3)).unwrap();
+        builder.commit_recv(&(4..6)).unwrap();
+        builder.commit_recv(&(8..10)).unwrap();
+
+        let config = builder.build().unwrap();
+        let commits = config
+            .iter_hash()
+            .map(|((direction, idx), alg)| (*direction, idx.clone(), *alg))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            commits,
+            vec![
+                (
+                    Direction::Received,
+                    RangeSet::from(8..10),
+                    HashAlgId::BLAKE3
+                ),
+                (Direction::Sent, RangeSet::from(1..3), HashAlgId::BLAKE3),
+                (Direction::Received, RangeSet::from(4..6), HashAlgId::BLAKE3),
+            ]
+        );
     }
 }
