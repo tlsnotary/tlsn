@@ -3,10 +3,11 @@
         "target": "ES2022",
         "module": "ESNext",
         "moduleResolution": "Bundler",
-        "lib": ["ES2022", "DOM"],
+        // wasm-bindgen emits `[Symbol.dispose]()` on exported classes; its
+        // types live in `esnext.disposable` (not in ES2022/ES2023/ES2024).
+        "lib": ["ES2022", "DOM", "ESNext.Disposable"],
         "strict": true,
         "noEmit": true,
-        "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true
     },
     "include": ["consumer.ts"]
