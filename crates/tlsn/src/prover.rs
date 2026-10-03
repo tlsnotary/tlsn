@@ -661,10 +661,12 @@ mod tests {
     }
 
     #[test]
-    fn wakes_after_partial_write_to_server() {
+    fn drains_buffered_records_across_polls() {
         const FRAME_SIZE: usize = 16 * 1024;
-        let (mut sender, receiver) = futures_plex::duplex(FRAME_SIZE * 2);
-        futures::executor::block_on(sender.write_all(&[0; FRAME_SIZE * 2])).unwrap();
+        const FRAMES: usize = 4;
+
+        let (mut sender, receiver) = futures_plex::duplex(FRAME_SIZE * FRAMES);
+        futures::executor::block_on(sender.write_all(&[0; FRAME_SIZE * FRAMES])).unwrap();
 
         let wake_counter = Arc::new(WakeCounter(AtomicUsize::new(0)));
         let waker = waker(wake_counter.clone());
@@ -674,9 +676,32 @@ mod tests {
             written: 0,
         };
 
-        poll_write_to_server(&mut cx, &receiver, &mut writer).unwrap();
+        // Model the executor's poll loop: poll, and only poll again if the
+        // helper re-armed the waker. A helper that makes progress without
+        // re-arming would leave the remaining records queued forever.
+        let mut polls = 0;
+        loop {
+            let before = writer.written;
+            poll_write_to_server(&mut cx, &receiver, &mut writer).unwrap();
+            polls += 1;
 
-        assert_eq!(writer.written, FRAME_SIZE);
-        assert_eq!(wake_counter.0.load(Ordering::Relaxed), 1);
+            if writer.written == before {
+                // No progress: `Pending`/EOF, so a real executor parks the
+                // task on the wakers registered elsewhere.
+                break;
+            }
+
+            assert!(
+                wake_counter.0.swap(0, Ordering::Relaxed) > 0,
+                "made progress without re-arming the waker"
+            );
+
+            if writer.written == FRAME_SIZE * FRAMES {
+                break;
+            }
+            assert!(polls <= FRAMES, "not draining one frame per poll");
+        }
+
+        assert_eq!(writer.written, FRAME_SIZE * FRAMES);
     }
 }
