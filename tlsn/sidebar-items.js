@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["config","connection","hash","prover","transcript","verifier","webpki"],"struct":["Error","Mpc","Proxy","Session","SessionDriver","SessionHandle","Stream"],"trait":["ProtocolConfig"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"mod":["config","connection","hash","prover","transcript","verifier","webpki"],"struct":["Error","Mpc","Proxy","Session","SessionConfig","SessionConfigBuilder","SessionConfigError","SessionDriver","SessionHandle","Stream"],"trait":["ProtocolConfig"],"type":["Result"]};
