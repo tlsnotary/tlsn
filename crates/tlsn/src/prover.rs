@@ -471,7 +471,7 @@ where
         }
 
         // buf -> server_socket
-        poll_proxy_drain(cx, &state.server_to_client, state.server_socket.as_mut())?;
+        poll_write_to_server(cx, &state.server_to_client, state.server_socket.as_mut())?;
 
         // tls_client -> tls_conn
         // Always poll to register wakers, then check wants_read()
@@ -498,18 +498,18 @@ where
     }
 }
 
-fn poll_proxy_drain<S>(
+fn poll_write_to_server<S>(
     cx: &mut std::task::Context<'_>,
-    server_to_client: &futures_plex::DuplexStream,
+    buf: &futures_plex::DuplexStream,
     server_socket: S,
 ) -> Result<(), Error>
 where
     S: AsyncWrite + Unpin,
 {
-    match server_to_client.poll_read_to(cx, server_socket) {
-        // A mux stream may accept only one frame per poll. Schedule the next
-        // drain immediately so queued TLS records do not wait for unrelated
-        // I/O to wake this prover.
+    match buf.poll_read_to(cx, server_socket) {
+        // The destination may accept only part of the buffer per poll.
+        // Schedule another poll after making progress so queued records do not
+        // wait for unrelated I/O to wake this prover.
         Poll::Ready(Ok(written)) if written > 0 => cx.waker().wake_by_ref(),
         // Do not attempt to write into closed sockets.
         Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::BrokenPipe) => {}
@@ -661,7 +661,7 @@ mod tests {
     }
 
     #[test]
-    fn proxy_drain_wakes_after_partial_write() {
+    fn wakes_after_partial_write_to_server() {
         const FRAME_SIZE: usize = 16 * 1024;
         let (mut sender, receiver) = futures_plex::duplex(FRAME_SIZE * 2);
         futures::executor::block_on(sender.write_all(&[0; FRAME_SIZE * 2])).unwrap();
@@ -674,7 +674,7 @@ mod tests {
             written: 0,
         };
 
-        poll_proxy_drain(&mut cx, &receiver, &mut writer).unwrap();
+        poll_write_to_server(&mut cx, &receiver, &mut writer).unwrap();
 
         assert_eq!(writer.written, FRAME_SIZE);
         assert_eq!(wake_counter.0.load(Ordering::Relaxed), 1);
