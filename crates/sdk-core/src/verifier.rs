@@ -92,7 +92,10 @@ impl SdkVerifier {
 
         info!("connecting to prover");
 
-        let session = Session::new(prover_io);
+        let session = Session::new_with_config(
+            prover_io,
+            crate::config::session_config(&self.config.session)?,
+        );
         let (driver, mut handle) = session.split();
 
         crate::spawn::spawn(async move {

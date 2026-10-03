@@ -69,6 +69,19 @@ where
     serde_wasm_bindgen::from_value::<Strict<T>>(value).map(|strict| strict.0)
 }
 
+/// `deserialize_with` helper for nested config objects.
+///
+/// Use on a field so that objects nested inside a config are checked for
+/// unknown fields too, e.g.
+/// `#[serde(default, deserialize_with = "crate::strict::deserialize_strict")]`.
+pub(crate) fn deserialize_strict<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Strict::<T>::deserialize(deserializer)?.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,6 +123,35 @@ mod tests {
 
         let config = from_wasm_strict::<ProverConfig>(value).unwrap();
         assert_eq!(config.max_sent_records, Some(7));
+    }
+
+    #[wasm_bindgen_test]
+    fn accepts_nested_session() {
+        let value = valid_prover_config();
+        let obj = value.unchecked_ref::<js_sys::Object>();
+        let session = js_sys::Object::new();
+        js_sys::Reflect::set(&session, &"max_num_streams".into(), &4096u32.into()).unwrap();
+        js_sys::Reflect::set(obj, &"session".into(), &session.into()).unwrap();
+
+        let config = from_wasm_strict::<ProverConfig>(value).unwrap();
+        assert_eq!(config.session.max_num_streams, Some(4096));
+    }
+
+    #[wasm_bindgen_test]
+    fn rejects_unknown_nested_field() {
+        // An unknown key nested inside `session` must not be silently dropped.
+        let value = valid_prover_config();
+        let obj = value.unchecked_ref::<js_sys::Object>();
+        let session = js_sys::Object::new();
+        js_sys::Reflect::set(&session, &"max_num_streams".into(), &4096u32.into()).unwrap();
+        js_sys::Reflect::set(&session, &"maxNumStreams".into(), &1u32.into()).unwrap();
+        js_sys::Reflect::set(obj, &"session".into(), &session.into()).unwrap();
+
+        let err = from_wasm_strict::<ProverConfig>(value).unwrap_err();
+        assert!(
+            err.to_string().contains("maxNumStreams"),
+            "unexpected error: {err}"
+        );
     }
 
     #[wasm_bindgen_test]

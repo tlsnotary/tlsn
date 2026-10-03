@@ -19,6 +19,83 @@ use crate::{
     verifier::{Verifier, state as verifier_state},
 };
 
+/// Configuration for a [`Session`].
+#[derive(Debug, Clone)]
+pub struct SessionConfig {
+    mux: tlsn_mux::Config,
+}
+
+impl SessionConfig {
+    /// Creates a new builder.
+    pub fn builder() -> SessionConfigBuilder {
+        SessionConfigBuilder::default()
+    }
+
+    /// Returns the underlying [`tlsn_mux::Config`].
+    fn to_mux_config(&self) -> tlsn_mux::Config {
+        self.mux.clone()
+    }
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self {
+            mux: session_mux_config(None).expect("default mux config is valid"),
+        }
+    }
+}
+
+/// Builds a [`tlsn_mux::Config`] with the session's fixed settings applied.
+///
+/// All mux-specific invariants (e.g. the receive window / stream limit
+/// coupling) are validated by [`tlsn_mux::ConfigBuilder`].
+fn session_mux_config(
+    max_num_streams: Option<usize>,
+) -> Result<tlsn_mux::Config, tlsn_mux::ConfigError> {
+    let mut builder = tlsn_mux::Config::builder()
+        .keep_alive(true)
+        .close_sync(true);
+
+    if let Some(max_num_streams) = max_num_streams {
+        builder = builder.max_num_streams(max_num_streams);
+    }
+
+    builder.build()
+}
+
+/// Builder for [`SessionConfig`].
+#[derive(Debug, Default)]
+pub struct SessionConfigBuilder {
+    max_num_streams: Option<usize>,
+}
+
+impl SessionConfigBuilder {
+    /// Sets the maximum number of concurrent streams per session.
+    ///
+    /// Defaults to the mux default (512) when unset. The limit is bounded by
+    /// the session's receive window (1 GiB by default); higher values are
+    /// rejected by [`build`](Self::build).
+    pub fn max_num_streams(mut self, max_num_streams: usize) -> Self {
+        self.max_num_streams = Some(max_num_streams);
+        self
+    }
+
+    /// Builds the configuration.
+    ///
+    /// Returns an error if the requested stream limit exceeds what the
+    /// session's receive window supports.
+    pub fn build(self) -> Result<SessionConfig, SessionConfigError> {
+        Ok(SessionConfig {
+            mux: session_mux_config(self.max_num_streams)?,
+        })
+    }
+}
+
+/// Error for [`SessionConfig`].
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct SessionConfigError(#[from] tlsn_mux::ConfigError);
+
 /// A TLSNotary session over a communication channel.
 ///
 /// Wraps an async IO stream and provides multiplexing for the protocol. Use
@@ -50,10 +127,15 @@ where
     /// On TCP transports, disable Nagle's algorithm; see
     /// [Performance](crate#performance).
     pub fn new(io: Io) -> Self {
-        let mut mux_config = tlsn_mux::Config::default();
+        Self::new_with_config(io, SessionConfig::default())
+    }
 
-        mux_config.set_keep_alive(true);
-        mux_config.set_close_sync(true);
+    /// Creates a new session over `io` with the given configuration.
+    ///
+    /// On TCP transports, disable Nagle's algorithm; see
+    /// [Performance](crate#performance).
+    pub fn new_with_config(io: Io, config: SessionConfig) -> Self {
+        let mux_config = config.to_mux_config();
 
         let conn = tlsn_mux::Connection::new(io, mux_config);
         let handle = conn.handle().expect("handle should be available");
@@ -340,4 +422,26 @@ fn build_executor(mux: MuxHandle) -> MpzSession {
         .pool(ThreadPool::global())
         .build(mux)
         .expect("session should build")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_is_valid() {
+        assert!(SessionConfig::builder().build().is_ok());
+    }
+
+    #[test]
+    fn oversized_max_num_streams_is_rejected() {
+        let err = SessionConfig::builder()
+            .max_num_streams(usize::MAX)
+            .build()
+            .unwrap_err();
+        assert!(matches!(
+            err.0,
+            tlsn_mux::ConfigError::ReceiveWindowTooSmall { .. }
+        ));
+    }
 }

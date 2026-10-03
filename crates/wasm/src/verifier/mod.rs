@@ -4,7 +4,9 @@ mod config;
 
 pub use config::VerifierConfig;
 
-use tlsn_sdk_core::{SdkVerifier, VerifierConfig as CoreVerifierConfig};
+use tlsn_sdk_core::{
+    SdkVerifier, SessionOptions as CoreSessionOptions, VerifierConfig as CoreVerifierConfig,
+};
 use tsify::{Ts, Tsify};
 use wasm_bindgen::prelude::*;
 
@@ -119,6 +121,10 @@ fn convert_verifier_config(config: VerifierConfig) -> Result<CoreVerifierConfig>
     if let Some(root_certs) = config.root_certs {
         builder = builder.root_certs(root_certs);
     }
+
+    builder = builder.session(CoreSessionOptions {
+        max_num_streams: config.session.max_num_streams,
+    });
 
     builder.build().map_err(|e| JsError::new(&e.to_string()))
 }

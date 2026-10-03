@@ -6,6 +6,7 @@ pub use config::ProverConfig;
 
 use tlsn_sdk_core::{
     NetworkSetting as CoreNetworkSetting, ProverConfig as CoreProverConfig, ProverMode, SdkProver,
+    SessionOptions as CoreSessionOptions,
 };
 use tsify::{Ts, Tsify};
 use wasm_bindgen::{JsError, prelude::*};
@@ -227,6 +228,10 @@ fn convert_prover_config(config: ProverConfig) -> Result<CoreProverConfig> {
     if let Some(root_certs) = config.root_certs {
         builder = builder.root_certs(root_certs);
     }
+
+    builder = builder.session(CoreSessionOptions {
+        max_num_streams: config.session.max_num_streams,
+    });
 
     builder.build().map_err(|e| JsError::new(&e.to_string()))
 }
