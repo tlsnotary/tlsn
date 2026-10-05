@@ -458,13 +458,18 @@ mod tests {
         Aes128Gcm,
         aead::{AeadInPlace, NewAead},
     };
-    use mpz_common::context::test_st_context;
+    use mpz_common::{Task, context::test_st_context};
     use mpz_core::Block;
     use mpz_ideal_vm::IdealVm;
     use mpz_memory_core::binary::U8;
     use mpz_share_conversion::ideal::ideal_share_convert;
     use rand::{SeedableRng, rngs::StdRng};
     use rstest::*;
+    use std::future::ready;
+    use tls_core::{
+        cipher::make_tls12_aad,
+        msgs::enums::{ContentType, ProtocolVersion},
+    };
 
     static SHORT_MSG: &[u8] = b"hello world";
     static LONG_MSG: &[u8] = b"this message exceeds one block in length";
@@ -574,6 +579,171 @@ mod tests {
             assert_eq!(&msg_0, msg);
             assert_eq!(&msg_1, msg);
         }
+    }
+
+    /// Computes the AES-GCM tag through the record path with GHASH
+    /// preprocessing sized to the exact record length.
+    ///
+    /// `MpcAesGcm::alloc` derives the GHASH exponent count from the record
+    /// length via `powers_for_len`. `compute_tags` assembles the GHASH input
+    /// with `build_ghash_data` (one AAD block plus one length block), so the
+    /// lengths below are chosen where that input exactly or nearly fills the
+    /// derived bound, and the combined tag is compared against the reference
+    /// implementation.
+    #[tokio::test]
+    async fn test_aes_gcm_tag_at_tight_ghash_bound() {
+        // Lengths where the GHASH input (`ceil(len/16) + 2` blocks) exactly or
+        // nearly fills `powers_for_len(len)`.
+        for len in [16usize, 32, 33, 48] {
+            let (mut ctx_0, mut ctx_1) = test_st_context(8);
+
+            let key = [42u8; 16];
+            let iv = [0u8; 4];
+
+            let ((mut vm_0, vars_0), (mut vm_1, vars_1)) = create_vm(key, iv);
+            let (mut leader, mut follower) = create_pair(vars_0, vars_1);
+
+            // Allocate with the record length so `powers_for_len(len)` is
+            // minimal.
+            leader.alloc(&mut vm_0, 1, len).unwrap();
+            follower.alloc(&mut vm_1, 1, len).unwrap();
+
+            run_vms(&mut vm_0, &mut ctx_0, &mut vm_1, &mut ctx_1).await;
+            tokio::try_join!(leader.setup(&mut ctx_0), follower.setup(&mut ctx_1)).unwrap();
+
+            let msg = vec![7u8; len];
+            let explicit_nonce = 0u64.to_be_bytes().to_vec();
+
+            let (msg_0, ct_0) = leader
+                .apply_keystream(&mut vm_0, explicit_nonce.clone(), len)
+                .unwrap();
+            let (msg_1, ct_1) = follower
+                .apply_keystream(&mut vm_1, explicit_nonce.clone(), len)
+                .unwrap();
+
+            vm_0.assign(msg_0, msg.clone()).unwrap();
+            vm_0.commit(msg_0).unwrap();
+            vm_1.commit(msg_1).unwrap();
+
+            let ct_0 = vm_0.decode(ct_0).unwrap();
+            let ct_1 = vm_1.decode(ct_1).unwrap();
+
+            run_vms(&mut vm_0, &mut ctx_0, &mut vm_1, &mut ctx_1).await;
+
+            let ct = ct_0.await.unwrap();
+            assert_eq!(ct, ct_1.await.unwrap());
+
+            // A real TLS record AAD is 13 bytes, i.e. one padded block.
+            let aad = make_tls12_aad(
+                0,
+                ContentType::ApplicationData,
+                ProtocolVersion::TLSv1_3,
+                len,
+            )
+            .to_vec();
+            let data = vec![TagData {
+                explicit_nonce: explicit_nonce.clone(),
+                aad: aad.clone(),
+            }];
+
+            let leader_tags = leader
+                .compute_tags(
+                    &mut vm_0,
+                    vec![ready(Ok::<_, AeadError>(ct.clone()))],
+                    data.clone(),
+                )
+                .unwrap();
+            let follower_tags = follower
+                .compute_tags(&mut vm_1, vec![ready(Ok::<_, AeadError>(ct.clone()))], data)
+                .unwrap();
+
+            // The shared j0 depends on VM operations scheduled by
+            // `compute_tags`, so execute the VM before driving the tag tasks.
+            // `IdealVm` executes locally, so no interleaving is required.
+            let (leader_tags, _) = tokio::join!(
+                async {
+                    vm_0.execute_all(&mut ctx_0).await.unwrap();
+                    leader_tags.run(&mut ctx_0).await.unwrap()
+                },
+                async {
+                    vm_1.execute_all(&mut ctx_1).await.unwrap();
+                    follower_tags.run(&mut ctx_1).await.unwrap()
+                }
+            );
+            let tags = leader_tags.expect("leader should receive the combined tag");
+
+            let (_expected_ct, expected_tag) = expected(&key, &iv, &explicit_nonce, &msg, &aad);
+            assert_eq!(tags[0], expected_tag, "tag mismatch for len {len}");
+        }
+    }
+
+    /// A ciphertext that needs one more block than the configured bound admits
+    /// is rejected with an error rather than folded into a wrong tag share.
+    #[tokio::test]
+    async fn test_aes_gcm_tag_rejects_ciphertext_over_ghash_bound() {
+        // `powers_for_len(32) == 4`, i.e. two ciphertext blocks plus the AAD
+        // and length blocks. A 33-byte ciphertext needs three ciphertext
+        // blocks (five total), so it must be rejected.
+        let len = 32usize;
+
+        let (mut ctx_0, mut ctx_1) = test_st_context(8);
+
+        let key = [42u8; 16];
+        let iv = [0u8; 4];
+
+        let ((mut vm_0, vars_0), (mut vm_1, vars_1)) = create_vm(key, iv);
+        let (mut leader, mut follower) = create_pair(vars_0, vars_1);
+
+        leader.alloc(&mut vm_0, 1, len).unwrap();
+        follower.alloc(&mut vm_1, 1, len).unwrap();
+
+        run_vms(&mut vm_0, &mut ctx_0, &mut vm_1, &mut ctx_1).await;
+        tokio::try_join!(leader.setup(&mut ctx_0), follower.setup(&mut ctx_1)).unwrap();
+
+        let explicit_nonce = 0u64.to_be_bytes().to_vec();
+        let aad = make_tls12_aad(
+            0,
+            ContentType::ApplicationData,
+            ProtocolVersion::TLSv1_3,
+            len + 1,
+        )
+        .to_vec();
+        let data = vec![TagData {
+            explicit_nonce: explicit_nonce.clone(),
+            aad,
+        }];
+
+        let over_limit = vec![0u8; len + 1];
+        let leader_tags = leader
+            .compute_tags(
+                &mut vm_0,
+                vec![ready(Ok::<_, AeadError>(over_limit.clone()))],
+                data.clone(),
+            )
+            .unwrap();
+        let follower_tags = follower
+            .compute_tags(&mut vm_1, vec![ready(Ok::<_, AeadError>(over_limit))], data)
+            .unwrap();
+
+        let (leader_res, follower_res) = tokio::join!(
+            async {
+                vm_0.execute_all(&mut ctx_0).await.unwrap();
+                leader_tags.run(&mut ctx_0).await
+            },
+            async {
+                vm_1.execute_all(&mut ctx_1).await.unwrap();
+                follower_tags.run(&mut ctx_1).await
+            }
+        );
+
+        assert!(
+            leader_res.is_err(),
+            "over-limit ciphertext must be rejected"
+        );
+        assert!(
+            follower_res.is_err(),
+            "over-limit ciphertext must be rejected"
+        );
     }
 
     fn create_vm(key: [u8; 16], iv: [u8; 4]) -> ((impl Vm<Binary>, Vars), (impl Vm<Binary>, Vars)) {
