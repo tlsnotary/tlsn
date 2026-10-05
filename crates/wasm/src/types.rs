@@ -5,6 +5,7 @@ use std::{collections::HashMap, ops::Range};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tsify::Tsify;
+use wasm_bindgen::prelude::*;
 
 /// HTTP request body.
 #[derive(Debug, Tsify, Deserialize, Serialize)]
@@ -14,6 +15,17 @@ pub enum Body {
     /// JSON body.
     Json(JsonValue),
 }
+
+/// TypeScript shape of the JSON value used by [`Body`].
+///
+/// tsify emits `Body = JsonValue` for the `Json` variant but does not declare
+/// the alias, so the generated `.d.ts` refers to an undefined name that
+/// `skipLibCheck` would otherwise hide. Supply it here, mirroring the
+/// `IoChannel` declaration in `io.rs`.
+#[wasm_bindgen(typescript_custom_section)]
+const JSON_VALUE: &'static str = r#"
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+"#;
 
 /// HTTP method.
 #[derive(Debug, Tsify, Deserialize, Serialize)]
