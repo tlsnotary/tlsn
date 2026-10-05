@@ -7,7 +7,7 @@
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>tsify::Tsify;
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="doccomment">/// HTTP request body.
-<a href=#10 id=10 data-nosnippet>10</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize)]
+<a href=#10 id=10 data-nosnippet>10</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize, Serialize)]
 <a href=#11 id=11 data-nosnippet>11</a>#[serde(untagged)]
 <a href=#12 id=12 data-nosnippet>12</a>#[non_exhaustive]
 <a href=#13 id=13 data-nosnippet>13</a></span><span class="kw">pub enum </span>Body {
@@ -16,7 +16,7 @@
 <a href=#16 id=16 data-nosnippet>16</a>}
 <a href=#17 id=17 data-nosnippet>17</a>
 <a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// HTTP method.
-<a href=#19 id=19 data-nosnippet>19</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize)]
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize, Serialize)]
 <a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">pub enum </span>Method {
 <a href=#21 id=21 data-nosnippet>21</a>    <span class="doccomment">/// HTTP GET method.
 <a href=#22 id=22 data-nosnippet>22</a>    </span>GET,
@@ -29,7 +29,7 @@
 <a href=#29 id=29 data-nosnippet>29</a>}
 <a href=#30 id=30 data-nosnippet>30</a>
 <a href=#31 id=31 data-nosnippet>31</a><span class="doccomment">/// HTTP request.
-<a href=#32 id=32 data-nosnippet>32</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize)]
+<a href=#32 id=32 data-nosnippet>32</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize, Serialize)]
 <a href=#33 id=33 data-nosnippet>33</a></span><span class="kw">pub struct </span>HttpRequest {
 <a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Request URI.
 <a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">pub </span>uri: String,
@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>}
 <a href=#43 id=43 data-nosnippet>43</a>
 <a href=#44 id=44 data-nosnippet>44</a><span class="doccomment">/// HTTP response.
-<a href=#45 id=45 data-nosnippet>45</a></span><span class="attr">#[derive(Debug, Tsify, Serialize)]
+<a href=#45 id=45 data-nosnippet>45</a></span><span class="attr">#[derive(Debug, Tsify, Serialize, Deserialize)]
 <a href=#46 id=46 data-nosnippet>46</a></span><span class="kw">pub struct </span>HttpResponse {
 <a href=#47 id=47 data-nosnippet>47</a>    <span class="doccomment">/// HTTP status code.
 <a href=#48 id=48 data-nosnippet>48</a>    </span><span class="kw">pub </span>status: u16,
@@ -80,7 +80,7 @@
 <a href=#80 id=80 data-nosnippet>80</a>}
 <a href=#81 id=81 data-nosnippet>81</a>
 <a href=#82 id=82 data-nosnippet>82</a><span class="doccomment">/// Full transcript of sent and received data.
-<a href=#83 id=83 data-nosnippet>83</a></span><span class="attr">#[derive(Debug, Tsify, Serialize)]
+<a href=#83 id=83 data-nosnippet>83</a></span><span class="attr">#[derive(Debug, Tsify, Serialize, Deserialize)]
 <a href=#84 id=84 data-nosnippet>84</a></span><span class="kw">pub struct </span>Transcript {
 <a href=#85 id=85 data-nosnippet>85</a>    <span class="doccomment">/// Data sent to the server.
 <a href=#86 id=86 data-nosnippet>86</a>    </span><span class="kw">pub </span>sent: Vec&lt;u8&gt;,
@@ -137,7 +137,7 @@
 <a href=#137 id=137 data-nosnippet>137</a>}
 <a href=#138 id=138 data-nosnippet>138</a>
 <a href=#139 id=139 data-nosnippet>139</a><span class="doccomment">/// Ranges of data to reveal.
-<a href=#140 id=140 data-nosnippet>140</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize)]
+<a href=#140 id=140 data-nosnippet>140</a></span><span class="attr">#[derive(Debug, Tsify, Deserialize, Serialize)]
 <a href=#141 id=141 data-nosnippet>141</a></span><span class="kw">pub struct </span>Reveal {
 <a href=#142 id=142 data-nosnippet>142</a>    <span class="doccomment">/// Ranges of sent data to reveal.
 <a href=#143 id=143 data-nosnippet>143</a>    </span><span class="kw">pub </span>sent: Vec&lt;Range&lt;usize&gt;&gt;,
