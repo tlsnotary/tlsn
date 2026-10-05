@@ -107,7 +107,7 @@ pub async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>
     let transcript = transcript.expect("transcript should be present");
 
     // Create hash commitment for the date of birth field from the response
-    let sent = transcript.sent_unsafe().to_vec();
+    let sent = transcript.sent_unsafe(transcript.len_sent()).unwrap();
     let sent_data = String::from_utf8(sent.clone())
         .map_err(|e| anyhow::anyhow!("Verifier expected valid UTF-8 sent data: {e}"))?;
 

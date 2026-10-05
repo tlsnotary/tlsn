@@ -230,9 +230,13 @@ pub struct PartialTranscript {
 impl From<tlsn::transcript::PartialTranscript> for PartialTranscript {
     fn from(value: tlsn::transcript::PartialTranscript) -> Self {
         Self {
-            sent: value.sent_unsafe().to_vec(),
+            sent: value
+                .sent_unsafe(value.len_sent())
+                .expect("transcript length is consistent"),
             sent_authed: value.sent_authed().iter().collect(),
-            recv: value.received_unsafe().to_vec(),
+            recv: value
+                .received_unsafe(value.len_received())
+                .expect("transcript length is consistent"),
             recv_authed: value.received_authed().iter().collect(),
         }
     }

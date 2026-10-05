@@ -67,8 +67,8 @@ impl TranscriptProof {
             }
         }
 
-        if self.transcript.sent_unsafe().len() != length.sent as usize
-            || self.transcript.received_unsafe().len() != length.received as usize
+        if self.transcript.len_sent() != length.sent as usize
+            || self.transcript.len_received() != length.received as usize
         {
             return Err(TranscriptProofError::new(
                 ErrorKind::Proof,
@@ -94,12 +94,12 @@ impl TranscriptProof {
                 )
             })?;
 
-            let (plaintext, auth) = match direction {
-                Direction::Sent => (self.transcript.sent_unsafe(), &mut total_auth_sent),
-                Direction::Received => (self.transcript.received_unsafe(), &mut total_auth_recv),
+            let total = match direction {
+                Direction::Sent => self.transcript.len_sent(),
+                Direction::Received => self.transcript.len_received(),
             };
 
-            if idx.end().unwrap_or(0) > plaintext.len() {
+            if idx.end().unwrap_or(0) > total {
                 return Err(TranscriptProofError::new(
                     ErrorKind::Hash,
                     "hash opening index is out of bounds",
@@ -108,7 +108,11 @@ impl TranscriptProof {
 
             buffer.clear();
             for range in idx.iter() {
-                buffer.extend_from_slice(&plaintext[range]);
+                match self.transcript.locate(direction, &range) {
+                    Some(bytes) => buffer.extend_from_slice(bytes),
+                    None => buffer
+                        .extend_from_slice(&self.transcript.materialize_range(direction, &range)),
+                }
             }
 
             let expected = PlaintextHash {
@@ -124,7 +128,10 @@ impl TranscriptProof {
                 ));
             }
 
-            auth.union_mut(&expected.idx);
+            match direction {
+                Direction::Sent => total_auth_sent.union_mut(&expected.idx),
+                Direction::Received => total_auth_recv.union_mut(&expected.idx),
+            }
         }
 
         // Assert that all the authenticated data are covered by the proof.
@@ -576,10 +583,10 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(
-            partial_transcript.sent_unsafe()[0..10],
-            transcript.sent()[0..10]
-        );
+        let sent = partial_transcript
+            .sent_unsafe(partial_transcript.len_sent())
+            .unwrap();
+        assert_eq!(sent[0..10], transcript.sent()[0..10]);
     }
 
     #[rstest]

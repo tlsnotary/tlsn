@@ -10,6 +10,7 @@ use std::{
 };
 use tlsn_server_fixture::DEFAULT_FIXTURE_PORT;
 use tlsn_server_fixture_certs::SERVER_DOMAIN;
+use tlsn::transcript::Direction;
 use verifier::verifier;
 
 pub const MAX_SENT_DATA: usize = 1 << 12;
@@ -46,11 +47,11 @@ async fn main() -> Result<()> {
 
     println!(
         "Verified sent data:\n{}",
-        bytes_to_redacted_string(transcript.sent_unsafe())
+        bytes_to_redacted_string(&transcript.sent_unsafe(transcript.len_sent()).unwrap())
     );
     println!(
         "Verified received data:\n{}",
-        bytes_to_redacted_string(transcript.received_unsafe())
+        bytes_to_redacted_string(&transcript.received_unsafe(transcript.len_received()).unwrap())
     );
 
     Ok(())

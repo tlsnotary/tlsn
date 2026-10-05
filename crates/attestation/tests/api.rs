@@ -155,11 +155,15 @@ fn test_api() {
     let presented_transcript = presented_transcript.unwrap();
 
     assert_eq!(
-        presented_transcript.sent_unsafe(),
+        presented_transcript
+            .sent_unsafe(presented_transcript.len_sent())
+            .unwrap(),
         secrets.transcript().sent()
     );
     assert_eq!(
-        presented_transcript.received_unsafe(),
+        presented_transcript
+            .received_unsafe(presented_transcript.len_received())
+            .unwrap(),
         secrets.transcript().received()
     );
 }

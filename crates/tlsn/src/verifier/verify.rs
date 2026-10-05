@@ -98,11 +98,24 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
             });
     }
 
+    let sent_plaintext = transcript.sent_unsafe(ciphertext_sent.len()).map_err(|e| {
+        Error::internal()
+            .with_msg("verification failed: sent transcript does not match the session")
+            .with_source(e)
+    })?;
+    let received_plaintext = transcript
+        .received_unsafe(ciphertext_recv.len())
+        .map_err(|e| {
+            Error::internal()
+                .with_msg("verification failed: received transcript does not match the session")
+                .with_source(e)
+        })?;
+
     let (sent_refs, sent_proof) = verify_plaintext(
         vm,
         keys.client_write_key,
         keys.client_write_iv,
-        transcript.sent_unsafe(),
+        &sent_plaintext,
         &ciphertext_sent,
         tls_transcript
             .sent()
@@ -120,7 +133,7 @@ pub(crate) async fn verify<T: Vm<Binary> + Send + Sync>(
         vm,
         keys.server_write_key,
         keys.server_write_iv,
-        transcript.received_unsafe(),
+        &received_plaintext,
         &ciphertext_recv,
         tls_transcript
             .recv()

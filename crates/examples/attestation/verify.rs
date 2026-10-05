@@ -74,12 +74,15 @@ async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
     // The time at which the connection was started.
     let time = chrono::DateTime::UNIX_EPOCH + Duration::from_secs(connection_info.time);
     let server_name = server_name.unwrap();
-    let mut partial_transcript = transcript.unwrap();
-    // Set the unauthenticated bytes so they are distinguishable.
-    partial_transcript.set_unauthed(b'X');
-
-    let sent = String::from_utf8_lossy(partial_transcript.sent_unsafe());
-    let recv = String::from_utf8_lossy(partial_transcript.received_unsafe());
+    let partial_transcript = transcript.unwrap();
+    let sent_bytes = partial_transcript
+        .sent_unsafe(partial_transcript.len_sent())
+        .unwrap();
+    let received_bytes = partial_transcript
+        .received_unsafe(partial_transcript.len_received())
+        .unwrap();
+    let sent = String::from_utf8_lossy(&sent_bytes).replace('\0', "X");
+    let recv = String::from_utf8_lossy(&received_bytes).replace('\0', "X");
 
     println!("-------------------------------------------------------------------");
     println!(
