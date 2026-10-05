@@ -103,6 +103,18 @@ pub(crate) fn verify_plaintext<'a>(
         commit.union(reveal).into_set()
     };
 
+    // The commitment ranges are supplied by the peer and, unlike the reveal
+    // ranges, are not otherwise bounded by the transcript checks. Refuse any
+    // that fall outside the plaintext before they are used to size an
+    // allocation or index the buffer.
+    if alloc_ranges.end().unwrap_or(0) > plaintext.len() {
+        return Err(ErrorRepr::CommitmentOutOfBounds {
+            end: alloc_ranges.end().unwrap_or(0),
+            len: plaintext.len(),
+        }
+        .into());
+    }
+
     let plaintext_refs = alloc_plaintext(vm, &alloc_ranges)?;
     let records = RecordParams::from_iter(records).collect::<Vec<_>>();
 
@@ -463,6 +475,8 @@ enum ErrorRepr {
     Vm(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error("plaintext out of bounds of records. This should never happen and is an internal bug.")]
     OutOfBounds,
+    #[error("transcript commitment range is out of bounds: {end} > {len}")]
+    CommitmentOutOfBounds { end: usize, len: usize },
     #[error("missing decoding")]
     MissingDecoding,
     #[error("plaintext does not match ciphertext")]
@@ -633,5 +647,59 @@ mod tests {
             Err(e) if !tamper => panic!("unexpected error: {:?}", e),
             _ => {}
         }
+    }
+
+    #[rstest]
+    // Fully revealed: exercised via the `is_reveal_all` fast path.
+    #[case::reveal_all(0..8, 0..9)]
+    // Partially revealed: exercised via the in-ZK path.
+    #[case::partial_reveal(0..4, 0..9)]
+    // A range that would previously drive an unbounded allocation.
+    #[case::huge(0..8, 0..(1 << 40))]
+    fn test_verify_plaintext_rejects_out_of_bounds_commit(
+        #[case] reveal: Range<usize>,
+        #[case] commit: Range<usize>,
+    ) {
+        let (mut vm, key_ref, iv_ref) = build_vm([0u8; 16], [0u8; 4]);
+        let plaintext = vec![0u8; 8];
+        let ciphertext = vec![0u8; 0];
+        let records: Vec<Record> = Vec::new();
+
+        let err = match verify_plaintext(
+            &mut vm,
+            key_ref,
+            iv_ref,
+            &plaintext,
+            &ciphertext,
+            &records,
+            &RangeSet::from(reveal),
+            &RangeSet::from(commit),
+        ) {
+            Ok(_) => panic!("verifier accepted an out-of-bounds commitment range"),
+            Err(err) => err,
+        };
+
+        assert!(matches!(err.0, ErrorRepr::CommitmentOutOfBounds { .. }));
+    }
+
+    #[test]
+    fn test_verify_plaintext_accepts_in_bounds_commit() {
+        let (mut vm, key_ref, iv_ref) = build_vm([0u8; 16], [0u8; 4]);
+        let plaintext = vec![0u8; 8];
+        let ciphertext = vec![0u8; 0];
+        let records: Vec<Record> = Vec::new();
+
+        let result = verify_plaintext(
+            &mut vm,
+            key_ref,
+            iv_ref,
+            &plaintext,
+            &ciphertext,
+            &records,
+            &RangeSet::from(0..8),
+            &RangeSet::from(0..8),
+        );
+
+        assert!(result.is_ok());
     }
 }
