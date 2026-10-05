@@ -130,7 +130,22 @@ impl From<hyper::http::Error> for SdkError {
 
 impl From<tlsn::Error> for SdkError {
     fn from(err: tlsn::Error) -> Self {
-        Self::with_source(ErrorKind::Protocol, "Protocol error", err)
+        // Preserve the library's error classification instead of flattening
+        // every failure to `Protocol`. `tlsn::Error` renders its own kind,
+        // message and source chain, so use that as the SDK message too.
+        let kind = if err.is_io() {
+            ErrorKind::Io
+        } else if err.is_internal() {
+            ErrorKind::Internal
+        } else if err.is_config() {
+            ErrorKind::Config
+        } else {
+            // `is_user` (e.g. rejected by the remote) has no dedicated SDK
+            // kind; treat it as a protocol-level failure.
+            ErrorKind::Protocol
+        };
+
+        Self::with_source(kind, err.to_string(), err)
     }
 }
 

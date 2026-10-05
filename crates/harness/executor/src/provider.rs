@@ -138,14 +138,83 @@ mod native {
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
-    use super::{IoProvider, connect_handshake};
+    use super::{CONNECT_SENTINEL, IoProvider, connect_handshake};
     use crate::io::Io;
     use anyhow::{Result, anyhow};
+    use js_sys::Uint8Array;
     use std::time::Duration;
+    use wasm_bindgen::prelude::*;
+    use wasm_bindgen_futures::JsFuture;
     use web_time::Instant;
 
     const CONNECT_TIMEOUT_MS: u64 = 2000;
     const RETRY_BACKOFF_MS: usize = 20;
+
+    #[wasm_bindgen]
+    extern "C" {
+        type JsIoChannel;
+
+        #[wasm_bindgen(js_namespace = globalThis, js_name = connectIoChannel)]
+        fn connect_io_channel(url: String) -> js_sys::Promise;
+
+        #[wasm_bindgen(method, catch)]
+        fn read(this: &JsIoChannel) -> Result<js_sys::Promise, JsValue>;
+
+        #[wasm_bindgen(method, catch)]
+        fn write(this: &JsIoChannel, data: &Uint8Array) -> Result<js_sys::Promise, JsValue>;
+
+        /// Pushes bytes back onto the front of the channel's read queue so the
+        /// next reader observes them.
+        #[wasm_bindgen(method, catch)]
+        fn unread(this: &JsIoChannel, data: &Uint8Array) -> Result<(), JsValue>;
+    }
+
+    async fn connect_js_io(url: String) -> Result<JsValue> {
+        JsFuture::from(connect_io_channel(url))
+            .await
+            .map_err(|error| anyhow!("failed to connect JS IO: {error:?}"))
+    }
+
+    /// Symmetric sentinel handshake over a JavaScript `IoChannel`, mirroring
+    /// [`connect_handshake`].
+    ///
+    /// The JS channel delivers whole WebSocket messages, so any bytes the peer
+    /// sent after its sentinel are pushed back for the session to consume.
+    async fn connect_js_handshake(io: &JsValue) -> Result<()> {
+        let channel = io.unchecked_ref::<JsIoChannel>();
+
+        let promise = channel
+            .write(&Uint8Array::from(&[CONNECT_SENTINEL][..]))
+            .map_err(|e| anyhow!("failed to write connect sentinel: {e:?}"))?;
+        JsFuture::from(promise)
+            .await
+            .map_err(|e| anyhow!("failed to write connect sentinel: {e:?}"))?;
+
+        let promise = channel
+            .read()
+            .map_err(|e| anyhow!("failed to read connect sentinel: {e:?}"))?;
+        let value = JsFuture::from(promise)
+            .await
+            .map_err(|e| anyhow!("failed to read connect sentinel: {e:?}"))?;
+
+        let bytes = if value.is_null() || value.is_undefined() {
+            Vec::new()
+        } else {
+            Uint8Array::new(&value).to_vec()
+        };
+
+        if bytes.first() != Some(&CONNECT_SENTINEL) {
+            return Err(anyhow!("unexpected protocol connect handshake byte"));
+        }
+
+        if bytes.len() > 1 {
+            channel
+                .unread(&Uint8Array::from(&bytes[1..]))
+                .map_err(|e| anyhow!("failed to buffer handshake remainder: {e:?}"))?;
+        }
+
+        Ok(())
+    }
 
     impl IoProvider {
         /// Provides a connection to the server.
@@ -160,6 +229,18 @@ mod wasm {
             let (_, io) = ws_stream_wasm::WsMeta::connect(url, None).await?;
 
             Ok(io.into_io())
+        }
+
+        /// Provides a JavaScript `IoChannel` backed by a real WebSocket.
+        pub async fn provide_server_js_io(&self) -> Result<JsValue> {
+            connect_js_io(format!(
+                "ws://{}:{}/tcp?addr={}%3A{}",
+                &self.config.app_proxy.0,
+                self.config.app_proxy.1,
+                &self.config.app.0,
+                self.config.app.1,
+            ))
+            .await
         }
 
         /// Provides a connection to the verifier.
@@ -204,6 +285,37 @@ mod wasm {
             };
 
             Ok(io)
+        }
+
+        /// Provides a JavaScript `IoChannel` backed by the protocol WebSocket.
+        pub async fn provide_proto_js_io(&self) -> Result<JsValue> {
+            let url = format!(
+                "ws://{}:{}/tcp?addr={}%3A{}",
+                &self.config.proto_proxy.0,
+                self.config.proto_proxy.1,
+                &self.config.proto_1.0,
+                self.config.proto_1.1,
+            );
+            let deadline = Instant::now() + Duration::from_millis(CONNECT_TIMEOUT_MS);
+
+            loop {
+                let io = connect_js_io(url.clone()).await?;
+
+                // The relay completes the WS handshake before it has even
+                // attempted its downstream connect, so wait for the verifier's
+                // sentinel to prove the full path is live.
+                match connect_js_handshake(&io).await {
+                    Ok(()) => return Ok(io),
+                    Err(_) => {
+                        if Instant::now() >= deadline {
+                            return Err(anyhow!(
+                                "verifier did not accept connection within {CONNECT_TIMEOUT_MS}ms"
+                            ));
+                        }
+                        std::thread::sleep(Duration::from_millis(RETRY_BACKOFF_MS as u64));
+                    }
+                }
+            }
         }
     }
 }

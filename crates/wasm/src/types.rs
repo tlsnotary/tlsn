@@ -7,7 +7,7 @@ use serde_json::Value as JsonValue;
 use tsify::Tsify;
 
 /// HTTP request body.
-#[derive(Debug, Tsify, Deserialize)]
+#[derive(Debug, Tsify, Deserialize, Serialize)]
 #[serde(untagged)]
 #[non_exhaustive]
 pub enum Body {
@@ -16,7 +16,7 @@ pub enum Body {
 }
 
 /// HTTP method.
-#[derive(Debug, Tsify, Deserialize)]
+#[derive(Debug, Tsify, Deserialize, Serialize)]
 pub enum Method {
     /// HTTP GET method.
     GET,
@@ -29,7 +29,7 @@ pub enum Method {
 }
 
 /// HTTP request.
-#[derive(Debug, Tsify, Deserialize)]
+#[derive(Debug, Tsify, Deserialize, Serialize)]
 pub struct HttpRequest {
     /// Request URI.
     pub uri: String,
@@ -42,7 +42,7 @@ pub struct HttpRequest {
 }
 
 /// HTTP response.
-#[derive(Debug, Tsify, Serialize)]
+#[derive(Debug, Tsify, Serialize, Deserialize)]
 pub struct HttpResponse {
     /// HTTP status code.
     pub status: u16,
@@ -80,7 +80,7 @@ pub struct ConnectionInfo {
 }
 
 /// Full transcript of sent and received data.
-#[derive(Debug, Tsify, Serialize)]
+#[derive(Debug, Tsify, Serialize, Deserialize)]
 pub struct Transcript {
     /// Data sent to the server.
     pub sent: Vec<u8>,
@@ -137,7 +137,7 @@ pub struct Commit {
 }
 
 /// Ranges of data to reveal.
-#[derive(Debug, Tsify, Deserialize)]
+#[derive(Debug, Tsify, Deserialize, Serialize)]
 pub struct Reveal {
     /// Ranges of sent data to reveal.
     pub sent: Vec<Range<usize>>,

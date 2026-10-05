@@ -8,10 +8,10 @@ use tlsn_sdk_core::{
     SdkVerifier, SessionOptions as CoreSessionOptions, VerifierConfig as CoreVerifierConfig,
 };
 use tsify::{Ts, Tsify};
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{JsCast, prelude::*};
 
 use crate::{
-    io::{JsIo, JsIoAdapter},
+    io::{AdapterStateHandle, JsIo, JsIoAdapter},
     types::VerifierOutput,
 };
 
@@ -25,6 +25,10 @@ type Result<T> = std::result::Result<T, JsError>;
 #[wasm_bindgen(js_name = Verifier)]
 pub struct JsVerifier {
     inner: SdkVerifier,
+    /// The injected prover channel, retained to return over-read bytes.
+    channel: Option<JsValue>,
+    /// Handle to the adapter's buffered (over-read) bytes.
+    remainder: Option<AdapterStateHandle>,
 }
 
 #[wasm_bindgen(js_class = Verifier)]
@@ -36,7 +40,11 @@ impl JsVerifier {
             .map_err(|e| JsError::new(&e.to_string()))?;
         let core_config = convert_verifier_config(config)?;
         let inner = SdkVerifier::new(core_config);
-        Ok(JsVerifier { inner })
+        Ok(JsVerifier {
+            inner,
+            channel: None,
+            remainder: None,
+        })
     }
 
     /// Connects to the prover.
@@ -46,7 +54,10 @@ impl JsVerifier {
     /// * `prover_io` - A JavaScript object implementing the IoChannel
     ///   interface, connected to the prover.
     pub async fn connect(&mut self, prover_io: JsIo) -> Result<()> {
-        let adapter = JsIoAdapter::new(prover_io);
+        let channel = JsValue::from(prover_io);
+        let adapter = JsIoAdapter::new(channel.clone().unchecked_into());
+        self.remainder = Some(adapter.state_handle());
+        self.channel = Some(channel);
         self.inner
             .connect(adapter)
             .await
@@ -100,6 +111,21 @@ impl JsVerifier {
         convert_verifier_output(core_output)
             .into_ts()
             .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Waits until TLSNotary has released the injected prover IO.
+    ///
+    /// After this resolves, JavaScript may safely reuse the original
+    /// `IoChannel` for an application-level protocol.
+    pub async fn finish(&mut self) -> Result<()> {
+        self.inner
+            .finish()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        // Any bytes the protocol over-read are pushed back via
+        // `IoChannel.unread`, so they remain available to the next `read()`.
+        crate::io::return_over_read_bytes(&mut self.channel, &mut self.remainder)
     }
 }
 

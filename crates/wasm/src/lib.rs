@@ -10,6 +10,8 @@ mod log;
 pub mod prover;
 pub mod session;
 mod strict;
+#[cfg(test)]
+mod test_utils;
 pub mod types;
 pub mod verifier;
 

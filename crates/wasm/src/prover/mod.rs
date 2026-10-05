@@ -9,10 +9,10 @@ use tlsn_sdk_core::{
     SessionOptions as CoreSessionOptions,
 };
 use tsify::{Ts, Tsify};
-use wasm_bindgen::{JsError, prelude::*};
+use wasm_bindgen::{JsCast, JsError, prelude::*};
 
 use crate::{
-    io::{JsIo, JsIoAdapter},
+    io::{AdapterStateHandle, JsIo, JsIoAdapter},
     types::*,
 };
 
@@ -26,6 +26,10 @@ type Result<T> = std::result::Result<T, JsError>;
 pub struct JsProver {
     inner: SdkProver,
     progress_callback: Option<js_sys::Function>,
+    /// The injected verifier channel, retained to return over-read bytes.
+    channel: Option<JsValue>,
+    /// Handle to the adapter's buffered (over-read) bytes.
+    remainder: Option<AdapterStateHandle>,
 }
 
 #[wasm_bindgen(js_class = Prover)]
@@ -40,6 +44,8 @@ impl JsProver {
         Ok(JsProver {
             inner,
             progress_callback: None,
+            channel: None,
+            remainder: None,
         })
     }
 
@@ -66,7 +72,10 @@ impl JsProver {
     pub async fn setup(&mut self, verifier_io: JsIo) -> Result<()> {
         self.emit_progress("MPC_SETUP", 0.1, "Connecting to verifier...");
 
-        let adapter = JsIoAdapter::new(verifier_io);
+        let channel = JsValue::from(verifier_io);
+        let adapter = JsIoAdapter::new(channel.clone().unchecked_into());
+        self.remainder = Some(adapter.state_handle());
+        self.channel = Some(channel);
         self.inner
             .setup(adapter)
             .await
@@ -172,6 +181,21 @@ impl JsProver {
         convert_reveal_output(output)
             .into_ts()
             .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Waits until TLSNotary has released the injected verifier IO.
+    ///
+    /// After this resolves, JavaScript may safely reuse the original
+    /// `IoChannel` for an application-level protocol.
+    pub async fn finish(&mut self) -> Result<()> {
+        self.inner
+            .finish()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        // Any bytes the protocol over-read are pushed back via
+        // `IoChannel.unread`, so they remain available to the next `read()`.
+        crate::io::return_over_read_bytes(&mut self.channel, &mut self.remainder)
     }
 }
 
