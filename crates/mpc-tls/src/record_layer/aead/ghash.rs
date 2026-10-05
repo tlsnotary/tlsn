@@ -98,7 +98,7 @@ where
 {
     fn alloc(&mut self, max_power: usize) -> Result<(), GhashError> {
         if !self.alloc {
-            if max_power < 2 || max_power > MAX_POWER || max_power % 2 != 0 {
+            if !(2..=MAX_POWER).contains(&max_power) || !max_power.is_multiple_of(2) {
                 return Err(GhashError::state(format!(
                     "max_power must be even and in 2..={MAX_POWER}, got {max_power}"
                 )));
