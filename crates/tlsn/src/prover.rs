@@ -298,10 +298,21 @@ where
 
         Self::io_to_tls_client(&mut state, cx)?;
 
+        let read_tls_ready = state.tls_client.wants_read_tls();
+        let write_ready = state.tls_client.wants_write();
         if state.output.is_none()
             && let Poll::Ready(output) = state.tls_client.poll(cx)?
         {
             *state.output = Some(output);
+        }
+
+        // Buffered input may have been blocked on an MPC operation. Retry it
+        // once when the client becomes ready, not continuously while pending:
+        // self-waking without progress starves browser I/O and timer callbacks.
+        if (!read_tls_ready && state.tls_client.wants_read_tls())
+            || (!write_ready && state.tls_client.wants_write())
+        {
+            cx.waker().wake_by_ref();
         }
 
         Self::io_from_tls_client(&mut state, cx)?;
@@ -411,8 +422,6 @@ where
                     if write > 0 {
                         simplex.advance(write);
                     }
-                } else {
-                    cx.waker().wake_by_ref();
                 }
             } else if !*state.client_closed && !*state.server_closed {
                 *state.client_closed = true;
@@ -443,8 +452,6 @@ where
                     simplex.advance(read);
                     cx.waker().wake_by_ref();
                 }
-            } else if !buf.is_empty() {
-                cx.waker().wake_by_ref();
             }
         } else if *state.server_closed {
             state.tls_client.server_close();
