@@ -245,15 +245,18 @@ where
             .collect::<Vec<Block>>();
 
         let offset = shares.len() - blocks.len();
-        let tag: Block = blocks
-            .iter()
-            .zip(shares.iter().rev().skip(offset))
-            .fold(Gf2_128::zero(), |acc, (block, share)| {
-                acc + Gf2_128::from(block.reverse_bits()) * *share
-            })
-            .into();
+        let tag = blocks.iter().zip(shares.iter().rev().skip(offset)).fold(
+            Gf2_128::zero(),
+            |acc, (block, share)| {
+                // GCM reflects network-order bits into the field polynomial.
+                // Keep this explicit: MPZ's Block conversions use little
+                // endian.
+                let value = u128::from_be_bytes(block.to_bytes()).reverse_bits();
+                acc + Gf2_128::new(value) * *share
+            },
+        );
 
-        Ok(tag.reverse_bits().to_bytes().to_vec())
+        Ok(tag.to_inner().reverse_bits().to_be_bytes().to_vec())
     }
 }
 
