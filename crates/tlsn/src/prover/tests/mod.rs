@@ -2,3 +2,4 @@
 
 mod harness;
 mod io;
+mod plaintext;
