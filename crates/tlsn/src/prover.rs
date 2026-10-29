@@ -7,6 +7,9 @@ mod future;
 mod prove;
 pub mod state;
 
+#[cfg(test)]
+mod tests;
+
 pub use conn::TlsConnection;
 pub use control::ProverControl;
 pub use future::ProverFuture;
@@ -608,100 +611,5 @@ impl Prover<state::Committed> {
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn close(self) -> Result<()> {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use futures::{
-        AsyncWriteExt,
-        task::{ArcWake, waker},
-    };
-    use std::{
-        io,
-        sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        },
-        task::Context,
-    };
-
-    struct PartialWriter {
-        max_write: usize,
-        written: usize,
-    }
-
-    impl AsyncWrite for PartialWriter {
-        fn poll_write(
-            mut self: Pin<&mut Self>,
-            _cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
-            let written = self.max_write.min(buf.len());
-            self.written += written;
-            Poll::Ready(Ok(written))
-        }
-
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-    }
-
-    struct WakeCounter(AtomicUsize);
-
-    impl ArcWake for WakeCounter {
-        fn wake_by_ref(arc_self: &Arc<Self>) {
-            arc_self.0.fetch_add(1, Ordering::Relaxed);
-        }
-    }
-
-    #[test]
-    fn drains_buffered_records_across_polls() {
-        const FRAME_SIZE: usize = 16 * 1024;
-        const FRAMES: usize = 4;
-
-        let (mut sender, receiver) = futures_plex::duplex(FRAME_SIZE * FRAMES);
-        futures::executor::block_on(sender.write_all(&[0; FRAME_SIZE * FRAMES])).unwrap();
-
-        let wake_counter = Arc::new(WakeCounter(AtomicUsize::new(0)));
-        let waker = waker(wake_counter.clone());
-        let mut cx = Context::from_waker(&waker);
-        let mut writer = PartialWriter {
-            max_write: FRAME_SIZE,
-            written: 0,
-        };
-
-        // Model the executor's poll loop: poll, and only poll again if the
-        // helper re-armed the waker. A helper that makes progress without
-        // re-arming would leave the remaining records queued forever.
-        let mut polls = 0;
-        loop {
-            let before = writer.written;
-            poll_write_to_server(&mut cx, &receiver, &mut writer).unwrap();
-            polls += 1;
-
-            if writer.written == before {
-                // No progress: `Pending`/EOF, so a real executor parks the
-                // task on the wakers registered elsewhere.
-                break;
-            }
-
-            assert!(
-                wake_counter.0.swap(0, Ordering::Relaxed) > 0,
-                "made progress without re-arming the waker"
-            );
-
-            if writer.written == FRAME_SIZE * FRAMES {
-                break;
-            }
-            assert!(polls <= FRAMES, "not draining one frame per poll");
-        }
-
-        assert_eq!(writer.written, FRAME_SIZE * FRAMES);
     }
 }
