@@ -64,7 +64,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.1
 
       - name: Check formatting
-        run: cargo +nightly fmt --check --all
+        run: cargo +nightly-2026-10-21 fmt --check --all
 
   build-and-test:
     name: Build and test
