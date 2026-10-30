@@ -84,7 +84,7 @@ mpz-zk = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da
 mpz-hash = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141", default-features = false }
 mpz-ideal-vm = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
 
-futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e2f31e6a30bc5d1641ed6407fb1a38a595e523ce" }
+futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "3e4c31e9e40f514f0fe534daa3189d00e12c7a17" }
 rangeset = { version = "0.4" }
 serio = { version = "0.2" }
 spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "e2f31e6a30bc5d1641ed6407fb1a38a595e523ce" }

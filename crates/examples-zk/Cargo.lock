@@ -1652,7 +1652,7 @@ dependencies = [
 [[package]]
 name = "futures-plex"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=e2f31e6a30bc5d1641ed6407fb1a38a595e523ce#e2f31e6a30bc5d1641ed6407fb1a38a595e523ce"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=3e4c31e9e40f514f0fe534daa3189d00e12c7a17#3e4c31e9e40f514f0fe534daa3189d00e12c7a17"
 dependencies = [
  "futures",
 ]
@@ -4609,7 +4609,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

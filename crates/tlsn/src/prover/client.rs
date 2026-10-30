@@ -67,6 +67,13 @@ pub(crate) struct DecryptState {
 }
 
 impl DecryptState {
+    #[cfg(test)]
+    pub(crate) fn new() -> Self {
+        Self {
+            decrypt: AtomicBool::new(false),
+        }
+    }
+
     pub(crate) fn enable_decryption(&self, enable: bool) {
         self.decrypt.store(enable, Ordering::Release);
     }
