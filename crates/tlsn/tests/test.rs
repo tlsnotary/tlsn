@@ -162,3 +162,77 @@ async fn test_proxy() {
         0..10
     );
 }
+
+/// A proxy target that accepts TCP but closes during ClientHello must fail,
+/// rather than keep the TLS state machine pending with its server side closed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn proxy_target_eof_during_handshake() {
+    use std::{future::IntoFuture, time::Duration};
+    use tlsn::{config::tls::TlsClientConfig, verifier::VerifierCommitStart};
+    use tokio::io::AsyncReadExt;
+
+    let (p_io, v_io) = tokio::io::duplex(1 << 17);
+    let mut p_session = Session::new(p_io.compat());
+    let mut v_session = Session::new(v_io.compat());
+    let prover = p_session
+        .new_prover(ProverConfig::builder().build().unwrap())
+        .unwrap();
+    let verifier = v_session
+        .new_verifier(
+            VerifierConfig::builder()
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .build()
+                .unwrap(),
+        )
+        .unwrap();
+    let (p_driver, p_handle) = p_session.split();
+    let (v_driver, v_handle) = v_session.split();
+    let p_task = tokio::spawn(p_driver);
+    let v_task = tokio::spawn(v_driver);
+    let config = ProxyTlsConfig::builder()
+        .server_name(SERVER_DOMAIN.try_into().unwrap())
+        .build()
+        .unwrap();
+    let (prover, verifier) = tokio::join!(prover.commit(config), async {
+        let VerifierCommitStart::Proxy(verifier) = verifier.commit().await.unwrap() else {
+            panic!("wrong mode")
+        };
+        verifier.accept().await.unwrap()
+    });
+    let (server_io, mut target) = tokio::io::duplex(1 << 16);
+    let server_task = tokio::spawn(verifier.run(server_io.compat()));
+    let close_task = tokio::spawn(async move {
+        assert!(target.read(&mut [0; 1024]).await.unwrap() > 0);
+    });
+    let (_connection, prover) = prover
+        .unwrap()
+        .connect(
+            TlsClientConfig::builder()
+                .root_store(RootCertStore {
+                    roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+                })
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+                .build()
+                .unwrap(),
+        )
+        .unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(3), prover.into_future()).await;
+    // Always clean up session drivers, including the negative-control timeout.
+    p_handle.close();
+    v_handle.close();
+    p_task.abort();
+    v_task.abort();
+    server_task.abort();
+    close_task.await.unwrap();
+    let error = result
+        .expect("target EOF left the handshake pending")
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("server closed during TLS handshake"),
+        "{error}"
+    );
+}
