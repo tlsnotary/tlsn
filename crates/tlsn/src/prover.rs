@@ -299,15 +299,7 @@ where
     fn poll(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Error>> {
         let mut state = Pin::new(&mut self.state).project();
 
-        Self::io_to_tls_client(&mut state, cx)?;
-
-        if state.output.is_none()
-            && let Poll::Ready(output) = state.tls_client.poll(cx)?
-        {
-            *state.output = Some(output);
-        }
-
-        Self::io_from_tls_client(&mut state, cx)?;
+        Self::poll_io(&mut state, cx)?;
 
         if *state.server_closed && state.output.is_some() {
             ready!(state.client_io.poll_close(cx))?;
@@ -317,6 +309,33 @@ where
         }
 
         Poll::Pending
+    }
+
+    fn poll_io(state: &mut ConnectedProj<S>, cx: &mut std::task::Context<'_>) -> Result<()> {
+        Self::io_to_tls_client(state, cx)?;
+
+        let read_tls_ready = state.tls_client.wants_read_tls();
+        let write_ready = state.tls_client.wants_write();
+
+        if state.output.is_none()
+            && let Poll::Ready(output) = state.tls_client.poll(cx)?
+        {
+            *state.output = Some(output);
+        }
+
+        let progressed = Self::io_from_tls_client_progress(state, cx)?;
+
+        // Re-poll if this phase moved bytes or a direction that was blocked
+        // became consumable. Checking after `io_from_tls_client` also covers
+        // readiness changes caused by draining decrypted plaintext.
+        if progressed
+            || (!read_tls_ready && state.tls_client.wants_read_tls())
+            || (!write_ready && state.tls_client.wants_write())
+        {
+            cx.waker().wake_by_ref();
+        }
+
+        Ok(())
     }
 }
 
@@ -414,8 +433,6 @@ where
                     if write > 0 {
                         simplex.advance(write);
                     }
-                } else {
-                    cx.waker().wake_by_ref();
                 }
             } else if !*state.client_closed && !*state.server_closed {
                 *state.client_closed = true;
@@ -446,8 +463,6 @@ where
                     simplex.advance(read);
                     cx.waker().wake_by_ref();
                 }
-            } else if !buf.is_empty() {
-                cx.waker().wake_by_ref();
             }
         } else if *state.server_closed {
             state.tls_client.server_close();
@@ -456,10 +471,20 @@ where
         Ok(())
     }
 
+    #[cfg(test)]
     fn io_from_tls_client(
         state: &mut ConnectedProj<S>,
         cx: &mut std::task::Context<'_>,
     ) -> Result<(), Error> {
+        Self::io_from_tls_client_progress(state, cx).map(|_| ())
+    }
+
+    fn io_from_tls_client_progress(
+        state: &mut ConnectedProj<S>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Result<bool, Error> {
+        let mut progressed = false;
+
         // tls_client -> buf
         // Always poll to register wakers, then check wants_write_tls()
         if let Poll::Ready(mut simplex) = state.client_to_server.as_mut().poll_lock_write(cx)
@@ -468,6 +493,7 @@ where
             let write = state.tls_client.write_tls(buf)?;
             if write > 0 {
                 simplex.advance_mut(write);
+                progressed = true;
             } else if state.tls_client.wants_write_tls() {
                 cx.waker().wake_by_ref();
             }
@@ -484,9 +510,21 @@ where
                     let read = state.tls_client.read(buf)?;
                     if read > 0 {
                         simplex.advance_mut(read);
+                        progressed = true;
                     }
                 }
-                // do not attempt to write into closed sockets
+                // The application side is gone. If it still had plaintext to
+                // read, waiting for a reader that can never arrive would park
+                // the prover forever.
+                Poll::Ready(Err(err))
+                    if matches!(
+                        err.kind(),
+                        std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
+                    ) && state.tls_client.wants_read() =>
+                {
+                    return Err(Error::from(err));
+                }
+                // A closed application with nothing left to deliver is benign.
                 Poll::Ready(Err(err))
                     if matches!(
                         err.kind(),
@@ -497,7 +535,7 @@ where
             }
         }
 
-        Ok(())
+        Ok(progressed)
     }
 }
 

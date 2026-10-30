@@ -2657,7 +2657,7 @@ dependencies = [
 [[package]]
 name = "futures-plex"
 version = "0.1.0"
-source = "git+https://github.com/tlsnotary/tlsn-utils?rev=e2f31e6a30bc5d1641ed6407fb1a38a595e523ce#e2f31e6a30bc5d1641ed6407fb1a38a595e523ce"
+source = "git+https://github.com/tlsnotary/tlsn-utils?rev=3e4c31e9e40f514f0fe534daa3189d00e12c7a17#3e4c31e9e40f514f0fe534daa3189d00e12c7a17"
 dependencies = [
  "futures",
 ]

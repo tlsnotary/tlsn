@@ -280,7 +280,6 @@ impl TlsClient for MpcTlsClient {
                         self.poll(cx)
                     }
                     Poll::Ready(inner) => {
-                        cx.waker().wake_by_ref();
                         self.state = State::CloseActive { inner };
                         Poll::Pending
                     }
