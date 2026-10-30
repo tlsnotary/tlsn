@@ -52,18 +52,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-        # We use nightly to support `imports_granularity` feature
+        # We use nightly to support `imports_granularity`, but pin it so a
+        # nightly rustfmt change cannot break formatting across the repo.
       - name: Install nightly rust toolchain with rustfmt
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: nightly
+          toolchain: nightly-2026-10-21
           components: rustfmt
 
       - name: Use caching
         uses: Swatinem/rust-cache@v2.9.1
 
       - name: Check formatting
-        run: cargo +nightly fmt --check --all
+        run: cargo +nightly-2026-10-21 fmt --check --all
 
   build-and-test:
     name: Build and test
