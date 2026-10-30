@@ -1,25 +1,18 @@
 use std::{
-    pin::Pin,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
-    task::{Context, Poll},
+    task::Poll,
 };
 
-use futures::{AsyncWriteExt, task::waker};
 use mpz_common::Context as MpzContext;
-use tlsn_core::connection::ServerName;
 
-use super::harness::WakeCounter;
+use super::harness::TestProver;
 use crate::{
     Error, TlsOutput,
     deps::ProverZk,
-    prover::{
-        BUF_CAP, Prover, ProverControl,
-        client::{DecryptState, TlsClient},
-        state,
-    },
+    prover::client::{DecryptState, TlsClient},
 };
 
 struct MockTlsClient {
@@ -84,57 +77,27 @@ impl TlsClient for MockTlsClient {
 /// turns every poll into a busy loop while MPC work is pending.
 #[test]
 fn buffered_tls_input_does_not_self_wake() {
-    let (client_io, _app_io) = futures_plex::duplex(BUF_CAP);
-    let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
-    let (server_socket, mut server_peer) = futures_plex::duplex(BUF_CAP);
-
     let read_tls_calls = Arc::new(AtomicUsize::new(0));
     let decrypt = Arc::new(DecryptState::new());
 
-    let mut state = state::Connected {
-        server_name: ServerName::Dns("example.com".try_into().unwrap()),
-        tls_client: Box::new(MockTlsClient {
-            decrypt: decrypt.clone(),
-            read_tls_calls: read_tls_calls.clone(),
-        }),
-        control: ProverControl { decrypt },
-        client_io,
-        output: None,
-        server_socket,
-        client_to_server,
-        server_to_client,
-        client_closed: false,
-        server_closed: false,
+    let tls_client = MockTlsClient {
+        decrypt,
+        read_tls_calls: read_tls_calls.clone(),
     };
 
-    futures::executor::block_on(server_peer.write_all(&[0u8; 32])).unwrap();
-
-    let wake_counter = WakeCounter::new();
-    let waker = waker(wake_counter.clone());
-    let mut cx = Context::from_waker(&waker);
+    let mut prover = TestProver::new(Box::new(tls_client));
+    prover.write_server_tls(&[0u8; 32]);
 
     // First poll moves the server bytes into the TLS input buffer.
-    {
-        let mut proj = Pin::new(&mut state).project();
-        Prover::<state::Connected<futures_plex::DuplexStream>>::io_to_tls_client(
-            &mut proj, &mut cx,
-        )
-        .unwrap();
-    }
+    prover.poll_io_to().unwrap();
     // Discard the wake for moving bytes into the buffer; the next polls are
     // the ones under test.
-    wake_counter.take();
+    prover.take_wakes();
 
     let mut wakes = 0;
     for _ in 0..3 {
-        {
-            let mut proj = Pin::new(&mut state).project();
-            Prover::<state::Connected<futures_plex::DuplexStream>>::io_to_tls_client(
-                &mut proj, &mut cx,
-            )
-            .unwrap();
-        }
-        wakes += wake_counter.take();
+        prover.poll_io_to().unwrap();
+        wakes += prover.take_wakes();
     }
 
     assert_eq!(

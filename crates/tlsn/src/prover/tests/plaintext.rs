@@ -1,25 +1,18 @@
 use std::{
-    pin::Pin,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    task::{Context, Poll},
+    task::Poll,
 };
 
-use futures::{AsyncWriteExt, task::waker};
 use mpz_common::Context as MpzContext;
-use tlsn_core::connection::ServerName;
 
-use super::harness::WakeCounter;
+use super::harness::TestProver;
 use crate::{
     Error, TlsOutput,
     deps::ProverZk,
-    prover::{
-        BUF_CAP, Prover, ProverControl,
-        client::{DecryptState, TlsClient},
-        state,
-    },
+    prover::client::{DecryptState, TlsClient},
 };
 
 struct MockTlsClient {
@@ -85,10 +78,6 @@ impl TlsClient for MockTlsClient {
 /// while MPC work was pending.
 #[test]
 fn blocked_plaintext_does_not_self_wake() {
-    let (client_io, mut app_io) = futures_plex::duplex(BUF_CAP);
-    let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
-    let (server_socket, _server_peer) = futures_plex::duplex(BUF_CAP);
-
     let wants_write = Arc::new(AtomicBool::new(false));
     let written = Arc::new(Mutex::new(Vec::new()));
     let decrypt = Arc::new(DecryptState::new());
@@ -96,39 +85,17 @@ fn blocked_plaintext_does_not_self_wake() {
     let tls_client = MockTlsClient {
         wants_write: wants_write.clone(),
         written: written.clone(),
-        decrypt: decrypt.clone(),
+        decrypt,
     };
 
-    let mut state = state::Connected {
-        server_name: ServerName::Dns("example.com".try_into().unwrap()),
-        tls_client: Box::new(tls_client),
-        control: ProverControl { decrypt },
-        client_io,
-        output: None,
-        server_socket,
-        client_to_server,
-        server_to_client,
-        client_closed: false,
-        server_closed: false,
-    };
-
-    futures::executor::block_on(app_io.write_all(b"hello")).unwrap();
-
-    let wake_counter = WakeCounter::new();
-    let waker = waker(wake_counter.clone());
-    let mut cx = Context::from_waker(&waker);
+    let mut prover = TestProver::new(Box::new(tls_client));
+    prover.write_plaintext(b"hello");
 
     // The client cannot accept plaintext yet: the data stays queued and
     // the waker must not be re-armed.
-    {
-        let mut proj = Pin::new(&mut state).project();
-        Prover::<state::Connected<futures_plex::DuplexStream>>::io_to_tls_client(
-            &mut proj, &mut cx,
-        )
-        .unwrap();
-    }
+    prover.poll_io_to().unwrap();
     assert_eq!(
-        wake_counter.take(),
+        prover.take_wakes(),
         0,
         "blocked plaintext must not self-wake"
     );
@@ -136,12 +103,6 @@ fn blocked_plaintext_does_not_self_wake() {
 
     // Once the client is writable, the queued plaintext is consumed.
     wants_write.store(true, Ordering::Relaxed);
-    {
-        let mut proj = Pin::new(&mut state).project();
-        Prover::<state::Connected<futures_plex::DuplexStream>>::io_to_tls_client(
-            &mut proj, &mut cx,
-        )
-        .unwrap();
-    }
+    prover.poll_io_to().unwrap();
     assert_eq!(written.lock().unwrap().as_slice(), b"hello");
 }

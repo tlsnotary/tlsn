@@ -1,25 +1,23 @@
 use std::{
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    task::Poll,
 };
 
-use futures::task::noop_waker;
 use mpz_common::Context as MpzContext;
-use tlsn_core::connection::ServerName;
 
+use super::harness::TestProver;
 use crate::{
     Error, TlsOutput,
     deps::ProverZk,
-    prover::{
-        BUF_CAP, Prover, ProverControl,
-        client::{DecryptState, TlsClient},
-        state,
-    },
+    prover::client::{DecryptState, TlsClient},
 };
 
 struct MockTlsClient {
     decrypt: Arc<DecryptState>,
+    wants_read: Arc<AtomicBool>,
 }
 
 impl TlsClient for MockTlsClient {
@@ -42,7 +40,7 @@ impl TlsClient for MockTlsClient {
     }
 
     fn wants_read(&self) -> bool {
-        true
+        self.wants_read.load(Ordering::Relaxed)
     }
 
     fn wants_write(&self) -> bool {
@@ -78,38 +76,40 @@ impl TlsClient for MockTlsClient {
 /// closed channel. Otherwise it can wait forever for a reader that is gone.
 #[test]
 fn abandoned_client_with_pending_plaintext_terminates() {
-    let (client_io, app_io) = futures_plex::duplex(BUF_CAP);
-    let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
-    let (server_socket, _server_peer) = futures_plex::duplex(BUF_CAP);
-
     let decrypt = Arc::new(DecryptState::new());
-    let mut state = state::Connected {
-        server_name: ServerName::Dns("example.com".try_into().unwrap()),
-        tls_client: Box::new(MockTlsClient {
-            decrypt: decrypt.clone(),
-        }),
-        control: ProverControl { decrypt },
-        client_io,
-        output: None,
-        server_socket,
-        client_to_server,
-        server_to_client,
-        client_closed: false,
-        server_closed: false,
+    let tls_client = MockTlsClient {
+        decrypt,
+        wants_read: Arc::new(AtomicBool::new(true)),
     };
 
-    drop(app_io);
+    let mut prover = TestProver::new(Box::new(tls_client));
+    prover.abandon_client();
 
-    let waker = noop_waker();
-    let mut cx = Context::from_waker(&waker);
+    let err = prover
+        .poll_io_from()
+        .expect_err("closed client_io with pending plaintext must terminate");
 
-    let mut proj = Pin::new(&mut state).project();
-    let result = Prover::<state::Connected<futures_plex::DuplexStream>>::io_from_tls_client(
-        &mut proj, &mut cx,
-    );
+    assert!(err.is_io(), "expected an IO error, got: {err}");
+    let source = std::error::Error::source(&err).expect("IO error should have a source");
+    let io = source
+        .downcast_ref::<std::io::Error>()
+        .expect("source should be io::Error");
+    assert_eq!(io.kind(), std::io::ErrorKind::BrokenPipe);
+}
 
-    assert!(
-        result.is_err(),
-        "closed client_io with pending plaintext must terminate"
-    );
+/// The same abandoned channel is harmless if no plaintext is pending.
+#[test]
+fn abandoned_client_without_pending_plaintext_is_ignored() {
+    let decrypt = Arc::new(DecryptState::new());
+    let tls_client = MockTlsClient {
+        decrypt,
+        wants_read: Arc::new(AtomicBool::new(false)),
+    };
+
+    let mut prover = TestProver::new(Box::new(tls_client));
+    prover.abandon_client();
+
+    prover
+        .poll_io_from()
+        .expect("closed client_io without pending plaintext should be ignored");
 }
