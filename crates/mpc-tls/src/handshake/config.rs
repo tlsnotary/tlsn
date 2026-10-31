@@ -1,21 +1,9 @@
-use async_trait::async_trait;
-
-use crate::client::hs;
-use crate::MpcTlsLeader;
-use crate::client::{
-    anchors::RootCertStore,
-    conn::{ClientConnection, CommonState, State},
-    error::Error,
-    sign, verify,
-};
+use crate::handshake::{anchors::RootCertStore, error::Error, sign, verify};
 use std::sync::Arc;
 pub use tls_core::dns::*;
 use tls_core::{
     key,
-    msgs::{
-        enums::{CipherSuite, ProtocolVersion, SignatureScheme},
-        message::Message,
-    },
+    msgs::enums::{CipherSuite, ProtocolVersion, SignatureScheme},
     suites::{DEFAULT_CIPHER_SUITES, SupportedCipherSuite},
     versions,
 };
@@ -55,8 +43,10 @@ pub trait ResolvesClientCert: Send + Sync {
 ///
 /// # Defaults
 ///
-/// * [`ClientConfig::max_fragment_size`]: the default is `None`: TLS packets are not fragmented to a specific size.
-/// * [`ClientConfig::alpn_protocols`]: the default is empty -- no ALPN protocol is negotiated.
+/// * [`ClientConfig::max_fragment_size`]: the default is `None`: TLS packets
+///   are not fragmented to a specific size.
+/// * [`ClientConfig::alpn_protocols`]: the default is empty -- no ALPN protocol
+///   is negotiated.
 #[derive(Clone)]
 pub struct ClientConfig {
     /// List of ciphersuites, in preference order.
@@ -72,7 +62,8 @@ pub struct ClientConfig {
     /// rustls enforces an arbitrary minimum of 32 bytes for this field.
     /// Out of range values are reported as errors from ClientConnection::new.
     ///
-    /// Setting this value to the TCP MSS may improve latency for stream-y workloads.
+    /// Setting this value to the TCP MSS may improve latency for stream-y
+    /// workloads.
     pub max_fragment_size: Option<usize>,
 
     /// How to decide what client auth certificate/keys to use.
@@ -157,45 +148,6 @@ impl ClientConfig {
     }
 }
 
-struct Initialized {
-    server_name: ServerName,
-    config: Arc<ClientConfig>,
-}
-
-#[async_trait]
-impl State for Initialized {
-    async fn start(self: Box<Self>, cx: &mut CommonState) -> Result<Box<dyn State>, Error> {
-        hs::start_handshake(self.server_name, self.config, cx).await
-    }
-
-    async fn handle(
-        self: Box<Self>,
-        _cx: &mut CommonState,
-        _message: Message,
-    ) -> Result<Box<dyn State>, Error> {
-        unreachable!()
-    }
-}
-
-impl ClientConnection {
-    /// Make a new ClientConnection.  `config` controls how
-    /// we behave in the TLS protocol, `name` is the
-    /// name of the server we want to talk to.
-    pub fn new(
-        config: Arc<ClientConfig>,
-        backend: MpcTlsLeader,
-        name: ServerName,
-    ) -> Result<Self, Error> {
-        let common_state = CommonState::new(config.max_fragment_size, backend)?;
-        let state = Box::new(Initialized {
-            server_name: name,
-            config,
-        });
-
-        Ok(Self::new_inner(state, common_state))
-    }
-}
-
 // --- Client certificate resolvers (formerly handy.rs) ---
 
 struct FailResolveClientCert {}
@@ -217,10 +169,7 @@ impl ResolvesClientCert for FailResolveClientCert {
 struct AlwaysResolvesClientCert(Arc<sign::CertifiedKey>);
 
 impl AlwaysResolvesClientCert {
-    fn new(
-        chain: Vec<key::Certificate>,
-        priv_key: &key::PrivateKey,
-    ) -> Result<Self, Error> {
+    fn new(chain: Vec<key::Certificate>, priv_key: &key::PrivateKey) -> Result<Self, Error> {
         let key = sign::any_supported_type(priv_key)
             .map_err(|_| Error::General("invalid private key".into()))?;
         Ok(Self(Arc::new(sign::CertifiedKey::new(chain, key))))

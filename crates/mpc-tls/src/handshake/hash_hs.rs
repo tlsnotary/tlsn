@@ -10,9 +10,10 @@ use tls_core::{
 
 /// Early stage buffering of handshake payloads.
 ///
-/// Before we know the hash algorithm to use to verify the handshake, we just buffer the messages.
-/// During the handshake, we may restart the transcript due to a HelloRetryRequest, reverting
-/// from the `HandshakeHash` to a `HandshakeHashBuffer` again.
+/// Before we know the hash algorithm to use to verify the handshake, we just
+/// buffer the messages. During the handshake, we may restart the transcript due
+/// to a HelloRetryRequest, reverting from the `HandshakeHash` to a
+/// `HandshakeHashBuffer` again.
 pub(crate) struct HandshakeHashBuffer {
     buffer: Vec<u8>,
     client_auth_enabled: bool,
@@ -133,7 +134,6 @@ impl HandshakeHash {
     pub(crate) fn take_handshake_buf(&mut self) -> Option<Vec<u8>> {
         self.client_auth.take()
     }
-
 }
 
 #[cfg(test)]
