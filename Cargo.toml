@@ -68,21 +68,21 @@ tlsn-sdk-core = { path = "crates/sdk-core" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
-mpz-circuits = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-circuits-data = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-memory-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-common = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-vm-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-garble = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-garble-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-ole = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-ot = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-fields = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-zk = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-hash = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141", default-features = false }
-mpz-ideal-vm = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
+mpz-circuits = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-circuits-data = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-memory-core = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-common = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-core = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-vm-core = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-garble = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-garble-core = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-ole = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-ot = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-share-conversion = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-fields = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-zk = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
+mpz-hash = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137", default-features = false }
+mpz-ideal-vm = { git = "https://github.com/pirate/mpz2", rev = "ea756451b4245c059ca94e04e7398e1b872f0137" }
 
 futures-plex = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "3e4c31e9e40f514f0fe534daa3189d00e12c7a17" }
 rangeset = { version = "0.4" }
