@@ -240,6 +240,16 @@ impl TlsClient for MpcTlsClient {
                     }
                     return self.poll(cx);
                 }
+
+                if self.server_closed {
+                    // A server that disappears mid-handshake leaves nobody to
+                    // drive the MPC handshake and no socket to wake on. Without
+                    // this the state machine re-polls itself without bound.
+                    return Poll::Ready(Err(
+                        TlsnError::io().with_msg("server closed during TLS handshake")
+                    ));
+                }
+
                 self.state = State::Busy {
                     fut: Box::pin(inner.run()),
                 };
