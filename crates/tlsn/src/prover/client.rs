@@ -55,6 +55,14 @@ pub(crate) trait TlsClient {
         false
     }
 
+    /// Returns true when the write half of the transport can be closed.
+    fn wants_write_shutdown(&self) -> bool {
+        false
+    }
+
+    /// Notifies the client that the write half of the transport has been
+    /// closed.
+    fn write_shutdown_complete(&mut self) {}
     /// Returns the decryption state.
     fn decrypt(&self) -> Arc<DecryptState>;
 

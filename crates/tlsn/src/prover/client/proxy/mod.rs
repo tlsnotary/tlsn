@@ -40,6 +40,8 @@ pub(crate) struct ProxyTlsClient {
     traffic: TlsBytes,
     client_closed: bool,
     server_closed: bool,
+    write_shutdown_requested: bool,
+    write_shutdown_done: bool,
     state: State,
     decrypt: Arc<DecryptState>,
 }
@@ -115,6 +117,8 @@ impl ProxyTlsClient {
             traffic: TlsBytes::default(),
             client_closed: false,
             server_closed: false,
+            write_shutdown_requested: false,
+            write_shutdown_done: false,
             state: State::Init { prover },
             decrypt: Arc::new(decrypt),
         };
@@ -195,6 +199,14 @@ impl TlsClient for ProxyTlsClient {
         self.server_closed = true;
     }
 
+    fn wants_write_shutdown(&self) -> bool {
+        self.write_shutdown_requested && !self.write_shutdown_done
+    }
+
+    fn write_shutdown_complete(&mut self) {
+        self.write_shutdown_done = true;
+    }
+
     fn decrypt(&self) -> Arc<DecryptState> {
         self.decrypt.clone()
     }
@@ -255,6 +267,21 @@ impl TlsClient for ProxyTlsClient {
                         .with_msg("rustls error")
                         .with_source(err)
                 })?;
+
+                // Once the TLS send side has been flushed, the transport owner
+                // may close the write half.
+                if sent_close_notify && !self.conn.wants_write() {
+                    if !self.write_shutdown_requested {
+                        self.write_shutdown_requested = true;
+                    }
+                    if !self.write_shutdown_done {
+                        self.state = State::Connected {
+                            sent_close_notify,
+                            prover,
+                        };
+                        return Poll::Pending;
+                    }
+                }
 
                 if self.server_closed {
                     let ms = self.ms_log.take();

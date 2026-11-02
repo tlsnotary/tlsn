@@ -355,6 +355,17 @@ where
 
         let progressed = Self::io_from_tls_client_progress(state, cx)?;
 
+        if state.tls_client.wants_write_shutdown() {
+            match state.server_socket.as_mut().poll_close(cx) {
+                Poll::Ready(Ok(())) => {
+                    state.tls_client.write_shutdown_complete();
+                    cx.waker().wake_by_ref();
+                }
+                Poll::Ready(Err(e)) => return Err(Error::from(e)),
+                Poll::Pending => {}
+            }
+        }
+
         // Re-poll if this phase moved bytes or a direction that was blocked
         // became consumable. Checking after `io_from_tls_client` also covers
         // readiness changes caused by draining decrypted plaintext.
