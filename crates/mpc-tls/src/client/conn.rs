@@ -108,6 +108,11 @@ impl ClientConnection {
         self.common_state.backend.is_empty()
     }
 
+    /// Returns whether the peer has sent a `close_notify` alert.
+    pub fn received_close_notify(&self) -> bool {
+        self.common_state.has_received_close_notify
+    }
+
     /// Initiate the TLS protocol
     pub async fn start(&mut self) -> Result<(), Error> {
         let state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {

@@ -29,6 +29,7 @@ pub(crate) struct MpcTlsClient {
     decrypt: Arc<DecryptState>,
     client_wants_close: bool,
     server_closed: bool,
+    peer_closed: bool,
 }
 
 enum State {
@@ -87,6 +88,7 @@ impl MpcTlsClient {
             decrypt: Arc::new(decrypt),
             client_wants_close: false,
             server_closed: false,
+            peer_closed: false,
             state: State::Start {
                 inner: Box::new(inner),
             },
@@ -197,6 +199,10 @@ impl TlsClient for MpcTlsClient {
         self.server_closed = true;
     }
 
+    fn received_close_notify(&self) -> bool {
+        self.peer_closed
+    }
+
     fn decrypt(&self) -> Arc<DecryptState> {
         self.decrypt.clone()
     }
@@ -215,6 +221,7 @@ impl TlsClient for MpcTlsClient {
             }
             State::Active { mut inner } => {
                 trace!("inner client is active");
+                self.peer_closed |= inner.tls.received_close_notify();
                 let decrypt = self.decrypt.is_decrypting();
 
                 if !inner.tls.is_handshaking() {
@@ -260,6 +267,7 @@ impl TlsClient for MpcTlsClient {
 
                 match fut.as_mut().poll(cx)? {
                     Poll::Ready(inner) => {
+                        self.peer_closed |= inner.tls.received_close_notify();
                         self.state = State::Active { inner };
                         // re-poll immediately if a close transition is pending
                         if self.server_closed {

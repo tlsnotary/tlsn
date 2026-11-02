@@ -344,6 +344,15 @@ where
             *state.output = Some(output);
         }
 
+        // A peer that sends close_notify has finished its TLS stream even if
+        // it keeps the TCP connection open. Treat that as server closure so
+        // the prover does not wait for a FIN that may never arrive.
+        if !*state.server_closed && state.tls_client.received_close_notify() {
+            *state.server_closed = true;
+            state.tls_client.server_close();
+            cx.waker().wake_by_ref();
+        }
+
         let progressed = Self::io_from_tls_client_progress(state, cx)?;
 
         // Re-poll if this phase moved bytes or a direction that was blocked

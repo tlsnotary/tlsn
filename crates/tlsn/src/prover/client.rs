@@ -50,6 +50,11 @@ pub(crate) trait TlsClient {
     /// Server closes the connection.
     fn server_close(&mut self);
 
+    /// Returns whether the peer has sent a TLS `close_notify`.
+    fn received_close_notify(&self) -> bool {
+        false
+    }
+
     /// Returns the decryption state.
     fn decrypt(&self) -> Arc<DecryptState>;
 
