@@ -24,6 +24,7 @@ use crate::{
         future::FutureState,
         state::ConnectedProj,
     },
+    session::SessionClosure,
     tag::verify_tags,
 };
 
@@ -31,7 +32,7 @@ use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
 use mpz_vm_core::Execute;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::{fmt::Debug, marker::PhantomData, pin::Pin, task::Poll};
+use std::{fmt::Debug, marker::PhantomData, pin::Pin, sync::Arc, task::Poll};
 use tls_core::dns::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
@@ -51,6 +52,7 @@ pub struct Prover<T: state::ProverState = state::Initialized> {
     span: Span,
     ctx: Option<Context>,
     mux_handle: Handle,
+    closure: Arc<SessionClosure>,
     state: T,
 }
 
@@ -74,13 +76,19 @@ impl Prover<state::Initialized> {
     /// * `ctx` - A thread context.
     /// * `mux_handle` - A handle for the multiplexer.
     /// * `config` - The configuration for the prover.
-    pub(crate) fn new(ctx: Context, mux_handle: Handle, config: ProverConfig) -> Self {
+    pub(crate) fn new(
+        ctx: Context,
+        mux_handle: Handle,
+        config: ProverConfig,
+        closure: Arc<SessionClosure>,
+    ) -> Self {
         let span = info_span!("prover");
         Self {
             config,
             span,
             ctx: Some(ctx),
             mux_handle,
+            closure,
             state: state::Initialized,
         }
     }
@@ -142,6 +150,7 @@ impl Prover<state::Initialized> {
             span: self.span,
             ctx: None,
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::CommitAccepted {
                 deps,
                 _pd: PhantomData,
@@ -195,6 +204,7 @@ impl Prover<state::CommitAccepted<Mpc>> {
         let prover = Prover {
             ctx: self.ctx,
             mux_handle: self.mux_handle,
+            closure: self.closure,
             config: self.config,
             span: self.span,
             state: state::Connected {
@@ -265,6 +275,7 @@ impl Prover<state::CommitAccepted<Proxy>> {
         let prover = Prover {
             ctx: self.ctx,
             mux_handle: self.mux_handle,
+            closure: self.closure,
             config: self.config,
             span: self.span,
             state: state::Connected {
@@ -297,6 +308,16 @@ where
     }
 
     fn poll(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Error>> {
+        // The verifier may disappear while the prover is parked waiting on a
+        // silent server. The session driver notices the broken connection and
+        // wakes us here so the prover fails instead of hanging forever.
+        self.closure.register(cx.waker());
+        if self.closure.is_closed() {
+            return Poll::Ready(Err(
+                Error::io().with_msg("session closed while the prover was connected")
+            ));
+        }
+
         let mut state = Pin::new(&mut self.state).project();
 
         Self::poll_io(&mut state, cx)?;
@@ -406,6 +427,7 @@ where
             span: self.span,
             ctx: Some(ctx),
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::Committed {
                 vm,
                 server_name: self.state.server_name,

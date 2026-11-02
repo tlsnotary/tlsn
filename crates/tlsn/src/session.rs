@@ -96,6 +96,75 @@ impl SessionConfigBuilder {
 #[error(transparent)]
 pub struct SessionConfigError(#[from] tlsn_mux::ConfigError);
 
+/// Tracks whether the session connection has ended.
+///
+/// Protocol participants register their waker here so they can be cancelled
+/// when the connection is lost, even if no I/O they currently own would wake
+/// them.
+#[derive(Debug, Default)]
+pub(crate) struct SessionClosure {
+    closed: AtomicBool,
+    wakers: Mutex<Vec<Waker>>,
+}
+
+impl SessionClosure {
+    /// Marks the session as closed and wakes all registered participants.
+    fn close(&self) {
+        if self.closed.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let wakers: Vec<Waker> = self.wakers.lock().unwrap().drain(..).collect();
+        for waker in wakers {
+            waker.wake();
+        }
+    }
+
+    /// Returns whether the session has closed.
+    pub(crate) fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::Acquire)
+    }
+
+    /// Registers a waker to be woken if the session closes.
+    pub(crate) fn register(&self, waker: &Waker) {
+        let mut wakers = self.wakers.lock().unwrap();
+
+        // Re-check under the lock: `close()` may have run between the caller's
+        // own check and this registration.
+        if self.is_closed() {
+            drop(wakers);
+            waker.wake_by_ref();
+            return;
+        }
+
+        if !wakers.iter().any(|w| w.will_wake(waker)) {
+            wakers.push(waker.clone());
+        }
+    }
+
+    /// Returns a future that resolves when the session closes.
+    pub(crate) fn closed(&self) -> Closed<'_> {
+        Closed { closure: self }
+    }
+}
+
+/// Future that resolves once the session connection has closed.
+pub(crate) struct Closed<'a> {
+    closure: &'a SessionClosure,
+}
+
+impl Future for Closed<'_> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+        self.closure.register(cx.waker());
+        if self.closure.is_closed() {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
 /// A TLSNotary session over a communication channel.
 ///
 /// Wraps an async IO stream and provides multiplexing for the protocol. Use
@@ -116,6 +185,7 @@ pub struct Session<Io> {
     conn: Option<Connection<Io>>,
     executor: MpzSession,
     handle: Handle,
+    closure: Arc<SessionClosure>,
 }
 
 impl<Io> Session<Io>
@@ -147,6 +217,7 @@ where
             conn: Some(conn),
             executor,
             handle,
+            closure: Arc::new(SessionClosure::default()),
         }
     }
 
@@ -161,7 +232,12 @@ where
                 .with_source(e)
         })?;
 
-        Ok(Prover::new(ctx, self.handle.clone(), config))
+        Ok(Prover::new(
+            ctx,
+            self.handle.clone(),
+            config,
+            self.closure.clone(),
+        ))
     }
 
     /// Creates a new verifier.
@@ -175,7 +251,12 @@ where
                 .with_source(e)
         })?;
 
-        Ok(Verifier::new(ctx, self.handle.clone(), config))
+        Ok(Verifier::new(
+            ctx,
+            self.handle.clone(),
+            config,
+            self.closure.clone(),
+        ))
     }
 
     /// Returns `true` if the session is closed.
@@ -214,7 +295,8 @@ where
 
     /// Polls the session.
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.conn
+        let poll = self
+            .conn
             .as_mut()
             .ok_or_else(|| {
                 Error::io()
@@ -225,7 +307,13 @@ where
                 Error::io()
                     .with_msg("error occurred while polling the session connection")
                     .with_source(e)
-            })
+            });
+
+        if poll.is_ready() {
+            self.closure.close();
+        }
+
+        poll
     }
 
     /// Splits the session into a driver and handle.
@@ -241,12 +329,14 @@ where
                 conn: self.conn,
                 should_close: should_close.clone(),
                 waker: waker.clone(),
+                closure: self.closure.clone(),
             },
             SessionHandle {
                 executor: self.executor,
                 should_close,
                 waker,
                 handle: self.handle,
+                closure: self.closure,
             },
         )
     }
@@ -272,6 +362,7 @@ pub struct SessionDriver<Io> {
     conn: Option<Connection<Io>>,
     should_close: Arc<AtomicBool>,
     waker: Arc<Mutex<Option<Waker>>>,
+    closure: Arc<SessionClosure>,
 }
 
 impl<Io> SessionDriver<Io>
@@ -296,8 +387,11 @@ where
         }
 
         match conn.poll(cx) {
-            Poll::Ready(Ok(())) => {}
+            Poll::Ready(Ok(())) => {
+                self.closure.close();
+            }
             Poll::Ready(Err(e)) => {
+                self.closure.close();
                 return Poll::Ready(Err(Error::io()
                     .with_msg("error polling session connection")
                     .with_source(e)));
@@ -324,6 +418,14 @@ where
     }
 }
 
+impl<Io> Drop for SessionDriver<Io> {
+    fn drop(&mut self) {
+        // The driver may be dropped without ever completing (e.g. the task is
+        // aborted). Participants must still learn that the session is gone.
+        self.closure.close();
+    }
+}
+
 /// The control half of a split session.
 ///
 /// Used to create provers/verifiers and control the session lifecycle.
@@ -332,6 +434,7 @@ pub struct SessionHandle {
     should_close: Arc<AtomicBool>,
     waker: Arc<Mutex<Option<Waker>>>,
     handle: Handle,
+    closure: Arc<SessionClosure>,
 }
 
 impl SessionHandle {
@@ -346,7 +449,12 @@ impl SessionHandle {
                 .with_source(e)
         })?;
 
-        Ok(Prover::new(ctx, self.handle.clone(), config))
+        Ok(Prover::new(
+            ctx,
+            self.handle.clone(),
+            config,
+            self.closure.clone(),
+        ))
     }
 
     /// Creates a new verifier.
@@ -360,7 +468,12 @@ impl SessionHandle {
                 .with_source(e)
         })?;
 
-        Ok(Verifier::new(ctx, self.handle.clone(), config))
+        Ok(Verifier::new(
+            ctx,
+            self.handle.clone(),
+            config,
+            self.closure.clone(),
+        ))
     }
 
     /// Signals the session to close.

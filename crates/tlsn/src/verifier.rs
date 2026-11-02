@@ -10,9 +10,13 @@ use crate::{
     deps::{VerifierDeps, VerifierMpcDeps, VerifierProxyDeps},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
+    session::SessionClosure,
     tag::verify_tags,
 };
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use futures::{
+    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt,
+    future::{Either, select},
+};
 use mpz_common::Context;
 use mpz_vm_core::prelude::*;
 use serio::{SinkExt, stream::IoStreamExt};
@@ -44,6 +48,7 @@ pub struct Verifier<T: state::VerifierState = state::Initialized> {
     span: Span,
     ctx: Option<Context>,
     mux_handle: Handle,
+    closure: Arc<SessionClosure>,
     state: T,
 }
 
@@ -55,13 +60,19 @@ impl Verifier<state::Initialized> {
     /// * `ctx` - A thread context.
     /// * `mux_handle` - A handle for the multiplexer.
     /// * `config` - The configuration for the verifier.
-    pub(crate) fn new(ctx: Context, mux_handle: Handle, config: VerifierConfig) -> Self {
+    pub(crate) fn new(
+        ctx: Context,
+        mux_handle: Handle,
+        config: VerifierConfig,
+        closure: Arc<SessionClosure>,
+    ) -> Self {
         let span = info_span!("verifier");
         Self {
             config,
             span,
             ctx: Some(ctx),
             mux_handle,
+            closure,
             state: state::Initialized,
         }
     }
@@ -109,6 +120,7 @@ impl Verifier<state::Initialized> {
                 span: self.span,
                 ctx: Some(ctx),
                 mux_handle: self.mux_handle,
+                closure: self.closure,
                 state: state::CommitStart {
                     config,
                     _pd: PhantomData,
@@ -119,6 +131,7 @@ impl Verifier<state::Initialized> {
                 span: self.span,
                 ctx: Some(ctx),
                 mux_handle: self.mux_handle,
+                closure: self.closure,
                 state: state::CommitStart {
                     config,
                     _pd: PhantomData,
@@ -164,6 +177,7 @@ impl<P> Verifier<state::CommitStart<P>> {
             span: self.span,
             ctx: None,
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::CommitAccepted {
                 deps,
                 _pd: PhantomData,
@@ -217,6 +231,16 @@ impl Verifier<state::CommitAccepted<Mpc>> {
     /// This method is used for MPC mode only.
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run(self) -> Result<Verifier<state::Committed>> {
+        let closure = self.closure.clone();
+        match select(Box::pin(self.run_inner()), Box::pin(closure.closed())).await {
+            Either::Left((result, _)) => result,
+            Either::Right(_) => {
+                Err(Error::io().with_msg("session closed while the verifier was running"))
+            }
+        }
+    }
+
+    async fn run_inner(self) -> Result<Verifier<state::Committed>> {
         let VerifierDeps::Mpc(VerifierMpcDeps { vm, mpc_tls, keys }) = self.state.deps else {
             unreachable!("mpc-tls received incorrect deps")
         };
@@ -288,6 +312,7 @@ impl Verifier<state::CommitAccepted<Mpc>> {
             span: self.span,
             ctx: Some(ctx),
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::Committed {
                 vm,
                 keys,
@@ -308,6 +333,24 @@ impl Verifier<state::CommitAccepted<Proxy>> {
     ///   disable Nagle's algorithm; see [Performance](crate#performance).
     #[instrument(parent = &self.span, level = "info", skip_all, err)]
     pub async fn run<T>(self, server_socket: T) -> Result<Verifier<state::Committed>>
+    where
+        T: AsyncRead + AsyncWrite + Send + Unpin,
+    {
+        let closure = self.closure.clone();
+        match select(
+            Box::pin(self.run_inner(server_socket)),
+            Box::pin(closure.closed()),
+        )
+        .await
+        {
+            Either::Left((result, _)) => result,
+            Either::Right(_) => {
+                Err(Error::io().with_msg("session closed while the verifier was running"))
+            }
+        }
+    }
+
+    async fn run_inner<T>(self, server_socket: T) -> Result<Verifier<state::Committed>>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin,
     {
@@ -403,6 +446,7 @@ impl Verifier<state::CommitAccepted<Proxy>> {
             span: self.span,
             ctx: Some(ctx),
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::Committed {
                 vm,
                 keys,
@@ -446,6 +490,7 @@ impl Verifier<state::Committed> {
             span: self.span,
             ctx: Some(ctx),
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::Verify {
                 vm,
                 keys,
@@ -516,6 +561,7 @@ impl Verifier<state::Verify> {
                 span: self.span,
                 ctx: Some(ctx),
                 mux_handle: self.mux_handle,
+                closure: self.closure,
                 state: state::Committed {
                     vm,
                     keys,
@@ -549,6 +595,7 @@ impl Verifier<state::Verify> {
             span: self.span,
             ctx: Some(ctx),
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::Committed {
                 vm,
                 keys,
