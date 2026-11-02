@@ -34,17 +34,29 @@ const ALLOWED_SUITES: &[CipherSuite] = &[
 ];
 
 pub(crate) struct ProxyTlsClient {
+    /// TLS client connection state machine.
     conn: ClientConnection,
+    /// Master secret captured during the handshake for finalization.
     ms_log: Arc<MasterSecretLog>,
+    /// Connection timestamp, set when the handshake completes.
     time: Option<u64>,
+    /// Captured TLS and application traffic for the transcript.
     traffic: TlsBytes,
+    /// Whether the application client closed its side.
     client_closed: bool,
+    /// Whether the server transport closed abruptly (EOF/BrokenPipe).
     server_closed: bool,
+    /// Whether the server sent a TLS close_notify.
     server_tls_closed: bool,
+    /// Whether ProxyFinished has been sent to the verifier.
     finished_sent: bool,
+    /// Whether the transport write half should be closed.
     write_shutdown_requested: bool,
+    /// Whether the transport write half has been closed.
     write_shutdown_done: bool,
+    /// Protocol state machine.
     state: State,
+    /// Shared decryption toggle.
     decrypt: Arc<DecryptState>,
 }
 
