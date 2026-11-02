@@ -72,6 +72,7 @@
 
 mod deps;
 mod error;
+mod future;
 pub(crate) mod ghash;
 pub(crate) mod map;
 pub(crate) mod msg;
